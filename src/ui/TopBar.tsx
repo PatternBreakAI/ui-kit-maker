@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Sparkles, ChevronDown, Lock } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock } from "lucide-react";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
@@ -94,7 +94,7 @@ export function TopBar() {
         <button className={`acct${shine ? " on" : ""}`} onClick={() => setShine(!shine)}
           aria-label={shine ? "Turn the shine sweep off" : "Turn the shine sweep on"} aria-pressed={shine}
           title={shine ? "Shine sweep — on" : "Shine sweep — off"} data-shinebtn="1">
-          <Sparkles size={17} strokeWidth={1.9} />
+          <Star size={17} strokeWidth={1.9} />
         </button>
 
         <button className="acct" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
