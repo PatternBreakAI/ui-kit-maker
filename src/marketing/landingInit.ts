@@ -200,7 +200,7 @@ export function initLanding(deps: LandingDeps) {
       /* ── DOM ── */
       const $ = (id) => document.getElementById(id);
       const masterSvg = $("masterSvg"), masterLabelEl = $("masterLabelEl"), masterWrap = $("masterWrap");
-      const stStatus = $("stStatus"), playCtl = $("playCtl"), pauseCtl = $("pauseCtl");
+      const stStatus = $("stStatus");
       const roundR = $("roundR"), shineR = $("shineR"), roundVal = $("roundVal"), shineVal = $("shineVal");
       const labelIn = $("labelIn"), kitScroll = $("kitScroll"), kitHint = $("kitHint");
       const pushBtn = $("pushBtn"), pushLabel = $("pushLabel"), kitReady = $("kitReady");
@@ -317,7 +317,6 @@ export function initLanding(deps: LandingDeps) {
       const startAttract = () => {
         userControlled = false;
         stStatus.textContent = t("prev"); stStatus.classList.remove("is-user");
-        playCtl.classList.add("is-on"); pauseCtl.classList.remove("is-on");
         clearInterval(attractTimer);
         attractTimer = setInterval(() => { reelI = (reelI + 1) % REEL.length; applyReelEntry(REEL[reelI]); }, reduceMotion ? 6000 : 2800);
       };
@@ -326,10 +325,7 @@ export function initLanding(deps: LandingDeps) {
         userControlled = true;
         clearInterval(attractTimer);
         stStatus.textContent = t("yours"); stStatus.classList.add("is-user");
-        playCtl.classList.remove("is-on"); pauseCtl.classList.add("is-on");
       };
-      playCtl.addEventListener("click", startAttract);
-      pauseCtl.addEventListener("click", takeOver);
 
       /* FONT — the four faces shipped with this page (all from the app's roster) */
       { const fw = $("fontChips");
@@ -1016,7 +1012,7 @@ cust:"CUSTOMIZE",pushKit:"PUSH TO A KIT",pushBoard:"PUSH TO A BOARD",pushExport:
 fKit:"KIT READY",fBoard:"BOARD READY",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
-upBtn:"⭱ UPLOAD YOUR IMAGE",dim:"DIM",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ SHARE",maxB:"Four boards in the demo — the app is unlimited.",
+upBtn:"⭱ UPLOAD YOUR IMAGE",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ SHARE",maxB:"Four boards in the demo — the app is unlimited.",
 upMsg:"In the real app: drop in any PNG or JPG — your concept art, your screenshot, your world.",
 pngMsg:"Each board exports as a full-resolution PNG artboard.",shareMsg:"Every board gets a read-only share link teammates can open.",
 sb1t:"1 MASTER COMPONENT",sb1s:"Infinite variations.",sb2t:"90+ COMPONENTS",sb2s:"Every essential.",sb3t:"4 STATES",sb3s:"Always in sync.",sb4t:"EXPORT ANYWHERE",sb4s:"Engines, web, PNG, SVG.",galL:"Straight from the app",galT:"The real thing, three screens deep.",
@@ -1059,7 +1055,7 @@ cust:"自定义",pushKit:"生成组件库",pushBoard:"进入画板",pushExport:"
 fKit:"组件库就绪",fBoard:"画板就绪",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
-upBtn:"⭱ 上传你的图片",dim:"调暗",boardW:"画板",addB:"+ 画板",pngB:"⭳ PNG",shareB:"⤴ 分享",maxB:"演示最多四块画板——正式版不限。",
+upBtn:"⭱ 上传你的图片",dim:"暗角",boardW:"画板",addB:"+ 画板",pngB:"⭳ PNG",shareB:"⤴ 分享",maxB:"演示最多四块画板——正式版不限。",
 upMsg:"正式应用中：拖入任意 PNG/JPG——你的概念图、截图、你的世界。",
 pngMsg:"每块画板都可导出为全分辨率 PNG。",shareMsg:"每块画板都有只读分享链接，队友可直接打开。",
 sb1t:"1 个母版组件",sb1s:"无限变化。",sb2t:"90+ 个组件",sb2s:"应有尽有。",sb3t:"4 种状态",sb3s:"永远同步。",sb4t:"随处导出",sb4s:"引擎、Web、PNG、SVG。",galL:"来自真实应用",galT:"真实产品，三个界面。",
@@ -1102,7 +1098,7 @@ cust:"PERSONNALISER",pushKit:"GÉNÉRER LE KIT",pushBoard:"VERS LE BOARD",pushEx
 fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
-upBtn:"⭱ IMPORTEZ VOTRE IMAGE",dim:"FONDU",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ PARTAGER",maxB:"Quatre boards dans la démo — illimité dans l’app.",
+upBtn:"⭱ IMPORTEZ VOTRE IMAGE",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ PARTAGER",maxB:"Quatre boards dans la démo — illimité dans l’app.",
 upMsg:"Dans l’app : déposez n’importe quel PNG/JPG — concept art, capture, votre monde.",
 pngMsg:"Chaque board s’exporte en PNG pleine résolution.",shareMsg:"Chaque board a un lien de partage en lecture seule.",
 sb1t:"1 COMPOSANT MASTER",sb1s:"Variations infinies.",sb2t:"90+ COMPOSANTS",sb2s:"Tous les essentiels.",sb3t:"4 ÉTATS",sb3s:"Toujours synchronisés.",sb4t:"EXPORT PARTOUT",sb4s:"Moteurs, web, PNG, SVG.",galL:"Tout droit de l’app",galT:"Le vrai produit, trois écrans.",
@@ -1145,7 +1141,7 @@ cust:"PERSONALIZAR",pushKit:"CREAR EL KIT",pushBoard:"AL BOARD",pushExport:"EXPO
 fKit:"KIT LISTO",fBoard:"BOARD LISTO",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
-upBtn:"⭱ SUBE TU IMAGEN",dim:"ATENUAR",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ COMPARTIR",maxB:"Cuatro boards en la demo — la app es ilimitada.",
+upBtn:"⭱ SUBE TU IMAGEN",dim:"VIÑETA",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ COMPARTIR",maxB:"Cuatro boards en la demo — la app es ilimitada.",
 upMsg:"En la app: suelta cualquier PNG/JPG — tu concept art, tu captura, tu mundo.",
 pngMsg:"Cada board se exporta como PNG a resolución completa.",shareMsg:"Cada board tiene un enlace de solo lectura para compartir.",
 sb1t:"1 COMPONENTE MASTER",sb1s:"Variaciones infinitas.",sb2t:"90+ COMPONENTES",sb2s:"Todo lo esencial.",sb3t:"4 ESTADOS",sb3s:"Siempre en sincronía.",sb4t:"EXPORTA DONDE SEA",sb4s:"Motores, web, PNG, SVG.",galL:"Directo de la app",galT:"El producto real, tres pantallas.",
@@ -1188,7 +1184,7 @@ cust:"PERSONALIZZA",pushKit:"CREA IL KIT",pushBoard:"ALLA BOARD",pushExport:"ESP
 fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
-upBtn:"⭱ CARICA LA TUA IMMAGINE",dim:"DIM",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ CONDIVIDI",maxB:"Quattro board nella demo — l’app è senza limiti.",
+upBtn:"⭱ CARICA LA TUA IMMAGINE",dim:"VIGNETTATURA",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ CONDIVIDI",maxB:"Quattro board nella demo — l’app è senza limiti.",
 upMsg:"Nell’app: trascina qualsiasi PNG/JPG — il tuo concept, il tuo screenshot, il tuo mondo.",
 pngMsg:"Ogni board si esporta come PNG a piena risoluzione.",shareMsg:"Ogni board ha un link di condivisione in sola lettura.",
 sb1t:"1 COMPONENTE MASTER",sb1s:"Variazioni infinite.",sb2t:"90+ COMPONENTI",sb2s:"Tutto l’essenziale.",sb3t:"4 STATI",sb3s:"Sempre in sincronia.",sb4t:"ESPORTA OVUNQUE",sb4s:"Engine, web, PNG, SVG.",galL:"Direttamente dall’app",galT:"Il prodotto vero, tre schermate.",
@@ -1231,7 +1227,7 @@ cust:"ANPASSEN",pushKit:"ZUM KIT MACHEN",pushBoard:"AUFS BOARD",pushExport:"EXPO
 fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
-upBtn:"⭱ EIGENES BILD HOCHLADEN",dim:"DIMMEN",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ TEILEN",maxB:"Vier Boards in der Demo — die App ist unbegrenzt.",
+upBtn:"⭱ EIGENES BILD HOCHLADEN",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ TEILEN",maxB:"Vier Boards in der Demo — die App ist unbegrenzt.",
 upMsg:"In der echten App: Zieh ein beliebiges PNG oder JPG hinein — dein Concept-Art, dein Screenshot, deine Welt.",
 pngMsg:"Jedes Board exportiert als PNG in voller Auflösung.",shareMsg:"Jedes Board bekommt einen Read-only-Link fürs Team.",
 sb1t:"1 MASTER-KOMPONENTE",sb1s:"Unendliche Varianten.",sb2t:"90+ KOMPONENTEN",sb2s:"Alles Wesentliche.",sb3t:"4 ZUSTÄNDE",sb3s:"Immer synchron.",sb4t:"ÜBERALLHIN EXPORTIEREN",sb4s:"Engines, Web, PNG, SVG.",galL:"Direkt aus der App",galT:"Das echte Produkt, drei Screens tief.",
@@ -1274,7 +1270,7 @@ cust:"カスタマイズ",pushKit:"キットを生成",pushBoard:"ボードへ",
 fKit:"キット完成",fBoard:"ボード完成",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
-upBtn:"⭱ 画像をアップロード",dim:"調光",boardW:"ボード",addB:"+ ボード",pngB:"⭳ PNG",shareB:"⤴ 共有",maxB:"デモでは4枚まで — アプリは無制限。",
+upBtn:"⭱ 画像をアップロード",dim:"ビネット",boardW:"ボード",addB:"+ ボード",pngB:"⭳ PNG",shareB:"⤴ 共有",maxB:"デモでは4枚まで — アプリは無制限。",
 upMsg:"本番アプリでは任意のPNG/JPGをドロップ — コンセプトアートもスクショも。",
 pngMsg:"各ボードはフル解像度PNGとして書き出せます。",shareMsg:"各ボードに読み取り専用の共有リンクが付きます。",
 sb1t:"マスターコンポーネント×1",sb1s:"無限のバリエーション。",sb2t:"90+コンポーネント",sb2s:"必須がすべて。",sb3t:"4ステート",sb3s:"常に同期。",sb4t:"どこへでも書き出し",sb4s:"エンジン・Web・PNG・SVG。",galL:"実際のアプリから",galT:"本物のプロダクト、3つの画面。",
