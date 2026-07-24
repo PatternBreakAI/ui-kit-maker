@@ -1,4 +1,4 @@
-# Component roadmap — 67 shipped → 114 (P1 COMPLETE)
+# Component roadmap — 81 shipped → 114 (P1 + P2 COMPLETE)
 
 Current inventory (47): primary, secondary, small, ghost, iconbtn, chip,
 badge, tab, segment, header, checkbox, radio, toggle, slider, input,
@@ -52,14 +52,36 @@ interactive sub-element, never the whole frame:
 | loadbar | — (value = fill; heading editable) | mercury follows Glow role |
 | others | frame dims for disabled only | labels/values per piece |
 
-## P2 · RPG / MMO pack — 14
+## P2 · RPG / MMO pack — 14 ✅ SHIPPED (v81)
 
-health globe (liquid orb), XP bar with level notches + level bubble,
-twin mana/stamina rails, quest tracker panel (objectives + checks),
-dialogue box (speaker plate + continue arrow), dialogue choice list,
-inventory grid (N×M slots), rarity frame set (common→legendary),
-equipment slot silhouettes, skill-tree node + connector, compass ribbon,
-party member frame, floating damage number, loot drop tag.
+| # | Component | Notes |
+|---|-----------|-------|
+| 1 | Health globe | liquid sphere; the liquid follows the Glow role |
+| 2 | XP bar | level bubble + milestone notches; label = the level |
+| 3 | Mana & stamina rails | twin bars; blue/green are genre semantics |
+| 4 | Quest tracker | objectives + check pips; value = completed share |
+| 5 | Dialogue box | speaker plate + bobbing continue arrow |
+| 6 | Dialogue choices | value scrubs the highlighted response |
+| 7 | Inventory grid | 4×3 wells, counts, selected cell |
+| 8 | Rarity frame | one frame, five tiers; value picks the tier |
+| 9 | Equipment slot | ghosted gear silhouette shows what belongs |
+| 10 | Skill node | circular socket + connector stubs; lit stub = learned path |
+| 11 | Compass ribbon | windowed heading strip; value = heading |
+| 12 | Party frame | portrait + HP/MP rails; whole frame is selectable |
+| 13 | Damage number | shell-free combat type; >0.7 goes CRIT |
+| 14 | Loot tag | rarity stripe + gem + tier word |
+
+### Editing contracts — RPG pack
+
+| Piece | Hover / pressed target | Extra editable channels |
+|---|---|---|
+| questpanel | active objective's pip (ring, glow) | quest name via label |
+| dialoguebox | continue arrow (glow, brightness) | first line via label |
+| choicelist | active choice capsule | — |
+| invgrid | selected cell's ring | — |
+| skillnode | whole node (a real button) | icon swap; overlay = state |
+| partyframe | whole frame (party selection) | name via label |
+| others | frame; rarity aura brightens | tier/heading/fill via value |
 
 ## P3 · Shooter / action pack — 10
 
@@ -86,7 +108,7 @@ toast.
 **Math: 47 + 20 + 14 + 10 + 11 + 12 = 114.**
 
 Sequencing recommendation: P1 first (raises every genre's floor and the
-marketing "components" number fastest), then P2 and P4 (the two biggest
-paying audiences: RPG and mobile-casual), then P3/P5. Each pack lands as
+marketing "components" number fastest) — done; then P2 (done) and P4
+(the two biggest paying audiences: RPG and mobile-casual), then P3/P5. Each pack lands as
 its own version so the kit page grows a chapter at a time, and pack
 names double as marketing beats ("the RPG pack just dropped").

@@ -1480,6 +1480,19 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
 const SIZE_K: Record<KitSize, number> = { s: 0.72, m: 1, l: 1.22 };
 const cxOf = (w: number) => w / 2;
 
+/* Genre-standard rarity ramp — shared by the rarity frame and loot tag.
+   These are semantic colors (like the pad-button console ring), not theme
+   roles: players read rarity by hue before they read any label. */
+const RARITY_TIERS = [
+  { name: "COMMON", c: "#9aa1ac" },
+  { name: "UNCOMMON", c: "#22c55e" },
+  { name: "RARE", c: "#3b82f6" },
+  { name: "EPIC", c: "#a855f7" },
+  { name: "LEGENDARY", c: "#f59e0b" },
+] as const;
+const rarityOf = (v: number | undefined, fallback = 2) =>
+  RARITY_TIERS[v === undefined ? fallback : clamp(Math.round(v * (RARITY_TIERS.length - 1)), 0, RARITY_TIERS.length - 1)];
+
 /** Dimensional candy ball — knobs for toggles, switches and sliders. */
 function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string): string {
   const kid = "kn" + UID++;
@@ -2495,6 +2508,404 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         inner += `<rect x="${cx0.toFixed(1)}" y="${(cy - 17 * k).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(34 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidT})` : wellFill}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""} stroke="${on ? darken(bevel, 0.3) : "rgba(255,255,255,0.14)"}" stroke-width="1"/>`;
       }
       return inject(shell.replace("<svg ", '<svg data-stepper="1" '), inner);
+    }
+    case "healthglobe": {
+      /* RPG · health globe — the Diablo lineage: a glass sphere with the
+         liquid inside. The liquid follows the Glow role (same contract as
+         the loading-bar mercury); value = fill. */
+      const dG = ({ s: 116, m: 148, l: 188 } as Record<KitSize, number>)[size] * k;
+      const padG = 30;
+      const cG = dG / 2 + padG, rG = dG / 2;
+      const rimW = Math.max(7, dG * 0.075);
+      const inR = rG - rimW - 2;
+      const vG = clamp(value ?? 0.72, 0, 1);
+      const gidG = "hg" + UID++;
+      const dim = state === "disabled" ? 0.45 : 1;
+      const surfY = cG + inR - vG * inR * 2;
+      const waveAmp = inR * 0.05;
+      const wave = `M ${(cG - inR).toFixed(1)} ${surfY.toFixed(1)} Q ${(cG - inR / 2).toFixed(1)} ${(surfY - waveAmp * 2).toFixed(1)} ${cG.toFixed(1)} ${surfY.toFixed(1)} T ${(cG + inR).toFixed(1)} ${surfY.toFixed(1)} L ${(cG + inR).toFixed(1)} ${(cG + inR).toFixed(1)} L ${(cG - inR).toFixed(1)} ${(cG + inR).toFixed(1)} Z`;
+      const bubbles = vG > 0.15 ? `
+  <circle cx="${(cG - inR * 0.28).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.42).toFixed(1)}" r="${(inR * 0.055).toFixed(1)}" fill="${lighten(glow, 0.5)}" opacity="0.55"/>
+  <circle cx="${(cG + inR * 0.18).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.62).toFixed(1)}" r="${(inR * 0.038).toFixed(1)}" fill="${lighten(glow, 0.5)}" opacity="0.45"/>
+  <circle cx="${(cG - inR * 0.05).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.25).toFixed(1)}" r="${(inR * 0.03).toFixed(1)}" fill="${lighten(glow, 0.6)}" opacity="0.6"/>` : "";
+      const totalG = dG + padG * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalG}" height="${totalG}" viewBox="0 0 ${totalG} ${totalG}" data-healthglobe="1" role="img" aria-label="health ${Math.round(vG * 100)}%">
+<defs>
+  <linearGradient id="${gidG}r" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="${lighten(bevel, 0.42)}"/>
+    <stop offset="0.5" stop-color="${bevel}"/>
+    <stop offset="1" stop-color="${darken(bevel, 0.3)}"/>
+  </linearGradient>
+  <radialGradient id="${gidG}glass" cx="0.5" cy="0.4" r="0.85">
+    <stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.6)}"/>
+    <stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.85)}"/>
+  </radialGradient>
+  <linearGradient id="${gidG}l" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="${lighten(glow, 0.5)}"/>
+    <stop offset="0.35" stop-color="${glow}"/>
+    <stop offset="1" stop-color="${darken(glow, 0.35)}"/>
+  </linearGradient>
+  <clipPath id="${gidG}c"><circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}"/></clipPath>
+</defs>
+<g opacity="${dim}">
+  ${state === "hover" && vG > 0 ? `<circle cx="${cG}" cy="${cG}" r="${(rG + rimW * 0.35).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.45)}" stroke-width="${(rimW * 0.5).toFixed(1)}" style="filter: blur(3px)"/>` : ""}
+  <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="url(#${gidG}glass)"/>
+  <g clip-path="url(#${gidG}c)">
+    ${vG > 0.01 ? `<path d="${wave}" fill="url(#${gidG}l)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(inR * 0.12).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>
+    <ellipse cx="${cG}" cy="${surfY.toFixed(1)}" rx="${(inR * 0.92).toFixed(1)}" ry="${(waveAmp * 1.4).toFixed(1)}" fill="${lighten(glow, 0.55)}" opacity="0.5"/>` : ""}
+    ${bubbles}
+    ${vG > 0.05 ? `<ellipse cx="${cG}" cy="${(cG + inR * 0.8).toFixed(1)}" rx="${(inR * 0.7).toFixed(1)}" ry="${(inR * 0.22).toFixed(1)}" fill="${darken(glow, 0.4)}" opacity="0.5"/>` : ""}
+  </g>
+  <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}r)" stroke-width="${rimW.toFixed(1)}"/>
+  <circle cx="${cG}" cy="${cG}" r="${(rG - rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
+  <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="0.6"/>
+  <ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>
+</g>
+</svg>`;
+    }
+    case "xpbar": {
+      /* RPG · XP bar — level bubble riding the left end, notched track,
+         gild fill with a comet head. value = progress; label = the level. */
+      const w = 760 * k, h = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 120 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const vX = clamp(value ?? 0.45, 0, 1);
+      const lvl = (opts.label ?? "12").slice(0, 3);
+      const cy = 30 + h / 2;
+      const knobR = 32 * k;
+      const knobX = 39 + inset + knobR + 2 * k;
+      const gidX = "xp" + UID++;
+      const labY = 30 + inset + 14 * k;
+      const barH = 28 * k;
+      const barX = knobX + knobR + 16 * k, barW = 39 + w - inset - 12 * k - barX;
+      const barY = 30 + h - inset - barH - 8 * k;
+      const headX = barX + barW * vX;
+      let parts = `<text x="${(barX + barW).toFixed(1)}" y="${labY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.72)" text-anchor="end" dominant-baseline="central">${Math.round(vX * 2000).toLocaleString("en-US")} / 2,000 XP</text>` +
+        contentText("NEXT: LV " + (parseInt(lvl, 10) + 1 || "?"), barX + 2, labY, 19 * k * typeK) +
+        `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+        `<defs><linearGradient id="${gidX}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.55)}"/><stop offset="0.45" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.28)}"/></linearGradient></defs>`;
+      if (vX > 0.02) {
+        parts += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${(barW * vX).toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="url(#${gidX})" stroke="${darken(bevel, 0.5)}" stroke-width="1.3"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/>
+          <rect x="${(barX + 5 * k).toFixed(1)}" y="${(barY + 3 * k).toFixed(1)}" width="${Math.max(0, barW * vX - 10 * k).toFixed(1)}" height="${(barH * 0.3).toFixed(1)}" rx="${(barH * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+      }
+      // level notches — milestone marks cut through track and fill alike
+      for (const f of [0.2, 0.4, 0.6, 0.8]) {
+        parts += `<rect x="${(barX + barW * f - 1.1).toFixed(1)}" y="${(barY + 2).toFixed(1)}" width="2.2" height="${(barH - 4).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>`;
+      }
+      if (vX > 0.02 && state !== "disabled") parts += `<circle cx="${headX.toFixed(1)}" cy="${(barY + barH / 2).toFixed(1)}" r="${(barH * 0.32).toFixed(1)}" fill="${lighten(glow, 0.6)}" style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(lighten(glow, 0.4), 0.9)})"/>`;
+      parts += candyKnob(knobX, cy, knobR, knobC) +
+        `<text x="${knobX.toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(28 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${esc(lvl)}</text>`;
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-xpbar="1" '), parts), barX, barW);
+    }
+    case "manarails": {
+      /* RPG · twin mana/stamina rails — genre-semantic hues (like the pad
+         button's console ring): mana blue, stamina green. value scrubs mana;
+         stamina counter-moves so the piece feels alive under the scrub. */
+      const w = 560 * k, h = 128 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 130 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const railH = 22 * k;
+      const y1 = 30 + h / 2 - railH - 7 * k, y2 = 30 + h / 2 + 7 * k;
+      const vM = clamp(value ?? 0.66, 0, 1);
+      const vS = clamp(0.15 + (1 - vM) * 0.7, 0, 1);
+      const railX = 39 + inset + 58 * k, railW = 39 + w - inset - 16 * k - railX;
+      const rail = (ry: number, vR: number, cR: string, ic: IconDef | undefined) => {
+        const gidM = "mr" + UID++;
+        return (ic ? iconGroup(ic, 39 + inset + 18 * k, ry + railH / 2 - 14 * k, 28 * k, cR, { strokeWidth: 2.2 * iconWK }) : "") +
+          `<rect x="${railX.toFixed(1)}" y="${ry.toFixed(1)}" width="${railW.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+          `<defs><linearGradient id="${gidM}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.5)}"/><stop offset="0.45" stop-color="${cR}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
+          (vR > 0.03 ? `<rect x="${railX.toFixed(1)}" y="${ry.toFixed(1)}" width="${(railW * vR).toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="url(#${gidM})" stroke="${darken(cR, 0.45)}" stroke-width="1.1"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(cR, 0.6)})"` : ""}/>
+            <rect x="${(railX + 4 * k).toFixed(1)}" y="${(ry + 2.5 * k).toFixed(1)}" width="${Math.max(0, railW * vR - 8 * k).toFixed(1)}" height="${(railH * 0.32).toFixed(1)}" rx="${(railH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` : "");
+      };
+      return inject(shell.replace("<svg ", '<svg data-manarails="1" '),
+        rail(y1, vM, "#38bdf8", STOCK_ICONS.flask) + rail(y2, vS, "#4ade80", STOCK_ICONS.zap));
+    }
+    case "questpanel": {
+      /* RPG · quest tracker — quest name, objective rows with check pips,
+         progress footer. value = completed share (0..1 over 3 objectives).
+         editing contract: hover/pressed strengthen the ACTIVE objective's
+         marker; the frame only dims for disabled. */
+      const w = 520 * k, h = 384 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 10 * k;
+      const x0 = 42 + inset + 16 * k, xr = 42 + w - inset - 16 * k;
+      const doneN = clamp(Math.round(clamp(value ?? 0.6, 0, 1) * 3), 0, 3);
+      let inner = `<text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="rgba(255,255,255,0.5)" dominant-baseline="central">SIDE QUEST</text>` +
+        contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK) +
+        `<rect x="${x0.toFixed(1)}" y="${(33 + inset + 80 * k).toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
+      const objs = [
+        { lbl: "Reach the vault gate" },
+        { lbl: "Recover ember shards", count: "1/3" },
+        { lbl: "Return to Elder Rowan" },
+      ];
+      const rowY0 = 33 + inset + 102 * k, rowH = 58 * k, pipR = 15 * k;
+      objs.forEach((o, i) => {
+        const ry = rowY0 + i * rowH + rowH / 2;
+        const done = i < doneN;
+        const active = i === doneN && state !== "disabled";
+        if (done) {
+          inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.4"/>` +
+            iconGroup(STOCK_ICONS.check, x0 + pipR - pipR * 0.58, ry - pipR * 0.58, pipR * 1.16, "#FFFFFF", { strokeWidth: 3 * iconWK });
+        } else {
+          const hotQ = active && (state === "hover" || state === "pressed");
+          inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
+        }
+        inner += contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, opacity: done ? 0.55 : active ? 1 : 0.75 });
+        if (o.count && !done) inner += `<text x="${xr.toFixed(1)}" y="${(ry + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.6)" text-anchor="end" dominant-baseline="central">${esc(o.count)}</text>`;
+      });
+      const fy = 33 + h - inset - 30 * k, fH = 12 * k;
+      const gidQ = "qp" + UID++;
+      const fw = (xr - x0) - 56 * k;
+      inner += `<rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="${wellFill}"/>` +
+        `<defs><linearGradient id="${gidQ}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
+        (doneN > 0 ? `<rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${(fw * doneN / 3).toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="url(#${gidQ})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "") +
+        `<text x="${xr.toFixed(1)}" y="${(fy + fH / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.7)" text-anchor="end" dominant-baseline="central">${doneN}/3</text>`;
+      return inject(shell.replace("<svg ", '<svg data-questpanel="1" '), inner);
+    }
+    case "dialoguebox": {
+      /* RPG · dialogue box — speaker plate riding the top edge, two lines,
+         bobbing continue arrow. label overrides the first line.
+         editing contract: hover/pressed target the CONTINUE ARROW; the
+         frame only dims for disabled. */
+      const w = 760 * k, h = 230 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 10 * k;
+      const plateW = 232 * k, plateH = 46 * k;
+      const px0 = 42 + inset + 12 * k, py0 = 33 - plateH * 0.42;
+      const gidB = "db" + UID++;
+      const plate = `<defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
+        <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
+        ${contentText("ELDER ROWAN", px0 + plateW / 2, py0 + plateH / 2 + 1, 19 * k * typeK, { anchor: "middle" })}`;
+      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true });
+      const line2 = contentText("Take the ember pass at first light.", 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8 });
+      const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
+      const hotA = state === "hover" || state === "pressed";
+      const arrow = state !== "disabled"
+        ? `<g><animateTransform attributeName="transform" type="translate" values="0 0; 0 ${(5 * k).toFixed(1)}; 0 0" dur="1.3s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+            <path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="${hotA ? lighten(glow, 0.35) : glow}" style="filter: drop-shadow(0 0 ${((hotA ? 9 : 5) * k).toFixed(1)}px ${hexRgba(glow, hotA ? 0.9 : 0.65)})"/></g>`
+        : `<path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.3)"/>`;
+      return inject(shell.replace("<svg ", '<svg data-dialoguebox="1" '), plate + line1 + line2 + arrow);
+    }
+    case "choicelist": {
+      /* RPG · dialogue choices — three response capsules; value scrubs the
+         highlighted one. editing contract: hover/pressed restyle the ACTIVE
+         choice; the frame only dims for disabled. */
+      const w = 560 * k, rowH = 78 * k, nCh = 3;
+      const h = rowH * nCh + 56 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 10 * k;
+      const sel = clamp(Math.round(clamp(value ?? 0, 0, 1) * (nCh - 1)), 0, nCh - 1);
+      const choices = ["Ask about the ruins", "Show the sealed letter", "Leave — for now"];
+      const x0 = 42 + inset + 8 * k, rw = w - inset * 2 - 16 * k;
+      let inner = "";
+      choices.forEach((c9, i) => {
+        const ry = 33 + inset + 10 * k + i * rowH;
+        const on9 = i === sel && state !== "disabled";
+        const hotC = on9 && state === "hover", pressC = on9 && state === "pressed";
+        inner += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="${on9 ? hexRgba(glow, pressC ? 0.4 : hotC ? 0.32 : 0.22) : "rgba(255,255,255,0.06)"}" stroke="${on9 ? hexRgba(glow, hotC || pressC ? 0.95 : 0.65) : "rgba(255,255,255,0.14)"}" stroke-width="${hotC ? 2.2 : 1.4}"${hotC ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
+        if (on9 && STOCK_ICONS.play) inner += themedIcon(STOCK_ICONS.play, x0 + 14 * k, ry + (rowH - 12 * k) / 2 - 11 * k, 22 * k, glow, 2.4);
+        inner += contentText(c9, x0 + (on9 ? 48 : 24) * k, ry + (rowH - 12 * k) / 2 + 1, 23 * k * typeK, { keepCase: true, opacity: on9 ? 1 : 0.8 });
+        inner += `<text x="${(x0 + rw - 18 * k).toFixed(1)}" y="${(ry + (rowH - 12 * k) / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.35)" text-anchor="end" dominant-baseline="central">${i + 1}</text>`;
+      });
+      return inject(shell.replace("<svg ", '<svg data-choicelist="1" '), inner);
+    }
+    case "invgrid": {
+      /* RPG · inventory grid — 4×3 wells in one panel, mixed contents, one
+         selected cell. value scrubs the selection.
+         editing contract: hover/pressed strengthen the SELECTED cell's
+         ring; the frame only dims for disabled. */
+      const cols = 4, rowsI = 3, gap = 10 * k;
+      const w = 520 * k;
+      const insetI = bw + 12 * k;
+      const cell = (w - insetI * 2 - 12 * k - (cols - 1) * gap) / cols;
+      const headH = 52 * k;
+      const h = insetI * 2 + headH + rowsI * cell + (rowsI - 1) * gap + 14 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const gx0 = 42 + insetI + 6 * k, gy0 = 33 + insetI + headH;
+      const items: (keyof typeof STOCK_ICONS | null)[] = ["sword", "shield", "flask", "gem", "scroll", "key", "helmet", "boots", "zap", null, null, null];
+      const counts: Record<number, string> = { 2: "5", 3: "14" };
+      const sel = clamp(Math.round(clamp(value ?? 0.42, 0, 1) * (cols * rowsI - 1)), 0, cols * rowsI - 1);
+      let inner = contentText("INVENTORY", gx0 + 4 * k, 33 + insetI + 22 * k, 23 * k * typeK) +
+        `<text x="${(42 + w - insetI - 10 * k).toFixed(1)}" y="${(33 + insetI + 22 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.6)" text-anchor="end" dominant-baseline="central">9/12</text>`;
+      for (let i = 0; i < cols * rowsI; i++) {
+        const cxI = gx0 + (i % cols) * (cell + gap), cyI = gy0 + Math.floor(i / cols) * (cell + gap);
+        inner += `<rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+        const icKey = items[i];
+        if (icKey && STOCK_ICONS[icKey]) inner += themedIcon(STOCK_ICONS[icKey], cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
+        if (counts[i]) inner += `<circle cx="${(cxI + cell - 12 * k).toFixed(1)}" cy="${(cyI + cell - 12 * k).toFixed(1)}" r="${(12 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.3"/><text x="${(cxI + cell - 12 * k).toFixed(1)}" y="${(cyI + cell - 11 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
+        if (i === sel && state !== "disabled") {
+          const hotI = state === "hover" || state === "pressed";
+          inner += `<rect x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
+        }
+      }
+      return inject(shell.replace("<svg ", '<svg data-invgrid="1" '), inner);
+    }
+    case "rarityframe": {
+      /* RPG · rarity frame — the slot whose aura IS the tier. value picks
+         the tier (0 common → 1 legendary); hue is genre-semantic, like the
+         pad button's console ring. */
+      const s = 132 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const tier = rarityOf(value, 0);
+      const hotR9 = state === "hover" || state === "pressed";
+      const aura = `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${tier.c}" stroke-width="${((hotR9 ? 5.5 : 4) * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.95}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotR9 ? 10 : 6) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/>`;
+      const inset = bw + 5;
+      const well = `<path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/>`;
+      const gem = STOCK_ICONS.gem ? iconGroup(STOCK_ICONS.gem, 39 + s / 2 - 27 * k, 30 + s / 2 - 33 * k, 54 * k, state === "disabled" ? "#A7AAB4" : lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
+      const tag = `<text x="${(39 + s / 2).toFixed(1)}" y="${(30 + s - inset - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing="0.14em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${tier.name}</text>`;
+      return injectUnder(inject(shell.replace("<svg ", '<svg data-rarityframe="1" '), well + gem + tag), aura);
+    }
+    case "equipslot": {
+      /* RPG · equipment slot — an empty socket showing WHAT belongs there:
+         ghosted gear silhouette + dashed seat. opts.icon picks the gear. */
+      const s = 132 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const inset = bw + 5;
+      const well = `<path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/>` +
+        `<path d="${wellOf(s, s, inset + 8 * k)}" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="2" stroke-dasharray="6 5"/>`;
+      const ic = opts.icon ?? STOCK_ICONS.helmet;
+      const ghost = ic ? iconGroup(ic, 39 + s / 2 - 28 * k, 30 + s / 2 - 28 * k, 56 * k, state === "hover" ? "rgba(255,255,255,0.62)" : "rgba(255,255,255,0.38)", { strokeWidth: 2 * iconWK }) : "";
+      return inject(shell.replace("<svg ", '<svg data-equipslot="1" '), well + ghost);
+    }
+    case "skillnode": {
+      /* RPG · skill-tree node — a circular socket with connector stubs; the
+         lit stub is the learned path. overlay: "locked" | "learned" |
+         (default) available. The node is a real button — build drives its
+         hover/pressed states natively. */
+      const s = 136 * k;
+      const ic = opts.icon ?? STOCK_ICONS.zap ?? null;
+      const shell = build(cfg, opts.overlay === "locked" ? "disabled" : state, { x: 39, y: 30, h: s, fs: 0, iconSize: 58 * k }, { iconDef: ic, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const extrK = (cfg.candy.extrusion?.depth ?? 0) * (sh / 168);
+      const cyK = sy + sh / 2 - extrK * 0.5;
+      const stubW = 9 * k;
+      const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${glow}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
+        <line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/>`;
+      let over = "";
+      if (opts.overlay === "locked") {
+        const fcM = /url\(#([A-Za-z0-9_-]+)fc\)/.exec(shell);
+        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,0.5)"/></g>`;
+        over += iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 14 * k, cyK - 14 * k, 28 * k, "rgba(255,255,255,0.9)", { strokeWidth: 2.4 * iconWK });
+      } else if (opts.overlay === "learned") {
+        over += `<circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.45)}" stroke-width="1.5"/>` +
+          iconGroup(STOCK_ICONS.check, sx + sw - 17 * k, sy - 1 * k, 18 * k, "#FFFFFF", { strokeWidth: 3 * iconWK });
+      }
+      return inject(injectUnder(shell.replace("<svg ", '<svg data-skillnode="1" '), stubs), over);
+    }
+    case "compass": {
+      /* RPG · compass ribbon — a windowed heading strip: cardinal letters in
+         the kit type, minor ticks, center needle. value = heading (0..1 →
+         0..360°); ticks fade toward the window edges. */
+      const w = 640 * k, h = 96 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 104 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cxC = 39 + w / 2, cy = 30 + h / 2;
+      const heading = clamp(value ?? 0.08, 0, 1) * 360;
+      const span = 62;
+      const pxPerDeg = (w / 2 - inset - 26 * k) / span;
+      const gidC9 = "cp" + UID++;
+      const wellP = wellOf(w, h, inset + 3 * k);
+      let inner = `<defs><clipPath id="${gidC9}"><path d="${wellP}"/></clipPath></defs><path d="${wellP}" fill="${wellFill}" opacity="0.9"/><g clip-path="url(#${gidC9})">`;
+      const names: Record<number, string> = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
+      for (let d9 = 0; d9 < 360; d9 += 15) {
+        const delta = ((d9 - heading + 540) % 360) - 180;
+        if (Math.abs(delta) > span) continue;
+        const x9 = cxC + delta * pxPerDeg;
+        const fade = Math.max(0, 1 - Math.pow(Math.abs(delta) / span, 1.6));
+        if (d9 % 90 === 0) {
+          inner += contentText(names[d9], x9, cy - 4 * k, 30 * k * typeK, { anchor: "middle", keepCase: true, opacity: fade });
+        } else if (d9 % 45 === 0) {
+          inner += `<text x="${x9.toFixed(1)}" y="${(cy - 3 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.55)" text-anchor="middle" dominant-baseline="central" opacity="${fade.toFixed(2)}">${names[d9]}</text>`;
+        }
+        inner += `<line x1="${x9.toFixed(1)}" y1="${(cy + 14 * k).toFixed(1)}" x2="${x9.toFixed(1)}" y2="${(cy + (d9 % 45 === 0 ? 26 : 21) * k).toFixed(1)}" stroke="rgba(255,255,255,${d9 % 45 === 0 ? 0.75 : 0.45})" stroke-width="${(d9 % 90 === 0 ? 2.6 : 1.7).toFixed(1)}" opacity="${fade.toFixed(2)}"/>`;
+      }
+      inner += "</g>";
+      const needleTop = 30 + inset + 5 * k;
+      inner += `<path d="M ${(cxC - 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${(cxC + 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${cxC.toFixed(1)} ${(needleTop + 10 * k).toFixed(1)} Z" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
+        <line x1="${cxC.toFixed(1)}" y1="${(needleTop + 12 * k).toFixed(1)}" x2="${cxC.toFixed(1)}" y2="${(30 + h - inset - 8 * k).toFixed(1)}" stroke="${hexRgba(glow, 0.55)}" stroke-width="${(2 * k).toFixed(1)}"/>`;
+      return inject(shell.replace("<svg ", '<svg data-compass="1" '), inner);
+    }
+    case "partyframe": {
+      /* RPG · party member frame — mini portrait, name, HP/MP rails. The
+         whole frame is the interactive element (party selection), so the
+         shell takes hover/pressed natively. value = HP; MP counter-moves. */
+      const w = 400 * k, h = 132 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const cy = 30 + h / 2;
+      const pr = 33 * k, pcx = 39 + inset + pr + 8 * k;
+      const gidP9 = "pf" + UID++;
+      const portrait = `<defs><clipPath id="${gidP9}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
+        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
+        <g clip-path="url(#${gidP9})" opacity="${state === "disabled" ? 0.4 : 1}">
+          <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
+          <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
+        </g>
+        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.35)}" stroke-width="1.6"/>
+        ${candyKnob(pcx - pr * 0.72, cy + pr * 0.74, 12 * k, knobC)}
+        <text x="${(pcx - pr * 0.72).toFixed(1)}" y="${(cy + pr * 0.74 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">12</text>`;
+      const tx0 = pcx + pr + 16 * k, txw = 39 + w - inset - 12 * k - tx0;
+      const vHP = clamp(value ?? 0.78, 0, 1);
+      const vMP = clamp(0.25 + (1 - vHP) * 0.5, 0, 1);
+      const railH = 12 * k;
+      const rail9 = (ry: number, vR: number, cR: string) => {
+        const gid9b = "pr" + UID++;
+        return `<rect x="${tx0.toFixed(1)}" y="${ry.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
+          `<defs><linearGradient id="${gid9b}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.45)}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
+          (vR > 0.04 ? `<rect x="${tx0.toFixed(1)}" y="${ry.toFixed(1)}" width="${(txw * vR).toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="url(#${gid9b})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(cR, 0.55)})"` : ""}/>` : "");
+      };
+      const parts = portrait +
+        contentText(opts.label ?? "KIRA", tx0, 30 + inset + 20 * k, 24 * k * typeK, { keepCase: true }) +
+        (STOCK_ICONS.sword ? iconGroup(STOCK_ICONS.sword, 39 + w - inset - 30 * k, 30 + inset + 8 * k, 22 * k, "rgba(255,255,255,0.45)", { strokeWidth: 2 * iconWK }) : "") +
+        rail9(cy + 8 * k, vHP, "#4ade80") + rail9(cy + 28 * k, vMP, "#38bdf8");
+      return inject(shell.replace("<svg ", '<svg data-partyframe="1" '), parts);
+    }
+    case "dmgnumber": {
+      /* RPG · floating damage number — shell-free combat type. value scales
+         the magnitude; past 0.7 it goes CRIT (burst word + sparks). The
+         number itself carries the full type treatment. */
+      const vD = clamp(value ?? 0.35, 0, 1);
+      const crit = vD > 0.7;
+      const amt = opts.label ?? Math.round(120 + vD * 1800).toLocaleString("en-US");
+      const fsD = (52 + vD * 36) * k * typeK;
+      const WD = 400 * k, HD = 210 * k;
+      const cxD = WD / 2, cyD = HD * 0.56;
+      const dim = state === "disabled" ? 0.45 : 1;
+      let sparks = "";
+      if (crit && state !== "disabled") {
+        for (let i = 0; i < 6; i++) {
+          const aD = (-80 + i * 52) * Math.PI / 180;
+          const r1 = fsD * 0.72, r2 = r1 + 16 * k + (i % 2) * 9 * k;
+          sparks += `<line x1="${(cxD + r1 * Math.cos(aD)).toFixed(1)}" y1="${(cyD + r1 * Math.sin(aD) * 0.62).toFixed(1)}" x2="${(cxD + r2 * Math.cos(aD)).toFixed(1)}" y2="${(cyD + r2 * Math.sin(aD) * 0.62).toFixed(1)}" stroke="${lighten(glow, 0.3)}" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.7)})"/>`;
+        }
+      }
+      const critWord = crit
+        ? `<text x="${(cxD + fsD * 0.9).toFixed(1)}" y="${(cyD - fsD * 0.62).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(24 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.08em" fill="${lighten(glow, 0.35)}" text-anchor="middle" dominant-baseline="central" transform="rotate(6 ${(cxD + fsD * 0.9).toFixed(1)} ${(cyD - fsD * 0.62).toFixed(1)})" style="paint-order: stroke; stroke: rgba(0,0,0,0.6); stroke-width: 4px${state !== "disabled" ? `; filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.8)})` : ""}">CRIT!</text>`
+        : "";
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WD.toFixed(0)}" height="${HD.toFixed(0)}" viewBox="0 0 ${WD.toFixed(0)} ${HD.toFixed(0)}" data-dmgnumber="1" role="img" aria-label="damage ${amt}">
+<g opacity="${dim}">${sparks}<g transform="rotate(-6 ${cxD.toFixed(1)} ${cyD.toFixed(1)})">${contentText(amt, cxD, cyD, fsD, { anchor: "middle", keepCase: true })}</g>${critWord}</g>
+</svg>`;
+    }
+    case "loottag": {
+      /* RPG · loot drop tag — ground-loot label: rarity stripe + gem, item
+         name, tier word. value picks the tier. */
+      const w = 400 * k, h = 92 * k;
+      const tier = rarityOf(value, 2);
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 100 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const hotL9 = state === "hover" || state === "pressed";
+      const stripe = `<rect x="${(39 + inset + 12 * k).toFixed(1)}" y="${(30 + inset + 12 * k).toFixed(1)}" width="${(6 * k).toFixed(1)}" height="${(h - inset * 2 - 24 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${tier.c}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotL9 ? 7 : 4) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/>`;
+      const gem = STOCK_ICONS.gem ? iconGroup(STOCK_ICONS.gem, 39 + inset + 30 * k, cy - 15 * k, 30 * k, state === "disabled" ? "#A7AAB4" : lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
+      const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
+      const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${tier.name}</text>`;
+      return inject(shell.replace("<svg ", '<svg data-loottag="1" '), stripe + gem + name + tag);
     }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected

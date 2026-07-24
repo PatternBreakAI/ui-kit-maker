@@ -774,7 +774,10 @@ export type KitComponentId =
   | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn"
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
   | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
-  | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper";
+  | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper"
+  | "healthglobe" | "xpbar" | "manarails" | "questpanel" | "dialoguebox"
+  | "choicelist" | "invgrid" | "rarityframe" | "equipslot" | "skillnode"
+  | "compass" | "partyframe" | "dmgnumber" | "loottag";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -798,6 +801,20 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "buffframe", name: "Buff frame" },
   { id: "cooldown", name: "Cooldown radial" },
   { id: "stepper", name: "Stepper" },
+  { id: "healthglobe", name: "Health globe" },
+  { id: "xpbar", name: "XP bar" },
+  { id: "manarails", name: "Mana & stamina" },
+  { id: "questpanel", name: "Quest tracker" },
+  { id: "dialoguebox", name: "Dialogue box" },
+  { id: "choicelist", name: "Dialogue choices" },
+  { id: "invgrid", name: "Inventory grid" },
+  { id: "rarityframe", name: "Rarity frame" },
+  { id: "equipslot", name: "Equipment slot" },
+  { id: "skillnode", name: "Skill node" },
+  { id: "compass", name: "Compass ribbon" },
+  { id: "partyframe", name: "Party frame" },
+  { id: "dmgnumber", name: "Damage number" },
+  { id: "loottag", name: "Loot tag" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -974,6 +991,18 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   currency: "pill",
   buffframe: "round",
   stepper: "pill",
+  xpbar: "pill",
+  manarails: "pill",
+  questpanel: "kenneyRect",
+  dialoguebox: "round",
+  choicelist: "kenneyRect",
+  invgrid: "kenneyRect",
+  rarityframe: "kenneyRect",
+  equipslot: "kenneyRect",
+  skillnode: "pill",       // skill nodes live in circular sockets
+  compass: "pill",
+  partyframe: "kenneyRect",
+  loottag: "kenneyTag",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",

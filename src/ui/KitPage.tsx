@@ -1774,6 +1774,59 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      <Sec n="10" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity hues are genre-standard semantics — like the pad button's console rings — while everything else follows the kit's roles.">
+        <div className="kp-subhead">Vitals & progression</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="healthglobe" caption="Health globe" value={0.72} scale={0.52} />
+          <Piece id="healthglobe" caption="Low health" value={0.2} scale={0.52} />
+          <Piece id="manarails" caption="Mana & stamina" value={0.66} scale={0.5} />
+          <Piece id="xpbar" caption="XP bar · level notches" value={0.45} scale={0.46} />
+        </div>
+        <div className="kp-subhead">Quests & dialogue</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="questpanel" caption="Quest tracker" value={0.6} scale={0.44} />
+          <Piece id="dialoguebox" caption="Dialogue box" scale={0.44} />
+          <Piece id="choicelist" caption="Dialogue choices" value={0} scale={0.44} />
+        </div>
+        <div className="kp-subhead">Inventory & party</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="invgrid" caption="Inventory grid" value={0.42} scale={0.46} />
+          <Piece id="partyframe" caption="Party frame" value={0.78} scale={0.5} />
+          <Piece id="partyframe" caption="Party · hurt" value={0.24} scale={0.5} />
+          <Piece id="compass" caption="Compass ribbon" value={0.08} scale={0.48} />
+        </div>
+        <div className="kp-subhead">Rarity — one frame, five tiers</div>
+        <div className="kp-tray">
+          <Piece id="rarityframe" caption="Common" value={0} scale={0.46} />
+          <Piece id="rarityframe" caption="Uncommon" value={0.25} scale={0.46} />
+          <Piece id="rarityframe" caption="Rare" value={0.5} scale={0.46} />
+          <Piece id="rarityframe" caption="Epic" value={0.75} scale={0.46} />
+          <Piece id="rarityframe" caption="Legendary" value={1} scale={0.46} />
+        </div>
+        <div className="kp-subhead">Equipment sockets — the ghost shows what belongs</div>
+        <div className="kp-tray">
+          <Piece id="equipslot" caption="Head" icon={STOCK_ICONS.helmet} scale={0.46} />
+          <Piece id="equipslot" caption="Chest" icon={STOCK_ICONS.shirt} scale={0.46} />
+          <Piece id="equipslot" caption="Hands" icon={STOCK_ICONS.hand} scale={0.46} />
+          <Piece id="equipslot" caption="Feet" icon={STOCK_ICONS.boots} scale={0.46} />
+          <Piece id="equipslot" caption="Weapon" icon={STOCK_ICONS.sword} scale={0.46} />
+          <Piece id="equipslot" caption="Offhand" icon={STOCK_ICONS.shield} scale={0.46} />
+        </div>
+        <div className="kp-subhead">Skill tree & combat feedback</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="skillnode" caption="Available" scale={0.5} />
+          <Piece id="skillnode" caption="Learned" overlay="learned" scale={0.5} />
+          <Piece id="skillnode" caption="Locked" overlay="locked" scale={0.5} />
+          <Piece id="dmgnumber" caption="Hit" value={0.35} scale={0.5} />
+          <Piece id="dmgnumber" caption="Critical" value={0.9} scale={0.5} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="loottag" caption="Loot tag · rare" value={0.5} scale={0.5} />
+          <Piece id="loottag" caption="Loot tag · legendary" value={1} label="Dawnbreaker" scale={0.5} />
+        </div>
+        <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the learned path", "damage numbers are shell-free spatial type"]} />
+      </Sec>
+
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
 
       {/* ── 14 · build parts ── */}
