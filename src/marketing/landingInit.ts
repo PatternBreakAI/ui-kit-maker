@@ -1401,7 +1401,10 @@ fin1t:"ブラウザベース",fin1s:"インストール不要",fin2t:"決定論�
 auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイン",auUp:"アカウント作成",auEmail:"メール",auPass:"パスワード",auFgt:"パスワードをお忘れですか？",auGo1:"サインイン",auGo2:"アカウントを作成",auOr:"または",auMagic:"✉ サインインリンクを送る",auFreeL:"Free Explorer——カード不要。",auTerms:"利用規約とライセンスに同意します：どんな製品にも使えますが、素材の転売は不可。",auHi:"プレイヤー1",auOkT:"サインインしました",auOkP:"スタジオを開いています：",auDoneT:"アカウントを作成しました",auDoneP:"ようこそ——エディタを開いています：",auSentT2:"受信トレイをご確認ください",auSentP2:"サインインリンクを送信しました：",auRstT:"リセットリンクを送信しました",auRstP:"パスワード再設定の案内を送信しました：",auBackL:"戻る",bgsL:"背景"}
       };
       let lang = "en";
-      try { lang = localStorage.getItem("ui-generator-lang") || "en"; } catch (_) {}
+      let langStored = null;
+      try { langStored = localStorage.getItem("ui-generator-lang"); } catch (_) {}
+      lang = langStored || "en";
+      let langChosen = !!langStored;
       if (!L[lang]) lang = "en";
       const t = (k) => (L[lang] && L[lang][k]) || L.en[k] || k;
       const q = (sel) => document.querySelector(sel);
@@ -1427,6 +1430,12 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         lang = L[l] ? l : "en";
         try { localStorage.setItem("ui-generator-lang", lang); } catch (_) {}
         document.documentElement.lang = lang === "zh" ? "zh-Hans" : lang;
+        if (langChosen) {
+          // An explicit choice is the page's real language — stop Chrome/Safari
+          // from offering to machine-translate over our own translations.
+          document.documentElement.setAttribute("translate", "no");
+          document.documentElement.classList.add("notranslate");
+        }
         q("#langSel").value = lang;
         q(".hero2-copy .eyebrow").textContent = t("eyebrow");
         q(".h1b").innerHTML = `${t("l1")} <br>${t("l2")} <br><span class="seconds-grad">${t("l3")}</span>`;
@@ -1526,7 +1535,7 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         const on = document.getElementById("studio2").classList.toggle("show-ctl");
         custBtn.classList.toggle("on", on);
       });
-      document.getElementById("langSel").addEventListener("change", (e) => setLang(e.target.value));
+      document.getElementById("langSel").addEventListener("change", (e) => { langChosen = true; setLang(e.target.value); });
 
       applyReelEntry(REEL[0]);
       /* How-it-Works panels: fixed authored look, straight from the engine */
