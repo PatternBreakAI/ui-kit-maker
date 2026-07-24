@@ -66,7 +66,7 @@ export const LANDING_HTML = `</head>
             </div>
             <div class="trust2-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/></svg>
-              <span><b>Yours to Own</b><i>Export, edit, sell, and ship with full ownership.</i></span>
+              <span><b>Yours to Own</b><i>Export, edit, and ship it in anything you sell.*</i></span>
             </div>
             <div class="trust2-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 22l6-6M19 19l2 2M9.5 6.5 21 18v3h-3L6.5 9.5"/></svg>
@@ -128,7 +128,7 @@ export const LANDING_HTML = `</head>
                   <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG @1× · @2×</span></div>
                   <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
                 </div>
-                <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.</div>
+                <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.*</div>
               </div>
               <div class="ship-list">
                 <div class="ship-list-head"><b>⇣</b><span id="shipCount">0 / 0</span></div>
@@ -521,7 +521,7 @@ export const LANDING_HTML = `</head>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/></svg><b id="fin1t">BROWSER-BASED</b><i id="fin1s">No installs</i></div>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg><b id="fin2t">DETERMINISTIC</b><i id="fin2s">Not AI</i></div>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4.5-8 4.5-8-4.5zM4 12.5 12 17l8-4.5M4 17l8 4.5 8-4.5"/></svg><b id="fin3t">GAME-READY</b><i id="fin3s">Export anywhere</i></div>
-              <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><b id="fin4t">YOURS TO SHIP</b><i id="fin4s">Sell &amp; own</i></div>
+              <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><b id="fin4t">YOURS TO SHIP</b><i id="fin4s">Sell &amp; own*</i></div>
             </div>
             <p class="f2-free"><span class="f2-check">✓</span> <span id="f2Free">Selected kits and limited PNG exports included free.</span></p>
           </div>

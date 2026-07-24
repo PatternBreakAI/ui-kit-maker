@@ -1129,14 +1129,14 @@ export function initLanding(deps: LandingDeps) {
       /* ── i18n: en · zh · fr · es · it · ja ─────────────────────── */
       const L = {
 en:{l1:"Design a",l2:"UI kit in",l3:"seconds!",eyebrow:"BROWSER-BASED GAME UI TOOL",
-sub:'Tweak a real button right here — color, shape, shine — then push it into a whole production-ready kit. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship in any game or product you sell.',
+sub:'Tweak a real button right here — color, shape, shine — then push it into a whole production-ready kit. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship in any game or product you sell.*',
 open:"Open the generator →",signin:"Sign in",micro:"This button is live — go on, mess it up.",
-t1:"Deterministic Engine",t1s:"One design language across every asset — consistency AI can\u2019t deliver.",t2:"Yours to Own",t2s:"Export, edit, and ship it in anything you sell.",t3:"Built for Creators",t3s:"Made for game devs, designers, and studios.",
+t1:"Deterministic Engine",t1s:"One design language across every asset — consistency AI can\u2019t deliver.",t2:"Yours to Own",t2s:"Export, edit, and ship it in anything you sell.*",t3:"Built for Creators",t3s:"Made for game devs, designers, and studios.",
 n1:"<b>Step 1 · The Master.</b> Set the DNA — color, shape, shine, pattern. Everything that follows inherits it.",
 n2:"<b>Step 2 · Your Kit.</b> One press built all of this — every piece inherits your master, states included.",
 n3:"<b>Step 3 · The Board.</b> <b>Upload your own image</b> — any screen or concept — drag pieces onto it, dim the backdrop, and make as many boards as you need. Export or share each one.",
 n4:"<b>Exported!</b> That’s the whole loop — master → kit → board → files. Now do it for real.",
-cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.",compatLbl:"Plays nice with your stack",compatTitle:"Lands in the tools you already use.",c_rest:"Roll over a logo — here's how your kit lands there.",c_svg:"Clean SVG vectors import as fully editable paths — every component and state, named and grouped.",c_png:"Crisp transparent PNGs at 1× and 2×, cut per component and state.",c_html:"A live kit.html + kit.css — open it, inspect it, or lift the styles wholesale.",c_json:"An engine-ready JSON manifest that maps every piece, state, and size.",c_fold:"A tidy, predictable folder structure that drops straight into your project.",c_soon:"NATIVE EXPORT ON THE ROADMAP",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"CONTROLS",ks4:"METERS & TIMERS",ks5:"HUD & PLAYER",ks6:"BIG PIECES",
+cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.*",compatLbl:"Plays nice with your stack",compatTitle:"Lands in the tools you already use.",c_rest:"Roll over a logo — here's how your kit lands there.",c_svg:"Clean SVG vectors import as fully editable paths — every component and state, named and grouped.",c_png:"Crisp transparent PNGs at 1× and 2×, cut per component and state.",c_html:"A live kit.html + kit.css — open it, inspect it, or lift the styles wholesale.",c_json:"An engine-ready JSON manifest that maps every piece, state, and size.",c_fold:"A tidy, predictable folder structure that drops straight into your project.",c_soon:"NATIVE EXPORT ON THE ROADMAP",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"CONTROLS",ks4:"METERS & TIMERS",ks5:"HUD & PLAYER",ks6:"BIG PIECES",
 fKit:"KIT READY",fBoard:"BOARD READY",bdCall1:"TEST YOUR DESIGNS",bdCall2:"See it in context — your kit, over real screens.",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
@@ -1168,18 +1168,18 @@ exn_settings:'<b>Your whole look as one file.</b> Every dial you touched — re-
 iterP:"And it never locks: pop back to the master, turn a dial, and the whole system re-flows — kit, boards, exports. Iterate toward what\u2019s best for the whole. (Also, it\u2019s just fun to keep playing.)",
 fontL:"FONT",bgL:"BACKGROUND",extrL:"EXTRUSION",dsgnL:"DESIGN",resetL:"RESET",
 pg:"Family filter is on out here — the full app takes it off.",
-tcolL:"FONT COLOR",stDis:"DISABLED",licN:"License in one line: ship your kits in any product, commercial included — just don\u2019t resell or redistribute the assets themselves.",
-fin1t:"BROWSER-BASED",fin1s:"No installs",fin2t:"DETERMINISTIC",fin2s:"Not AI",fin3t:"GAME-READY",fin3s:"Export anywhere",fin4t:"YOURS TO SHIP",fin4s:"Sell &amp; own",finFree:"Selected kits and limited PNG exports included free.",
+tcolL:"FONT COLOR",stDis:"DISABLED",licN:"* Licensing, in one line: ship your kits inside any game or product — commercial included. The kit and its asset files may not be resold or redistributed as assets, templates, or asset packs. See the Terms of Use.",
+fin1t:"BROWSER-BASED",fin1s:"No installs",fin2t:"DETERMINISTIC",fin2s:"Not AI",fin3t:"GAME-READY",fin3s:"Export anywhere",fin4t:"YOURS TO SHIP",fin4s:"Sell &amp; own*",finFree:"Selected kits and limited PNG exports included free.",
 auT1:"Welcome back",auT2:"Create your account",auIn:"SIGN IN",auUp:"CREATE ACCOUNT",auEmail:"EMAIL",auPass:"PASSWORD",auFgt:"Forgot password?",auGo1:"SIGN IN",auGo2:"CREATE ACCOUNT",auOr:"or",auMagic:"✉ EMAIL ME A SIGN-IN LINK",auFreeL:"Free Explorer — no card needed.",auTerms:"I agree to the Terms — and the license: ship anything, just don\u2019t resell the assets.",auHi:"PLAYER 1",auOkT:"Signed in",auOkP:"Opening your studio for",auDoneT:"Account created",auDoneP:"Welcome aboard — opening the editor for",auSentT2:"Check your inbox",auSentP2:"We sent a sign-in link to",auRstT:"Reset link sent",auRstP:"Password reset instructions are on their way to",auBackL:"Back",bgsL:"BACKDROPS"},
 zh:{l1:"几秒钟，",l2:"做出一整套",l3:"游戏 UI！",eyebrow:"浏览器端游戏 UI 工具",
-sub:'就在这里调一个真实按钮——颜色、形状、光泽——然后一键生成一整套可直接上线的组件库。每个像素都来自<em class="hl hl-w">确定性</em>引擎，<em class="hl">不是 AI</em>，你做出的一切都可以用在任何你发售的游戏或产品中。',
+sub:'就在这里调一个真实按钮——颜色、形状、光泽——然后一键生成一整套可直接上线的组件库。每个像素都来自<em class="hl hl-w">确定性</em>引擎，<em class="hl">不是 AI</em>，你做出的一切都可以用在任何你发售的游戏或产品中。*',
 open:"打开生成器 →",signin:"登录",micro:"这个按钮是活的——来，随便玩。",
-t1:"确定性引擎",t1s:"所有素材共享同一套设计语言——这是 AI 无法保证的一致性。",t2:"完全归你",t2s:"导出、编辑，用在任何你销售的产品里。",t3:"为创作者而生",t3s:"面向游戏开发者、设计师与工作室。",
+t1:"确定性引擎",t1s:"所有素材共享同一套设计语言——这是 AI 无法保证的一致性。",t2:"完全归你",t2s:"导出、编辑，用在任何你销售的产品里。*",t3:"为创作者而生",t3s:"面向游戏开发者、设计师与工作室。",
 n1:"<b>第 1 步 · 母版。</b>设定 DNA——颜色、形状、光泽、图案。之后的一切都会继承它。",
 n2:"<b>第 2 步 · 你的组件库。</b>一次点击生成全部——每个组件都继承母版，包含所有状态。",
 n3:"<b>第 3 步 · 画板。</b><b>上传你自己的图片</b>——任意画面或概念图——拖入组件、调暗背景，画板想建几块就建几块，每块都能导出或分享。",
 n4:"<b>已导出！</b>完整流程走完了——母版 → 组件库 → 画板 → 文件。去正式版试试吧。",
-cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。",compatLbl:"兼容你的工作流",compatTitle:"直接落地到你常用的工具。",c_rest:"将鼠标悬停在图标上,查看套件如何进入该工具。",c_svg:"干净的 SVG 矢量可直接导入并完全编辑 — 每个组件和状态都已命名分组。",c_png:"清晰的透明 PNG(1× 与 2×),按组件和状态切分。",c_html:"附带可运行的 kit.html 与 kit.css — 可直接打开、检查或整体套用样式。",c_json:"引擎可用的 JSON 清单,映射每个组件、状态和尺寸。",c_fold:"整洁可预期的文件夹结构,可直接放入项目。",c_soon:"原生导出即将推出",ks1:"按钮",ks2:"界面",ks3:"控件",ks4:"仪表与计时",ks5:"HUD与玩家",ks6:"大型组件",
+cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。*",compatLbl:"兼容你的工作流",compatTitle:"直接落地到你常用的工具。",c_rest:"将鼠标悬停在图标上,查看套件如何进入该工具。",c_svg:"干净的 SVG 矢量可直接导入并完全编辑 — 每个组件和状态都已命名分组。",c_png:"清晰的透明 PNG(1× 与 2×),按组件和状态切分。",c_html:"附带可运行的 kit.html 与 kit.css — 可直接打开、检查或整体套用样式。",c_json:"引擎可用的 JSON 清单,映射每个组件、状态和尺寸。",c_fold:"整洁可预期的文件夹结构,可直接放入项目。",c_soon:"原生导出即将推出",ks1:"按钮",ks2:"界面",ks3:"控件",ks4:"仪表与计时",ks5:"HUD与玩家",ks6:"大型组件",
 fKit:"组件库就绪",fBoard:"画板就绪",bdCall1:"检验你的设计",bdCall2:"在真实画面中查看你的套件效果。",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
@@ -1211,18 +1211,18 @@ exn_settings:'<b>整套外观，一个文件。</b>你调过的每个参数—�
 iterP:"而且它永远不会锁死：随时回到母版，转一个旋钮，整个系统随之更新——组件库、画板、导出。朝着整体最优不断迭代。（而且，一直玩下去真的很有趣。）",
 fontL:"字体",bgL:"背景",extrL:"立体挤出",dsgnL:"设计",resetL:"重置",
 pg:"主页开启了文明用语过滤——正式版可关闭。",
-tcolL:"文字颜色",stDis:"禁用",licN:"许可证一句话：可将组件用于任何产品（包括商业产品）——但不得转售或再分发素材本身。",
-fin1t:"浏览器直达",fin1s:"无需安装",fin2t:"确定性引擎",fin2s:"不是 AI",fin3t:"游戏就绪",fin3s:"随处导出",fin4t:"归你所有",fin4s:"可售可发布",finFree:"精选组件库与有限 PNG 导出免费提供。",
+tcolL:"文字颜色",stDis:"禁用",licN:"* 许可证一句话:可将组件用于任何产品(包括商业产品)——但不得将组件或素材本身作为素材、模板或素材包转售或再分发。详见《使用条款》。",
+fin1t:"浏览器直达",fin1s:"无需安装",fin2t:"确定性引擎",fin2s:"不是 AI",fin3t:"游戏就绪",fin3s:"随处导出",fin4t:"归你所有",fin4s:"可售可发布*",finFree:"精选组件库与有限 PNG 导出免费提供。",
 auT1:"欢迎回来",auT2:"创建你的账户",auIn:"登录",auUp:"注册",auEmail:"邮箱",auPass:"密码",auFgt:"忘记密码？",auGo1:"登录",auGo2:"创建账户",auOr:"或",auMagic:"✉ 给我发送登录链接",auFreeL:"Free Explorer——无需绑卡。",auTerms:"我同意条款与许可证：可用于任何产品，但不得转售素材本身。",auHi:"玩家 1",auOkT:"已登录",auOkP:"正在为以下账号打开工作室：",auDoneT:"账户已创建",auDoneP:"欢迎加入——正在为以下账号打开编辑器：",auSentT2:"请查收邮箱",auSentP2:"登录链接已发送至",auRstT:"重置链接已发送",auRstP:"密码重置说明已发送至",auBackL:"返回",bgsL:"背景"},
 fr:{l1:"Créez un",l2:"kit UI en",l3:"secondes !",eyebrow:"OUTIL D’UI DE JEU DANS LE NAVIGATEUR",
-sub:'Réglez un vrai bouton ici — couleur, forme, brillance — puis transformez-le en kit complet, prêt pour la production. Chaque pixel vient d\u2019un moteur <em class="hl hl-w">déterministe</em>, <em class="hl">pas d\u2019IA</em> : ce que vous créez peut partir dans n\u2019importe quel jeu ou produit que vous vendez.',
+sub:'Réglez un vrai bouton ici — couleur, forme, brillance — puis transformez-le en kit complet, prêt pour la production. Chaque pixel vient d\u2019un moteur <em class="hl hl-w">déterministe</em>, <em class="hl">pas d\u2019IA</em> : ce que vous créez peut partir dans n\u2019importe quel jeu ou produit que vous vendez.*',
 open:"Ouvrir le générateur →",signin:"Connexion",micro:"Ce bouton est vivant — allez-y, amusez-vous.",
-t1:"Moteur déterministe",t1s:"Un même langage de design sur chaque asset — une cohérence que l\u2019IA ne peut pas garantir.",t2:"Vraiment à vous",t2s:"Exportez, éditez, intégrez-le à tout ce que vous vendez.",t3:"Pensé pour les créateurs",t3s:"Pour devs de jeux, designers et studios.",
+t1:"Moteur déterministe",t1s:"Un même langage de design sur chaque asset — une cohérence que l\u2019IA ne peut pas garantir.",t2:"Vraiment à vous",t2s:"Exportez, éditez, intégrez-le à tout ce que vous vendez.*",t3:"Pensé pour les créateurs",t3s:"Pour devs de jeux, designers et studios.",
 n1:"<b>Étape 1 · Le master.</b> Définissez l’ADN — couleur, forme, brillance, motif. Tout le reste en hérite.",
 n2:"<b>Étape 2 · Votre kit.</b> Un clic a tout construit — chaque pièce hérite du master, états compris.",
 n3:"<b>Étape 3 · Le board.</b> <b>Importez votre propre image</b> — écran ou concept — glissez vos pièces, tamisez le fond, créez autant de boards que voulu. Exportez ou partagez chacun.",
 n4:"<b>Exporté !</b> La boucle est bouclée — master → kit → board → fichiers. À vous de jouer.",
-cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.",compatLbl:"Compatible avec vos outils",compatTitle:"Atterrit dans les outils que vous utilisez déjà.",c_rest:"Survolez un logo — voici comment votre kit y atterrit.",c_svg:"Des vecteurs SVG propres, entièrement éditables — chaque composant et état, nommé et groupé.",c_png:"Des PNG transparents et nets en 1× et 2×, découpés par composant et par état.",c_html:"Un kit.html + kit.css vivants — à ouvrir, inspecter ou réutiliser tels quels.",c_json:"Un manifeste JSON prêt pour le moteur, qui répertorie chaque pièce, état et taille.",c_fold:"Une arborescence propre et prévisible, à glisser directement dans votre projet.",c_soon:"EXPORT NATIF SUR LA ROADMAP",ks1:"BOUTONS",ks2:"INTERFACE",ks3:"CONTRÔLES",ks4:"JAUGES & CHRONOS",ks5:"HUD & JOUEUR",ks6:"GRANDES PIÈCES",
+cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.*",compatLbl:"Compatible avec vos outils",compatTitle:"Atterrit dans les outils que vous utilisez déjà.",c_rest:"Survolez un logo — voici comment votre kit y atterrit.",c_svg:"Des vecteurs SVG propres, entièrement éditables — chaque composant et état, nommé et groupé.",c_png:"Des PNG transparents et nets en 1× et 2×, découpés par composant et par état.",c_html:"Un kit.html + kit.css vivants — à ouvrir, inspecter ou réutiliser tels quels.",c_json:"Un manifeste JSON prêt pour le moteur, qui répertorie chaque pièce, état et taille.",c_fold:"Une arborescence propre et prévisible, à glisser directement dans votre projet.",c_soon:"EXPORT NATIF SUR LA ROADMAP",ks1:"BOUTONS",ks2:"INTERFACE",ks3:"CONTRÔLES",ks4:"JAUGES & CHRONOS",ks5:"HUD & JOUEUR",ks6:"GRANDES PIÈCES",
 fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",bdCall1:"TESTEZ VOS DESIGNS",bdCall2:"Voyez-le en contexte — votre kit sur de vrais écrans.",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
@@ -1254,18 +1254,18 @@ exn_settings:'<b>Tout votre look en un fichier.</b> Chaque réglage touché — 
 iterP:"Et rien n\u2019est figé : revenez au master, tournez un réglage, et tout le système se met à jour — kit, boards, exports. Itérez vers ce qui sert le mieux l\u2019ensemble. (Et puis, continuer à jouer, c\u2019est un vrai plaisir.)",
 fontL:"POLICE",bgL:"FOND",extrL:"EXTRUSION",dsgnL:"DESIGN",resetL:"RÉTABLIR",
 pg:"Filtre familial sur la page d\u2019accueil — l\u2019app complète le désactive.",
-tcolL:"COULEUR TEXTE",stDis:"DÉSACTIVÉ",licN:"La licence en une ligne : intégrez vos kits à tout produit, commercial compris — mais ne revendez pas et ne redistribuez pas les assets eux-mêmes.",
-fin1t:"DANS LE NAVIGATEUR",fin1s:"Zéro installation",fin2t:"DÉTERMINISTE",fin2s:"Pas d\u2019IA",fin3t:"PRÊT POUR LE JEU",fin3s:"Export partout",fin4t:"À VOUS",fin4s:"Vendez et publiez",finFree:"Kits sélectionnés et exports PNG limités inclus gratuitement.",
+tcolL:"COULEUR TEXTE",stDis:"DÉSACTIVÉ",licN:"* La licence en une ligne : intégrez vos kits à tout produit, commercial compris — mais le kit et ses assets ne peuvent pas être revendus ni redistribués comme assets, templates ou packs. Voir les Conditions d'utilisation.",
+fin1t:"DANS LE NAVIGATEUR",fin1s:"Zéro installation",fin2t:"DÉTERMINISTE",fin2s:"Pas d\u2019IA",fin3t:"PRÊT POUR LE JEU",fin3s:"Export partout",fin4t:"À VOUS",fin4s:"Vendez et publiez*",finFree:"Kits sélectionnés et exports PNG limités inclus gratuitement.",
 auT1:"Bon retour",auT2:"Créez votre compte",auIn:"CONNEXION",auUp:"CRÉER UN COMPTE",auEmail:"E-MAIL",auPass:"MOT DE PASSE",auFgt:"Mot de passe oublié ?",auGo1:"SE CONNECTER",auGo2:"CRÉER LE COMPTE",auOr:"ou",auMagic:"✉ RECEVOIR UN LIEN DE CONNEXION",auFreeL:"Free Explorer — sans carte bancaire.",auTerms:"J\u2019accepte les Conditions — et la licence : publiez tout, ne revendez pas les assets.",auHi:"JOUEUR 1",auOkT:"Connecté",auOkP:"Ouverture de votre studio pour",auDoneT:"Compte créé",auDoneP:"Bienvenue — ouverture de l\u2019éditeur pour",auSentT2:"Vérifiez votre boîte mail",auSentP2:"Nous avons envoyé un lien de connexion à",auRstT:"Lien de réinitialisation envoyé",auRstP:"Les instructions de réinitialisation arrivent à",auBackL:"Retour",bgsL:"FONDS"},
 es:{l1:"Crea un",l2:"kit de UI en",l3:"¡segundos!",eyebrow:"HERRAMIENTA DE UI DE JUEGOS EN EL NAVEGADOR",
-sub:'Ajusta un botón real aquí mismo — color, forma, brillo — y conviértelo en un kit completo listo para producción. Cada píxel sale de un motor <em class="hl hl-w">determinista</em>, <em class="hl">no de IA</em>: lo que hagas puede ir en cualquier juego o producto que vendas.',
+sub:'Ajusta un botón real aquí mismo — color, forma, brillo — y conviértelo en un kit completo listo para producción. Cada píxel sale de un motor <em class="hl hl-w">determinista</em>, <em class="hl">no de IA</em>: lo que hagas puede ir en cualquier juego o producto que vendas.*',
 open:"Abrir el generador →",signin:"Iniciar sesión",micro:"Este botón está vivo — dale, juega con él.",
-t1:"Motor determinista",t1s:"Un mismo lenguaje de diseño en cada asset — una consistencia que la IA no puede garantizar.",t2:"Tuyo de verdad",t2s:"Exporta, edita e intégralo en todo lo que vendas.",t3:"Para creadores",t3s:"Para devs de juegos, diseñadores y estudios.",
+t1:"Motor determinista",t1s:"Un mismo lenguaje de diseño en cada asset — una consistencia que la IA no puede garantizar.",t2:"Tuyo de verdad",t2s:"Exporta, edita e intégralo en todo lo que vendas.*",t3:"Para creadores",t3s:"Para devs de juegos, diseñadores y estudios.",
 n1:"<b>Paso 1 · El master.</b> Define el ADN — color, forma, brillo, patrón. Todo lo demás lo hereda.",
 n2:"<b>Paso 2 · Tu kit.</b> Un clic lo construyó todo — cada pieza hereda tu master, estados incluidos.",
 n3:"<b>Paso 3 · El board.</b> <b>Sube tu propia imagen</b> — pantalla o concept — arrastra piezas, atenúa el fondo y crea todos los boards que quieras. Exporta o comparte cada uno.",
 n4:"<b>¡Exportado!</b> El ciclo completo — master → kit → board → archivos. Ahora hazlo de verdad.",
-cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.",compatLbl:"Compatible con tus herramientas",compatTitle:"Aterriza en las herramientas que ya usas.",c_rest:"Pasa el cursor por un logo — así llega tu kit.",c_svg:"Vectores SVG limpios y totalmente editables — cada componente y estado, nombrado y agrupado.",c_png:"PNG transparentes y nítidos en 1× y 2×, cortados por componente y estado.",c_html:"Un kit.html + kit.css vivos — ábrelo, inspecciónalo o reutiliza los estilos.",c_json:"Un manifiesto JSON listo para el motor que mapea cada pieza, estado y tamaño.",c_fold:"Una estructura de carpetas limpia y predecible que entra directa en tu proyecto.",c_soon:"EXPORTACIÓN NATIVA EN CAMINO",ks1:"BOTONES",ks2:"INTERFAZ",ks3:"CONTROLES",ks4:"MEDIDORES Y TIEMPO",ks5:"HUD Y JUGADOR",ks6:"PIEZAS GRANDES",
+cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.*",compatLbl:"Compatible con tus herramientas",compatTitle:"Aterriza en las herramientas que ya usas.",c_rest:"Pasa el cursor por un logo — así llega tu kit.",c_svg:"Vectores SVG limpios y totalmente editables — cada componente y estado, nombrado y agrupado.",c_png:"PNG transparentes y nítidos en 1× y 2×, cortados por componente y estado.",c_html:"Un kit.html + kit.css vivos — ábrelo, inspecciónalo o reutiliza los estilos.",c_json:"Un manifiesto JSON listo para el motor que mapea cada pieza, estado y tamaño.",c_fold:"Una estructura de carpetas limpia y predecible que entra directa en tu proyecto.",c_soon:"EXPORTACIÓN NATIVA EN CAMINO",ks1:"BOTONES",ks2:"INTERFAZ",ks3:"CONTROLES",ks4:"MEDIDORES Y TIEMPO",ks5:"HUD Y JUGADOR",ks6:"PIEZAS GRANDES",
 fKit:"KIT LISTO",fBoard:"BOARD LISTO",bdCall1:"PRUEBA TUS DISEÑOS",bdCall2:"Míralo en contexto — tu kit sobre pantallas reales.",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
@@ -1297,18 +1297,18 @@ exn_settings:'<b>Todo tu look en un archivo.</b> Cada ajuste que tocaste — rei
 iterP:"Y nunca se bloquea: vuelve al master, gira un control y todo el sistema se actualiza — kit, boards, exportaciones. Itera hacia lo mejor para el conjunto. (Además, seguir jugando es un gustazo.)",
 fontL:"FUENTE",bgL:"FONDO",extrL:"EXTRUSIÓN",dsgnL:"DISEÑO",resetL:"REINICIAR",
 pg:"Filtro familiar en la portada — la app completa lo desactiva.",
-tcolL:"COLOR DE TEXTO",stDis:"DESACTIVADO",licN:"La licencia en una línea: usa tus kits en cualquier producto, comercial incluido — pero no revendas ni redistribuyas los assets en sí.",
-fin1t:"EN EL NAVEGADOR",fin1s:"Sin instalaciones",fin2t:"DETERMINISTA",fin2s:"No es IA",fin3t:"LISTO PARA JUEGOS",fin3s:"Exporta donde sea",fin4t:"TUYO PARA PUBLICAR",fin4s:"Vende y lanza",finFree:"Kits seleccionados y exportaciones PNG limitadas incluidas gratis.",
+tcolL:"COLOR DE TEXTO",stDis:"DESACTIVADO",licN:"* La licencia en una línea: usa tus kits en cualquier producto, comercial incluido — pero el kit y sus assets no pueden revenderse ni redistribuirse como assets, plantillas o packs. Consulta los Términos de Uso.",
+fin1t:"EN EL NAVEGADOR",fin1s:"Sin instalaciones",fin2t:"DETERMINISTA",fin2s:"No es IA",fin3t:"LISTO PARA JUEGOS",fin3s:"Exporta donde sea",fin4t:"TUYO PARA PUBLICAR",fin4s:"Vende y lanza*",finFree:"Kits seleccionados y exportaciones PNG limitadas incluidas gratis.",
 auT1:"Bienvenido de nuevo",auT2:"Crea tu cuenta",auIn:"ENTRAR",auUp:"CREAR CUENTA",auEmail:"CORREO",auPass:"CONTRASEÑA",auFgt:"¿Olvidaste la contraseña?",auGo1:"ENTRAR",auGo2:"CREAR CUENTA",auOr:"o",auMagic:"✉ ENVIARME UN ENLACE DE ACCESO",auFreeL:"Free Explorer — sin tarjeta.",auTerms:"Acepto los Términos — y la licencia: publica lo que sea, pero no revendas los assets.",auHi:"JUGADOR 1",auOkT:"Sesión iniciada",auOkP:"Abriendo tu estudio para",auDoneT:"Cuenta creada",auDoneP:"Bienvenido — abriendo el editor para",auSentT2:"Revisa tu bandeja",auSentP2:"Enviamos un enlace de acceso a",auRstT:"Enlace de restablecimiento enviado",auRstP:"Las instrucciones van de camino a",auBackL:"Volver",bgsL:"FONDOS"},
 it:{l1:"Crea un",l2:"kit UI in",l3:"secondi!",eyebrow:"STRUMENTO DI UI PER GIOCHI NEL BROWSER",
-sub:'Regola un bottone vero proprio qui — colore, forma, lucentezza — poi trasformalo in un kit completo pronto per la produzione. Ogni pixel esce da un motore <em class="hl hl-w">deterministico</em>, <em class="hl">non da IA</em>: ciò che crei può finire in qualsiasi gioco o prodotto che vendi.',
+sub:'Regola un bottone vero proprio qui — colore, forma, lucentezza — poi trasformalo in un kit completo pronto per la produzione. Ogni pixel esce da un motore <em class="hl hl-w">deterministico</em>, <em class="hl">non da IA</em>: ciò che crei può finire in qualsiasi gioco o prodotto che vendi.*',
 open:"Apri il generatore →",signin:"Accedi",micro:"Questo bottone è vivo — dai, gioca pure.",
-t1:"Motore deterministico",t1s:"Un unico linguaggio di design su ogni asset — una coerenza che l\u2019IA non può garantire.",t2:"Davvero tuo",t2s:"Esporta, modifica e usalo in tutto ciò che vendi.",t3:"Per i creator",t3s:"Per game dev, designer e studi.",
+t1:"Motore deterministico",t1s:"Un unico linguaggio di design su ogni asset — una coerenza che l\u2019IA non può garantire.",t2:"Davvero tuo",t2s:"Esporta, modifica e usalo in tutto ciò che vendi.*",t3:"Per i creator",t3s:"Per game dev, designer e studi.",
 n1:"<b>Passo 1 · Il master.</b> Definisci il DNA — colore, forma, lucentezza, pattern. Tutto il resto lo eredita.",
 n2:"<b>Passo 2 · Il tuo kit.</b> Un clic ha costruito tutto — ogni pezzo eredita il master, stati compresi.",
 n3:"<b>Passo 3 · La board.</b> <b>Carica la tua immagine</b> — schermata o concept — trascina i pezzi, attenua lo sfondo e crea quante board vuoi. Esporta o condividi ognuna.",
 n4:"<b>Esportato!</b> Il giro completo — master → kit → board → file. Ora fallo davvero.",
-cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.",compatLbl:"Compatibile con i tuoi strumenti",compatTitle:"Arriva negli strumenti che già usi.",c_rest:"Passa su un logo — ecco come arriva il tuo kit.",c_svg:"Vettori SVG puliti e completamente modificabili — ogni componente e stato, nominato e raggruppato.",c_png:"PNG trasparenti e nitidi in 1× e 2×, tagliati per componente e stato.",c_html:"Un kit.html + kit.css dal vivo — aprilo, ispezionalo o riusa gli stili.",c_json:"Un manifest JSON pronto per l'engine che mappa ogni pezzo, stato e dimensione.",c_fold:"Una struttura di cartelle ordinata e prevedibile, pronta per il tuo progetto.",c_soon:"EXPORT NATIVO IN ARRIVO",ks1:"PULSANTI",ks2:"INTERFACCIA",ks3:"CONTROLLI",ks4:"INDICATORI E TIMER",ks5:"HUD E GIOCATORE",ks6:"PEZZI GRANDI",
+cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.*",compatLbl:"Compatibile con i tuoi strumenti",compatTitle:"Arriva negli strumenti che già usi.",c_rest:"Passa su un logo — ecco come arriva il tuo kit.",c_svg:"Vettori SVG puliti e completamente modificabili — ogni componente e stato, nominato e raggruppato.",c_png:"PNG trasparenti e nitidi in 1× e 2×, tagliati per componente e stato.",c_html:"Un kit.html + kit.css dal vivo — aprilo, ispezionalo o riusa gli stili.",c_json:"Un manifest JSON pronto per l'engine che mappa ogni pezzo, stato e dimensione.",c_fold:"Una struttura di cartelle ordinata e prevedibile, pronta per il tuo progetto.",c_soon:"EXPORT NATIVO IN ARRIVO",ks1:"PULSANTI",ks2:"INTERFACCIA",ks3:"CONTROLLI",ks4:"INDICATORI E TIMER",ks5:"HUD E GIOCATORE",ks6:"PEZZI GRANDI",
 fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",bdCall1:"TESTA I TUOI DESIGN",bdCall2:"Guardalo nel contesto — il tuo kit su schermi reali.",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
@@ -1340,18 +1340,18 @@ exn_settings:'<b>Tutto il tuo look in un file.</b> Ogni parametro che hai toccat
 iterP:"E non si blocca mai: torna al master, gira una manopola e l\u2019intero sistema si aggiorna — kit, board, export. Itera verso ciò che è meglio per l\u2019insieme. (E poi, continuare a giocare è divertente.)",
 fontL:"FONT",bgL:"SFONDO",extrL:"ESTRUSIONE",dsgnL:"DESIGN",resetL:"RIPRISTINA",
 pg:"Filtro famiglia sulla homepage — l\u2019app completa lo disattiva.",
-tcolL:"COLORE TESTO",stDis:"DISATTIVATO",licN:"La licenza in una riga: usa i tuoi kit in qualsiasi prodotto, anche commerciale — ma non rivendere né ridistribuire gli asset in sé.",
-fin1t:"NEL BROWSER",fin1s:"Niente installazioni",fin2t:"DETERMINISTICO",fin2s:"Non IA",fin3t:"PRONTO PER I GIOCHI",fin3s:"Esporta ovunque",fin4t:"TUO DA PUBBLICARE",fin4s:"Vendi e lancia",finFree:"Kit selezionati ed export PNG limitati inclusi gratis.",
+tcolL:"COLORE TESTO",stDis:"DISATTIVATO",licN:"* La licenza in una riga: usa i tuoi kit in qualsiasi prodotto, anche commerciale — ma il kit e i suoi asset non possono essere rivenduti né ridistribuiti come asset, template o pacchetti. Vedi i Termini d'Uso.",
+fin1t:"NEL BROWSER",fin1s:"Niente installazioni",fin2t:"DETERMINISTICO",fin2s:"Non IA",fin3t:"PRONTO PER I GIOCHI",fin3s:"Esporta ovunque",fin4t:"TUO DA PUBBLICARE",fin4s:"Vendi e lancia*",finFree:"Kit selezionati ed export PNG limitati inclusi gratis.",
 auT1:"Bentornato",auT2:"Crea il tuo account",auIn:"ACCEDI",auUp:"CREA ACCOUNT",auEmail:"EMAIL",auPass:"PASSWORD",auFgt:"Password dimenticata?",auGo1:"ACCEDI",auGo2:"CREA ACCOUNT",auOr:"oppure",auMagic:"✉ INVIAMI UN LINK DI ACCESSO",auFreeL:"Free Explorer — nessuna carta richiesta.",auTerms:"Accetto i Termini — e la licenza: pubblica tutto, ma non rivendere gli asset.",auHi:"GIOCATORE 1",auOkT:"Accesso effettuato",auOkP:"Apertura del tuo studio per",auDoneT:"Account creato",auDoneP:"Benvenuto — apertura dell\u2019editor per",auSentT2:"Controlla la posta",auSentP2:"Abbiamo inviato un link di accesso a",auRstT:"Link di reset inviato",auRstP:"Le istruzioni di reset sono in arrivo a",auBackL:"Indietro",bgsL:"SFONDI"},
 de:{l1:"Ein UI-Kit",l2:"in Sekunden",l3:"designen!",eyebrow:"GAME-UI-TOOL IM BROWSER",
-sub:'Stell hier einen echten Button ein — Farbe, Form, Glanz — und mach daraus ein komplettes, produktionsreifes Kit. Jeder Pixel stammt aus einer <em class="hl hl-w">deterministischen</em> Engine, <em class="hl">nicht von KI</em> — was du baust, darf in jedes Spiel und Produkt, das du verkaufst.',
+sub:'Stell hier einen echten Button ein — Farbe, Form, Glanz — und mach daraus ein komplettes, produktionsreifes Kit. Jeder Pixel stammt aus einer <em class="hl hl-w">deterministischen</em> Engine, <em class="hl">nicht von KI</em> — was du baust, darf in jedes Spiel und Produkt, das du verkaufst.*',
 open:"Generator öffnen →",signin:"Anmelden",micro:"Dieser Button ist live — na los, spiel damit.",
-t1:"Deterministische Engine",t1s:"Eine Designsprache über jedes Asset hinweg — Konsistenz, die KI nicht liefern kann.",t2:"Gehört dir",t2s:"Exportieren, bearbeiten, in allem verwenden, was du verkaufst.",t3:"Für Creator gebaut",t3s:"Für Game-Devs, Designer und Studios.",
+t1:"Deterministische Engine",t1s:"Eine Designsprache über jedes Asset hinweg — Konsistenz, die KI nicht liefern kann.",t2:"Gehört dir",t2s:"Exportieren, bearbeiten, in allem verwenden, was du verkaufst.*",t3:"Für Creator gebaut",t3s:"Für Game-Devs, Designer und Studios.",
 n1:"<b>Schritt 1 · Der Master.</b> Leg die DNA fest — Farbe, Form, Glanz, Muster. Alles Weitere erbt sie.",
 n2:"<b>Schritt 2 · Dein Kit.</b> Ein Klick hat all das gebaut — jedes Teil erbt deinen Master, Zustände inklusive.",
 n3:"<b>Schritt 3 · Das Board.</b> <b>Lade dein eigenes Bild hoch</b> — Screenshot oder Konzept — zieh Teile darauf, dimme den Hintergrund und leg so viele Boards an, wie du brauchst. Jedes lässt sich exportieren oder teilen.",
 n4:"<b>Exportiert!</b> Das war der ganze Loop — Master → Kit → Board → Dateien. Jetzt mach es richtig.",
-cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.",compatLbl:"Spielt mit deinem Stack",compatTitle:"Landet in den Tools, die du schon nutzt.",c_rest:"Fahre über ein Logo — so landet dein Kit dort.",c_svg:"Saubere SVG-Vektoren, voll editierbar — jede Komponente und jeder State, benannt und gruppiert.",c_png:"Gestochen scharfe transparente PNGs in 1× und 2×, geschnitten pro Komponente und State.",c_html:"Ein lebendes kit.html + kit.css — öffnen, inspizieren oder Styles direkt übernehmen.",c_json:"Ein engine-fertiges JSON-Manifest, das jedes Teil, jeden State und jede Größe abbildet.",c_fold:"Eine aufgeräumte, vorhersehbare Ordnerstruktur, die direkt ins Projekt fällt.",c_soon:"NATIVER EXPORT GEPLANT",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"STEUERUNG",ks4:"ANZEIGEN & TIMER",ks5:"HUD & SPIELER",ks6:"GROSSE TEILE",
+cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.*",compatLbl:"Spielt mit deinem Stack",compatTitle:"Landet in den Tools, die du schon nutzt.",c_rest:"Fahre über ein Logo — so landet dein Kit dort.",c_svg:"Saubere SVG-Vektoren, voll editierbar — jede Komponente und jeder State, benannt und gruppiert.",c_png:"Gestochen scharfe transparente PNGs in 1× und 2×, geschnitten pro Komponente und State.",c_html:"Ein lebendes kit.html + kit.css — öffnen, inspizieren oder Styles direkt übernehmen.",c_json:"Ein engine-fertiges JSON-Manifest, das jedes Teil, jeden State und jede Größe abbildet.",c_fold:"Eine aufgeräumte, vorhersehbare Ordnerstruktur, die direkt ins Projekt fällt.",c_soon:"NATIVER EXPORT GEPLANT",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"STEUERUNG",ks4:"ANZEIGEN & TIMER",ks5:"HUD & SPIELER",ks6:"GROSSE TEILE",
 fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",bdCall1:"TESTE DEINE DESIGNS",bdCall2:"Sieh es im Kontext — dein Kit auf echten Screens.",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
@@ -1383,18 +1383,18 @@ exn_settings:'<b>Dein ganzer Look als eine Datei.</b> Jeder Regler, den du berü
 iterP:"Und nichts ist festgeschrieben: zurück zum Master, einen Regler drehen, und das ganze System zieht nach — Kit, Boards, Exporte. Iteriere auf das hin, was dem Ganzen guttut. (Außerdem macht Weiterspielen einfach Spaß.)",
 fontL:"SCHRIFT",bgL:"HINTERGRUND",extrL:"EXTRUSION",dsgnL:"DESIGN",resetL:"ZURÜCKSETZEN",
 pg:"Jugendfreier Filter auf der Startseite — die Vollversion schaltet ihn ab.",
-tcolL:"SCHRIFTFARBE",stDis:"DEAKTIVIERT",licN:"Die Lizenz in einem Satz: Nutze deine Kits in jedem Produkt, auch kommerziell — aber verkaufe oder verteile die Assets selbst nicht weiter.",
-fin1t:"IM BROWSER",fin1s:"Keine Installation",fin2t:"DETERMINISTISCH",fin2s:"Keine KI",fin3t:"GAME-READY",fin3s:"Überallhin exportieren",fin4t:"DEINS ZUM SHIPPEN",fin4s:"Verkaufen &amp; veröffentlichen",finFree:"Ausgewählte Kits und begrenzte PNG-Exporte kostenlos enthalten.",
+tcolL:"SCHRIFTFARBE",stDis:"DEAKTIVIERT",licN:"* Die Lizenz in einem Satz: Nutze deine Kits in jedem Produkt, auch kommerziell — aber das Kit und seine Assets dürfen nicht als Assets, Templates oder Packs weiterverkauft oder weiterverbreitet werden. Siehe Nutzungsbedingungen.",
+fin1t:"IM BROWSER",fin1s:"Keine Installation",fin2t:"DETERMINISTISCH",fin2s:"Keine KI",fin3t:"GAME-READY",fin3s:"Überallhin exportieren",fin4t:"DEINS ZUM SHIPPEN",fin4s:"Verkaufen &amp; veröffentlichen*",finFree:"Ausgewählte Kits und begrenzte PNG-Exporte kostenlos enthalten.",
 auT1:"Willkommen zurück",auT2:"Konto erstellen",auIn:"ANMELDEN",auUp:"KONTO ERSTELLEN",auEmail:"E-MAIL",auPass:"PASSWORT",auFgt:"Passwort vergessen?",auGo1:"ANMELDEN",auGo2:"KONTO ERSTELLEN",auOr:"oder",auMagic:"✉ ANMELDELINK PER E-MAIL",auFreeL:"Free Explorer — keine Karte nötig.",auTerms:"Ich akzeptiere die AGB — und die Lizenz: shippe alles, verkaufe die Assets nur nicht weiter.",auHi:"SPIELER 1",auOkT:"Angemeldet",auOkP:"Dein Studio öffnet sich für",auDoneT:"Konto erstellt",auDoneP:"Willkommen an Bord — der Editor öffnet sich für",auSentT2:"Prüfe dein Postfach",auSentP2:"Wir haben einen Anmeldelink geschickt an",auRstT:"Reset-Link verschickt",auRstP:"Die Anleitung zum Zurücksetzen ist unterwegs an",auBackL:"Zurück",bgsL:"HINTERGRÜNDE"},
 ja:{l1:"数秒で",l2:"ゲームUIキットを",l3:"デザイン！",eyebrow:"ブラウザで動くゲームUIツール",
-sub:'ここで本物のボタンを調整——色、形、光沢——そのまま本番投入できるキット一式に展開。すべてのピクセルは<em class="hl hl-w">決定論的</em>エンジンから生まれ、<em class="hl">AIではありません</em>。作ったものは、あなたが販売するどんなゲームや製品にも使えます。',
+sub:'ここで本物のボタンを調整——色、形、光沢——そのまま本番投入できるキット一式に展開。すべてのピクセルは<em class="hl hl-w">決定論的</em>エンジンから生まれ、<em class="hl">AIではありません</em>。作ったものは、あなたが販売するどんなゲームや製品にも使えます。*',
 open:"ジェネレーターを開く →",signin:"ログイン",micro:"このボタンは本物 — 触ってみて。",
-t1:"決定論的エンジン",t1s:"すべての素材にひとつのデザイン言語——AIには約束できない一貫性。",t2:"完全にあなたのもの",t2s:"書き出して、編集して、販売するあらゆる製品に。",t3:"クリエイターのために",t3s:"ゲーム開発者・デザイナー・スタジオ向け。",
+t1:"決定論的エンジン",t1s:"すべての素材にひとつのデザイン言語——AIには約束できない一貫性。",t2:"完全にあなたのもの",t2s:"書き出して、編集して、販売するあらゆる製品に。*",t3:"クリエイターのために",t3s:"ゲーム開発者・デザイナー・スタジオ向け。",
 n1:"<b>ステップ1 · マスター。</b>DNAを設定 — 色・形・ツヤ・パターン。以降すべてがこれを継承します。",
 n2:"<b>ステップ2 · あなたのキット。</b>ワンクリックで全部完成 — 各パーツがマスターを継承、ステートも込み。",
 n3:"<b>ステップ3 · ボード。</b><b>自分の画像をアップロード</b> — 画面でもコンセプトでも — パーツをドラッグし、背景を調光。ボードは何枚でも作れて、それぞれ書き出し・共有できます。",
 n4:"<b>書き出し完了！</b>これで一巡 — マスター → キット → ボード → ファイル。次は本番でどうぞ。",
-cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。",compatLbl:"あなたのツールと連携",compatTitle:"いつものツールに、そのまま届く。",c_rest:"ロゴにカーソルを合わせると、キットの取り込み方法が表示されます。",c_svg:"クリーンな SVG ベクターを完全編集可能なまま読み込み — 全コンポーネント・全ステートが命名済み。",c_png:"透過 PNG を 1×/2× で書き出し。コンポーネント・ステートごとに分割済み。",c_html:"動く kit.html + kit.css 付き。開いて確認、そのままスタイルの流用も。",c_json:"全パーツ・ステート・サイズを網羅したエンジン対応 JSON マニフェスト。",c_fold:"整理されたフォルダ構造で、プロジェクトへそのまま投入可能。",c_soon:"ネイティブ書き出しは今後対応",ks1:"ボタン",ks2:"インターフェース",ks3:"コントロール",ks4:"メーターとタイマー",ks5:"HUDとプレイヤー",ks6:"ラージピース",
+cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。*",compatLbl:"あなたのツールと連携",compatTitle:"いつものツールに、そのまま届く。",c_rest:"ロゴにカーソルを合わせると、キットの取り込み方法が表示されます。",c_svg:"クリーンな SVG ベクターを完全編集可能なまま読み込み — 全コンポーネント・全ステートが命名済み。",c_png:"透過 PNG を 1×/2× で書き出し。コンポーネント・ステートごとに分割済み。",c_html:"動く kit.html + kit.css 付き。開いて確認、そのままスタイルの流用も。",c_json:"全パーツ・ステート・サイズを網羅したエンジン対応 JSON マニフェスト。",c_fold:"整理されたフォルダ構造で、プロジェクトへそのまま投入可能。",c_soon:"ネイティブ書き出しは今後対応",ks1:"ボタン",ks2:"インターフェース",ks3:"コントロール",ks4:"メーターとタイマー",ks5:"HUDとプレイヤー",ks6:"ラージピース",
 fKit:"キット完成",fBoard:"ボード完成",bdCall1:"デザインをテスト",bdCall2:"実際の画面の上でキットを確認 — 文脈の中で見る。",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
@@ -1426,8 +1426,8 @@ exn_settings:'<b>あなたのルック全体を1ファイルに。</b>触った�
 iterP:"しかも固定されません：マスターに戻ってダイヤルを回せば、システム全体が再構成——キット、ボード、書き出しまで。全体にとって最良の形へ反復していけます。（それに、いじり続けるのは純粋に楽しい。）",
 fontL:"フォント",bgL:"背景",extrL:"押し出し",dsgnL:"デザイン",resetL:"リセット",
 pg:"ホームではワードフィルターが有効です——製品版では解除できます。",
-tcolL:"文字色",stDis:"無効",licN:"ライセンスを一行で：キットはどんな製品にも（商用含め）使えます——ただし素材そのものの転売・再配布は不可。",
-fin1t:"ブラウザベース",fin1s:"インストール不要",fin2t:"決定論的",fin2s:"AIではない",fin3t:"ゲームレディ",fin3s:"どこへでも書き出し",fin4t:"あなたのもの",fin4s:"販売も公開も",finFree:"選定キットと限定PNG書き出しは無料。",
+tcolL:"文字色",stDis:"無効",licN:"* ライセンスを一行で:キットはどんな製品にも(商用含め)使えます——ただしキットや素材そのものを素材・テンプレート・素材パックとして転売・再配布することはできません。詳細は利用規約へ。",
+fin1t:"ブラウザベース",fin1s:"インストール不要",fin2t:"決定論的",fin2s:"AIではない",fin3t:"ゲームレディ",fin3s:"どこへでも書き出し",fin4t:"あなたのもの",fin4s:"販売も公開も*",finFree:"選定キットと限定PNG書き出しは無料。",
 auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイン",auUp:"アカウント作成",auEmail:"メール",auPass:"パスワード",auFgt:"パスワードをお忘れですか？",auGo1:"サインイン",auGo2:"アカウントを作成",auOr:"または",auMagic:"✉ サインインリンクを送る",auFreeL:"Free Explorer——カード不要。",auTerms:"利用規約とライセンスに同意します：どんな製品にも使えますが、素材の転売は不可。",auHi:"プレイヤー1",auOkT:"サインインしました",auOkP:"スタジオを開いています：",auDoneT:"アカウントを作成しました",auDoneP:"ようこそ——エディタを開いています：",auSentT2:"受信トレイをご確認ください",auSentP2:"サインインリンクを送信しました：",auRstT:"リセットリンクを送信しました",auRstP:"パスワード再設定の案内を送信しました：",auBackL:"戻る",bgsL:"背景"}
       };
       let lang = "en";
@@ -1630,6 +1630,34 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
             ret.addEventListener("pointerup", drop);
             ret.addEventListener("pointercancel", drop);
           }
+          /* the corner joystick flies the same reticle — deflection is velocity */
+          let stickX = 0, stickY = 0, stickOn = false;
+          const stick = document.querySelector(".hud-stick");
+          const knob = stick ? stick.querySelector("i") : null;
+          if (stick && knob) {
+            const moveStick = (ev) => {
+              const r = stick.getBoundingClientRect();
+              let dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
+              const max = r.width * 0.32, len = Math.hypot(dx, dy) || 1;
+              if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+              stickX = dx / max; stickY = dy / max;
+              knob.style.transform = "translate(" + dx + "px, " + dy + "px)";
+            };
+            stick.addEventListener("pointerdown", (ev) => {
+              ev.preventDefault();
+              stickOn = true; stick.classList.add("is-live");
+              try { stick.setPointerCapture(ev.pointerId); } catch (_) {}
+              moveStick(ev);
+            });
+            stick.addEventListener("pointermove", (ev) => { if (stickOn) moveStick(ev); });
+            const dropStick = () => {
+              stickOn = false; stickX = 0; stickY = 0;
+              stick.classList.remove("is-live");
+              knob.style.transform = "";
+            };
+            stick.addEventListener("pointerup", dropStick);
+            stick.addEventListener("pointercancel", dropStick);
+          }
           const fit = () => { const w = cv.offsetWidth, h = cv.offsetHeight;
             const dpr = Math.min(2, window.devicePixelRatio || 1);
             if (w && cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
@@ -1650,6 +1678,12 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
               if (!cv.isConnected) { io.disconnect(); return; }
               const [w, h] = fit();
               if (!w) { requestAnimationFrame(step2); return; }
+              if (stickOn && ret) {
+                retX = Math.min(.92, Math.max(.08, retX + stickX * 0.014));
+                retY = Math.min(.86, Math.max(.12, retY + stickY * 0.012));
+                ret.style.left = (retX * 100) + "%";
+                ret.style.top = (retY * 100) + "%";
+              }
               cx2d.clearRect(0, 0, w, h);
               const cx = w * retX, cy = h * retY, f = Math.min(w, h) * .9;
               speed += ((held ? WARP : CRUISE) - speed) * (held ? 0.1 : 0.012);
