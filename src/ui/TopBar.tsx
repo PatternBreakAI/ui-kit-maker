@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Sparkles, ChevronDown } from "lucide-react";
-import { useGen, hydrate, getDefault } from "@/generator/store";
+import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
@@ -67,15 +67,25 @@ export function TopBar() {
       <div className="top-spacer" />
 
       <div className="topcluster">
-        <div className="saved">
-          {cloud.state === "error" ? (
-            <><span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>Cloud paused</>
-          ) : cloud.state === "synced" || cloud.state === "syncing" ? (
-            <><span className="ok"><CloudUpload size={18} strokeWidth={1.9} color={cloud.state === "synced" && saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{cloud.state === "synced" && saveStatus === "saved" ? "Saved" : "Syncing…"}</>
-          ) : (
-            <><span className="ok"><CheckCircle2 size={18} strokeWidth={1.9} color={saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{saveStatus === "saved" ? "Saved" : "Saving…"}</>
-          )}
-        </div>
+        {cloud.state === "signedout" && isTouched() ? (
+          /* honest chip: anonymous work is browser-only — one tap to make it
+             an account. Quiet wording, not an alarm; the tooltip explains. */
+          <button className="saved savedbtn" onClick={() => openAuth("signin")}
+            title="Your work is saved only in this browser — clearing browser data would erase it. Sign in (free) and it syncs to your account.">
+            <span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>
+            {saveStatus === "saved" ? "Saved — this browser only" : "Saving…"}
+          </button>
+        ) : (
+          <div className="saved">
+            {cloud.state === "error" ? (
+              <><span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>Cloud paused</>
+            ) : cloud.state === "synced" || cloud.state === "syncing" ? (
+              <><span className="ok"><CloudUpload size={18} strokeWidth={1.9} color={cloud.state === "synced" && saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{cloud.state === "synced" && saveStatus === "saved" ? "Saved" : "Syncing…"}</>
+            ) : (
+              <><span className="ok"><CheckCircle2 size={18} strokeWidth={1.9} color={saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{saveStatus === "saved" ? "Saved" : "Saving…"}</>
+            )}
+          </div>
+        )}
 
         <button className={`acct${shine ? " on" : ""}`} onClick={() => setShine(!shine)}
           aria-label={shine ? "Turn the shine sweep off" : "Turn the shine sweep on"} aria-pressed={shine}

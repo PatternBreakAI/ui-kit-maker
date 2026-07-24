@@ -46,7 +46,22 @@ const LS_KEY_V9 = "ui-generator-v9";
 const LS_KEY_V8 = "ui-generator-v8";
 // set once the user actually edits — an untouched visitor tracks the site default
 const TOUCHED_KEY = "ui-generator-touched";
-export function markTouched() { try { localStorage.setItem(TOUCHED_KEY, "1"); } catch { /* ignore */ } }
+let persistAsked = false;
+export function markTouched() {
+  try { localStorage.setItem(TOUCHED_KEY, "1"); } catch { /* ignore */ }
+  /* Anonymous work lives only in this browser — the moment it exists, ask the
+     browser to shield the origin's storage from storage-pressure eviction
+     (Safari's 7-day sweep, low-disk cleanup). Deliberate clearing still wins;
+     the real safety net is signing in. */
+  if (!persistAsked) {
+    persistAsked = true;
+    try { void navigator.storage?.persist?.(); } catch { /* ignore */ }
+  }
+}
+/** Has this browser ever made a real edit? (drives the browser-only nudge) */
+export function isTouched(): boolean {
+  try { return localStorage.getItem(TOUCHED_KEY) === "1"; } catch { return false; }
+}
 
 /* Deep-merge saved candy tokens over the current defaults so new fields
    (specular mode, gloss layer, contact…) always arrive with sane values. */

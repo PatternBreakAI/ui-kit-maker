@@ -64,6 +64,12 @@ Supabase (managed auth + Postgres, RLS everywhere)
     reconciliation when another device wrote since our last pull.
   - **Honest chip** — sync errors show as "Cloud paused — saved locally",
     never as a green saved state.
+  - **Anonymous work is labeled and shielded** — the first real edit requests
+    `navigator.storage.persist()` (guards against storage-pressure eviction,
+    e.g. Safari's 7-day sweep), and a signed-out user's chip reads
+    "Saved — this browser only", tapping through to sign-in. Deliberate
+    data-clearing still erases anonymous work; the cloud account is the
+    real safety net.
 - The DB keeps one previous revision (`workspaces.previous`, maintained by
   trigger only when the doc actually changes) as a server-side undo.
 - Magic links are sign-in only (`shouldCreateUser: false`): account
