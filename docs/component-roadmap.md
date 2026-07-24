@@ -36,6 +36,22 @@ engine (silhouette + candy material + type — no illustration work).
 | 19 | Cooldown radial overlay | wipe overlay for slots/hotbar |
 | 20 | Volume/quality stepper | − value + segments |
 
+## Editing contracts — System Chrome
+
+Every chrome piece inherits the master material wholesale (silhouette,
+candy, lighting, type); the STATE selector targets the piece's
+interactive sub-element, never the whole frame:
+
+| Piece | Hover / pressed target | Extra editable channels |
+|---|---|---|
+| dialog | action capsules (primary glows / both depress) | title text, type, colors |
+| listmenu | active row (fill, ring, glyph) | row labels via content, type |
+| scrollbar | thumb (glow / grip) | value = position |
+| steps | current pip (ring, scale) | type + colors only |
+| stepper | + cap glows; pressed fills one more cell | value = cells |
+| loadbar | — (value = fill; heading editable) | mercury follows Glow role |
+| others | frame dims for disabled only | labels/values per piece |
+
 ## P2 · RPG / MMO pack — 14
 
 health globe (liquid orb), XP bar with level notches + level bubble,
