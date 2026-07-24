@@ -100,7 +100,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // stamped-geometry value pipe: sliders and the settings row drag, the
     // scrollbar thumb drags, menu rows and the dialog's capsules track the
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
-    : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" ? (playing && !disabled ? val : kit?.value)
+    : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" || id === "emotewheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
@@ -336,6 +336,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     else if (id === "segment") {
       const c = trackCoord(e);
       if (c) setSel(c.thirds);
+    }
+    else if (id === "emotewheel") {
+      // emotes are FAST: click selects the sector under the pointer, no spin
+      const p = wheelCoord(e);
+      if (p !== null) setVal((Math.floor(p * 6) + 0.5) / 6);
     }
     else if (id === "spinwheel") {
       // the fortune throw: 2-3 turns, long decelerating settle
