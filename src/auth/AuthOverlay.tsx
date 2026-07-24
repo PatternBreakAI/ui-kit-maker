@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LogIn, UserPlus, Mail, KeyRound, RefreshCw, FileDown, Cable, History,
   FolderOpen, LogOut, X, CheckCircle2, CloudOff, CloudUpload, ArrowLeft,
+  Wand2, UserRound,
 } from "lucide-react";
 import {
   cloudConfig, setCloudOverride, clearCloudOverride,
@@ -10,6 +11,7 @@ import {
 } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { useAuthOverlay, closeAuth } from "@/shell/authOverlay";
+import { navigate, parseHash } from "@/shell/router";
 import { engineApi, tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
 
@@ -77,6 +79,9 @@ export function AuthOverlay() {
   const switchMode = (m: Mode) => { setMode(m); setNote(null); setErr(false); };
 
   const signedIn = status.state === "synced" || status.state === "syncing" || status.state === "error";
+  // Where the overlay sits changes what "open" means: in the editor the
+  // generator is already behind the modal, elsewhere it's a navigation.
+  const onApp = parseHash(window.location.hash).name === "app";
 
   // A real engine render greets sign-in — the product is present even here.
   const [chipSvg] = useState(() => {
@@ -139,7 +144,12 @@ export function AuthOverlay() {
             showProjects ? (
               <Suspense fallback={<p className="fd-lead">Loading your projects…</p>}>
                 <div className="fd-projects">
-                  <ProjectsPanel onBack={() => setShowProjects(false)} onClose={closeAuth} />
+                  <ProjectsPanel
+                    onBack={() => setShowProjects(false)}
+                    onClose={closeAuth}
+                    confirmReplace={onApp}
+                    onOpened={() => { if (!onApp) navigate("#/app"); }}
+                  />
                 </div>
               </Suspense>
             ) : (
@@ -157,9 +167,19 @@ export function AuthOverlay() {
                     )}
                   </div>
                 </div>
-                <button className="fd-primary" onClick={() => setShowProjects(true)}>
-                  <FolderOpen size={16} strokeWidth={1.9} /> My projects
-                </button>
+                {!onApp && (
+                  <button className="fd-primary" onClick={() => { closeAuth(); navigate("#/app"); }}>
+                    <Wand2 size={16} strokeWidth={1.9} /> Open the generator
+                  </button>
+                )}
+                <div className="fd-actions">
+                  <button className="fd-ghost" onClick={() => setShowProjects(true)}>
+                    <FolderOpen size={15} strokeWidth={1.8} /> My projects
+                  </button>
+                  <button className="fd-ghost" onClick={() => { closeAuth(); navigate("#/account"); }}>
+                    <UserRound size={15} strokeWidth={1.8} /> Account
+                  </button>
+                </div>
                 <button className="fd-ghost fd-ghost--wide" onClick={() => { void signOutCloud(); closeAuth(); }}>
                   <LogOut size={15} strokeWidth={1.8} /> Sign out
                 </button>

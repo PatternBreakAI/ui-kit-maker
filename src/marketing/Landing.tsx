@@ -9,7 +9,6 @@ import { LANDING_HTML } from "./landingHtml";
 import { initLanding } from "./landingInit";
 import { engineApi } from "./engine";
 import { navigate } from "@/shell/router";
-import { openAuth } from "@/shell/authOverlay";
 
 import gameDev from "./assets/people/game-dev.jpg";
 import indie from "./assets/people/indie.jpg";
@@ -54,7 +53,8 @@ export function Landing() {
       engine: engineApi,
       assets: { strategy, tavern, fps },
       navigate,
-      openAuth: () => openAuth("signin"),
+      // "Sign in" on the landing goes to the dedicated page, like a normal site.
+      openAuth: () => navigate("#/signin"),
       signal: ctrl.signal,
     });
     return () => {

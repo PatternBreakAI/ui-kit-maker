@@ -486,3 +486,32 @@
 .fd-free__check{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:4px;
   border:1px solid rgba(178,107,255,.5);border-radius:50%;color:#b26bff;font-size:10px}
 .fd-actions--adv{margin-top:4px}
+
+/* ── Sign-in + account pages: the normal-site chrome ── */
+.fd-page{min-height:100vh;background:var(--fd-page);color:var(--ink)}
+.fd-page__bar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px clamp(20px,4vw,48px);border-bottom:1px solid var(--line);background:var(--fd-page)}
+.fd-page__brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:14px;color:inherit;text-decoration:none}
+.fd-page__brand:hover{text-decoration:underline}
+.fd-page__links{display:flex;gap:14px;font-size:13px}
+.fd-page__links a{color:inherit;opacity:.65;text-decoration:none}
+.fd-page__links a:hover{opacity:1;text-decoration:underline}
+.fd-page__open{width:auto;height:38px;padding:0 16px;font-size:13.5px}
+.fd-page__center{display:flex;justify-content:center;padding:7vh 20px 80px}
+.fd-page__card{width:min(400px,100%);height:fit-content}
+.fd-page__title{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em}
+.fd-page__wrap{width:min(600px,calc(100% - 40px));margin:0 auto;padding:36px 0 90px;display:flex;flex-direction:column;gap:14px}
+.fd-page__h1{margin:0 0 4px;font-size:clamp(26px,4vw,34px);font-weight:800;letter-spacing:-.025em}
+.fd-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;
+  box-shadow:0 0 0 4px rgba(178,107,255,.06);display:flex;flex-direction:column;gap:12px}
+.fd-card__title{margin:0;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.fd-plan{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fd-plan__chip{padding:6px 12px;border-radius:999px;border:1px solid rgba(178,107,255,.5);color:#7c3aed;
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10px;font-weight:700;letter-spacing:.14em}
+[data-theme="dark"] .fd-plan__chip{color:#cf8eff}
+.fd-plan__desc{font-size:13px;color:var(--ink2)}
+/* the shared ProjectsPanel, reskinned as page content */
+.fd-page .fd-projects .menu-pop{position:static;top:auto;right:auto;background:transparent;border:0;box-shadow:none;padding:0;min-width:0}
+.fd-page .fd-projects .proj-head{display:none}
+.fd-page .fd-projects .proj-list{max-height:none}

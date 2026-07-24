@@ -1,9 +1,11 @@
 /* Minimal hand-rolled hash router — no dependency, works on any static host
-   with Vite's relative `base`. It intentionally understands only three shapes
-   and defaults everything else to the landing page:
+   with Vite's relative `base`. It intentionally understands only a handful of
+   shapes and defaults everything else to the landing page:
 
    · #/app              → the editor
-   · #/signin           → the landing page with the auth overlay open
+   · #/signin           → the sign-in page
+   · #/account          → the account page (profile, plan, projects, data)
+   · #/terms #/privacy  → legal pages
    · #/  ""  (default)  → the landing page
 
    Two legacy hashes predate routes and must keep working untouched — they are
@@ -19,21 +21,23 @@
 
 import { useEffect, useState } from "react";
 
-export type RouteName = "landing" | "app" | "terms" | "privacy";
-export type Route = { name: RouteName; viewer: boolean; signin: boolean };
+export type RouteName =
+  | "landing" | "app" | "terms" | "privacy" | "signin" | "account";
+export type Route = { name: RouteName; viewer: boolean };
 
 export function parseHash(hash: string): Route {
   // Deep links → editor (viewer mode handled inside App.tsx).
   if (/^#(share|p)=/.test(hash)) {
-    return { name: "app", viewer: true, signin: false };
+    return { name: "app", viewer: true };
   }
   const path = hash.replace(/^#/, "");
-  if (path === "/app") return { name: "app", viewer: false, signin: false };
-  if (path === "/terms") return { name: "terms", viewer: false, signin: false };
-  if (path === "/privacy") return { name: "privacy", viewer: false, signin: false };
-  if (path === "/signin") return { name: "landing", viewer: false, signin: true };
+  if (path === "/app") return { name: "app", viewer: false };
+  if (path === "/terms") return { name: "terms", viewer: false };
+  if (path === "/privacy") return { name: "privacy", viewer: false };
+  if (path === "/signin") return { name: "signin", viewer: false };
+  if (path === "/account") return { name: "account", viewer: false };
   // "", "/", unknown routes, and Supabase auth hashes → landing.
-  return { name: "landing", viewer: false, signin: false };
+  return { name: "landing", viewer: false };
 }
 
 export function useRoute(): Route {

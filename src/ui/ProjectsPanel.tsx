@@ -12,7 +12,16 @@ import {
    snapshots (the same portable payload a share link carries): save the kit
    on screen, open any project back into the editor, and opt-in publish one
    behind a short #p=<slug> link. Private by default; RLS enforces it. */
-export function ProjectsPanel({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
+export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened }: {
+  onBack: () => void;
+  onClose: () => void;
+  /** Ask before replacing the kit on screen. The account/landing surfaces
+      pass false — there's no in-progress kit there to lose. */
+  confirmReplace?: boolean;
+  /** Called after a project is opened into the editor store (the landing and
+      account page navigate to #/app here). */
+  onOpened?: () => void;
+}) {
   const [items, setItems] = useState<CloudProject[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -51,13 +60,14 @@ export function ProjectsPanel({ onBack, onClose }: { onBack: () => void; onClose
   };
 
   const doOpen = async (p: CloudProject) => {
-    if (!window.confirm(`Open “${p.name}”? It replaces the kit on screen — save the current one as a project first if you want to keep it.`)) return;
+    if (confirmReplace && !window.confirm(`Open “${p.name}”? It replaces the kit on screen — save the current one as a project first if you want to keep it.`)) return;
     setBusy(true); setNote(null);
     const { doc, error } = await loadProjectDoc(p.id);
     setBusy(false);
     if (error || !doc) { setNote(error ?? "Couldn't load that project."); return; }
     useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false });
     onClose();
+    onOpened?.();
   };
 
   const doUpdate = async (p: CloudProject) => {
