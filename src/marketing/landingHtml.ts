@@ -123,7 +123,7 @@ export const LANDING_HTML = `</head>
           <div class="st2-controls">
             <div class="c-split c-row3">
               <div class="c-color-row">
-                <span class="c-cap">COLOR</span>
+                <span class="c-cap">STYLE</span>
                 <div class="palette2" id="palette2" role="group" aria-label="Candy palette"></div>
               </div>
               <div class="c-group">
