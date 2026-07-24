@@ -777,7 +777,10 @@ export type KitComponentId =
   | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper"
   | "healthglobe" | "xpbar" | "manarails" | "questpanel" | "dialoguebox"
   | "choicelist" | "invgrid" | "rarityframe" | "equipslot" | "skillnode"
-  | "compass" | "partyframe" | "dmgnumber" | "loottag";
+  | "compass" | "partyframe" | "dmgnumber" | "loottag"
+  | "crosshair" | "hitmarker" | "killfeed" | "magazine" | "equipselector"
+  | "streakmeter" | "waypoint" | "capturemeter" | "respawn" | "dmgarc"
+  | "weaponwheel";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -815,6 +818,17 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "partyframe", name: "Party frame" },
   { id: "dmgnumber", name: "Damage number" },
   { id: "loottag", name: "Loot tag" },
+  { id: "crosshair", name: "Crosshair" },
+  { id: "hitmarker", name: "Hit marker" },
+  { id: "killfeed", name: "Kill feed" },
+  { id: "magazine", name: "Magazine" },
+  { id: "equipselector", name: "Equipment selector" },
+  { id: "streakmeter", name: "Streak meter" },
+  { id: "waypoint", name: "Waypoint" },
+  { id: "capturemeter", name: "Capture point" },
+  { id: "respawn", name: "Respawn timer" },
+  { id: "dmgarc", name: "Damage direction" },
+  { id: "weaponwheel", name: "Weapon wheel" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -1003,6 +1017,9 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   compass: "pill",
   partyframe: "kenneyRect",
   loottag: "kenneyTag",
+  killfeed: "kenneyRect",
+  streakmeter: "pill",
+  respawn: "round",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",
@@ -1061,4 +1078,7 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   flask: { lib: "lucide", name: "FlaskConical", viewBox: "0 0 24 24", inner: '<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>', mode: "stroke" },
   scroll: { lib: "lucide", name: "Scroll", viewBox: "0 0 24 24", inner: '<path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>', mode: "stroke" },
   key: { lib: "lucide", name: "Key", viewBox: "0 0 24 24", inner: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>', mode: "stroke" },
+  // shooter glyphs — same canonical-Lucide embedding rules
+  crosshair: { lib: "lucide", name: "Crosshair", viewBox: "0 0 24 24", inner: '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>', mode: "stroke" },
+  skull: { lib: "lucide", name: "Skull", viewBox: "0 0 24 24", inner: '<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>', mode: "stroke" },
 };

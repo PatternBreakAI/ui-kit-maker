@@ -1,7 +1,28 @@
-# Smart Help — canvas-to-editor deep links (architecture seed)
+# Smart Help — canvas-to-editor deep links
 
-Status: **not scheduled** — this is the thinking-ahead document the product
-owner asked for. It will get its own thread when we build it.
+Status: **v1 SHIPPED** (v82) on the master canvas; the rest of this
+document is the design it implements plus what remains.
+
+## What v1 ships
+
+- `data-part` stamps on every build() layer group (cast-shadow,
+  contact-shadow, outer-glow, extrusion, shell, face, pattern,
+  inner-glow, bloom, gloss, specular, texture, content, label, icon).
+- A **?** toggle in the canvas toolbar (master phase). Help mode lays a
+  hit-test sheet over the stage: hovering outlines the top layer under
+  the pointer and names it; clicking opens the layer breakout (or jumps
+  straight in when only one layer is there).
+- `PART_ROUTES` + `helpNavigate` in `src/ui/smartHelp.ts`: choosing a
+  layer opens its Panel section (the same `open` map search uses),
+  scrolls it to center, and glows it for ~1.6s (`.sh-glow`).
+
+## v2 candidates (not yet built)
+
+- Kit-page pieces: the ✎ button already deep-links to focused editing;
+  extend part-level hits there once per-piece stamps are richer.
+- Per-part stamps inside kit self-drawn content (wells, fills, badges) —
+  the chrome/RPG/shooter pieces stamp the component root today.
+- A dev-mode audit warning when a stamped part has no route.
 
 ## The idea
 

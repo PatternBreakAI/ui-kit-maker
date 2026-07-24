@@ -97,8 +97,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const inert = disabled || kit?.tone === "alt";
   const value = id === "toggle" || id === "checkbox" || id === "radio" || id === "orb" ? (playing && !disabled ? (on ? 1 : 0) : kit?.value)
     // vertical-track pieces: the scrollbar thumb drags, menu rows track the
-    // pointer — all through the same stamped-geometry value pipe
-    : id === "slider" || id === "scrollbar" || id === "listmenu" || id === "choicelist" ? (playing && !disabled ? val : kit?.value)
+    // pointer, the weapon wheel follows the pointer's ANGLE — all through
+    // the same stamped-geometry value pipe
+    : id === "slider" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "weaponwheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
@@ -196,6 +197,24 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
   // rows highlight under a resting pointer; the scrollbar needs a real drag
   const vtracked = id === "scrollbar" || id === "listmenu" || id === "choicelist";
+
+  /* Weapon wheel: the pointer's ANGLE around the stamped hub picks the
+     chamber — the hold-and-point gesture, live. */
+  const wheelCoord = (e: React.PointerEvent): number | null => {
+    const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
+    const hub = el?.getAttribute("data-wheel")?.split(" ").map(Number);
+    if (!el || !hub || hub.length !== 2) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width) return null;
+    const vb = el.viewBox.baseVal;
+    const px = vb.x + ((e.clientX - r.left) / r.width) * vb.width;
+    const py = vb.y + ((e.clientY - r.top) / r.height) * vb.height;
+    const a = Math.atan2(py - hub[1], px - hub[0]); // -PI..PI, 0 = east
+    // chambers start at NORTH and run clockwise; sector centers get the
+    // half-step offset so the pointer lands in the sector it's inside
+    const frac = ((a + Math.PI / 2) / (Math.PI * 2) + 1 + 1 / 12) % 1;
+    return frac;
+  };
 
   /* Progress demo playback — resets to 0, then fills to the component's own
      configured value over ~1.2s. Clicking mid-animation restarts cleanly;
@@ -332,6 +351,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         const u = vtrackCoord(e);
         if (u !== null) setVal(u);
       }
+      // the wheel follows the pointer's angle — hold-and-point, live
+      if (id === "weaponwheel") {
+        const u = wheelCoord(e);
+        if (u !== null) setVal(u);
+      }
       if (id === "joystick" && sliding.current && stickDrag.current) {
         // relative drag mapped through the stamped travel radius — exact at
         // any display scale, no absolute geometry needed
@@ -416,7 +440,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     ? { transition: "filter .16s ease", filter: live !== "default" ? "brightness(1.14) saturate(1.05)" : "none" }
     : undefined;
   // draggable pieces own their gestures — a slider drag must never pan the page
-  const gestureStyle = id === "slider" || id === "segment" || id === "joystick" || vtracked ? { touchAction: "none" as const } : undefined;
+  const gestureStyle = id === "slider" || id === "segment" || id === "joystick" || id === "weaponwheel" || vtracked ? { touchAction: "none" as const } : undefined;
   return (
     <div ref={ref} className={`${shellFree ? `${className ?? ""} kp-shellfree` : className ?? ""}${burst ? " fx-igniting" : ""}`} title={title}
       style={{ ...style, ...(width !== undefined ? { width } : {}), ...anchorStyle, ...gestureStyle, ...choiceHover }}

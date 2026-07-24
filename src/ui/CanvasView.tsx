@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool } from "lucide-react";
+import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, CircleHelp } from "lucide-react";
+import { routeOf, helpNavigate } from "./smartHelp";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit } from "@/generator/bevel";
@@ -27,6 +28,61 @@ export function CanvasView() {
   // live interaction: hovering/pressing the hero previews those states ("hot"),
   // while edits keep applying to the selected state.
   const [live, setLive] = useState<"hover" | "pressed" | null>(null);
+
+  /* ── Smart Help — rollover the art, land on the control ──────────
+     Help mode turns the hero into an index of its own layers: hovering
+     lists the stamped `data-part` layers under the pointer (deepest
+     first), clicking opens the breakout, choosing a layer deep-links
+     into the panel (open + scroll + glow). Pure DOM hit-testing over
+     the same svg the user is looking at — no geometry duplicated. */
+  const [helpOn, setHelpOn] = useState(false);
+  const [helpHover, setHelpHover] = useState<{ x: number; y: number; w: number; h: number; parts: string[] } | null>(null);
+  const [helpMenu, setHelpMenu] = useState<{ x: number; y: number; parts: string[] } | null>(null);
+  const helpWrap = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (!helpOn) { setHelpHover(null); setHelpMenu(null); } }, [helpOn]);
+  useEffect(() => {
+    if (!helpMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element | null)?.closest?.(".sh-menu")) setHelpMenu(null);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setHelpMenu(null); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [helpMenu]);
+  const partsAt = (cx: number, cy: number): { parts: string[]; top: Element | null } => {
+    // data-part only exists on renderer layer groups, so presence IS the
+    // containment check — the overlay itself never matches
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    let top: Element | null = null;
+    for (const el of document.elementsFromPoint(cx, cy)) {
+      let g: Element | null = (el as Element).closest?.("[data-part]") ?? null;
+      while (g) {
+        const p = g.getAttribute("data-part");
+        if (p && !seen.has(p)) { seen.add(p); parts.push(p); if (!top) top = g; }
+        g = g.parentElement?.closest?.("[data-part]") ?? null;
+      }
+    }
+    return { parts, top };
+  };
+  const onHelpMove = (e: React.PointerEvent) => {
+    if (helpMenu) return;
+    const { parts, top } = partsAt(e.clientX, e.clientY);
+    if (!parts.length || !top || !helpWrap.current) { setHelpHover(null); return; }
+    const r = (top as SVGGraphicsElement).getBoundingClientRect();
+    const host = helpWrap.current.getBoundingClientRect();
+    setHelpHover({ x: r.left - host.left, y: r.top - host.top, w: r.width, h: r.height, parts });
+  };
+  const onHelpClick = (e: React.MouseEvent) => {
+    // clicks inside the breakout belong to the breakout
+    if ((e.target as Element | null)?.closest?.(".sh-menu")) return;
+    const { parts } = partsAt(e.clientX, e.clientY);
+    if (!parts.length || !helpWrap.current) return;
+    const host = helpWrap.current.getBoundingClientRect();
+    if (parts.length === 1) { helpNavigate(parts[0]); return; }
+    setHelpMenu({ x: e.clientX - host.left, y: e.clientY - host.top, parts });
+  };
 
   // Design mode locks the canvas to the state being edited; Play mode makes
   // the hero live under the pointer.
@@ -68,7 +124,7 @@ export function CanvasView() {
 
   return (
     <div className={`canvas-wrap${phase !== "master" ? " kitmode" : ""}${phase === "kit" ? " kitread" : ""}`}>
-      <div className="canvas-col">
+      <div className="canvas-col" style={{ position: "relative" }}>
       <div
         ref={scroller}
         className={`canvas${panMode ? " pan" : ""}`}
@@ -147,6 +203,32 @@ export function CanvasView() {
         {/* the toolbar lives OUTSIDE the scroller so it floats over the canvas
             instead of scrolling away with a long page (the Kit sheet) */}
       </div>
+
+        {/* Smart Help layer — intercepts the pointer over the master stage;
+            elementsFromPoint sees the art through it */}
+        {helpOn && phase === "master" && (
+          <div className="sh-layer" ref={helpWrap} onPointerMove={onHelpMove} onPointerLeave={() => setHelpHover(null)} onClick={onHelpClick}>
+            {helpHover && !helpMenu && (<>
+              <div className="sh-outline" style={{ left: helpHover.x, top: helpHover.y, width: helpHover.w, height: helpHover.h }} />
+              <div className="sh-chip" style={{ left: helpHover.x + helpHover.w / 2, top: helpHover.y - 10 }}>
+                {routeOf(helpHover.parts[0]).label}{helpHover.parts.length > 1 ? ` +${helpHover.parts.length - 1} more — click` : " — click to edit"}
+              </div>
+            </>)}
+            {helpMenu && (
+              <div className="sh-menu" style={{ left: helpMenu.x, top: helpMenu.y }} role="menu" aria-label="Layers under the pointer">
+                <b>Layers here</b>
+                {helpMenu.parts.map((p) => {
+                  const r = routeOf(p);
+                  return (
+                    <button key={p} role="menuitem" onClick={() => { setHelpMenu(null); helpNavigate(p); }}>
+                      <span>{r.label}</span><i>{r.hint}</i>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <div className="zoolbar" role="toolbar" aria-label="Canvas tools">
           {/* the Kit page is permanently alive — Design/Play only applies to
               the editor hero and the board */}
@@ -159,6 +241,12 @@ export function CanvasView() {
             aria-pressed={playing} onClick={() => { setCanvasMode("play"); }}>
             <Play size={17} strokeWidth={1.8} />
           </button>
+          {phase === "master" && (
+            <button className={helpOn ? "on" : ""} title="Smart Help — rollover the art to find the control that edits it"
+              aria-pressed={helpOn} onClick={() => setHelpOn(!helpOn)}>
+              <CircleHelp size={17} strokeWidth={1.8} />
+            </button>
+          )}
           <span className="zdiv" />
           </>)}
           <button className={panMode ? "on" : ""} title="Pan" aria-pressed={panMode} onClick={() => setPanMode(!panMode)}>

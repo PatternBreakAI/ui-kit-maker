@@ -1347,34 +1347,36 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${noise ? `<filter id="${id}nz" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="${nzFreq}" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer></filter>` : ""}
 </defs>
 <g opacity="${(adj.opacity / 100).toFixed(2)}" transform="translate(0 ${riseDy.toFixed(1)})">
-  ${castShadow ? `<g id="${id}_cast-shadow">${castShadow}</g>` : ""}
-  ${contact ? `<g id="${id}_contact-shadow">${contact}</g>` : ""}
-  ${aura ? `<g id="${id}_outer-glow">${aura}</g>` : ""}
+  ${castShadow ? `<g id="${id}_cast-shadow" data-part="cast-shadow">${castShadow}</g>` : ""}
+  ${contact ? `<g id="${id}_contact-shadow" data-part="contact-shadow">${contact}</g>` : ""}
+  ${aura ? `<g id="${id}_outer-glow" data-part="outer-glow">${aura}</g>` : ""}
   <g transform="translate(0 ${lift})">
-    ${extrusion ? `<g id="${id}_extrusion">${extrusion}</g>` : ""}
-    <g id="${id}_shell" opacity="${(T.frame / 100).toFixed(2)}">
+    ${extrusion ? `<g id="${id}_extrusion" data-part="extrusion">${extrusion}</g>` : ""}
+    <g id="${id}_shell" data-part="shell" opacity="${(T.frame / 100).toFixed(2)}">
       <path d="${outer}" fill="url(#${id}band)" stroke="${darken(bevelC, disabled ? 0.25 : 0.5)}" stroke-width="1.5"/>
       ${rimW > 0.2 ? `<path d="${rimP}" fill="none" stroke="url(#${id}rim)" stroke-width="${rimW.toFixed(1)}" opacity="${((C.rim.brightness / 100) * (disabled ? 0.5 : 1)).toFixed(2)}"/>` : ""}
       ${shape === "handdrawn" && !disabled ? roughInk(outer, darken(bevelC, 0.58), 1.4 * K) : ""}
     </g>
     <g data-oclip="1" clip-path="url(#${id}oc)">
-    <g id="${id}_face" opacity="${(T.interior / 100).toFixed(2)}">
+    <g id="${id}_face" data-part="face" opacity="${(T.interior / 100).toFixed(2)}">
       <path d="${faceP}" fill="url(#${id}face)"/>
       <g clip-path="url(#${id}fc)">
-        ${patternUse}
-        ${igOp > 0.01 ? `<path d="${faceP}" fill="url(#${id}ig)"/>` : ""}
-        ${bloom}
-        ${C.gloss.layer === "above" ? "" : (C.gloss.blend && C.gloss.blend !== "normal" ? `<g style="mix-blend-mode:${C.gloss.blend}">${gloss}</g>` : gloss)}
-        ${noise}
+        ${patternUse ? `<g data-part="pattern">${patternUse}</g>` : ""}
+        ${igOp > 0.01 ? `<path d="${faceP}" fill="url(#${id}ig)" data-part="inner-glow"/>` : ""}
+        ${bloom ? `<g data-part="bloom">${bloom}</g>` : ""}
+        ${C.gloss.layer === "above" ? "" : `<g data-part="gloss">${C.gloss.blend && C.gloss.blend !== "normal" ? `<g style="mix-blend-mode:${C.gloss.blend}">${gloss}</g>` : gloss}</g>`}
+        ${noise ? `<g data-part="texture">${noise}</g>` : ""}
       </g>
       ${innerEdge}
     </g>
-    <g id="${id}_content" opacity="${(T.content / 100).toFixed(2)}">
+    <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
+      ${showText ? `<g data-part="label">` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${showText ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${textFilter}>${textInner}</text>` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${glintsLayer}
-      ${iconDef ? (inheritTypo
+      ${showText ? `</g>` : ""}
+      ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${cfg.icon.opacity < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled
               ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: cfg.icon.strokeWidth / 10 + T2.outline.width * 0.85, rotation: cfg.icon.rotation })
@@ -1385,10 +1387,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
             opacity: (cfg.icon.opacity / 100),
             rotation: cfg.icon.rotation,
             filter: iconFilter,
-          })) : ""}
+          })) : ""}${iconDef ? `</g>` : ""}
     </g>
-    ${C.gloss.layer === "above" ? `<g id="${id}_gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
-    ${specular ? `<g id="${id}_specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${C.gloss.layer === "above" ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
+    ${specular ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
     </g>
   </g>
 </g>
@@ -2962,6 +2964,314 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
       const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${tier.name}</text>`;
       return inject(shell.replace("<svg ", '<svg data-loottag="1" '), stripe + gem + name + tag);
+    }
+    case "crosshair": {
+      /* Shooter · crosshair — four ticks + optional dot; spatial UI in the
+         Glow role with a dark understroke so it reads on any footage.
+         EDITING CONTRACT: value = spread (ticks travel outward);
+         overlay = "dot" (dot only) | "t" (no top tick); line weight rides
+         the Icon stroke control; color follows the Glow role; disabled dims. */
+      const dX = 170 * k;
+      const cX = dX / 2;
+      const vX9 = clamp(value ?? 0.25, 0, 1);
+      const gapX = 10 * k + vX9 * 30 * k, lenX = 22 * k;
+      const swX = 4.5 * k * iconWK;
+      const dim = state === "disabled" ? 0.4 : 1;
+      const variant = opts.overlay ?? "";
+      const tick = (x1: number, y1: number, x2: number, y2: number) =>
+        `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(6,10,18,0.7)" stroke-width="${(swX + 2.4).toFixed(1)}" stroke-linecap="round"/>` +
+        `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${glow}" stroke-width="${swX.toFixed(1)}" stroke-linecap="round"${state === "hover" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.8)})"` : ""}/>`;
+      let marks = "";
+      if (variant !== "dot") {
+        if (variant !== "t") marks += tick(cX, cX - gapX - lenX, cX, cX - gapX);
+        marks += tick(cX, cX + gapX, cX, cX + gapX + lenX) +
+          tick(cX - gapX - lenX, cX, cX - gapX, cX) +
+          tick(cX + gapX, cX, cX + gapX + lenX, cX);
+      }
+      const dotX = variant === "dot" || variant === ""
+        ? `<circle cx="${cX}" cy="${cX}" r="${(3.2 * k * iconWK + 1.2).toFixed(1)}" fill="rgba(6,10,18,0.7)"/><circle cx="${cX}" cy="${cX}" r="${(3.2 * k * iconWK).toFixed(1)}" fill="${glow}"/>`
+        : "";
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${dX.toFixed(0)}" height="${dX.toFixed(0)}" viewBox="0 0 ${dX.toFixed(0)} ${dX.toFixed(0)}" data-crosshair="1" role="img" aria-label="crosshair"><g opacity="${dim}">${marks}${dotX}</g></svg>`;
+    }
+    case "hitmarker": {
+      /* Shooter · hit marker — four diagonal ticks; past 0.7 it's a CRIT
+         (alarm tint, thicker, hot glow) — same threshold language as the
+         damage number. EDITING CONTRACT: value = intensity; weight rides
+         the Icon stroke; base color follows Glow; crit red is semantic. */
+      const dH = 150 * k, cH = dH / 2;
+      const vH9 = clamp(value ?? 0.4, 0, 1);
+      const crit = vH9 > 0.7;
+      const cHc = crit ? hexMix("#FF3B4A", glow, 0.15) : glow;
+      const swH = (4 * k + vH9 * 2.5 * k) * iconWK;
+      const r1H = 12 * k + vH9 * 6 * k, r2H = r1H + 20 * k + vH9 * 8 * k;
+      const dim = state === "disabled" ? 0.4 : 1;
+      let ticksH = "";
+      for (const [dx9, dy9] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        ticksH += `<line x1="${(cH + dx9 * r1H).toFixed(1)}" y1="${(cH + dy9 * r1H).toFixed(1)}" x2="${(cH + dx9 * r2H).toFixed(1)}" y2="${(cH + dy9 * r2H).toFixed(1)}" stroke="rgba(6,10,18,0.7)" stroke-width="${(swH + 2.4).toFixed(1)}" stroke-linecap="round"/>
+          <line x1="${(cH + dx9 * r1H).toFixed(1)}" y1="${(cH + dy9 * r1H).toFixed(1)}" x2="${(cH + dx9 * r2H).toFixed(1)}" y2="${(cH + dy9 * r2H).toFixed(1)}" stroke="${cHc}" stroke-width="${swH.toFixed(1)}" stroke-linecap="round"${crit && state !== "disabled" ? ` style="filter: drop-shadow(0 0 4px ${hexRgba(cHc, 0.85)})"` : ""}/>`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${dH.toFixed(0)}" height="${dH.toFixed(0)}" viewBox="0 0 ${dH.toFixed(0)} ${dH.toFixed(0)}" data-hitmarker="1" role="img" aria-label="hit marker"><g opacity="${dim}">${ticksH}</g></svg>`;
+    }
+    case "killfeed": {
+      /* Shooter · kill-feed row — killer [weapon] victim. EDITING CONTRACT:
+         label = killer, sub = victim, icon = the weapon glyph (swappable);
+         the whole row takes hover (that's the "you're in this one" flash);
+         type drives both names. */
+      const w = 600 * k, h = 76 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 86 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 5 * k;
+      const cy = 30 + h / 2;
+      const icK = opts.icon ?? STOCK_ICONS.crosshair;
+      const killer = opts.label ?? "NOVA_KNIGHT";
+      const victim = opts.sub ?? "RIVAL_66";
+      // display italics run wide — the weapon glyph sits at 58% with real
+      // air on both sides so long handles never kiss it
+      const parts = contentText(killer, 39 + inset + 16 * k, cy + 1, 21 * k * typeK, { keepCase: true }) +
+        (icK ? themedIcon(icK, 39 + w * 0.58 - 15 * k, cy - 15 * k, 30 * k, glow, 2.4) : "") +
+        contentText(victim, 39 + w * 0.58 + 28 * k, cy + 1, 21 * k * typeK, { keepCase: true, opacity: 0.75 });
+      return inject(shell.replace("<svg ", '<svg data-killfeed="1" '), parts);
+    }
+    case "magazine": {
+      /* Shooter · magazine — round pips deplete as you fire; the count
+         keeps the exact number. EDITING CONTRACT: value = rounds left;
+         max = capacity label; pips follow the Glow role; disabled dims. */
+      const nM = 12;
+      const pipW = 13 * k, pipH = 48 * k, gapM2 = 6 * k, padM = 16;
+      const cap = parseInt(opts.max ?? "12", 10) || 12;
+      const vM9 = clamp(value ?? 0.66, 0, 1);
+      const left = Math.round(vM9 * nM);
+      const WM = padM * 2 + nM * pipW + (nM - 1) * gapM2 + 96 * k;
+      const HM = padM * 2 + pipH;
+      const gidM9 = "mg" + UID++;
+      let pips = `<defs><linearGradient id="${gidM9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.45" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.3)}"/></linearGradient></defs>`;
+      for (let i = 0; i < nM; i++) {
+        const px9 = padM + i * (pipW + gapM2);
+        const on = i < left;
+        pips += `<rect x="${px9.toFixed(1)}" y="${padM}" width="${pipW.toFixed(1)}" height="${pipH.toFixed(1)}" rx="${(pipW / 2).toFixed(1)}" fill="${on ? `url(#${gidM9})` : "rgba(255,255,255,0.14)"}" stroke="${on ? darken(glow, 0.4) : "rgba(255,255,255,0.18)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+      }
+      pips += infoText(`${Math.round(vM9 * cap)} / ${cap}`, WM - padM, HM / 2 + 1, 24 * k, "end");
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WM.toFixed(0)}" height="${HM.toFixed(0)}" viewBox="0 0 ${WM.toFixed(0)} ${HM.toFixed(0)}" data-magazine="1" role="img" aria-label="magazine ${Math.round(vM9 * cap)} of ${cap}"><g opacity="${state === "disabled" ? 0.4 : 1}">${pips}</g></svg>`;
+    }
+    case "equipselector": {
+      /* Shooter · equipment selector — three sockets, the CENTER is armed;
+         value cycles which item sits there. EDITING CONTRACT: value = item;
+         label = the armed item's name; icon = the armed glyph (swappable);
+         hover strengthens the armed ring; disabled dims. */
+      const items: { ic?: IconDef; nm: string }[] = [
+        { ic: STOCK_ICONS.flask, nm: "FIELD TONIC" },
+        { ic: STOCK_ICONS.zap, nm: "SHOCK CHARGE" },
+        { ic: STOCK_ICONS.gem, nm: "PRISM MINE" },
+      ];
+      const selE = clamp(Math.floor(clamp(value ?? 0.34, 0, 1) * items.length), 0, items.length - 1);
+      const sideS = 84 * k, midS = 118 * k, gapE = 14 * k, padE = 22;
+      const WE = padE * 2 + sideS * 2 + midS + gapE * 2 + 44 * k;
+      const HE = padE * 2 + midS + 34 * k;
+      const cyE = padE + midS / 2;
+      const hotE = state === "hover" || state === "pressed";
+      const wellE = (cx9: number, s9: number, ic9: IconDef | undefined, ghost: boolean) =>
+        `<rect x="${(cx9 - s9 / 2).toFixed(1)}" y="${(cyE - s9 / 2).toFixed(1)}" width="${s9.toFixed(1)}" height="${s9.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="rgba(255,255,255,${ghost ? 0.16 : 0.3})" stroke-width="1.2"/>` +
+        (ic9 ? (ghost
+          ? iconGroup(ic9, cx9 - s9 * 0.27, cyE - s9 * 0.27, s9 * 0.54, "rgba(255,255,255,0.4)", { strokeWidth: 2 * iconWK })
+          : themedIcon(ic9, cx9 - s9 * 0.3, cyE - s9 * 0.3, s9 * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2.2)) : "");
+      const cxL = padE + 22 * k + sideS / 2, cxM = cxL + sideS / 2 + gapE + midS / 2, cxR = cxM + midS / 2 + gapE + sideS / 2;
+      const prev = items[(selE + items.length - 1) % items.length], next = items[(selE + 1) % items.length];
+      const armed = items[selE];
+      const chev = (x9: number, flip: boolean) =>
+        `<path d="M ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE - 10 * k).toFixed(1)} L ${(x9 + (flip ? -5 : 5) * k).toFixed(1)} ${cyE.toFixed(1)} L ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE + 10 * k).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      const inner = chev(padE + 8 * k, false) +
+        wellE(cxL, sideS, prev.ic, true) +
+        wellE(cxM, midS, opts.icon ?? armed.ic, false) +
+        `<rect x="${(cxM - midS / 2 - 3).toFixed(1)}" y="${(cyE - midS / 2 - 3).toFixed(1)}" width="${(midS + 6).toFixed(1)}" height="${(midS + 6).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotE ? 1 : 0.8)}" stroke-width="${hotE ? 3 : 2.2}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotE ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>` +
+        wellE(cxR, sideS, next.ic, true) +
+        chev(WE - padE - 8 * k, true) +
+        contentText(opts.label ?? armed.nm, cxM, padE + midS + 20 * k, 19 * k * typeK, { anchor: "middle" });
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WE.toFixed(0)}" height="${HE.toFixed(0)}" viewBox="0 0 ${WE.toFixed(0)} ${HE.toFixed(0)}" data-equipselector="1" role="img" aria-label="equipment selector"><g opacity="${state === "disabled" ? 0.4 : 1}">${inner}</g></svg>`;
+    }
+    case "streakmeter": {
+      /* Shooter · streak meter — five cells build to ignition; the zap
+         lights when the streak is full. EDITING CONTRACT: value = streak
+         progress; label = the meter's name; cells follow the Glow role
+         with the negative-space canon; disabled dims. */
+      const w = 500 * k, h = 92 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 100 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const vS9 = clamp(value ?? 0.64, 0, 1);
+      const nS9 = 5;
+      const litS = Math.round(vS9 * nS9);
+      const full = litS >= nS9;
+      const gidS9 = "sk" + UID++;
+      // wide-italic label zone: cells start clear of the word
+      const cellsX = 39 + inset + 188 * k, cellsW = w - inset * 2 - 188 * k - 92 * k;
+      const cellW9 = (cellsW - (nS9 - 1) * 6 * k) / nS9;
+      let inner = contentText(opts.label ?? "STREAK", 39 + inset + 16 * k, cy + 1, 22 * k * typeK) +
+        `<defs><linearGradient id="${gidS9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>`;
+      for (let i = 0; i < nS9; i++) {
+        const cx9 = cellsX + i * (cellW9 + 6 * k);
+        const on = i < litS;
+        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 15 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(30 * k).toFixed(1)}" rx="${(6 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : wellFill}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.14)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+      }
+      const zapX = 39 + w - inset - 52 * k;
+      inner += (STOCK_ICONS.zap ? (full && state !== "disabled"
+        ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
+        : iconGroup(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
+      return inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner);
+    }
+    case "waypoint": {
+      /* Shooter · objective waypoint — diamond marker + distance readout;
+         spatial UI. EDITING CONTRACT: label = the objective letter;
+         value = distance; diamond follows the Glow role; type drives the
+         letter; hover strengthens the pulse ring; disabled dims. */
+      const WW = 170 * k, HW = 210 * k;
+      const cxW = WW / 2, cyW = 78 * k;
+      const sW = 40 * k;
+      const dist = Math.round(20 + clamp(value ?? 0.3, 0, 1) * 400);
+      const hotW = state === "hover" || state === "pressed";
+      const gidW = "wp" + UID++;
+      const inner = `<defs><linearGradient id="${gidW}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.4)}"/><stop offset="1" stop-color="${darken(glow, 0.2)}"/></linearGradient></defs>
+        <rect x="${(cxW - sW / 2).toFixed(1)}" y="${(cyW - sW / 2).toFixed(1)}" width="${sW.toFixed(1)}" height="${sW.toFixed(1)}" rx="${(7 * k).toFixed(1)}" transform="rotate(45 ${cxW.toFixed(1)} ${cyW.toFixed(1)})" fill="url(#${gidW})" stroke="${darken(glow, 0.45)}" stroke-width="2"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotW ? 10 : 6) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
+        <rect x="${(cxW - sW / 2 - 8 * k).toFixed(1)}" y="${(cyW - sW / 2 - 8 * k).toFixed(1)}" width="${(sW + 16 * k).toFixed(1)}" height="${(sW + 16 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" transform="rotate(45 ${cxW.toFixed(1)} ${cyW.toFixed(1)})" fill="none" stroke="${hexRgba(glow, hotW ? 0.8 : 0.45)}" stroke-width="${hotW ? 2.4 : 1.6}"/>` +
+        contentText((opts.label ?? "A").slice(0, 1).toUpperCase(), cxW, cyW + 1, 26 * k * typeK, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" }) +
+        infoText(`${dist}m`, cxW, cyW + sW * 0.9 + 26 * k, 21 * k, "middle");
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WW.toFixed(0)}" height="${HW.toFixed(0)}" viewBox="0 0 ${WW.toFixed(0)} ${HW.toFixed(0)}" data-waypoint="1" role="img" aria-label="waypoint ${dist} meters"><g opacity="${state === "disabled" ? 0.4 : 1}">${inner}</g></svg>`;
+    }
+    case "capturemeter": {
+      /* Shooter · capture-point meter — the letter ringed by capture
+         progress. EDITING CONTRACT: label = point letter; value = capture
+         share; ring follows Glow, core follows Inner Fill; type drives
+         the letter; hover strengthens the glow; disabled dims. */
+      const dCp = ({ s: 108, m: 138, l: 172 } as Record<KitSize, number>)[size] * k;
+      const padCp = 24;
+      const cCp = dCp / 2 + padCp, rCp = dCp / 2 - 6;
+      const ringWc = Math.max(7, dCp * 0.09);
+      const vC9 = clamp(value ?? 0.55, 0, 1);
+      const circC = 2 * Math.PI * rCp;
+      const gidC0 = "cpm" + UID++;
+      const hotC9 = state === "hover" || state === "pressed";
+      const totalC = dCp + padCp * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalC}" height="${totalC}" viewBox="0 0 ${totalC} ${totalC}" data-capturemeter="1" role="img" aria-label="capture ${Math.round(vC9 * 100)}%">
+<defs><linearGradient id="${gidC0}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
+<radialGradient id="${gidC0}c" cx="0.5" cy="0.42" r="0.85"><stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.6)}"/><stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.85)}"/></radialGradient></defs>
+<g opacity="${state === "disabled" ? 0.4 : 1}">
+  <circle cx="${cCp}" cy="${cCp}" r="${(rCp - ringWc - 3).toFixed(1)}" fill="url(#${gidC0}c)"/>
+  <circle cx="${cCp}" cy="${cCp}" r="${rCp.toFixed(1)}" fill="none" stroke="${wellFill}" stroke-width="${ringWc.toFixed(1)}"/>
+  ${vC9 > 0.01 ? `<circle cx="${cCp}" cy="${cCp}" r="${rCp.toFixed(1)}" fill="none" stroke="url(#${gidC0})" stroke-width="${ringWc.toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circC * vC9).toFixed(1)} ${circC.toFixed(1)}" transform="rotate(-90 ${cCp} ${cCp})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotC9 ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/>` : ""}
+  ${contentText((opts.label ?? "B").slice(0, 1).toUpperCase(), cCp, cCp + 1, dCp * 0.34, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" })}
+</g>
+</svg>`;
+    }
+    case "respawn": {
+      /* Shooter · respawn timer — heading, big seconds, draining bar.
+         EDITING CONTRACT: label = the heading; value = time remaining;
+         seconds default to AUTO ink like the cooldown (a type fork or
+         per-piece color re-themes them via themedText); bar follows Glow
+         with the negative-space canon. */
+      const w = 340 * k, h = 168 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const cxR9 = 39 + w / 2;
+      const vR9 = clamp(value ?? 0.6, 0, 1);
+      const secsR = Math.ceil(vR9 * 10);
+      const barW9 = w - inset * 2 - 40 * k, barH9 = 12 * k;
+      const barX9 = cxR9 - barW9 / 2, barY9 = 30 + h - inset - 24 * k;
+      const gidR9 = "rs" + UID++;
+      const gR9 = 2.5 * k, mHR9 = barH9 - gR9 * 2;
+      const secsTxt = opts.themedText
+        ? contentText(String(secsR), cxR9, 30 + inset + 74 * k, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" })
+        : `<text x="${cxR9.toFixed(1)}" y="${(30 + inset + 74 * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${secsR}</text>`;
+      const inner = contentText(opts.label ?? "RESPAWN IN", cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
+        secsTxt +
+        `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
+        `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
+        (vR9 > 0.03 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * vR9).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
+      return inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
+    }
+    case "dmgarc": {
+      /* Shooter · damage-direction arc — the crescent that says WHERE it
+         came from; sits around the reticle on live footage. EDITING
+         CONTRACT: value = threat direction (0..1 → 360°); the alarm red is
+         semantic (like rarity hues); disabled dims. */
+      const dA = 260 * k, cA = dA / 2;
+      const rA = dA * 0.36, wA = dA * 0.085;
+      const ang = clamp(value ?? 0, 0, 1) * 360 - 90;
+      const gidA9 = "da" + UID++;
+      const a1A = (-38) * Math.PI / 180, a2A = (38) * Math.PI / 180;
+      const rOut = rA + wA / 2, rIn = rA - wA / 2;
+      const arc = `M ${(cA + rOut * Math.cos(a1A)).toFixed(1)} ${(cA + rOut * Math.sin(a1A)).toFixed(1)} A ${rOut.toFixed(1)} ${rOut.toFixed(1)} 0 0 1 ${(cA + rOut * Math.cos(a2A)).toFixed(1)} ${(cA + rOut * Math.sin(a2A)).toFixed(1)} L ${(cA + rIn * Math.cos(a2A)).toFixed(1)} ${(cA + rIn * Math.sin(a2A)).toFixed(1)} A ${rIn.toFixed(1)} ${rIn.toFixed(1)} 0 0 0 ${(cA + rIn * Math.cos(a1A)).toFixed(1)} ${(cA + rIn * Math.sin(a1A)).toFixed(1)} Z`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${dA.toFixed(0)}" height="${dA.toFixed(0)}" viewBox="0 0 ${dA.toFixed(0)} ${dA.toFixed(0)}" data-dmgarc="1" role="img" aria-label="damage direction">
+<defs><radialGradient id="${gidA9}" cx="0.5" cy="0.5" r="0.5"><stop offset="0.62" stop-color="#FF3B4A" stop-opacity="0"/><stop offset="0.82" stop-color="#FF3B4A" stop-opacity="0.9"/><stop offset="1" stop-color="#FF3B4A" stop-opacity="0.2"/></radialGradient></defs>
+<g opacity="${state === "disabled" ? 0.35 : 1}" transform="rotate(${(ang + 90).toFixed(1)} ${cA} ${cA})">
+  <g transform="rotate(-90 ${cA} ${cA})"><path d="${arc}" fill="url(#${gidA9})" style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px rgba(255,59,74,0.6))"/></g>
+</g>
+<circle cx="${cA}" cy="${cA}" r="${(2.5 * k).toFixed(1)}" fill="rgba(255,255,255,0.5)"/>
+</svg>`;
+    }
+    case "weaponwheel": {
+      /* Shooter · weapon wheel — the revolver-chamber radial selector:
+         six chamber sockets around a hub; hold-and-point picks a chamber
+         (the pointer's ANGLE drives it live via data-wheel), release
+         equips. EDITING CONTRACT: value = selected chamber (pointer angle
+         in play mode); label = the hub's item name; icon = the SELECTED
+         chamber's glyph (swappable); ring/core follow the theme roles;
+         hover strengthens the armed chamber; disabled dims. */
+      const dW = ({ s: 320, m: 400, l: 480 } as Record<KitSize, number>)[size] * k;
+      const padW = 30;
+      const cW = dW / 2 + padW;
+      const rimR = dW / 2, rimW9 = Math.max(10, dW * 0.045);
+      const orbitR = dW * 0.335, chamberR = dW * 0.115, hubR = dW * 0.155;
+      const gidW9 = "ww" + UID++;
+      const chambers: { ic?: IconDef; nm: string }[] = [
+        { ic: STOCK_ICONS.sword, nm: "BLADE" },
+        { ic: STOCK_ICONS.zap, nm: "VOLT" },
+        { ic: STOCK_ICONS.flask, nm: "TONIC" },
+        { ic: STOCK_ICONS.shield, nm: "AEGIS" },
+        { ic: STOCK_ICONS.key, nm: "PICK" },
+        { ic: STOCK_ICONS.gem, nm: "PRISM" },
+      ];
+      const selW = clamp(Math.floor(clamp(value ?? 0, 0, 0.999) * chambers.length), 0, chambers.length - 1);
+      const hotW9 = state === "hover" || state === "pressed";
+      const dim = state === "disabled" ? 0.4 : 1;
+      let inner = "";
+      // armed wedge: a quiet sector behind the selected chamber
+      const wedgeA = (selW / chambers.length) * Math.PI * 2 - Math.PI / 2;
+      const wSpan = Math.PI / chambers.length;
+      const wR = rimR - rimW9;
+      inner += `<path d="M ${cW} ${cW} L ${(cW + wR * Math.cos(wedgeA - wSpan)).toFixed(1)} ${(cW + wR * Math.sin(wedgeA - wSpan)).toFixed(1)} A ${wR.toFixed(1)} ${wR.toFixed(1)} 0 0 1 ${(cW + wR * Math.cos(wedgeA + wSpan)).toFixed(1)} ${(cW + wR * Math.sin(wedgeA + wSpan)).toFixed(1)} Z" fill="${hexRgba(glow, 0.14)}"/>`;
+      chambers.forEach((ch, i) => {
+        const aC = (i / chambers.length) * Math.PI * 2 - Math.PI / 2;
+        const ccx9 = cW + orbitR * Math.cos(aC), ccy9 = cW + orbitR * Math.sin(aC);
+        const on = i === selW;
+        const rr = chamberR * (on ? 1.12 : 1);
+        inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${wellFill}" stroke="${on ? hexRgba(glow, hotW9 ? 1 : 0.85) : "rgba(255,255,255,0.22)"}" stroke-width="${on ? (hotW9 ? 3.4 : 2.6) : 1.4}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 10 : 6) * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/>`;
+        const icW = on ? (opts.icon ?? ch.ic) : ch.ic;
+        if (icW) inner += on
+          ? themedIcon(icW, ccx9 - rr * 0.52, ccy9 - rr * 0.52, rr * 1.04, hexMix(glow, "#FFFFFF", 0.3), 2.2)
+          : iconGroup(icW, ccx9 - rr * 0.48, ccy9 - rr * 0.48, rr * 0.96, "rgba(255,255,255,0.5)", { strokeWidth: 2 * iconWK });
+      });
+      const hubNm = opts.label ?? chambers[selW].nm;
+      const totalW = dW + padW * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" role="img" aria-label="weapon wheel — ${hubNm}">
+<defs>
+  <linearGradient id="${gidW9}r" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/>
+    <stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/>
+    <stop offset="1" stop-color="${darken(bevel, 0.32)}"/>
+  </linearGradient>
+  <radialGradient id="${gidW9}g" cx="0.5" cy="0.45" r="0.75">
+    <stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.55)}" stop-opacity="0.94"/>
+    <stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.85)}" stop-opacity="0.96"/>
+  </radialGradient>
+</defs>
+<g opacity="${dim}">
+  <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
+  ${inner}
+  <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.5).toFixed(1)}px ${hexRgba(glow, 0.4)})"` : ""}/>
+  <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
+  <circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="${wellFill}" stroke="${darken(bevel, 0.4)}" stroke-width="1.6"/>
+  ${contentText(hubNm, cW, cW - 4 * k, dW * 0.052, { anchor: "middle", keepCase: true })}
+  <text x="${cW}" y="${(cW + hubR * 0.45).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(dW * 0.028).toFixed(1)}" font-weight="700" letter-spacing="0.16em" fill="rgba(255,255,255,0.45)" text-anchor="middle" dominant-baseline="central">RELEASE TO EQUIP</text>
+</g>
+</svg>`;
     }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected
