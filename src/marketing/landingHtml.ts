@@ -115,7 +115,7 @@ export const LANDING_HTML = `</head>
                 <div class="b2-pieces" id="b2Pieces"></div>
               </div>
             </div>
-            <div class="bd-call" id="bdCall" hidden aria-hidden="true"><b id="bdCall1">STAGE UNLOCKED</b><span id="bdCall2">Playtest your kit over real screenshots — your game, your frames.</span></div>
+            <div class="bd-call" id="bdCall" hidden aria-hidden="true"><b id="bdCall1">TEST YOUR DESIGNS</b><span id="bdCall2">See it in context — your kit, over real screens.</span></div>
             <div class="pv-ship" id="pvShip" hidden>
               <div class="ship-wrap">
               <div class="ship-card">
