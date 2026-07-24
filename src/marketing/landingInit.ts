@@ -120,7 +120,8 @@ export function initLanding(deps: LandingDeps) {
           masterSvg.appendChild(g);
         });
         const sv = masterSvg.querySelector("svg");
-        if (sv) { sv.classList.add("m-in"); setTimeout(() => sv.classList.remove("m-in"), 440); }
+        if (sv) { sv.classList.add("m-in"); setTimeout(() => sv.classList.remove("m-in"), 240); }
+        setTimeout(() => masterSvg.querySelectorAll(".m-ghost").forEach((g) => g.remove()), 320);
         ghostSrc = null;
       };
       const renderRk = (el) => { const v = el.dataset.v;
@@ -1599,8 +1600,32 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           const rnd = (a, b) => a + Math.random() * (b - a);
           const stars = [];
           for (let i = 0; i < 110; i++) stars.push({ x: rnd(-1, 1), y: rnd(-1, 1), z: rnd(0.08, 1) });
-          const CRUISE = 0.0035, JUMP = 0.09;
-          let speed = JUMP;
+          const CRUISE = 0.0035, JUMP = 0.09, WARP = 0.17;
+          let speed = JUMP, held = false, retX = 0.5, retY = 0.46;
+          /* the reticle is the helm: drag to steer the field, hold for warp */
+          const ret = document.querySelector(".hud-ret");
+          const shotEl = document.querySelector(".hud-shot");
+          if (ret && shotEl) {
+            ret.style.pointerEvents = "auto";
+            ret.style.touchAction = "none";
+            ret.addEventListener("pointerdown", (ev) => {
+              ev.preventDefault();
+              held = true;
+              ret.classList.add("is-held");
+              try { ret.setPointerCapture(ev.pointerId); } catch (_) {}
+            });
+            ret.addEventListener("pointermove", (ev) => {
+              if (!held) return;
+              const r = shotEl.getBoundingClientRect();
+              retX = Math.min(.92, Math.max(.08, (ev.clientX - r.left) / r.width));
+              retY = Math.min(.86, Math.max(.12, (ev.clientY - r.top) / r.height));
+              ret.style.left = (retX * 100) + "%";
+              ret.style.top = (retY * 100) + "%";
+            });
+            const drop = () => { held = false; ret.classList.remove("is-held"); };
+            ret.addEventListener("pointerup", drop);
+            ret.addEventListener("pointercancel", drop);
+          }
           const fit = () => { const w = cv.offsetWidth, h = cv.offsetHeight;
             const dpr = Math.min(2, window.devicePixelRatio || 1);
             if (w && cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
@@ -1622,8 +1647,8 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
               const [w, h] = fit();
               if (!w) { requestAnimationFrame(step2); return; }
               cx2d.clearRect(0, 0, w, h);
-              const cx = w * .5, cy = h * .46, f = Math.min(w, h) * .9;
-              speed += (CRUISE - speed) * 0.012;
+              const cx = w * retX, cy = h * retY, f = Math.min(w, h) * .9;
+              speed += ((held ? WARP : CRUISE) - speed) * (held ? 0.1 : 0.012);
               cx2d.lineCap = "round";
               for (const st of stars) {
                 const pz = st.z;
@@ -1653,6 +1678,30 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
          ["f2HudProg", () => mkHud("glacier-tech", "progress", 72)]
         ].forEach(([id, fn]) => { const el2 = document.getElementById(id);
           if (el2) { try { el2.innerHTML = fn(); } catch (_) {} } });
+        /* the CTA arcs like a flux capacitor on rollover */
+        const cta2 = document.querySelector(".f2-cta");
+        if (cta2 && !reduceMotion) {
+          cta2.addEventListener("pointerenter", () => {
+            if (cta2.querySelectorAll(".f2-spark").length > 18) return;
+            for (let i2 = 0; i2 < 12; i2++) {
+              const sp = document.createElement("i");
+              sp.className = "f2-spark";
+              const top = Math.random() < .5;
+              sp.style.left = (6 + Math.random() * 88) + "%";
+              sp.style.top = top ? "-2px" : "calc(100% + 2px)";
+              cta2.appendChild(sp);
+              const dx = (Math.random() * 2 - 1) * 80;
+              const dy = (top ? -1 : 1) * (26 + Math.random() * 50);
+              const rot = Math.random() * 260 - 130;
+              sp.animate([
+                { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
+                { transform: "translate(" + dx + "px, " + dy * 1.25 + "px) rotate(" + rot + "deg) scale(.35)", opacity: 0 }
+              ], { duration: 380 + Math.random() * 240, easing: "cubic-bezier(.2, .7, .3, 1)",
+                   delay: Math.random() * 80, fill: "forwards" })
+                .finished.then(() => sp.remove()).catch(() => sp.remove());
+            }
+          });
+        }
         const pplImgs = document.querySelectorAll(".ppl-photo img");
         [["f2P1", 1], ["f2P2", 5], ["f2P3", 0]].forEach(([id, idx]) => {
           const el2 = document.getElementById(id); if (el2 && pplImgs[idx]) el2.src = pplImgs[idx].src; });
