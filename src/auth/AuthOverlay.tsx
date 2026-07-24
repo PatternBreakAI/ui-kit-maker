@@ -41,6 +41,7 @@ export function AuthOverlay() {
   const [pw, setPw] = useState("");
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
@@ -68,15 +69,32 @@ export function AuthOverlay() {
     };
   }, []);
 
-  const run = async (fn: () => Promise<string | null>, okNote: string) => {
+  const run = async (fn: () => Promise<string | null>, okNote: string, cooldownOnOk = 0) => {
     setBusy(true); setNote(null); setErr(false);
     const e = await fn();
     setBusy(false);
+    // Supabase rate-limits auth emails ("...after NN seconds"). Never show the
+    // raw line — the first email almost certainly went out; count down instead.
+    const wait = e ? /after (\d+) second/i.exec(e) : null;
+    if (wait) {
+      setCooldown(+wait[1] + 1);
+      setErr(false);
+      setNote("That email is probably already in your inbox — check spam too. Resend unlocks below in a moment.");
+      return;
+    }
     setErr(!!e);
     setNote(e ? e : okNote);
+    if (!e && cooldownOnOk) setCooldown(cooldownOnOk);
   };
 
   const switchMode = (m: Mode) => { setMode(m); setNote(null); setErr(false); };
+
+  // One-second tick for the resend cooldown.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   const signedIn = status.state === "synced" || status.state === "syncing" || status.state === "error";
   // Where the overlay sits changes what "open" means: in the editor the
@@ -234,7 +252,7 @@ export function AuthOverlay() {
               </p>
 
               <input ref={firstFieldRef} className="fd-input" type="email" placeholder="Email"
-                value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                value={email} onChange={(e) => { setEmail(e.target.value); setCooldown(0); }} autoComplete="email" />
 
               {(mode === "signin" || mode === "signup") && (
                 <input className="fd-input" type="password"
@@ -277,21 +295,21 @@ export function AuthOverlay() {
                 </button>
               )}
               {mode === "signup" && (
-                <button className="fd-primary" disabled={busy || !email || pw.length < 8 || !agree}
-                  onClick={() => void run(() => signUp(email, pw), "Account created — check your email if confirmation is required.")}>
-                  <UserPlus size={16} strokeWidth={1.9} /> Create account
+                <button className="fd-primary" disabled={busy || !email || pw.length < 8 || !agree || cooldown > 0}
+                  onClick={() => void run(() => signUp(email, pw), "Account created — check your email if confirmation is required.", 60)}>
+                  <UserPlus size={16} strokeWidth={1.9} /> {cooldown > 0 ? `Sent — retry in ${cooldown}s` : "Create account"}
                 </button>
               )}
               {mode === "magic" && (
-                <button className="fd-primary" disabled={busy || !email}
-                  onClick={() => void run(() => signInMagic(email), "Link sent — check your email.")}>
-                  <Mail size={16} strokeWidth={1.9} /> Email me a sign-in link
+                <button className="fd-primary" disabled={busy || !email || cooldown > 0}
+                  onClick={() => void run(() => signInMagic(email), "Link sent — check your email.", 60)}>
+                  <Mail size={16} strokeWidth={1.9} /> {cooldown > 0 ? `Resend in ${cooldown}s` : "Email me a sign-in link"}
                 </button>
               )}
               {mode === "reset" && (
-                <button className="fd-primary" disabled={busy || !email}
-                  onClick={() => void run(() => requestPasswordReset(email), "Reset link sent — check your email.")}>
-                  <KeyRound size={16} strokeWidth={1.9} /> Send reset link
+                <button className="fd-primary" disabled={busy || !email || cooldown > 0}
+                  onClick={() => void run(() => requestPasswordReset(email), "Reset link sent — check your email.", 60)}>
+                  <KeyRound size={16} strokeWidth={1.9} /> {cooldown > 0 ? `Resend in ${cooldown}s` : "Send reset link"}
                 </button>
               )}
 

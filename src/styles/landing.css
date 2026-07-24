@@ -2592,6 +2592,9 @@ html[data-theme="light"] .fd-landing .bg-base {
     @media (prefers-reduced-motion: reduce) {
 .fd-landing .bd-call.run b, .fd-landing .bd-call.run span { animation: bd-fade 3s ease both; }
       @keyframes bd-fade { 0% { opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } } }
+html[data-theme="light"] .fd-landing .bd-call b { color: #1c1233;
+      text-shadow: 0 0 22px rgba(124, 58, 237, .35), 0 1px 0 rgba(255, 255, 255, .7); }
+html[data-theme="light"] .fd-landing .bd-call span { color: #6d28d9; }
 .fd-landing .pv-ship { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; cursor: pointer;
       background: color-mix(in srgb, var(--bg) 52%, transparent);
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
