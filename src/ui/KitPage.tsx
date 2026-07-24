@@ -1069,6 +1069,15 @@ const kitTier = useGen((s) => s.tier);
         rk("segbar", "Segmented · Smooth", { bar: { segments: 8, snap: false } }, 0.55),
         rk("vsbar", "VS health bar", {}, 0.72),
         rk("hotbar", "Hotbar · slot 3", {}, 0.25),
+        rk("dialog", "Dialog"),
+        rk("toast", "Toast"),
+        rk("tooltip", "Tooltip"),
+        rk("keycap", "Keycap · E"),
+        rk("keycap", "Keycap · SPACE", { label: "SPACE" }),
+        rk("padbtn", "Pad · A"),
+        rk("padbtn", "Pad · B", { label: "B" }),
+        rk("padbtn", "Pad · X", { label: "X" }),
+        rk("padbtn", "Pad · Y", { label: "Y" }),
         rk("cardback", "Card back", {}),
         rk("cardback", "Deck cover", { label: "STARTER · 30" }),
         rk("pack", "Card pack", {}),
@@ -1706,6 +1715,22 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-tray kp-axis kp-race">
         </div>
         <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — the traces here are specimens</span></div>
+      </Sec>
+
+      <Sec n="09" title="System Chrome" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material. Key prompts stretch like real keycaps; pad buttons carry console color rings.">
+        <div className="kp-tray">
+          <Piece id="dialog" caption="Dialog" scale={0.4} />
+          <Piece id="toast" caption="Toast" scale={0.52} />
+          <Piece id="tooltip" caption="Tooltip" scale={0.56} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="keycap" caption="Key · E" scale={0.54} />
+          <Piece id="keycap" label="SPACE" caption="Key · SPACE" scale={0.54} />
+          <Piece id="padbtn" caption="Pad · A" scale={0.54} />
+          <Piece id="padbtn" label="B" caption="Pad · B" scale={0.54} />
+          <Piece id="padbtn" label="X" caption="Pad · X" scale={0.54} />
+          <Piece id="padbtn" label="Y" caption="Pad · Y" scale={0.54} />
+        </div>
       </Sec>
 
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
