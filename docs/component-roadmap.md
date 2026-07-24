@@ -44,12 +44,13 @@ interactive sub-element, never the whole frame:
 
 | Piece | Hover / pressed target | Extra editable channels |
 |---|---|---|
-| dialog | action capsules (primary glows / both depress) | title text, type, colors |
-| listmenu | active row (fill, ring, glyph) | row labels via content, type |
-| scrollbar | thumb (glow / grip) | value = position |
+| dialog | the ARMED capsule — value < .5 arms CLAIM, ≥ .5 arms LATER | title text, type, colors |
+| listmenu | the row under the pointer (live) / the value-scrubbed row | row labels via content, type |
+| scrollbar | thumb (glow / grip) — drags live on the kit page | value = position |
 | steps | current pip (ring, scale) | type + colors only |
 | stepper | + cap glows; pressed fills one more cell | value = cells |
 | loadbar | — (value = fill; heading editable) | mercury follows Glow role |
+| cooldown | — (readout defaults to AUTO ink, no shadow; a type fork or per-piece text color re-themes it) | value = time |
 | others | frame dims for disabled only | labels/values per piece |
 
 ## P2 · RPG / MMO pack — 14 ✅ SHIPPED (v81)

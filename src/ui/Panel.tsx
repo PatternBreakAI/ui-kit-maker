@@ -405,7 +405,7 @@ export function Panel() {
 
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
-  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar"] as KitComponentId[]).includes(focus);
+  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast"] as KitComponentId[]).includes(focus);
   const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag"] as KitComponentId[]).includes(focus);
   useEffect(() => {
     if (!ICONS_ENABLED && !iconSwappable) return;
