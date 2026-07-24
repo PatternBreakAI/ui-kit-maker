@@ -2070,13 +2070,25 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const hot = state === "hover" && armed;
         const press = state === "pressed" && armed;
         const dy3 = press ? 2 * k : 0;
-        const top3 = primaryB ? lighten(bevel, hot ? 0.38 : press ? 0.12 : 0.22) : `rgba(255,255,255,${hot ? 0.3 : 0.15})`;
-        const bot3 = primaryB ? darken(bevel, press ? 0.22 : 0.12) : `rgba(255,255,255,${hot ? 0.12 : 0.05})`;
+        /* CONTRAST CONTRACT: the capsules run COUNTER to the face — dark
+           capsules with light ink on light faces, light capsules with dark
+           ink on dark faces. The hue still comes from the Bevel role, only
+           the value flips, so every preset keeps its identity AND its
+           legibility. Labels take auto ink (the theme font stays). */
+        const darkFace = cfg.face.mode === "dark";
+        const top3 = primaryB
+          ? (darkFace ? lighten(bevel, hot ? 0.66 : press ? 0.44 : 0.58) : darken(bevel, hot ? 0.26 : press ? 0.5 : 0.38))
+          : (darkFace ? "rgba(255,255,255,0.72)" : "rgba(10,16,26,0.4)");
+        const bot3 = primaryB
+          ? (darkFace ? lighten(bevel, press ? 0.14 : 0.24) : darken(bevel, press ? 0.72 : 0.62))
+          : (darkFace ? "rgba(255,255,255,0.5)" : "rgba(10,16,26,0.56)");
+        const ink3 = darkFace ? darken(bevel, 0.66) : "#FFFFFF";
+        const inkOp = primaryB ? 1 : 0.88;
         return `<defs><linearGradient id="${gid3}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top3}"/><stop offset="1" stop-color="${bot3}"/></linearGradient></defs>
           <g transform="translate(0 ${dy3.toFixed(1)})">
-          <rect x="${bx3.toFixed(1)}" y="${btnY.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hot && !primaryB ? hexRgba(glow, 0.85) : hexRgba(darken(bevel, 0.5), 0.55)}" stroke-width="${hot && !primaryB ? 2 : 1.4}"${state !== "disabled" && (primaryB || hot) ? ` style="filter: drop-shadow(0 0 ${((hot ? 11 : 6) * k).toFixed(1)}px ${hexRgba(glow, hot ? 0.8 : 0.55)})"` : ""}/>
-          <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(btnY + btnH * 0.14).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.24).toFixed(1)}" rx="${(btnH * 0.12).toFixed(1)}" fill="#FFFFFF" opacity="${press ? 0.08 : primaryB ? (hot ? 0.26 : 0.16) : hot ? 0.16 : 0.08}"/>
-          ${contentText(lbl3, bx3 + btnW / 2, btnY + btnH / 2 + 1, 23 * k * typeK, { anchor: "middle" })}
+          <rect x="${bx3.toFixed(1)}" y="${btnY.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hot ? hexRgba(glow, 0.9) : darkFace ? "rgba(8,14,24,0.55)" : "rgba(255,255,255,0.35)"}" stroke-width="${hot ? 2.2 : 1.4}"${state !== "disabled" && (primaryB || hot) ? ` style="filter: drop-shadow(0 0 ${((hot ? 11 : 6) * k).toFixed(1)}px ${hexRgba(glow, hot ? 0.8 : 0.55)})"` : ""}/>
+          <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(btnY + btnH * 0.14).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.24).toFixed(1)}" rx="${(btnH * 0.12).toFixed(1)}" fill="#FFFFFF" opacity="${press ? 0.06 : primaryB ? (hot ? 0.24 : 0.15) : 0.08}"/>
+          <text x="${(bx3 + btnW / 2 + (cfg.type.italic ? -23 * k * typeK * 0.07 : 0)).toFixed(1)}" y="${(btnY + btnH / 2 + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(23 * k * typeK).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.04em" fill="${ink3}" fill-opacity="${inkOp}" text-anchor="middle" dominant-baseline="central">${esc(lbl3)}</text>
           </g>`;
       };
       const bx0 = 42 + inset + 8 * k;
