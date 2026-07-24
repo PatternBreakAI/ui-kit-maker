@@ -1830,6 +1830,40 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the learned path", "damage numbers are shell-free spatial type"]} />
       </Sec>
 
+      <Sec n="11" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">
+        <div className="kp-subhead">Aim & feedback</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="crosshair" caption="Crosshair" value={0.25} scale={0.56} />
+          <Piece id="crosshair" caption="Wide spread" value={0.85} scale={0.56} />
+          <Piece id="crosshair" caption="Dot" overlay="dot" scale={0.56} />
+          <Piece id="hitmarker" caption="Hit" value={0.4} scale={0.56} />
+          <Piece id="hitmarker" caption="Critical" value={0.9} scale={0.56} />
+          <Piece id="dmgarc" caption="Damage direction" value={0.86} scale={0.5} />
+        </div>
+        <div className="kp-subhead">Loadout</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="weaponwheel" caption="Weapon wheel · point to arm" value={0} scale={0.5} />
+          <Piece id="equipselector" caption="Equipment selector" value={0.34} scale={0.52} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="magazine" caption="Magazine" value={0.66} scale={0.54} />
+          <Piece id="magazine" caption="Last rounds" value={0.16} scale={0.54} />
+          <Piece id="streakmeter" caption="Streak meter" value={0.64} scale={0.5} />
+          <Piece id="streakmeter" caption="Ignited" value={1} scale={0.5} />
+        </div>
+        <div className="kp-subhead">Objectives & rounds</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="killfeed" caption="Kill feed" scale={0.5} />
+          <Piece id="killfeed" caption="You — flashed" baseState="hover" label="YOU" sub="NOVA_KNIGHT" scale={0.5} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="waypoint" caption="Waypoint" value={0.3} scale={0.54} />
+          <Piece id="capturemeter" caption="Capture point" value={0.55} scale={0.54} />
+          <Piece id="respawn" caption="Respawn timer" value={0.6} scale={0.5} />
+        </div>
+        <Meta items={["Crosshair and marker weight ride the Icon stroke control", "value scrubs spread, rounds, streak, capture and direction", "the wheel's value is the pointer's angle in play mode", "crit and alarm reds are semantic, like rarity hues", "every readout keeps the hard-shadow legibility rule"]} />
+      </Sec>
+
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
 
       {/* ── 14 · build parts ── */}

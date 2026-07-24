@@ -1,4 +1,4 @@
-# Component roadmap — 81 shipped → 114 (P1 + P2 COMPLETE)
+# Component roadmap — 92 shipped → 115 (P1 + P2 + P3 COMPLETE)
 
 Current inventory (47): primary, secondary, small, ghost, iconbtn, chip,
 badge, tab, segment, header, checkbox, radio, toggle, slider, input,
@@ -84,12 +84,36 @@ interactive sub-element, never the whole frame:
 | partyframe | whole frame (party selection) | name via label |
 | others | frame; rarity aura brightens | tier/heading/fill via value |
 
-## P3 · Shooter / action pack — 10
+## P3 · Shooter / action pack — 11 ✅ SHIPPED (v82)
 
-crosshair set (spread variants), hit marker, kill-feed row, magazine
-visual (bullet pips), equipment selector, streak meter, objective
-waypoint (diamond + distance), capture-point meter (A/B/C fill),
-respawn timer, damage-direction arc.
+| # | Component | Notes |
+|---|-----------|-------|
+| 1 | Crosshair | value = spread; overlay = dot/t variants |
+| 2 | Hit marker | value = intensity; >0.7 goes CRIT (semantic red) |
+| 3 | Kill feed | killer [weapon] victim; hover = "you're in this one" |
+| 4 | Magazine | round pips; value = rounds left, max = capacity |
+| 5 | Equipment selector | three sockets, center armed; value cycles |
+| 6 | Streak meter | five cells to ignition; the zap lights when full |
+| 7 | Waypoint | diamond + distance; label = objective letter |
+| 8 | Capture point | ring fill around the letter; value = capture |
+| 9 | Respawn timer | AUTO-ink seconds (cooldown contract) + drain bar |
+| 10 | Damage direction | red crescent; value = threat angle |
+| 11 | Weapon wheel | revolver-chamber radial; pointer ANGLE arms a chamber live (added per product owner) |
+
+### Editing contracts — Shooter pack
+
+| Piece | Hover / pressed target | Channels |
+|---|---|---|
+| crosshair, hitmarker | — (spatial) | weight = Icon stroke; color = Glow role; value = spread/intensity |
+| killfeed | whole row (the "you" flash) | label = killer, sub = victim, icon = weapon (swappable) |
+| magazine | — | value = rounds, max = capacity |
+| equipselector | armed ring | value = item, label = name, icon = armed glyph |
+| streakmeter | frame | value = progress, label = meter name |
+| waypoint | pulse ring | label = letter, value = distance |
+| capturemeter | ring glow | label = letter, value = capture share |
+| respawn | — | label = heading; seconds re-theme via type fork / text color |
+| dmgarc | — (spatial) | value = direction; alarm red is semantic |
+| weaponwheel | armed chamber | value = chamber (pointer angle live), label = hub name, icon = armed glyph (swappable) |
 
 ## P4 · Casual / mobile pack — 11
 
@@ -106,10 +130,10 @@ friend row (presence dot), chat bubble, emote wheel frame, clan crest
 frame, season-pass track segment (free/premium lanes), achievement
 toast.
 
-**Math: 47 + 20 + 14 + 10 + 11 + 12 = 114.**
+**Math: 47 + 20 + 14 + 11 + 11 + 12 = 115** (weapon wheel added to P3
+per the product owner).
 
-Sequencing recommendation: P1 first (raises every genre's floor and the
-marketing "components" number fastest) — done; then P2 (done) and P4
-(the two biggest paying audiences: RPG and mobile-casual), then P3/P5. Each pack lands as
+Sequencing: P1 ✅ → P2 ✅ → P3 ✅ (pulled ahead by request, weapon wheel
+included) → P4 casual/mobile next, then P5. Each pack lands as
 its own version so the kit page grows a chapter at a time, and pack
 names double as marketing beats ("the RPG pack just dropped").

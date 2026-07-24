@@ -1,0 +1,55 @@
+import { useGen } from "@/generator/store";
+
+/* Smart Help — the canvas-to-editor routing table.
+   Every `data-part` the renderer stamps maps to the Panel section that
+   edits it (`data-sec` anchors), with the friendly copy the breakout menu
+   shows. Keep this in lockstep with build()'s stamps: a stamped part with
+   no route falls back to the master route below.
+   See docs/smart-help-architecture.md for the full design. */
+
+export interface PartRoute {
+  /** Friendly layer name shown in the breakout menu. */
+  label: string;
+  /** One line of "what you can change here". */
+  hint: string;
+  /** Panel section to open + scroll to (the Section's data-sec id). */
+  section: string;
+}
+
+export const PART_ROUTES: Record<string, PartRoute> = {
+  "cast-shadow":    { label: "Cast shadow",    hint: "Distance, blur and opacity of the ground shadow", section: "depth" },
+  "contact-shadow": { label: "Contact shadow", hint: "The grounding occlusion where the body meets the floor", section: "depth" },
+  "outer-glow":     { label: "State glow",     hint: "Per-state aura — pick the state, then set its glow", section: "state" },
+  extrusion:        { label: "Extrusion",      hint: "Depth of the solid body; darkness lives in Depth & Shadow", section: "structure" },
+  shell:            { label: "Shell & bevel",  hint: "Wall width, softness and rim; the silhouette has its own section", section: "structure" },
+  face:             { label: "Face",           hint: "The candy face — fills and texture; colors live in Color", section: "surface" },
+  pattern:          { label: "Face pattern",   hint: "Pattern style, scale, angle and opacity", section: "surface" },
+  "inner-glow":     { label: "Inner glow",     hint: "The lit-from-within wash on the unlit side", section: "glow" },
+  bloom:            { label: "Bloom",          hint: "Bounce light pooling low on the face", section: "gloss" },
+  gloss:            { label: "Gloss",          hint: "The broad curved shine — height, curve, opacity, layer", section: "gloss" },
+  specular:         { label: "Specular",       hint: "The reflective event riding the silhouette edge", section: "gloss" },
+  texture:          { label: "Micro texture",  hint: "Grain amount and scale", section: "surface" },
+  content:          { label: "Content",        hint: "The label and icon block", section: "typography" },
+  label:            { label: "Label",          hint: "Text, case, weight, fills, outline, depth effects", section: "typography" },
+  icon:             { label: "Icon",           hint: "Glyph, size, color, stroke and effects", section: "icon" },
+};
+
+/** Anything stamped but unrouted (future parts) lands on the master row. */
+export const FALLBACK_ROUTE: PartRoute = { label: "This layer", hint: "Explore the panel sections on the left", section: "state" };
+
+export const routeOf = (part: string): PartRoute => PART_ROUTES[part] ?? FALLBACK_ROUTE;
+
+/** Deep link: open the section, scroll it into view, glow it for a beat.
+ *  Reuses the same store `open` map the search force-open rides. */
+export function helpNavigate(part: string): void {
+  const route = routeOf(part);
+  useGen.setState((st) => ({ open: { ...st.open, [route.section]: true } }));
+  // let the section body mount before measuring
+  window.setTimeout(() => {
+    const el = document.querySelector(`[data-sec="${route.section}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("sh-glow");
+    window.setTimeout(() => el.classList.remove("sh-glow"), 1600);
+  }, 60);
+}
