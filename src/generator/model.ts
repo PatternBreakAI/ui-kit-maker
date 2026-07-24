@@ -15,6 +15,8 @@ export const ROLE_HINT: Record<EffectRole, string> = {
 
 export type Shape =
   | "chamfer" | "pill" | "sharp" | "round" | "hex" | "trapezoid" | "notch"
+  // v85 — speech bubble: rounded body + tail as one silhouette
+  | "speech"
   // v19 silhouette library — procedural geometry only; material stays separate
   | "chunky" | "cutline" | "polybar" | "explorer" | "kart" | "mazepill"
   | "fighthud" | "crest" | "blade" | "tavern" | "handdrawn"
@@ -63,6 +65,7 @@ export const SHAPES: { id: Shape; name: string }[] = [
   { id: "kenneyRect", name: "Crisp Panel" },
   { id: "kenneyTag", name: "Pointer Tag" },
   { id: "doboBracket", name: "Bracket Label" },
+  { id: "speech", name: "Speech Bubble" },
 ];
 /** Neutral canvas surfaces only — the stage never competes with the component. */
 export const CANVAS_BGS = [
@@ -1064,7 +1067,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   endturn: "pill",          // the chunky radial lives in a circle
   scorebug: "kenneyRect",
   friendrow: "kenneyRect",
-  chatbubble: "round",
+  chatbubble: "speech",   // the tail is part of the silhouette
   clancrest: "shield",
   seasontrack: "kenneyRect",
   achievetoast: "pill",

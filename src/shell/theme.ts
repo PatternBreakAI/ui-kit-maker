@@ -13,10 +13,13 @@ const KEY = "ui-generator-theme";
 export type Theme = "light" | "dark";
 
 export function readTheme(): Theme {
+  // DARK is the product default — light is the explicit opt-in. Every
+  // reader (shell, editor store, landing) must agree on this fallback or
+  // the trays and canvas split themes on first visit.
   try {
-    return localStorage.getItem(KEY) === "dark" ? "dark" : "light";
+    return localStorage.getItem(KEY) === "light" ? "light" : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 

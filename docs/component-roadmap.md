@@ -153,7 +153,7 @@ interactive sub-element, never the whole frame:
 | 5 | End turn | chunky radial button; value = turn-timer arc |
 | 6 | Score bug | teams + clock in a dark instrument well; team hues semantic |
 | 7 | Friend row | presence dot, status, JOIN/INVITE capsule |
-| 8 | Chat bubble | speaker tail + name/time in adaptive ink |
+| 8 | Chat bubble | SPEECH silhouette (tail in the shape, effects wrap it); message wraps + bubble grows vertically |
 | 9 | Emote wheel | six sectors; click picks INSTANTLY (no spin) |
 | 10 | Clan crest | shield silhouette + emblem + tag ribbon |
 | 11 | Season track | FREE/PREMIUM lanes around the level spine; premium gold |
