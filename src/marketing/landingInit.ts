@@ -1445,11 +1445,12 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           document.querySelectorAll("#svTabs button").forEach((x) => x.classList.remove("on"));
           b.classList.add("on"); drawStep(b.dataset.st);
         }));
+        const flatCfg = JSON.parse(JSON.stringify(stepCfg)); flatCfg.shadow.opacity = 0;
         const node = document.querySelector('.sv-node[data-eng="node"]');
-        if (node) node.innerHTML = tighten(E.renderKit(stepCfg, "iconbtn", "m", "default"), 14);
+        if (node) node.innerHTML = tighten(E.renderKit(flatCfg, "iconbtn", "m", "default"), 14);
         document.querySelectorAll(".sv-art").forEach((h) => {
           const v = h.dataset.v;
-          h.innerHTML = tighten(E.renderKit(stepCfg, h.dataset.kid, "m", "default",
+          h.innerHTML = tighten(E.renderKit(flatCfg, h.dataset.kid, "m", "default",
             v !== undefined && v !== "" ? +v : undefined), 10);
         });
       } catch (err) { console.warn("step art", err); }
@@ -1459,7 +1460,7 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           return tighten(E.renderKit(c2, id, "m", "default", v, undefined, opts || {}), 12); };
         [["f2HudHealth", () => mkHud("bubble-pop", "lives", undefined, { label: "4", max: "5" })],
          ["f2HudXp", () => mkHud("grape-jelly", "progress", 49)],
-         ["f2HudShield", () => mkHud("deep-ocean", "badge", undefined, { label: "+25" })],
+         ["f2HudShield", () => mkHud("deep-ocean", "toggle", 1)],
          ["f2HudCoins", () => mkHud("hero-chisel", "resource", undefined, { label: "1,250" })],
          ["f2HudProg", () => mkHud("glacier-tech", "progress", 72)]
         ].forEach(([id, fn]) => { const el2 = document.getElementById(id);

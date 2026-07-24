@@ -207,6 +207,51 @@ export const LANDING_HTML = `</head>
       </div>
     </section>
 
+    <section class="audience-section" aria-labelledby="audienceTitle">
+      <div class="shell">
+        <div class="audience-head reveal">
+          <div>
+            <p class="section-label">From side quest to shipped</p>
+            <h2 class="section-title" id="audienceTitle">Built for anyone who ships</h2>
+          </div>
+          <p>No gatekeeping, no install, no waiting for a specialist to free up. Just a real design system you can play.</p>
+        </div>
+        <div class="ppl-grid">
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_gamedev__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#d946ef"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 11v2M6 12h2M15.5 11.5h.01M18 13.5h.01"/></svg></span><b>GAME DEVS</b></div>
+            <p>Ship polished UI that levels up your game.</p>
+          </figure>
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_indie__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#3b82f6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5M15.5 5.8a3.2 3.2 0 0 1 0 6.4M17 14.7c2 .6 3.2 1.9 3.6 4.3"/></svg></span><b>INDIE &amp; SMALL STUDIOS</b></div>
+            <p>Punch above your weight with a cohesive UI system.</p>
+          </figure>
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_hobbyist__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#f59e0b"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span><b>HOBBYISTS &amp; MAKERS</b></div>
+            <p>Make the side project look shipped, not sketched.</p>
+          </figure>
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_students__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#22d3ee"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 9-10-5L2 9l10 5 10-5zM6 11v5c0 1.3 3 3 6 3s6-1.7 6-3v-5"/></svg></span><b>STUDENTS</b></div>
+            <p>Learn design systems by building with a real one.</p>
+          </figure>
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_uiartists__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#ec4899"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 19 7-7-4-9-9 4-2 8 8-2 5-5"/><path d="m2 22 6.5-6.5"/></svg></span><b>UI ARTISTS</b></div>
+            <p>Super-charge your workflow. Design faster. Explore more.</p>
+          </figure>
+          <figure class="ppl-card reveal">
+            <div class="ppl-photo"><img src="__FD_people_prototypers__" alt="" loading="lazy"></div>
+            <div class="ppl-head"><span class="ppl-ic" style="--ic:#f97316"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/></svg></span><b>PROTOTYPERS &amp; NO-CODE</b></div>
+            <p>Drop beautiful, exportable UI into any tool or engine.</p>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+
     <section class="app-gallery" aria-labelledby="galleryTitle">
       <div class="shell">
         <div class="math-header reveal">
@@ -283,6 +328,7 @@ export const LANDING_HTML = `</head>
           <!-- 4 · SHIPPED HUD (full bleed) -->
           <figure class="gal-card reveal gal-wide">
             <div class="hud-shot" aria-label="A full game HUD skinned by one master design">
+              <div class="hud-stars" aria-hidden="true"><i style="--tx:400px;--ty:-60px;--d:5.2s;--dl:0s"></i><i style="--tx:-380px;--ty:-120px;--d:6.0s;--dl:1.1s"></i><i style="--tx:240px;--ty:150px;--d:4.6s;--dl:2.3s"></i><i style="--tx:-260px;--ty:130px;--d:5.6s;--dl:0.7s"></i><i style="--tx:520px;--ty:40px;--d:7.2s;--dl:3.1s"></i><i style="--tx:-540px;--ty:-30px;--d:7.0s;--dl:1.9s"></i><i style="--tx:120px;--ty:-160px;--d:4.4s;--dl:2.9s"></i><i style="--tx:-140px;--ty:-170px;--d:4.8s;--dl:4.2s"></i><i style="--tx:320px;--ty:-170px;--d:5.9s;--dl:5.0s"></i><i style="--tx:-420px;--ty:110px;--d:6.4s;--dl:3.7s"></i><i style="--tx:480px;--ty:150px;--d:6.8s;--dl:0.4s"></i><i style="--tx:-200px;--ty:-60px;--d:4.2s;--dl:5.6s"></i><i style="--tx:60px;--ty:170px;--d:4.0s;--dl:4.6s"></i><i style="--tx:-560px;--ty:60px;--d:7.4s;--dl:2.0s"></i></div>
               <div class="hud-hearts"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
               <div class="hud-map"><i></i><i></i><i></i></div>
               <div class="hud-xp"><i></i></div>
@@ -323,50 +369,6 @@ export const LANDING_HTML = `</head>
     
 
     
-
-    <section class="audience-section" aria-labelledby="audienceTitle">
-      <div class="shell">
-        <div class="audience-head reveal">
-          <div>
-            <p class="section-label">From side quest to shipped</p>
-            <h2 class="section-title" id="audienceTitle">Built for anyone who ships</h2>
-          </div>
-          <p>No gatekeeping, no install, no waiting for a specialist to free up. Just a real design system you can play.</p>
-        </div>
-        <div class="ppl-grid">
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_gamedev__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#d946ef"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 11v2M6 12h2M15.5 11.5h.01M18 13.5h.01"/></svg></span><b>GAME DEVS</b></div>
-            <p>Ship polished UI that levels up your game.</p>
-          </figure>
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_indie__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#3b82f6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5M15.5 5.8a3.2 3.2 0 0 1 0 6.4M17 14.7c2 .6 3.2 1.9 3.6 4.3"/></svg></span><b>INDIE &amp; SMALL STUDIOS</b></div>
-            <p>Punch above your weight with a cohesive UI system.</p>
-          </figure>
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_hobbyist__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#f59e0b"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span><b>HOBBYISTS &amp; MAKERS</b></div>
-            <p>Make the side project look shipped, not sketched.</p>
-          </figure>
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_students__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#22d3ee"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 9-10-5L2 9l10 5 10-5zM6 11v5c0 1.3 3 3 6 3s6-1.7 6-3v-5"/></svg></span><b>STUDENTS</b></div>
-            <p>Learn design systems by building with a real one.</p>
-          </figure>
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_uiartists__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#ec4899"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 19 7-7-4-9-9 4-2 8 8-2 5-5"/><path d="m2 22 6.5-6.5"/></svg></span><b>UI ARTISTS</b></div>
-            <p>Super-charge your workflow. Design faster. Explore more.</p>
-          </figure>
-          <figure class="ppl-card reveal">
-            <div class="ppl-photo"><img src="__FD_people_prototypers__" alt="" loading="lazy"></div>
-            <div class="ppl-head"><span class="ppl-ic" style="--ic:#f97316"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/></svg></span><b>PROTOTYPERS &amp; NO-CODE</b></div>
-            <p>Drop beautiful, exportable UI into any tool or engine.</p>
-          </figure>
-        </div>
-      </div>
-    </section>
 
     <section class="ownership-section" aria-labelledby="ownershipTitle">
       <div class="ownership-marquee" aria-hidden="true"><span>YOURS · YOURS · YOURS · YOURS · </span><span>YOURS · YOURS · YOURS · YOURS · </span></div>
@@ -469,7 +471,7 @@ export const LANDING_HTML = `</head>
           <figure class="f2-float f2-photo f2-pp3" aria-hidden="true"><img id="f2P3" alt=""></figure>
           <div class="f2-float f2-hud f2-h1" aria-hidden="true"><small>HEALTH</small><span class="f2-art" id="f2HudHealth"></span><b>87%</b></div>
           <div class="f2-float f2-hud f2-h2" aria-hidden="true"><small>LEVEL UP</small><span class="f2-art f2-art--wide" id="f2HudXp"></span><b>2,450 / 5,000</b></div>
-          <div class="f2-float f2-hud f2-h3" aria-hidden="true"><small>SHIELD</small><span class="f2-art" id="f2HudShield"></span><b>+25%</b></div>
+          <div class="f2-float f2-hud f2-h3" aria-hidden="true"><small>SHIELD</small><span class="f2-art" id="f2HudShield"></span><b>ON</b></div>
           <div class="f2-float f2-hud f2-h4" aria-hidden="true"><small>COINS</small><span class="f2-art" id="f2HudCoins"></span><b>1,250</b></div>
           <div class="f2-float f2-hud f2-h5" aria-hidden="true"><small>PROGRESS</small><span class="f2-art f2-art--wide" id="f2HudProg"></span><b>72%</b></div>
           <div class="final2-content">
