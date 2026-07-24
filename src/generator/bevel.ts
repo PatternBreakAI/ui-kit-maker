@@ -1503,7 +1503,7 @@ function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string
     <stop offset="0.55" stop-color="${lighten(base, 0.78)}"/>
     <stop offset="1" stop-color="${lighten(base, 0.3)}"/>
   </radialGradient></defs>
-  <ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.6).toFixed(1)}" rx="${(r * 0.92).toFixed(1)}" ry="${(r * 0.3).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>
+  <ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>
   <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${kid})" stroke="${darken(base, 0.38)}" stroke-width="1.5"/>
   ${dot ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(3, r * 0.3).toFixed(1)}" fill="${dot}"/>` : ""}
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
@@ -2095,7 +2095,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const chk0 = opts.icon ?? STOCK_ICONS.check;
       const chk = chk0 ? themedIcon(chk0, 39 + inset + 30 * k, 30 + h / 2 - 15 * k, 30 * k, glow, 2.6) : "";
       const msg = contentText(opts.label ?? "Progress saved", 39 + inset + 78 * k, 30 + h / 2 + 1, 26 * k * typeK, { keepCase: true });
-      const dismiss = `<text x="${(39 + w - inset - 26 * k).toFixed(1)}" y="${(30 + h / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="central">×</text>`;
+      const dismiss = infoText("×", 39 + w - inset - 26 * k, 30 + h / 2 + 1, 26 * k, "middle", 700);
       return inject(shell.replace("<svg ", '<svg data-toast="1" '), stripe + chk + msg + dismiss);
     }
     case "tooltip": {
@@ -2163,9 +2163,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotR = state === "hover", pressR = state === "pressed";
           inner9 += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 6 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${hexRgba(glow, pressR ? 0.4 : hotR ? 0.32 : 0.22)}" stroke="${hexRgba(glow, hotR || pressR ? 0.95 : 0.65)}" stroke-width="${hotR ? 2.2 : 1.4}"${hotR ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
         }
-        if (r9.ic) inner9 += themedIcon(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, on9 ? glow : "rgba(255,255,255,0.75)", 2.2);
+        // small-white rule: a dark understroke beneath every row glyph
+        if (r9.ic) inner9 += iconGroup(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, "rgba(8,12,22,0.55)", { strokeWidth: 2.2 * iconWK + 2.2 }) +
+          themedIcon(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, on9 ? glow : "#E8ECF2", 2.2);
         inner9 += contentText(r9.lbl, x0 + 62 * k, ry + (rowH - 6 * k) / 2 + 1, 25 * k * typeK, { keepCase: true, opacity: on9 ? 1 : 0.85 });
-        if (r9.hint) inner9 += `<text x="${(x0 + rw - 16 * k).toFixed(1)}" y="${(ry + (rowH - 6 * k) / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.38)" text-anchor="end" dominant-baseline="central">${esc(r9.hint)}</text>`;
+        if (r9.hint) inner9 += infoText(r9.hint, x0 + rw - 16 * k, ry + (rowH - 6 * k) / 2 + 1, 19 * k, "end", 700);
         if (i === rows.length - 2) inner9 += `<rect x="${(x0 + 10 * k).toFixed(1)}" y="${(ry + rowH - 4 * k).toFixed(1)}" width="${(rw - 20 * k).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
       });
       return inject(shell.replace("<svg ", `<svg data-listmenu="1" data-vtrack="${(33 + inset + 8 * k).toFixed(1)} ${(rowH * n9).toFixed(1)}" `), inner9);
@@ -2336,7 +2338,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const parts = `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.9"/>` +
         (STOCK_ICONS.search ? themedIcon(STOCK_ICONS.search, 39 + inset + 22 * k, cy - 17 * k, 34 * k, glow, 2.4) : "") +
         txt +
-        (q ? `<text x="${(39 + w - inset - 26 * k).toFixed(1)}" y="${cy.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="central">×</text>` : "");
+        (q ? infoText("×", 39 + w - inset - 26 * k, cy, 26 * k, "middle", 700) : "");
       return inject(shell.replace("<svg ", '<svg data-searchfield="1" '), parts);
     }
     case "notifydot": {
@@ -2594,6 +2596,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bubbles = bub(cG - inR * 0.28, inR * 0.05, 0.55, "2.8s", "0s") +
         bub(cG + inR * 0.18, inR * 0.038, 0.45, "3.4s", "1.1s") +
         bub(cG - inR * 0.05, inR * 0.03, 0.6, "2.3s", "0.6s");
+      /* the potion SWIRLS: two soft tinted currents orbit the globe center
+         in opposite directions, clipped to the liquid body */
+      const swirl = state !== "disabled" && vG > 0.12
+        ? `<g clip-path="url(#${gidG}q)">
+            <g opacity="0.24"><animateTransform attributeName="transform" type="rotate" from="0 ${cG} ${cG}" to="360 ${cG} ${cG}" dur="7s" repeatCount="indefinite"/><ellipse cx="${(cG - inR * 0.34).toFixed(1)}" cy="${(cG + inR * 0.28).toFixed(1)}" rx="${(inR * 0.46).toFixed(1)}" ry="${(inR * 0.2).toFixed(1)}" fill="${lighten(glow, 0.42)}"/></g>
+            <g opacity="0.18"><animateTransform attributeName="transform" type="rotate" from="360 ${cG} ${cG}" to="0 ${cG} ${cG}" dur="9.5s" repeatCount="indefinite"/><ellipse cx="${(cG + inR * 0.3).toFixed(1)}" cy="${(cG + inR * 0.42).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.17).toFixed(1)}" fill="${darken(glow, 0.3)}"/></g>
+          </g>`
+        : "";
       const totalG = dG + padG * 2;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalG}" height="${totalG}" viewBox="0 0 ${totalG} ${totalG}" data-healthglobe="1" role="img" aria-label="health ${Math.round(vG * 100)}%">
 <defs>
@@ -2612,6 +2622,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     <stop offset="1" stop-color="${darken(glow, 0.35)}"/>
   </linearGradient>
   <clipPath id="${gidG}c"><circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}"/></clipPath>
+  <clipPath id="${gidG}q"><path d="${wave}"/></clipPath>
 </defs>
 <g opacity="${dim}">
   ${state === "hover" && vG > 0 ? `<circle cx="${cG}" cy="${cG}" r="${(rG + rimW * 0.35).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.45)}" stroke-width="${(rimW * 0.5).toFixed(1)}" style="filter: blur(3px)"/>` : ""}
@@ -2619,6 +2630,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <g clip-path="url(#${gidG}c)">
     ${vG > 0.01 ? `<path d="${wave}" fill="url(#${gidG}l)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(inR * 0.12).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}>${waveAnim}</path>
     <ellipse cx="${cG}" cy="${surfY.toFixed(1)}" rx="${(inR * 0.92).toFixed(1)}" ry="${(waveAmp * 1.4).toFixed(1)}" fill="${lighten(glow, 0.55)}" opacity="0.5"/>` : ""}
+    ${swirl}
     ${bubbles}
     ${vG > 0.05 ? `<ellipse cx="${cG}" cy="${(cG + inR * 0.8).toFixed(1)}" rx="${(inR * 0.7).toFixed(1)}" ry="${(inR * 0.22).toFixed(1)}" fill="${darken(glow, 0.4)}" opacity="0.5"/>` : ""}
   </g>
@@ -2723,7 +2735,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
         inner += contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, opacity: done ? 0.55 : active ? 1 : 0.75 });
-        if (o.count && !done) inner += `<text x="${xr.toFixed(1)}" y="${(ry + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.6)" text-anchor="end" dominant-baseline="central">${esc(o.count)}</text>`;
+        if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
       const gidQ = "qp" + UID++;
@@ -2732,7 +2744,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       inner += `<rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="${wellFill}"/>` +
         `<defs><linearGradient id="${gidQ}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
         (doneN > 0 ? `<rect x="${(x0 + gQ).toFixed(1)}" y="${(fy + gQ).toFixed(1)}" width="${((fw - gQ * 2) * doneN / 3).toFixed(1)}" height="${mHQ.toFixed(1)}" rx="${(mHQ / 2).toFixed(1)}" fill="url(#${gidQ})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "") +
-        `<text x="${xr.toFixed(1)}" y="${(fy + fH / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.7)" text-anchor="end" dominant-baseline="central">${doneN}/3</text>`;
+        infoText(`${doneN}/3`, xr, fy + fH / 2 + 1, 18 * k, "end");
       return inject(shell.replace("<svg ", '<svg data-questpanel="1" '), inner);
     }
     case "dialoguebox": {
@@ -2779,7 +2791,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         inner += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="${on9 ? hexRgba(glow, pressC ? 0.4 : hotC ? 0.32 : 0.22) : "rgba(255,255,255,0.06)"}" stroke="${on9 ? hexRgba(glow, hotC || pressC ? 0.95 : 0.65) : "rgba(255,255,255,0.14)"}" stroke-width="${hotC ? 2.2 : 1.4}"${hotC ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
         if (on9 && STOCK_ICONS.play) inner += themedIcon(STOCK_ICONS.play, x0 + 14 * k, ry + (rowH - 12 * k) / 2 - 11 * k, 22 * k, glow, 2.4);
         inner += contentText(c9, x0 + (on9 ? 48 : 24) * k, ry + (rowH - 12 * k) / 2 + 1, 23 * k * typeK, { keepCase: true, opacity: on9 ? 1 : 0.8 });
-        inner += `<text x="${(x0 + rw - 18 * k).toFixed(1)}" y="${(ry + (rowH - 12 * k) / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.35)" text-anchor="end" dominant-baseline="central">${i + 1}</text>`;
+        inner += infoText(String(i + 1), x0 + rw - 18 * k, ry + (rowH - 12 * k) / 2 + 1, 18 * k, "end", 700);
       });
       return inject(shell.replace("<svg ", `<svg data-choicelist="1" data-vtrack="${(33 + inset + 10 * k).toFixed(1)} ${(rowH * nCh).toFixed(1)}" `), inner);
     }
@@ -2800,13 +2812,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const counts: Record<number, string> = { 2: "5", 3: "14" };
       const sel = clamp(Math.round(clamp(value ?? 0.42, 0, 1) * (cols * rowsI - 1)), 0, cols * rowsI - 1);
       let inner = contentText("INVENTORY", gx0 + 4 * k, 33 + insetI + 22 * k, 23 * k * typeK) +
-        `<text x="${(42 + w - insetI - 10 * k).toFixed(1)}" y="${(33 + insetI + 22 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.6)" text-anchor="end" dominant-baseline="central">9/12</text>`;
+        infoText("9/12", 42 + w - insetI - 10 * k, 33 + insetI + 22 * k, 19 * k, "end");
       for (let i = 0; i < cols * rowsI; i++) {
         const cxI = gx0 + (i % cols) * (cell + gap), cyI = gy0 + Math.floor(i / cols) * (cell + gap);
         inner += `<rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
         const icKey = items[i];
         if (icKey && STOCK_ICONS[icKey]) inner += themedIcon(STOCK_ICONS[icKey], cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
-        if (counts[i]) inner += `<circle cx="${(cxI + cell - 12 * k).toFixed(1)}" cy="${(cyI + cell - 12 * k).toFixed(1)}" r="${(12 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.3"/><text x="${(cxI + cell - 12 * k).toFixed(1)}" y="${(cyI + cell - 11 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
+        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
           inner += `<rect x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
@@ -3390,7 +3402,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const ic = icons[i];
         if (i < icons.length && ic) cells += themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
         if (i === 0 || i === 3) cells += `<text x="${(cx0 + cell - 8 * k).toFixed(1)}" y="${(yh + cell - 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.85)" text-anchor="end">64</text>`;
-        cells += `<text x="${(cx0 + 7 * k).toFixed(1)}" y="${(yh + 17 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.4)">${i + 1}</text>`;
+        cells += infoText(String(i + 1), cx0 + 7 * k, yh + 17 * k, 13 * k, "start", 700);
       }
       return inject(track.replace("<svg ", '<svg data-hotbar="1" '), cells);
     }
@@ -4218,8 +4230,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<polyline points="${rival.map((v, i) => pt(v, i, rival)).join(" ")}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="${(2 * k).toFixed(1)}" stroke-dasharray="5 5" stroke-linejoin="round"/>` +
         `<polyline points="${youPts}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
         `<circle cx="${last[0]}" cy="${last[1]}" r="${(4.5 * k).toFixed(1)}" fill="${glow}" filter="url(#${gid12}g)"/>` +
-        `<text x="${x0.toFixed(1)}" y="${(y1 + 20 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9.5 * k).toFixed(1)}" font-weight="700" letter-spacing=".12em" fill="rgba(255,255,255,0.4)">LAP 1</text>` +
-        `<text x="${x1.toFixed(1)}" y="${(y1 + 20 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9.5 * k).toFixed(1)}" font-weight="700" letter-spacing=".12em" fill="rgba(255,255,255,0.4)" text-anchor="end">LAP 8</text>` +
+        infoText("LAP 1", x0, y1 + 20 * k, 9.5 * k, "start", 700) +
+        infoText("LAP 8", x1, y1 + 20 * k, 9.5 * k, "end", 700) +
         `<text x="${x1.toFixed(1)}" y="${(y0 - 8 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10.5 * k).toFixed(1)}" font-weight="800" fill="#4ADE80" text-anchor="end">−0.7s / LAP</text>`;
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="laps" `);
     }
@@ -4253,8 +4265,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<path d="${area(brk)}" fill="${hexMix("#FF4D5A", bevel, 0.18)}" opacity="0.3"/>` +
         `<polyline points="${spd.map((v, i) => `${px(i, spd)},${py(v)}`).join(" ")}" fill="none" stroke="${glow}" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid13}g)"/>` +
         `<line x1="${x0.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>` +
-        `<text x="${x0.toFixed(1)}" y="${(y1 + 20 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9.5 * k).toFixed(1)}" font-weight="700" letter-spacing=".12em" fill="rgba(255,255,255,0.4)">T4</text>` +
-        `<text x="${x1.toFixed(1)}" y="${(y1 + 20 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9.5 * k).toFixed(1)}" font-weight="700" letter-spacing=".12em" fill="rgba(255,255,255,0.4)" text-anchor="end">T7</text>`;
+        infoText("T4", x0, y1 + 20 * k, 9.5 * k, "start", 700) +
+        infoText("T7", x1, y1 + 20 * k, 9.5 * k, "end", 700);
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="telemetry" `);
     }
     case "startlights": {
