@@ -15,7 +15,6 @@ import { presetArt } from "./Panel";
    engine's thumbnail. Tap a pack to crack it. Shown once per account per
    browser; purely celebratory — the tier change already unlocked the cards. */
 
-const SEEN_PREFIX = "ui-generator-loot:";
 const RARITY = ["RARE", "EPIC"] as const;
 
 function presetCfg(id: string): GenConfig {
@@ -87,11 +86,10 @@ export function LootModal() {
 
   useEffect(() => {
     if (cloud.state !== "synced" || !cloud.email || tier === "guest") return;
-    const key = SEEN_PREFIX + cloud.email.toLowerCase();
-    try {
-      if (localStorage.getItem(key)) return;
-      localStorage.setItem(key, "1");
-    } catch { return; }
+    /* TEMP while the pull animation is under review: play on EVERY signed-in
+       editor load. When it moves into FTUE, restore the once-per-account
+       gate (localStorage "ui-generator-loot:<email>" — set on first show,
+       skip when present). */
     setOpen(true);
   }, [cloud.state, cloud.email, tier]);
 
