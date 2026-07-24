@@ -2810,6 +2810,11 @@ html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
 .fd-landing .rk svg { width: 100%; height: auto; display: block; }
 .fd-landing .kcell .rk { max-width: 94%; }
 .fd-landing .kcell { min-height: 100px; }
+.fd-landing #pvKit .rk svg { max-width: 100%; max-height: 96px; width: auto; height: auto; }
+.fd-landing .kit-sec { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 16px 0 0; }
+.fd-landing .kit-sec span { font-family: var(--mono); font-size: 9px; letter-spacing: .22em; color: #cf8eff; }
+html[data-theme="light"] .fd-landing .kit-sec span { color: #7c3aed; }
+.fd-landing .kit-sec i { flex: 1; height: 1px; background: var(--line); }
 .fd-landing .kit-slot .slot-body .rk { max-width: 90%; }
 .fd-landing .fly-ghost svg { width: 56px; height: auto; }
 .fd-landing .b2-piece .rk svg, .fd-landing .b2-item .rk svg { width: 100%; }

@@ -411,18 +411,43 @@ export function initLanding(deps: LandingDeps) {
       const FLIP_IDS = new Set(["toggle", "checkbox", "radio"]);
       const BUMP_IDS = new Set(["progress", "segbar", "vsbar", "emblembar"]);
       const PRESS_IDS = new Set(["primary", "secondary", "small", "ghost", "iconbtn", "chip", "badge", "tab", "segment", "header", "input", "dropdown", "resource", "slot", "bignum", "ammo"]);
+      /* the sheet reads as a design system: grouped, headed, ordered */
+      const KIT_SECS = [
+        ["ks1", ["primary", "secondary", "small", "ghost", "iconbtn", "padbtn", "keycap", "chip"]],
+        ["ks3", ["input", "searchfield", "setrow", "checkbox", "radio", "toggle", "slider", "stepper", "dropdown"]],
+        ["ks2", ["dialog", "toast", "tooltip", "listmenu", "scrollbar", "pagedots", "steps", "spinner", "tab", "segment", "header", "panel", "notifydot"]],
+        ["ks4", ["progress", "loadbar", "segbar", "emblembar", "vsbar", "ring", "orb", "cooldown", "flipclock", "stopwatch", "timerdigits"]],
+        ["ks5", ["hotbar", "slot", "resource", "currency", "datarow", "avatarframe", "nameplate", "buffframe", "badge", "lives", "ammo", "bignum", "minimap", "reticle", "joystick"]],
+        ["ks6", ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "cardback", "pack"]],
+      ];
       const SHEET = (() => {
         /* every engine component exactly once — no size duplicates, no state repeats */
+        const byId = new Map(E.KIT_COMPONENTS.map((k) => [k.id, k]));
+        const seen = new Set();
         const items = [];
-        for (const k of E.KIT_COMPONENTS)
-          items.push({ cap: k.name.toUpperCase(), kid: k.id, sz: "l",
-            v: FLIP_IDS.has(k.id) ? 1 : k.id === "slider" ? 64 : BUMP_IDS.has(k.id) ? 72 : undefined });
+        const pushIt = (k, sec) => items.push({ cap: k.name.toUpperCase(), kid: k.id, sz: "l", sec,
+          v: FLIP_IDS.has(k.id) ? 1 : k.id === "slider" ? 64 : BUMP_IDS.has(k.id) ? 72 : undefined });
+        for (const [secKey, ids] of KIT_SECS) {
+          let first = true;
+          for (const id of ids) {
+            const k = byId.get(id); if (!k) continue;
+            seen.add(id); pushIt(k, first ? secKey : undefined); first = false;
+          }
+        }
+        // components the engine grows later land at the end, unheaded
+        for (const k of E.KIT_COMPONENTS) if (!seen.has(k.id)) pushIt(k, undefined);
         return items;
       })();
       const SHEET_N = SHEET.length;
       const buildSheet = () => {
         pvKit.innerHTML = `<div class="kit-headline"><span><b id="khN">0</b> ${t("comp")}</span><i>×</i><span><b>4</b> ${t("states")}</span><i>—</i><span class="kh-dl">${t("ready")}</span></div>`;
         SHEET.forEach((it) => {
+          if (it.sec) {
+            const d = document.createElement("div");
+            d.className = "kit-sec";
+            d.innerHTML = `<span data-k="${it.sec}">${t(it.sec)}</span><i></i>`;
+            pvKit.appendChild(d);
+          }
           const cell = document.createElement("div");
           cell.className = "kcell pre";
           const dv = it.v !== undefined ? ` data-v="${it.v}"` : "";
@@ -1069,7 +1094,7 @@ n1:"<b>Step 1 · The Master.</b> Set the DNA — color, shape, shine, pattern. E
 n2:"<b>Step 2 · Your Kit.</b> One press built all of this — every piece inherits your master, states included.",
 n3:"<b>Step 3 · The Board.</b> <b>Upload your own image</b> — any screen or concept — drag pieces onto it, dim the backdrop, and make as many boards as you need. Export or share each one.",
 n4:"<b>Exported!</b> That’s the whole loop — master → kit → board → files. Now do it for real.",
-cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.",
+cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"CONTROLS",ks4:"METERS & TIMERS",ks5:"HUD & PLAYER",ks6:"RACING & CARDS",
 fKit:"KIT READY",fBoard:"BOARD READY",bdCall1:"TEST YOUR DESIGNS",bdCall2:"See it in context — your kit, over real screens.",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
@@ -1112,7 +1137,7 @@ n1:"<b>第 1 步 · 母版。</b>设定 DNA——颜色、形状、光泽、图�
 n2:"<b>第 2 步 · 你的组件库。</b>一次点击生成全部——每个组件都继承母版，包含所有状态。",
 n3:"<b>第 3 步 · 画板。</b><b>上传你自己的图片</b>——任意画面或概念图——拖入组件、调暗背景，画板想建几块就建几块，每块都能导出或分享。",
 n4:"<b>已导出！</b>完整流程走完了——母版 → 组件库 → 画板 → 文件。去正式版试试吧。",
-cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。",
+cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。",ks1:"按钮",ks2:"界面",ks3:"控件",ks4:"仪表与计时",ks5:"HUD与玩家",ks6:"竞速与卡牌",
 fKit:"组件库就绪",fBoard:"画板就绪",bdCall1:"检验你的设计",bdCall2:"在真实画面中查看你的套件效果。",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
@@ -1155,7 +1180,7 @@ n1:"<b>Étape 1 · Le master.</b> Définissez l’ADN — couleur, forme, brilla
 n2:"<b>Étape 2 · Votre kit.</b> Un clic a tout construit — chaque pièce hérite du master, états compris.",
 n3:"<b>Étape 3 · Le board.</b> <b>Importez votre propre image</b> — écran ou concept — glissez vos pièces, tamisez le fond, créez autant de boards que voulu. Exportez ou partagez chacun.",
 n4:"<b>Exporté !</b> La boucle est bouclée — master → kit → board → fichiers. À vous de jouer.",
-cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.",
+cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.",ks1:"BOUTONS",ks2:"INTERFACE",ks3:"CONTRÔLES",ks4:"JAUGES & CHRONOS",ks5:"HUD & JOUEUR",ks6:"COURSE & CARTES",
 fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",bdCall1:"TESTEZ VOS DESIGNS",bdCall2:"Voyez-le en contexte — votre kit sur de vrais écrans.",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
@@ -1198,7 +1223,7 @@ n1:"<b>Paso 1 · El master.</b> Define el ADN — color, forma, brillo, patrón.
 n2:"<b>Paso 2 · Tu kit.</b> Un clic lo construyó todo — cada pieza hereda tu master, estados incluidos.",
 n3:"<b>Paso 3 · El board.</b> <b>Sube tu propia imagen</b> — pantalla o concept — arrastra piezas, atenúa el fondo y crea todos los boards que quieras. Exporta o comparte cada uno.",
 n4:"<b>¡Exportado!</b> El ciclo completo — master → kit → board → archivos. Ahora hazlo de verdad.",
-cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.",
+cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.",ks1:"BOTONES",ks2:"INTERFAZ",ks3:"CONTROLES",ks4:"MEDIDORES Y TIEMPO",ks5:"HUD Y JUGADOR",ks6:"CARRERAS Y CARTAS",
 fKit:"KIT LISTO",fBoard:"BOARD LISTO",bdCall1:"PRUEBA TUS DISEÑOS",bdCall2:"Míralo en contexto — tu kit sobre pantallas reales.",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
@@ -1241,7 +1266,7 @@ n1:"<b>Passo 1 · Il master.</b> Definisci il DNA — colore, forma, lucentezza,
 n2:"<b>Passo 2 · Il tuo kit.</b> Un clic ha costruito tutto — ogni pezzo eredita il master, stati compresi.",
 n3:"<b>Passo 3 · La board.</b> <b>Carica la tua immagine</b> — schermata o concept — trascina i pezzi, attenua lo sfondo e crea quante board vuoi. Esporta o condividi ognuna.",
 n4:"<b>Esportato!</b> Il giro completo — master → kit → board → file. Ora fallo davvero.",
-cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.",
+cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.",ks1:"PULSANTI",ks2:"INTERFACCIA",ks3:"CONTROLLI",ks4:"INDICATORI E TIMER",ks5:"HUD E GIOCATORE",ks6:"CORSE E CARTE",
 fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",bdCall1:"TESTA I TUOI DESIGN",bdCall2:"Guardalo nel contesto — il tuo kit su schermi reali.",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
@@ -1284,7 +1309,7 @@ n1:"<b>Schritt 1 · Der Master.</b> Leg die DNA fest — Farbe, Form, Glanz, Mus
 n2:"<b>Schritt 2 · Dein Kit.</b> Ein Klick hat all das gebaut — jedes Teil erbt deinen Master, Zustände inklusive.",
 n3:"<b>Schritt 3 · Das Board.</b> <b>Lade dein eigenes Bild hoch</b> — Screenshot oder Konzept — zieh Teile darauf, dimme den Hintergrund und leg so viele Boards an, wie du brauchst. Jedes lässt sich exportieren oder teilen.",
 n4:"<b>Exportiert!</b> Das war der ganze Loop — Master → Kit → Board → Dateien. Jetzt mach es richtig.",
-cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.",
+cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"STEUERUNG",ks4:"ANZEIGEN & TIMER",ks5:"HUD & SPIELER",ks6:"RACING & KARTEN",
 fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",bdCall1:"TESTE DEINE DESIGNS",bdCall2:"Sieh es im Kontext — dein Kit auf echten Screens.",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
@@ -1327,7 +1352,7 @@ n1:"<b>ステップ1 · マスター。</b>DNAを設定 — 色・形・ツヤ�
 n2:"<b>ステップ2 · あなたのキット。</b>ワンクリックで全部完成 — 各パーツがマスターを継承、ステートも込み。",
 n3:"<b>ステップ3 · ボード。</b><b>自分の画像をアップロード</b> — 画面でもコンセプトでも — パーツをドラッグし、背景を調光。ボードは何枚でも作れて、それぞれ書き出し・共有できます。",
 n4:"<b>書き出し完了！</b>これで一巡 — マスター → キット → ボード → ファイル。次は本番でどうぞ。",
-cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。",
+cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。",ks1:"ボタン",ks2:"インターフェース",ks3:"コントロール",ks4:"メーターとタイマー",ks5:"HUDとプレイヤー",ks6:"レースとカード",
 fKit:"キット完成",fBoard:"ボード完成",bdCall1:"デザインをテスト",bdCall2:"実際の画面の上でキットを確認 — 文脈の中で見る。",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
@@ -1376,6 +1401,7 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         custBtn.hidden = step !== 2;
         pushLabel.textContent = exported && step === 3 ? t("pushOpen")
           : step === 1 ? t("pushKit") : step === 2 ? t("pushBoard") : t("pushExport");
+        document.querySelectorAll(".kit-sec span").forEach((el2) => { el2.textContent = t(el2.dataset.k); });
         const kh = document.querySelector(".kit-headline");
         if (kh) kh.innerHTML = `<span><b id="khN">${SHEET_N}</b> ${t("comp")}</span><i>×</i><span><b>4</b> ${t("states")}</span><i>—</i><span class="kh-dl">${t("ready")}</span>`;
         const upB = document.getElementById("b2Up"); if (upB) upB.textContent = t("upBtn");
