@@ -78,8 +78,6 @@ export const LANDING_HTML = `</head>
         <div class="studio2 reveal-in e3" id="studio2" aria-label="Live UI button studio">
           <div class="st2-narr"><span id="narrTxt"></span><button class="cust-btn" id="custBtn" type="button" hidden>⛭ <span id="custTxt">CUSTOMIZE</span></button><span class="pv-ctl">
               <span class="st2-status" id="stStatus" aria-live="polite">LIVE PREVIEW</span>
-              <button class="st2-tb" id="playCtl" type="button" aria-label="Resume the preview loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
-              <button class="st2-tb" id="pauseCtl" type="button" aria-label="Pause the preview loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg></button>
             </span></div>
           <div class="pv-steps" id="pvSteps" role="group" aria-label="Onboarding steps">
             <button type="button" data-step="1" class="on">01 MASTER</button>
@@ -113,7 +111,7 @@ export const LANDING_HTML = `</head>
                 <div class="b2-dimmer" id="b2Dim"></div>
                 <div class="b2-veil" id="b2Veil"></div>
                 <div class="b2-chip" id="b2Chip" hidden>⭱ yourworld.png</div>
-                <div class="b2-dimctl"><span id="dimLbl">DIM</span><input type="range" id="dimR" class="slider" min="0" max="75" value="18" style="--fill:24%" aria-label="Dim background"></div>
+                <div class="b2-dimctl"><span id="dimLbl">VIGNETTE</span><input type="range" id="dimR" class="slider" min="0" max="75" value="18" style="--fill:24%" aria-label="Vignette strength"></div>
                 <div class="b2-pieces" id="b2Pieces"></div>
               </div>
             </div>
