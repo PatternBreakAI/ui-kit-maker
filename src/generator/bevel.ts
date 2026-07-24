@@ -3215,29 +3215,46 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
     }
     case "respawn": {
-      /* Shooter · respawn timer — heading, big seconds, draining bar.
+      /* Shooter · respawn timer — a LIVE countdown: value drains linearly
+         (click replays; ambient loops it on the kit page), the readout and
+         bar warm toward READY GREEN over the last stretch, and at zero the
+         piece celebrates — "GO" with a soft expanding pulse.
          EDITING CONTRACT: label = the heading; value = time remaining;
-         seconds default to AUTO ink like the cooldown (a type fork or
-         per-piece color re-themes them via themedText); bar follows Glow
-         with the negative-space canon. */
+         seconds default to AUTO ink (themedText re-themes); bar follows
+         Glow, blending to the semantic ready-green. */
       const w = 340 * k, h = 168 * k;
       const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 8 * k;
       const cxR9 = 39 + w / 2;
       const vR9 = clamp(value ?? 0.6, 0, 1);
+      const done = vR9 <= 0.015;
       const secsR = Math.ceil(vR9 * 10);
+      const READY = "#4ADE80";
+      // warm toward green across the final 40% of the wait
+      const gMix = clamp((0.4 - vR9) / 0.4, 0, 1);
+      const inkR = done ? READY : hexMix("#FFFFFF", READY, gMix * 0.85);
+      const barC = hexMix(glow, READY, gMix);
       const barW9 = w - inset * 2 - 40 * k, barH9 = 12 * k;
       const barX9 = cxR9 - barW9 / 2, barY9 = 30 + h - inset - 24 * k;
       const gidR9 = "rs" + UID++;
       const gR9 = 2.5 * k, mHR9 = barH9 - gR9 * 2;
-      const secsTxt = opts.themedText
-        ? contentText(String(secsR), cxR9, 30 + inset + 74 * k, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" })
-        : `<text x="${cxR9.toFixed(1)}" y="${(30 + inset + 74 * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${secsR}</text>`;
-      const inner = contentText(opts.label ?? "RESPAWN IN", cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
+      const secCy = 30 + inset + 74 * k;
+      const secsTxt = done
+        ? `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})"` : ""}><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(54 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}" fill="${READY}" text-anchor="middle" dominant-baseline="central">GO</text></g>` +
+          (state !== "disabled"
+            ? `<circle cx="${cxR9.toFixed(1)}" cy="${secCy.toFixed(1)}" r="${(30 * k).toFixed(1)}" fill="none" stroke="${READY}" stroke-width="2">
+                 <animate attributeName="r" values="${(30 * k).toFixed(1)};${(58 * k).toFixed(1)}" dur="1.3s" repeatCount="indefinite"/>
+                 <animate attributeName="stroke-opacity" values="0.7;0" dur="1.3s" repeatCount="indefinite"/>
+               </circle>`
+            : "")
+        : opts.themedText
+          ? contentText(String(secsR), cxR9, secCy, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkR })
+          : `<text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="${inkR}" text-anchor="middle" dominant-baseline="central"${gMix > 0.3 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})"` : ""}>${secsR}</text>`;
+      const inner = contentText(done ? "REDEPLOY" : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
         `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
-        `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
-        (vR9 > 0.03 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * vR9).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
+        `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
+        ((done ? 1 : vR9) > 0.03 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "");
       return inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
     }
     case "dmgarc": {
@@ -3285,42 +3302,44 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       ];
       const nW = chambers.length;
       const vW = ((clamp(value ?? 0, -1, 2) % 1) + 1) % 1; // rotation, 0..1 turn cw
-      const armedW = ((nW - Math.round(vW * nW)) % nW + nW) % nW;
+      /* the hammer sits at 2 O'CLOCK — the armed chamber resolves there,
+         magnified, on the TOPMOST layer (over the rim, under nothing) */
+      const hamA = -Math.PI / 2 + Math.PI / 3;
+      const armedW = ((1 - Math.round(vW * nW)) % nW + nW) % nW;
       const hotW9 = state === "hover" || state === "pressed";
       const live9 = state !== "disabled";
       const dim = live9 ? 1 : 0.4;
       const innerR = rimR - rimW9;
       const wSpan = Math.PI / nW;
-      const topA = -Math.PI / 2;
       let inner = "";
-      // fixed hammer wedge at the top — the arming position
-      inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(topA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(topA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(topA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(topA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
-      // the cylinder: flute lines + chamber sockets ROTATE with the value
+      // fixed hammer wedge at 2 o'clock — the arming position
+      inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
+      // the cylinder: flute lines + QUIET chamber sockets rotate with the
+      // value (the armed chamber renders later, above everything)
       chambers.forEach((_, i) => {
-        const aD = ((i + 0.5) / nW + vW) * Math.PI * 2 + topA;
+        const aD = ((i + 0.5) / nW + vW) * Math.PI * 2 - Math.PI / 2;
         inner += `<line x1="${(cW + hubR * 1.18 * Math.cos(aD)).toFixed(1)}" y1="${(cW + hubR * 1.18 * Math.sin(aD)).toFixed(1)}" x2="${(cW + (innerR - 4) * Math.cos(aD)).toFixed(1)}" y2="${(cW + (innerR - 4) * Math.sin(aD)).toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
       });
+      let armedSvg = "";
       chambers.forEach((ch, i) => {
-        const aC = (i / nW + vW) * Math.PI * 2 + topA;
+        const aC = (i / nW + vW) * Math.PI * 2 - Math.PI / 2;
         const ccx9 = cW + orbitR * Math.cos(aC), ccy9 = cW + orbitR * Math.sin(aC);
         const on = i === armedW;
-        const rr = chamberR * (on ? 1.18 : 1);
+        const rr = chamberR * (on ? 1.34 : 1);
         if (on) {
-          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="1.8s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
-            <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.95)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>`;
+          armedSvg = `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
+            <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.97)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>` +
+            ((opts.icon ?? ch.ic) ? `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon((opts.icon ?? ch.ic)!, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g>` : "");
         } else {
-          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>`;
+          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
+            (ch.ic ? iconGroup(ch.ic, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK }) : "");
         }
-        const icW = on ? (opts.icon ?? ch.ic) : ch.ic;
-        if (icW) inner += on
-          ? `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(icW, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g>`
-          : iconGroup(icW, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK });
       });
       // name tag fixed beside the hammer position, over the rim
       let tagSvg = "";
       {
-        const rr = chamberR * 1.18;
-        const ccx9 = cW, ccy9 = cW - orbitR;
+        const rr = chamberR * 1.34;
+        const ccx9 = cW + orbitR * Math.cos(hamA), ccy9 = cW + orbitR * Math.sin(hamA);
         const tagW = 92 * k, tagH = 34 * k;
         const tx0 = ccx9 + rr + 6 * k, ty9 = ccy9;
         tagSvg = `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}>
@@ -3371,6 +3390,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
   ${sweepArc}
   <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
+  ${armedSvg}
   ${tagSvg}
   <circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="url(#${gidW9}h)" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.8"/>
   <ellipse cx="${cW}" cy="${(cW - hubR * 0.5).toFixed(1)}" rx="${(hubR * 0.66).toFixed(1)}" ry="${(hubR * 0.26).toFixed(1)}" fill="#FFFFFF" opacity="0.08"/>
@@ -3548,9 +3568,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            its depth treatment) plus the subtitle's cap height — big display
            type can never crash into line two (universal no-overlap law) */
         (!subOn ? "" :
-          /* tight hard shadow (dark understroke) — the sub line stays legible
-             over gloss, patterns and light faces alike */
-          `<text x="${tx.toFixed(1)}" y="${(30 + inset + 16 * k + lineAdv + ((R2.subDy ?? 0) + (R2.lineGap ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsS.toFixed(1)}" font-weight="600" letter-spacing="${((R2.subTrack ?? 0) / 100).toFixed(3)}em" fill="${R2.subColor ?? "rgba(255,255,255,0.78)"}" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${Math.max(2, fsS * 0.16).toFixed(1)}px; stroke-linejoin: round">${esc(sub)}</text>`) +
+          /* auto ink, no outline: the sub line takes the color group's
+             DARKEST role (Shadow) on light faces, near-white on dark —
+             legible without a stroke */
+          `<text x="${tx.toFixed(1)}" y="${(30 + inset + 16 * k + lineAdv + ((R2.subDy ?? 0) + (R2.lineGap ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsS.toFixed(1)}" font-weight="650" letter-spacing="${((R2.subTrack ?? 0) / 100).toFixed(3)}em" fill="${R2.subColor ?? (cfg.face.mode === "dark" ? "rgba(255,255,255,0.82)" : darken(effect(cfg.effects, "Shadow"), 0.15))}">${esc(sub)}</text>`) +
         `</g>` +
         (showBar
           /* the mercury sits in a sunken container pill with negative space
@@ -3772,7 +3793,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bullets = [0, 1, 2].map((i) =>
         `<rect x="${(39 + 16 * k + i * 9 * k).toFixed(1)}" y="${(cy5 - 14 * k + i * 3 * k).toFixed(1)}" width="${5 * k}" height="${(28 - i * 6) * k}" rx="${2.4 * k}" fill="${hexMix(glow, "#FFFFFF", 0.25)}" stroke="${darken(bevel, 0.45)}" stroke-width="1"/>`).join("");
       const txt = contentText(cur, 39 + 48 * k, cy5 + 1 + typeOyK * k, 34 * k * typeK, { keepCase: true }) +
-        `<text x="${(39 + 48 * k + cur.length * 21 * k * typeK + 6 * k).toFixed(1)}" y="${(cy5 + 4 + typeOyK * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(18 * k * Math.max(0.8, typeK * 0.85 + 0.15)).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.5)" dominant-baseline="central">/ ${esc(res)}</text>`;
+        // small-white rule: the reserve count wears the understroke
+        infoText(`/ ${res}`, 39 + 48 * k + cur.length * 21 * k * typeK + 6 * k, cy5 + 4 + typeOyK * k, 18 * k * Math.max(0.8, typeK * 0.85 + 0.15), "start", 700);
       return inject(track, bullets + txt);
     }
     case "lives": {

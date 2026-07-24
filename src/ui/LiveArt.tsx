@@ -101,7 +101,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // scrollbar thumb drags, menu rows and the dialog's capsules track the
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
     : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" ? (playing && !disabled ? val : kit?.value)
-    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
+    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -220,7 +220,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const valRef = useRef(val);
   valRef.current = val;
   const wheelChamber = useRef(-1);
-  const tweenVal = (target: number, dur: number, easeOut: boolean) => {
+  const tweenVal = (target: number, dur: number, mode: "out" | "inout" | "western") => {
     cancelAnimationFrame(raf.current);
     const from = valRef.current;
     if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -230,7 +230,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     const t0 = performance.now();
     const step = (t: number) => {
       const u = Math.min(1, (t - t0) / dur);
-      const e2 = easeOut ? 1 - (1 - u) ** 3 : (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
+      // "western": a heavy cylinder — slow wind-up, weighty travel, a small
+      // overshoot clunk as it seats (easeOutBack)
+      const c1 = 1.70158;
+      const e2 = mode === "out" ? 1 - (1 - u) ** 3
+        : mode === "western" ? 1 + (c1 + 1) * (u - 1) ** 3 + c1 * (u - 1) ** 2
+        : (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
       setVal((((from + (target - from) * e2) % 1) + 1) % 1);
       if (u < 1) raf.current = requestAnimationFrame(step);
     };
@@ -292,7 +297,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     };
     raf.current = requestAnimationFrame(step);
   };
-  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits";
+  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
   // ambient progress: bars, rings, timers and gauges quietly replay on their own beat
@@ -339,7 +344,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       const c = trackCoord(e);
       const dir = c && c.u < 0.42 ? -1 : 1;
       const settled = Math.round(valRef.current * 3) / 3;
-      tweenVal(settled + dir / 3, 420, false);
+      tweenVal(settled + dir / 3, 420, "inout");
     }
   };
   const playHandlers = inert ? {} : {
@@ -394,9 +399,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
           const chamber = ((Math.round((p - v) * n) % n) + n) % n;
           if (chamber !== wheelChamber.current) {
             wheelChamber.current = chamber;
-            const t0 = (1 - chamber / n) % 1;
+            // seat the chosen chamber at the 2 o'clock hammer, the slow way
+            const t0 = ((1 / n - chamber / n) % 1 + 1) % 1;
             const cand = [t0 - 1, t0, t0 + 1].reduce((a2, b2) => (Math.abs(b2 - v) < Math.abs(a2 - v) ? b2 : a2));
-            tweenVal(cand, 340, true);
+            tweenVal(cand, 780, "western");
           }
         }
       }
