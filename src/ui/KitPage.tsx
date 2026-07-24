@@ -1078,6 +1078,11 @@ const kitTier = useGen((s) => s.tier);
         rk("padbtn", "Pad · B", { label: "B" }),
         rk("padbtn", "Pad · X", { label: "X" }),
         rk("padbtn", "Pad · Y", { label: "Y" }),
+        rk("listmenu", "List menu", {}, 0.34),
+        rk("scrollbar", "Scrollbar", {}, 0.3),
+        rk("pagedots", "Page dots", {}, 0.25),
+        rk("steps", "Step indicator", {}, 0.42),
+        rk("spinner", "Spinner"),
         rk("cardback", "Card back", {}),
         rk("cardback", "Deck cover", { label: "STARTER · 30" }),
         rk("pack", "Card pack", {}),
@@ -1730,6 +1735,13 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="padbtn" label="B" caption="Pad · B" scale={0.54} />
           <Piece id="padbtn" label="X" caption="Pad · X" scale={0.54} />
           <Piece id="padbtn" label="Y" caption="Pad · Y" scale={0.54} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="listmenu" caption="List menu" scale={0.5} />
+          <Piece id="scrollbar" caption="Scrollbar" value={0.3} scale={0.5} />
+          <Piece id="steps" caption="Step indicator" value={0.42} scale={0.56} />
+          <Piece id="pagedots" caption="Page dots" value={0.25} scale={0.62} />
+          <Piece id="spinner" caption="Spinner" scale={0.6} />
         </div>
       </Sec>
 
