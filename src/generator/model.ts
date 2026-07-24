@@ -770,10 +770,16 @@ export type KitComponentId =
   | "flipclock" | "stopwatch" | "timerdigits"
   | "speedo" | "speedo2" | "tacho" | "circuit" | "leaderboard" | "trophy"
   | "laptimes" | "telemetry" | "startlights"
-  | "cardback" | "pack";
+  | "cardback" | "pack"
+  | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
+  { id: "dialog", name: "Dialog" },
+  { id: "toast", name: "Toast" },
+  { id: "tooltip", name: "Tooltip" },
+  { id: "keycap", name: "Key prompt" },
+  { id: "padbtn", name: "Pad button" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -935,6 +941,11 @@ export function applyKitTextFill(cfg: GenConfig, fill?: string | null): GenConfi
    can be overridden individually while focused. */
 export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   header: "banner",
+  dialog: "round",
+  toast: "pill",
+  tooltip: "round",
+  keycap: "round",
+  padbtn: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",

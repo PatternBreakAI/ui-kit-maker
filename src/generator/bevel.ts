@@ -2001,6 +2001,83 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;
       return stampTrack(inject(track, parts), bx, trackW);
     }
+    case "dialog": {
+      /* System chrome · dialog — the full modal frame: shell, title, body
+         well with quiet placeholder rows, and two candy action capsules.
+         The #1 piece every game ships. */
+      const w = 640 * k, h = 420 * k;
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 10 * k;
+      const title = contentText(opts.label ?? "QUEST COMPLETE", 42 + w / 2, 33 + inset + 34 * k, 38 * k * typeK, { anchor: "middle" });
+      const wellY = 33 + inset + 68 * k;
+      const wellH = h - inset * 2 - 68 * k - 92 * k;
+      const well = `<path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/>`;
+      const lines = [0.84, 0.62, 0.4].map((f, i) =>
+        `<rect x="${(42 + inset + 34 * k).toFixed(1)}" y="${(wellY + 26 * k + i * 30 * k).toFixed(1)}" width="${((w - inset * 2 - 68 * k) * f).toFixed(1)}" height="${(12 * k).toFixed(1)}" rx="${(6 * k).toFixed(1)}" fill="rgba(255,255,255,0.2)"/>`).join("");
+      const btnH = 56 * k, btnGap = 18 * k;
+      const btnW = (w - inset * 2 - 16 * k - btnGap) / 2;
+      const btnY = 33 + h - inset - 8 * k - btnH;
+      const capBtn = (bx3: number, lbl3: string, primaryB: boolean) => {
+        const gid3 = "dg" + UID++;
+        const top3 = primaryB ? lighten(bevel, 0.22) : "rgba(255,255,255,0.15)";
+        const bot3 = primaryB ? darken(bevel, 0.12) : "rgba(255,255,255,0.05)";
+        return `<defs><linearGradient id="${gid3}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top3}"/><stop offset="1" stop-color="${bot3}"/></linearGradient></defs>
+          <rect x="${bx3.toFixed(1)}" y="${btnY.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hexRgba(darken(bevel, 0.5), 0.55)}" stroke-width="1.4"${primaryB && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>
+          <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(btnY + btnH * 0.12).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.3).toFixed(1)}" rx="${(btnH * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="${primaryB ? 0.3 : 0.12}"/>
+          ${contentText(lbl3, bx3 + btnW / 2, btnY + btnH / 2 + 1, 23 * k * typeK, { anchor: "middle" })}`;
+      };
+      const bx0 = 42 + inset + 8 * k;
+      return inject(shell.replace("<svg ", '<svg data-dialog="1" '),
+        title + well + lines + capBtn(bx0, "CLAIM", true) + capBtn(bx0 + btnW + btnGap, "LATER", false));
+    }
+    case "toast": {
+      /* System chrome · toast — one confirmation strip: accent edge, themed
+         check, message, quiet dismiss. */
+      const w = 560 * k, h = 96 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 4;
+      const stripe = `<rect x="${(39 + inset + 10 * k).toFixed(1)}" y="${(30 + inset + 12 * k).toFixed(1)}" width="${(6 * k).toFixed(1)}" height="${(h - inset * 2 - 24 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>`;
+      const chk = STOCK_ICONS.check ? themedIcon(STOCK_ICONS.check, 39 + inset + 30 * k, 30 + h / 2 - 15 * k, 30 * k, glow, 2.6) : "";
+      const msg = contentText(opts.label ?? "Progress saved", 39 + inset + 78 * k, 30 + h / 2 + 1, 26 * k * typeK, { keepCase: true });
+      const dismiss = `<text x="${(39 + w - inset - 26 * k).toFixed(1)}" y="${(30 + h / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="central">×</text>`;
+      return inject(shell.replace("<svg ", '<svg data-toast="1" '), stripe + chk + msg + dismiss);
+    }
+    case "tooltip": {
+      /* System chrome · tooltip — the kit material in a small bubble with a
+         pointer nub; games tooltip in full costume, so the shell stays. */
+      const h6 = 84 * k;
+      const piece = build(cfg, state, { x: 39, y: 30, h: h6, fs: 26 * k, iconSize: 0 }, { label: opts.label ?? "+15% CRIT CHANCE", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(piece);
+      if (!shellM) return piece;
+      const [sx6, sy6, sw6, sh6] = shellM[1].split(" ").map(Number);
+      const cx6 = sx6 + sw6 / 2, py6 = sy6 + sh6 - 1.5;
+      const nub = `<path d="M ${(cx6 - 15 * k).toFixed(1)} ${py6.toFixed(1)} L ${cx6.toFixed(1)} ${(py6 + 21 * k).toFixed(1)} L ${(cx6 + 15 * k).toFixed(1)} ${py6.toFixed(1)} Z" fill="${darken(bevel, 0.22)}" stroke="${hexRgba(darken(bevel, 0.55), 0.8)}" stroke-width="1.2"/>`;
+      const grown = piece
+        .replace(/ height="([\d.]+)"/, (_m, h0) => ` height="${(+h0 + 24 * k).toFixed(0)}"`)
+        .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, a4, b4, c4, d4) => `viewBox="${a4} ${b4} ${c4} ${(+d4 + 24 * k).toFixed(1)}"`);
+      return inject(grown.replace("<svg ", '<svg data-tooltip="1" '), nub);
+    }
+    case "keycap": {
+      /* System chrome · key prompt — a keyboard cap in the kit material.
+         Wide labels (SPACE, SHIFT) stretch the cap like a real keyboard. */
+      const s7 = 112 * k;
+      const lbl7 = (opts.label ?? "E").toUpperCase().slice(0, 6);
+      const w7 = s7 + Math.max(0, lbl7.length - 1) * 30 * k;
+      return build(cfg, state, { x: 39, y: 30, h: s7, fs: 38 * k, iconSize: 0 }, { label: lbl7, iconDef: null, fixedW: w7, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+    }
+    case "padbtn": {
+      /* System chrome · gamepad face button — round cap with the console
+         color ring (A green · B red · X blue · Y gold). */
+      const s8 = 112 * k;
+      const letter = (opts.label ?? "A").toUpperCase().slice(0, 1);
+      const ringC8 = ({ A: "#22c55e", B: "#ef4444", X: "#3b82f6", Y: "#eab308" } as Record<string, string>)[letter] ?? glow;
+      const piece = build(cfg, state, { x: 39, y: 30, h: s8, fs: 42 * k, iconSize: 0 }, { label: letter, iconDef: null, fixedW: s8, shapeOverride: "pill", textOy: opts.textOy, textOx: opts.textOx });
+      const shellM8 = /data-shell="([-\d. ]+)"/.exec(piece);
+      if (!shellM8) return piece;
+      const [sx8, sy8, sw8, sh8] = shellM8[1].split(" ").map(Number);
+      const ring8 = `<circle cx="${(sx8 + sw8 / 2).toFixed(1)}" cy="${(sy8 + sh8 / 2).toFixed(1)}" r="${(Math.min(sw8, sh8) / 2 + 5 * k).toFixed(1)}" fill="none" stroke="${ringC8}" stroke-width="${(4 * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.9}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(ringC8, 0.7)})"` : ""}/>`;
+      return inject(piece.replace("<svg ", '<svg data-padbtn="1" '), ring8);
+    }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected
          cell carries the glow ring. value scrubs the selection. */
