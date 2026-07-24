@@ -162,9 +162,11 @@ export function transformPathCapAware(d: string, vb: [number, number, number, nu
 /* ── true inward offset (Illustrator "Offset Path") ────────────────────────
    Scaling a silhouette into a smaller box is NOT a geometric offset: bumps
    and notches drift, walls pinch, faces escape (measured in the lab). This
-   derives the inner shape the way Illustrator does — every boundary point
-   moves inward along its normal by exactly `delta`, pinched regions are
-   culled, and the result is simplified back to a light path.
+   derives the inner shape the way Illustrator does — offset every edge,
+   join with miters (bevel past the limit), then resolve the raw tangled
+   ring the planar-map way: split at every self-crossing and keep only the
+   loops that wind like the source (the non-zero rule). Pinched shapes
+   become multiple islands, exactly as Offset Path outputs them.
 
    Arc-command paths (pill/round rects) are declined by the caller and keep
    the classic scaled inset — their convex geometry never suffered from it. */
@@ -302,62 +304,108 @@ function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, c
     const ax = p.x + nrm[eP].x * delta, ay = p.y + nrm[eP].y * delta;
     const bx = p.x + nrm[i].x * delta, by = p.y + nrm[i].y * delta;
     const den = dirs[eP].x * dirs[i].y - dirs[eP].y * dirs[i].x;
-    let q: Pt;
     if (Math.abs(den) < 1e-4) {
-      q = { x: (ax + bx) / 2, y: (ay + by) / 2 };
+      cand.push({ x: (ax + bx) / 2, y: (ay + by) / 2 });
     } else {
       const t = ((bx - ax) * dirs[i].y - (by - ay) * dirs[i].x) / den;
-      q = { x: ax + dirs[eP].x * t, y: ay + dirs[eP].y * t };
-      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * 8) q = { x: (ax + bx) / 2, y: (ay + by) / 2 };
+      const q = { x: ax + dirs[eP].x * t, y: ay + dirs[eP].y * t };
+      // past the miter limit, Illustrator bevels: keep BOTH offset endpoints
+      // instead of averaging them into a dent
+      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * 8) cand.push({ x: ax, y: ay }, { x: bx, y: by });
+      else cand.push(q);
     }
-    cand.push(q);
   }
-  // cull pinched regions: a true offset point sits ≥ delta from the boundary
-  let kept = cand.filter((p) => pointInPoly(p, poly) && distToBoundary(p, poly) >= cullT);
-  if (kept.length < 5) return "";
-  /* excise loop-backs: concave miters can cross nearby edges around tight
-     notches; cut each crossing at its intersection and drop the short loop
-     (the standard offset clean-up) */
-  for (let pass = 0; pass < 10; pass++) {
-    const m = kept.length;
-    let cut = false;
-    outer: for (let i = 0; i < m; i++) {
-      for (let j = i + 2; j < m; j++) {
-        if (i === 0 && j === m - 1) continue;
-        const a = kept[i], b = kept[(i + 1) % m], c2 = kept[j], d2 = kept[(j + 1) % m];
-        const den = (b.x - a.x) * (d2.y - c2.y) - (b.y - a.y) * (d2.x - c2.x);
-        if (Math.abs(den) < 1e-9) continue;
-        const t = ((c2.x - a.x) * (d2.y - c2.y) - (c2.y - a.y) * (d2.x - c2.x)) / den;
-        const u = ((c2.x - a.x) * (b.y - a.y) - (c2.y - a.y) * (b.x - a.x)) / den;
-        if (t <= 0.001 || t >= 0.999 || u <= 0.001 || u >= 0.999) continue;
-        const X = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-        const innerLen = j - i;
-        // only ever excise SMALL loops — a crossing whose shorter arc is a
-        // big share of the ring is a seam artifact, and cutting it would
-        // chop a diagonal through the face (the "weird math" failure)
-        if (Math.min(innerLen, m - innerLen) > Math.max(8, m * 0.42)) continue;
-        kept = innerLen <= m - innerLen
-          ? kept.slice(0, i + 1).concat([X], kept.slice(j + 1))
-          : [X, ...kept.slice(i + 1, j + 1)];
-        cut = true;
-        break outer;
-      }
+  /* ── the Illustrator cleanup, done the way Illustrator does it ──
+     The raw mitered ring legitimately self-intersects wherever the wall
+     consumes a feature (concave joins loop backwards, pinched waists cross).
+     Instead of guessing which crossings to excise, resolve them the planar-
+     map way: insert every crossing as a vertex, split the ring into simple
+     loops, and keep only loops that wind the SAME WAY as the source — the
+     backwards tangles vanish exactly as they do under the non-zero winding
+     rule. Pinched shapes correctly become multiple islands. */
+  const shoelaceS = (ps: Pt[]) => { let s = 0; for (let i2 = 0; i2 < ps.length; i2++) { const a2 = ps[i2], b2 = ps[(i2 + 1) % ps.length]; s += a2.x * b2.y - b2.x * a2.y; } return s / 2; };
+  const srcSign = Math.sign(shoelaceS(poly)) || 1;
+  const loops = splitSimpleLoops(cand);
+  const minArea = Math.max(6, delta * delta * 0.5);
+  const centroid = (ps: Pt[]) => { let sx = 0, sy2 = 0; for (const p of ps) { sx += p.x; sy2 += p.y; } return { x: sx / ps.length, y: sy2 / ps.length }; };
+  const kept: Pt[][] = [];
+  for (const loop of loops) {
+    if (loop.length < 3) continue;
+    const ar = shoelaceS(loop);
+    if (Math.sign(ar) !== srcSign || Math.abs(ar) < minArea) continue; // backwards tangle or sliver
+    if (!pointInPoly(centroid(loop), poly)) continue;
+    // a valid offset loop keeps distance from the source wall — spot-check a
+    // few vertices; chordification slack mirrors the retry ladder's eps
+    let ok = 0, checked = 0;
+    for (let s2 = 0; s2 < loop.length; s2 += Math.max(1, Math.floor(loop.length / 8))) {
+      checked++;
+      if (distToBoundary(loop[s2], poly) >= cullT) ok++;
     }
-    if (!cut) break;
+    if (ok < checked * 0.7) continue;
+    const out = simplifyDP(loop, 0.35).map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }));
+    // per-loop guarantee on the exact rounded points that ship: a loop that
+    // still crosses after simplify+rounding is dropped alone
+    if (out.length < 3 || selfIntersections(out) > 0) continue;
+    kept.push(out);
   }
-  if (kept.length < 5) return "";
-  // final sanity: a healthy inward offset keeps most of the source area —
-  // anything below that means the cull/excise reconnected across the shape,
-  // so fall back to the classic scaled inset instead of shipping a glitch
-  const shoelace = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) { const a2 = ps[i], b2 = ps[(i + 1) % ps.length]; s += a2.x * b2.y - b2.x * a2.y; } return Math.abs(s) / 2; };
-  if (shoelace(kept) < shoelace(poly) * 0.45) return "";
-  const out = simplifyDP(kept, 0.35).map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }));
-  // absolute guarantee, checked on the EXACT rounded points that ship: if
-  // any crossing survives excision + simplify + rounding, this combo
-  // declines the true offset and takes the classic scaled inset — a
-  // glitched face never ships
-  if (selfIntersections(out) > 0) return "";
-  return "M " + out.map((p) => `${p.x} ${p.y}`).join(" L ") + " Z";
+  if (!kept.length) return "";
+  // total-area sanity vs the source — islands legitimately shrink more than
+  // a single ring, so the floor is lower than the old single-loop check
+  const total = kept.reduce((s3, l) => s3 + Math.abs(shoelaceS(l)), 0);
+  if (total < Math.abs(shoelaceS(poly)) * 0.25) return "";
+  kept.sort((a2, b2) => Math.abs(shoelaceS(b2)) - Math.abs(shoelaceS(a2)));
+  return kept.map((l) => "M " + l.map((p) => `${p.x} ${p.y}`).join(" L ") + " Z").join(" ");
+}
+
+/* Split a (possibly self-intersecting) closed ring into simple loops:
+   insert every pairwise edge crossing as a shared node, then walk the ring
+   with a stack — when a node repeats, the span between its two visits pops
+   out as one simple loop. Standard planar decomposition, O(n²) on rings of
+   ~40–120 points (cached upstream). */
+function splitSimpleLoops(ring: Pt[]): Pt[][] {
+  const m = ring.length;
+  if (m < 3) return [];
+  type Ins = { t: number; node: number };
+  const perEdge: Ins[][] = Array.from({ length: m }, () => []);
+  const nodes: Pt[] = [];
+  for (let i = 0; i < m; i++) {
+    for (let j = i + 2; j < m; j++) {
+      if (i === 0 && j === m - 1) continue;
+      const a = ring[i], b = ring[(i + 1) % m], c = ring[j], d = ring[(j + 1) % m];
+      const den = (b.x - a.x) * (d.y - c.y) - (b.y - a.y) * (d.x - c.x);
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((c.x - a.x) * (d.y - c.y) - (c.y - a.y) * (d.x - c.x)) / den;
+      const u = ((c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)) / den;
+      if (t <= 1e-3 || t >= 1 - 1e-3 || u <= 1e-3 || u >= 1 - 1e-3) continue;
+      const node = nodes.length;
+      nodes.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      perEdge[i].push({ t, node });
+      perEdge[j].push({ t: u, node });
+    }
+  }
+  if (!nodes.length) return [ring];
+  type Item = { p: Pt; node: number };
+  const seq: Item[] = [];
+  for (let i = 0; i < m; i++) {
+    seq.push({ p: ring[i], node: -1 });
+    perEdge[i].sort((A, B) => A.t - B.t);
+    for (const ins of perEdge[i]) seq.push({ p: nodes[ins.node], node: ins.node });
+  }
+  const loops: Pt[][] = [];
+  const stack: Item[] = [];
+  const openAt = new Map<number, number>();
+  for (const it of seq) {
+    const at = it.node >= 0 ? openAt.get(it.node) : undefined;
+    if (at !== undefined) {
+      const span = stack.splice(at);
+      loops.push(span.map((x) => x.p));
+      for (const [nd, idx] of [...openAt]) if (idx >= at) openAt.delete(nd);
+    }
+    if (it.node >= 0) openAt.set(it.node, stack.length);
+    stack.push(it);
+  }
+  if (stack.length >= 3) loops.push(stack.map((x) => x.p));
+  return loops;
 }
 
 /** Effective wall width for a shape. The banner's tail geometry only reads
