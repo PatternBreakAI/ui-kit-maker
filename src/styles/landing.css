@@ -1874,6 +1874,35 @@ html[data-theme="light"] .fd-landing .theme-icon .moon { opacity: 1; transform: 
     }
 .fd-landing .final-candy-cta:hover { transform: translateY(-7px) scale(1.025); box-shadow: inset 0 2px rgba(255,255,255,.5), 0 17px 0 var(--candy-lo), 0 46px 60px -15px var(--candy-glow); }
 .fd-landing .final-candy-cta:active { transform: translateY(7px) scale(.99); box-shadow: inset 0 5px 10px rgba(0,0,0,.18), 0 2px 0 var(--candy-lo), 0 15px 30px -14px var(--candy-glow); }
+.fd-landing .compat-section { padding: clamp(40px, 6vw, 84px) 0 0; }
+.fd-landing .compat-band { overflow: hidden; margin-top: 30px;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 8% 92%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 8% 92%, transparent); }
+.fd-landing .compat-track { display: flex; gap: 14px; width: max-content; padding: 8px 0;
+      animation: compat-roll 44s linear infinite; }
+.fd-landing .compat-band:hover .compat-track { animation-play-state: paused; }
+    @keyframes compat-roll { to { transform: translateX(-50%); } }
+.fd-landing .compat-tile { flex: none; display: inline-flex; align-items: center; height: 54px; padding: 0 22px;
+      border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; cursor: pointer;
+      background: linear-gradient(135deg, var(--c1), var(--c2)); color: var(--tc, #fff);
+      font-family: var(--display); font-weight: 900; font-size: 15.5px; letter-spacing: .01em; white-space: nowrap;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 8px 20px -12px rgba(0, 0, 0, .6);
+      transition: transform .15s, box-shadow .15s; }
+.fd-landing .compat-tile:hover { transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 16px 34px -14px var(--c1); }
+.fd-landing .compat-card { width: min(680px, 100%); margin: 20px auto 0; min-height: 96px;
+      border: 1px solid var(--line-strong); border-radius: 16px; background: var(--panel-solid);
+      padding: 16px 20px; }
+.fd-landing .compat-card b { font-size: 15px; color: var(--text); }
+.fd-landing .compat-card p { margin: 5px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.fd-landing .cc-soon { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 9px;
+      letter-spacing: .16em; color: #29e0b9; border: 1px solid rgba(41, 224, 185, .4);
+      padding: 3px 9px; border-radius: 999px; }
+.fd-landing .cc-soon[hidden] { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+.fd-landing .compat-track { animation: none; flex-wrap: wrap; width: auto; justify-content: center;
+        padding-inline: 20px; }
+.fd-landing .compat-band { mask-image: none; -webkit-mask-image: none; } }
 .fd-landing .footer {
       border-top: 1px solid var(--line);
       padding: 28px 0 38px;

@@ -389,6 +389,25 @@ export const LANDING_HTML = `</head>
 
     
 
+    <section class="compat-section" aria-labelledby="compatTitle">
+      <div class="shell">
+        <div class="math-header reveal">
+          <p class="section-label" id="compatLabel">Plays nice with your stack</p>
+          <h2 class="section-title" id="compatTitle">Lands in the tools you already use.</h2>
+        </div>
+      </div>
+      <div class="compat-band reveal" id="compatBand">
+        <div class="compat-track" id="compatTrack"></div>
+      </div>
+      <div class="shell">
+        <div class="compat-card reveal" id="compatCard">
+          <b id="ccName"></b>
+          <p id="ccHow">Roll over a logo — here's how your kit lands there.</p>
+          <span class="cc-soon" id="ccSoon" hidden>NATIVE EXPORT ON THE ROADMAP</span>
+        </div>
+      </div>
+    </section>
+
     <section class="ownership-section" aria-labelledby="ownershipTitle">
       <div class="ownership-marquee" aria-hidden="true"><span>YOURS · YOURS · YOURS · YOURS · </span><span>YOURS · YOURS · YOURS · YOURS · </span></div>
       <div class="shell ownership-grid">
