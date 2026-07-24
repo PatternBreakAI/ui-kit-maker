@@ -44,7 +44,7 @@ interactive sub-element, never the whole frame:
 
 | Piece | Hover / pressed target | Extra editable channels |
 |---|---|---|
-| dialog | the ARMED capsule — value < .5 arms CLAIM, ≥ .5 arms LATER | title text, type, colors |
+| dialog | the capsule UNDER THE POINTER (live) — value < .5 arms CLAIM, ≥ .5 LATER | title text, type, colors |
 | listmenu | the row under the pointer (live) / the value-scrubbed row | row labels via content, type |
 | scrollbar | thumb (glow / grip) — drags live on the kit page | value = position |
 | steps | current pip (ring, scale) | type + colors only |

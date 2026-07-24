@@ -76,7 +76,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const id = kit?.id;
   const [live, setLive] = useState<GenStateName>("default");
   const [on, setOn] = useState((kit?.value ?? 1) > 0.5);            // toggle
-  const [val, setVal] = useState(clamp01(kit?.value ?? 0.62));      // slider
+  // dialog rests on CLAIM (left capsule) unless the host says otherwise
+  const [val, setVal] = useState(clamp01(kit?.value ?? (kit?.id === "dialog" ? 0 : 0.62))); // slider / tracked pieces
   const [pval, setPval] = useState(clamp01(kit?.value ?? 0.62));    // progress
   const [sel, setSel] = useState(Math.round(kit?.value ?? 1));      // segment
   const [typed, setTyped] = useState<string | null>(null);          // input
@@ -96,10 +97,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const disabled = kit?.baseState === "disabled";
   const inert = disabled || kit?.tone === "alt";
   const value = id === "toggle" || id === "checkbox" || id === "radio" || id === "orb" ? (playing && !disabled ? (on ? 1 : 0) : kit?.value)
-    // vertical-track pieces: the scrollbar thumb drags, menu rows track the
-    // pointer, the weapon wheel follows the pointer's ANGLE — all through
-    // the same stamped-geometry value pipe
-    : id === "slider" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "weaponwheel" ? (playing && !disabled ? val : kit?.value)
+    // stamped-geometry value pipe: sliders and the settings row drag, the
+    // scrollbar thumb drags, menu rows and the dialog's capsules track the
+    // pointer, the selector cycles, the wheel follows the pointer's ANGLE
+    : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
@@ -312,6 +313,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       const c = trackCoord(e);
       if (c) setSel(c.thirds);
     }
+    else if (id === "equipselector") {
+      // carousel: click left of the armed socket → previous, right → next
+      const c = trackCoord(e);
+      const cur = Math.max(0, Math.min(2, Math.floor(clamp01(val) * 3)));
+      const dir = c && c.u < 0.42 ? -1 : 1;
+      setVal(((cur + dir + 3) % 3 + 0.5) / 3);
+    }
   };
   const playHandlers = inert ? {} : {
     onPointerEnter: (e: React.PointerEvent) => setLive(e.buttons === 1 ? "pressed" : "hover"),
@@ -324,7 +332,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         stickDrag.current = { x: e.clientX, y: e.clientY, sx: stick[0], sy: stick[1] };
       }
-      if (id === "slider") {
+      if (id === "slider" || id === "setrow") {
         sliding.current = true;
         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         const c = trackCoord(e);
@@ -338,7 +346,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       }
     },
     onPointerMove: (e: React.PointerEvent) => {
-      if (id === "slider" && sliding.current) {
+      if ((id === "slider" || id === "setrow") && sliding.current) {
+        const c = trackCoord(e);
+        if (c) setVal(c.u);
+      }
+      // the dialog's capsules arm under the pointer — left CLAIM, right LATER
+      if (id === "dialog" && !sliding.current) {
         const c = trackCoord(e);
         if (c) setVal(c.u);
       }
@@ -440,7 +453,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     ? { transition: "filter .16s ease", filter: live !== "default" ? "brightness(1.14) saturate(1.05)" : "none" }
     : undefined;
   // draggable pieces own their gestures — a slider drag must never pan the page
-  const gestureStyle = id === "slider" || id === "segment" || id === "joystick" || id === "weaponwheel" || vtracked ? { touchAction: "none" as const } : undefined;
+  const gestureStyle = id === "slider" || id === "setrow" || id === "segment" || id === "joystick" || id === "weaponwheel" || vtracked ? { touchAction: "none" as const } : undefined;
   return (
     <div ref={ref} className={`${shellFree ? `${className ?? ""} kp-shellfree` : className ?? ""}${burst ? " fx-igniting" : ""}`} title={title}
       style={{ ...style, ...(width !== undefined ? { width } : {}), ...anchorStyle, ...gestureStyle, ...choiceHover }}

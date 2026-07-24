@@ -2057,10 +2057,10 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .lootmodal h2 { position: relative; margin: 10px 0 6px; font-size: 27px; letter-spacing: .03em; font-weight: 900; color: #fff; }
 .lootgrad { background: linear-gradient(90deg, #a78bfa, #c026d3 55%, #e879f9); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 .lootsub { position: relative; color: rgba(226, 220, 245, .72); font-size: 13.5px; margin: 0 0 20px; min-height: 1.4em; }
-.lootrow { position: relative; display: flex; gap: 20px; justify-content: center; min-height: 230px; }
+.lootrow { position: relative; display: flex; gap: 20px; justify-content: center; min-height: 286px; }
 .lootcell { width: 190px; display: flex; flex-direction: column; align-items: center; }
 /* the pack pedestal: quiet frame + corner brackets (drawn as 8 gradient Ls) */
-.lootframe { position: relative; width: 100%; min-height: 186px; display: grid; place-items: center; padding: 12px 10px; border-radius: 16px; border: 1px solid rgba(139, 92, 246, .24);
+.lootframe { position: relative; width: 100%; height: 206px; display: grid; place-items: center; padding: 12px 10px; border-radius: 16px; border: 1px solid rgba(139, 92, 246, .24); overflow: visible;
   background:
     linear-gradient(rgba(192, 132, 252, .65), rgba(192, 132, 252, .65)) 6px 6px / 16px 2px no-repeat,
     linear-gradient(rgba(192, 132, 252, .65), rgba(192, 132, 252, .65)) 6px 6px / 2px 16px no-repeat,
@@ -2088,8 +2088,9 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .lootchev.r0 { color: rgba(59, 130, 246, .9); }
 .lootchev.r1 { color: rgba(168, 85, 247, .9); }
 .lootcard { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; animation: lootreveal .5s cubic-bezier(.2, 1.6, .4, 1); }
-.lootcard .lootart { width: 100%; display: block; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5)); }
-.lootcard .lootart svg { width: 100%; height: auto; display: block; }
+.lootcard .lootart { display: block; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5)); }
+/* the reveal art fits INSIDE the fixed frame — the modal never resizes */
+.lootcard .lootart svg { max-width: 150px; max-height: 128px; width: auto; height: auto; display: block; margin: 0 auto; }
 .lootcard b { position: relative; font-size: 13px; font-weight: 800; letter-spacing: .02em; color: #fff; }
 .lootburst { position: absolute; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; }
 .lootburst i { position: absolute; left: -3px; top: -3px; width: 7px; height: 7px; border-radius: 2px; background: #e879f9;
