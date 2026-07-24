@@ -235,6 +235,20 @@ function ExportMenu({ actions }: {
   );
 }
 
+/* Specimen deep-dives collapse by default — the type section reads as a
+   compact spec sheet, not a poster. */
+function KpFold({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`kp-fold${open ? " open" : ""}`}>
+      <button className="kp-foldhead" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <ChevronDown size={13} strokeWidth={2.2} style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform .15s" }} /> {label}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 /** Per-piece random shine timing: each active piece glints on its own clock
  *  (staggered delay) at its own pace (varied duration), so the sweep never
  *  fires in unison across the screen. Recomputed only when shine flips on. */
@@ -1109,11 +1123,6 @@ const kitTier = useGen((s) => s.tier);
   const alphaLo = useMemo(() => charRow("abcdefghijklmnopqrstuvwxyz"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
   const digits = useMemo(() => charRow("0123456789 ! ? & % + × / : . , ’ “ ” ( ) [ ]"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // hero specimen — the current live phrase at Display XL
-  const heroTypeArt = useMemo(() => tightenV(renderTypeSpecimen(cfg, splash, {
-    highlight: splashHi || undefined, mutate: (c) => { c.type.size = 128; },
-  }), 128, T.oy ?? 0), [cfg, splash, splashHi]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // display construction — the treatment built up in four inspectable stages
   const conWord = (splash.trim().split(/\s+/)[0] || "LEVEL").slice(0, 8).toUpperCase();
   const conStages = useMemo(() => {
@@ -1377,10 +1386,31 @@ const kitTier = useGen((s) => s.tier);
           </aside>
 
           <div className="kp-tyspec">
-            <div className="kp-tylabel">Primary display example</div>
-            <Art svg={heroTypeArt} scale={0.92} className="kp-tyhero" />
-            <div className="kp-tyanno">Display XL · 128px · {T.spacing >= 0 ? T.spacing : `−${Math.abs(T.spacing)}`}% tracking · {caseName}</div>
+            <div className="kp-tylabel">Live display specimen</div>
+            <div className="kp-tylivegrid">
+              <div className="kp-tyout">
+                <Art svg={splashArt} scale={0.85} className="kp-splashmain" />
+                <div className="kp-tyanno">Display XL · 128px · {T.spacing >= 0 ? T.spacing : `−${Math.abs(T.spacing)}`}% tracking · {caseName}</div>
+              </div>
+              <div className="kp-tyctl">
+                <label>Primary phrase
+                  <span className="kp-tyfield"><input value={splash} maxLength={20} onChange={(e) => setSplash(e.target.value)} aria-label="Splash text" /><i>{splash.length}/20</i></span>
+                </label>
+                <label>Highlight phrase
+                  <span className="kp-tyfield"><input value={splashHi} maxLength={20} onChange={(e) => setSplashHi(e.target.value)} aria-label="Highlight phrase" /><i>{splashHi.length}/20</i></span>
+                </label>
+                <label className="kp-tyslide">Highlight intensity
+                  <span className="kp-tyfield"><input type="range" min={0} max={100} value={T.highlightBoost ?? 70} aria-label="Highlight intensity"
+                    onChange={(e) => update((c) => { c.type.highlightBoost = +e.target.value; })} /><i>{T.highlightBoost ?? 70}%</i></span>
+                </label>
+                <label className="kp-tytog">Treatment
+                  <button className={`kp-tyswitch${treatOn ? " on" : ""}`} role="switch" aria-checked={treatOn} aria-label="Treatment on or off"
+                    onClick={() => setTreatOn(!treatOn)}><i /></button>
+                </label>
+              </div>
+            </div>
 
+            <KpFold label="Character set & display construction">
             <div className="kp-tylabel kp-tygap">Character set</div>
             <div className="kp-tychars">
               <span className="kp-tyrowlab">Uppercase</span>
@@ -1401,36 +1431,11 @@ const kitTier = useGen((s) => s.tier);
                 </figure>
               ))}
             </div>
+            </KpFold>
           </div>
         </div>
 
-        <div className="kp-tylive">
-          <div className="kp-tylabel">Live display test</div>
-          <div className="kp-tylivegrid">
-            <div className="kp-tyout">
-              <Art svg={splashArt} scale={1} className="kp-splashmain" />
-              <p className="kp-tymap">The highlight phrase is rendered with the same treatment as the rest of the display.</p>
-            </div>
-            <div className="kp-tyctl">
-              <label>Primary phrase
-                <span className="kp-tyfield"><input value={splash} maxLength={20} onChange={(e) => setSplash(e.target.value)} aria-label="Splash text" /><i>{splash.length}/20</i></span>
-              </label>
-              <label>Highlight phrase
-                <span className="kp-tyfield"><input value={splashHi} maxLength={20} onChange={(e) => setSplashHi(e.target.value)} aria-label="Highlight phrase" /><i>{splashHi.length}/20</i></span>
-              </label>
-              <label className="kp-tyslide">Highlight intensity
-                <span className="kp-tyfield"><input type="range" min={0} max={100} value={T.highlightBoost ?? 70} aria-label="Highlight intensity"
-                  onChange={(e) => update((c) => { c.type.highlightBoost = +e.target.value; })} /><i>{T.highlightBoost ?? 70}%</i></span>
-              </label>
-              <label className="kp-tytog">Treatment
-                <button className={`kp-tyswitch${treatOn ? " on" : ""}`} role="switch" aria-checked={treatOn} aria-label="Treatment on or off"
-                  onClick={() => setTreatOn(!treatOn)}><i /></button>
-              </label>
-              <p className="kp-tymap">The highlight rides the matched phrase — position follows the text itself.</p>
-            </div>
-          </div>
-        </div>
-
+        <KpFold label="Phrase presets & type scale reference">
         <div className="kp-tyfoot">
           <div className="kp-typresets">
             <div className="kp-tylabel">Phrase presets</div>
@@ -1452,6 +1457,7 @@ const kitTier = useGen((s) => s.tier);
             ))}
           </div>
         </div>
+        </KpFold>
       </Sec>
 
       <Chapter n="02" id="components" label="Components" blurb="Finished controls, shown in true relative scale." />

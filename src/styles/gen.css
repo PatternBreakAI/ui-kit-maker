@@ -2041,3 +2041,12 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .lootclaim { height: 42px; padding: 0 22px; border-radius: 11px; border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; background: var(--accent, #6366f1); color: #fff; }
 @keyframes lootfade { from { opacity: 0; } }
 @keyframes lootpop { from { transform: scale(.86); opacity: 0; } }
+
+/* v80: the type section is a compact spec sheet, not a poster — the deep
+   dives (character set, construction, scale) fold away by default */
+.kp-typo2 { gap: 24px 48px; margin-top: 26px; }
+.kp-tygap { margin-top: 22px; }
+.kp-tylive { margin-top: 18px; }
+.kp-fold { margin-top: 14px; }
+.kp-foldhead { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 0; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--kp-ink3); }
+.kp-foldhead:hover { color: var(--kp-ink, #fff); }
