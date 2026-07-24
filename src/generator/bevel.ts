@@ -1776,16 +1776,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const w = 560 * k, h = 106 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const cy = 30 + h / 2 + 1;
-      const segW = (w - bw * 2) / 3;
+      /* even distribution within the VISUAL bounds: the pill's end caps eat
+         horizontal room, so the segment zone starts past them — the outer
+         labels get the same air to the edge as every inner gap */
+      const capIn = h * 0.2;
+      const zoneX = 39 + bw + capIn, zoneW = w - bw * 2 - capIn * 2;
+      const segW = zoneW / 3;
       // value picks the active segment (0..2) — play mode drives it live;
       // the resting default stays on the middle segment, as it always has
       const sel = clamp(Math.round(value ?? 1), 0, 2);
-      const selX = 39 + bw + segW * sel;
+      const selX = zoneX + segW * sel;
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
       const t = (label: string, cx: number, op: number) =>
         contentText(label, cx, cy + typeOyK * k, 30 * k * typeK, { anchor: "middle", opacity: op });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
-      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, 39 + bw + segW * (i + 0.5), i === sel ? 1 : 0.55)).join("")), 39 + bw, w - bw * 2);
+      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.55)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
       // stateful: a dead (dim) check sits in the well until clicked alive.
@@ -1933,7 +1938,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       } else {
         const fw2 = trackW * v;
         if (fw2 > 1) {
-          litCells += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${fw2.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(bh / 2, 8 * k).toFixed(1)}" fill="url(#${gid})" opacity="${dim}"/>
+          // full pill rounding — a squarer radius fought the well's cap curve
+          litCells += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${fw2.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid})" opacity="${dim}"/>
             <rect x="${(bx + 3 * k).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, fw2 - 6 * k).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
         }
         // the gap notches carve the fill into segments
@@ -2021,19 +2027,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gid = "vs" + UID++;
       const wellP = wellOf(w, h, inset);
       const rC = hexMix("#FF4D5A", glow, 0.25);
-      /* v73 · the fills wear FULL rounded caps — the outer end's rounding
-         is consumed by the well clip (the rect overhangs it), so only the
-         drain edge shows the cap: no more flat corners mid-bar */
-      const capR = (bh + gapPad * 2) / 2;
+      /* negative-space canon: both fills are fully-rounded pills floating
+         inside the sunken well with air on every side */
       const parts = `<path d="${wellP}" fill="${wellFill}" opacity="0.92"/>
-        <defs><clipPath id="${gid}w"><path d="${wellP}"/></clipPath>
+        <defs>
         <linearGradient id="${gid}l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
         <linearGradient id="${gid}r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient></defs>
-        <g clip-path="url(#${gid}w)" data-vs="1">
-          ${vL > 0.01 ? `<rect x="${(bx - gapPad - inset).toFixed(1)}" y="${(by - gapPad).toFixed(1)}" width="${(gapPad + inset + halfW * vL).toFixed(1)}" height="${(bh + gapPad * 2).toFixed(1)}" rx="${capR.toFixed(1)}" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx - gapPad - inset).toFixed(1)}" y="${(by + bh * 0.06).toFixed(1)}" width="${(gapPad + inset + halfW * vL - bh * 0.2).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
-          ${vR > 0.01 ? `<rect x="${(bx + trackW - halfW * vR).toFixed(1)}" y="${(by - gapPad).toFixed(1)}" width="${(halfW * vR + gapPad + inset).toFixed(1)}" height="${(bh + gapPad * 2).toFixed(1)}" rx="${capR.toFixed(1)}" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx + trackW - halfW * vR + bh * 0.2).toFixed(1)}" y="${(by + bh * 0.06).toFixed(1)}" width="${(halfW * vR + gapPad + inset - bh * 0.2).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
+        <g data-vs="1">
+          ${vL > 0.01 ? `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vL).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(bx + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
+          ${vR > 0.01 ? `<rect x="${(bx + trackW - halfW * vR).toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vR).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(bx + trackW - halfW * vR + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vR - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
         </g>` +
         candyKnob(cxV, 30 + h / 2, h * 0.46, knobC) +
         `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;
@@ -2572,11 +2576,24 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const dim = state === "disabled" ? 0.45 : 1;
       const surfY = cG + inR - vG * inR * 2;
       const waveAmp = inR * 0.05;
-      const wave = `M ${(cG - inR).toFixed(1)} ${surfY.toFixed(1)} Q ${(cG - inR / 2).toFixed(1)} ${(surfY - waveAmp * 2).toFixed(1)} ${cG.toFixed(1)} ${surfY.toFixed(1)} T ${(cG + inR).toFixed(1)} ${surfY.toFixed(1)} L ${(cG + inR).toFixed(1)} ${(cG + inR).toFixed(1)} L ${(cG - inR).toFixed(1)} ${(cG + inR).toFixed(1)} Z`;
-      const bubbles = vG > 0.15 ? `
-  <circle cx="${(cG - inR * 0.28).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.42).toFixed(1)}" r="${(inR * 0.055).toFixed(1)}" fill="${lighten(glow, 0.5)}" opacity="0.55"/>
-  <circle cx="${(cG + inR * 0.18).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.62).toFixed(1)}" r="${(inR * 0.038).toFixed(1)}" fill="${lighten(glow, 0.5)}" opacity="0.45"/>
-  <circle cx="${(cG - inR * 0.05).toFixed(1)}" cy="${(surfY + (cG + inR - surfY) * 0.25).toFixed(1)}" r="${(inR * 0.03).toFixed(1)}" fill="${lighten(glow, 0.6)}" opacity="0.6"/>` : "";
+      /* the liquid is ALIVE: the meniscus rocks between two wave phases and
+         bubbles rise to the surface on their own clocks (SMIL — same policy
+         as the spinner; disabled stands still) */
+      const waveD = (phase: number) => `M ${(cG - inR).toFixed(1)} ${surfY.toFixed(1)} Q ${(cG - inR / 2).toFixed(1)} ${(surfY - waveAmp * 2 * phase).toFixed(1)} ${cG.toFixed(1)} ${surfY.toFixed(1)} T ${(cG + inR).toFixed(1)} ${surfY.toFixed(1)} L ${(cG + inR).toFixed(1)} ${(cG + inR).toFixed(1)} L ${(cG - inR).toFixed(1)} ${(cG + inR).toFixed(1)} Z`;
+      const wave = waveD(1);
+      const waveAnim = state !== "disabled"
+        ? `<animate attributeName="d" values="${waveD(1)};${waveD(-1)};${waveD(1)}" dur="3.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>`
+        : "";
+      const floorY = cG + inR;
+      const bub = (bx9: number, r9: number, op9: number, dur9: string, delay9: string) => vG > 0.15
+        ? `<circle cx="${bx9.toFixed(1)}" cy="${floorY.toFixed(1)}" r="${r9.toFixed(1)}" fill="${lighten(glow, 0.55)}" opacity="0">${state !== "disabled"
+            ? `<animate attributeName="cy" values="${(floorY - 4).toFixed(1)};${(surfY + 5).toFixed(1)}" dur="${dur9}" begin="${delay9}" repeatCount="indefinite"/>
+               <animate attributeName="opacity" values="0;${op9};${op9};0" keyTimes="0;0.15;0.8;1" dur="${dur9}" begin="${delay9}" repeatCount="indefinite"/>`
+            : ""}</circle>`
+        : "";
+      const bubbles = bub(cG - inR * 0.28, inR * 0.05, 0.55, "2.8s", "0s") +
+        bub(cG + inR * 0.18, inR * 0.038, 0.45, "3.4s", "1.1s") +
+        bub(cG - inR * 0.05, inR * 0.03, 0.6, "2.3s", "0.6s");
       const totalG = dG + padG * 2;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalG}" height="${totalG}" viewBox="0 0 ${totalG} ${totalG}" data-healthglobe="1" role="img" aria-label="health ${Math.round(vG * 100)}%">
 <defs>
@@ -2600,7 +2617,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   ${state === "hover" && vG > 0 ? `<circle cx="${cG}" cy="${cG}" r="${(rG + rimW * 0.35).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.45)}" stroke-width="${(rimW * 0.5).toFixed(1)}" style="filter: blur(3px)"/>` : ""}
   <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="url(#${gidG}glass)"/>
   <g clip-path="url(#${gidG}c)">
-    ${vG > 0.01 ? `<path d="${wave}" fill="url(#${gidG}l)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(inR * 0.12).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>
+    ${vG > 0.01 ? `<path d="${wave}" fill="url(#${gidG}l)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(inR * 0.12).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}>${waveAnim}</path>
     <ellipse cx="${cG}" cy="${surfY.toFixed(1)}" rx="${(inR * 0.92).toFixed(1)}" ry="${(waveAmp * 1.4).toFixed(1)}" fill="${lighten(glow, 0.55)}" opacity="0.5"/>` : ""}
     ${bubbles}
     ${vG > 0.05 ? `<ellipse cx="${cG}" cy="${(cG + inR * 0.8).toFixed(1)}" rx="${(inR * 0.7).toFixed(1)}" ry="${(inR * 0.22).toFixed(1)}" fill="${darken(glow, 0.4)}" opacity="0.5"/>` : ""}
@@ -3060,40 +3077,55 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WM.toFixed(0)}" height="${HM.toFixed(0)}" viewBox="0 0 ${WM.toFixed(0)} ${HM.toFixed(0)}" data-magazine="1" role="img" aria-label="magazine ${Math.round(vM9 * cap)} of ${cap}"><g opacity="${state === "disabled" ? 0.4 : 1}">${pips}</g></svg>`;
     }
     case "equipselector": {
-      /* Shooter · equipment selector — three sockets, the CENTER is armed;
-         value cycles which item sits there. EDITING CONTRACT: value = item;
-         label = the armed item's name; icon = the armed glyph (swappable);
-         hover strengthens the armed ring; disabled dims. */
+      /* Shooter · equipment selector — a CONTINUOUS carousel: value*3 is a
+         fractional position, so LiveArt can tween it and items glide,
+         scale and fade like a hardware picker. EDITING CONTRACT: value =
+         position (animated in play mode; click right = next, left =
+         previous); label = the armed item's name; icon = the armed glyph
+         (swappable); hover strengthens the armed ring; disabled dims. */
       const items: { ic?: IconDef; nm: string }[] = [
         { ic: STOCK_ICONS.flask, nm: "FIELD TONIC" },
         { ic: STOCK_ICONS.zap, nm: "SHOCK CHARGE" },
         { ic: STOCK_ICONS.gem, nm: "PRISM MINE" },
       ];
-      const selE = clamp(Math.floor(clamp(value ?? 0.34, 0, 1) * items.length), 0, items.length - 1);
+      const nE = items.length;
+      const pE = ((clamp(value ?? 0.34, -1, 2) % 1) + 1) % 1 * nE; // 0..3 continuous
       const sideS = 84 * k, midS = 118 * k, gapE = 14 * k, padE = 22;
       const WE = padE * 2 + sideS * 2 + midS + gapE * 2 + 44 * k;
       const HE = padE * 2 + midS + 34 * k;
       const cyE = padE + midS / 2;
+      const cxM = WE / 2;
+      const slotSp = sideS / 2 + gapE + midS / 2;
       const hotE = state === "hover" || state === "pressed";
-      const wellE = (cx9: number, s9: number, ic9: IconDef | undefined, ghost: boolean) =>
-        `<rect x="${(cx9 - s9 / 2).toFixed(1)}" y="${(cyE - s9 / 2).toFixed(1)}" width="${s9.toFixed(1)}" height="${s9.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="rgba(255,255,255,${ghost ? 0.16 : 0.3})" stroke-width="1.2"/>` +
-        (ic9 ? (ghost
-          ? iconGroup(ic9, cx9 - s9 * 0.27, cyE - s9 * 0.27, s9 * 0.54, "rgba(255,255,255,0.4)", { strokeWidth: 2 * iconWK })
-          : themedIcon(ic9, cx9 - s9 * 0.3, cyE - s9 * 0.3, s9 * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2.2)) : "");
-      const cxL = padE + 22 * k + sideS / 2, cxM = cxL + sideS / 2 + gapE + midS / 2, cxR = cxM + midS / 2 + gapE + sideS / 2;
-      const prev = items[(selE + items.length - 1) % items.length], next = items[(selE + 1) % items.length];
-      const armed = items[selE];
+      // items positioned by signed distance from the carousel head
+      const placed = items.map((it, i) => {
+        let dlt = ((i - pE) % nE + nE) % nE; // 0..3
+        if (dlt > nE / 2) dlt -= nE;         // → -1.5..1.5
+        return { it, i, dlt };
+      }).sort((a, b) => Math.abs(b.dlt) - Math.abs(a.dlt));
+      const minD = Math.min(...placed.map((p9) => Math.abs(p9.dlt)));
+      const armedI = placed.find((p9) => Math.abs(p9.dlt) === minD)!;
+      let innerE = "";
+      for (const { it, dlt } of placed) {
+        const gGh = Math.min(Math.abs(dlt), 1); // 0 armed … 1 ghost
+        const s9 = midS + (sideS - midS) * gGh;
+        const cx9 = cxM + dlt * slotSp;
+        innerE += `<rect x="${(cx9 - s9 / 2).toFixed(1)}" y="${(cyE - s9 / 2).toFixed(1)}" width="${s9.toFixed(1)}" height="${s9.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="${(0.82 + (1 - gGh) * 0.14).toFixed(2)}" stroke="rgba(255,255,255,${(0.16 + (1 - gGh) * 0.16).toFixed(2)})" stroke-width="1.2"/>`;
+        if (it.ic) innerE += gGh < 0.35
+          ? themedIcon(it.ic, cx9 - s9 * 0.3, cyE - s9 * 0.3, s9 * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2.2)
+          : iconGroup(it.ic, cx9 - s9 * 0.27, cyE - s9 * 0.27, s9 * 0.54, "#AEB6C4", { strokeWidth: 2 * iconWK });
+      }
+      // armed ring + name live at the fixed center; they fade during travel
+      const settle = clamp(1 - minD * 2.2, 0, 1);
+      if (settle > 0.02) {
+        innerE += `<rect x="${(cxM - midS / 2 - 3).toFixed(1)}" y="${(cyE - midS / 2 - 3).toFixed(1)}" width="${(midS + 6).toFixed(1)}" height="${(midS + 6).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, (hotE ? 1 : 0.8) * settle)}" stroke-width="${hotE ? 3 : 2.2}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotE ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6 * settle)})"` : ""}/>`;
+      }
       const chev = (x9: number, flip: boolean) =>
-        `<path d="M ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE - 10 * k).toFixed(1)} L ${(x9 + (flip ? -5 : 5) * k).toFixed(1)} ${cyE.toFixed(1)} L ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE + 10 * k).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
-      const inner = chev(padE + 8 * k, false) +
-        wellE(cxL, sideS, prev.ic, true) +
-        wellE(cxM, midS, opts.icon ?? armed.ic, false) +
-        `<rect x="${(cxM - midS / 2 - 3).toFixed(1)}" y="${(cyE - midS / 2 - 3).toFixed(1)}" width="${(midS + 6).toFixed(1)}" height="${(midS + 6).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotE ? 1 : 0.8)}" stroke-width="${hotE ? 3 : 2.2}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotE ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>` +
-        wellE(cxR, sideS, next.ic, true) +
-        chev(WE - padE - 8 * k, true) +
-        contentText(opts.label ?? armed.nm, cxM, padE + midS + 20 * k, 19 * k * typeK, { anchor: "middle" });
+        `<path d="M ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE - 10 * k).toFixed(1)} L ${(x9 + (flip ? -5 : 5) * k).toFixed(1)} ${cyE.toFixed(1)} L ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE + 10 * k).toFixed(1)}" fill="none" stroke="#9AA6B8" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      innerE = chev(padE + 8 * k, false) + innerE + chev(WE - padE - 8 * k, true);
+      innerE += `<g opacity="${settle.toFixed(2)}">${contentText(opts.label ?? armedI.it.nm, cxM, padE + midS + 20 * k, 19 * k * typeK, { anchor: "middle" })}</g>`;
       // the stamped track lets play mode cycle by click side (left/right)
-      return stampTrack(`<svg xmlns="http://www.w3.org/2000/svg" width="${WE.toFixed(0)}" height="${HE.toFixed(0)}" viewBox="0 0 ${WE.toFixed(0)} ${HE.toFixed(0)}" data-equipselector="1" role="img" aria-label="equipment selector"><g opacity="${state === "disabled" ? 0.4 : 1}">${inner}</g></svg>`, padE, WE - padE * 2);
+      return stampTrack(`<svg xmlns="http://www.w3.org/2000/svg" width="${WE.toFixed(0)}" height="${HE.toFixed(0)}" viewBox="0 0 ${WE.toFixed(0)} ${HE.toFixed(0)}" data-equipselector="1" role="img" aria-label="equipment selector"><g opacity="${state === "disabled" ? 0.4 : 1}">${innerE}</g></svg>`, padE, WE - padE * 2);
     }
     case "streakmeter": {
       /* Shooter · streak meter — five cells build to ignition; the zap
@@ -3217,13 +3249,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
     }
     case "weaponwheel": {
-      /* Shooter · weapon wheel — the revolver-chamber radial selector:
-         six chamber sockets around a hub; hold-and-point picks a chamber
-         (the pointer's ANGLE drives it live via data-wheel), release
-         equips. EDITING CONTRACT: value = selected chamber (pointer angle
-         in play mode); label = the hub's item name; icon = the SELECTED
-         chamber's glyph (swappable); ring/core follow the theme roles;
-         hover strengthens the armed chamber; disabled dims. */
+      /* Shooter · weapon wheel — a real revolver cylinder: value is the
+         CONTINUOUS rotation of the chamber ring; the chamber that lands at
+         the top (the hammer position) is armed. In play mode, pointing at a
+         chamber spins the cylinder until it stops there (LiveArt tweens the
+         rotation via data-wheel). EDITING CONTRACT: value = rotation;
+         label = the hub's item name; icon = the ARMED chamber's glyph
+         (swappable); ring/core/pattern follow the theme roles; hover
+         strengthens the armed chamber; disabled dims and stands still. */
       const dW = ({ s: 320, m: 400, l: 480 } as Record<KitSize, number>)[size] * k;
       const padW = 84; // room for the armed chamber's name tag
       const cW = dW / 2 + padW;
@@ -3239,29 +3272,29 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         { ic: STOCK_ICONS.gem, nm: "PRISM" },
       ];
       const nW = chambers.length;
-      const selW = clamp(Math.floor(clamp(value ?? 0, 0, 0.999) * nW), 0, nW - 1);
+      const vW = ((clamp(value ?? 0, -1, 2) % 1) + 1) % 1; // rotation, 0..1 turn cw
+      const armedW = ((nW - Math.round(vW * nW)) % nW + nW) % nW;
       const hotW9 = state === "hover" || state === "pressed";
       const live9 = state !== "disabled";
       const dim = live9 ? 1 : 0.4;
-      const wSpan = Math.PI / nW;
       const innerR = rimR - rimW9;
+      const wSpan = Math.PI / nW;
+      const topA = -Math.PI / 2;
       let inner = "";
-      // armed wedge — gradient sector rising toward the rim
-      const wedgeA = (selW / nW) * Math.PI * 2 - Math.PI / 2;
-      inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(wedgeA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(wedgeA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(wedgeA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(wedgeA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
-      // sector dividers — the cylinder read: thin spokes hub → rim
-      for (let i = 0; i < nW; i++) {
-        const aD = ((i + 0.5) / nW) * Math.PI * 2 - Math.PI / 2;
-        inner += `<line x1="${(cW + hubR * 1.06 * Math.cos(aD)).toFixed(1)}" y1="${(cW + hubR * 1.06 * Math.sin(aD)).toFixed(1)}" x2="${(cW + innerR * Math.cos(aD)).toFixed(1)}" y2="${(cW + innerR * Math.sin(aD)).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`;
-      }
+      // fixed hammer wedge at the top — the arming position
+      inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(topA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(topA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(topA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(topA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
+      // the cylinder: flute lines + chamber sockets ROTATE with the value
+      chambers.forEach((_, i) => {
+        const aD = ((i + 0.5) / nW + vW) * Math.PI * 2 + topA;
+        inner += `<line x1="${(cW + hubR * 1.18 * Math.cos(aD)).toFixed(1)}" y1="${(cW + hubR * 1.18 * Math.sin(aD)).toFixed(1)}" x2="${(cW + (innerR - 4) * Math.cos(aD)).toFixed(1)}" y2="${(cW + (innerR - 4) * Math.sin(aD)).toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+      });
       chambers.forEach((ch, i) => {
-        const aC = (i / nW) * Math.PI * 2 - Math.PI / 2;
+        const aC = (i / nW + vW) * Math.PI * 2 + topA;
         const ccx9 = cW + orbitR * Math.cos(aC), ccy9 = cW + orbitR * Math.sin(aC);
-        const on = i === selW;
+        const on = i === armedW;
         const rr = chamberR * (on ? 1.18 : 1);
         if (on) {
-          // armed socket: filled glass, twin rings, pulsing halo
-          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="1.6s" repeatCount="indefinite"/>` : ""}</circle>
+          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="1.8s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
             <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.95)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>`;
         } else {
           inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>`;
@@ -3269,36 +3302,35 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const icW = on ? (opts.icon ?? ch.ic) : ch.ic;
         if (icW) inner += on
           ? `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(icW, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g>`
-          : iconGroup(icW, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "rgba(255,255,255,0.45)", { strokeWidth: 2 * iconWK });
+          : iconGroup(icW, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK });
       });
-      // name tag riding the armed chamber, pointing outward — drawn LAST so
-      // it overlaps the rim like a real callout
+      // name tag fixed beside the hammer position, over the rim
       let tagSvg = "";
       {
-        const aC = (selW / nW) * Math.PI * 2 - Math.PI / 2;
-        const ccx9 = cW + orbitR * Math.cos(aC), ccy9 = cW + orbitR * Math.sin(aC);
         const rr = chamberR * 1.18;
+        const ccx9 = cW, ccy9 = cW - orbitR;
         const tagW = 92 * k, tagH = 34 * k;
-        const tx9 = ccx9 + (rr + 8 * k) * Math.cos(aC), ty9 = ccy9 + (rr + 8 * k) * Math.sin(aC);
-        const east = Math.cos(aC) >= 0;
-        const tx0 = east ? tx9 : tx9 - tagW;
+        const tx0 = ccx9 + rr + 6 * k, ty9 = ccy9;
         tagSvg = `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}>
-          <path d="M ${(east ? tx0 : tx0 + tagW).toFixed(1)} ${ty9.toFixed(1)} l ${(east ? 1 : -1) * 9 * k} ${-tagH / 2} h ${(east ? 1 : -1) * (tagW - 9 * k)} v ${tagH} h ${(east ? -1 : 1) * (tagW - 9 * k)} Z" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.55), 0.96)}" stroke="${hexRgba(glow, 0.85)}" stroke-width="1.8"/>
-          ${infoText(chambers[selW].nm, tx0 + tagW / 2 + (east ? 4 * k : -4 * k), ty9 + 1, 16 * k, "middle", 900)}
+          <path d="M ${tx0.toFixed(1)} ${ty9.toFixed(1)} l ${9 * k} ${-tagH / 2} h ${tagW - 9 * k} v ${tagH} h ${-(tagW - 9 * k)} Z" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.55), 0.96)}" stroke="${hexRgba(glow, 0.85)}" stroke-width="1.8"/>
+          ${infoText(chambers[armedW].nm, tx0 + tagW / 2 + 4 * k, ty9 + 1, 16 * k, "middle", 900)}
         </g>`;
       }
-      const hubNm = opts.label ?? chambers[selW].nm;
+      const hubNm = opts.label ?? chambers[armedW].nm;
       const totalW = dW + padW * 2;
-      // rim sweep — a slow neon comet orbiting the wheel
+      // rim comet — bright head chasing a fading tail, one slow orbit
+      const cometArc = (a0: number, a1: number, op: number, w9: number) =>
+        `<path d="M ${(cW + rimR * Math.cos(a0)).toFixed(1)} ${(cW + rimR * Math.sin(a0)).toFixed(1)} A ${rimR.toFixed(1)} ${rimR.toFixed(1)} 0 0 1 ${(cW + rimR * Math.cos(a1)).toFixed(1)} ${(cW + rimR * Math.sin(a1)).toFixed(1)}" fill="none" stroke="${lighten(glow, 0.35)}" stroke-width="${w9.toFixed(1)}" stroke-linecap="round" opacity="${op}"/>`;
       const sweepArc = live9
-        ? `<g><animateTransform attributeName="transform" type="rotate" from="0 ${cW} ${cW}" to="360 ${cW} ${cW}" dur="7s" repeatCount="indefinite"/><path d="M ${(cW + rimR * Math.cos(-0.5)).toFixed(1)} ${(cW + rimR * Math.sin(-0.5)).toFixed(1)} A ${rimR.toFixed(1)} ${rimR.toFixed(1)} 0 0 1 ${(cW + rimR * Math.cos(0.35)).toFixed(1)} ${(cW + rimR * Math.sin(0.35)).toFixed(1)}" fill="none" stroke="${lighten(glow, 0.35)}" stroke-width="${(rimW9 * 0.55).toFixed(1)}" stroke-linecap="round" opacity="0.55"/></g>`
+        ? `<g><animateTransform attributeName="transform" type="rotate" from="0 ${cW} ${cW}" to="360 ${cW} ${cW}" dur="8s" repeatCount="indefinite"/>${cometArc(-0.9, -0.35, 0.18, rimW9 * 0.45)}${cometArc(-0.35, -0.05, 0.55, rimW9 * 0.55)}</g>`
         : "";
-      // boundary ticks on the rim
-      let ticksW = "";
-      for (let i = 0; i < nW; i++) {
-        const aT = ((i + 0.5) / nW) * Math.PI * 2 - Math.PI / 2;
-        ticksW += `<line x1="${(cW + (rimR - rimW9 * 0.9) * Math.cos(aT)).toFixed(1)}" y1="${(cW + (rimR - rimW9 * 0.9) * Math.sin(aT)).toFixed(1)}" x2="${(cW + (rimR + rimW9 * 0.4) * Math.cos(aT)).toFixed(1)}" y2="${(cW + (rimR + rimW9 * 0.4) * Math.sin(aT)).toFixed(1)}" stroke="${hexRgba(glow, 0.5)}" stroke-width="${(2 * k).toFixed(1)}"/>`;
-      }
+      // theme pattern woven into the cylinder face
+      const PT = cfg.candy.pattern;
+      const patW = PT && PT.type !== "none" && PT.opacity > 1 ? (() => {
+        const ps = Math.max(8, 8 + (PT.scale / 100) * 26);
+        const pc = PT.color ? PT.color : lighten(bevel, 0.25);
+        return `<pattern id="${gidW9}p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${PT.angle ?? 0})">${textPatternCell(PT.type, ps, pc)}</pattern>`;
+      })() : "";
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" role="img" aria-label="weapon wheel — ${hubNm}">
 <defs>
   <linearGradient id="${gidW9}r" x1="0" y1="0" x2="0" y2="1">
@@ -3318,13 +3350,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     <stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.45)}"/>
     <stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.78)}"/>
   </radialGradient>
+  ${patW}
 </defs>
 <g opacity="${dim}">
   <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
+  ${patW ? `<circle cx="${cW}" cy="${cW}" r="${(innerR - 1).toFixed(1)}" fill="url(#${gidW9}p)" opacity="${((PT!.opacity / 100) * 0.4).toFixed(2)}"/>` : ""}
   ${inner}
   <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
   ${sweepArc}
-  ${ticksW}
   <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   ${tagSvg}
   <circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="url(#${gidW9}h)" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.8"/>

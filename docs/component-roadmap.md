@@ -107,13 +107,13 @@ interactive sub-element, never the whole frame:
 | crosshair, hitmarker | — (spatial) | weight = Icon stroke; color = Glow role; value = spread/intensity |
 | killfeed | whole row (the "you" flash) | label = killer, sub = victim, icon = weapon (swappable) |
 | magazine | — | value = rounds, max = capacity |
-| equipselector | armed ring | value = item, label = name, icon = armed glyph |
+| equipselector | armed ring | value = CONTINUOUS position (tweened glide), label = name, icon = armed glyph |
 | streakmeter | frame | value = progress, label = meter name |
 | waypoint | pulse ring | label = letter, value = distance |
 | capturemeter | ring glow | label = letter, value = capture share |
 | respawn | — | label = heading; seconds re-theme via type fork / text color |
 | dmgarc | — (spatial) | value = direction; alarm red is semantic |
-| weaponwheel | armed chamber | value = chamber (pointer angle live), label = hub name, icon = armed glyph (swappable) |
+| weaponwheel | armed chamber | value = cylinder ROTATION (points spin the chamber to the hammer, tweened), label = hub name, icon = armed glyph (swappable) |
 
 ## P4 · Casual / mobile pack — 11
 
