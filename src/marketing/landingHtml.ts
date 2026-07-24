@@ -328,7 +328,7 @@ export const LANDING_HTML = `</head>
           <!-- 4 · SHIPPED HUD (full bleed) -->
           <figure class="gal-card reveal gal-wide">
             <div class="hud-shot" aria-label="A full game HUD skinned by one master design">
-              <div class="hud-stars" aria-hidden="true"><i style="--tx:400px;--ty:-60px;--d:5.2s;--dl:0s"></i><i style="--tx:-380px;--ty:-120px;--d:6.0s;--dl:1.1s"></i><i style="--tx:240px;--ty:150px;--d:4.6s;--dl:2.3s"></i><i style="--tx:-260px;--ty:130px;--d:5.6s;--dl:0.7s"></i><i style="--tx:520px;--ty:40px;--d:7.2s;--dl:3.1s"></i><i style="--tx:-540px;--ty:-30px;--d:7.0s;--dl:1.9s"></i><i style="--tx:120px;--ty:-160px;--d:4.4s;--dl:2.9s"></i><i style="--tx:-140px;--ty:-170px;--d:4.8s;--dl:4.2s"></i><i style="--tx:320px;--ty:-170px;--d:5.9s;--dl:5.0s"></i><i style="--tx:-420px;--ty:110px;--d:6.4s;--dl:3.7s"></i><i style="--tx:480px;--ty:150px;--d:6.8s;--dl:0.4s"></i><i style="--tx:-200px;--ty:-60px;--d:4.2s;--dl:5.6s"></i><i style="--tx:60px;--ty:170px;--d:4.0s;--dl:4.6s"></i><i style="--tx:-560px;--ty:60px;--d:7.4s;--dl:2.0s"></i></div>
+              <canvas class="hud-starcv" id="hudStars" aria-hidden="true"></canvas>
               <div class="hud-hearts"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
               <div class="hud-map"><i></i><i></i><i></i></div>
               <div class="hud-xp"><i></i></div>

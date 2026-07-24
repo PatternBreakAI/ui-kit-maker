@@ -1454,6 +1454,59 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
             v !== undefined && v !== "" ? +v : undefined), 10);
         });
       } catch (err) { console.warn("step art", err); }
+      /* Shipped card: hyperspace starfield. Stars live in a unit cube and fly
+         past the camera; streak length falls out of the projection, so a high
+         speed IS hyperspace and the decay to cruise is the ramp-down. */
+      try {
+        const cv = document.getElementById("hudStars");
+        const cx2d = cv && cv.getContext ? cv.getContext("2d") : null;
+        if (cv && cx2d) {
+          const rnd = (a, b) => a + Math.random() * (b - a);
+          const stars = [];
+          for (let i = 0; i < 110; i++) stars.push({ x: rnd(-1, 1), y: rnd(-1, 1), z: rnd(0.08, 1) });
+          const CRUISE = 0.0035, JUMP = 0.09;
+          let speed = JUMP;
+          const fit = () => { const w = cv.offsetWidth, h = cv.offsetHeight;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            if (w && cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+            cx2d.setTransform(Math.min(2, window.devicePixelRatio || 1), 0, 0, Math.min(2, window.devicePixelRatio || 1), 0, 0);
+            return [w, h]; };
+          if (reduceMotion) {
+            setTimeout(() => { const [w, h] = fit(); if (!w) return;
+              stars.forEach((st) => { const x = w * .5 + st.x * w * .5, y = h * .46 + st.y * h * .5;
+                cx2d.fillStyle = "rgba(232,216,255,.45)"; cx2d.beginPath();
+                cx2d.arc(x, y, (1 - st.z) * 1.4 + .3, 0, 7); cx2d.fill(); });
+            }, 80);
+          } else {
+            const io = new IntersectionObserver((es) => {
+              es.forEach((e) => { if (e.isIntersecting) speed = JUMP; });
+            }, { threshold: 0.35 });
+            io.observe(cv);
+            const step2 = () => {
+              if (!cv.isConnected) { io.disconnect(); return; }
+              const [w, h] = fit();
+              if (!w) { requestAnimationFrame(step2); return; }
+              cx2d.clearRect(0, 0, w, h);
+              const cx = w * .5, cy = h * .46, f = Math.min(w, h) * .9;
+              speed += (CRUISE - speed) * 0.012;
+              cx2d.lineCap = "round";
+              for (const st of stars) {
+                const pz = st.z;
+                st.z -= speed * st.z;
+                if (st.z < 0.03) { st.x = rnd(-1, 1); st.y = rnd(-1, 1); st.z = 1; continue; }
+                const x2 = cx + (st.x / st.z) * f, y2 = cy + (st.y / st.z) * f;
+                if (x2 < -40 || x2 > w + 40 || y2 < -40 || y2 > h + 40) { st.x = rnd(-1, 1); st.y = rnd(-1, 1); st.z = 1; continue; }
+                const x1 = cx + (st.x / pz) * f, y1 = cy + (st.y / pz) * f;
+                cx2d.strokeStyle = "rgba(232, 216, 255, " + Math.min(.85, (1 - st.z) * .9 + .08).toFixed(2) + ")";
+                cx2d.lineWidth = Math.min(2.4, (1 - st.z) * 2 + .5);
+                cx2d.beginPath(); cx2d.moveTo(x1, y1); cx2d.lineTo(x2, y2); cx2d.stroke();
+              }
+              requestAnimationFrame(step2);
+            };
+            requestAnimationFrame(step2);
+          }
+        }
+      } catch (err) { console.warn("starfield", err); }
       /* final section: floating HUD chips drawn by the engine, photos reused from the strip */
       try {
         const mkHud = (pid, id, v, opts) => { const c2 = E.applyPresetFull(E.defaultConfig(), pid);

@@ -2413,18 +2413,7 @@ html[data-theme="light"] .fd-landing .bg-base {
 .fd-landing .hud-xp { position: absolute; top: 88px; left: 20px; width: 110px; height: 9px; border-radius: 999px;
       background: rgba(255,255,255,.1); overflow: hidden; border: 1px solid rgba(185,140,255,.4); }
 .fd-landing .hud-xp i { display: block; height: 100%; width: 34%; background: linear-gradient(90deg, #b26bff, #e9d5ff); }
-.fd-landing .hud-stars { position: absolute; inset: 0; pointer-events: none; }
-.fd-landing .hud-stars i { position: absolute; left: 50%; top: 46%; width: 2.5px; height: 2.5px; border-radius: 50%;
-      background: rgba(235, 215, 255, .85); box-shadow: 0 0 5px rgba(190, 120, 255, .7); opacity: 0; }
-    @media (prefers-reduced-motion: no-preference) {
-.fd-landing .hud-stars i { animation: hud-star var(--d, 5s) linear infinite; animation-delay: var(--dl, 0s); }
-      @keyframes hud-star {
-        0% { transform: translate(0, 0) scale(.35); opacity: 0; }
-        10% { opacity: .7; }
-        70% { opacity: .5; }
-        100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 0; }
-      }
-    }
+.fd-landing .hud-starcv { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .fd-landing .hud-ret { position: absolute; left: 50%; top: 46%; width: 74px; height: 74px; transform: translate(-50%, -50%);
       border: 1.5px solid rgba(217, 70, 239, .8); border-radius: 50%; opacity: .8; }
 .fd-landing .hud-ret::before, .fd-landing .hud-ret::after { content: ""; position: absolute; background: rgba(217, 70, 239, .8); }
