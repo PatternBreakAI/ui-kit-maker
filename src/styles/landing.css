@@ -2568,14 +2568,41 @@ html[data-theme="light"] .fd-landing .bg-base {
 .fd-landing .b2-act:hover { border-color: #6fd6ff; }
 .fd-landing .b2-stage.v2 .b2-bg { filter: hue-rotate(160deg) saturate(.85) brightness(.72); }
 .fd-landing .b2-stage.v3 .b2-bg { filter: hue-rotate(-45deg) saturate(1.15) brightness(.9); }
-.fd-landing .b2-dimmer { position: absolute; inset: 0; pointer-events: none; transition: opacity .2s; opacity: .18;
-      background: radial-gradient(115% 115% at 50% 42%, transparent 30%, rgba(6, 4, 12, .55) 72%, rgba(6, 4, 12, .95) 100%); }
+.fd-landing .b2-dimmer { position: absolute; inset: 0; pointer-events: none; transition: opacity .2s; opacity: .35;
+      mix-blend-mode: multiply;
+      background: radial-gradient(120% 120% at 50% 42%, transparent 20%, rgba(30, 16, 50, .85) 58%, rgba(8, 4, 16, 1) 100%); }
 .fd-landing .b2-upload { position: absolute; top: 10px; left: 10px; z-index: 6; display: inline-flex; align-items: center; gap: 7px;
       padding: 8px 13px; border: 0; border-radius: 10px; cursor: pointer;
       font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: #fff;
       background: linear-gradient(93deg, #8b5cf6, #d946ef); box-shadow: 0 6px 18px -6px rgba(178, 107, 255, .8);
       transition: transform .1s, filter .15s; }
 .fd-landing .b2-upload:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.fd-landing .pv-ship { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; cursor: pointer;
+      background: color-mix(in srgb, var(--bg) 52%, transparent);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.fd-landing .pv-ship[hidden] { display: none; }
+.fd-landing .ship-card { width: min(400px, calc(100% - 48px)); padding: 18px 20px 16px; border-radius: 16px;
+      border: 1px solid var(--line-strong); background: var(--panel-solid);
+      box-shadow: 0 0 0 4px rgba(178, 107, 255, .12), 0 40px 90px -30px rgba(5, 3, 12, .9); }
+.fd-landing .pv-ship.play .ship-card { animation: ship-card-in .4s var(--ease-spring, cubic-bezier(.2,.9,.3,1.4)) both; }
+    @keyframes ship-card-in { from { transform: translateY(16px) scale(.96); opacity: 0; } }
+.fd-landing .ship-head { display: flex; align-items: center; gap: 9px; }
+.fd-landing .ship-head i { font-style: normal; color: #b26bff; font-size: 15px; }
+.fd-landing .ship-head b { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; color: var(--text); }
+.fd-landing .ship-sub { margin: 5px 0 10px; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--faint); }
+.fd-landing .ship-rows { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.fd-landing .ship-row { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; }
+.fd-landing .ship-row em { font-style: normal; color: #29e0b9; font-size: 10px; }
+.fd-landing .ship-row b { color: var(--text); font-weight: 400; min-width: 58px; }
+.fd-landing .ship-row span { color: var(--muted); }
+.fd-landing .pv-ship.play .ship-row { opacity: 0; animation: ship-row-in .45s ease-out forwards;
+      animation-delay: calc(.25s + var(--i) * .22s); }
+    @keyframes ship-row-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.fd-landing .ship-line { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+      font-size: 12px; line-height: 1.5; color: var(--text); }
+.fd-landing .pv-ship.play .ship-line { opacity: 0; animation: ship-row-in .5s ease-out forwards; animation-delay: 1.55s; }
+    @media (prefers-reduced-motion: reduce) {
+.fd-landing .pv-ship.play .ship-card, .fd-landing .pv-ship.play .ship-row, .fd-landing .pv-ship.play .ship-line { animation: none; opacity: 1; } }
 .fd-landing .b2-dimctl { position: absolute; right: 10px; bottom: 10px; z-index: 6; display: flex; align-items: center; gap: 8px;
       padding: 6px 11px; border-radius: 999px; background: rgba(10, 7, 20, .72); border: 1px solid var(--line-strong); }
 .fd-landing .b2-dimctl span { font-family: var(--mono); font-size: 8px; letter-spacing: .16em; color: var(--muted); }

@@ -111,8 +111,22 @@ export const LANDING_HTML = `</head>
                 <div class="b2-dimmer" id="b2Dim"></div>
                 <div class="b2-veil" id="b2Veil"></div>
                 <div class="b2-chip" id="b2Chip" hidden>⭱ yourworld.png</div>
-                <div class="b2-dimctl"><span id="dimLbl">VIGNETTE</span><input type="range" id="dimR" class="slider" min="0" max="75" value="18" style="--fill:24%" aria-label="Vignette strength"></div>
+                <div class="b2-dimctl"><span id="dimLbl">VIGNETTE</span><input type="range" id="dimR" class="slider" min="0" max="75" value="35" style="--fill:47%" aria-label="Vignette strength"></div>
                 <div class="b2-pieces" id="b2Pieces"></div>
+              </div>
+            </div>
+            <div class="pv-ship" id="pvShip" hidden>
+              <div class="ship-card">
+                <div class="ship-head"><i>⬢</i><b id="shipDoneTxt">EXPORT COMPLETE</b></div>
+                <div class="ship-sub">your-kit.zip · every component × 4 states</div>
+                <div class="ship-rows">
+                  <div class="ship-row" style="--i:0"><em>✓</em><b>engine/</b><span>unity.json · unreal.json</span></div>
+                  <div class="ship-row" style="--i:1"><em>✓</em><b>web/</b><span>kit.html · kit.css</span></div>
+                  <div class="ship-row" style="--i:2"><em>✓</em><b>vector/</b><span>SVG — every component</span></div>
+                  <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG @1× · @2×</span></div>
+                  <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
+                </div>
+                <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.</div>
               </div>
             </div>
             <span class="kit-ready" id="kitReady" aria-hidden="true">KIT READY</span>
@@ -185,7 +199,7 @@ export const LANDING_HTML = `</head>
             </div>
             <button class="push2" id="pushBtn" type="button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5z"/><path d="M4 12.5 12 17l8-4.5M4 17l8 4.5 8-4.5"/></svg>
-              <span id="pushLabel">PUSH TO A KIT</span>
+              <span id="pushLabel">CREATE YOUR KIT</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
           </div>
