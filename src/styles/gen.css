@@ -69,6 +69,9 @@ button { font-family: inherit; color: inherit; }
 .viewseg button.on { background: var(--soft); color: var(--ink); }
 
 .saved { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink2); white-space: nowrap; }
+/* the browser-only nudge is the same quiet chip, just clickable */
+.savedbtn { background: none; border: 0; padding: 0; font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.savedbtn:hover { color: var(--ink); }
 .saved .ok { color: #16a34a; display: flex; }
 .menu-btn {
   width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line2); background: #fff;
