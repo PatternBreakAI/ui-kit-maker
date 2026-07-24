@@ -2078,6 +2078,119 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const ring8 = `<circle cx="${(sx8 + sw8 / 2).toFixed(1)}" cy="${(sy8 + sh8 / 2).toFixed(1)}" r="${(Math.min(sw8, sh8) / 2 + 5 * k).toFixed(1)}" fill="none" stroke="${ringC8}" stroke-width="${(4 * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.9}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(ringC8, 0.7)})"` : ""}/>`;
       return inject(piece.replace("<svg ", '<svg data-padbtn="1" '), ring8);
     }
+    case "listmenu": {
+      /* System chrome · context / list menu — four rows in the kit material:
+         themed glyphs, labels, quiet shortcut hints, one separator; value
+         scrubs the highlighted row. */
+      const w = 400 * k, rowH = 64 * k, n9 = 4;
+      const h = rowH * n9 + 44 * k;
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const selN = clamp(Math.round((value ?? 0.34) * (n9 - 1)), 0, n9 - 1);
+      const rows: { ic?: IconDef; lbl: string; hint?: string }[] = [
+        { ic: STOCK_ICONS.sword ?? STOCK_ICONS.star, lbl: "Equip", hint: "E" },
+        { ic: STOCK_ICONS.gem ?? STOCK_ICONS.star, lbl: "Inspect", hint: "I" },
+        { ic: STOCK_ICONS.shield ?? STOCK_ICONS.star, lbl: "Reinforce" },
+        { ic: STOCK_ICONS.forward ?? STOCK_ICONS.star, lbl: "Drop", hint: "⌦" },
+      ];
+      const x0 = 42 + inset + 6 * k, rw = w - inset * 2 - 12 * k;
+      let inner9 = "";
+      rows.forEach((r9, i) => {
+        const ry = 33 + inset + 8 * k + i * rowH;
+        const on9 = i === selN && state !== "disabled";
+        if (on9) inner9 += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 6 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${hexRgba(glow, 0.22)}" stroke="${hexRgba(glow, 0.65)}" stroke-width="1.4"/>`;
+        if (r9.ic) inner9 += themedIcon(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, on9 ? glow : "rgba(255,255,255,0.75)", 2.2);
+        inner9 += contentText(r9.lbl, x0 + 62 * k, ry + (rowH - 6 * k) / 2 + 1, 25 * k * typeK, { keepCase: true, opacity: on9 ? 1 : 0.85 });
+        if (r9.hint) inner9 += `<text x="${(x0 + rw - 16 * k).toFixed(1)}" y="${(ry + (rowH - 6 * k) / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.38)" text-anchor="end" dominant-baseline="central">${esc(r9.hint)}</text>`;
+        if (i === rows.length - 2) inner9 += `<rect x="${(x0 + 10 * k).toFixed(1)}" y="${(ry + rowH - 4 * k).toFixed(1)}" width="${(rw - 20 * k).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
+      });
+      return inject(shell.replace("<svg ", '<svg data-listmenu="1" '), inner9);
+    }
+    case "scrollbar": {
+      /* System chrome · scrollbar — vertical strip shell, sunken track,
+         candy thumb. value scrubs the thumb. */
+      const w = 66 * k, h = 380 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 5 * k;
+      const tx0 = 39 + w / 2;
+      const trackW = Math.max(10 * k, w - inset * 2 - 18 * k);
+      const ty0 = 30 + inset + 26 * k, th0 = h - inset * 2 - 52 * k;
+      const v9 = clamp(value ?? 0.3, 0, 1);
+      const thumbH = th0 * 0.32;
+      const thumbY = ty0 + (th0 - thumbH) * v9;
+      const gid9 = "sb" + UID++;
+      const arrows = `<path d="M ${(tx0 - 8 * k).toFixed(1)} ${(30 + inset + 16 * k).toFixed(1)} L ${tx0.toFixed(1)} ${(30 + inset + 5 * k).toFixed(1)} L ${(tx0 + 8 * k).toFixed(1)} ${(30 + inset + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.5)"/>
+        <path d="M ${(tx0 - 8 * k).toFixed(1)} ${(30 + h - inset - 16 * k).toFixed(1)} L ${tx0.toFixed(1)} ${(30 + h - inset - 5 * k).toFixed(1)} L ${(tx0 + 8 * k).toFixed(1)} ${(30 + h - inset - 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.5)"/>`;
+      const parts9 = `<rect x="${(tx0 - trackW / 2).toFixed(1)}" y="${ty0.toFixed(1)}" width="${trackW.toFixed(1)}" height="${th0.toFixed(1)}" rx="${(trackW / 2).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>
+        <defs><linearGradient id="${gid9}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${lighten(knobC, 0.5)}"/><stop offset="0.5" stop-color="${lighten(knobC, 0.75)}"/><stop offset="1" stop-color="${lighten(knobC, 0.2)}"/></linearGradient></defs>
+        <rect x="${(tx0 - trackW / 2 + 1.5).toFixed(1)}" y="${thumbY.toFixed(1)}" width="${(trackW - 3).toFixed(1)}" height="${thumbH.toFixed(1)}" rx="${((trackW - 3) / 2).toFixed(1)}" fill="url(#${gid9})" stroke="${darken(knobC, 0.35)}" stroke-width="1.2"/>
+        <rect x="${(tx0 - trackW * 0.16).toFixed(1)}" y="${(thumbY + 6 * k).toFixed(1)}" width="${(trackW * 0.2).toFixed(1)}" height="${(thumbH - 12 * k).toFixed(1)}" rx="${(trackW * 0.1).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` + arrows;
+      return inject(shell.replace("<svg ", '<svg data-scrollbar="1" '), parts9);
+    }
+    case "pagedots": {
+      /* System chrome · pagination dots — carousel position. The active dot
+         is a candy knob; value scrubs it. */
+      const n0 = 5, dR = 11 * k, gap0 = 30 * k, pad0 = 24;
+      const selD = clamp(Math.round((value ?? 0.25) * (n0 - 1)), 0, n0 - 1);
+      const W0 = n0 * dR * 2 + (n0 - 1) * (gap0 - dR * 2) + pad0 * 2 + dR * 2;
+      const H0 = dR * 4 + pad0;
+      let dots = "";
+      for (let i = 0; i < n0; i++) {
+        const cx0 = pad0 + dR * 2 + i * gap0;
+        if (i === selD) dots += candyKnob(cx0, H0 / 2, dR * 1.5, knobC) + (state !== "disabled" ? `<circle cx="${cx0.toFixed(1)}" cy="${(H0 / 2).toFixed(1)}" r="${(dR * 1.9).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.5)}" stroke-width="2" style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.6)})"/>` : "");
+        else dots += `<circle cx="${cx0.toFixed(1)}" cy="${(H0 / 2).toFixed(1)}" r="${dR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W0.toFixed(0)}" height="${H0.toFixed(0)}" viewBox="0 0 ${W0.toFixed(0)} ${H0.toFixed(0)}" role="img" aria-label="page ${selD + 1} of ${n0}">${dots}</svg>`;
+    }
+    case "steps": {
+      /* System chrome · step indicator — wizard pips: done (filled, check),
+         current (glow ring, number), upcoming (well). value = progress. */
+      const nS = 4, sR = 24 * k, railG = 66 * k, padS = 30;
+      const vS = clamp(value ?? 0.42, 0, 1);
+      const cur = clamp(Math.floor(vS * nS), 0, nS - 1);
+      const WS = nS * sR * 2 + (nS - 1) * railG + padS * 2;
+      const HS = sR * 2 + padS * 2;
+      const cyS = HS / 2;
+      let inner0 = "";
+      for (let i = 0; i < nS - 1; i++) {
+        const xA = padS + sR + i * (sR * 2 + railG) + sR;
+        inner0 += `<rect x="${xA.toFixed(1)}" y="${(cyS - 3 * k).toFixed(1)}" width="${railG.toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${i < cur ? glow : wellFill}"${i < cur && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+      }
+      for (let i = 0; i < nS; i++) {
+        const cxS = padS + sR + i * (sR * 2 + railG);
+        if (i < cur) {
+          inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.5"/>`;
+          if (STOCK_ICONS.check) inner0 += iconGroup(STOCK_ICONS.check, cxS - sR * 0.55, cyS - sR * 0.55, sR * 1.1, "#FFFFFF", { strokeWidth: 3 * iconWK });
+        } else if (i === cur) {
+          inner0 += candyKnob(cxS, cyS, sR, knobC) + (state !== "disabled" ? `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${(sR * 1.28).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.6)}" stroke-width="2.4" style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.6)})"/>` : "");
+          inner0 += `<text x="${cxS.toFixed(1)}" y="${(cyS + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(sR * 0.95).toFixed(1)}" font-weight="800" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${i + 1}</text>`;
+        } else {
+          inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+            <text x="${cxS.toFixed(1)}" y="${(cyS + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(sR * 0.9).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="central">${i + 1}</text>`;
+        }
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS.toFixed(0)}" height="${HS.toFixed(0)}" viewBox="0 0 ${WS.toFixed(0)} ${HS.toFixed(0)}" role="img" aria-label="step ${cur + 1} of ${nS}">${inner0}</svg>`;
+    }
+    case "spinner": {
+      /* System chrome · loading spinner — the ring's material with a live
+         rotating sweep; honors reduced state by standing still on disabled. */
+      const dSp = ({ s: 74, m: 96, l: 128 } as Record<KitSize, number>)[size] * k;
+      const strokeSp = Math.max(7, dSp * 0.12);
+      const padSp = 20;
+      const cSp = dSp / 2 + padSp;
+      const rSp = dSp / 2 - strokeSp / 2;
+      const circSp = 2 * Math.PI * rSp;
+      const gidS = "sp" + UID++;
+      const spin = state !== "disabled"
+        ? `<animateTransform attributeName="transform" type="rotate" from="0 ${cSp} ${cSp}" to="360 ${cSp} ${cSp}" dur="0.9s" repeatCount="indefinite"/>`
+        : "";
+      const total = dSp + padSp * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="loading">
+<defs><linearGradient id="${gidS}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
+<circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="${wellFill}" stroke-width="${strokeSp}"/>
+<g>${spin}<circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="url(#${gidS})" stroke-width="${strokeSp}" stroke-linecap="round" stroke-dasharray="${(circSp * 0.28).toFixed(1)} ${circSp.toFixed(1)}" transform="rotate(-90 ${cSp} ${cSp})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(strokeSp * 0.5).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/></g>
+</svg>`;
+    }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected
          cell carries the glow ring. value scrubs the selection. */

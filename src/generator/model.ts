@@ -771,7 +771,8 @@ export type KitComponentId =
   | "speedo" | "speedo2" | "tacho" | "circuit" | "leaderboard" | "trophy"
   | "laptimes" | "telemetry" | "startlights"
   | "cardback" | "pack"
-  | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn";
+  | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn"
+  | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -780,6 +781,11 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "tooltip", name: "Tooltip" },
   { id: "keycap", name: "Key prompt" },
   { id: "padbtn", name: "Pad button" },
+  { id: "listmenu", name: "List menu" },
+  { id: "scrollbar", name: "Scrollbar" },
+  { id: "pagedots", name: "Page dots" },
+  { id: "steps", name: "Step indicator" },
+  { id: "spinner", name: "Spinner" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -946,6 +952,8 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   tooltip: "round",
   keycap: "round",
   padbtn: "pill",
+  listmenu: "kenneyRect",
+  scrollbar: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",
