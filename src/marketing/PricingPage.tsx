@@ -1,4 +1,4 @@
-import { Check, Lock, Sparkles } from "lucide-react";
+import { Check, Gift, Lock } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
 import { openAuth } from "@/shell/authOverlay";
@@ -36,7 +36,7 @@ export function PricingPage() {
             <button className="fd-pricing__cta fd-pricing__cta--ghost" onClick={() => navigate("#/app")}>Open the generator</button>
           </section>
           <section className="fd-pricing__col fd-pricing__col--mid">
-            <div className="fd-pricing__tag"><Sparkles size={12} strokeWidth={2.4} /> TWO PACKS AT SIGNUP</div>
+            <div className="fd-pricing__tag"><Gift size={12} strokeWidth={2.4} /> TWO PACKS AT SIGNUP</div>
             <h2>Player</h2>
             <div className="fd-pricing__price">Free<span> · account</span></div>
             <ul>
