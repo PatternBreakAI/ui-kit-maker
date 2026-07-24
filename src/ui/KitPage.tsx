@@ -142,7 +142,7 @@ interface PieceOpts {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
+  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
   // an explicit size (the Primary ramp) is fixed; everything else follows the
   // per-component size the user picks with the caption's S/M/L chips
   // the documentation shows medium and large only — a stored Small reads as Medium
@@ -161,7 +161,7 @@ function usePiece(p: PieceOpts) {
       // an explicit "no icon" instance stays empty
       label: kitLabels[p.id] ?? p.label, segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: p.value, baseState: p.baseState,
-      sub: p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
+      sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
       themedText: !!kitDesigns[p.id]?.type || !!kitTextFill[p.id],
@@ -1023,6 +1023,7 @@ const kitTier = useGen((s) => s.tier);
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
         if (o.label === undefined) o.label = st.kitLabels[cid];
+        if (o.sub === undefined) o.sub = st.kitSubs[cid];
         if (cid === "progress" || cid === "segbar") {
           const kb = st.kitBar[cid];
           if (o.bar === undefined) o.bar = kb;
@@ -1964,6 +1965,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray kp-axis">
           <Piece id="chatbubble" caption="Chat bubble" scale={0.5} />
+          <Piece id="chatbubble" caption="Long message · grows" label="anyone up for one more round before the season resets? need two for the weekly" scale={0.5} />
           <Piece id="emotewheel" caption="Emote wheel · click to pick" value={0} scale={0.48} />
         </div>
         <div className="kp-subhead">Season pass & honors</div>

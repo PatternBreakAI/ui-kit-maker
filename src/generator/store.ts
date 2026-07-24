@@ -301,6 +301,10 @@ interface GenStore {
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
   setKitLabel: (id: KitComponentId, label: string | null) => void;
+  /** Per-component SECONDARY text override (combo plate word, etc.) —
+   *  null restores the piece's default. */
+  kitSubs: Partial<Record<KitComponentId, string>>;
+  setKitSub: (id: KitComponentId, sub: string | null) => void;
   /** Data rows (and objectives built from them) carry their own two-text-group
    *  content model — independent size, tracking and vertical placement per
    *  group, plus slot toggles. Too intricate for the generic text controls. */
@@ -527,7 +531,7 @@ export const useGen = create<GenStore>((set, get) => ({
   saveStatus: "saved",
   open: { state: true, shape: true, mapping: true, gloss: true },
   panelW: loadPanelW(),
-  theme: (localStorage.getItem("ui-generator-theme") === "dark" ? "dark" : "light") as "light" | "dark",
+  theme: (localStorage.getItem("ui-generator-theme") === "light" ? "light" : "dark") as "light" | "dark",
   setTheme: (t) => {
     try { localStorage.setItem("ui-generator-theme", t); } catch { /* ignore */ }
     set({ theme: t });
@@ -682,7 +686,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitIcons: st.kitIcons, kitSizes: st.kitSizes,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
     };
   },
@@ -698,6 +702,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitDesigns: migrateKitDesigns(cfg, (p.kitDesigns as GenStore["kitDesigns"]) ?? {}).forks,
       kitTextFill: (p.kitTextFill as GenStore["kitTextFill"]) ?? {},
       kitLabels: (p.kitLabels as GenStore["kitLabels"]) ?? {},
+      kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
       kitSizes: (p.kitSizes as GenStore["kitSizes"]) ?? {},
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
@@ -715,6 +720,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitdesigns", next.kitDesigns);
       saveJson("ui-generator-kittextfill", next.kitTextFill);
       saveJson("ui-generator-kitlabels", next.kitLabels);
+      saveJson("ui-generator-kitsubs", next.kitSubs);
       saveJson("ui-generator-kiticons", next.kitIcons);
       saveJson("ui-generator-kitbar", next.kitBar);
       saveJson("ui-generator-kittextoy", next.kitTextOy);
@@ -787,6 +793,14 @@ export const useGen = create<GenStore>((set, get) => ({
     if (label !== null && label !== "") kitLabels[id] = label; else delete kitLabels[id];
     saveJson("ui-generator-kitlabels", kitLabels);
     set({ kitLabels });
+  },
+  kitSubs: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitsubs", {}),
+  setKitSub: (id, sub) => {
+    markTouched();
+    const kitSubs = { ...get().kitSubs };
+    if (sub !== null && sub !== "") kitSubs[id] = sub; else delete kitSubs[id];
+    saveJson("ui-generator-kitsubs", kitSubs);
+    set({ kitSubs });
   },
   kitDesigns: (() => {
     // v70: stored full-snapshot forks are re-read as sparse overrides so

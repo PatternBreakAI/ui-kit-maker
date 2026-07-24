@@ -457,6 +457,22 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
   }
   if (shape === "pill") return roundRect(x, y, w, h, h / 2);
   if (shape === "round") return roundRect(x, y, w, h, 4 + softness * 0.52);
+  if (shape === "speech") {
+    // speech bubble — rounded body + down-left tail as ONE silhouette, so
+    // bevel, gloss, glow, extrusion and shadow all wear the tail too. The
+    // tail lives inside the frame (bottom band), which keeps every consumer
+    // of x/y/w/h honest about the footprint.
+    const tailH = Math.min(h * 0.22, 30);
+    const bodyH = h - tailH;
+    const r = Math.min(Math.min(w, bodyH) * 0.28, 10 + softness * 0.55);
+    const yB = y + bodyH;
+    const x1 = x + Math.min(w * 0.14, 60);
+    const tw = Math.min(w * 0.13, 46);
+    const x2 = x1 + tw;
+    const tipX = Math.max(x + 2, x1 - tw * 0.6);
+    const R = (n: number) => n.toFixed(1);
+    return `M ${R(x + r)} ${R(y)} H ${R(x + w - r)} A ${R(r)} ${R(r)} 0 0 1 ${R(x + w)} ${R(y + r)} V ${R(yB - r)} A ${R(r)} ${R(r)} 0 0 1 ${R(x + w - r)} ${R(yB)} H ${R(x2)} L ${R(tipX)} ${R(y + h)} L ${R(x1)} ${R(yB)} H ${R(x + r)} A ${R(r)} ${R(r)} 0 0 1 ${R(x)} ${R(yB - r)} V ${R(y + r)} A ${R(r)} ${R(r)} 0 0 1 ${R(x + r)} ${R(y)} Z`;
+  }
   /* ── v19 silhouette library — every layer insets this same geometry ── */
   if (shape === "cutline") {
     // broadcast-clean rectangle: small vertical cuts, wider clipped end caps
@@ -927,12 +943,23 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     ? `<path d="${outer}" transform="translate(${sdx.toFixed(1)} ${sdy.toFixed(1)})" fill="${shC}" opacity="${shOp.toFixed(2)}" filter="url(#${id}sb)"/>`
     : "";
 
-  /* state aura (hover glow etc.) — own color, or the Glow well */
+  /* state aura (hover glow etc.) — own color, or the Glow well.
+     The glow wraps the WHOLE extruded silhouette (the composite-silhouette
+     canon): solid copies of the outer path swept from the face down to the
+     base union together BEFORE the group-level blur, so an extruded piece
+     glows around its full 3D mass instead of a face-shaped halo floating
+     mid-depth. Flat pieces reduce to the single copy they always had. */
   const auraC = disabled ? "#B9BEC6" : C.aura.color ? P(C.aura.color) : glowC;
   const glowOp = (adj.glow / 100) * (secondary ? 0.4 : 1) * (disabled ? 0 : 1);
+  const auraSweep = (() => {
+    const n = Math.max(1, Math.ceil(visDepth / 6));
+    let s = "";
+    for (let i = 0; i <= n; i++) s += `<path d="${outer}" transform="translate(0 ${(lift + (visDepth * i) / n).toFixed(1)})" fill="${auraC}"/>`;
+    return s;
+  })();
   const aura = glowOp > 0.01
-    ? `<path d="${outer}" transform="translate(0 ${(lift + visDepth * 0.4).toFixed(1)})" fill="${auraC}" opacity="${Math.min(1, glowOp * 1.35).toFixed(2)}" filter="url(#${id}gb)"/>
-       <path d="${outer}" transform="translate(0 ${(lift + visDepth * 0.4).toFixed(1)})" fill="${auraC}" opacity="${(glowOp * 0.6).toFixed(2)}" filter="url(#${id}gb2)"/>`
+    ? `<g opacity="${Math.min(1, glowOp * 1.35).toFixed(2)}" filter="url(#${id}gb)">${auraSweep}</g>
+       <g opacity="${(glowOp * 0.6).toFixed(2)}" filter="url(#${id}gb2)">${auraSweep}</g>`
     : "";
 
   /* 2 ── extrusion body — a connected solid, not a dark underlay.
@@ -3703,11 +3730,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          plate below. All color derives from the theme (Glow for light,
          Bevel for armor/plate) so it re-skins automatically. EDITING
          CONTRACT: value = magnitude (scales the numeral and the burst —
-         x4 vs x9 BIG combo); label = the multiplier text; overlay = the
-         plate word (defaults COMBO!); disabled dims and stands still. */
+         x4 vs x9 BIG combo); label = the multiplier text; sub (the panel's
+         second text field) or overlay = the plate word (defaults COMBO!);
+         disabled dims and stands still. */
       const vC0 = clamp(value ?? 0.4, 0, 1);
       const mult = opts.label ?? `×${2 + Math.round(vC0 * 8)}`;
-      const plateWord = opts.overlay && !/^(locked|stars:\d)/.test(opts.overlay) ? opts.overlay : "COMBO!";
+      const plateWord = opts.sub ?? (opts.overlay && !/^(locked|stars:\d)/.test(opts.overlay) ? opts.overlay : "COMBO!");
       const WC = 380 * k, HC = 288 * k;
       const cxC0 = WC / 2, cyC0 = HC * 0.44;
       const fsC = (66 + vC0 * 44) * k * typeK;
@@ -4022,23 +4050,41 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(shell.replace("<svg ", '<svg data-friendrow="1" '), parts);
     }
     case "chatbubble": {
-      /* Social · chat bubble — the kit material speaking. EDITING CONTRACT:
-         label = the message; the tail marks the speaker side; name and
-         time wear adaptive ink. */
-      const w = 430 * k, h = 128 * k;
-      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
-      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
-      if (!shellM) return shell;
-      const [sx, sy, , sh] = shellM[1].split(" ").map(Number);
+      /* Social · chat bubble — the kit material speaking, on the SPEECH
+         silhouette (the tail is part of the shape, so bevel, gloss, glow,
+         extrusion and shadow all wear it). The bubble grows VERTICALLY
+         with the message — the label wraps to the inner width and every
+         extra line adds a row (the 9-slice promise: width fixed, height
+         elastic, text never overruns). EDITING CONTRACT: label = the
+         message (wraps + grows the bubble); name/time wear adaptive ink;
+         silhouette swaps like any piece. */
+      const w = 430 * k;
+      const msg = opts.label ?? "gg — same time tomorrow?";
+      const fsM = 23 * k * typeK;
       const inset = bw + 8 * k;
-      const nub = `<path d="M ${(sx + 26 * k).toFixed(1)} ${(sy + sh - 2).toFixed(1)} L ${(sx + 14 * k).toFixed(1)} ${(sy + sh + 20 * k).toFixed(1)} L ${(sx + 48 * k).toFixed(1)} ${(sy + sh - 2).toFixed(1)} Z" fill="${darken(bevel, 0.22)}" stroke="${hexRgba(darken(bevel, 0.55), 0.8)}" stroke-width="1.2"/>`;
-      const grown = shell
-        .replace(/ height="([\d.]+)"/, (_m, h0) => ` height="${(+h0 + 24 * k).toFixed(0)}"`)
-        .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, a4, b4, c4, d4) => `viewBox="${a4} ${b4} ${c4} ${(+d4 + 24 * k).toFixed(1)}"`);
-      const parts = infoText("NOVA_KNIGHT", 39 + inset + 12 * k, 30 + inset + 14 * k, 14 * k, "start", 800) +
-        infoText("14:02", 39 + w - inset - 12 * k, 30 + inset + 14 * k, 13 * k, "end", 650) +
-        contentText(opts.label ?? "gg — same time tomorrow?", 39 + inset + 12 * k, 30 + inset + 52 * k, 23 * k * typeK, { keepCase: true });
-      return inject(grown.replace("<svg ", '<svg data-chatbubble="1" '), parts + nub);
+      const innerW = w - inset * 2 - 24 * k;
+      // conservative glyph-width estimate for display faces (~0.62em)
+      const maxCh = Math.max(6, Math.floor(innerW / (fsM * 0.62)));
+      const lines: string[] = [];
+      let cur = "";
+      for (const wd of msg.split(/\s+/).filter(Boolean)) {
+        const cand = cur ? cur + " " + wd : wd;
+        if (cand.length > maxCh && cur) { lines.push(cur); cur = wd; } else cur = cand;
+        while (cur.length > maxCh) { lines.push(cur.slice(0, maxCh)); cur = cur.slice(maxCh); }
+      }
+      if (cur) lines.push(cur);
+      if (!lines.length) lines.push("");
+      const lineH = fsM * 1.32;
+      // body = padding + header row + message block; the shape adds its tail
+      const bodyH = inset * 2 + 30 * k + lines.length * lineH + 8 * k;
+      const h = bodyH + Math.min(30, bodyH * 0.28);
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      let parts = infoText("NOVA_KNIGHT", 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, "start", 800) +
+        infoText("14:02", 39 + w - inset - 12 * k, 30 + inset + 16 * k, 13 * k, "end", 650);
+      lines.forEach((ln, i) => {
+        if (ln) parts += contentText(ln, 39 + inset + 12 * k, 30 + inset + 30 * k + (i + 0.5) * lineH, fsM, { keepCase: true });
+      });
+      return inject(shell.replace("<svg ", '<svg data-chatbubble="1" '), parts);
     }
     case "emotewheel": {
       /* Social · emote wheel — six sectors, INSTANT selection (no cylinder:
