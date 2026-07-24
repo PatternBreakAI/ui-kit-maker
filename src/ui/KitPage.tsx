@@ -1887,6 +1887,44 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Crosshair and marker weight ride the Icon stroke control", "value scrubs spread, rounds, streak, capture and direction", "the wheel's value is the pointer's angle in play mode", "crit and alarm reds are semantic, like rarity hues", "every readout keeps the hard-shadow legibility rule"]} />
       </Sec>
 
+      <Sec n="12" title="Casual & Mobile" note="The free-to-play vocabulary: results, saga maps, lives and boosters, spins and daily rewards. Gold, hearts-red and ready-green are genre semantics; everything else follows the kit's roles. Click the stars to replay the pop; click the wheel to throw a spin.">
+        <div className="kp-subhead">Results & celebration</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="starrating" caption="Three stars · click to replay" value={1} scale={0.56} />
+          <Piece id="starrating" caption="Two stars" value={0.67} scale={0.56} />
+          <Piece id="starrating" caption="One star" value={0.34} scale={0.56} />
+          <Piece id="combo" caption="Combo" value={0.3} scale={0.5} />
+          <Piece id="combo" caption="Big combo" value={0.85} scale={0.5} />
+        </div>
+        <div className="kp-subhead">Saga map</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="levelnode" caption="Current · calls you" label="12" scale={0.52} />
+          <Piece id="levelnode" caption="Completed" label="11" overlay="stars:3" scale={0.52} />
+          <Piece id="levelnode" caption="Locked" label="13" overlay="locked" scale={0.52} />
+          <Piece id="pathconnector" caption="Path · progress" value={0.6} scale={0.52} />
+        </div>
+        <div className="kp-subhead">Economy & sessions</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="heartmeter" caption="Heart meter · refill" value={0.6} scale={0.5} />
+          <Piece id="energymeter" caption="Energy meter" value={0.8} scale={0.5} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="movecounter" caption="Move counter" value={0.8} scale={0.5} />
+          <Piece id="movecounter" caption="Last moves" value={0.12} scale={0.5} />
+          <Piece id="booster" caption="Booster · ×4" value={0.4} scale={0.5} />
+          <Piece id="booster" caption="Booster · free" value={0} icon={STOCK_ICONS.gem} scale={0.5} />
+          <Piece id="pricebtn" caption="Price button" scale={0.5} />
+        </div>
+        <div className="kp-subhead">Rewards</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="spinwheel" caption="Spin wheel · click to throw" value={0} scale={0.46} />
+          <Piece id="dailycell" caption="Today" label="DAY 4" scale={0.5} />
+          <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
+          <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
+        </div>
+        <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
+      </Sec>
+
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
 
       {/* ── 14 · build parts ── */}

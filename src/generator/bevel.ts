@@ -3428,6 +3428,319 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </g>
 </svg>`;
     }
+    case "starrating": {
+      /* Casual · star-rating result — three candy stars, earned ones lit
+         GOLD (genre semantic, like rarity hues) with the theme's outline.
+         EDITING CONTRACT: value = stars earned (0..1 → 0..3); click on the
+         kit page replays the pop-in (progress family); disabled dims. */
+      const WS9 = 300 * k, HS9 = 168 * k;
+      const vS0 = clamp(value ?? 1, 0, 1);
+      const earned = Math.round(vS0 * 3);
+      const GOLD = "#FACC15";
+      const gidS0 = "sr" + UID++;
+      const spots = [
+        { cx: WS9 * 0.2, cy: HS9 * 0.52, s: 78 * k },
+        { cx: WS9 * 0.5, cy: HS9 * 0.36, s: 100 * k },
+        { cx: WS9 * 0.8, cy: HS9 * 0.52, s: 78 * k },
+      ];
+      let stars = `<defs><radialGradient id="${gidS0}" cx="0.38" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="${GOLD}"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>`;
+      spots.forEach((sp, i) => {
+        const on = i < earned;
+        const g0x = sp.cx - sp.s / 2, g0y = sp.cy - sp.s / 2;
+        stars += `<g transform="translate(${g0x.toFixed(1)} ${g0y.toFixed(1)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(GOLD, 0.7)})"` : ""}>
+          <path d="${starPath(sp.s)}" fill="${on ? `url(#${gidS0})` : wellFill}" stroke="${on ? "#92400E" : "rgba(255,255,255,0.25)"}" stroke-width="${(2.2 * k).toFixed(1)}" stroke-linejoin="round"/>
+          ${on ? `<ellipse cx="${(sp.s * 0.38).toFixed(1)}" cy="${(sp.s * 0.34).toFixed(1)}" rx="${(sp.s * 0.16).toFixed(1)}" ry="${(sp.s * 0.09).toFixed(1)}" fill="#FFFFFF" opacity="0.7"/>` : ""}
+        </g>`;
+      });
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS9.toFixed(0)}" height="${HS9.toFixed(0)}" viewBox="0 0 ${WS9.toFixed(0)} ${HS9.toFixed(0)}" data-starrating="1" role="img" aria-label="${earned} of 3 stars"><g opacity="${state === "disabled" ? 0.45 : 1}">${stars}</g></svg>`;
+    }
+    case "levelnode": {
+      /* Casual · level-map node — a real circular button wearing the level.
+         EDITING CONTRACT: label = level number; overlay = "locked" |
+         "stars:N" (completed, N mini stars) | default (current — pulses);
+         build drives hover/pressed natively. */
+      const s = 150 * k;
+      const lvl9 = (opts.label ?? "12").slice(0, 3);
+      const locked9 = opts.overlay === "locked";
+      const starsM = /^stars:(\d)/.exec(opts.overlay ?? "");
+      const shell = build(cfg, locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 54 * k, iconSize: 0 }, { label: locked9 ? "" : lvl9, iconDef: null, fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2, ccy = sy + sh / 2;
+      let over = "";
+      if (locked9) {
+        const fcM = /url\(#([A-Za-z0-9_-]+)fc\)/.exec(shell);
+        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,0.45)"/></g>`;
+        over += iconGroup(STOCK_ICONS.lock, ccx - 25 * k, ccy - 25 * k, 50 * k, "#A7AAB4", { strokeWidth: 2 * iconWK });
+      } else if (starsM) {
+        const nSt = clamp(parseInt(starsM[1], 10), 0, 3);
+        const GOLD = "#FACC15";
+        for (let i = 0; i < 3; i++) {
+          const stS = 26 * k, ang9 = (i - 1) * 0.55;
+          const stx = ccx + Math.sin(ang9) * sw * 0.34 - stS / 2, sty = sy + sh - stS * (i === 1 ? 1.05 : 0.82);
+          over += `<g transform="translate(${stx.toFixed(1)} ${sty.toFixed(1)})"><path d="${starPath(stS)}" fill="${i < nSt ? GOLD : "rgba(10,14,22,0.45)"}" stroke="${i < nSt ? "#92400E" : "rgba(255,255,255,0.3)"}" stroke-width="1.2" stroke-linejoin="round"/></g>`;
+        }
+      } else if (state !== "disabled") {
+        // the CURRENT node calls the player — a soft breathing ring
+        over += `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${(sw / 2 + 7 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.7)}" stroke-width="${(2.6 * k).toFixed(1)}"><animate attributeName="stroke-opacity" values="0.8;0.25;0.8" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></circle>`;
+      }
+      return inject(shell.replace("<svg ", '<svg data-levelnode="1" '), over);
+    }
+    case "pathconnector": {
+      /* Casual · level-map path — a dotted trail between nodes; beads light
+         with progress. EDITING CONTRACT: value = progress along the path;
+         lit beads follow the Glow role; disabled dims. */
+      const WP9 = 340 * k, HP9 = 130 * k;
+      const vP9 = clamp(value ?? 0.6, 0, 1);
+      const nB = 9;
+      // sampled S-curve (cubic bezier) — the classic saga trail
+      const P0 = [16 * k, HP9 * 0.72], P1 = [WP9 * 0.38, HP9 * 0.05], P2 = [WP9 * 0.62, HP9 * 1.15], P3 = [WP9 - 16 * k, HP9 * 0.35];
+      const bez = (t: number) => {
+        const u = 1 - t;
+        return [
+          u * u * u * P0[0] + 3 * u * u * t * P1[0] + 3 * u * t * t * P2[0] + t * t * t * P3[0],
+          u * u * u * P0[1] + 3 * u * u * t * P1[1] + 3 * u * t * t * P2[1] + t * t * t * P3[1],
+        ];
+      };
+      let beads = "";
+      for (let i = 0; i < nB; i++) {
+        const [bx9, by9] = bez(i / (nB - 1));
+        const on = i / (nB - 1) <= vP9;
+        const r9 = (on ? 9 : 7) * k;
+        beads += on
+          ? `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${r9.toFixed(1)}" fill="${glow}" stroke="${darken(glow, 0.4)}" stroke-width="1.4"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/><circle cx="${(bx9 - r9 * 0.3).toFixed(1)}" cy="${(by9 - r9 * 0.35).toFixed(1)}" r="${(r9 * 0.3).toFixed(1)}" fill="#FFFFFF" opacity="0.8"/>`
+          : `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${r9.toFixed(1)}" fill="rgba(120,128,148,0.35)" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WP9.toFixed(0)}" height="${HP9.toFixed(0)}" viewBox="0 0 ${WP9.toFixed(0)} ${HP9.toFixed(0)}" data-pathconnector="1" role="img" aria-label="path progress"><g opacity="${state === "disabled" ? 0.45 : 1}">${beads}</g></svg>`;
+    }
+    case "heartmeter": {
+      /* Casual · heart meter — lives WITH the refill economy: filled candy
+         hearts, the next-heart timer, and the add knob. EDITING CONTRACT:
+         value = hearts full (0..1 → 0..5); label = the timer text; hearts
+         are semantic red; the shell takes states natively. */
+      const w = 470 * k, h = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 116 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const nH = 5;
+      const fullH = Math.round(clamp(value ?? 0.6, 0, 1) * nH);
+      const HEARTR = "#FF4D6D";
+      const hs9 = 40 * k, gapH = 8 * k;
+      const hx0 = 39 + inset + 14 * k;
+      let hearts = "";
+      for (let i = 0; i < nH; i++) {
+        const hx = hx0 + i * (hs9 + gapH);
+        const on = i < fullH;
+        hearts += `<g transform="translate(${hx.toFixed(1)} ${(cy - hs9 / 2).toFixed(1)}) scale(${(hs9 / 24).toFixed(3)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})"` : ""}>
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" fill="${on ? HEARTR : "rgba(120,128,148,0.3)"}" stroke="${on ? darken(HEARTR, 0.35) : "rgba(255,255,255,0.28)"}" stroke-width="1.6" stroke-linejoin="round"/>
+          ${on ? `<ellipse cx="8" cy="7.4" rx="3" ry="1.8" fill="#FFFFFF" opacity="0.55"/>` : ""}
+        </g>`;
+      }
+      const timer = infoText(opts.label ?? "NEXT +1 · 2:32", hx0 + nH * (hs9 + gapH) + 8 * k, cy + 1, 17 * k, "start", 700);
+      const addX = 39 + w - inset - 26 * k;
+      const add = candyKnob(addX, cy, 20 * k, knobC) +
+        `<text x="${addX.toFixed(1)}" y="${(cy - 1.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">+</text>`;
+      return inject(shell.replace("<svg ", '<svg data-heartmeter="1" '), hearts + timer + add);
+    }
+    case "booster": {
+      /* Casual · booster button — a real circular button with the booster
+         glyph and a count badge. EDITING CONTRACT: icon = the booster
+         (swappable); value = count; build drives hover/pressed natively. */
+      const s = 140 * k;
+      const ic = opts.icon ?? STOCK_ICONS.zap;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 62 * k }, { iconDef: ic, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw] = shellM[1].split(" ").map(Number);
+      const count = Math.max(0, Math.min(99, Math.round(clamp(value ?? 0.4, 0, 1) * 10)));
+      const bcx = sx + sw - 10 * k, bcy = sy + 12 * k, br = 19 * k;
+      const badge = count > 0
+        ? `<g data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${bevel}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(bevel, 0.6)})"` : ""}/>
+          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${count}</text></g>`
+        : `<g data-badge="1"><rect x="${(bcx - 34 * k).toFixed(1)}" y="${(bcy - 12 * k).toFixed(1)}" width="${(52 * k).toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/>
+          <text x="${(bcx - 8 * k).toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.06em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central">FREE</text></g>`;
+      return inject(shell.replace("<svg ", '<svg data-booster="1" '), badge);
+    }
+    case "spinwheel": {
+      /* Casual · spin wheel — the fortune wheel: eight alternating wedges,
+         rim bulbs, top pointer, candy hub. EDITING CONTRACT: value = the
+         wheel's ROTATION — clicking on the kit page throws a multi-turn
+         spin (LiveArt tween); wedge tints and rim follow the theme roles;
+         disabled stands still. */
+      const dS = ({ s: 300, m: 380, l: 460 } as Record<KitSize, number>)[size] * k;
+      const padS = 40;
+      const cS = dS / 2 + padS, rS = dS / 2;
+      const rimWs = Math.max(10, dS * 0.05);
+      const wedgeR = rS - rimWs;
+      const gidSW = "sw" + UID++;
+      const vSW = ((clamp(value ?? 0, -8, 8) % 1) + 1) % 1;
+      const rot = vSW * 360;
+      const nWg = 8;
+      const tints = [lighten(bevel, 0.5), effect(cfg.effects, "Inner Fill"), hexMix(bevel, glow, 0.5), "#FACC15"];
+      const glyphs = [STOCK_ICONS.star, STOCK_ICONS.gem, STOCK_ICONS.zap, STOCK_ICONS.gift];
+      let wedges = "";
+      for (let i = 0; i < nWg; i++) {
+        const a0 = (i / nWg) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / nWg) * Math.PI * 2 - Math.PI / 2;
+        const tint = tints[i % 4];
+        wedges += `<path d="M ${cS} ${cS} L ${(cS + wedgeR * Math.cos(a0)).toFixed(1)} ${(cS + wedgeR * Math.sin(a0)).toFixed(1)} A ${wedgeR.toFixed(1)} ${wedgeR.toFixed(1)} 0 0 1 ${(cS + wedgeR * Math.cos(a1)).toFixed(1)} ${(cS + wedgeR * Math.sin(a1)).toFixed(1)} Z" fill="${tint}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/>`;
+        const am = (a0 + a1) / 2;
+        const gx = cS + wedgeR * 0.66 * Math.cos(am), gy = cS + wedgeR * 0.66 * Math.sin(am);
+        const gly = glyphs[i % 4];
+        if (gly) wedges += `<g transform="rotate(${((am + Math.PI / 2) * 180 / Math.PI).toFixed(1)} ${gx.toFixed(1)} ${gy.toFixed(1)})">${iconGroup(gly, gx - 15 * k, gy - 15 * k, 30 * k, darken(tint, 0.55), { strokeWidth: 2.2 * iconWK })}</g>`;
+      }
+      // rim bulbs at wedge boundaries — alternating lit
+      let bulbs = "";
+      for (let i = 0; i < nWg; i++) {
+        const aB = (i / nWg) * Math.PI * 2 - Math.PI / 2;
+        const bx9 = cS + (rS - rimWs / 2) * Math.cos(aB), by9 = cS + (rS - rimWs / 2) * Math.sin(aB);
+        const lit = i % 2 === 0;
+        bulbs += `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${(rimWs * 0.28).toFixed(1)}" fill="${lit ? "#FFF3B0" : "rgba(255,255,255,0.35)"}"${lit && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px rgba(250,204,21,0.8))"` : ""}/>`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dS + padS * 2).toFixed(0)}" height="${(dS + padS * 2).toFixed(0)}" viewBox="0 0 ${(dS + padS * 2).toFixed(0)} ${(dS + padS * 2).toFixed(0)}" data-spinwheel="1" role="img" aria-label="spin wheel">
+<defs><linearGradient id="${gidSW}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient></defs>
+<g opacity="${state === "disabled" ? 0.45 : 1}">
+  <g transform="rotate(${rot.toFixed(2)} ${cS} ${cS})">${wedges}</g>
+  <circle cx="${cS}" cy="${cS}" r="${(rS - rimWs / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}r)" stroke-width="${rimWs.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimWs * 0.5).toFixed(1)}px ${hexRgba(glow, 0.45)})"` : ""}/>
+  ${bulbs}
+  ${candyKnob(cS, cS, dS * 0.09, knobC)}
+  <path d="M ${(cS - 13 * k).toFixed(1)} ${(padS - 8 * k).toFixed(1)} h ${(26 * k).toFixed(1)} l ${(-13 * k).toFixed(1)} ${(30 * k).toFixed(1)} Z" fill="${knobC}" stroke="${darken(knobC, 0.4)}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>
+</g>
+</svg>`;
+    }
+    case "dailycell": {
+      /* Casual · daily reward cell — one day of the calendar. EDITING
+         CONTRACT: label = the day; icon = the reward glyph (swappable);
+         overlay = "check" (claimed, dim) | "locked" (future) | default
+         (today — glow ring); build drives states natively. */
+      const s = 148 * k;
+      const claimed = opts.overlay === "check";
+      const locked9 = opts.overlay === "locked";
+      const shell = build(cfg, claimed || locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2;
+      const ic = opts.icon ?? STOCK_ICONS.gift;
+      let over = infoText(opts.label ?? "DAY 4", ccx, sy + 22 * k, 15 * k, "middle", 800) +
+        (ic ? (claimed || locked9
+          ? iconGroup(ic, ccx - 27 * k, sy + sh / 2 - 22 * k, 54 * k, "#A7AAB4", { strokeWidth: 2 * iconWK })
+          : themedIcon(ic, ccx - 27 * k, sy + sh / 2 - 22 * k, 54 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)) : "");
+      if (claimed) {
+        over += `<circle cx="${(sx + sw - 12 * k).toFixed(1)}" cy="${(sy + 12 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="#4ADE80" stroke="rgba(255,255,255,0.9)" stroke-width="2"/>` +
+          iconGroup(STOCK_ICONS.check, sx + sw - 21 * k, sy + 3 * k, 18 * k, "#0B3B21", { strokeWidth: 3.4 * iconWK });
+      } else if (locked9) {
+        over += iconGroup(STOCK_ICONS.lock, ccx - 12 * k, sy + sh - 30 * k, 24 * k, "#A7AAB4", { strokeWidth: 2.2 * iconWK });
+      } else if (state !== "disabled") {
+        over += `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.85)}" stroke-width="${(2.6 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"><animate attributeName="stroke-opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect>`;
+      }
+      return inject(shell.replace("<svg ", '<svg data-dailycell="1" '), over);
+    }
+    case "combo": {
+      /* Casual · combo burst — shell-free celebration type with a gold ray
+         burst; the multiplier wears the theme's text armor. EDITING
+         CONTRACT: value = magnitude (scales rays and size); label = the
+         multiplier text; disabled dims. */
+      const vC0 = clamp(value ?? 0.4, 0, 1);
+      const mult = opts.label ?? `×${2 + Math.round(vC0 * 8)}`;
+      const WC = 360 * k, HC = 240 * k;
+      const cxC0 = WC / 2, cyC0 = HC * 0.46;
+      const GOLD = "#FACC15";
+      const fsC = (46 + vC0 * 30) * k * typeK;
+      let rays = "";
+      const nR9 = 12;
+      for (let i = 0; i < nR9; i++) {
+        const aR = (i / nR9) * Math.PI * 2;
+        const r1 = fsC * (0.8 + (i % 2) * 0.14), r2 = r1 + (20 + vC0 * 26) * k * (i % 2 ? 0.7 : 1);
+        rays += `<line x1="${(cxC0 + r1 * Math.cos(aR)).toFixed(1)}" y1="${(cyC0 + r1 * Math.sin(aR) * 0.72).toFixed(1)}" x2="${(cxC0 + r2 * Math.cos(aR)).toFixed(1)}" y2="${(cyC0 + r2 * Math.sin(aR) * 0.72).toFixed(1)}" stroke="${hexRgba(GOLD, 0.75)}" stroke-width="${((i % 2 ? 3 : 4.5) * k).toFixed(1)}" stroke-linecap="round"/>`;
+      }
+      const armor = cfg.type.outline.on ? cfg.type.outline.color : darken(bevel, 0.55);
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" role="img" aria-label="combo ${mult}">
+<g opacity="${state === "disabled" ? 0.45 : 1}">
+  <g${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(GOLD, 0.5)})"` : ""}>${rays}</g>
+  <g transform="rotate(-5 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})">${contentText(mult, cxC0, cyC0, fsC, { anchor: "middle", keepCase: true })}</g>
+  <text x="${cxC0.toFixed(1)}" y="${(cyC0 + fsC * 0.74).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.12em" fill="${GOLD}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armor}; stroke-width: ${(2.6 * k).toFixed(1)}px; stroke-linejoin: round">COMBO!</text>
+</g>
+</svg>`;
+    }
+    case "movecounter": {
+      /* Casual · move counter — the match-3 corner tile. EDITING CONTRACT:
+         value = moves left (0..1 → 0..30); ≤5 goes alarm red and pulses;
+         the seconds follow the AUTO-ink instrument contract (themedText
+         re-themes). */
+      const s = 150 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h: s, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2;
+      const moves = Math.round(clamp(value ?? 0.8, 0, 1) * 30);
+      const low = moves <= 5;
+      const ALARM = "#FF4D5A";
+      const inkM = low ? ALARM : cfg.face.mode === "dark" ? "#FFFFFF" : darken(effect(cfg.effects, "Shadow"), 0.1);
+      const armorM = cfg.type.outline.on ? cfg.type.outline.color : (cfg.face.mode === "dark" ? darken(bevel, 0.55) : "rgba(255,255,255,0.85)");
+      const numY = sy + sh * 0.44;
+      const pulse = low && state !== "disabled" ? `<animate attributeName="fill-opacity" values="1;0.5;1" dur="0.9s" repeatCount="indefinite"/>` : "";
+      const num = opts.themedText
+        ? contentText(String(moves), ccx, numY, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkM })
+        : `<text x="${ccx.toFixed(1)}" y="${numY.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
+      const over = infoText("MOVES", ccx, sy + sh - 20 * k, 15 * k, "middle", 800) + num;
+      return inject(shell.replace("<svg ", '<svg data-movecounter="1" '), over);
+    }
+    case "pricebtn": {
+      /* Casual · IAP price button — a REAL buy button: candy coin + price,
+         gold value ribbon riding the top edge. EDITING CONTRACT: label =
+         the price; build drives hover/pressed natively. */
+      const w = 300 * k, h = 118 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 126 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw] = shellM[1].split(" ").map(Number);
+      const cy = sy + 59 * k;
+      const coinR = 24 * k, coinX = sx + 34 * k;
+      const gidP0 = "pb" + UID++;
+      const coin = `<defs><radialGradient id="${gidP0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+        <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${coinR.toFixed(1)}" fill="url(#${gidP0})" stroke="#92400E" stroke-width="1.6"/>
+        <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(coinR * 0.64).toFixed(1)}" fill="none" stroke="#92400E" stroke-width="1" opacity="0.6"/>
+        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.4).toFixed(1)}" rx="${(coinR * 0.32).toFixed(1)}" ry="${(coinR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/>`;
+      const price = contentText(opts.label ?? "$4.99", coinX + coinR + 14 * k, cy + 1, 34 * k * typeK, { keepCase: true });
+      const ribW = 108 * k, ribH = 26 * k;
+      const ribbon = `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 1.5px 2px rgba(6,10,18,0.4))"` : ""}>
+        <rect x="${(sx + sw / 2 - ribW / 2).toFixed(1)}" y="${(sy - ribH * 0.44).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/>
+        <text x="${(sx + sw / 2).toFixed(1)}" y="${(sy - ribH * 0.44 + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central">BEST VALUE</text></g>`;
+      return inject(shell.replace("<svg ", '<svg data-pricebtn="1" '), coin + price + ribbon);
+    }
+    case "energymeter": {
+      /* Casual · energy meter — the bolt, ten cells in a sunken container
+         (negative-space canon), the count in adaptive ink. EDITING
+         CONTRACT: value = energy (0..1 → 0..30 shown / 10 cells); label =
+         the count text; bolt is semantic gold. */
+      const w = 470 * k, h = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 116 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const vE = clamp(value ?? 0.8, 0, 1);
+      const GOLD = "#FACC15";
+      const bolt = STOCK_ICONS.zap
+        ? iconGroup(STOCK_ICONS.zap, 39 + inset + 12 * k, cy - 17 * k, 34 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.4 * iconWK + 2.4 }) +
+          iconGroup(STOCK_ICONS.zap, 39 + inset + 12 * k, cy - 17 * k, 34 * k, GOLD, { strokeWidth: 2.4 * iconWK })
+        : "";
+      const nCe = 10;
+      const cellsX = 39 + inset + 60 * k, cellsW = w - inset * 2 - 60 * k - 96 * k;
+      const cellW9 = (cellsW - (nCe - 1) * 5 * k) / nCe;
+      const litE = Math.round(vE * nCe);
+      const gidE = "en" + UID++;
+      let inner = bolt +
+        `<rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 18 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(36 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+        `<defs><linearGradient id="${gidE}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.5" stop-color="${GOLD}"/><stop offset="1" stop-color="#D97706"/></linearGradient></defs>`;
+      for (let i = 0; i < nCe; i++) {
+        const cx9 = cellsX + i * (cellW9 + 5 * k);
+        const on = i < litE;
+        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(23 * k).toFixed(1)}" rx="${(4.5 * k).toFixed(1)}" fill="${on ? `url(#${gidE})` : "rgba(255,255,255,0.1)"}" stroke="${on ? "#B45309" : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(2.5 * k).toFixed(1)}px rgba(250,204,21,0.55))"` : ""}/>`;
+      }
+      inner += infoText(opts.label ?? `${Math.round(vE * 30)}/30`, 39 + w - inset - 16 * k, cy + 1, 19 * k, "end");
+      return inject(shell.replace("<svg ", '<svg data-energymeter="1" '), inner);
+    }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected
          cell carries the glow ring. value scrubs the selection. */
