@@ -1,4 +1,4 @@
-# Component roadmap — 47 shipped → 100+
+# Component roadmap — 67 shipped → 114 (P1 COMPLETE)
 
 Current inventory (47): primary, secondary, small, ghost, iconbtn, chip,
 badge, tab, segment, header, checkbox, radio, toggle, slider, input,
@@ -11,7 +11,7 @@ Coverage today skews toward controls, bars and racing. The gaps, by
 breadth of use. Every candidate below is buildable in the existing
 engine (silhouette + candy material + type — no illustration work).
 
-## P1 · Universal chrome (every game ships these) — 20
+## P1 · Universal chrome — 20 ✅ SHIPPED (v80)
 
 | # | Component | Notes |
 |---|-----------|-------|

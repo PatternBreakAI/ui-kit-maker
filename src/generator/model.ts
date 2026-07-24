@@ -773,7 +773,8 @@ export type KitComponentId =
   | "cardback" | "pack"
   | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn"
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
-  | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe";
+  | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
+  | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -792,6 +793,11 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "searchfield", name: "Search field" },
   { id: "notifydot", name: "Notification badge" },
   { id: "avatarframe", name: "Avatar frame" },
+  { id: "nameplate", name: "Nameplate" },
+  { id: "currency", name: "Currency pill" },
+  { id: "buffframe", name: "Buff frame" },
+  { id: "cooldown", name: "Cooldown radial" },
+  { id: "stepper", name: "Stepper" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -964,6 +970,10 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   setrow: "kenneyRect",
   searchfield: "pill",
   notifydot: "round",
+  nameplate: "kenneyTag",
+  currency: "pill",
+  buffframe: "round",
+  stepper: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",

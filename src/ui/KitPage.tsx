@@ -1089,6 +1089,11 @@ const kitTier = useGen((s) => s.tier);
         rk("searchfield", "Search field · query", { label: "health potion" }),
         rk("notifydot", "Notification badge", {}, 0.3),
         rk("avatarframe", "Avatar frame", {}, 0.12),
+        rk("nameplate", "Nameplate"),
+        rk("currency", "Currency pill", {}, 0.125),
+        rk("buffframe", "Buff frame", {}, 0.65),
+        rk("cooldown", "Cooldown radial", {}, 0.4),
+        rk("stepper", "Stepper", {}, 0.62),
         rk("cardback", "Card back", {}),
         rk("cardback", "Deck cover", { label: "STARTER · 30" }),
         rk("pack", "Card pack", {}),
@@ -1757,6 +1762,15 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="searchfield" caption="Search field" scale={0.5} />
           <Piece id="notifydot" caption="Notification badge" value={0.3} scale={0.54} />
           <Piece id="avatarframe" caption="Avatar frame" value={0.12} scale={0.54} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="nameplate" caption="Nameplate" scale={0.5} />
+          <Piece id="currency" caption="Currency pill" value={0.125} scale={0.54} />
+          <Piece id="stepper" caption="Stepper" value={0.62} scale={0.5} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="buffframe" caption="Buff frame" value={0.65} scale={0.54} />
+          <Piece id="cooldown" caption="Cooldown radial" value={0.4} scale={0.56} />
         </div>
       </Sec>
 
