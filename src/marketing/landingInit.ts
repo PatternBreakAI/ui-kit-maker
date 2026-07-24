@@ -620,12 +620,14 @@ export function initLanding(deps: LandingDeps) {
       };
 
       const STEP_META = {
-        1: { label: "MASTER / 01", push: "PUSH TO A KIT" },
+        1: { label: "MASTER / 01", push: "CREATE YOUR KIT" },
         2: { label: "KIT / 02", push: "PUSH TO A BOARD" },
         3: { label: "BOARD / 03", push: "EXPORT" }
       };
       const showStep = (nStep) => {
         step = nStep; maxStep = Math.max(maxStep, nStep);
+        const shipEl = document.getElementById("pvShip");
+        if (shipEl) shipEl.hidden = true;
         masterWrap.parentElement.querySelectorAll(".pv-axis").forEach((a) => a.style.opacity = nStep === 1 ? "" : "0");
         masterWrap.style.display = nStep === 1 ? "" : "none";
         pvKit.hidden = nStep !== 2;
@@ -719,23 +721,13 @@ export function initLanding(deps: LandingDeps) {
         takeOver();
         if (!exported) {
           exported = true;
-          const r = b2Stage.getBoundingClientRect();
-          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-          [".png", ".svg", ".html", ".json"].forEach((ext, i) => {
-            const chip = document.createElement("div");
-            chip.className = "exp-chip"; chip.textContent = "design" + ext;
-            chip.style.left = "0"; chip.style.top = "0";
-            document.body.appendChild(chip);
-            const dx = (i - 1.5) * 96, dy = -70 - (i % 2) * 26;
-            if (reduceMotion) { setTimeout(() => chip.remove(), 900); chip.style.transform = `translate(${cx + dx}px, ${cy + dy}px)`; return; }
-            chip.animate([
-              { transform: `translate(${cx - 30}px, ${cy}px) scale(.5)`, opacity: 0 },
-              { transform: `translate(${cx - 30 + dx}px, ${cy + dy}px) scale(1)`, opacity: 1, offset: .55 },
-              { transform: `translate(${cx - 30 + dx}px, ${cy + dy - 16}px) scale(1)`, opacity: 0 }
-            ], { duration: 1250, delay: i * 90, easing: "cubic-bezier(.16,1,.3,1)", fill: "forwards" })
-              .finished.then(() => chip.remove()).catch(() => chip.remove());
-          });
-          flash(t("fExp"));
+          const ship = document.getElementById("pvShip");
+          if (ship) {
+            ship.hidden = false;
+            ship.classList.remove("play");
+            void ship.offsetWidth;
+            ship.classList.add("play");
+          }
           narr.innerHTML = t("n4");
           pushLabel.textContent = t("pushOpen");
         } else {
@@ -743,6 +735,8 @@ export function initLanding(deps: LandingDeps) {
         }
       };
 
+      { const shipEl = document.getElementById("pvShip");
+        if (shipEl) shipEl.addEventListener("click", () => { shipEl.hidden = true; }); }
       pushBtn.addEventListener("click", () => {
         if (step === 1) toKit();
         else if (step === 2) toBoard();
@@ -1008,7 +1002,7 @@ n1:"<b>Step 1 · The Master.</b> Set the DNA — color, shape, shine, pattern. E
 n2:"<b>Step 2 · Your Kit.</b> One press built all of this — every piece inherits your master, states included.",
 n3:"<b>Step 3 · The Board.</b> <b>Upload your own image</b> — any screen or concept — drag pieces onto it, dim the backdrop, and make as many boards as you need. Export or share each one.",
 n4:"<b>Exported!</b> That’s the whole loop — master → kit → board → files. Now do it for real.",
-cust:"CUSTOMIZE",pushKit:"PUSH TO A KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",
+cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.",
 fKit:"KIT READY",fBoard:"BOARD READY",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
@@ -1051,7 +1045,7 @@ n1:"<b>第 1 步 · 母版。</b>设定 DNA——颜色、形状、光泽、图�
 n2:"<b>第 2 步 · 你的组件库。</b>一次点击生成全部——每个组件都继承母版，包含所有状态。",
 n3:"<b>第 3 步 · 画板。</b><b>上传你自己的图片</b>——任意画面或概念图——拖入组件、调暗背景，画板想建几块就建几块，每块都能导出或分享。",
 n4:"<b>已导出！</b>完整流程走完了——母版 → 组件库 → 画板 → 文件。去正式版试试吧。",
-cust:"自定义",pushKit:"生成组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",
+cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。",
 fKit:"组件库就绪",fBoard:"画板就绪",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
@@ -1094,7 +1088,7 @@ n1:"<b>Étape 1 · Le master.</b> Définissez l’ADN — couleur, forme, brilla
 n2:"<b>Étape 2 · Votre kit.</b> Un clic a tout construit — chaque pièce hérite du master, états compris.",
 n3:"<b>Étape 3 · Le board.</b> <b>Importez votre propre image</b> — écran ou concept — glissez vos pièces, tamisez le fond, créez autant de boards que voulu. Exportez ou partagez chacun.",
 n4:"<b>Exporté !</b> La boucle est bouclée — master → kit → board → fichiers. À vous de jouer.",
-cust:"PERSONNALISER",pushKit:"GÉNÉRER LE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",
+cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.",
 fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
@@ -1137,7 +1131,7 @@ n1:"<b>Paso 1 · El master.</b> Define el ADN — color, forma, brillo, patrón.
 n2:"<b>Paso 2 · Tu kit.</b> Un clic lo construyó todo — cada pieza hereda tu master, estados incluidos.",
 n3:"<b>Paso 3 · El board.</b> <b>Sube tu propia imagen</b> — pantalla o concept — arrastra piezas, atenúa el fondo y crea todos los boards que quieras. Exporta o comparte cada uno.",
 n4:"<b>¡Exportado!</b> El ciclo completo — master → kit → board → archivos. Ahora hazlo de verdad.",
-cust:"PERSONALIZAR",pushKit:"CREAR EL KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",
+cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.",
 fKit:"KIT LISTO",fBoard:"BOARD LISTO",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
@@ -1180,7 +1174,7 @@ n1:"<b>Passo 1 · Il master.</b> Definisci il DNA — colore, forma, lucentezza,
 n2:"<b>Passo 2 · Il tuo kit.</b> Un clic ha costruito tutto — ogni pezzo eredita il master, stati compresi.",
 n3:"<b>Passo 3 · La board.</b> <b>Carica la tua immagine</b> — schermata o concept — trascina i pezzi, attenua lo sfondo e crea quante board vuoi. Esporta o condividi ognuna.",
 n4:"<b>Esportato!</b> Il giro completo — master → kit → board → file. Ora fallo davvero.",
-cust:"PERSONALIZZA",pushKit:"CREA IL KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",
+cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.",
 fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
@@ -1223,7 +1217,7 @@ n1:"<b>Schritt 1 · Der Master.</b> Leg die DNA fest — Farbe, Form, Glanz, Mus
 n2:"<b>Schritt 2 · Dein Kit.</b> Ein Klick hat all das gebaut — jedes Teil erbt deinen Master, Zustände inklusive.",
 n3:"<b>Schritt 3 · Das Board.</b> <b>Lade dein eigenes Bild hoch</b> — Screenshot oder Konzept — zieh Teile darauf, dimme den Hintergrund und leg so viele Boards an, wie du brauchst. Jedes lässt sich exportieren oder teilen.",
 n4:"<b>Exportiert!</b> Das war der ganze Loop — Master → Kit → Board → Dateien. Jetzt mach es richtig.",
-cust:"ANPASSEN",pushKit:"ZUM KIT MACHEN",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",
+cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.",
 fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
@@ -1266,7 +1260,7 @@ n1:"<b>ステップ1 · マスター。</b>DNAを設定 — 色・形・ツヤ�
 n2:"<b>ステップ2 · あなたのキット。</b>ワンクリックで全部完成 — 各パーツがマスターを継承、ステートも込み。",
 n3:"<b>ステップ3 · ボード。</b><b>自分の画像をアップロード</b> — 画面でもコンセプトでも — パーツをドラッグし、背景を調光。ボードは何枚でも作れて、それぞれ書き出し・共有できます。",
 n4:"<b>書き出し完了！</b>これで一巡 — マスター → キット → ボード → ファイル。次は本番でどうぞ。",
-cust:"カスタマイズ",pushKit:"キットを生成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",
+cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。",
 fKit:"キット完成",fBoard:"ボード完成",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
@@ -1391,7 +1385,8 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         const bgc = document.getElementById("bgsCap"); if (bgc) bgc.textContent = t("bgsL");
         [["auTabIn", "auIn"], ["auTabUp", "auUp"], ["auEmailCap", "auEmail"], ["auPassCap", "auPass"],
          ["auForgot", "auFgt"], ["auOr", "auOr"], ["auMagic", "auMagic"], ["auFree", "auFreeL"],
-         ["auConsentTxt", "auTerms"], ["auBackTxt", "auBackL"]].forEach(([id, k]) => {
+         ["auConsentTxt", "auTerms"], ["auBackTxt", "auBackL"],
+         ["shipDoneTxt", "shipDone"], ["shipLineTxt", "shipLine"]].forEach(([id, k]) => {
           const el2 = document.getElementById(id); if (el2) el2.textContent = t(k);
         });
         const ovEl = document.getElementById("authOv");
