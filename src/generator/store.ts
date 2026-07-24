@@ -4,7 +4,8 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetB
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, amIAdmin, publishCloudPreset, updateCloudPreset, deleteCloudPreset, listHiddenStarters, setHiddenStarters, type CloudPreset } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, type CloudPreset } from "./cloud";
+import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
 import neonVersusJson from "./preset-neon-versus.json";
@@ -318,6 +319,8 @@ interface GenStore {
   cloudPresets: CloudPreset[];
   /** Whether the signed-in user may publish/edit shared presets. */
   isAdmin: boolean;
+  /** guest (no session) / free (signed in) / pro (paid plan or the admin). */
+  tier: Tier;
   loadCloudPresets: () => Promise<void>;
   applyCloudPreset: (id: string) => void;
   publishPreset: (name: string) => Promise<string | null>;
@@ -832,9 +835,18 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   cloudPresets: [],
   isAdmin: false,
+  tier: "guest" as Tier,
   loadCloudPresets: async () => {
-    const [presets, admin, hidden] = await Promise.all([listCloudPresets(), amIAdmin(), listHiddenStarters()]);
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden });
+    const [presets, hidden, prof] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier()]);
+    const admin = prof.admin;
+    // cloud-off (local/dev build) is not the funnel — it gets the free tier,
+    // not guest lockdown; the live site always has cloud configured
+    const tier: Tier = (admin || (prof.plan && prof.plan !== "free")) ? "pro"
+      : prof.plan ? "free"
+      : cloudStatus().state === "off" ? "free" : "guest";
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, tier });
+    // a lowered zoom ceiling applies immediately, not on the next gesture
+    if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
     if (act && !presets.some((p) => p.id === act.id)) set({ activeCloudPreset: null });
   },
@@ -1127,7 +1139,7 @@ export const useGen = create<GenStore>((set, get) => ({
   // whatever zoom the editor or board was left at
   setPhase: (p) => set(p === "kit" ? { phase: p, zoom: 1 } : { phase: p }),
   setKitSize: (id, s) => set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })),
-  setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(4, Math.round(z * 10) / 10)) }),
+  setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),
   setSectionFilter: (v) => set({ sectionFilter: v }),

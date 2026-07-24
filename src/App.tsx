@@ -3,6 +3,7 @@ import { TopBar } from "./ui/TopBar";
 import { Rail, Panel } from "./ui/Panel";
 import { CanvasView } from "./ui/CanvasView";
 import { useGen } from "./generator/store";
+import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
@@ -117,6 +118,7 @@ export function App() {
         </div>
       )}
       <TopBar />
+      <LootModal />
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}

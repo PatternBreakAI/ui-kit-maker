@@ -22,7 +22,7 @@
 import { useEffect, useState } from "react";
 
 export type RouteName =
-  | "landing" | "app" | "terms" | "privacy" | "signin" | "account";
+  | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing";
 export type Route = { name: RouteName; viewer: boolean };
 
 export function parseHash(hash: string): Route {
@@ -35,6 +35,7 @@ export function parseHash(hash: string): Route {
   if (path === "/terms") return { name: "terms", viewer: false };
   if (path === "/privacy") return { name: "privacy", viewer: false };
   if (path === "/signin") return { name: "signin", viewer: false };
+  if (path === "/pricing") return { name: "pricing", viewer: false };
   if (path === "/account") return { name: "account", viewer: false };
   // "", "/", unknown routes, and Supabase auth hashes → landing.
   return { name: "landing", viewer: false };

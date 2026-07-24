@@ -1,0 +1,23 @@
+/* ── #/pricing — three honest columns, token-driven, theme-aware ── */
+.fd-pricing { min-height: 100vh; background: var(--fd-page, var(--card)); color: var(--ink); }
+.fd-pricing__nav { display: flex; align-items: center; height: 56px; padding: 0 22px; border-bottom: 1px solid var(--line); }
+.fd-pricing__brand { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); }
+.fd-pricing main { max-width: 1060px; margin: 0 auto; padding: 42px 22px 70px; }
+.fd-pricing h1 { font-size: clamp(28px, 4.5vw, 42px); letter-spacing: -0.02em; margin: 0 0 8px; }
+.fd-pricing__sub { color: var(--ink2); font-size: 15px; max-width: 60ch; margin: 0 0 30px; }
+.fd-pricing__cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 860px) { .fd-pricing__cols { grid-template-columns: 1fr; } }
+.fd-pricing__col { position: relative; border: 1px solid var(--line2); border-radius: 16px; padding: 20px 18px; background: var(--card); display: flex; flex-direction: column; gap: 12px; }
+.fd-pricing__col--mid { border-color: var(--accent, #6366f1); box-shadow: 0 0 0 1px var(--accent, #6366f1), var(--shadow-pop); }
+.fd-pricing__tag { position: absolute; top: -11px; left: 16px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: var(--accent, #6366f1); color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; }
+.fd-pricing__col h2 { margin: 4px 0 0; font-size: 19px; letter-spacing: -0.01em; }
+.fd-pricing__price { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.fd-pricing__price span { font-size: 13px; font-weight: 500; color: var(--ink3); }
+.fd-pricing__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fd-pricing__col li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--ink2); }
+.fd-pricing__col li svg { flex: none; margin-top: 2.5px; color: var(--accent, #6366f1); }
+.fd-pricing__col li b { color: var(--ink); font-weight: 600; }
+.fd-pricing__cta { margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 42px; border-radius: 11px; border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; background: var(--accent, #6366f1); color: #fff; }
+.fd-pricing__cta--ghost { background: var(--soft); color: var(--ink); border: 1px solid var(--line2); }
+.fd-pricing__cta--soon { background: var(--soft); color: var(--ink3); border: 1px dashed var(--line2); cursor: default; }
+.fd-pricing__fine { margin-top: 26px; font-size: 12.5px; color: var(--ink3); }

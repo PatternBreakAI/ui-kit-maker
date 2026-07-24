@@ -722,6 +722,17 @@ export async function amIAdmin(): Promise<boolean> {
   return !error && !!data?.is_admin;
 }
 
+/** The signed-in user's plan + admin flag in one read — feeds the tier.
+    plan_id is server-truth: RLS pins it to 'free' until Stripe entitlement
+    resolution exists, so a client can't self-upgrade. */
+export async function myProfileTier(): Promise<{ plan: string | null; admin: boolean }> {
+  const client = await getClient();
+  if (!client || !session) return { plan: null, admin: false };
+  const { data, error } = await client.from("profiles").select("plan_id, is_admin").eq("id", session.user.id).maybeSingle();
+  if (error || !data) return { plan: null, admin: false };
+  return { plan: (data.plan_id as string) ?? "free", admin: !!data.is_admin };
+}
+
 /** Every shared preset — readable by anyone (even signed-out) when cloud is
     configured. Returns [] when unconfigured, so the local build is unaffected. */
 export async function listCloudPresets(): Promise<CloudPreset[]> {

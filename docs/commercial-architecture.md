@@ -141,6 +141,27 @@ admin's "Overwrite" action saves the current look back into that preset in
 place — same RLS-gated update path, name kept, thumbnail re-rendered by the
 one shared snapshot recipe publish uses.
 
+## Tiers (v79) — product shape ahead of Stripe
+
+`src/generator/entitlements.ts` is the one capabilities-as-data table:
+guest (no session) / free (signed in) / pro (plan_id past 'free', or the
+admin). Gates: zoom ceiling (100/150/unlimited), starter presets (4/6/all
+— locked cards stay visible and tap through to sign-in or #/pricing), the
+guest kit renders 5 proof components with the rest as locked teasers, PNG
+export scale (1×/1×/4×), and vector-grade exports (SVG, HTML, copy-SVG,
+game kit, engine zip) are pro-only. The guest PNG catalog filters to the
+five unlocked components so the sheet never hands over what the page
+locks. Signup celebrates with the loot-pack reveal (the two presets
+between the guest and free limits). #/pricing lays the three columns out;
+the Pro CTA stays closed until Stripe.
+
+HONEST LIMITATION (Appendix A): every gate is client-side today — product
+shape, not security. The bundle contains all presets and exporters. Real
+enforcement follows the plan: plan_id is already server-truth (RLS pins
+it to 'free'), and the paid tier's exports must move behind server
+functions when Stripe lands. Cloud-off (local/dev) builds run at the free
+tier so development stays unimpeded.
+
 ## Security posture (what is and is not protected)
 
 - The anon key is public by design; **all** access control is row-level

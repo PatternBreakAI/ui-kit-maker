@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Sparkles, ChevronDown } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Sparkles, ChevronDown, Lock } from "lucide-react";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
+import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText } from "@/generator/exportUtils";
 
@@ -21,7 +22,10 @@ function Logo() {
    The account button opens the shell's AuthOverlay; the old inline
    AccountMenu popover is retired. */
 export function TopBar() {
-  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine } = useGen();
+  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier } = useGen();
+  const tcaps = capsOf(tier);
+  const gate = () => { if (tier === "guest") openAuth("signin"); else navigate("#/pricing"); };
+  const lockrow = (label: string) => (<><Lock size={13} strokeWidth={2.2} /> {label} <i className="protag">PRO</i></>);
   const cloud = useCloudStatus();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setCopied] = useState(false);
@@ -110,21 +114,37 @@ export function TopBar() {
           </button>
           {menuOpen && (
             <div className="menu-pop">
-              <button onClick={() => { downloadSvg(svg(), `ui-${cfg.presetId}-${selectedState}.svg`); setMenuOpen(false); }}>
-                <Download size={15} strokeWidth={1.8} /> Export SVG
+              {tcaps.vectorExports ? (
+                <button onClick={() => { downloadSvg(svg(), `ui-${cfg.presetId}-${selectedState}.svg`); setMenuOpen(false); }}>
+                  <Download size={15} strokeWidth={1.8} /> Export SVG
+                </button>
+              ) : (
+                <button className="lockedmi" title={`Vector exports are a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Export SVG")}</button>
+              )}
+              <button onClick={() => { void downloadPng(svg(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax); setMenuOpen(false); }}>
+                <Image size={15} strokeWidth={1.8} /> Export PNG {tcaps.pngScaleMax}×
               </button>
-              <button onClick={() => { void downloadPng(svg(), `ui-${cfg.presetId}-${selectedState}@2x.png`, 2); setMenuOpen(false); }}>
-                <Image size={15} strokeWidth={1.8} /> Export PNG 2×
-              </button>
-              <button onClick={() => { dlHtml(); setMenuOpen(false); }}>
-                <FileDown size={15} strokeWidth={1.8} /> Download HTML
-              </button>
-              <button onClick={() => { copyCode(); setMenuOpen(false); }}>
-                <Copy size={15} strokeWidth={1.8} /> Copy SVG code
-              </button>
-              <button onClick={() => { void downloadGameKit(cfg); setMenuOpen(false); }}>
-                <Gamepad2 size={15} strokeWidth={1.8} /> Export game kit
-              </button>
+              {tcaps.vectorExports ? (
+                <button onClick={() => { dlHtml(); setMenuOpen(false); }}>
+                  <FileDown size={15} strokeWidth={1.8} /> Download HTML
+                </button>
+              ) : (
+                <button className="lockedmi" title={`HTML export is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Download HTML")}</button>
+              )}
+              {tcaps.vectorExports ? (
+                <button onClick={() => { copyCode(); setMenuOpen(false); }}>
+                  <Copy size={15} strokeWidth={1.8} /> Copy SVG code
+                </button>
+              ) : (
+                <button className="lockedmi" title={`SVG code is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Copy SVG code")}</button>
+              )}
+              {tcaps.vectorExports ? (
+                <button onClick={() => { void downloadGameKit(cfg); setMenuOpen(false); }}>
+                  <Gamepad2 size={15} strokeWidth={1.8} /> Export game kit
+                </button>
+              ) : (
+                <button className="lockedmi" title={`The game kit is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Export game kit")}</button>
+              )}
               <button onClick={() => { downloadSettings(cfg); setMenuOpen(false); }}>
                 <FileJson size={15} strokeWidth={1.8} /> Export settings
               </button>
