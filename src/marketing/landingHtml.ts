@@ -401,9 +401,12 @@ export const LANDING_HTML = `</head>
       </div>
       <div class="shell">
         <div class="compat-card reveal" id="compatCard">
-          <b id="ccName"></b>
-          <p id="ccHow">Roll over a logo — here's how your kit lands there.</p>
-          <span class="cc-soon" id="ccSoon" hidden>NATIVE EXPORT ON THE ROADMAP</span>
+          <span class="cc-ico" id="ccIco" aria-hidden="true">✦</span>
+          <div class="cc-txt">
+            <b id="ccName"></b>
+            <p id="ccHow">Roll over a logo — here's how your kit lands there.</p>
+            <span class="cc-soon" id="ccSoon" hidden>NATIVE EXPORT ON THE ROADMAP</span>
+          </div>
         </div>
       </div>
     </section>

@@ -455,12 +455,17 @@ export function initLanding(deps: LandingDeps) {
       /* footprint tiers: small pieces pack tight, bars span wide, big pieces breathe */
       const S_IDS = new Set(["iconbtn", "padbtn", "keycap", "checkbox", "radio", "toggle", "stepper", "pagedots",
         "spinner", "notifydot", "badge", "slot", "orb", "cooldown", "reticle", "joystick", "lives", "ammo",
-        "currency", "buffframe"]);
+        "currency", "buffframe",
+        "crosshair", "hitmarker", "waypoint", "capturemeter", "dmgarc"]);
       const W_IDS = new Set(["input", "searchfield", "setrow", "dropdown", "slider", "progress", "loadbar",
         "segbar", "emblembar", "vsbar", "hotbar", "header", "segment", "toast", "tooltip", "datarow",
-        "nameplate", "timerdigits", "flipclock", "steps"]);
+        "nameplate", "timerdigits", "flipclock", "steps",
+        "xpbar", "manarails", "compass", "killfeed", "magazine", "streakmeter", "heartmeter",
+        "energymeter", "loottag", "equipselector"]);
       const B_IDS = new Set(["dialog", "panel", "listmenu", "scrollbar", "minimap", "leaderboard", "laptimes",
-        "telemetry", "circuit", "speedo", "speedo2", "tacho", "cardback", "pack"]);
+        "telemetry", "circuit", "speedo", "speedo2", "tacho", "cardback", "pack",
+        "questpanel", "dialoguebox", "choicelist", "invgrid", "partyframe", "respawn",
+        "weaponwheel", "spinwheel"]);
       const SHEET = (() => {
         /* every engine component exactly once — no size duplicates, no state repeats */
         const byId = new Map(E.KIT_COMPONENTS.map((k) => [k.id, k]));
@@ -476,8 +481,12 @@ export function initLanding(deps: LandingDeps) {
             seen.add(id); pushIt(k, first ? secKey : undefined); first = false;
           }
         }
-        // components the engine grows later land at the end, unheaded
-        for (const k of E.KIT_COMPONENTS) if (!seen.has(k.id)) pushIt(k, undefined);
+        // components the engine grows later append at the bottom under one
+        // header, packed big -> wide -> regular -> small like every section
+        const tail = E.KIT_COMPONENTS.filter((k) => !seen.has(k.id));
+        const rank = (k) => B_IDS.has(k.id) ? 0 : W_IDS.has(k.id) ? 1 : S_IDS.has(k.id) ? 3 : 2;
+        tail.sort((a, b3) => rank(a) - rank(b3));
+        tail.forEach((k, i3) => pushIt(k, i3 === 0 ? "ks7" : undefined));
         return items;
       })();
       const SHEET_N = SHEET.length;
@@ -1136,7 +1145,7 @@ n1:"<b>Step 1 · The Master.</b> Set the DNA — color, shape, shine, pattern. E
 n2:"<b>Step 2 · Your Kit.</b> One press built all of this — every piece inherits your master, states included.",
 n3:"<b>Step 3 · The Board.</b> <b>Upload your own image</b> — any screen or concept — drag pieces onto it, dim the backdrop, and make as many boards as you need. Export or share each one.",
 n4:"<b>Exported!</b> That’s the whole loop — master → kit → board → files. Now do it for real.",
-cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.*",compatLbl:"Plays nice with your stack",compatTitle:"Lands in the tools you already use.",c_rest:"Roll over a logo — here's how your kit lands there.",c_svg:"Clean SVG vectors import as fully editable paths — every component and state, named and grouped.",c_png:"Crisp transparent PNGs at 1× and 2×, cut per component and state.",c_html:"A live kit.html + kit.css — open it, inspect it, or lift the styles wholesale.",c_json:"An engine-ready JSON manifest that maps every piece, state, and size.",c_fold:"A tidy, predictable folder structure that drops straight into your project.",c_soon:"NATIVE EXPORT ON THE ROADMAP",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"CONTROLS",ks4:"METERS & TIMERS",ks5:"HUD & PLAYER",ks6:"BIG PIECES",
+cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.*",compatLbl:"Plays nice with your stack",compatTitle:"Lands in the tools you already use.",c_rest:"Roll over a logo — here's how your kit lands there.",c_svg:"Clean SVG vectors import as fully editable paths — every component and state, named and grouped.",c_png:"Crisp transparent PNGs at 1× and 2×, cut per component and state.",c_html:"A live kit.html + kit.css — open it, inspect it, or lift the styles wholesale.",c_json:"An engine-ready JSON manifest that maps every piece, state, and size.",c_fold:"A tidy, predictable folder structure that drops straight into your project.",c_soon:"NATIVE EXPORT ON THE ROADMAP",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"CONTROLS",ks4:"METERS & TIMERS",ks5:"HUD & PLAYER",ks6:"BIG PIECES",ks7:"NEW FROM THE ENGINE",
 fKit:"KIT READY",fBoard:"BOARD READY",bdCall1:"TEST YOUR DESIGNS",bdCall2:"See it in context — your kit, over real screens.",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
@@ -1179,7 +1188,7 @@ n1:"<b>第 1 步 · 母版。</b>设定 DNA——颜色、形状、光泽、图�
 n2:"<b>第 2 步 · 你的组件库。</b>一次点击生成全部——每个组件都继承母版，包含所有状态。",
 n3:"<b>第 3 步 · 画板。</b><b>上传你自己的图片</b>——任意画面或概念图——拖入组件、调暗背景，画板想建几块就建几块，每块都能导出或分享。",
 n4:"<b>已导出！</b>完整流程走完了——母版 → 组件库 → 画板 → 文件。去正式版试试吧。",
-cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。*",compatLbl:"兼容你的工作流",compatTitle:"直接落地到你常用的工具。",c_rest:"将鼠标悬停在图标上,查看套件如何进入该工具。",c_svg:"干净的 SVG 矢量可直接导入并完全编辑 — 每个组件和状态都已命名分组。",c_png:"清晰的透明 PNG(1× 与 2×),按组件和状态切分。",c_html:"附带可运行的 kit.html 与 kit.css — 可直接打开、检查或整体套用样式。",c_json:"引擎可用的 JSON 清单,映射每个组件、状态和尺寸。",c_fold:"整洁可预期的文件夹结构,可直接放入项目。",c_soon:"原生导出即将推出",ks1:"按钮",ks2:"界面",ks3:"控件",ks4:"仪表与计时",ks5:"HUD与玩家",ks6:"大型组件",
+cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。*",compatLbl:"兼容你的工作流",compatTitle:"直接落地到你常用的工具。",c_rest:"将鼠标悬停在图标上,查看套件如何进入该工具。",c_svg:"干净的 SVG 矢量可直接导入并完全编辑 — 每个组件和状态都已命名分组。",c_png:"清晰的透明 PNG(1× 与 2×),按组件和状态切分。",c_html:"附带可运行的 kit.html 与 kit.css — 可直接打开、检查或整体套用样式。",c_json:"引擎可用的 JSON 清单,映射每个组件、状态和尺寸。",c_fold:"整洁可预期的文件夹结构,可直接放入项目。",c_soon:"原生导出即将推出",ks1:"按钮",ks2:"界面",ks3:"控件",ks4:"仪表与计时",ks5:"HUD与玩家",ks6:"大型组件",ks7:"引擎新组件",
 fKit:"组件库就绪",fBoard:"画板就绪",bdCall1:"检验你的设计",bdCall2:"在真实画面中查看你的套件效果。",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
@@ -1222,7 +1231,7 @@ n1:"<b>Étape 1 · Le master.</b> Définissez l’ADN — couleur, forme, brilla
 n2:"<b>Étape 2 · Votre kit.</b> Un clic a tout construit — chaque pièce hérite du master, états compris.",
 n3:"<b>Étape 3 · Le board.</b> <b>Importez votre propre image</b> — écran ou concept — glissez vos pièces, tamisez le fond, créez autant de boards que voulu. Exportez ou partagez chacun.",
 n4:"<b>Exporté !</b> La boucle est bouclée — master → kit → board → fichiers. À vous de jouer.",
-cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.*",compatLbl:"Compatible avec vos outils",compatTitle:"Atterrit dans les outils que vous utilisez déjà.",c_rest:"Survolez un logo — voici comment votre kit y atterrit.",c_svg:"Des vecteurs SVG propres, entièrement éditables — chaque composant et état, nommé et groupé.",c_png:"Des PNG transparents et nets en 1× et 2×, découpés par composant et par état.",c_html:"Un kit.html + kit.css vivants — à ouvrir, inspecter ou réutiliser tels quels.",c_json:"Un manifeste JSON prêt pour le moteur, qui répertorie chaque pièce, état et taille.",c_fold:"Une arborescence propre et prévisible, à glisser directement dans votre projet.",c_soon:"EXPORT NATIF SUR LA ROADMAP",ks1:"BOUTONS",ks2:"INTERFACE",ks3:"CONTRÔLES",ks4:"JAUGES & CHRONOS",ks5:"HUD & JOUEUR",ks6:"GRANDES PIÈCES",
+cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.*",compatLbl:"Compatible avec vos outils",compatTitle:"Atterrit dans les outils que vous utilisez déjà.",c_rest:"Survolez un logo — voici comment votre kit y atterrit.",c_svg:"Des vecteurs SVG propres, entièrement éditables — chaque composant et état, nommé et groupé.",c_png:"Des PNG transparents et nets en 1× et 2×, découpés par composant et par état.",c_html:"Un kit.html + kit.css vivants — à ouvrir, inspecter ou réutiliser tels quels.",c_json:"Un manifeste JSON prêt pour le moteur, qui répertorie chaque pièce, état et taille.",c_fold:"Une arborescence propre et prévisible, à glisser directement dans votre projet.",c_soon:"EXPORT NATIF SUR LA ROADMAP",ks1:"BOUTONS",ks2:"INTERFACE",ks3:"CONTRÔLES",ks4:"JAUGES & CHRONOS",ks5:"HUD & JOUEUR",ks6:"GRANDES PIÈCES",ks7:"NOUVEAUTÉS DU MOTEUR",
 fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",bdCall1:"TESTEZ VOS DESIGNS",bdCall2:"Voyez-le en contexte — votre kit sur de vrais écrans.",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
@@ -1265,7 +1274,7 @@ n1:"<b>Paso 1 · El master.</b> Define el ADN — color, forma, brillo, patrón.
 n2:"<b>Paso 2 · Tu kit.</b> Un clic lo construyó todo — cada pieza hereda tu master, estados incluidos.",
 n3:"<b>Paso 3 · El board.</b> <b>Sube tu propia imagen</b> — pantalla o concept — arrastra piezas, atenúa el fondo y crea todos los boards que quieras. Exporta o comparte cada uno.",
 n4:"<b>¡Exportado!</b> El ciclo completo — master → kit → board → archivos. Ahora hazlo de verdad.",
-cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.*",compatLbl:"Compatible con tus herramientas",compatTitle:"Aterriza en las herramientas que ya usas.",c_rest:"Pasa el cursor por un logo — así llega tu kit.",c_svg:"Vectores SVG limpios y totalmente editables — cada componente y estado, nombrado y agrupado.",c_png:"PNG transparentes y nítidos en 1× y 2×, cortados por componente y estado.",c_html:"Un kit.html + kit.css vivos — ábrelo, inspecciónalo o reutiliza los estilos.",c_json:"Un manifiesto JSON listo para el motor que mapea cada pieza, estado y tamaño.",c_fold:"Una estructura de carpetas limpia y predecible que entra directa en tu proyecto.",c_soon:"EXPORTACIÓN NATIVA EN CAMINO",ks1:"BOTONES",ks2:"INTERFAZ",ks3:"CONTROLES",ks4:"MEDIDORES Y TIEMPO",ks5:"HUD Y JUGADOR",ks6:"PIEZAS GRANDES",
+cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.*",compatLbl:"Compatible con tus herramientas",compatTitle:"Aterriza en las herramientas que ya usas.",c_rest:"Pasa el cursor por un logo — así llega tu kit.",c_svg:"Vectores SVG limpios y totalmente editables — cada componente y estado, nombrado y agrupado.",c_png:"PNG transparentes y nítidos en 1× y 2×, cortados por componente y estado.",c_html:"Un kit.html + kit.css vivos — ábrelo, inspecciónalo o reutiliza los estilos.",c_json:"Un manifiesto JSON listo para el motor que mapea cada pieza, estado y tamaño.",c_fold:"Una estructura de carpetas limpia y predecible que entra directa en tu proyecto.",c_soon:"EXPORTACIÓN NATIVA EN CAMINO",ks1:"BOTONES",ks2:"INTERFAZ",ks3:"CONTROLES",ks4:"MEDIDORES Y TIEMPO",ks5:"HUD Y JUGADOR",ks6:"PIEZAS GRANDES",ks7:"NUEVO DEL MOTOR",
 fKit:"KIT LISTO",fBoard:"BOARD LISTO",bdCall1:"PRUEBA TUS DISEÑOS",bdCall2:"Míralo en contexto — tu kit sobre pantallas reales.",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
@@ -1308,7 +1317,7 @@ n1:"<b>Passo 1 · Il master.</b> Definisci il DNA — colore, forma, lucentezza,
 n2:"<b>Passo 2 · Il tuo kit.</b> Un clic ha costruito tutto — ogni pezzo eredita il master, stati compresi.",
 n3:"<b>Passo 3 · La board.</b> <b>Carica la tua immagine</b> — schermata o concept — trascina i pezzi, attenua lo sfondo e crea quante board vuoi. Esporta o condividi ognuna.",
 n4:"<b>Esportato!</b> Il giro completo — master → kit → board → file. Ora fallo davvero.",
-cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.*",compatLbl:"Compatibile con i tuoi strumenti",compatTitle:"Arriva negli strumenti che già usi.",c_rest:"Passa su un logo — ecco come arriva il tuo kit.",c_svg:"Vettori SVG puliti e completamente modificabili — ogni componente e stato, nominato e raggruppato.",c_png:"PNG trasparenti e nitidi in 1× e 2×, tagliati per componente e stato.",c_html:"Un kit.html + kit.css dal vivo — aprilo, ispezionalo o riusa gli stili.",c_json:"Un manifest JSON pronto per l'engine che mappa ogni pezzo, stato e dimensione.",c_fold:"Una struttura di cartelle ordinata e prevedibile, pronta per il tuo progetto.",c_soon:"EXPORT NATIVO IN ARRIVO",ks1:"PULSANTI",ks2:"INTERFACCIA",ks3:"CONTROLLI",ks4:"INDICATORI E TIMER",ks5:"HUD E GIOCATORE",ks6:"PEZZI GRANDI",
+cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.*",compatLbl:"Compatibile con i tuoi strumenti",compatTitle:"Arriva negli strumenti che già usi.",c_rest:"Passa su un logo — ecco come arriva il tuo kit.",c_svg:"Vettori SVG puliti e completamente modificabili — ogni componente e stato, nominato e raggruppato.",c_png:"PNG trasparenti e nitidi in 1× e 2×, tagliati per componente e stato.",c_html:"Un kit.html + kit.css dal vivo — aprilo, ispezionalo o riusa gli stili.",c_json:"Un manifest JSON pronto per l'engine che mappa ogni pezzo, stato e dimensione.",c_fold:"Una struttura di cartelle ordinata e prevedibile, pronta per il tuo progetto.",c_soon:"EXPORT NATIVO IN ARRIVO",ks1:"PULSANTI",ks2:"INTERFACCIA",ks3:"CONTROLLI",ks4:"INDICATORI E TIMER",ks5:"HUD E GIOCATORE",ks6:"PEZZI GRANDI",ks7:"NOVITÀ DAL MOTORE",
 fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",bdCall1:"TESTA I TUOI DESIGN",bdCall2:"Guardalo nel contesto — il tuo kit su schermi reali.",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
@@ -1351,7 +1360,7 @@ n1:"<b>Schritt 1 · Der Master.</b> Leg die DNA fest — Farbe, Form, Glanz, Mus
 n2:"<b>Schritt 2 · Dein Kit.</b> Ein Klick hat all das gebaut — jedes Teil erbt deinen Master, Zustände inklusive.",
 n3:"<b>Schritt 3 · Das Board.</b> <b>Lade dein eigenes Bild hoch</b> — Screenshot oder Konzept — zieh Teile darauf, dimme den Hintergrund und leg so viele Boards an, wie du brauchst. Jedes lässt sich exportieren oder teilen.",
 n4:"<b>Exportiert!</b> Das war der ganze Loop — Master → Kit → Board → Dateien. Jetzt mach es richtig.",
-cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.*",compatLbl:"Spielt mit deinem Stack",compatTitle:"Landet in den Tools, die du schon nutzt.",c_rest:"Fahre über ein Logo — so landet dein Kit dort.",c_svg:"Saubere SVG-Vektoren, voll editierbar — jede Komponente und jeder State, benannt und gruppiert.",c_png:"Gestochen scharfe transparente PNGs in 1× und 2×, geschnitten pro Komponente und State.",c_html:"Ein lebendes kit.html + kit.css — öffnen, inspizieren oder Styles direkt übernehmen.",c_json:"Ein engine-fertiges JSON-Manifest, das jedes Teil, jeden State und jede Größe abbildet.",c_fold:"Eine aufgeräumte, vorhersehbare Ordnerstruktur, die direkt ins Projekt fällt.",c_soon:"NATIVER EXPORT GEPLANT",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"STEUERUNG",ks4:"ANZEIGEN & TIMER",ks5:"HUD & SPIELER",ks6:"GROSSE TEILE",
+cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.*",compatLbl:"Spielt mit deinem Stack",compatTitle:"Landet in den Tools, die du schon nutzt.",c_rest:"Fahre über ein Logo — so landet dein Kit dort.",c_svg:"Saubere SVG-Vektoren, voll editierbar — jede Komponente und jeder State, benannt und gruppiert.",c_png:"Gestochen scharfe transparente PNGs in 1× und 2×, geschnitten pro Komponente und State.",c_html:"Ein lebendes kit.html + kit.css — öffnen, inspizieren oder Styles direkt übernehmen.",c_json:"Ein engine-fertiges JSON-Manifest, das jedes Teil, jeden State und jede Größe abbildet.",c_fold:"Eine aufgeräumte, vorhersehbare Ordnerstruktur, die direkt ins Projekt fällt.",c_soon:"NATIVER EXPORT GEPLANT",ks1:"BUTTONS",ks2:"INTERFACE",ks3:"STEUERUNG",ks4:"ANZEIGEN & TIMER",ks5:"HUD & SPIELER",ks6:"GROSSE TEILE",ks7:"NEU AUS DER ENGINE",
 fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",bdCall1:"TESTE DEINE DESIGNS",bdCall2:"Sieh es im Kontext — dein Kit auf echten Screens.",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
@@ -1394,7 +1403,7 @@ n1:"<b>ステップ1 · マスター。</b>DNAを設定 — 色・形・ツヤ�
 n2:"<b>ステップ2 · あなたのキット。</b>ワンクリックで全部完成 — 各パーツがマスターを継承、ステートも込み。",
 n3:"<b>ステップ3 · ボード。</b><b>自分の画像をアップロード</b> — 画面でもコンセプトでも — パーツをドラッグし、背景を調光。ボードは何枚でも作れて、それぞれ書き出し・共有できます。",
 n4:"<b>書き出し完了！</b>これで一巡 — マスター → キット → ボード → ファイル。次は本番でどうぞ。",
-cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。*",compatLbl:"あなたのツールと連携",compatTitle:"いつものツールに、そのまま届く。",c_rest:"ロゴにカーソルを合わせると、キットの取り込み方法が表示されます。",c_svg:"クリーンな SVG ベクターを完全編集可能なまま読み込み — 全コンポーネント・全ステートが命名済み。",c_png:"透過 PNG を 1×/2× で書き出し。コンポーネント・ステートごとに分割済み。",c_html:"動く kit.html + kit.css 付き。開いて確認、そのままスタイルの流用も。",c_json:"全パーツ・ステート・サイズを網羅したエンジン対応 JSON マニフェスト。",c_fold:"整理されたフォルダ構造で、プロジェクトへそのまま投入可能。",c_soon:"ネイティブ書き出しは今後対応",ks1:"ボタン",ks2:"インターフェース",ks3:"コントロール",ks4:"メーターとタイマー",ks5:"HUDとプレイヤー",ks6:"ラージピース",
+cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。*",compatLbl:"あなたのツールと連携",compatTitle:"いつものツールに、そのまま届く。",c_rest:"ロゴにカーソルを合わせると、キットの取り込み方法が表示されます。",c_svg:"クリーンな SVG ベクターを完全編集可能なまま読み込み — 全コンポーネント・全ステートが命名済み。",c_png:"透過 PNG を 1×/2× で書き出し。コンポーネント・ステートごとに分割済み。",c_html:"動く kit.html + kit.css 付き。開いて確認、そのままスタイルの流用も。",c_json:"全パーツ・ステート・サイズを網羅したエンジン対応 JSON マニフェスト。",c_fold:"整理されたフォルダ構造で、プロジェクトへそのまま投入可能。",c_soon:"ネイティブ書き出しは今後対応",ks1:"ボタン",ks2:"インターフェース",ks3:"コントロール",ks4:"メーターとタイマー",ks5:"HUDとプレイヤー",ks6:"ラージピース",ks7:"エンジンの新パーツ",
 fKit:"キット完成",fBoard:"ボード完成",bdCall1:"デザインをテスト",bdCall2:"実際の画面の上でキットを確認 — 文脈の中で見る。",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
@@ -1630,33 +1639,45 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
             ret.addEventListener("pointerup", drop);
             ret.addEventListener("pointercancel", drop);
           }
-          /* the corner joystick flies the same reticle — deflection is velocity */
-          let stickX = 0, stickY = 0, stickOn = false;
+          /* the corner stick is the trigger — press to fire, hold for autofire */
+          const bolts = [], impacts = [];
+          let hitT = 0;
           const stick = document.querySelector(".hud-stick");
-          const knob = stick ? stick.querySelector("i") : null;
-          if (stick && knob) {
-            const moveStick = (ev) => {
-              const r = stick.getBoundingClientRect();
-              let dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
-              const max = r.width * 0.32, len = Math.hypot(dx, dy) || 1;
-              if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-              stickX = dx / max; stickY = dy / max;
-              knob.style.transform = "translate(" + dx + "px, " + dy + "px)";
+          const ammoB = document.querySelector(".hud-ammo b");
+          if (stick) {
+            const fireOnce = () => {
+              if (ammoB && (parseInt(ammoB.textContent, 10) || 0) <= 0) return;
+              const w = cv.offsetWidth, h = cv.offsetHeight;
+              if (w && !reduceMotion) {
+                const tx = w * retX, ty = h * retY;
+                bolts.push({ sx: w * 0.14, sy: h + 8, tx, ty, t: 0 });
+                bolts.push({ sx: w * 0.86, sy: h + 8, tx, ty, t: 0 });
+              } else if (ret) {
+                ret.classList.add("is-hit");
+                clearTimeout(hitT); hitT = setTimeout(() => ret.classList.remove("is-hit"), 150);
+              }
+              if (ammoB) {
+                const v2 = parseInt(ammoB.textContent, 10) || 0;
+                ammoB.textContent = Math.max(0, v2 - 1);
+                if (v2 <= 1) {
+                  const wrap = ammoB.parentElement;
+                  wrap.classList.add("is-dry");
+                  setTimeout(() => { wrap.classList.remove("is-dry"); ammoB.textContent = "24"; }, 700);
+                }
+              }
             };
+            let fireTimer = 0;
             stick.addEventListener("pointerdown", (ev) => {
               ev.preventDefault();
-              stickOn = true; stick.classList.add("is-live");
+              stick.classList.add("is-fire");
               try { stick.setPointerCapture(ev.pointerId); } catch (_) {}
-              moveStick(ev);
+              fireOnce();
+              clearInterval(fireTimer);
+              fireTimer = setInterval(fireOnce, 150);
             });
-            stick.addEventListener("pointermove", (ev) => { if (stickOn) moveStick(ev); });
-            const dropStick = () => {
-              stickOn = false; stickX = 0; stickY = 0;
-              stick.classList.remove("is-live");
-              knob.style.transform = "";
-            };
-            stick.addEventListener("pointerup", dropStick);
-            stick.addEventListener("pointercancel", dropStick);
+            const holdFire = () => { stick.classList.remove("is-fire"); clearInterval(fireTimer); };
+            stick.addEventListener("pointerup", holdFire);
+            stick.addEventListener("pointercancel", holdFire);
           }
           const fit = () => { const w = cv.offsetWidth, h = cv.offsetHeight;
             const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1678,12 +1699,6 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
               if (!cv.isConnected) { io.disconnect(); return; }
               const [w, h] = fit();
               if (!w) { requestAnimationFrame(step2); return; }
-              if (stickOn && ret) {
-                retX = Math.min(.92, Math.max(.08, retX + stickX * 0.014));
-                retY = Math.min(.86, Math.max(.12, retY + stickY * 0.012));
-                ret.style.left = (retX * 100) + "%";
-                ret.style.top = (retY * 100) + "%";
-              }
               cx2d.clearRect(0, 0, w, h);
               const cx = w * retX, cy = h * retY, f = Math.min(w, h) * .9;
               speed += ((held ? WARP : CRUISE) - speed) * (held ? 0.1 : 0.012);
@@ -1699,6 +1714,38 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                 cx2d.lineWidth = Math.min(2.4, (1 - st.z) * 2 + .5);
                 cx2d.beginPath(); cx2d.moveTo(x1, y1); cx2d.lineTo(x2, y2); cx2d.stroke();
               }
+              for (let i3 = bolts.length - 1; i3 >= 0; i3--) {
+                const b3 = bolts[i3];
+                b3.t += 0.09;
+                if (b3.t >= 1) {
+                  impacts.push({ x: b3.tx, y: b3.ty, t: 0 });
+                  if (ret) { ret.classList.add("is-hit");
+                    clearTimeout(hitT); hitT = setTimeout(() => ret.classList.remove("is-hit"), 140); }
+                  bolts.splice(i3, 1); continue;
+                }
+                const bx2 = b3.sx + (b3.tx - b3.sx) * b3.t, by2 = b3.sy + (b3.ty - b3.sy) * b3.t;
+                const t0 = Math.max(0, b3.t - .16);
+                const bx1 = b3.sx + (b3.tx - b3.sx) * t0, by1 = b3.sy + (b3.ty - b3.sy) * t0;
+                cx2d.strokeStyle = "rgba(240, 171, 252, .35)"; cx2d.lineWidth = 7;
+                cx2d.beginPath(); cx2d.moveTo(bx1, by1); cx2d.lineTo(bx2, by2); cx2d.stroke();
+                cx2d.strokeStyle = "rgba(232, 121, 249, .9)"; cx2d.lineWidth = 3.5;
+                cx2d.beginPath(); cx2d.moveTo(bx1, by1); cx2d.lineTo(bx2, by2); cx2d.stroke();
+                cx2d.strokeStyle = "rgba(255, 255, 255, .95)"; cx2d.lineWidth = 1.6;
+                cx2d.beginPath(); cx2d.moveTo(bx1, by1); cx2d.lineTo(bx2, by2); cx2d.stroke();
+                if (b3.t < .18) { cx2d.fillStyle = "rgba(240, 171, 252, .55)";
+                  cx2d.beginPath(); cx2d.arc(b3.sx, b3.sy, 7, 0, 7); cx2d.fill(); }
+              }
+              for (let i3 = impacts.length - 1; i3 >= 0; i3--) {
+                const im = impacts[i3];
+                im.t += 0.08;
+                if (im.t >= 1) { impacts.splice(i3, 1); continue; }
+                const a2 = 1 - im.t;
+                cx2d.strokeStyle = "rgba(240, 171, 252, " + (a2 * .8).toFixed(2) + ")";
+                cx2d.lineWidth = 2 * a2 + .5;
+                cx2d.beginPath(); cx2d.arc(im.x, im.y, 5 + im.t * 30, 0, 7); cx2d.stroke();
+                if (im.t < .3) { cx2d.fillStyle = "rgba(255, 255, 255, " + ((0.3 - im.t) * 2.4).toFixed(2) + ")";
+                  cx2d.beginPath(); cx2d.arc(im.x, im.y, 4, 0, 7); cx2d.fill(); }
+              }
               requestAnimationFrame(step2);
             };
             requestAnimationFrame(step2);
@@ -1707,36 +1754,72 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
       } catch (err) { console.warn("starfield", err); }
       /* compat garden: brand-colored wordmark tiles; hover pauses + explains */
       try {
+        const CP = {
+          unity: "m12.9288 4.2939 3.7997 2.1929c.1366.077.1415.2905 0 .3675l-4.515 2.6076a.4192.4192 0 0 1-.4246 0L7.274 6.8543c-.139-.0745-.1415-.293 0-.3675l3.7972-2.193V0L1.3758 5.5977V16.793l3.7177-2.1456v-4.3858c-.0025-.1565.1813-.2682.318-.1838l4.5148 2.6076a.4252.4252 0 0 1 .2136.3676v5.2127c.0025.1565-.1813.2682-.3179.1838l-3.7996-2.1929-3.7178 2.1457L12 24l9.6954-5.5977-3.7178-2.1457-3.7996 2.1929c-.1341.082-.3229-.0248-.3179-.1838V13.053c0-.1565.087-.2956.2136-.3676l4.5149-2.6076c.134-.082.3228.0224.3179.1838v4.3858l3.7177 2.1456V5.5977L12.9288 0Z",
+          unrealengine: "M12 0a12 12 0 1012 12A12 12 0 0012 0zm0 23.52A11.52 11.52 0 1123.52 12 11.52 11.52 0 0112 23.52zm7.13-9.791c-.206.997-1.126 3.557-4.06 4.942l-1.179-1.325-1.988 2a7.338 7.338 0 01-5.804-2.978 2.859 2.859 0 00.65.123c.326.006.678-.114.678-.66v-5.394a.89.89 0 00-1.116-.89c-.92.212-1.656 2.509-1.656 2.509a7.304 7.304 0 012.528-5.597 7.408 7.408 0 013.73-1.721c-1.006.573-1.57 1.507-1.57 2.29 0 1.262.76 1.109.984.923v7.28a1.157 1.157 0 00.148.256 1.075 1.075 0 00.88.445c.76 0 1.747-.868 1.747-.868V9.172c0-.6-.452-1.324-.905-1.572 0 0 .838-.149 1.484.346a5.537 5.537 0 01.387-.425c1.508-1.48 2.929-1.902 4.112-2.112 0 0-2.151 1.69-2.151 3.96 0 1.687.043 5.801.043 5.801.799.771 1.986-.342 3.059-1.441Z",
+          godotengine: "M9.5598.683c-1.096.244-2.1812.5831-3.1983 1.0951.023.8981.081 1.7582.199 2.6323-.395.253-.81.47-1.178.766-.375.288-.7581.564-1.0971.9011-.6781-.448-1.3962-.869-2.1352-1.2411C1.3532 5.6934.608 6.6186 0 7.6546c.458.7411.936 1.4352 1.4521 2.0942h.014v6.3565c.012 0 .023 0 .035.003l3.8963.376c.204.02.364.184.378.3891l.12 1.7201 3.3994.242.234-1.587c.03-.206.207-.358.415-.358h4.1114c.208 0 .385.152.415.358l.234 1.587 3.3993-.242.12-1.72a.4196.4196 0 01.378-.3891l3.8954-.376c.012 0 .023-.003.035-.003v-.5071h.002V9.7498h.014c.516-.659.994-1.3531 1.4521-2.0942-.608-1.036-1.3541-1.9611-2.1512-2.8192-.739.372-1.4571.793-2.1352 1.2411-.339-.337-.721-.613-1.096-.901-.369-.296-.7841-.5131-1.1781-.7661.117-.8741.175-1.7342.199-2.6323-1.0171-.512-2.1012-.851-3.1983-1.095-.438.736-.838 1.533-1.1871 2.3121-.414-.069-.829-.094-1.2461-.099h-.016c-.417.005-.832.03-1.2461.099-.349-.779-.749-1.576-1.1881-2.3121l.001-.001zM6.4765 9.9889c1.2971 0 2.3492 1.0511 2.3492 2.3482s-1.052 2.3482-2.3492 2.3482c-1.296 0-2.3482-1.051-2.3482-2.3482 0-1.297 1.0511-2.3482 2.3482-2.3482zm11.049 0c1.296 0 2.3482 1.0511 2.3482 2.3482s-1.0511 2.3482-2.3482 2.3482-2.3492-1.051-2.3492-2.3482c0-1.297 1.051-2.3482 2.3492-2.3482zm-10.824.9301c-.861 0-1.559.698-1.559 1.5591s.698 1.5582 1.559 1.5582c.8611 0 1.5592-.698 1.5592-1.5582 0-.86-.697-1.559-1.5591-1.559zm10.598 0c-.8611 0-1.5582.698-1.5582 1.5591s.697 1.5582 1.5581 1.5582c.8611 0 1.5592-.698 1.5592-1.5582 0-.86-.697-1.559-1.5592-1.559zm-5.2985.453c.417 0 .757.308.757.6871v2.1622c0 .379-.339.687-.757.687s-.756-.308-.756-.687V12.059c0-.379.339-.687.756-.687zM1.4601 16.9464c.002.377.006.789.006.871 0 3.7014 4.6944 5.4795 10.5269 5.5005h.014c5.8325-.02 10.5259-1.7991 10.5259-5.5004 0-.084.005-.495.007-.871l-3.5023.338-.121 1.729a.421.421 0 01-.389.3901l-4.1814.296a.4203.4203 0 01-.415-.358l-.238-1.6141h-3.3863l-.238 1.6141a.4192.4192 0 01-.4451.357l-4.1513-.296c-.208-.015-.375-.181-.389-.389l-.12-1.7292-3.5044-.337z",
+          gamemaker: "M.012 11.994 12.006 0l11.982 12.006h-6.831l-5.163-5.151-5.151 5.151 5.163 5.151v-5.151h5.151v6.903L12.006 24z",
+          construct3: "M12.392 0c-6.752 0-12 5.498-12 12 0 6.574 5.313 12 12 12 4.283 0 8.087-2.254 10.217-5.704a.571.571 0 0 0-.2-.795l-5.55-3.204a.572.572 0 0 0-.76.177 4.453 4.453 0 0 1-3.707 1.983c-2.458 0-4.458-2-4.458-4.457 0-2.458 2-4.457 4.458-4.457 1.491 0 2.877.741 3.707 1.983a.571.571 0 0 0 .76.177l5.55-3.204a.571.571 0 0 0 .2-.795A11.998 11.998 0 0 0 12.392 0zm0 3.527c3.048 0 5.72 1.61 7.213 4.026l-2.99 1.726c-.037.021-.085.013-.108-.026a4.942 4.942 0 0 0-4.115-2.2A4.953 4.953 0 0 0 7.445 12c0 .9.241 1.745.663 2.473l-2.342 1.353a.327.327 0 0 0-.112.458 7.977 7.977 0 0 0 6.738 3.7 7.978 7.978 0 0 0 6.789-3.781l2.983 1.722a.08.08 0 0 1 .028.113 11.447 11.447 0 0 1-9.8 5.472C6.045 23.51.882 18.346.882 12c0-2.095.562-4.06 1.544-5.754l2.35 1.356c.15.088.345.04.439-.11a8.467 8.467 0 0 1 7.177-3.966zM22.965 8.95a.666.666 0 0 0-.336.088l-4.149 2.395a.654.654 0 0 0 0 1.131l4.149 2.396c.434.25.98-.064.98-.566v-4.79a.655.655 0 0 0-.644-.654zm-.663 1.785v2.528L20.112 12z",
+          robloxstudio: "M 13.936 15.356 L 1.826 12.112 L 0 18.93 L 18.928 24 L 21.608 14.01 L 14.79 12.18 L 13.936 15.356 Z M 5.072 0 L 2.394 9.992 L 9.21 11.822 L 10.064 8.644 L 22.174 11.89 L 24 5.072 L 5.072 0 Z",
+          aseprite: "M4.006 0v1.6h15.988V0zm15.988 1.6v1.6h1.6V1.6zm1.6 1.6v14.4h-1.6v1.6H4.006v-1.6h-1.6V3.2H.809v17.6h1.599v1.6h1.599V24h15.988v-1.6h1.6v-1.6h1.598V3.2zm-19.187 0h1.599V1.6h-1.6zm4.796 3.2v6.4h1.6V6.4zm7.995 0v6.4h1.599V6.4z",
+          figma: "M15.852 8.981h-4.588V0h4.588c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.491-4.49 4.491zM12.735 7.51h3.117c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-3.117V7.51zm0 1.471H8.148c-2.476 0-4.49-2.014-4.49-4.49S5.672 0 8.148 0h4.588v8.981zm-4.587-7.51c-1.665 0-3.019 1.355-3.019 3.019s1.354 3.02 3.019 3.02h3.117V1.471H8.148zm4.587 15.019H8.148c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h4.588v8.98zM8.148 8.981c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h3.117V8.981H8.148zM8.172 24c-2.489 0-4.515-2.014-4.515-4.49s2.014-4.49 4.49-4.49h4.588v4.441c0 2.503-2.047 4.539-4.563 4.539zm-.024-7.51a3.023 3.023 0 0 0-3.019 3.019c0 1.665 1.365 3.019 3.044 3.019 1.705 0 3.093-1.376 3.093-3.068v-2.97H8.148zm7.704 0h-.098c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h.098c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.49-4.49 4.49zm-.097-7.509c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h.098c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-.098z",
+          penpot: "M7.654 0 5.13 3.554v2.01L2.934 6.608l-.02-.009v13.109l8.563 4.045L12 24l.523-.247 8.563-4.045V6.6l-.017.008-2.196-1.045V3.555l-.077-.108L16.349.001l-2.524 3.554v.004L11.989.973l-1.823 2.566-.065-.091zm.447 2.065.976 1.374H6.232l.964-1.358zm8.694 0 .976 1.374h-2.845l.965-1.358zm-4.36.971.976 1.375h-2.845l.965-1.359zM5.962 4.132h1.35v4.544l-1.35-.638Zm2.042 0h1.343v5.506l-1.343-.635zm6.652 0h1.35V9l-1.35.637V4.132zm2.042 0h1.343v3.905l-1.343.634zm-6.402.972h1.35v5.62l-1.35-.638zm2.042 0h1.343v4.993l-1.343.634zm6.534 1.493 1.188.486-1.188.561zM5.13 6.6v1.047l-1.187-.561ZM3.96 8.251l7.517 3.55v10.795l-7.516-3.55zm16.08 0v10.794l-7.517 3.55V11.802z",
+          sketch: "M12 1.25l6.75 6.637V2L12 1.25zm0 0l-6.05 7h12.1l-6.05-7zm0 0L5.25 2v5.887L12 1.25zM5.25 2L0 9l4.416-.68L5.25 2zM0 9l11.959 13.703.008-.014L4.443 9H0zm18.75-7l.834 6.32L24 9l-5.25-7zM24 9h-4.506l-7.523 13.69.029.06L24 9zM12 22.75l-.031-.057-.008.012.039.045zM5.436 9l6.533 13.686L18.564 9H5.436Z",
+          blender: "M12.51 13.214c.046-.8.438-1.506 1.03-2.006a3.424 3.424 0 0 1 2.212-.79c.85 0 1.631.3 2.211.79.592.5.983 1.206 1.028 2.005.045.823-.285 1.586-.865 2.153a3.389 3.389 0 0 1-2.374.938 3.393 3.393 0 0 1-2.376-.938c-.58-.567-.91-1.33-.865-2.152M7.35 14.831c.006.314.106.922.256 1.398a7.372 7.372 0 0 0 1.593 2.757 8.227 8.227 0 0 0 2.787 2.001 8.947 8.947 0 0 0 3.66.76 8.964 8.964 0 0 0 3.657-.772 8.285 8.285 0 0 0 2.785-2.01 7.428 7.428 0 0 0 1.592-2.762 6.964 6.964 0 0 0 .25-3.074 7.123 7.123 0 0 0-1.016-2.779 7.764 7.764 0 0 0-1.852-2.043h.002L13.566 2.55l-.02-.015c-.492-.378-1.319-.376-1.86.002-.547.382-.609 1.015-.123 1.415l-.001.001 3.126 2.543-9.53.01h-.013c-.788.001-1.545.518-1.695 1.172-.154.665.38 1.217 1.2 1.22V8.9l4.83-.01-8.62 6.617-.034.025c-.813.622-1.075 1.658-.563 2.313.52.667 1.625.668 2.447.004L7.414 14s-.069.52-.063.831zm12.09 1.741c-.97.988-2.326 1.548-3.795 1.55-1.47.004-2.827-.552-3.797-1.538a4.51 4.51 0 0 1-1.036-1.622 4.282 4.282 0 0 1 .282-3.519 4.702 4.702 0 0 1 1.153-1.371c.942-.768 2.141-1.183 3.396-1.185 1.256-.002 2.455.41 3.398 1.175.48.391.87.854 1.152 1.367a4.28 4.28 0 0 1 .522 1.706 4.236 4.236 0 0 1-.239 1.811 4.54 4.54 0 0 1-1.035 1.626",
+          krita: "M.652.76a.625.625 0 00-.5.246c-.352.448-.035.898.362 1.262.206.189 1.77 1.794 3.428 3.527a11.054 11.054 0 011.815-1.983C3.667 2.515 1.694 1.266 1.461 1.1 1.201.914.917.762.652.76zm5.105 3.052c1.848 1.148 3.786 2.332 4.693 2.84 1.469.821 3.758 2.684 4.092 4.434.535.466 2.182 1.916 2.596 2.413.698-.211 1.518.133 2.06 1.12.866 1.583.227 3.747-1.968 4.988a5.42 5.42 0 01-.296.267l.296-.267c1.14-1.468-.714-2.44-1.175-3.864a2.06 2.06 0 01-.11-.78c-.533-.282-2.11-1.452-2.795-1.965-1.801.16-4.207-1.773-5.35-3.08-.7-.802-2.32-2.517-3.858-4.123a11.052 11.052 0 00-2.046 6.393A11.052 11.052 0 1012.948 1.136c-2.64.004-5.19.954-7.19 2.676zm8.71 7.552c-.515.126-.968.831-1.118 1.306-.038.115-.04.303.066.342.802.592 1.556 1.168 2.4 1.7.162-.393.746-.963 1.096-1.2zm-11.53 1.639c.812 1.898 5.798 7.17 12.06 2.695a2.07 2.07 0 00.114.715c.46 1.42 2.36 2.427 1.238 3.89-2.135 1.364-5 1.201-6.989.528-3.558-1.204-5.914-4.332-6.424-7.828zm13.782.7a.771.771 0 00-.065.049c-.004.003-.008.008-.011.008.003-.003.007-.008.01-.008.024-.015.044-.034.066-.048z",
+          html5: "M1.5 0h21l-1.91 21.563L11.977 24l-8.564-2.438L1.5 0zm7.031 9.75l-.232-2.718 10.059.003.23-2.622L5.412 4.41l.698 8.01h9.126l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z",
+        };
+        /* [name, accent, icon, fragments, roadmap] — icon is ["p", path, color|"mono"]
+           for a real mark (Simple Icons set, CC0; marks stay their owners' trademarks,
+           shown nominatively) or ["b", letters, bg, ink] for brands not in the set */
         const CTOOLS = [
-          ["Unity", "#3e3e5e", "#16161f", "", ["c_json", "c_png", "c_fold"], 1],
-          ["Unreal Engine", "#2a2a2a", "#0a0a0a", "", ["c_json", "c_png", "c_fold"], 1],
-          ["Godot", "#478cbf", "#35618a", "", ["c_svg", "c_png", "c_fold"], 1],
-          ["GameMaker", "#8bc53f", "#55921e", "", ["c_png", "c_fold"], 0],
-          ["Construct 3", "#f4772e", "#c14e0e", "", ["c_png", "c_fold"], 0],
-          ["Roblox Studio", "#00a2ff", "#0063b1", "", ["c_png", "c_fold"], 0],
-          ["RPG Maker", "#8f6bd6", "#5d3fa0", "", ["c_png", "c_fold"], 0],
-          ["Aseprite", "#ff5277", "#b71f47", "", ["c_png", "c_fold"], 0],
-          ["Figma", "#f24e1e", "#a259ff", "", ["c_svg", "c_fold"], 0],
-          ["Penpot", "#31efb8", "#0e8f68", "#04241a", ["c_svg"], 0],
-          ["Sketch", "#fdb300", "#d98d00", "#241a00", ["c_svg"], 0],
-          ["Affinity", "#1f84d1", "#12558a", "", ["c_svg"], 0],
-          ["Photoshop", "#0b2740", "#05121f", "#31a8ff", ["c_png", "c_fold"], 0],
-          ["Illustrator", "#3d1f00", "#1f0e00", "#ff9a00", ["c_svg"], 0],
-          ["After Effects", "#1a1a3f", "#0b0b24", "#9999ff", ["c_svg", "c_png"], 0],
-          ["Blender", "#e87d0d", "#9c4f00", "", ["c_svg", "c_png"], 0],
-          ["Krita", "#3babff", "#1f6fb2", "", ["c_png"], 0],
-          ["HTML / CSS", "#e34f26", "#264de4", "", ["c_html", "c_svg"], 0],
+          ["Unity", "#9aa3c7", ["p", CP.unity, "mono"], ["c_json", "c_png", "c_fold"], 1],
+          ["Unreal Engine", "#8798c8", ["p", CP.unrealengine, "mono"], ["c_json", "c_png", "c_fold"], 1],
+          ["Godot", "#478cbf", ["p", CP.godotengine, "#478cbf"], ["c_svg", "c_png", "c_fold"], 1],
+          ["GameMaker", "#8bc53f", ["p", CP.gamemaker, "#8bc53f"], ["c_png", "c_fold"], 0],
+          ["Construct 3", "#00c3a5", ["p", CP.construct3, "#00c3a5"], ["c_png", "c_fold"], 0],
+          ["Roblox Studio", "#00a2ff", ["p", CP.robloxstudio, "#00a2ff"], ["c_png", "c_fold"], 0],
+          ["RPG Maker", "#8f6bd6", ["b", "RM", "#42287c", "#e9dcff"], ["c_png", "c_fold"], 0],
+          ["Aseprite", "#ff5277", ["p", CP.aseprite, "#7d929e"], ["c_png", "c_fold"], 0],
+          ["Figma", "#a259ff", ["p", CP.figma, "#f24e1e"], ["c_svg", "c_fold"], 0],
+          ["Penpot", "#31efb8", ["p", CP.penpot, "mono"], ["c_svg"], 0],
+          ["Sketch", "#fdb300", ["p", CP.sketch, "#f7b500"], ["c_svg"], 0],
+          ["Affinity", "#2f9ff3", ["b", "A", "#143c57", "#7cc4ff"], ["c_svg"], 0],
+          ["Photoshop", "#31a8ff", ["b", "Ps", "#001e36", "#31a8ff"], ["c_png", "c_fold"], 0],
+          ["Illustrator", "#ff9a00", ["b", "Ai", "#330000", "#ff9a00"], ["c_svg"], 0],
+          ["After Effects", "#9999ff", ["b", "Ae", "#00005b", "#9999ff"], ["c_svg", "c_png"], 0],
+          ["Blender", "#e87d0d", ["p", CP.blender, "#e87d0d"], ["c_svg", "c_png"], 0],
+          ["Krita", "#3babff", ["p", CP.krita, "#3babff"], ["c_png"], 0],
+          ["HTML / CSS", "#e34f26", ["p", CP.html5, "#e34f26"], ["c_html", "c_svg"], 0],
         ];
         const cTrack = document.getElementById("compatTrack");
         const ccName = document.getElementById("ccName"), ccHow = document.getElementById("ccHow"), ccSoon = document.getElementById("ccSoon");
-        if (cTrack && ccName && ccHow && ccSoon) {
+        const ccIco = document.getElementById("ccIco"), ccCard = document.getElementById("compatCard");
+        if (cTrack && ccName && ccHow && ccSoon && ccIco && ccCard) {
+          const NS = "http://www.w3.org/2000/svg";
+          const mkIco = (ic) => {
+            if (ic[0] === "b") {
+              const sp = document.createElement("span");
+              sp.className = "compat-badge"; sp.textContent = ic[1];
+              sp.style.background = ic[2]; sp.style.color = ic[3];
+              return sp;
+            }
+            const sv = document.createElementNS(NS, "svg");
+            sv.setAttribute("viewBox", "0 0 24 24");
+            const pa = document.createElementNS(NS, "path");
+            pa.setAttribute("d", ic[1]);
+            if (ic[2] !== "mono") pa.setAttribute("fill", ic[2]);
+            sv.appendChild(pa);
+            return sv;
+          };
           const mkTile = (tool, ghost) => {
-            const nm = tool[0], c1 = tool[1], c2 = tool[2], tc = tool[3], frags = tool[4], soon = tool[5];
+            const nm = tool[0], ac = tool[1], ic = tool[2], frags = tool[3], soon = tool[4];
             const b2 = document.createElement("button");
-            b2.type = "button"; b2.className = "compat-tile";
-            b2.style.setProperty("--c1", c1); b2.style.setProperty("--c2", c2);
-            if (tc) b2.style.setProperty("--tc", tc);
-            b2.textContent = nm;
+            b2.type = "button";
+            b2.className = "compat-tile" + (ic[0] === "p" && ic[2] === "mono" ? " compat-tile--mono" : "");
+            b2.style.setProperty("--ac", ac);
+            b2.appendChild(mkIco(ic));
+            b2.appendChild(document.createTextNode(nm));
             if (ghost) { b2.tabIndex = -1; b2.setAttribute("aria-hidden", "true"); }
             const show = () => {
               ccName.textContent = nm;
@@ -1744,6 +1827,10 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
               ccHow.textContent = frags.map((f2) => t(f2)).join(" ");
               ccSoon.hidden = !soon;
               ccSoon.textContent = t("c_soon");
+              ccCard.style.setProperty("--ac", ac);
+              ccIco.classList.toggle("cc-ico--mono", ic[0] === "p" && ic[2] === "mono");
+              ccIco.textContent = "";
+              ccIco.appendChild(mkIco(ic));
             };
             b2.addEventListener("pointerenter", show);
             b2.addEventListener("focus", show);
