@@ -219,7 +219,6 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
      every frame lands normalized. */
   const valRef = useRef(val);
   valRef.current = val;
-  const wheelChamber = useRef(-1);
   const tweenVal = (target: number, dur: number, mode: "out" | "inout" | "western") => {
     cancelAnimationFrame(raf.current);
     const from = valRef.current;
@@ -338,6 +337,18 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       const c = trackCoord(e);
       if (c) setSel(c.thirds);
     }
+    else if (id === "weaponwheel") {
+      // the revolver spins on CLICK: the clicked chamber rides the cylinder
+      // around (the slow way) and seats at the 2 o'clock hammer
+      const p = wheelCoord(e);
+      if (p !== null) {
+        const n = 6, v = valRef.current;
+        const chamber = ((Math.round((p - v) * n) % n) + n) % n;
+        const t0 = ((1 / n - chamber / n) % 1 + 1) % 1;
+        const cand = [t0 - 1, t0, t0 + 1].reduce((a2, b2) => (Math.abs(b2 - v) < Math.abs(a2 - v) ? b2 : a2));
+        tweenVal(cand, 780, "western");
+      }
+    }
     else if (id === "equipselector") {
       // carousel: click left of the armed socket → previous, right → next —
       // and the items GLIDE there (hardware-picker motion)
@@ -389,22 +400,6 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       if ((id === "listmenu" || id === "choicelist") && !sliding.current) {
         const u = vtrackCoord(e);
         if (u !== null) setVal(u);
-      }
-      // the revolver: pointing at a chamber spins the cylinder until that
-      // chamber stops at the hammer (shortest way around)
-      if (id === "weaponwheel") {
-        const p = wheelCoord(e);
-        if (p !== null) {
-          const n = 6, v = valRef.current;
-          const chamber = ((Math.round((p - v) * n) % n) + n) % n;
-          if (chamber !== wheelChamber.current) {
-            wheelChamber.current = chamber;
-            // seat the chosen chamber at the 2 o'clock hammer, the slow way
-            const t0 = ((1 / n - chamber / n) % 1 + 1) % 1;
-            const cand = [t0 - 1, t0, t0 + 1].reduce((a2, b2) => (Math.abs(b2 - v) < Math.abs(a2 - v) ? b2 : a2));
-            tweenVal(cand, 780, "western");
-          }
-        }
       }
       if (id === "joystick" && sliding.current && stickDrag.current) {
         // relative drag mapped through the stamped travel radius — exact at

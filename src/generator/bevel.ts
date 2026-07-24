@@ -1656,10 +1656,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
   const font = cfg.type.font;
-  /* info readouts (percentages, x/y counters) — always-legible utility text:
-     white with a tight hard shadow (dark outline under the fill), so it
-     survives any face treatment. Not themed; theme voice is contentText. */
+  /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
+     no outline: the color group's darkest role (Shadow) on light faces,
+     near-white on dark faces. Not themed; theme voice is contentText. */
+  const infoInk = cfg.face.mode === "dark" ? "rgba(255,255,255,0.88)" : darken(effect(cfg.effects, "Shadow"), 0.15);
   const infoText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800) =>
+    `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="${infoInk}" text-anchor="${anchor2}" dominant-baseline="central">${esc(txt)}</text>`;
+  /* HUD text for SPATIAL pieces and always-dark grounds (live footage,
+     instrument wells): white with the tight dark understroke. */
+  const hudText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800) =>
     `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="#FFFFFF" text-anchor="${anchor2}" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.6); stroke-width: ${Math.max(2, fs2 * 0.17).toFixed(1)}px; stroke-linejoin: round">${esc(txt)}</text>`;
   const wellOf = (w: number, h: number, inset: number) =>
     // the well follows the same silhouette resolution as the shell: the
@@ -3097,7 +3102,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on = i < left;
         pips += `<rect x="${px9.toFixed(1)}" y="${padM}" width="${pipW.toFixed(1)}" height="${pipH.toFixed(1)}" rx="${(pipW / 2).toFixed(1)}" fill="${on ? `url(#${gidM9})` : "rgba(255,255,255,0.14)"}" stroke="${on ? darken(glow, 0.4) : "rgba(255,255,255,0.18)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
-      pips += infoText(`${Math.round(vM9 * cap)} / ${cap}`, WM - padM, HM / 2 + 1, 24 * k, "end");
+      pips += hudText(`${Math.round(vM9 * cap)} / ${cap}`, WM - padM, HM / 2 + 1, 24 * k, "end");
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WM.toFixed(0)}" height="${HM.toFixed(0)}" viewBox="0 0 ${WM.toFixed(0)} ${HM.toFixed(0)}" data-magazine="1" role="img" aria-label="magazine ${Math.round(vM9 * cap)} of ${cap}"><g opacity="${state === "disabled" ? 0.4 : 1}">${pips}</g></svg>`;
     }
     case "equipselector": {
@@ -3198,7 +3203,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <rect x="${(cxW - sW / 2).toFixed(1)}" y="${(cyW - sW / 2).toFixed(1)}" width="${sW.toFixed(1)}" height="${sW.toFixed(1)}" rx="${(7 * k).toFixed(1)}" transform="rotate(45 ${cxW.toFixed(1)} ${cyW.toFixed(1)})" fill="url(#${gidW})" stroke="${darken(glow, 0.45)}" stroke-width="2"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotW ? 10 : 6) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
         <rect x="${(cxW - sW / 2 - 8 * k).toFixed(1)}" y="${(cyW - sW / 2 - 8 * k).toFixed(1)}" width="${(sW + 16 * k).toFixed(1)}" height="${(sW + 16 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" transform="rotate(45 ${cxW.toFixed(1)} ${cyW.toFixed(1)})" fill="none" stroke="${hexRgba(glow, hotW ? 0.8 : 0.45)}" stroke-width="${hotW ? 2.4 : 1.6}"/>` +
         contentText((opts.label ?? "A").slice(0, 1).toUpperCase(), cxW, cyW + 1, 26 * k * typeK, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" }) +
-        infoText(`${dist}m`, cxW, cyW + sW * 0.9 + 26 * k, 21 * k, "middle");
+        hudText(`${dist}m`, cxW, cyW + sW * 0.9 + 26 * k, 21 * k, "middle");
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WW.toFixed(0)}" height="${HW.toFixed(0)}" viewBox="0 0 ${WW.toFixed(0)} ${HW.toFixed(0)}" data-waypoint="1" role="img" aria-label="waypoint ${dist} meters"><g opacity="${state === "disabled" ? 0.4 : 1}">${inner}</g></svg>`;
     }
     case "capturemeter": {
@@ -3251,8 +3256,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidR9 = "rs" + UID++;
       const gR9 = 2.5 * k, mHR9 = barH9 - gR9 * 2;
       const secCy = 30 + inset + 74 * k;
+      /* the big readout wears the THEME'S text armor automatically: the
+         preset's outline (or a derived dark stroke) plus its shadow recipe,
+         so the ramping ink stays legible on any face */
+      const T9 = cfg.type;
+      const strokeC9 = T9.outline.on ? T9.outline.color : darken(bevel, 0.55);
+      const strokeW9 = (T9.outline.on ? Math.max(2, T9.outline.width) : 2.6) * k;
+      const shFx9 = T9.shadow.on
+        ? `drop-shadow(${(T9.shadow.x * 0.6).toFixed(1)}px ${(T9.shadow.y * 0.6).toFixed(1)}px ${(T9.shadow.blur * 0.4).toFixed(1)}px ${hexRgba(T9.shadow.color, T9.shadow.opacity / 100)})`
+        : `drop-shadow(0 ${(2 * k).toFixed(1)}px ${(2 * k).toFixed(1)}px rgba(6,10,18,0.55))`;
+      const bigNum = (txt9: string, fill9: string, fs9: number, glowFx9 = "") =>
+        `<g style="filter: ${shFx9}${glowFx9}"><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${fs9.toFixed(1)}" font-weight="${Math.max(800, T9.weight)}"${T9.italic ? ' font-style="italic"' : ""} fill="${fill9}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${strokeC9}; stroke-width: ${strokeW9.toFixed(1)}px; stroke-linejoin: round">${esc(txt9)}</text></g>`;
       const secsTxt = done
-        ? `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})"` : ""}><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(54 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}" fill="${READY}" text-anchor="middle" dominant-baseline="central">GO</text></g>` +
+        ? bigNum("GO", READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
           (state !== "disabled"
             ? `<circle cx="${cxR9.toFixed(1)}" cy="${secCy.toFixed(1)}" r="${(30 * k).toFixed(1)}" fill="none" stroke="${READY}" stroke-width="2">
                  <animate attributeName="r" values="${(30 * k).toFixed(1)};${(58 * k).toFixed(1)}" dur="1.3s" repeatCount="indefinite"/>
@@ -3261,7 +3277,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
             : "")
         : opts.themedText
           ? contentText(String(secsR), cxR9, secCy, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkR })
-          : `<text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="${inkR}" text-anchor="middle" dominant-baseline="central"${gMix > 0.3 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})"` : ""}>${secsR}</text>`;
+          : bigNum(String(secsR), inkR, 58 * k, gMix > 0.3 && state !== "disabled" ? ` drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})` : "");
       const inner = contentText(done ? "REDEPLOY" : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
         `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
@@ -3356,7 +3372,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const tx0 = ccx9 + rr + 6 * k, ty9 = ccy9;
         tagSvg = `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}>
           <path d="M ${tx0.toFixed(1)} ${ty9.toFixed(1)} l ${9 * k} ${-tagH / 2} h ${tagW - 9 * k} v ${tagH} h ${-(tagW - 9 * k)} Z" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.55), 0.96)}" stroke="${hexRgba(glow, 0.85)}" stroke-width="1.8"/>
-          ${infoText(chambers[armedW].nm, tx0 + tagW / 2 + 4 * k, ty9 + 1, 16 * k, "middle", 900)}
+          ${hudText(chambers[armedW].nm, tx0 + tagW / 2 + 4 * k, ty9 + 1, 16 * k, "middle", 900)}
         </g>`;
       }
       const hubNm = opts.label ?? chambers[armedW].nm;
@@ -3526,7 +3542,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
                italic faces overhang) plus a 0.36em gap — and no leading space
                in the <text>, since SVG collapses it and the slash would kiss
                the last digit (the visual gate caught exactly that) */
-            (maxTxt ? `<text x="${(39 + 20 * k + medR * 2 + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.55)" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
+            (maxTxt ? `<text x="${(39 + 20 * k + medR * 2 + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="650" fill="${infoInk}" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
         (opts.addBtn ? candyKnob(39 + w - 8 * k - h * 0.32, cy, h * 0.32, glow) +
           `<text x="${(39 + w - 8 * k - h * 0.32).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${26 * k}" font-weight="800" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">+</text>` : "");
       return inject(track, parts);
@@ -4288,8 +4304,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<polyline points="${line(you)}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
         dots(you, glow, 3 * k) +
         `<circle cx="${youLast[0].toFixed(1)}" cy="${youLast[1].toFixed(1)}" r="${(4.5 * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" filter="url(#${gid12}g)"/>` +
-        infoText("LAP 1", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
-        infoText("LAP 8", x1, y1 + 20 * k, 9.5 * k, "end", 700);
+        hudText("LAP 1", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
+        hudText("LAP 8", x1, y1 + 20 * k, 9.5 * k, "end", 700);
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="laps" `);
     }
     case "telemetry": {
@@ -4339,8 +4355,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<circle cx="${px(0, spd)}" cy="${py(spd[0])}" r="${(3 * k).toFixed(1)}" fill="${glow}"/>` +
         `<circle cx="${px(spd.length - 1, spd)}" cy="${py(spd[spd.length - 1])}" r="${(3.5 * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" filter="url(#${gid13}g)"/>` +
         `<line x1="${px0.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>` +
-        infoText("T4", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
-        infoText("T7", px1, y1 + 20 * k, 9.5 * k, "end", 700);
+        hudText("T4", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
+        hudText("T7", px1, y1 + 20 * k, 9.5 * k, "end", 700);
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="telemetry" `);
     }
     case "startlights": {
