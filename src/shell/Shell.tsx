@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useRoute } from "./router";
 import { useAuthOverlay, openAuth } from "./authOverlay";
 import { useCloudStatus } from "./useCloudStatus";
 import { Landing } from "@/marketing/Landing";
 import { LegalPage } from "@/marketing/LegalPage";
+import { MobileGate } from "./MobileGate";
 
 /* The editor is the heavy chunk (engine + roughjs + three + icon libs). It is
    lazy so the landing route paints without pulling any of it. The dev-only
@@ -31,6 +32,12 @@ const PricingPage = lazy(() =>
 const IS_LAB =
   new URLSearchParams(window.location.search).get("lab") === "silhouettes";
 
+// The editor is desktop-only for now: small screens and small touch devices
+// get a polite gate instead. The rest of the site stays fully mobile.
+const isMobile = () =>
+  window.matchMedia("(max-width: 767px)").matches ||
+  (window.matchMedia("(pointer: coarse)").matches && window.matchMedia("(max-width: 900px)").matches);
+
 function RouteLoading() {
   return (
     <div className="route-loading" role="status" aria-live="polite">
@@ -44,6 +51,13 @@ export function Shell() {
   const route = useRoute();
   const overlay = useAuthOverlay();
   const cloud = useCloudStatus();
+  const [mobile, setMobile] = useState(isMobile);
+
+  useEffect(() => {
+    const onResize = () => setMobile(isMobile());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Landing here from a password-reset email: cloud.ts flips to "recovery".
   // Surface the overlay so the user can set a new password from any route —
@@ -63,9 +77,13 @@ export function Shell() {
   return (
     <>
       {route.name === "app" ? (
-        <Suspense fallback={<RouteLoading />}>
-          <App />
-        </Suspense>
+        mobile ? (
+          <MobileGate viewer={route.viewer} />
+        ) : (
+          <Suspense fallback={<RouteLoading />}>
+            <App />
+          </Suspense>
+        )
       ) : route.name === "terms" || route.name === "privacy" ? (
         <LegalPage doc={route.name} />
       ) : route.name === "signin" ? (
