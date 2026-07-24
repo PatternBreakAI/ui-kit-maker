@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useRoute } from "./router";
 import { useAuthOverlay, openAuth } from "./authOverlay";
 import { useCloudStatus } from "./useCloudStatus";
@@ -38,6 +38,39 @@ const isMobile = () =>
   window.matchMedia("(max-width: 767px)").matches ||
   (window.matchMedia("(pointer: coarse)").matches && window.matchMedia("(max-width: 900px)").matches);
 
+/* A redeploy invalidates the content-hashed chunks an already-open tab knows
+   about; the first navigation after that fails its dynamic import and, with no
+   boundary, React blanks the page. This boundary auto-reloads once to pick up
+   the fresh build, and shows a reload card instead of white if that fails. */
+class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: unknown) {
+    const msg = String((err as Error)?.message ?? err);
+    const chunkErr = /dynamically imported module|Loading chunk|module script failed|Failed to fetch/i.test(msg);
+    let reloaded = false;
+    try { reloaded = sessionStorage.getItem("fd-chunk-reload") === "1"; } catch { /* private mode */ }
+    if (chunkErr && !reloaded) {
+      try { sessionStorage.setItem("fd-chunk-reload", "1"); } catch { /* private mode */ }
+      window.location.reload();
+    }
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="route-loading" role="alert">
+          <span className="route-loading__label">
+            A fresh version just shipped —{" "}
+            <button className="fd-linkbtn" onClick={() => window.location.reload()}>reload</button>{" "}
+            to pick it up.
+          </span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function RouteLoading() {
   return (
     <div className="route-loading" role="status" aria-live="polite">
@@ -59,6 +92,27 @@ export function Shell() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Surviving a few seconds means the last chunk-recovery reload worked —
+  // re-arm the one-shot so a future redeploy gets its own auto-recovery.
+  useEffect(() => {
+    const t = setTimeout(() => { try { sessionStorage.removeItem("fd-chunk-reload"); } catch { /* private mode */ } }, 5000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Warm the editor chunk while the visitor reads the landing: the first
+  // "Open the generator" is instant, and the chunk is fetched while its
+  // hashed URL is still guaranteed fresh.
+  useEffect(() => {
+    if (mobile) return;
+    const t = setTimeout(() => { void import("../App").catch(() => {}); }, 4000);
+    return () => clearTimeout(t);
+  }, [mobile]);
+
+  // Entering the editor from a scrolled marketing page: start at the top.
+  useEffect(() => {
+    if (route.name === "app") window.scrollTo(0, 0);
+  }, [route.name]);
+
   // Landing here from a password-reset email: cloud.ts flips to "recovery".
   // Surface the overlay so the user can set a new password from any route —
   // except the sign-in page, which renders its own recovery form.
@@ -75,7 +129,7 @@ export function Shell() {
   }
 
   return (
-    <>
+    <RouteBoundary>
       {route.name === "app" ? (
         mobile ? (
           <MobileGate viewer={route.viewer} />
@@ -106,6 +160,6 @@ export function Shell() {
           <AuthOverlay />
         </Suspense>
       )}
-    </>
+    </RouteBoundary>
   );
 }
