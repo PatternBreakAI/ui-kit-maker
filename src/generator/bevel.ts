@@ -2292,6 +2292,120 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${lvl}</text>`;
       return inject(shell.replace("<svg ", '<svg data-avatarframe="1" '), parts);
     }
+    case "nameplate": {
+      /* System chrome · nameplate — player name with a title ribbon. */
+      const w = 560 * k, h = 100 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const nm = opts.label ?? "NOVA_KNIGHT";
+      const star = STOCK_ICONS.star ? themedIcon(STOCK_ICONS.star, 39 + inset + 16 * k, cy - 16 * k, 32 * k, "#facc15", 2.4) : "";
+      const ribW = 168 * k, ribH = 40 * k;
+      const ribX = 39 + w - inset - ribW - 12 * k;
+      const gidN = "np" + UID++;
+      const ribbon = `<defs><linearGradient id="${gidN}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.15)}"/></linearGradient></defs>
+        <rect x="${ribX.toFixed(1)}" y="${(cy - ribH / 2).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="url(#${gidN})" stroke="${hexRgba(darken(bevel, 0.5), 0.6)}" stroke-width="1.2"/>
+        <text x="${(ribX + ribW / 2).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" letter-spacing="0.08em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">PIT CHAMPION</text>`;
+      return inject(shell.replace("<svg ", '<svg data-nameplate="1" '),
+        star + contentText(nm, 39 + inset + 58 * k, cy + 1, 24 * k * typeK, { keepCase: true }) + ribbon);
+    }
+    case "currency": {
+      /* System chrome · currency pill — candy coin + amount. value drives
+         the amount. */
+      const w = 260 * k, h = 84 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 96 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 4;
+      const cy = 30 + h / 2;
+      const coinR = (h - inset * 2) * 0.34;
+      const coinX = 39 + inset + coinR + 10 * k;
+      const amt = opts.label ?? Math.round(clamp(value ?? 0.125, 0, 1) * 9999).toLocaleString("en-US");
+      const gidC = "cu" + UID++;
+      const coin = `<defs><radialGradient id="${gidC}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+        <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${coinR.toFixed(1)}" fill="url(#${gidC})" stroke="#92400E" stroke-width="1.6"/>
+        <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(coinR * 0.66).toFixed(1)}" fill="none" stroke="#92400E" stroke-width="1.1" opacity="0.6"/>
+        ${STOCK_ICONS.star ? iconGroup(STOCK_ICONS.star, coinX - coinR * 0.45, cy - coinR * 0.45, coinR * 0.9, "#92400E", { strokeWidth: 2.4 * iconWK }) : ""}
+        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.42).toFixed(1)}" rx="${(coinR * 0.34).toFixed(1)}" ry="${(coinR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/>`;
+      return inject(shell.replace("<svg ", '<svg data-currency="1" '),
+        coin + contentText(amt, coinX + coinR + 14 * k, cy + 1, 28 * k * typeK, { keepCase: true }));
+    }
+    case "buffframe": {
+      /* System chrome · buff/debuff frame — timed effect icon with the
+         cooldown sweep eating clockwise. value = time REMAINING. */
+      const s = 132 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2, ccy = sy + sh / 2;
+      const ic = STOCK_ICONS.flask ?? STOCK_ICONS.zap;
+      const glyph = ic ? themedIcon(ic, ccx - 26 * k, ccy - 30 * k, 52 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2) : "";
+      const vB = clamp(value ?? 0.65, 0, 1);
+      const gidB = "bf" + UID++;
+      // spent-time sector: from "now" (top) sweeping the ELAPSED share
+      const spent = 1 - vB;
+      const R = Math.max(sw, sh);
+      const secs = (8 * vB).toFixed(1);
+      let sweep = "";
+      if (spent > 0.01 && state !== "disabled") {
+        const a1 = -Math.PI / 2, a2 = a1 + spent * Math.PI * 2;
+        const large = spent > 0.5 ? 1 : 0;
+        sweep = `<defs><clipPath id="${gidB}c"><rect x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" width="${sw.toFixed(1)}" height="${sh.toFixed(1)}" rx="${(12 * k).toFixed(1)}"/></clipPath></defs>
+          <path d="M ${ccx.toFixed(1)} ${ccy.toFixed(1)} L ${(ccx + R * Math.cos(a1)).toFixed(1)} ${(ccy + R * Math.sin(a1)).toFixed(1)} A ${R.toFixed(1)} ${R.toFixed(1)} 0 ${large} 1 ${(ccx + R * Math.cos(a2)).toFixed(1)} ${(ccy + R * Math.sin(a2)).toFixed(1)} Z" fill="rgba(6,10,18,0.62)" clip-path="url(#${gidB}c)"/>
+          <line x1="${ccx.toFixed(1)}" y1="${ccy.toFixed(1)}" x2="${(ccx + R * Math.cos(a2)).toFixed(1)}" y2="${(ccy + R * Math.sin(a2)).toFixed(1)}" stroke="${glow}" stroke-width="${(2.4 * k).toFixed(1)}" clip-path="url(#${gidB}c)" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.7)})"/>`;
+      }
+      const timer = `<text x="${ccx.toFixed(1)}" y="${(sy + sh - 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 3px">${secs}s</text>`;
+      return inject(shell.replace("<svg ", '<svg data-buffframe="1" '), glyph + sweep + timer);
+    }
+    case "cooldown": {
+      /* System chrome · cooldown radial — the standalone wipe: well disc,
+         spent sector, glowing edge, seconds. value = time remaining. */
+      const dC = ({ s: 96, m: 128, l: 164 } as Record<KitSize, number>)[size] * k;
+      const padC = 22;
+      const cC = dC / 2 + padC, rC = dC / 2;
+      const vC = clamp(value ?? 0.4, 0, 1);
+      const spent = 1 - vC;
+      const secs = (6 * vC).toFixed(1);
+      let sector = "";
+      if (spent > 0.01) {
+        const a1 = -Math.PI / 2, a2 = a1 + spent * Math.PI * 2;
+        const large = spent > 0.5 ? 1 : 0;
+        sector = `<path d="M ${cC} ${cC} L ${(cC + rC * Math.cos(a1)).toFixed(1)} ${(cC + rC * Math.sin(a1)).toFixed(1)} A ${rC} ${rC} 0 ${large} 1 ${(cC + rC * Math.cos(a2)).toFixed(1)} ${(cC + rC * Math.sin(a2)).toFixed(1)} Z" fill="rgba(6,10,18,0.66)"/>
+          <line x1="${cC}" y1="${cC}" x2="${(cC + rC * Math.cos(a2)).toFixed(1)}" y2="${(cC + rC * Math.sin(a2)).toFixed(1)}" stroke="${glow}" stroke-width="2.6" style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.7)})"/>`;
+      }
+      const total = dC + padC * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown ${secs}s">
+<circle cx="${cC}" cy="${cC}" r="${rC}" fill="${wellFill}" stroke="${hexRgba(darken(bevel, 0.4), 0.8)}" stroke-width="2"/>
+<g opacity="${state === "disabled" ? 0.45 : 1}">${sector}</g>
+${contentText(`${secs}s`, cC, cC + 1, dC * 0.24, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" })}
+</svg>`;
+    }
+    case "stepper": {
+      /* System chrome · stepper — minus cap, snapped cells, plus cap.
+         value fills the cells. */
+      const w = 430 * k, h = 96 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 104 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 5 * k;
+      const cy = 30 + h / 2;
+      const capR = 24 * k;
+      const nC = 8;
+      const vSt = clamp(value ?? 0.62, 0, 1);
+      const filled = Math.round(vSt * nC);
+      const cellsX = 39 + inset + capR * 2 + 24 * k;
+      const cellsW = w - inset * 2 - (capR * 2 + 24 * k) * 2;
+      const cellW = (cellsW - (nC - 1) * 6 * k) / nC;
+      let inner = candyKnob(39 + inset + capR + 4 * k, cy, capR, knobC) +
+        `<text x="${(39 + inset + capR + 4 * k).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">−</text>` +
+        candyKnob(39 + w - inset - capR - 4 * k, cy, capR, knobC) +
+        `<text x="${(39 + w - inset - capR - 4 * k).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">+</text>`;
+      const gidT = "st" + UID++;
+      inner += `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.2)}"/><stop offset="1" stop-color="${bevel}"/></linearGradient></defs>`;
+      for (let i = 0; i < nC; i++) {
+        const cx0 = cellsX + i * (cellW + 6 * k);
+        const on = i < filled;
+        inner += `<rect x="${cx0.toFixed(1)}" y="${(cy - 17 * k).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(34 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidT})` : wellFill}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""} stroke="${on ? darken(bevel, 0.3) : "rgba(255,255,255,0.14)"}" stroke-width="1"/>`;
+      }
+      return inject(shell.replace("<svg ", '<svg data-stepper="1" '), inner);
+    }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected
          cell carries the glow ring. value scrubs the selection. */
