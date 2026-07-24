@@ -40,14 +40,14 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
   const allOpen = opened.every(Boolean);
 
   return (
-    <div className="lootback" role="dialog" aria-modal="true" aria-label="Preset packs unlocked" onClick={onClose}>
+    <div className="lootback" role="dialog" aria-modal="true" aria-label="You won 2 free packs" onClick={onClose}>
       <div className="lootmodal" onClick={(e) => e.stopPropagation()}>
         <span className="lootrays" aria-hidden="true" />
         {[0, 1, 2, 3, 4, 5].map((i) => <i key={i} className={`lootspark ls${i}`} aria-hidden="true" />)}
         <button className="lootclose" aria-label="Close" onClick={onClose}><X size={16} strokeWidth={2.2} /></button>
         <div className="lootkicker"><Zap size={14} strokeWidth={2.2} /> LEVEL UP</div>
-        <h2>YOU PULLED 2 PRESET PACKS</h2>
-        <p className="lootsub">{allOpen ? "Equipped — they're live in your Presets panel, with the full kit and 150% zoom." : "Tap a pack to crack it open."}</p>
+        <h2>YOU WON 2 FREE PACKS</h2>
+        <p className="lootsub">{allOpen ? "Equipped — they're live in your Presets panel, with the full kit and 150% zoom." : "Thanks for signing up — tap a pack to crack it open."}</p>
         <div className="lootrow">
           {pulls.map((p, i) => (
             <div key={p.id} className={`lootcell${opened[i] ? " open" : ""}`}>
