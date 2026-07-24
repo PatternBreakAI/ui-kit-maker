@@ -2805,6 +2805,36 @@ html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
     @font-face { font-family: 'Bungee'; font-style: normal; font-weight: 400; src: url("../marketing/assets/fonts/bungee-latin.woff2") format('woff2'); }
 .fd-landing /* engine SVG sizing — renders are viewBox-tightened, .fd-landing width drives scale */
     .master-svg svg { width: min(520px, 84%); height: auto; display: block; }
+.fd-landing /* style-swap glitch layers */
+    .master-svg { position: relative; }
+.fd-landing .m-ghost { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
+      pointer-events: none; mix-blend-mode: screen; }
+.fd-landing .m-ghost svg { width: min(520px, 84%); height: auto; }
+.fd-landing .m-ghost--a { animation: mg-a .42s step-end forwards; filter: hue-rotate(35deg) saturate(2.2); }
+.fd-landing .m-ghost--b { animation: mg-b .42s step-end forwards; filter: hue-rotate(-40deg) saturate(2.2); }
+    @keyframes mg-a {
+      0% { opacity: .85; transform: translate(-8px, 3px); clip-path: inset(2% 0 56% 0); }
+      33% { opacity: .65; transform: translate(10px, -4px); clip-path: inset(36% 0 20% 0); }
+      66% { opacity: .45; transform: translate(-6px, 1px); clip-path: inset(66% 0 4% 0); }
+      100% { opacity: 0; transform: translate(4px, 0); clip-path: inset(30% 0 40% 0); }
+    }
+    @keyframes mg-b {
+      0% { opacity: .85; transform: translate(9px, -2px); clip-path: inset(50% 0 8% 0); }
+      33% { opacity: .6; transform: translate(-11px, 3px); clip-path: inset(6% 0 64% 0); }
+      66% { opacity: .4; transform: translate(7px, -2px); clip-path: inset(24% 0 42% 0); }
+      100% { opacity: 0; transform: translate(-3px, 0); clip-path: inset(44% 0 26% 0); }
+    }
+.fd-landing .master-svg svg.m-in { animation: mg-in .4s step-end; }
+    @keyframes mg-in {
+      0% { transform: translate(6px, -2px) skewX(2deg); filter: hue-rotate(24deg) saturate(1.9) contrast(1.3); }
+      25% { transform: translate(-7px, 3px) skewX(-3deg); filter: hue-rotate(-28deg) saturate(2.1); }
+      50% { transform: translate(5px, 1px); filter: contrast(1.5) saturate(1.4); }
+      75% { transform: translate(-2px, -1px) skewX(1.5deg); filter: hue-rotate(14deg); }
+      100% { transform: none; filter: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+.fd-landing .m-ghost { display: none; }
+.fd-landing .master-svg svg.m-in { animation: none; } }
 .fd-landing .master-label { display: none; }
 .fd-landing #stateRail .mini-holder svg { width: 100%; height: auto; display: block; }
 .fd-landing .rk { display: inline-flex; align-items: center; justify-content: center; }

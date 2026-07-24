@@ -102,6 +102,27 @@ export function initLanding(deps: LandingDeps) {
         c.content.label = design.label || "PLAY";
         return c; };
       const drawMaster = (st) => { const c = engCfg(); masterSvg.innerHTML = tighten(E.renderShell(c, st || "default", 470, 128, { label: c.content.label }), 46); };
+      /* style-swap glitch: clone the outgoing render before the swap, then
+         tear it away in RGB-split slices over the incoming one */
+      let ghostSrc = null;
+      const glitchPrep = () => {
+        const sv = masterSvg.querySelector("svg");
+        ghostSrc = sv && !reduceMotion ? sv.cloneNode(true) : null;
+      };
+      const glitchMaster = () => {
+        if (!ghostSrc) return;
+        masterSvg.querySelectorAll(".m-ghost").forEach((g) => g.remove());
+        ["a", "b"].forEach((k) => {
+          const g = document.createElement("div");
+          g.className = "m-ghost m-ghost--" + k;
+          g.appendChild(ghostSrc.cloneNode(true));
+          g.addEventListener("animationend", () => g.remove(), { once: true });
+          masterSvg.appendChild(g);
+        });
+        const sv = masterSvg.querySelector("svg");
+        if (sv) { sv.classList.add("m-in"); setTimeout(() => sv.classList.remove("m-in"), 440); }
+        ghostSrc = null;
+      };
       const renderRk = (el) => { const v = el.dataset.v;
         el.innerHTML = tighten(E.renderKit(engCfg(), el.dataset.kid, el.dataset.sz || "m", el.dataset.st || "default",
           v !== undefined && v !== "" ? +v : undefined), 22);
@@ -222,10 +243,12 @@ export function initLanding(deps: LandingDeps) {
         b.setAttribute("aria-label", p.name);
         b.setAttribute("aria-pressed", String(i === 0));
         b.addEventListener("click", () => { takeOver();
+          glitchPrep();
           design.cfg = E.applyPresetFull(E.defaultConfig(), p.pid);
           design.pid = p.pid;
           syncFromCfg();
-          apply({ color: p.color, name: p.name }); });
+          apply({ color: p.color, name: p.name });
+          glitchMaster(); });
         palWrap.appendChild(b);
       });
       const patWrap = $("patTiles");
@@ -308,10 +331,12 @@ export function initLanding(deps: LandingDeps) {
         return { pid: id, color: pr.effects["Inner Fill"] || "#A855F7", name: pr.name, label };
       });
       const applyReelEntry = (e) => {
+        glitchPrep();
         design.cfg = e.auth ? authoredCfg(e.auth) : E.applyPresetFull(E.defaultConfig(), e.pid);
         design.pid = e.auth ? "auth:" + e.auth : e.pid;
         syncFromCfg();
         apply({ color: e.color, name: e.name, label: (e.label || design.cfg.content.label || "PLAY").toUpperCase() });
+        glitchMaster();
       };
       let attractTimer = null, reelI = 0;
       const startAttract = () => {
@@ -350,9 +375,11 @@ export function initLanding(deps: LandingDeps) {
         }); }
       $("extrR").addEventListener("input", () => { takeOver(); design.extr = +$("extrR").value; apply({}); });
       $("resetBtn").addEventListener("click", () => { takeOver();
+        glitchPrep();
         design.cfg = design.pid && design.pid.startsWith("auth:") ? authoredCfg(design.pid.slice(5))
           : E.applyPresetFull(E.defaultConfig(), design.pid || "grape-jelly");
-        syncFromCfg(); apply({}); });
+        syncFromCfg(); apply({});
+        glitchMaster(); });
       document.querySelectorAll("#stateTabs button").forEach((b) => b.addEventListener("click", () => {
         document.querySelectorAll("#stateTabs button").forEach((x) => x.classList.remove("on"));
         b.classList.add("on"); railState = b.dataset.state; apply({});
@@ -383,11 +410,13 @@ export function initLanding(deps: LandingDeps) {
         apply({ label: out.trim().toUpperCase() || "PLAY" }); });
       $("randBtn").addEventListener("click", () => {
         takeOver();
+        glitchPrep();
         design.cfg = E.randomizeConfig(design.cfg);
         syncFromCfg();
         const labels = ["PLAY", "CLAIM", "BOOST", "START", "GO", "EQUIP", "COLLECT", "WIN"];
         apply({ color: design.cfg.effects["Inner Fill"] || design.color, name: "Random roll",
           label: labels[Math.floor(Math.random() * labels.length)] });
+        glitchMaster();
         if (!reduceMotion) masterWrap.animate(
           [{ transform: "translateY(0)" }, { transform: "translateY(-9px)", offset: .4 }, { transform: "translateY(0)" }],
           { duration: 520, easing: "cubic-bezier(.16,1,.3,1)" });
