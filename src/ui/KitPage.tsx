@@ -1107,6 +1107,33 @@ const kitTier = useGen((s) => s.tier);
         rk("slot", "Slot · Claimable", { icon: STOCK_ICONS.gem, overlay: "claimable" }, undefined, "hover"),
         rk("reticle", "Reticle · Locked", {}, undefined, "hover"),
         rk("ring", "Ring · Complete", {}, 1),
+        /* P2/P3 build parts — every meaningful pose of the RPG and shooter
+           vocabularies ships in the catalog, same rule as the state block */
+        rk("healthglobe", "Health globe · Low", {}, 0.2),
+        rk("partyframe", "Party frame · Hurt", {}, 0.24),
+        rk("rarityframe", "Rarity · Common", {}, 0),
+        rk("rarityframe", "Rarity · Uncommon", {}, 0.25),
+        rk("rarityframe", "Rarity · Rare", {}, 0.5),
+        rk("rarityframe", "Rarity · Epic", {}, 0.75),
+        rk("rarityframe", "Rarity · Legendary", {}, 1),
+        rk("equipslot", "Socket · Head", { icon: STOCK_ICONS.helmet }),
+        rk("equipslot", "Socket · Chest", { icon: STOCK_ICONS.shirt }),
+        rk("equipslot", "Socket · Hands", { icon: STOCK_ICONS.hand }),
+        rk("equipslot", "Socket · Feet", { icon: STOCK_ICONS.boots }),
+        rk("equipslot", "Socket · Weapon", { icon: STOCK_ICONS.sword }),
+        rk("equipslot", "Socket · Offhand", { icon: STOCK_ICONS.shield }),
+        rk("skillnode", "Skill node · Learned", { overlay: "learned" }),
+        rk("skillnode", "Skill node · Locked", { overlay: "locked" }),
+        rk("dmgnumber", "Damage · Critical", {}, 0.9),
+        rk("loottag", "Loot tag · Legendary", { label: "Dawnbreaker" }, 1),
+        rk("crosshair", "Crosshair · Wide", {}, 0.85),
+        rk("crosshair", "Crosshair · Dot", { overlay: "dot" }),
+        rk("hitmarker", "Hit marker · Critical", {}, 0.9),
+        rk("killfeed", "Kill feed · You", { label: "YOU", sub: "NOVA_KNIGHT" }, undefined, "hover"),
+        rk("magazine", "Magazine · Last rounds", {}, 0.16),
+        rk("streakmeter", "Streak · Ignited", {}, 1),
+        rk("capturemeter", "Capture · Contested", {}, 0.55),
+        rk("respawn", "Respawn · Ready", {}, 0),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
       // not hand over what the page keeps locked
@@ -1855,7 +1882,7 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-tray kp-axis">
           <Piece id="waypoint" caption="Waypoint" value={0.3} scale={0.54} />
           <Piece id="capturemeter" caption="Capture point" value={0.55} scale={0.54} />
-          <Piece id="respawn" caption="Respawn timer" value={0.6} scale={0.5} />
+          <Piece id="respawn" caption="Respawn timer · counts down" value={0.6} scale={0.5} ambient />
         </div>
         <Meta items={["Crosshair and marker weight ride the Icon stroke control", "value scrubs spread, rounds, streak, capture and direction", "the wheel's value is the pointer's angle in play mode", "crit and alarm reds are semantic, like rarity hues", "every readout keeps the hard-shadow legibility rule"]} />
       </Sec>

@@ -113,7 +113,7 @@ interactive sub-element, never the whole frame:
 | capturemeter | ring glow | label = letter, value = capture share |
 | respawn | — | label = heading; seconds re-theme via type fork / text color |
 | dmgarc | — (spatial) | value = direction; alarm red is semantic |
-| weaponwheel | armed chamber | value = cylinder ROTATION (points spin the chamber to the hammer, tweened), label = hub name, icon = armed glyph (swappable) |
+| weaponwheel | armed chamber | value = cylinder ROTATION — pointing seats the chamber at the 2 o'clock hammer, magnified, topmost, western easing; label = hub name, icon = armed glyph |
 
 ## P4 · Casual / mobile pack — 11
 
