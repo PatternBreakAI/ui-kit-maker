@@ -162,6 +162,9 @@ function usePiece(p: PieceOpts) {
       label: kitLabels[p.id] ?? p.label, segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: p.value, baseState: p.baseState,
       sub: p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
+      // instrument readouts default to plain AUTO ink; an explicit type fork
+      // or per-piece text color re-themes them (see KitOpts.themedText)
+      themedText: !!kitDesigns[p.id]?.type || !!kitTextFill[p.id],
       // explicit per-component vertical text adjustment (0 is a valid value)
       textOy: kitTextOy[`${p.id}:${size}`],
       textOx: kitTextOx[`${p.id}:${size}`],

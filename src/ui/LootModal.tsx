@@ -16,8 +16,9 @@ import { presetArt } from "./Panel";
    browser; purely celebratory — the tier change already unlocked the cards. */
 
 const RARITY = ["RARE", "EPIC"] as const;
-/* shake (.55s) + strain (.4s) — the reveal fires when the strain peaks */
-const CRACK_MS = 950;
+/* white-hot ignition (.5s, the claim celebration's language) — the reveal
+   bursts in as the flare peaks */
+const CRACK_MS = 500;
 
 function presetCfg(id: string): GenConfig {
   if (PRESET_DEFAULTS[id]) return hydrate(structuredClone(PRESET_DEFAULTS[id]));
@@ -48,6 +49,7 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
 
   const crack = (i: number) => {
     if (opened[i] || cracking[i]) return;
+    // reduced-motion opens instantly — no flare to sit through
     const instant = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (instant) { setOpened((o) => o.map((v, j) => (j === i ? true : v))); return; }
     setCracking((c) => c.map((v, j) => (j === i ? true : v)));
