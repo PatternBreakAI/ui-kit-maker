@@ -2595,6 +2595,8 @@ html[data-theme="light"] .fd-landing .bg-base {
 html[data-theme="light"] .fd-landing .bd-call b { color: #1c1233;
       text-shadow: 0 0 22px rgba(124, 58, 237, .35), 0 1px 0 rgba(255, 255, 255, .7); }
 html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
+    @media (max-width: 760px) {
+.fd-landing .bd-call, .fd-landing .bd-call.run { display: none; } }
 .fd-landing .pv-ship { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; cursor: pointer;
       background: color-mix(in srgb, var(--bg) 52%, transparent);
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
