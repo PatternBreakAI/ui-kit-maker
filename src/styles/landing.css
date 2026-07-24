@@ -2054,12 +2054,9 @@ html[data-theme="light"] .fd-landing .bg-base {
       border: 1px solid var(--line-strong); border-radius: 999px; padding: 7px 14px; }
 .fd-landing .h1b { margin: 22px 0 0; font-family: var(--display); font-weight: 900;
       font-size: clamp(50px, 6.1vw, 88px); line-height: .92; letter-spacing: -.028em; color: var(--text); }
-.fd-landing /* CJK: square glyphs crash at .92 — open the leading, .fd-landing ease the size */
-    html[lang="zh-Hans"] .h1b, .fd-landing html[lang="ja"] .h1b {
-      font-size: clamp(40px, 4.9vw, 70px); line-height: 1.18; letter-spacing: .01em; }
-.fd-landing /* long Latin words (fr/es/it/de): a few points down so lines break clean */
-    html[lang="fr"] .h1b, .fd-landing html[lang="es"] .h1b, .fd-landing html[lang="it"] .h1b, .fd-landing html[lang="de"] .h1b {
-      font-size: clamp(42px, 5.3vw, 74px); }
+html[lang="zh-Hans"] .fd-landing h1.h1b { /* CJK: square glyphs crash at .92 — open the leading, ease the size */ font-size: clamp(44px, 5.2vw, 76px); line-height: 1.16; letter-spacing: .01em; }
+html[lang="ja"] .fd-landing h1.h1b { font-size: clamp(46px, 5.6vw, 82px); line-height: 1.16; letter-spacing: .01em; }
+html[lang="fr"] .fd-landing h1.h1b, html[lang="es"] .fd-landing h1.h1b, html[lang="it"] .fd-landing h1.h1b, html[lang="de"] .fd-landing h1.h1b { /* long Latin words: a few points down so lines break clean */ font-size: clamp(48px, 6.4vw, 92px); }
 .fd-landing .seconds-grad { background: linear-gradient(93deg, #f050c0 4%, #b26bff 48%, #4f79ff 96%);
       background-size: 220% 100%; background-position: 100% 0;
       -webkit-background-clip: text; background-clip: text; color: transparent; }
