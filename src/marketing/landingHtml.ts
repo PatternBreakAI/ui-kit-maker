@@ -76,18 +76,17 @@ export const LANDING_HTML = `</head>
         </div>
 
         <div class="studio2 reveal-in e3" id="studio2" aria-label="Live UI button studio">
-          <div class="st2-narr"><span id="narrTxt"></span><button class="cust-btn" id="custBtn" type="button" hidden>⛭ <span id="custTxt">CUSTOMIZE</span></button></div>
-          <div class="st2-preview" id="previewField">
-            <span class="pv-ctl">
+          <div class="st2-narr"><span id="narrTxt"></span><button class="cust-btn" id="custBtn" type="button" hidden>⛭ <span id="custTxt">CUSTOMIZE</span></button><span class="pv-ctl">
               <span class="st2-status" id="stStatus" aria-live="polite">LIVE PREVIEW</span>
               <button class="st2-tb" id="playCtl" type="button" aria-label="Resume the preview loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
               <button class="st2-tb" id="pauseCtl" type="button" aria-label="Pause the preview loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg></button>
-            </span>
-            <div class="pv-steps" id="pvSteps" role="group" aria-label="Onboarding steps">
-              <button type="button" data-step="1" class="on">01 MASTER</button>
-              <button type="button" data-step="2" disabled>02 KIT</button>
-              <button type="button" data-step="3" disabled>03 BOARD</button>
-            </div>
+            </span></div>
+          <div class="pv-steps" id="pvSteps" role="group" aria-label="Onboarding steps">
+            <button type="button" data-step="1" class="on">01 MASTER</button>
+            <button type="button" data-step="2" disabled>02 KIT</button>
+            <button type="button" data-step="3" disabled>03 BOARD</button>
+          </div>
+          <div class="st2-preview" id="previewField">
             <span class="pv-label" id="pvLabel">MASTER / 01</span>
             <span class="pv-bracket tl"></span><span class="pv-bracket tr"></span>
             <span class="pv-bracket bl"></span><span class="pv-bracket br"></span>
@@ -122,11 +121,11 @@ export const LANDING_HTML = `</head>
           </div>
 
           <div class="st2-controls">
-            <div class="c-color-row">
-              <span class="c-cap">COLOR</span>
-              <div class="palette2" id="palette2" role="group" aria-label="Candy palette"></div>
-            </div>
-            <div class="c-split">
+            <div class="c-split c-row3">
+              <div class="c-color-row">
+                <span class="c-cap">COLOR</span>
+                <div class="palette2" id="palette2" role="group" aria-label="Candy palette"></div>
+              </div>
               <div class="c-group">
                 <label class="c-label" for="roundR"><span>ROUNDNESS</span><span class="c-val" id="roundVal">62%</span></label>
                 <input class="range" id="roundR" type="range" min="0" max="100" value="62" style="--range:62%">
@@ -164,13 +163,13 @@ export const LANDING_HTML = `</head>
                 </div>
                 <div class="state-big" id="stateBig"></div>
               </div>
+              <div class="c-group c-font">
+                <div class="c-label"><span id="fontCap">FONT</span></div>
+                <div class="font-chips" id="fontChips" role="group" aria-label="Label font"></div>
+              </div>
               <div class="c-group c-more">
                 <div class="more-grid">
-                  <div>
-                    <div class="c-label"><span id="fontCap">FONT</span></div>
-                    <div class="font-chips" id="fontChips" role="group" aria-label="Label font"></div>
-                  </div>
-                  <div>
+                  <div class="mg-full">
                     <div class="c-label"><span id="tcolCap">FONT COLOR</span></div>
                     <div class="bg-chips" id="tcolChips" role="group" aria-label="Label color"></div>
                   </div>
