@@ -111,11 +111,13 @@ export const LANDING_HTML = `</head>
                 <div class="b2-dimmer" id="b2Dim"></div>
                 <div class="b2-veil" id="b2Veil"></div>
                 <div class="b2-chip" id="b2Chip" hidden>⭱ yourworld.png</div>
-                <div class="b2-dimctl"><span id="dimLbl">VIGNETTE</span><input type="range" id="dimR" class="slider" min="0" max="75" value="35" style="--fill:47%" aria-label="Vignette strength"></div>
+                <div class="b2-dimctl"><span id="dimLbl">VIGNETTE</span><input type="range" id="dimR" class="slider" min="0" max="75" value="50" style="--fill:67%" aria-label="Vignette strength"></div>
                 <div class="b2-pieces" id="b2Pieces"></div>
               </div>
             </div>
+            <div class="bd-call" id="bdCall" hidden aria-hidden="true"><b id="bdCall1">STAGE UNLOCKED</b><span id="bdCall2">Playtest your kit over real screenshots — your game, your frames.</span></div>
             <div class="pv-ship" id="pvShip" hidden>
+              <div class="ship-wrap">
               <div class="ship-card">
                 <div class="ship-head"><i>⬢</i><b id="shipDoneTxt">EXPORT COMPLETE</b></div>
                 <div class="ship-sub">your-kit.zip · every component × 4 states</div>
@@ -127,6 +129,11 @@ export const LANDING_HTML = `</head>
                   <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
                 </div>
                 <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.</div>
+              </div>
+              <div class="ship-list">
+                <div class="ship-list-head"><b>⇣</b><span id="shipCount">0 / 0</span></div>
+                <div class="ship-list-scroll" id="shipList"></div>
+              </div>
               </div>
             </div>
             <span class="kit-ready" id="kitReady" aria-hidden="true">KIT READY</span>

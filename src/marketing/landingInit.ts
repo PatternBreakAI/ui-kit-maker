@@ -710,11 +710,21 @@ export function initLanding(deps: LandingDeps) {
         reduceMotion ? go() : setTimeout(go, 180);
       };
 
+      let boardCalloutDone = false;
       const toBoard = () => {
         takeOver();
         showStep(3);
         boardIntro();
-        setTimeout(() => flash(t("fBoard")), reduceMotion ? 60 : 1500);
+        if (!boardCalloutDone) {
+          boardCalloutDone = true;
+          const bc = document.getElementById("bdCall");
+          if (bc) setTimeout(() => {
+            bc.hidden = false; bc.classList.add("run");
+            setTimeout(() => { bc.hidden = true; bc.classList.remove("run"); }, 3100);
+          }, reduceMotion ? 200 : 1100);
+        } else {
+          setTimeout(() => flash(t("fBoard")), reduceMotion ? 60 : 1500);
+        }
       };
 
       const doExport = () => {
@@ -727,6 +737,63 @@ export function initLanding(deps: LandingDeps) {
             ship.classList.remove("play");
             void ship.offsetWidth;
             ship.classList.add("play");
+            try {
+              ship.querySelectorAll(".exp-file").forEach((n) => n.remove());
+              const files = ["unity.prefab.json", "unreal.uasset.json", "kit.css", "kit.html", "board-1.png", "LICENSE.txt"];
+              const exts = ["default.svg", "hover.svg", "pressed.svg", "disabled.svg"];
+              E.KIT_COMPONENTS.forEach((k) => {
+                exts.forEach((x) => files.push(k.id + "-" + x));
+                files.push(k.id + "@1x.png", k.id + "@2x.png");
+              });
+              for (let i = files.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1)); const tmp = files[i]; files[i] = files[j]; files[j] = tmp;
+              }
+              const W2 = ship.clientWidth || 700, H2 = ship.clientHeight || 420;
+              files.slice(0, 36).forEach((nm, i) => {
+                const chip = document.createElement("i");
+                chip.className = "exp-file"; chip.textContent = nm;
+                ship.appendChild(chip);
+                const ang = Math.random() * Math.PI * 2;
+                const spread = 0.3 + Math.random() * 0.62;
+                const tx = Math.cos(ang) * spread * W2 * 0.5, ty = Math.sin(ang) * spread * H2 * 0.5;
+                const rot = (Math.random() * 22 - 11).toFixed(1);
+                if (reduceMotion) {
+                  chip.style.transform = "translate(-50%,-50%) translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg)";
+                  chip.style.opacity = ".3"; return;
+                }
+                chip.animate([
+                  { transform: "translate(-50%,-50%) scale(.4)", opacity: 0 },
+                  { transform: "translate(-50%,-50%) translate(" + tx * 0.92 + "px," + ty * 0.92 + "px) rotate(" + rot + "deg) scale(1)", opacity: .95, offset: .55 },
+                  { transform: "translate(-50%,-50%) translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(1)", opacity: .3 }
+                ], { duration: 1150, delay: 120 + i * 34, easing: "cubic-bezier(.16,1,.3,1)", fill: "forwards" });
+              });
+            } catch (_) {}
+            try {
+              const listEl = document.getElementById("shipList"), cntEl = document.getElementById("shipCount");
+              if (listEl && cntEl) {
+                listEl.innerHTML = "";
+                const cells = Array.from(document.querySelectorAll("#pvKit .kcell"));
+                const total = cells.length; let done = 0;
+                cntEl.textContent = "0 / " + total;
+                if (!cells.length) listEl.parentElement.style.display = "none";
+                const addRow = (cell) => {
+                  const row = document.createElement("div"); row.className = "ship-li";
+                  const art = document.createElement("span"); art.className = "a";
+                  const svg = cell.querySelector(".rk svg");
+                  if (svg) art.appendChild(svg.cloneNode(true));
+                  const nm = document.createElement("span");
+                  const capEl = cell.querySelector(".kcap2");
+                  nm.textContent = (capEl ? capEl.textContent : "").toLowerCase();
+                  const tick = document.createElement("em"); tick.textContent = "✓";
+                  row.appendChild(art); row.appendChild(nm); row.appendChild(tick);
+                  listEl.appendChild(row);
+                  done += 1; cntEl.textContent = done + " / " + total;
+                  listEl.scrollTop = listEl.scrollHeight;
+                };
+                if (reduceMotion) cells.forEach(addRow);
+                else cells.forEach((cell2, i2) => setTimeout(() => { if (!ship.hidden) addRow(cell2); }, 200 + i2 * 60));
+              }
+            } catch (_) {}
           }
           narr.innerHTML = t("n4");
           pushLabel.textContent = t("pushOpen");
@@ -1003,7 +1070,7 @@ n2:"<b>Step 2 · Your Kit.</b> One press built all of this — every piece inher
 n3:"<b>Step 3 · The Board.</b> <b>Upload your own image</b> — any screen or concept — drag pieces onto it, dim the backdrop, and make as many boards as you need. Export or share each one.",
 n4:"<b>Exported!</b> That’s the whole loop — master → kit → board → files. Now do it for real.",
 cust:"CUSTOMIZE",pushKit:"CREATE YOUR KIT",pushBoard:"PUSH TO A BOARD",pushExport:"EXPORT",pushOpen:"OPEN THE GENERATOR",shipDone:"EXPORT COMPLETE",shipLine:"Yours to ship — in any game or product you sell.",
-fKit:"KIT READY",fBoard:"BOARD READY",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
+fKit:"KIT READY",fBoard:"BOARD READY",bdCall1:"STAGE UNLOCKED",bdCall2:"Playtest your kit over real screenshots — your game, your frames.",fExp:"EXPORTED",comp:"COMPONENTS",states:"STATES",ready:"READY TO DOWNLOAD",
 lib:"LIBRARY",drag:"drag onto<br>the stage",color:"STYLE",round:"ROUNDNESS",shine:"SHINE",pattern:"PATTERN",label:"LABEL",rand:"RANDOMIZE",
 live:"LIVE STUDIO",prev:"LIVE PREVIEW",yours:"YOUR DESIGN",up1:"⭱ yourworld.png — uploading…",up2:"✓ yourworld.png — background set",
 upBtn:"⭱ UPLOAD YOUR IMAGE",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ SHARE",maxB:"Four boards in the demo — the app is unlimited.",
@@ -1046,7 +1113,7 @@ n2:"<b>第 2 步 · 你的组件库。</b>一次点击生成全部——每个�
 n3:"<b>第 3 步 · 画板。</b><b>上传你自己的图片</b>——任意画面或概念图——拖入组件、调暗背景，画板想建几块就建几块，每块都能导出或分享。",
 n4:"<b>已导出！</b>完整流程走完了——母版 → 组件库 → 画板 → 文件。去正式版试试吧。",
 cust:"自定义",pushKit:"创建你的组件库",pushBoard:"进入画板",pushExport:"导出",pushOpen:"打开生成器",shipDone:"导出完成",shipLine:"归你所有 — 可用于任何你销售的游戏或产品。",
-fKit:"组件库就绪",fBoard:"画板就绪",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
+fKit:"组件库就绪",fBoard:"画板就绪",bdCall1:"新场景解锁",bdCall2:"在真实截图上实测你的套件 — 你的游戏,你的画面。",fExp:"已导出",comp:"个组件",states:"种状态",ready:"随时可下载",
 lib:"素材库",drag:"拖到<br>舞台上",color:"风格",round:"圆角",shine:"光泽",pattern:"图案",label:"文字",rand:"随机",
 live:"实时工作室",prev:"实时预览",yours:"你的设计",up1:"⭱ yourworld.png — 上传中…",up2:"✓ yourworld.png — 背景已设置",
 upBtn:"⭱ 上传你的图片",dim:"暗角",boardW:"画板",addB:"+ 画板",pngB:"⭳ PNG",shareB:"⤴ 分享",maxB:"演示最多四块画板——正式版不限。",
@@ -1089,7 +1156,7 @@ n2:"<b>Étape 2 · Votre kit.</b> Un clic a tout construit — chaque pièce hé
 n3:"<b>Étape 3 · Le board.</b> <b>Importez votre propre image</b> — écran ou concept — glissez vos pièces, tamisez le fond, créez autant de boards que voulu. Exportez ou partagez chacun.",
 n4:"<b>Exporté !</b> La boucle est bouclée — master → kit → board → fichiers. À vous de jouer.",
 cust:"PERSONNALISER",pushKit:"CRÉEZ VOTRE KIT",pushBoard:"VERS LE BOARD",pushExport:"EXPORTER",pushOpen:"OUVRIR LE GÉNÉRATEUR",shipDone:"EXPORT TERMINÉ",shipLine:"À vous — dans tout jeu ou produit que vous vendez.",
-fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
+fKit:"KIT PRÊT",fBoard:"BOARD PRÊT",bdCall1:"NIVEAU DÉBLOQUÉ",bdCall2:"Testez votre kit sur de vraies captures — votre jeu, vos images.",fExp:"EXPORTÉ",comp:"COMPOSANTS",states:"ÉTATS",ready:"PRÊTS À TÉLÉCHARGER",
 lib:"BIBLIOTHÈQUE",drag:"glissez sur<br>la scène",color:"STYLE",round:"ARRONDI",shine:"BRILLANCE",pattern:"MOTIF",label:"TEXTE",rand:"ALÉATOIRE",
 live:"STUDIO LIVE",prev:"APERÇU LIVE",yours:"VOTRE DESIGN",up1:"⭱ yourworld.png — envoi…",up2:"✓ yourworld.png — fond appliqué",
 upBtn:"⭱ IMPORTEZ VOTRE IMAGE",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ PARTAGER",maxB:"Quatre boards dans la démo — illimité dans l’app.",
@@ -1132,7 +1199,7 @@ n2:"<b>Paso 2 · Tu kit.</b> Un clic lo construyó todo — cada pieza hereda tu
 n3:"<b>Paso 3 · El board.</b> <b>Sube tu propia imagen</b> — pantalla o concept — arrastra piezas, atenúa el fondo y crea todos los boards que quieras. Exporta o comparte cada uno.",
 n4:"<b>¡Exportado!</b> El ciclo completo — master → kit → board → archivos. Ahora hazlo de verdad.",
 cust:"PERSONALIZAR",pushKit:"CREA TU KIT",pushBoard:"AL BOARD",pushExport:"EXPORTAR",pushOpen:"ABRIR EL GENERADOR",shipDone:"EXPORTACIÓN COMPLETA",shipLine:"Tuyo — en cualquier juego o producto que vendas.",
-fKit:"KIT LISTO",fBoard:"BOARD LISTO",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
+fKit:"KIT LISTO",fBoard:"BOARD LISTO",bdCall1:"NIVEL DESBLOQUEADO",bdCall2:"Prueba tu kit sobre capturas reales — tu juego, tus imágenes.",fExp:"EXPORTADO",comp:"COMPONENTES",states:"ESTADOS",ready:"LISTOS PARA DESCARGAR",
 lib:"BIBLIOTECA",drag:"arrastra al<br>escenario",color:"ESTILO",round:"REDONDEO",shine:"BRILLO",pattern:"PATRÓN",label:"TEXTO",rand:"ALEATORIO",
 live:"ESTUDIO EN VIVO",prev:"VISTA EN VIVO",yours:"TU DISEÑO",up1:"⭱ yourworld.png — subiendo…",up2:"✓ yourworld.png — fondo listo",
 upBtn:"⭱ SUBE TU IMAGEN",dim:"VIÑETA",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ COMPARTIR",maxB:"Cuatro boards en la demo — la app es ilimitada.",
@@ -1175,7 +1242,7 @@ n2:"<b>Passo 2 · Il tuo kit.</b> Un clic ha costruito tutto — ogni pezzo ered
 n3:"<b>Passo 3 · La board.</b> <b>Carica la tua immagine</b> — schermata o concept — trascina i pezzi, attenua lo sfondo e crea quante board vuoi. Esporta o condividi ognuna.",
 n4:"<b>Esportato!</b> Il giro completo — master → kit → board → file. Ora fallo davvero.",
 cust:"PERSONALIZZA",pushKit:"CREA IL TUO KIT",pushBoard:"ALLA BOARD",pushExport:"ESPORTA",pushOpen:"APRI IL GENERATORE",shipDone:"EXPORT COMPLETATO",shipLine:"Tuo — in qualsiasi gioco o prodotto che vendi.",
-fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
+fKit:"KIT PRONTO",fBoard:"BOARD PRONTA",bdCall1:"LIVELLO SBLOCCATO",bdCall2:"Prova il tuo kit su screenshot reali — il tuo gioco, le tue immagini.",fExp:"ESPORTATO",comp:"COMPONENTI",states:"STATI",ready:"PRONTI DA SCARICARE",
 lib:"LIBRERIA",drag:"trascina sul<br>palco",color:"STILE",round:"ARROTONDA",shine:"LUCE",pattern:"PATTERN",label:"TESTO",rand:"CASUALE",
 live:"STUDIO LIVE",prev:"ANTEPRIMA LIVE",yours:"IL TUO DESIGN",up1:"⭱ yourworld.png — caricamento…",up2:"✓ yourworld.png — sfondo impostato",
 upBtn:"⭱ CARICA LA TUA IMMAGINE",dim:"VIGNETTATURA",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ CONDIVIDI",maxB:"Quattro board nella demo — l’app è senza limiti.",
@@ -1218,7 +1285,7 @@ n2:"<b>Schritt 2 · Dein Kit.</b> Ein Klick hat all das gebaut — jedes Teil er
 n3:"<b>Schritt 3 · Das Board.</b> <b>Lade dein eigenes Bild hoch</b> — Screenshot oder Konzept — zieh Teile darauf, dimme den Hintergrund und leg so viele Boards an, wie du brauchst. Jedes lässt sich exportieren oder teilen.",
 n4:"<b>Exportiert!</b> Das war der ganze Loop — Master → Kit → Board → Dateien. Jetzt mach es richtig.",
 cust:"ANPASSEN",pushKit:"ERSTELLE DEIN KIT",pushBoard:"AUFS BOARD",pushExport:"EXPORTIEREN",pushOpen:"GENERATOR ÖFFNEN",shipDone:"EXPORT ABGESCHLOSSEN",shipLine:"Gehört dir — in jedem Spiel oder Produkt, das du verkaufst.",
-fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
+fKit:"KIT BEREIT",fBoard:"BOARD BEREIT",bdCall1:"STAGE FREIGESCHALTET",bdCall2:"Teste dein Kit auf echten Screenshots — dein Spiel, deine Frames.",fExp:"EXPORTIERT",comp:"KOMPONENTEN",states:"ZUSTÄNDE",ready:"BEREIT ZUM DOWNLOAD",
 lib:"BIBLIOTHEK",drag:"auf die Bühne<br>ziehen",color:"STIL",round:"RUNDUNG",shine:"GLANZ",pattern:"MUSTER",label:"TEXT",rand:"ZUFALL",
 live:"LIVE-STUDIO",prev:"LIVE-VORSCHAU",yours:"DEIN DESIGN",up1:"⭱ yourworld.png — wird hochgeladen…",up2:"✓ yourworld.png — Hintergrund gesetzt",
 upBtn:"⭱ EIGENES BILD HOCHLADEN",dim:"VIGNETTE",boardW:"BOARD",addB:"+ BOARD",pngB:"⭳ PNG",shareB:"⤴ TEILEN",maxB:"Vier Boards in der Demo — die App ist unbegrenzt.",
@@ -1261,7 +1328,7 @@ n2:"<b>ステップ2 · あなたのキット。</b>ワンクリックで全部�
 n3:"<b>ステップ3 · ボード。</b><b>自分の画像をアップロード</b> — 画面でもコンセプトでも — パーツをドラッグし、背景を調光。ボードは何枚でも作れて、それぞれ書き出し・共有できます。",
 n4:"<b>書き出し完了！</b>これで一巡 — マスター → キット → ボード → ファイル。次は本番でどうぞ。",
 cust:"カスタマイズ",pushKit:"キットを作成",pushBoard:"ボードへ",pushExport:"書き出す",pushOpen:"ジェネレーターを開く",shipDone:"エクスポート完了",shipLine:"あなたのもの — 販売するあらゆるゲームや製品に。",
-fKit:"キット完成",fBoard:"ボード完成",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
+fKit:"キット完成",fBoard:"ボード完成",bdCall1:"ステージ解放",bdCall2:"実際のスクリーンショットでキットをテスト — 君のゲーム、君の画面。",fExp:"書き出し済み",comp:"コンポーネント",states:"ステート",ready:"すぐダウンロード可能",
 lib:"ライブラリ",drag:"ステージへ<br>ドラッグ",color:"スタイル",round:"丸み",shine:"ツヤ",pattern:"パターン",label:"ラベル",rand:"ランダム",
 live:"ライブスタジオ",prev:"ライブプレビュー",yours:"あなたのデザイン",up1:"⭱ yourworld.png — アップロード中…",up2:"✓ yourworld.png — 背景を設定",
 upBtn:"⭱ 画像をアップロード",dim:"ビネット",boardW:"ボード",addB:"+ ボード",pngB:"⭳ PNG",shareB:"⤴ 共有",maxB:"デモでは4枚まで — アプリは無制限。",
@@ -1386,7 +1453,8 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         [["auTabIn", "auIn"], ["auTabUp", "auUp"], ["auEmailCap", "auEmail"], ["auPassCap", "auPass"],
          ["auForgot", "auFgt"], ["auOr", "auOr"], ["auMagic", "auMagic"], ["auFree", "auFreeL"],
          ["auConsentTxt", "auTerms"], ["auBackTxt", "auBackL"],
-         ["shipDoneTxt", "shipDone"], ["shipLineTxt", "shipLine"]].forEach(([id, k]) => {
+         ["shipDoneTxt", "shipDone"], ["shipLineTxt", "shipLine"],
+         ["bdCall1", "bdCall1"], ["bdCall2", "bdCall2"]].forEach(([id, k]) => {
           const el2 = document.getElementById(id); if (el2) el2.textContent = t(k);
         });
         const ovEl = document.getElementById("authOv");
