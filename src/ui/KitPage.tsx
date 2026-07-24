@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Download, Lock, PenTool, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, SPECULAR_MODES, STOCK_ICONS, PATTERN_TYPES, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, resolveKitIcon } from "@/generator/model";
+import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, resolveKitIcon } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -240,8 +240,8 @@ function ExportMenu({ actions }: {
 
 /* Specimen deep-dives collapse by default — the type section reads as a
    compact spec sheet, not a poster. */
-function KpFold({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function KpFold({ label, defaultOpen, children }: { label: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen);
   return (
     <div className={`kp-fold${open ? " open" : ""}`}>
       <button className="kp-foldhead" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -867,8 +867,6 @@ export function KitPage() {
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
   const roles = EFFECT_ROLES.filter((r) => cfg.effects[r] !== undefined);
-  const specularName = SPECULAR_MODES.find((m) => m.id === cfg.candy.specular.mode)?.name ?? "—";
-  const patternName = PATTERN_TYPES.find((p) => p.id === cfg.candy.pattern.type)?.name.split(" — ")[0] ?? "None";
   const label = cfg.content.label || "PLAY";
   const T = cfg.type;
   const caps = fontByName(T.font).caps;
@@ -1155,15 +1153,22 @@ const kitTier = useGen((s) => s.tier);
   const conWord = (splash.trim().split(/\s+/)[0] || "LEVEL").slice(0, 8).toUpperCase();
   const conStages = useMemo(() => {
     const base = (c: GenConfig) => { typeOff(c); c.type.size = 62; };
+    // the outline stage must SHOW an outline even when the master's outline
+    // width is zeroed — the construction sheet demos the layer, not the
+    // current setting
+    const outlineOn = (c: GenConfig) => {
+      c.type.outline.on = true;
+      if (!c.type.outline.width || c.type.outline.width < 1.5) c.type.outline.width = 3;
+    };
     const defs: [string, (c: GenConfig) => void][] = [
       ["Base fill", (c) => base(c)],
-      ["Outline", (c) => { base(c); c.type.outline.on = true; }],
+      ["Outline", (c) => { base(c); outlineOn(c); }],
       ["Depth", (c) => {
-        base(c); c.type.outline.on = true; c.type.shadow.on = true;
+        base(c); outlineOn(c); c.type.shadow.on = true;
         c.type.emboss.on = true; if (!c.type.emboss.strength) c.type.emboss.strength = 55;
       }],
       ["Highlight + glow", (c) => {
-        base(c); c.type.outline.on = true; c.type.shadow.on = true;
+        base(c); outlineOn(c); c.type.shadow.on = true;
         c.type.emboss.on = true; if (!c.type.emboss.strength) c.type.emboss.strength = 55;
         c.type.glow.on = true; c.type.glints = { on: true, opacity: c.type.glints?.opacity ?? 55 };
       }],
@@ -1367,15 +1372,6 @@ const kitTier = useGen((s) => s.tier);
           <span>Keep related: glow near the bevel family</span>
           <span>Breaks the look: flat fills, removed rim, black shadows at full opacity</span>
         </div>
-        <SpecList rows={[
-          ["Face", cfg.face.mode === "dark" ? "Dark" : "Light"],
-          ["Wall", `${cfg.bevel.width}px`],
-          ["Extrusion", `${cfg.candy.extrusion.depth}px`],
-          ["Key light", `${cfg.lighting.angle}°`],
-          ["Gloss", cfg.candy.gloss.on ? `${cfg.candy.gloss.opacity}%` : "Off"],
-          ["Specular", cfg.candy.specular.on ? specularName : "Off"],
-          ["Pattern", patternName],
-        ]} />
       </Sec>
 
       {/* ── 02 · typography ── */}
@@ -1438,7 +1434,7 @@ const kitTier = useGen((s) => s.tier);
               </div>
             </div>
 
-            <KpFold label="Character set & display construction">
+            <KpFold label="Character set & display construction" defaultOpen>
             <div className="kp-tylabel kp-tygap">Character set</div>
             <div className="kp-tychars">
               <span className="kp-tyrowlab">Uppercase</span>
