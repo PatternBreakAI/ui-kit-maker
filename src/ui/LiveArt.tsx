@@ -100,8 +100,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // stamped-geometry value pipe: sliders and the settings row drag, the
     // scrollbar thumb drags, menu rows and the dialog's capsules track the
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
-    : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" ? (playing && !disabled ? val : kit?.value)
-    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
+    : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" ? (playing && !disabled ? val : kit?.value)
+    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -199,8 +199,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // rows highlight under a resting pointer; the scrollbar needs a real drag
   const vtracked = id === "scrollbar" || id === "listmenu" || id === "choicelist";
 
-  /* Weapon wheel: the pointer's ANGLE around the stamped hub picks the
-     chamber — the hold-and-point gesture, live. */
+  /* Weapon wheel: the pointer's ANGLE around the stamped hub, as a
+     fraction of a turn measured clockwise from the TOP (the hammer). */
   const wheelCoord = (e: React.PointerEvent): number | null => {
     const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
     const hub = el?.getAttribute("data-wheel")?.split(" ").map(Number);
@@ -211,10 +211,34 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     const px = vb.x + ((e.clientX - r.left) / r.width) * vb.width;
     const py = vb.y + ((e.clientY - r.top) / r.height) * vb.height;
     const a = Math.atan2(py - hub[1], px - hub[0]); // -PI..PI, 0 = east
-    // chambers start at NORTH and run clockwise; sector centers get the
-    // half-step offset so the pointer lands in the sector it's inside
-    const frac = ((a + Math.PI / 2) / (Math.PI * 2) + 1 + 1 / 12) % 1;
-    return frac;
+    return ((a + Math.PI / 2) / (Math.PI * 2) + 1) % 1;
+  };
+
+  /* Value tween — the motion engine behind the revolver spin and the
+     carousel glide. Targets may run outside 0..1 (shortest modular path);
+     every frame lands normalized. */
+  const valRef = useRef(val);
+  valRef.current = val;
+  const tweenVal = (target: number, dur: number, mode: "out" | "inout" | "western") => {
+    cancelAnimationFrame(raf.current);
+    const from = valRef.current;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVal(((target % 1) + 1) % 1);
+      return;
+    }
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const u = Math.min(1, (t - t0) / dur);
+      // "western": a heavy cylinder — slow wind-up, weighty travel, a small
+      // overshoot clunk as it seats (easeOutBack)
+      const c1 = 1.70158;
+      const e2 = mode === "out" ? 1 - (1 - u) ** 3
+        : mode === "western" ? 1 + (c1 + 1) * (u - 1) ** 3 + c1 * (u - 1) ** 2
+        : (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
+      setVal((((from + (target - from) * e2) % 1) + 1) % 1);
+      if (u < 1) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
   };
 
   /* Progress demo playback — resets to 0, then fills to the component's own
@@ -272,7 +296,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     };
     raf.current = requestAnimationFrame(step);
   };
-  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits";
+  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
   // ambient progress: bars, rings, timers and gauges quietly replay on their own beat
@@ -307,18 +331,35 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     if (id === "input") { setEditing(true); if (typed === null) setTyped(kit?.label ?? ""); (e.currentTarget as HTMLElement).focus?.(); }
     else if (id === "toggle" || id === "checkbox" || id === "radio" || id === "orb") setOn((v) => !v);
     else if (id === "dropdown" || id === "badge") setOpen((v) => !v);
-    else if (id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || isGauge) playProgress();
+    else if (id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || isGauge) playProgress();
     else if (isTimer) playTimer();
     else if (id === "segment") {
       const c = trackCoord(e);
       if (c) setSel(c.thirds);
     }
+    else if (id === "spinwheel") {
+      // the fortune throw: 2-3 turns, long decelerating settle
+      tweenVal(valRef.current + 2 + (Math.floor(Math.random() * 8) + 0.5) / 8, 2600, "out");
+    }
+    else if (id === "weaponwheel") {
+      // the revolver spins on CLICK: the clicked chamber rides the cylinder
+      // around (the slow way) and seats at the 2 o'clock hammer
+      const p = wheelCoord(e);
+      if (p !== null) {
+        const n = 6, v = valRef.current;
+        const chamber = ((Math.round((p - v) * n) % n) + n) % n;
+        const t0 = ((1 / n - chamber / n) % 1 + 1) % 1;
+        const cand = [t0 - 1, t0, t0 + 1].reduce((a2, b2) => (Math.abs(b2 - v) < Math.abs(a2 - v) ? b2 : a2));
+        tweenVal(cand, 780, "western");
+      }
+    }
     else if (id === "equipselector") {
-      // carousel: click left of the armed socket → previous, right → next
+      // carousel: click left of the armed socket → previous, right → next —
+      // and the items GLIDE there (hardware-picker motion)
       const c = trackCoord(e);
-      const cur = Math.max(0, Math.min(2, Math.floor(clamp01(val) * 3)));
       const dir = c && c.u < 0.42 ? -1 : 1;
-      setVal(((cur + dir + 3) % 3 + 0.5) / 3);
+      const settled = Math.round(valRef.current * 3) / 3;
+      tweenVal(settled + dir / 3, 420, "inout");
     }
   };
   const playHandlers = inert ? {} : {
@@ -362,11 +403,6 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       // menus track the pointer with no press — every row is rollover-able
       if ((id === "listmenu" || id === "choicelist") && !sliding.current) {
         const u = vtrackCoord(e);
-        if (u !== null) setVal(u);
-      }
-      // the wheel follows the pointer's angle — hold-and-point, live
-      if (id === "weaponwheel") {
-        const u = wheelCoord(e);
         if (u !== null) setVal(u);
       }
       if (id === "joystick" && sliding.current && stickDrag.current) {

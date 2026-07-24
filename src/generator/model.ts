@@ -780,7 +780,10 @@ export type KitComponentId =
   | "compass" | "partyframe" | "dmgnumber" | "loottag"
   | "crosshair" | "hitmarker" | "killfeed" | "magazine" | "equipselector"
   | "streakmeter" | "waypoint" | "capturemeter" | "respawn" | "dmgarc"
-  | "weaponwheel";
+  | "weaponwheel"
+  | "starrating" | "levelnode" | "pathconnector" | "heartmeter" | "booster"
+  | "spinwheel" | "dailycell" | "combo" | "movecounter" | "pricebtn"
+  | "energymeter";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -829,6 +832,17 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "respawn", name: "Respawn timer" },
   { id: "dmgarc", name: "Damage direction" },
   { id: "weaponwheel", name: "Weapon wheel" },
+  { id: "starrating", name: "Star rating" },
+  { id: "levelnode", name: "Level node" },
+  { id: "pathconnector", name: "Path connector" },
+  { id: "heartmeter", name: "Heart meter" },
+  { id: "booster", name: "Booster button" },
+  { id: "spinwheel", name: "Spin wheel" },
+  { id: "dailycell", name: "Daily reward" },
+  { id: "combo", name: "Combo burst" },
+  { id: "movecounter", name: "Move counter" },
+  { id: "pricebtn", name: "Price button" },
+  { id: "energymeter", name: "Energy meter" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -1020,6 +1034,13 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   killfeed: "kenneyRect",
   streakmeter: "pill",
   respawn: "round",
+  levelnode: "pill",        // map nodes live in circular sockets
+  heartmeter: "pill",
+  booster: "pill",
+  dailycell: "kenneyRect",
+  movecounter: "round",
+  pricebtn: "pill",
+  energymeter: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",
@@ -1081,4 +1102,5 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   // shooter glyphs — same canonical-Lucide embedding rules
   crosshair: { lib: "lucide", name: "Crosshair", viewBox: "0 0 24 24", inner: '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>', mode: "stroke" },
   skull: { lib: "lucide", name: "Skull", viewBox: "0 0 24 24", inner: '<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>', mode: "stroke" },
+  gift: { lib: "lucide", name: "Gift", viewBox: "0 0 24 24", inner: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 4.8 0 0 1 12 8a4.8 4.8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>', mode: "stroke" },
 };

@@ -1,4 +1,4 @@
-# Component roadmap — 92 shipped → 115 (P1 + P2 + P3 COMPLETE)
+# Component roadmap — 103 shipped → 115 (P1–P4 COMPLETE)
 
 Current inventory (47): primary, secondary, small, ghost, iconbtn, chip,
 badge, tab, segment, header, checkbox, radio, toggle, slider, input,
@@ -107,20 +107,39 @@ interactive sub-element, never the whole frame:
 | crosshair, hitmarker | — (spatial) | weight = Icon stroke; color = Glow role; value = spread/intensity |
 | killfeed | whole row (the "you" flash) | label = killer, sub = victim, icon = weapon (swappable) |
 | magazine | — | value = rounds, max = capacity |
-| equipselector | armed ring | value = item, label = name, icon = armed glyph |
+| equipselector | armed ring | value = CONTINUOUS position (tweened glide), label = name, icon = armed glyph |
 | streakmeter | frame | value = progress, label = meter name |
 | waypoint | pulse ring | label = letter, value = distance |
 | capturemeter | ring glow | label = letter, value = capture share |
 | respawn | — | label = heading; seconds re-theme via type fork / text color |
 | dmgarc | — (spatial) | value = direction; alarm red is semantic |
-| weaponwheel | armed chamber | value = chamber (pointer angle live), label = hub name, icon = armed glyph (swappable) |
+| weaponwheel | armed chamber | value = cylinder ROTATION — pointing seats the chamber at the 2 o'clock hammer, magnified, topmost, western easing; label = hub name, icon = armed glyph |
 
-## P4 · Casual / mobile pack — 11
+## P4 · Casual / mobile pack — 11 ✅ SHIPPED (v83)
 
-star-rating result (0–3), level-map node (lock/stars) + path connector,
-hearts row, booster button with count badge, spin-wheel frame, daily
-reward calendar cell, combo multiplier burst, move counter tile, price
-button (IAP), energy meter.
+| # | Component | Notes |
+|---|-----------|-------|
+| 1 | Star rating | 0–3 gold candy stars; click replays the pop |
+| 2 | Level node | current pulses; overlay = locked / stars:N |
+| 3 | Path connector | saga-trail beads; value = progress |
+| 4 | Heart meter | lives + refill timer + add knob (hearts-red semantic) |
+| 5 | Booster button | real button; count badge or FREE plate; icon swappable |
+| 6 | Spin wheel | value = rotation; click throws a multi-turn spin |
+| 7 | Daily reward | today glows; overlay = check (claimed) / locked |
+| 8 | Combo burst | shell-free gold burst; value = magnitude |
+| 9 | Move counter | ≤5 goes alarm red and pulses |
+| 10 | Price button (IAP) | coin + price + BEST VALUE ribbon; real button |
+| 11 | Energy meter | bolt + ten cells (negative-space canon) + count |
+
+### Editing contracts — Casual pack
+
+| Piece | Hover / pressed target | Channels |
+|---|---|---|
+| levelnode, booster, pricebtn, dailycell | whole piece (real buttons) | label = level/price/day; icon swap on booster/dailycell |
+| starrating, pathconnector, combo | — (spatial/celebration) | value = stars/progress/magnitude |
+| spinwheel | — | value = rotation (click = throw) |
+| heartmeter, energymeter | frame | value = fill; label = timer/count text |
+| movecounter | — | value = moves; AUTO-ink number (themedText re-themes) |
 
 ## P5 · Strategy + social — 12
 
@@ -133,7 +152,6 @@ toast.
 **Math: 47 + 20 + 14 + 11 + 11 + 12 = 115** (weapon wheel added to P3
 per the product owner).
 
-Sequencing: P1 ✅ → P2 ✅ → P3 ✅ (pulled ahead by request, weapon wheel
-included) → P4 casual/mobile next, then P5. Each pack lands as
+Sequencing: P1 ✅ → P2 ✅ → P3 ✅ → P4 ✅ → P5 strategy + social closes the set. Each pack lands as
 its own version so the kit page grows a chapter at a time, and pack
 names double as marketing beats ("the RPG pack just dropped").

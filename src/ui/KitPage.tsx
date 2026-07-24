@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Download, Lock, PenTool, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, SPECULAR_MODES, STOCK_ICONS, PATTERN_TYPES, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, resolveKitIcon } from "@/generator/model";
+import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, resolveKitIcon } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -240,8 +240,8 @@ function ExportMenu({ actions }: {
 
 /* Specimen deep-dives collapse by default — the type section reads as a
    compact spec sheet, not a poster. */
-function KpFold({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function KpFold({ label, defaultOpen, children }: { label: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen);
   return (
     <div className={`kp-fold${open ? " open" : ""}`}>
       <button className="kp-foldhead" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -867,8 +867,6 @@ export function KitPage() {
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
   const roles = EFFECT_ROLES.filter((r) => cfg.effects[r] !== undefined);
-  const specularName = SPECULAR_MODES.find((m) => m.id === cfg.candy.specular.mode)?.name ?? "—";
-  const patternName = PATTERN_TYPES.find((p) => p.id === cfg.candy.pattern.type)?.name.split(" — ")[0] ?? "None";
   const label = cfg.content.label || "PLAY";
   const T = cfg.type;
   const caps = fontByName(T.font).caps;
@@ -1109,6 +1107,33 @@ const kitTier = useGen((s) => s.tier);
         rk("slot", "Slot · Claimable", { icon: STOCK_ICONS.gem, overlay: "claimable" }, undefined, "hover"),
         rk("reticle", "Reticle · Locked", {}, undefined, "hover"),
         rk("ring", "Ring · Complete", {}, 1),
+        /* P2/P3 build parts — every meaningful pose of the RPG and shooter
+           vocabularies ships in the catalog, same rule as the state block */
+        rk("healthglobe", "Health globe · Low", {}, 0.2),
+        rk("partyframe", "Party frame · Hurt", {}, 0.24),
+        rk("rarityframe", "Rarity · Common", {}, 0),
+        rk("rarityframe", "Rarity · Uncommon", {}, 0.25),
+        rk("rarityframe", "Rarity · Rare", {}, 0.5),
+        rk("rarityframe", "Rarity · Epic", {}, 0.75),
+        rk("rarityframe", "Rarity · Legendary", {}, 1),
+        rk("equipslot", "Socket · Head", { icon: STOCK_ICONS.helmet }),
+        rk("equipslot", "Socket · Chest", { icon: STOCK_ICONS.shirt }),
+        rk("equipslot", "Socket · Hands", { icon: STOCK_ICONS.hand }),
+        rk("equipslot", "Socket · Feet", { icon: STOCK_ICONS.boots }),
+        rk("equipslot", "Socket · Weapon", { icon: STOCK_ICONS.sword }),
+        rk("equipslot", "Socket · Offhand", { icon: STOCK_ICONS.shield }),
+        rk("skillnode", "Skill node · Learned", { overlay: "learned" }),
+        rk("skillnode", "Skill node · Locked", { overlay: "locked" }),
+        rk("dmgnumber", "Damage · Critical", {}, 0.9),
+        rk("loottag", "Loot tag · Legendary", { label: "Dawnbreaker" }, 1),
+        rk("crosshair", "Crosshair · Wide", {}, 0.85),
+        rk("crosshair", "Crosshair · Dot", { overlay: "dot" }),
+        rk("hitmarker", "Hit marker · Critical", {}, 0.9),
+        rk("killfeed", "Kill feed · You", { label: "YOU", sub: "NOVA_KNIGHT" }, undefined, "hover"),
+        rk("magazine", "Magazine · Last rounds", {}, 0.16),
+        rk("streakmeter", "Streak · Ignited", {}, 1),
+        rk("capturemeter", "Capture · Contested", {}, 0.55),
+        rk("respawn", "Respawn · Ready", {}, 0),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
       // not hand over what the page keeps locked
@@ -1155,15 +1180,22 @@ const kitTier = useGen((s) => s.tier);
   const conWord = (splash.trim().split(/\s+/)[0] || "LEVEL").slice(0, 8).toUpperCase();
   const conStages = useMemo(() => {
     const base = (c: GenConfig) => { typeOff(c); c.type.size = 62; };
+    // the outline stage must SHOW an outline even when the master's outline
+    // width is zeroed — the construction sheet demos the layer, not the
+    // current setting
+    const outlineOn = (c: GenConfig) => {
+      c.type.outline.on = true;
+      if (!c.type.outline.width || c.type.outline.width < 1.5) c.type.outline.width = 3;
+    };
     const defs: [string, (c: GenConfig) => void][] = [
       ["Base fill", (c) => base(c)],
-      ["Outline", (c) => { base(c); c.type.outline.on = true; }],
+      ["Outline", (c) => { base(c); outlineOn(c); }],
       ["Depth", (c) => {
-        base(c); c.type.outline.on = true; c.type.shadow.on = true;
+        base(c); outlineOn(c); c.type.shadow.on = true;
         c.type.emboss.on = true; if (!c.type.emboss.strength) c.type.emboss.strength = 55;
       }],
       ["Highlight + glow", (c) => {
-        base(c); c.type.outline.on = true; c.type.shadow.on = true;
+        base(c); outlineOn(c); c.type.shadow.on = true;
         c.type.emboss.on = true; if (!c.type.emboss.strength) c.type.emboss.strength = 55;
         c.type.glow.on = true; c.type.glints = { on: true, opacity: c.type.glints?.opacity ?? 55 };
       }],
@@ -1367,15 +1399,6 @@ const kitTier = useGen((s) => s.tier);
           <span>Keep related: glow near the bevel family</span>
           <span>Breaks the look: flat fills, removed rim, black shadows at full opacity</span>
         </div>
-        <SpecList rows={[
-          ["Face", cfg.face.mode === "dark" ? "Dark" : "Light"],
-          ["Wall", `${cfg.bevel.width}px`],
-          ["Extrusion", `${cfg.candy.extrusion.depth}px`],
-          ["Key light", `${cfg.lighting.angle}°`],
-          ["Gloss", cfg.candy.gloss.on ? `${cfg.candy.gloss.opacity}%` : "Off"],
-          ["Specular", cfg.candy.specular.on ? specularName : "Off"],
-          ["Pattern", patternName],
-        ]} />
       </Sec>
 
       {/* ── 02 · typography ── */}
@@ -1438,7 +1461,7 @@ const kitTier = useGen((s) => s.tier);
               </div>
             </div>
 
-            <KpFold label="Character set & display construction">
+            <KpFold label="Character set & display construction" defaultOpen>
             <div className="kp-tylabel kp-tygap">Character set</div>
             <div className="kp-tychars">
               <span className="kp-tyrowlab">Uppercase</span>
@@ -1859,9 +1882,47 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-tray kp-axis">
           <Piece id="waypoint" caption="Waypoint" value={0.3} scale={0.54} />
           <Piece id="capturemeter" caption="Capture point" value={0.55} scale={0.54} />
-          <Piece id="respawn" caption="Respawn timer" value={0.6} scale={0.5} />
+          <Piece id="respawn" caption="Respawn timer · counts down" value={0.6} scale={0.5} ambient />
         </div>
         <Meta items={["Crosshair and marker weight ride the Icon stroke control", "value scrubs spread, rounds, streak, capture and direction", "the wheel's value is the pointer's angle in play mode", "crit and alarm reds are semantic, like rarity hues", "every readout keeps the hard-shadow legibility rule"]} />
+      </Sec>
+
+      <Sec n="12" title="Casual & Mobile" note="The free-to-play vocabulary: results, saga maps, lives and boosters, spins and daily rewards. Gold, hearts-red and ready-green are genre semantics; everything else follows the kit's roles. Click the stars to replay the pop; click the wheel to throw a spin.">
+        <div className="kp-subhead">Results & celebration</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="starrating" caption="Three stars · click to replay" value={1} scale={0.56} />
+          <Piece id="starrating" caption="Two stars" value={0.67} scale={0.56} />
+          <Piece id="starrating" caption="One star" value={0.34} scale={0.56} />
+          <Piece id="combo" caption="Combo" value={0.3} scale={0.5} />
+          <Piece id="combo" caption="Big combo" value={0.85} scale={0.5} />
+        </div>
+        <div className="kp-subhead">Saga map</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="levelnode" caption="Current · calls you" label="12" scale={0.52} />
+          <Piece id="levelnode" caption="Completed" label="11" overlay="stars:3" scale={0.52} />
+          <Piece id="levelnode" caption="Locked" label="13" overlay="locked" scale={0.52} />
+          <Piece id="pathconnector" caption="Path · progress" value={0.6} scale={0.52} />
+        </div>
+        <div className="kp-subhead">Economy & sessions</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="heartmeter" caption="Heart meter · refill" value={0.6} scale={0.5} />
+          <Piece id="energymeter" caption="Energy meter" value={0.8} scale={0.5} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="movecounter" caption="Move counter" value={0.8} scale={0.5} />
+          <Piece id="movecounter" caption="Last moves" value={0.12} scale={0.5} />
+          <Piece id="booster" caption="Booster · ×4" value={0.4} scale={0.5} />
+          <Piece id="booster" caption="Booster · free" value={0} icon={STOCK_ICONS.gem} scale={0.5} />
+          <Piece id="pricebtn" caption="Price button" scale={0.5} />
+        </div>
+        <div className="kp-subhead">Rewards</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="spinwheel" caption="Spin wheel · click to throw" value={0} scale={0.46} />
+          <Piece id="dailycell" caption="Today" label="DAY 4" scale={0.5} />
+          <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
+          <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
+        </div>
+        <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
       </Sec>
 
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
