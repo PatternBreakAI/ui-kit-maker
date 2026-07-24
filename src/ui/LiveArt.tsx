@@ -199,8 +199,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // rows highlight under a resting pointer; the scrollbar needs a real drag
   const vtracked = id === "scrollbar" || id === "listmenu" || id === "choicelist";
 
-  /* Weapon wheel: the pointer's ANGLE around the stamped hub picks the
-     chamber — the hold-and-point gesture, live. */
+  /* Weapon wheel: the pointer's ANGLE around the stamped hub, as a
+     fraction of a turn measured clockwise from the TOP (the hammer). */
   const wheelCoord = (e: React.PointerEvent): number | null => {
     const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
     const hub = el?.getAttribute("data-wheel")?.split(" ").map(Number);
@@ -211,10 +211,30 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     const px = vb.x + ((e.clientX - r.left) / r.width) * vb.width;
     const py = vb.y + ((e.clientY - r.top) / r.height) * vb.height;
     const a = Math.atan2(py - hub[1], px - hub[0]); // -PI..PI, 0 = east
-    // chambers start at NORTH and run clockwise; sector centers get the
-    // half-step offset so the pointer lands in the sector it's inside
-    const frac = ((a + Math.PI / 2) / (Math.PI * 2) + 1 + 1 / 12) % 1;
-    return frac;
+    return ((a + Math.PI / 2) / (Math.PI * 2) + 1) % 1;
+  };
+
+  /* Value tween — the motion engine behind the revolver spin and the
+     carousel glide. Targets may run outside 0..1 (shortest modular path);
+     every frame lands normalized. */
+  const valRef = useRef(val);
+  valRef.current = val;
+  const wheelChamber = useRef(-1);
+  const tweenVal = (target: number, dur: number, easeOut: boolean) => {
+    cancelAnimationFrame(raf.current);
+    const from = valRef.current;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVal(((target % 1) + 1) % 1);
+      return;
+    }
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const u = Math.min(1, (t - t0) / dur);
+      const e2 = easeOut ? 1 - (1 - u) ** 3 : (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2);
+      setVal((((from + (target - from) * e2) % 1) + 1) % 1);
+      if (u < 1) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
   };
 
   /* Progress demo playback — resets to 0, then fills to the component's own
@@ -314,11 +334,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       if (c) setSel(c.thirds);
     }
     else if (id === "equipselector") {
-      // carousel: click left of the armed socket → previous, right → next
+      // carousel: click left of the armed socket → previous, right → next —
+      // and the items GLIDE there (hardware-picker motion)
       const c = trackCoord(e);
-      const cur = Math.max(0, Math.min(2, Math.floor(clamp01(val) * 3)));
       const dir = c && c.u < 0.42 ? -1 : 1;
-      setVal(((cur + dir + 3) % 3 + 0.5) / 3);
+      const settled = Math.round(valRef.current * 3) / 3;
+      tweenVal(settled + dir / 3, 420, false);
     }
   };
   const playHandlers = inert ? {} : {
@@ -364,10 +385,20 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         const u = vtrackCoord(e);
         if (u !== null) setVal(u);
       }
-      // the wheel follows the pointer's angle — hold-and-point, live
+      // the revolver: pointing at a chamber spins the cylinder until that
+      // chamber stops at the hammer (shortest way around)
       if (id === "weaponwheel") {
-        const u = wheelCoord(e);
-        if (u !== null) setVal(u);
+        const p = wheelCoord(e);
+        if (p !== null) {
+          const n = 6, v = valRef.current;
+          const chamber = ((Math.round((p - v) * n) % n) + n) % n;
+          if (chamber !== wheelChamber.current) {
+            wheelChamber.current = chamber;
+            const t0 = (1 - chamber / n) % 1;
+            const cand = [t0 - 1, t0, t0 + 1].reduce((a2, b2) => (Math.abs(b2 - v) < Math.abs(a2 - v) ? b2 : a2));
+            tweenVal(cand, 340, true);
+          }
+        }
       }
       if (id === "joystick" && sliding.current && stickDrag.current) {
         // relative drag mapped through the stamped travel radius — exact at
