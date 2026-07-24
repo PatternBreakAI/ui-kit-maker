@@ -12,11 +12,13 @@ import { defaultConfig, defaultCandy, applyPresetCandy } from "@/generator/model
 import type { GenConfig } from "@/generator/model";
 import { PRESET_DEFAULTS } from "@/generator/store";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES } from "@/generator/silhouettes";
+import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
+import { openAuth } from "@/shell/authOverlay";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else. */
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
-function presetArt() {
+export function presetArt() {
   if (!presetArtCache) presetArtCache = PRESETS.map((p) => {
     let pc: GenConfig;
     if (PRESET_DEFAULTS[p.id]) {
@@ -324,7 +326,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -620,7 +622,13 @@ export function Panel() {
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
             </button>
           ))}
-          {cloudPresets.map((p) => (
+          {cloudPresets.map((p) => tier !== "pro" ? (
+            <button key={p.id} className="presetcard shared lockedp" title={`${p.name} — shared library preset. ${UPGRADE_LINES[tier]}`}
+              onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? "" }} />
+              <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
+            </button>
+          ) : (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}`} title={`${p.name} — shared preset`}
               onClick={() => applyCloudPreset(p.id)}>
               {p.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb }} /> : <span className="presetart" />}
@@ -631,17 +639,26 @@ export function Panel() {
               )}
             </button>
           ))}
-          {presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p) => (
-            <button key={p.id} className={`presetcard${cfg.presetId === p.id ? " on" : ""}`} title={`${p.name} — starter preset`}
-              onClick={() => setPreset(p.id)}>
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.svg }} />
-              <span className="presetname">{p.name}</span>
-              {isAdmin && (
-                <span className="shapedel" role="button" aria-label={`Remove starter preset ${p.name}`} title="Remove for everyone (admin) — restorable below"
-                  onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove the starter preset “${p.name}” for everyone? You can restore all removed starters later.`)) void hideStarterPreset(p.id).then((err) => { if (err) window.alert(err); }); }}>×</span>
-              )}
-            </button>
-          ))}
+          {presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => {
+            const gated = pi >= capsOf(tier).presetLimit;
+            return gated ? (
+              <button key={p.id} className="presetcard lockedp" title={UPGRADE_LINES[tier]}
+                onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
+                <span className="presetart" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
+              </button>
+            ) : (
+              <button key={p.id} className={`presetcard${cfg.presetId === p.id ? " on" : ""}`} title={`${p.name} — starter preset`}
+                onClick={() => setPreset(p.id)}>
+                <span className="presetart" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                <span className="presetname">{p.name}</span>
+                {isAdmin && (
+                  <span className="shapedel" role="button" aria-label={`Remove starter preset ${p.name}`} title="Remove for everyone (admin) — restorable below"
+                    onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove the starter preset “${p.name}” for everyone? You can restore all removed starters later.`)) void hideStarterPreset(p.id).then((err) => { if (err) window.alert(err); }); }}>×</span>
+                )}
+              </button>
+            );
+          })}
         </div>
         <div className="helper">Each style is a different candy construction — shell, gloss and depth, not just a palette.</div>
         <div className="actionrow">

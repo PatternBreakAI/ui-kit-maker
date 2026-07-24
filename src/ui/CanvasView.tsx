@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool } from "lucide-react";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
 import type { GenStateName } from "@/generator/model";
@@ -166,7 +167,8 @@ export function CanvasView() {
           <span className="zdiv" />
           <button title="Zoom out" onClick={() => setZoom(zoom - 0.1)}><Minus size={18} strokeWidth={1.8} /></button>
           <span className="zpct">{Math.round(zoom * 100)}%</span>
-          <button title="Zoom in" onClick={() => setZoom(zoom + 0.1)}><Plus size={18} strokeWidth={1.8} /></button>
+          <button title={zoom >= capsOf(useGen.getState().tier).zoomMax ? `Zoom is capped at ${Math.round(capsOf(useGen.getState().tier).zoomMax * 100)}% on this tier. ${UPGRADE_LINES[useGen.getState().tier]}` : "Zoom in"}
+            onClick={() => setZoom(zoom + 0.1)}><Plus size={18} strokeWidth={1.8} /></button>
           <span className="zdiv" />
           {phase !== "kit" && (
           <div ref={gridRef} style={{ position: "relative", display: "flex" }}>

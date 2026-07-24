@@ -22,6 +22,9 @@ const SignInPage = lazy(() =>
 const AccountPage = lazy(() =>
   import("../auth/AccountPage").then((m) => ({ default: m.AccountPage })),
 );
+const PricingPage = lazy(() =>
+  import("../marketing/PricingPage").then((m) => ({ default: m.PricingPage })),
+);
 
 // `?lab=silhouettes` is a boot-time dev harness, decided once and never at
 // runtime — it bypasses routing entirely, exactly as main.tsx did before.
@@ -72,6 +75,10 @@ export function Shell() {
       ) : route.name === "account" ? (
         <Suspense fallback={<RouteLoading />}>
           <AccountPage />
+        </Suspense>
+      ) : route.name === "pricing" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <PricingPage />
         </Suspense>
       ) : (
         <Landing />

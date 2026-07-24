@@ -9,6 +9,8 @@ import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport } from "@/generator/engineExport";
 import { LiveArt } from "./LiveArt";
+import { openAuth } from "@/shell/authOverlay";
+import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 
 /* The Kit — a living guideline sheet in five levels: Foundations, Components,
@@ -193,7 +195,7 @@ function usePiece(p: PieceOpts) {
  *  (engine zip by default); the chevron lists every format with a one-line
  *  description. One click for the common case, nothing buried. */
 function ExportMenu({ actions }: {
-  actions: { id: string; name: string; desc: string; busy?: boolean; run: () => void }[];
+  actions: { id: string; name: string; desc: string; busy?: boolean; locked?: boolean; run: () => void }[];
 }) {
   const [open, setOpen] = useState(false);
   const [last, setLast] = useState(() => { try { return localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return "engine"; } });
@@ -203,10 +205,13 @@ function ExportMenu({ actions }: {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
-  const primary = actions.find((a) => a.id === last) ?? actions[0];
+  const primary = actions.find((a) => a.id === last && !a.locked) ?? actions.find((a) => !a.locked) ?? actions[0];
   const fire = (a: (typeof actions)[number]) => {
-    try { localStorage.setItem("ui-generator-lastexport", a.id); } catch { /* private mode */ }
-    setLast(a.id); setOpen(false); a.run();
+    if (!a.locked) {
+      try { localStorage.setItem("ui-generator-lastexport", a.id); } catch { /* private mode */ }
+      setLast(a.id);
+    }
+    setOpen(false); a.run();
   };
   return (
     <div className="kp-export" ref={ref}>
@@ -220,8 +225,8 @@ function ExportMenu({ actions }: {
       {open && (
         <div className="kp-exportmenu" role="menu">
           {actions.map((a) => (
-            <button key={a.id} role="menuitem" disabled={a.busy} onClick={() => fire(a)}>
-              <b>{a.name}</b><span>{a.desc}</span>
+            <button key={a.id} role="menuitem" disabled={a.busy} className={a.locked ? "kp-exportlocked" : undefined} onClick={() => fire(a)}>
+              <b>{a.locked && <Lock size={11} strokeWidth={2.4} />} {a.name} {a.locked && <i className="protag">PRO</i>}</b><span>{a.desc}</span>
             </button>
           ))}
         </div>
@@ -242,9 +247,35 @@ function useShineVars(active: boolean): React.CSSProperties | undefined {
   );
 }
 
+/* Guest tier proves the concept on five components; the rest of the sheet
+   stays visible as locked teasers — seeing the kit sells the kit. */
+const GUEST_KIT = new Set<KitComponentId>(["primary", "secondary", "small", "ghost", "iconbtn"]);
+function LockedPiece({ caption }: { caption: string }) {
+  return (
+    <figure className="kp-piece kp-lockpiece">
+      <button className="kp-lockcard" onClick={() => openAuth("signin")} title={UPGRADE_LINES.guest}>
+        <Lock size={15} strokeWidth={2.2} />
+        <span>{caption}</span>
+        <em>Sign in to unlock</em>
+      </button>
+    </figure>
+  );
+}
+function pieceName(id: KitComponentId): string {
+  return KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
+}
+
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
 function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
+  // gate as a wrapper so the locked and live variants keep separate hook trees
+  const tier = useGen((s) => s.tier);
+  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={p.caption} />;
+  return <PieceInner {...p} />;
+}
+function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   const { cfg, locked, size, setKitSize, sizable, name, kit, onEdit } = usePiece(p);
+  const tier2 = useGen((s) => s.tier);
+  const vectorOk = capsOf(tier2).vectorExports;
   const shineOn = useGen((s) => s.shine);
   // the global toggle now rides the clipped SVG band (masked to the face),
   // not the old card overlay
@@ -269,9 +300,10 @@ function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
             ))}
           </span>
         )}
-        <button className="kp-dl" title={`Export ${p.caption} SVG`} aria-label={`Export ${p.caption} SVG`}
+        <button className="kp-dl" title={vectorOk ? `Export ${p.caption} SVG` : `SVG export is a Pro format. ${UPGRADE_LINES[tier2]}`} aria-label={`Export ${p.caption} SVG`}
           onClick={(e) => {
             e.stopPropagation();
+            if (!vectorOk) { if (tier2 === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
             const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             downloadSvg(
@@ -289,6 +321,11 @@ function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
 
 /** A piece inside a pattern or assembly mock — no caption rail, tighter scale. */
 function PPiece(p: PieceOpts & { ambient?: boolean }) {
+  const tier = useGen((s) => s.tier);
+  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
+  return <PPieceInner {...p} />;
+}
+function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
   const { cfg, name, kit } = usePiece({ ...p, size: p.size ?? "m" });
   const shineVars = useShineVars(!!p.shine);
   return (
@@ -300,6 +337,11 @@ function PPiece(p: PieceOpts & { ambient?: boolean }) {
 /** A piece on a screen-pattern stage — same live plumbing, but the invisible
  *  render canvas is trimmed away so pieces stack at interface rhythm. */
 function SPiece(p: PieceOpts & { ambient?: boolean }) {
+  const tier = useGen((s) => s.tier);
+  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
+  return <SPieceInner {...p} />;
+}
+function SPieceInner(p: PieceOpts & { ambient?: boolean }) {
   return <PPiece {...p} trim={p.trim ?? true} />;
 }
 
@@ -947,10 +989,13 @@ export function KitPage() {
       setSvgBusy(false);
     }
   };
-const exportActions = [
-    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, run: () => void downloadEngineKit() },
-    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts embedded, Figma / Illustrator ready.", busy: svgBusy, run: () => void downloadSvgPack() },
-    { id: "sprite", name: "Sprite sheet (PNG)", desc: "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
+const kitTier = useGen((s) => s.tier);
+  const kitVectorOk = capsOf(kitTier).vectorExports;
+  const gateNudge = () => { if (kitTier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; };
+  const exportActions = [
+    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !kitVectorOk, run: () => { if (!kitVectorOk) { gateNudge(); return; } void downloadEngineKit(); } },
+    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts embedded, Figma / Illustrator ready.", busy: svgBusy, locked: !kitVectorOk, run: () => { if (!kitVectorOk) { gateNudge(); return; } void downloadSvgPack(); } },
+    { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
     {
@@ -968,7 +1013,7 @@ const exportActions = [
           if (o.bar === undefined) o.bar = kb;
           if (o.dock === undefined && kb?.dock) o.dock = { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" };
         }
-        return { name, svg: renderKit(pieceCfg(cid), cid, effKitSize(st.kitSizes[cid]), gstate, v, st.kitShapes[cid], o) };
+        return { cid, name, svg: renderKit(pieceCfg(cid), cid, effKitSize(st.kitSizes[cid]), gstate, v, st.kitShapes[cid], o) };
       };
       const entries = [
         ...KIT_COMPONENTS.map((c2) => rk(c2.id, c2.name)),
@@ -1023,7 +1068,9 @@ const exportActions = [
         rk("reticle", "Reticle · Locked", {}, undefined, "hover"),
         rk("ring", "Ring · Complete", {}, 1),
       ];
-      return entries;
+      // the guest catalog is the five proof components — the PNG sheet must
+      // not hand over what the page keeps locked
+      return st.tier === "guest" ? entries.filter((e) => GUEST_KIT.has(e.cid)) : entries;
     }
   };
   const downloadAllAssets = async () => {
