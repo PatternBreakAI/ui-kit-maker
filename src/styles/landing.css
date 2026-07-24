@@ -2584,7 +2584,7 @@ html[data-theme="light"] .fd-landing .bg-base {
 .fd-landing .bd-call b { font-family: var(--display); font-weight: 900; font-style: italic;
       font-size: clamp(22px, 3vw, 34px); letter-spacing: .04em; color: #fff;
       text-shadow: 0 0 26px rgba(178, 107, 255, .85), 0 2px 4px rgba(0, 0, 0, .6); }
-.fd-landing .bd-call span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; color: #cf8eff; }
+.fd-landing .bd-call span { font-family: var(--body); font-size: 14px; font-weight: 600; letter-spacing: .01em; color: #e9d5ff; }
 .fd-landing .bd-call.run b, .fd-landing .bd-call.run span { animation: bd-sweep 3s cubic-bezier(.16, 1, .3, 1) both; }
 .fd-landing .bd-call.run span { animation-delay: .12s; }
     @keyframes bd-sweep { 0% { transform: translateX(55vw); opacity: 0; } 16% { transform: translateX(0); opacity: 1; }
@@ -2594,7 +2594,7 @@ html[data-theme="light"] .fd-landing .bg-base {
       @keyframes bd-fade { 0% { opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } } }
 html[data-theme="light"] .fd-landing .bd-call b { color: #1c1233;
       text-shadow: 0 0 22px rgba(124, 58, 237, .35), 0 1px 0 rgba(255, 255, 255, .7); }
-html[data-theme="light"] .fd-landing .bd-call span { color: #6d28d9; }
+html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
 .fd-landing .pv-ship { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; cursor: pointer;
       background: color-mix(in srgb, var(--bg) 52%, transparent);
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
