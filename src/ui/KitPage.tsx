@@ -1134,6 +1134,19 @@ const kitTier = useGen((s) => s.tier);
         rk("streakmeter", "Streak · Ignited", {}, 1),
         rk("capturemeter", "Capture · Contested", {}, 0.55),
         rk("respawn", "Respawn · Ready", {}, 0),
+        /* P4/P5 build parts — every meaningful pose ships in the catalog */
+        rk("starrating", "Stars · Two", {}, 0.67),
+        rk("starrating", "Stars · One", {}, 0.34),
+        rk("levelnode", "Level node · Completed", { label: "11", overlay: "stars:3" }),
+        rk("levelnode", "Level node · Locked", { label: "13", overlay: "locked" }),
+        rk("movecounter", "Moves · Last", {}, 0.12),
+        rk("dailycell", "Daily · Claimed", { label: "DAY 3", overlay: "check" }),
+        rk("dailycell", "Daily · Locked", { label: "DAY 5", overlay: "locked" }),
+        rk("booster", "Booster · Free", { icon: STOCK_ICONS.gem }, 0),
+        rk("popmeter", "Population · Near cap", {}, 0.95),
+        rk("techcard", "Tech · Researched", { label: "KEEN SIGHT", icon: STOCK_ICONS.crosshair, overlay: "done" }),
+        rk("techcard", "Tech · Locked", { label: "???", overlay: "locked" }),
+        rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
       // not hand over what the page keeps locked
@@ -1917,12 +1930,48 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-subhead">Rewards</div>
         <div className="kp-tray kp-axis">
-          <Piece id="spinwheel" caption="Spin wheel · click to throw" value={0} scale={0.46} />
+          <Piece id="spinwheel" caption="Spin wheel · click to throw" value={0.0625} scale={0.46} />
           <Piece id="dailycell" caption="Today" label="DAY 4" scale={0.5} />
           <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
           <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
         </div>
         <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
+      </Sec>
+
+      <Sec n="13" title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
+        <div className="kp-subhead">Command & production</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="buildqueue" caption="Build queue" value={0.55} scale={0.5} />
+          <Piece id="unitplate" caption="Unit plate" value={0.82} scale={0.5} />
+          <Piece id="popmeter" caption="Population" value={0.84} scale={0.5} />
+          <Piece id="popmeter" caption="Near cap" value={0.95} scale={0.5} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="techcard" caption="Researchable" scale={0.48} />
+          <Piece id="techcard" caption="Researched" label="KEEN SIGHT" icon={STOCK_ICONS.crosshair} overlay="done" scale={0.48} />
+          <Piece id="techcard" caption="Locked" label="???" overlay="locked" scale={0.48} />
+          <Piece id="endturn" caption="End turn · timer arc" value={0.7} scale={0.52} />
+        </div>
+        <div className="kp-subhead">Match & score</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="scorebug" caption="Score bug" value={0.52} scale={0.5} />
+        </div>
+        <div className="kp-subhead">Friends & clans</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="friendrow" caption="Online · joinable" value={1} scale={0.5} />
+          <Piece id="friendrow" caption="Offline" label="STORM_BREW" value={0} scale={0.5} />
+          <Piece id="clancrest" caption="Clan crest" scale={0.5} />
+        </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="chatbubble" caption="Chat bubble" scale={0.5} />
+          <Piece id="emotewheel" caption="Emote wheel · click to pick" value={0} scale={0.48} />
+        </div>
+        <div className="kp-subhead">Season pass & honors</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="seasontrack" caption="Season track · free / premium" value={0.5} scale={0.48} />
+          <Piece id="achievetoast" caption="Achievement toast" scale={0.5} />
+        </div>
+        <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
       </Sec>
 
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
