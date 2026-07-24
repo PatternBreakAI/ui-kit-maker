@@ -1083,6 +1083,12 @@ const kitTier = useGen((s) => s.tier);
         rk("pagedots", "Page dots", {}, 0.25),
         rk("steps", "Step indicator", {}, 0.42),
         rk("spinner", "Spinner"),
+        rk("loadbar", "Loading bar", {}, 0.62),
+        rk("setrow", "Settings row", {}, 0.7),
+        rk("searchfield", "Search field"),
+        rk("searchfield", "Search field · query", { label: "health potion" }),
+        rk("notifydot", "Notification badge", {}, 0.3),
+        rk("avatarframe", "Avatar frame", {}, 0.12),
         rk("cardback", "Card back", {}),
         rk("cardback", "Deck cover", { label: "STARTER · 30" }),
         rk("pack", "Card pack", {}),
@@ -1742,6 +1748,15 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="steps" caption="Step indicator" value={0.42} scale={0.56} />
           <Piece id="pagedots" caption="Page dots" value={0.25} scale={0.62} />
           <Piece id="spinner" caption="Spinner" scale={0.6} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="loadbar" caption="Loading bar" value={0.62} scale={0.5} />
+          <Piece id="setrow" caption="Settings row" value={0.7} scale={0.5} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="searchfield" caption="Search field" scale={0.5} />
+          <Piece id="notifydot" caption="Notification badge" value={0.3} scale={0.54} />
+          <Piece id="avatarframe" caption="Avatar frame" value={0.12} scale={0.54} />
         </div>
       </Sec>
 

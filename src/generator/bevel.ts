@@ -1494,6 +1494,12 @@ function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
 }
 
+/* Layer content BEHIND the whole piece (halo rings, auras): lands right
+   after the outer state group opens, under cast shadow and shell alike. */
+function injectUnder(track: string, extra: string): string {
+  return track.replace(/(<g opacity="[^"]*" transform="translate\(0 [^)]*\)">)/, (m0) => m0 + extra);
+}
+
 function inject(track: string, extra: string): string {
   /* v72: injected content lands INSIDE the lift group — a hover lift must
      carry wells, fills, dials and emblems with the shell, not leave them
@@ -2076,7 +2082,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (!shellM8) return piece;
       const [sx8, sy8, sw8, sh8] = shellM8[1].split(" ").map(Number);
       const ring8 = `<circle cx="${(sx8 + sw8 / 2).toFixed(1)}" cy="${(sy8 + sh8 / 2).toFixed(1)}" r="${(Math.min(sw8, sh8) / 2 + 5 * k).toFixed(1)}" fill="none" stroke="${ringC8}" stroke-width="${(4 * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.9}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(ringC8, 0.7)})"` : ""}/>`;
-      return inject(piece.replace("<svg ", '<svg data-padbtn="1" '), ring8);
+      return injectUnder(piece.replace("<svg ", '<svg data-padbtn="1" '), ring8);
     }
     case "listmenu": {
       /* System chrome · context / list menu — four rows in the kit material:
@@ -2190,6 +2196,101 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 <circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="${wellFill}" stroke-width="${strokeSp}"/>
 <g>${spin}<circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="url(#${gidS})" stroke-width="${strokeSp}" stroke-linecap="round" stroke-dasharray="${(circSp * 0.28).toFixed(1)} ${circSp.toFixed(1)}" transform="rotate(-90 ${cSp} ${cSp})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(strokeSp * 0.5).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/></g>
 </svg>`;
+    }
+    case "loadbar": {
+      /* System chrome · loading bar — label, live fill and the tip slot,
+         one strip. value drives the fill. */
+      const w = 760 * k, h = 158 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const vL0 = clamp(value ?? 0.62, 0, 1);
+      const gidL = "lb" + UID++;
+      const labY = 30 + inset + 20 * k;
+      const barY = 30 + h / 2 - 8 * k, barH = 30 * k;
+      const barX = 39 + inset + 10 * k, barW = w - inset * 2 - 20 * k;
+      const tipY = 30 + h - inset - 18 * k;
+      const parts = contentText("LOADING", barX + 2, labY, 23 * k * typeK) +
+        `<text x="${(barX + barW - 2).toFixed(1)}" y="${labY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.75)" text-anchor="end" dominant-baseline="central">${Math.round(vL0 * 100)}%</text>` +
+        `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>` +
+        `<defs><linearGradient id="${gidL}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>` +
+        (vL0 > 0.02 ? `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${(barW * vL0).toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="url(#${gidL})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>
+          <rect x="${(barX + 6 * k).toFixed(1)}" y="${(barY + 4 * k).toFixed(1)}" width="${Math.max(0, barW * vL0 - 12 * k).toFixed(1)}" height="${(barH * 0.32).toFixed(1)}" rx="${(barH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.35"/>` : "") +
+        `<text x="${barX.toFixed(1)}" y="${tipY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(19 * k).toFixed(1)}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.45)" dominant-baseline="central">${esc(opts.label ?? "TIP: Reinforced gear survives the pit.")}</text>`;
+      return inject(shell.replace("<svg ", '<svg data-loadbar="1" '), parts);
+    }
+    case "setrow": {
+      /* System chrome · settings row — label left, live mini-slider right.
+         value drives the knob. */
+      const w = 640 * k, h = 100 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const cy = 30 + h / 2;
+      const vS0 = clamp(value ?? 0.7, 0, 1);
+      const trX = 39 + w - inset - 250 * k, trW = 180 * k, trH = 12 * k;
+      const gidR = "sr" + UID++;
+      const parts = contentText(opts.label ?? "MUSIC VOLUME", 39 + inset + 18 * k, cy + 1, 24 * k * typeK) +
+        `<rect x="${trX.toFixed(1)}" y="${(cy - trH / 2).toFixed(1)}" width="${trW.toFixed(1)}" height="${trH.toFixed(1)}" rx="${(trH / 2).toFixed(1)}" fill="${wellFill}"/>` +
+        `<defs><linearGradient id="${gidR}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>` +
+        `<rect x="${trX.toFixed(1)}" y="${(cy - trH / 2).toFixed(1)}" width="${(trW * vS0).toFixed(1)}" height="${trH.toFixed(1)}" rx="${(trH / 2).toFixed(1)}" fill="url(#${gidR})"/>` +
+        candyKnob(trX + trW * vS0, cy, 15 * k, knobC) +
+        `<text x="${(39 + w - inset - 18 * k).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.75)" text-anchor="end" dominant-baseline="central">${Math.round(vS0 * 100)}</text>`;
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-setrow="1" '), parts), trX, trW);
+    }
+    case "searchfield": {
+      /* System chrome · search field — input well with the themed magnifier
+         and a quiet clear affordance. */
+      const w = 560 * k, h = 112 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 4;
+      const cy = 30 + h / 2;
+      const q = opts.label;
+      const txt = q
+        ? contentText(q, 39 + inset + 72 * k, cy + 1, 28 * k * typeK, { keepCase: true })
+        : `<text x="${(39 + inset + 72 * k).toFixed(1)}" y="${cy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(27 * k).toFixed(1)}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc("Search inventory…")}</text>`;
+      const parts = `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.9"/>` +
+        (STOCK_ICONS.search ? themedIcon(STOCK_ICONS.search, 39 + inset + 22 * k, cy - 17 * k, 34 * k, glow, 2.4) : "") +
+        txt +
+        (q ? `<text x="${(39 + w - inset - 26 * k).toFixed(1)}" y="${cy.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.4)" text-anchor="middle" dominant-baseline="central">×</text>` : "");
+      return inject(shell.replace("<svg ", '<svg data-searchfield="1" '), parts);
+    }
+    case "notifydot": {
+      /* System chrome · notification badge — an icon button wearing the
+         corner counter. value drives the count. */
+      const s = 132 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ic = STOCK_ICONS.scroll ?? STOCK_ICONS.info;
+      const glyph = ic ? themedIcon(ic, sx + sw / 2 - 26 * k, sy + sh / 2 - 26 * k, 52 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2) : "";
+      const count = Math.max(1, Math.min(9, Math.round((value ?? 0.3) * 9)));
+      const bcx = sx + sw - 10 * k, bcy = sy + 10 * k, br = 26 * k;
+      const badgeC = hexMix("#FF3B4A", glow, 0.12);
+      const badge = `<g data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(3 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.7)})"` : ""}/>
+        <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${count}</text></g>`;
+      return inject(shell.replace("<svg ", '<svg data-notifydot="1" '), glyph + badge);
+    }
+    case "avatarframe": {
+      /* System chrome · avatar frame — portrait ring with the level chip.
+         value drives the level. */
+      const s = 176 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: s, shapeOverride: "pill" });
+      const shellM = /data-shell="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2, ccy = sy + sh / 2;
+      const pr = Math.min(sw, sh) / 2 - bw - 6 * k;
+      const gidA = "av" + UID++;
+      const lvl = Math.max(1, Math.min(99, Math.round((value ?? 0.12) * 99)));
+      const parts = `<defs><clipPath id="${gidA}"><circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
+        <circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
+        <g clip-path="url(#${gidA})" opacity="${state === "disabled" ? 0.4 : 1}">
+          <circle cx="${ccx.toFixed(1)}" cy="${(ccy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
+          <ellipse cx="${ccx.toFixed(1)}" cy="${(ccy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
+        </g>
+        ${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}
+        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${lvl}</text>`;
+      return inject(shell.replace("<svg ", '<svg data-avatarframe="1" '), parts);
     }
     case "hotbar": {
       /* Sandbox · hotbar — a slot strip in the kit material; the selected

@@ -772,7 +772,8 @@ export type KitComponentId =
   | "laptimes" | "telemetry" | "startlights"
   | "cardback" | "pack"
   | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn"
-  | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner";
+  | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
+  | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -786,6 +787,11 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "pagedots", name: "Page dots" },
   { id: "steps", name: "Step indicator" },
   { id: "spinner", name: "Spinner" },
+  { id: "loadbar", name: "Loading bar" },
+  { id: "setrow", name: "Settings row" },
+  { id: "searchfield", name: "Search field" },
+  { id: "notifydot", name: "Notification badge" },
+  { id: "avatarframe", name: "Avatar frame" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -954,6 +960,10 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   padbtn: "pill",
   listmenu: "kenneyRect",
   scrollbar: "pill",
+  loadbar: "pill",
+  setrow: "kenneyRect",
+  searchfield: "pill",
+  notifydot: "round",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",
