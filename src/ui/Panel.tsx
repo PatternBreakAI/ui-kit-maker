@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info } from "lucide-react";
 import { useGen } from "@/generator/store";
+import { LessonBody } from "./LessonCard";
 import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign  } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -229,7 +230,6 @@ function Adv({ label, active, children }: { label: string; active?: boolean; chi
 function InfoCard({ cid }: { cid: KitComponentId }) {
   const [open, setOpen] = useState(false);
   const lesson = KIT_LESSONS[cid];
-  const slots = KIT_SLOTS[cid] ?? [];
   const name = KIT_COMPONENTS.find((c) => c.id === cid)?.name ?? cid;
   if (!lesson) return null;
   return (
@@ -237,30 +237,7 @@ function InfoCard({ cid }: { cid: KitComponentId }) {
       <button className="resetstate" aria-expanded={open} onClick={() => setOpen(!open)}>
         <Info size={13} strokeWidth={2.2} /> About {name} {open ? "–" : "+"}
       </button>
-      {open && (
-        <div className="infocard__body">
-          <p><b>{name}.</b> {lesson.what}</p>
-          {slots.length > 0 && (
-            <p className="infocard__manual">
-              <b>Editable here:</b>{" "}
-              {slots.map((sl) => `${sl.name} — ${
-                sl.kind === "choice" ? (sl.choices ?? []).join(" or ")
-                : sl.kind === "value" ? "driven by the value slider"
-                : sl.kind === "free" ? "free text"
-                : "fixed"}`).join(" · ")}
-            </p>
-          )}
-          <p>{lesson.history}</p>
-          <p><b>Study:</b> {lesson.games}</p>
-          {lesson.links.length > 0 && (
-            <p className="infocard__links">
-              {lesson.links.map((l) => (
-                <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
-              ))}
-            </p>
-          )}
-        </div>
-      )}
+      {open && <LessonBody cid={cid} />}
     </div>
   );
 }

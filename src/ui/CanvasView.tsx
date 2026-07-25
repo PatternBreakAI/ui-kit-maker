@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, CircleHelp } from "lucide-react";
+import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
+import { LessonBody } from "./LessonCard";
+import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit } from "@/generator/bevel";
@@ -36,10 +38,12 @@ export function CanvasView() {
      into the panel (open + scroll + glow). Pure DOM hit-testing over
      the same svg the user is looking at — no geometry duplicated. */
   const [helpOn, setHelpOn] = useState(false);
+  const [lessonOpen, setLessonOpen] = useState(false);
   const [helpHover, setHelpHover] = useState<{ x: number; y: number; w: number; h: number; parts: string[] } | null>(null);
   const [helpMenu, setHelpMenu] = useState<{ x: number; y: number; parts: string[] } | null>(null);
   const helpWrap = useRef<HTMLDivElement>(null);
   useEffect(() => { if (!helpOn) { setHelpHover(null); setHelpMenu(null); } }, [helpOn]);
+  useEffect(() => { setLessonOpen(false); }, [focus]);
   useEffect(() => {
     if (!helpMenu) return;
     const close = (e: MouseEvent) => {
@@ -158,9 +162,26 @@ export function CanvasView() {
         {phase === "master" ? (
           <div className="stage" style={{ transform: `scale(${zoom})` }}>
             {focus && (
-              <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
-                <PenTool size={13} strokeWidth={2} /> Editing: {KIT_COMPONENTS.find((c) => c.id === focus)?.name} — back to button
-              </button>
+              <span className="focusrow">
+                <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
+                  <PenTool size={13} strokeWidth={2} /> Editing: {KIT_COMPONENTS.find((c) => c.id === focus)?.name} — back to button
+                </button>
+                {/* the ⓘ lives on the BANNER, always visible while a
+                    component is focused — it was buried in a collapsed
+                    panel section before, and the owner rightly never
+                    found it. The banner is chrome, not art, so the
+                    pristine-canvas rule holds. */}
+                {KIT_LESSONS[focus] && (
+                  <button className={`focuschip focuschip--info${lessonOpen ? " on" : ""}`} aria-expanded={lessonOpen}
+                    title={`About ${KIT_COMPONENTS.find((c) => c.id === focus)?.name} — what it is, what's editable, where it comes from`}
+                    onClick={() => setLessonOpen(!lessonOpen)}>
+                    <Info size={13} strokeWidth={2.2} />
+                  </button>
+                )}
+                {lessonOpen && KIT_LESSONS[focus] && (
+                  <div className="lessonpop"><LessonBody cid={focus} /></div>
+                )}
+              </span>
             )}
             <div className="state-cap" style={{ color: capColor }}>
               {playing && focus ? "Live — hover, press, drag" : `${CAP[displayed]}${playing && live ? " · live" : ""}`}
@@ -241,10 +262,12 @@ export function CanvasView() {
             aria-pressed={playing} onClick={() => { setCanvasMode("play"); }}>
             <Play size={17} strokeWidth={1.8} />
           </button>
+          {/* Dissect, not "help": the owner named the interaction — the mode
+              takes the artwork apart. A question mark undersold it. */}
           {phase === "master" && (
-            <button className={helpOn ? "on" : ""} title="Smart Help — rollover the art to find the control that edits it"
-              aria-pressed={helpOn} onClick={() => setHelpOn(!helpOn)}>
-              <CircleHelp size={17} strokeWidth={1.8} />
+            <button className={helpOn ? "on" : ""} title="Dissect — click any part of the art to see what it is and where to edit it"
+              aria-pressed={helpOn} aria-label="Dissect mode" onClick={() => setHelpOn(!helpOn)}>
+              <Microscope size={17} strokeWidth={1.8} />
             </button>
           )}
           <span className="zdiv" />
