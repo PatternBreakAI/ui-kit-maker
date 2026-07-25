@@ -105,12 +105,57 @@ becomes the single source of truth that drives all three surfaces:
      music videos, t-shirts, album covers, games within games. For them,
      an exact number on the dial IS the deliverable.
 
+## Slot kinds — "editable within reason" (owner, 2026-07-25)
+
+Free text everywhere is wrong, and the owner named the principle: **smart
+editing**. Every slot declares a kind, and the kind decides what the T tool
+offers when you click it:
+
+| Kind | Click behavior | Examples |
+|---|---|---|
+| **free** | type anything (per-slot max length) | button labels, names, quest titles, chat messages |
+| **choice** | pick from a curated list — no free typing, no exceptions | speedo unit: **MPH ↔ KPH only** (owner call, verbatim "no exceptions"). Each unit slot gets its own curated list (tacho, waypoint distance, timers). The list is per-slot data, so widening one later is an edit, not a redesign. |
+| **value** | typing a number DRIVES the component — the needle moves | speedo/tacho readouts, scores, counts, timers |
+| **locked** | shows a friendly card: what this is, why it's fixed, and what you CAN do instead | structural glyphs (+/− on the stepper), semantic marks (the checkmark), index numbers |
+
+**No dead clicks.** Clicking anything in T mode always answers. Locked text
+never fails silently — it explains itself and points at the alternative
+("this checkmark is the done-marker; swap the slot icon instead").
+
+## The "i" card — every component explains itself
+
+Owner requirement: each component carries an **ⓘ** affordance that says what
+the component is, what's editable on it, and how. The card is GENERATED from
+the slot table — name, one-line description, then each slot with its kind
+("Label — free text · Unit — MPH or KPH · Readout — driven by the value
+slider"). Because it's generated, it can never drift from the truth the way
+the old hand-kept allowlists did. Smart Help's part stamps and help mode are
+the natural mount point.
+
+**And the card teaches (owner, 2026-07-25).** The site should be educational
+about design itself — UI design, styles, history, the games that defined
+each pattern, further reading. So the ⓘ card is two layers:
+
+1. *The manual* (generated from the slot table): what's editable, how.
+2. *The lesson* (authored, one per component): what this pattern is called
+   in the industry, where it comes from, games that use it brilliantly,
+   what makes a good one, and one or two relevant links. The health globe
+   points at Diablo; the weapon wheel at its console lineage; the season
+   track at the battle-pass era. Industry vocabulary throughout — a student
+   should leave knowing the *names* of things.
+
+This is a product pillar, not a tooltip: it is the difference between an
+asset tool and a design education that happens to ship assets. It compounds
+the student/educator tier ("learn with the real tool" becomes literal) and
+it is content no competitor can copy overnight. ~115 short write-ups,
+authored once, reviewed by the owner as creative director.
+
 ## Build order
 
 | Phase | What | Size |
 |---|---|---|
 | 1 | Slot tables + un-weld all 115 renderers + stamped text + generated panel section (kills both root causes) | the big one — wide but mechanical |
-| 2 | Canvas hover/click/type editing riding the stamps | medium |
+| 2 | T-mode canvas editing riding the stamps: free/choice/value/locked behaviors + the ⓘ card | medium |
 | 3 | Icon click-to-swap + un-weld pattern-8 icons | small-medium |
 | 4 | Demo datasets as row slots (leaderboard, listmenu…) | medium, can trail launch if the rows are labeled as specimen data |
 
