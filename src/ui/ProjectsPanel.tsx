@@ -3,6 +3,7 @@ import {
   ArrowLeft, FolderOpen, Save, Trash2, Pencil, Link2, Check, RefreshCw, Eye, EyeOff,
 } from "lucide-react";
 import { useGen } from "@/generator/store";
+import { t } from "@/shell/i18n";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
   listProjects, saveProject, renameProject, deleteProject, setProjectPublic,
@@ -158,15 +159,15 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     <div className="menu-pop acct-pop proj-pop">
       <div className="proj-head">
         <button className="proj-back" onClick={onBack}><ArrowLeft size={15} strokeWidth={1.8} /></button>
-        <b>My Projects</b>
+        <b>{t("myProjects")}</b>
       </div>
 
       <div className="proj-save">
-        <input className="acct-in proj-save-in" type="text" placeholder={kitName ? `Save as “${kitName}”…` : "Name this kit…"}
+        <input className="acct-in proj-save-in" type="text" placeholder={kitName ? `Save as “${kitName}”…` : t("nameThisKit")}
           value={newName} maxLength={120} onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !busy) void doSave(); }} />
         <button className="proj-save-btn" disabled={busy} onClick={() => void doSave()}>
-          <Save size={15} strokeWidth={1.8} /> Save
+          <Save size={15} strokeWidth={1.8} /> {t("saveBtn")}
         </button>
       </div>
       {!tierKnown ? null : !canPrivate ? (
@@ -174,8 +175,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
            fine print: free & student kits are community kits. The same
            sentence is the product's cleanest Pro doorway. */
         <div className="proj-consent">
-          Saved kits on the Free plan may be curated into the <b>Community Gallery</b>, where
-          other users can use and remix them. <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>Upgrade to Pro</button> to keep your kits private.
+          {t("consentFree")} <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>{t("consentUpgrade")}</button> {t("consentPrivate")}
         </div>
       ) : (
         /* the Pro mirror of the consent line — their kits save PRIVATE
@@ -183,11 +183,10 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
            2026-07-25: a Pro user couldn't find how to enter the community
            at all. */
         <div className="proj-consent">
-          Your kits save <b>{shareDef ? "public" : "private"}</b>. Tap the eye on any kit to
-          flip one — public kits get a link and may be curated into the <b>Community Gallery</b>.
+          {t("consentProA")} <b>{shareDef ? t("consentProPublic") : t("consentProPrivate")}</b>. {t("consentProB")}
           <label className="check proj-sharedef">
             <input type="checkbox" checked={shareDef} onChange={(e) => flipShareDef(e.target.checked)} />
-            Share new kits by default
+            {t("shareDefault")}
           </label>
         </div>
       )}
@@ -196,7 +195,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
       <div className="proj-list">
         {items === null && <div className="menu-note acct-note">Loading…</div>}
         {items !== null && items.length === 0 && (
-          <div className="menu-note acct-note">No saved projects yet — name the kit above and Save.</div>
+          <div className="menu-note acct-note">{t("noProjects")}</div>
         )}
         {items?.map((p) => (
           <div className="proj-row" key={p.id}>
@@ -208,13 +207,13 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
             ) : (
               <div className="proj-name" title={p.name}>
                 {p.name}
-                {p.is_public && <span className="proj-badge"><Eye size={11} strokeWidth={2} /> public</span>}
+                {p.is_public && <span className="proj-badge"><Eye size={11} strokeWidth={2} /> {t("badgePublic")}</span>}
               </div>
             )}
             <div className="proj-meta">Updated {new Date(p.updated_at).toLocaleDateString()}</div>
             <div className="proj-actions">
               <button title="Open into the editor" disabled={busy} onClick={() => void doOpen(p)}>
-                <FolderOpen size={14} strokeWidth={1.8} /> Open
+                <FolderOpen size={14} strokeWidth={1.8} /> {t("openBtn")}
               </button>
               <button title="Overwrite with the kit on screen" disabled={busy} onClick={() => void doUpdate(p)}>
                 <RefreshCw size={14} strokeWidth={1.8} />
@@ -241,7 +240,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           </div>
         ))}
       </div>
-      <div className="menu-note acct-note">A public link opens the kit read-only for anyone; public kits may be curated into the Community Gallery.</div>
+      <div className="menu-note acct-note">{t("projFootnote")}</div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle } from "lucide-react";
 import { useGen } from "@/generator/store";
+import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
 import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign  } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
@@ -66,14 +67,14 @@ const GROUPS: Record<string, string[]> = {
 export function Rail() {
   const { sectionFilter, setSectionFilter, phase, setPhase } = useGen();
   const items = [
-    { id: "states", Icon: Globe, label: "Global & states" },
-    { id: "style", Icon: Layers, label: "Style preset" },
-    { id: "silhouette", Icon: Shapes, label: "Silhouette" },
-    { id: "color", Icon: Palette, label: "Color" },
-    { id: "material", Icon: Box, label: "Structure & surface" },
-    { id: "lighting", Icon: Sun, label: "Lighting, gloss & depth" },
-    { id: "type", Icon: Type, label: "Typography" },
-    { id: "library", Icon: LibraryBig, label: "Component library" },
+    { id: "states", Icon: Globe, label: t("railStates") },
+    { id: "style", Icon: Layers, label: t("railStyle") },
+    { id: "silhouette", Icon: Shapes, label: t("railSilhouette") },
+    { id: "color", Icon: Palette, label: t("railColor") },
+    { id: "material", Icon: Box, label: t("railMaterial") },
+    { id: "lighting", Icon: Sun, label: t("railLighting") },
+    { id: "type", Icon: Type, label: t("railType") },
+    { id: "library", Icon: LibraryBig, label: t("railLibrary") },
     ...(ICONS_ENABLED ? [{ id: "icons", Icon: Search, label: "Icon library" }] : []),
   ];
   const jump = (id: string) => {
@@ -93,11 +94,11 @@ export function Rail() {
     <nav className="rail" aria-label="Sections">
       {/* v58: the two DESTINATIONS lead the rail — the Kit and the Boards
           are where the work lives; section filters follow below */}
-      <button title="The Kit — pick a component to work on" aria-label="The Kit"
+      <button title={t("railKit")} aria-label="The Kit"
         className={`rail-dest${phase === "kit" ? " on" : ""}`} onClick={() => setPhase(phase === "kit" ? "master" : "kit")}>
         <Hammer size={21} strokeWidth={1.7} />
       </button>
-      <button title="The Board — stage components over a background" aria-label="The Board"
+      <button title={t("railBoard")} aria-label="The Board"
         className={`rail-dest${phase === "board" ? " on" : ""}`} onClick={() => setPhase(phase === "board" ? "master" : "board")}>
         <LayoutGrid size={21} strokeWidth={1.7} />
       </button>
@@ -112,11 +113,11 @@ export function Rail() {
       <span className="gap" />
       {/* Help = the FAQ (owner call: linked from the sidenav). The editor
           state is already saved continuously, so navigating away is safe. */}
-      <button title="Help & FAQ — the product, every control, files, plans" aria-label="Help and FAQ"
+      <button title={t("railHelp")} aria-label="Help and FAQ"
         onClick={() => { window.location.hash = "#/faq"; }}>
         <HelpCircle size={22} strokeWidth={1.7} />
       </button>
-      <button title="Settings" aria-label="Settings"><Settings size={22} strokeWidth={1.7} /></button>
+      <button title={t("railSettings")} aria-label="Settings"><Settings size={22} strokeWidth={1.7} /></button>
     </nav>
   );
 }
@@ -624,7 +625,7 @@ export function Panel() {
         );
       })()}
       {/* ── Global — whole-component adjustments per state ── */}
-      <Section id="state" title="Global" right={<span className="statebadge">{STATE_LABEL[selectedState]}</span>}>
+      <Section id="state" title={t("secGlobal")} right={<span className="statebadge">{STATE_LABEL[selectedState]}</span>}>
         <div className="segmini" role="radiogroup" aria-label="State being edited">
           {STATE_NAMES.map((s) => (
             <button key={s} className={selectedState === s ? "on" : ""} role="radio" aria-checked={selectedState === s}
@@ -663,7 +664,7 @@ export function Panel() {
       </Section>
 
       {/* ── A · Style (the candy construction) ────────────── */}
-      <Section id="shape" title="Presets" summary={<span className="mapbar" style={{ background: mapBar }} />}>
+      <Section id="shape" title={t("secPresets")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
         <div className="presetgrid">
           {userPresets.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
@@ -796,7 +797,7 @@ export function Panel() {
       </Section>
 
       {/* ── A2 · Silhouette — pure geometry, material stays ── */}
-      <Section id="silhouette" title="Silhouette" summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
+      <Section id="silhouette" title={t("secSilhouette")} summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
         {focus && (
           <div className="helper">Picking a silhouette restyles <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</b> only — its shell, wells and fills all follow. Leave edit mode to change the whole kit.</div>
         )}
@@ -881,7 +882,7 @@ export function Panel() {
 
       {/* ── v57/58: Component content — this piece's text and glyph ── */}
       {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus]))) && focus && (
-        <Section id="kiticon" title="Component content"
+        <Section id="kiticon" title={t("secKitIcon")}
           summary={<span>{kitIcons[focus] === "none" ? "no icon" : (kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"}</span>}>
           {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
           {(KIT_SLOTS[focus] ?? []).some((sl) => sl.kind === "free") && (
@@ -971,7 +972,7 @@ export function Panel() {
 
       {/* ── v61: Bar — the dock system + segment settings ── */}
       {focus && (focus === "progress" || focus === "segbar") && (
-        <Section id="barsec" title="Bar"
+        <Section id="barsec" title={t("secBar")}
           summary={<span>{(kitBar[focus]?.dock ?? false) ? "docked" : "plain"}</span>}>
           <div className="sublabel">Emblem socket</div>
           <label className="check"><input type="checkbox" checked={kitBar[focus]?.dock ?? false}
@@ -1033,7 +1034,7 @@ export function Panel() {
       )}
 
       {/* ── B · Color — THE color editor ──────────────────── */}
-      <Section id="mapping" title="Color"
+      <Section id="mapping" title={t("secColor")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <button className="chipbtn" title="Randomize colors" aria-label="Randomize colors" onClick={randomizeColors}>
@@ -1070,7 +1071,7 @@ export function Panel() {
       </Section>
 
       {/* ── C · Structure — the object's build ────────────── */}
-      <Section id="structure" title="Structure">
+      <Section id="structure" title={t("secStructure")}>
         {(() => {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
@@ -1093,7 +1094,7 @@ export function Panel() {
       </Section>
 
       {/* ── D · Surface ───────────────────────────────────── */}
-      <Section id="surface" title="Surface"
+      <Section id="surface" title={t("secSurface")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <select className="tinysel" value={D.face.mode} aria-label="Face mode"
@@ -1140,7 +1141,7 @@ export function Panel() {
       </Section>
 
       {/* ── E · Lighting ──────────────────────────────────── */}
-      <Section id="bars" title="Bars & fills" summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
+      <Section id="bars" title={t("secBarsFills")} summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
         <div className="helper">Styling layers for every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them.</div>
         <FxToggle label="Second gradient" on={cfg.barFx?.grad2.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.on = v; })}>
@@ -1176,7 +1177,7 @@ export function Panel() {
         <div className="helper">The candy ball on sliders, toggles and joysticks. Following the Color map keeps it on the Bevel role.</div>
       </Section>
 
-      <Section id="lighting" title="Lighting" summary={<span>{D.lighting.angle}°</span>}>
+      <Section id="lighting" title={t("secLighting")} summary={<span>{D.lighting.angle}°</span>}>
         <label className="check"><input type="checkbox" checked={D.lighting.tint != null}
           onChange={(e) => update((c) => { c.lighting.tint = e.target.checked ? (c.effects.Highlight ?? "#FFFFFF") : null; })} /> Tint the key light</label>
         {D.lighting.tint != null && (
@@ -1194,7 +1195,7 @@ export function Panel() {
       </Section>
 
       {/* ── F · Gloss & Reflections ───────────────────────── */}
-      <Section id="gloss" title="Gloss & Reflections"
+      <Section id="gloss" title={t("secGloss")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={C.gloss.on} aria-label="Gloss on"
@@ -1290,7 +1291,7 @@ export function Panel() {
       </Section>
 
       {/* ── F2 · Glow — light living inside the candy ─────── */}
-      <Section id="glow" title="Glow" summary={<span>{C.innerGlow.opacity}%</span>}>
+      <Section id="glow" title={t("secGlow")} summary={<span>{C.innerGlow.opacity}%</span>}>
         <div className="sublabel">Inner glow</div>
         <Slider label="Opacity" value={C.innerGlow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.opacity = v; })} />
         <Slider label="Spread" value={C.innerGlow.size} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.size = v; })} />
@@ -1306,7 +1307,7 @@ export function Panel() {
       </Section>
 
       {/* ── G · Depth & Shadow ────────────────────────────── */}
-      <Section id="depth" title="Depth & Shadow">
+      <Section id="depth" title={t("secDepth")}>
         <div className="sublabel">Cast shadow</div>
         <Slider label="Distance" value={D.shadow.distance} min={0} max={48} unit="px" onChange={(v) => update((c) => { c.shadow.distance = v; })} />
         <Slider label="Blur" value={D.shadow.blur} min={0} max={60} unit="px" onChange={(v) => update((c) => { c.shadow.blur = v; })} />
@@ -1320,7 +1321,7 @@ export function Panel() {
       {/* ── Data row — its own control model: two independent text groups,
             slot toggles, safe bounds. Objectives share this editor. ── */}
       {(focus === "datarow") && (
-        <Section id="datarowsec" title="Data row">
+        <Section id="datarowsec" title={t("secDataRow")}>
           <div className="sublabel">Text group A — title</div>
           <input className="tinput" value={kitRow.title} maxLength={32} aria-label="Row title"
             onChange={(e) => setKitRow({ title: e.target.value })} />
@@ -1355,7 +1356,7 @@ export function Panel() {
       )}
 
       {/* ── H · Typography (content lives here too) ───────── */}
-      <Section id="typography" title="Typography" summary={<span>{cfg.content.label || T2.font}</span>}>
+      <Section id="typography" title={t("secTypography")} summary={<span>{cfg.content.label || T2.font}</span>}>
         {/* v60: with a text-bearing component in focus this field edits THAT
             component's label (the same override as Component content) — the
             master's specimen text only shows when nothing is focused */}
@@ -1670,7 +1671,7 @@ export function Panel() {
       )}
 
       {/* ── Library — approved components ─────────────────── */}
-      <Section id="library" title="Library" summary={<span>{library.length} saved</span>}>
+      <Section id="library" title={t("secLibrary")} summary={<span>{library.length} saved</span>}>
         {library.length === 0 && <div className="helper">The flow: design a component → “OK — add to library” saves it here → the + button places it on the stage (Board) → drag to arrange, Play to feel the states.</div>}
         <div className="libgrid">
           {library.map((item) => (
@@ -1693,7 +1694,7 @@ export function Panel() {
       </Section>
 
       {/* ── States shown ──────────────────────────────────── */}
-      <Section id="states" title="States shown" summary={<span>{1 + Object.values(cfg.visible).filter(Boolean).length} states</span>}>
+      <Section id="states" title={t("secStates")} summary={<span>{1 + Object.values(cfg.visible).filter(Boolean).length} states</span>}>
         <label className="check"><input type="checkbox" checked disabled /> Default (hero)</label>
         {(["hover", "pressed", "disabled"] as const).map((s) => (
           <label className="check" key={s}>

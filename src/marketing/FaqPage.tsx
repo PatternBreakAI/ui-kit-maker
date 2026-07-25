@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Search, ChevronDown, X } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { t, currentLocale } from "@/shell/i18n";
 import { usePageScroll } from "@/shell/usePageScroll";
 import logoUrl from "../../pb-logo.png";
 
@@ -322,15 +323,15 @@ export function FaqPage() {
       </header>
 
       <main className="cg faq">
-        <h1>Questions, answered</h1>
+        <h1>{t("faqTitle")}</h1>
         <p className="fd-pricing__sub">
-          The product, the controls, your files, your money, and what's coming —
-          in plain words. Search anything.
+          {t("faqSub")}
+          {currentLocale() !== "en" && <><br /><i>{t("faqEnNote")}</i></>}
         </p>
 
         <div className="faq-search">
           <Search size={16} strokeWidth={2.2} />
-          <input value={q} placeholder="Search the FAQ — try “svg”, “private”, “gloss”, “licence”…"
+          <input value={q} placeholder={t("faqSearch")}
             onChange={(e) => setQ(e.target.value)} aria-label="Search the FAQ" />
           {q && <button className="faq-clear" aria-label="Clear search" onClick={() => setQ("")}><X size={14} strokeWidth={2.4} /></button>}
         </div>

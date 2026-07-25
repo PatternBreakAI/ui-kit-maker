@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
 import { LessonBody } from "./LessonCard";
+import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -12,7 +13,9 @@ import { KitPage } from "./KitPage";
 import { LiveArt } from "./LiveArt";
 import { BoardView } from "./Board";
 
-const CAP: Record<GenStateName, string> = { default: "Default", hover: "Hover", pressed: "Pressed", disabled: "Disabled" };
+/* state names resolve per render so the homepage's language choice wins */
+const capOf = (s: GenStateName) =>
+  s === "default" ? t("stDefault") : s === "hover" ? t("stHover") : s === "pressed" ? t("stPressed") : t("stDisabled");
 
 export function CanvasView() {
   const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg } = useGen();
@@ -184,7 +187,7 @@ export function CanvasView() {
               </span>
             )}
             <div className="state-cap" style={{ color: capColor }}>
-              {playing && focus ? "Live — hover, press, drag" : `${CAP[displayed]}${playing && live ? " · live" : ""}`}
+              {playing && focus ? "Live — hover, press, drag" : `${capOf(displayed)}${playing && live ? " · live" : ""}`}
             </div>
             {playing && focus ? (
               /* v62: in Play mode the hero IS the live component — sliders
@@ -350,7 +353,7 @@ export function CanvasView() {
         <div className="stack" aria-label="State previews">
           {(focus === "toggle" || focus === "badge"
             ? ([["default", focus === "toggle" ? "On" : "Presented", 1], ["pressed", focus === "toggle" ? "Off" : "Awarded", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
-            : sideStates.map((s) => [s, CAP[s], undefined] as [GenStateName, string, number | undefined])
+            : sideStates.map((s) => [s, capOf(s), undefined] as [GenStateName, string, number | undefined])
           ).map(([s, cap, v]) => (
             <button className={`scard clickable${s === selectedState ? " sel" : ""}`} key={s}
               onClick={() => setSelectedState(s)} title={`Edit ${cap}`} aria-pressed={s === selectedState}>

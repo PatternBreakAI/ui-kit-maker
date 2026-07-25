@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff, Link2, Check } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { t } from "@/shell/i18n";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -152,10 +153,10 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
           <b>{card.name}</b>
           {card.handle ? (
             <button className="cg-maker" onClick={() => navigate(`#/u/${card.handle}`)}>
-              {av && <img className="cg-avatar" src={av} alt="" />}by {maker}
+              {av && <img className="cg-avatar" src={av} alt="" />}{t("byMaker")} {maker}
             </button>
           ) : (
-            <span className="cg-maker cg-maker--plain">by {maker}</span>
+            <span className="cg-maker cg-maker--plain">{t("byMaker")} {maker}</span>
           )}
         </div>
         <div className="cg-actions">
@@ -165,13 +166,13 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
           </button>
           {card.share_slug && (
             <a className="cg-open" href={publicProjectUrl(card.share_slug)} title="Open this kit in the editor — view, then remix">
-              <ExternalLink size={13} strokeWidth={2.2} /> Use this kit
+              <ExternalLink size={13} strokeWidth={2.2} /> {t("useThisKit")}
             </a>
           )}
           {card.share_slug && (
             <button className="cg-open" onClick={() => void share()} title="Copy this kit's link"
               aria-label="Copy this kit's link">
-              {copied ? <Check size={13} strokeWidth={2.4} /> : <Link2 size={13} strokeWidth={2.2} />} {copied ? "Copied" : "Share"}
+              {copied ? <Check size={13} strokeWidth={2.4} /> : <Link2 size={13} strokeWidth={2.2} />} {copied ? t("copiedBtn") : t("shareBtn")}
             </button>
           )}
           {admin && (
@@ -219,17 +220,14 @@ export function CommunityPage() {
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
-          <button className="cg-navbtn" onClick={() => navigate("#/studio")}>Your studio</button>
+          <button className="cg-navbtn" onClick={() => navigate("#/studio")}>{t("yourStudio")}</button>
           <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>
       </header>
 
       <main className="cg">
-        <h1>Community Gallery</h1>
-        <p className="fd-pricing__sub">
-          Kits by the community, drawn live in your browser by the same engine that made them.
-          Open any of them, remix everything.
-        </p>
+        <h1>{t("cgTitle")}</h1>
+        <p className="fd-pricing__sub">{t("cgSub")}</p>
 
         {!live ? (
           <section className="fd-studentcard"><p>Community isn't available on this deployment.</p></section>
