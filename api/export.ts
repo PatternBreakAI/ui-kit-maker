@@ -24,6 +24,17 @@ const RATE_PER_HOUR = 60;
 /** What a caller may ask for. Anything else is refused outright. */
 const KINDS = new Set(["engine", "gamekit", "html", "svg", "sheet"]);
 
+/* Which artifacts each plan may take. This mirrors EXPORT_KINDS in
+   src/generator/entitlements.ts — the client copy shapes the UI, this one
+   decides. Student keeps the learning and portfolio formats; the engine
+   kit and game kit are the shipping formats, and those are Pro. Kept as a
+   literal rather than an import because serverless functions bundle
+   separately from the app. */
+const ALLOWED: Record<string, Set<string>> = {
+  student: new Set(["svg", "html", "sheet"]),
+  pro: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -35,11 +46,12 @@ function json(body: unknown, status = 200): Response {
     the export belongs to, which makes a leaked kit traceable — the honest
     deterrent against redistribution, and a provenance record for the
     customer who actually bought it. */
-function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string): string {
-  return `UI Kit Maker — Pro export licence
-==================================
+function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string, plan: string): string {
+  return `UI Kit Maker — export licence
+============================
 
 Artifact      : ${kind}
+Plan          : ${plan === "student" ? "Student / Educator" : "Pro"}
 Licensed to   : ${email}
 Account       : ${uid}
 Issued        : ${whenISO}
@@ -91,9 +103,21 @@ export async function POST(req: Request): Promise<Response> {
   if (!pr.ok) return json({ error: "Couldn't check your plan — try again." }, 502);
   const rows = (await pr.json()) as { plan_id?: string; is_admin?: boolean }[];
   const profile = rows[0];
-  const entitled = !!profile && (profile.is_admin === true || (!!profile.plan_id && profile.plan_id !== "free"));
-  if (!entitled) {
+  // admins carry pro rights; everyone else gets exactly what their plan buys
+  const plan = !profile ? "free"
+    : profile.is_admin === true ? "pro"
+    : profile.plan_id === "student" ? "student"
+    : (profile.plan_id && profile.plan_id !== "free") ? "pro"
+    : "free";
+
+  if (plan === "free") {
     return json({ error: "Vector and kit exports are part of Pro.", reason: "upgrade" }, 403);
+  }
+  if (!ALLOWED[plan]?.has(kind)) {
+    return json({
+      error: "The engine and game kits are the shipping formats — those come with Pro.",
+      reason: "upgrade",
+    }, 403);
   }
 
   // quiet rate limit — invisible to anyone exporting by hand
@@ -125,6 +149,6 @@ export async function POST(req: Request): Promise<Response> {
     reference: nonce,
     issuedAt: whenISO,
     licensedTo: user.email ?? user.id,
-    licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce),
+    licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce, plan),
   });
 }

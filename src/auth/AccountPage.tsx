@@ -4,7 +4,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Wand2, LogOut, KeyRound, RefreshCw, FileDown, History,
-  CheckCircle2, CloudOff, CloudUpload, CreditCard, Loader2, Sparkle,
+  CheckCircle2, CloudOff, CloudUpload, CreditCard, Loader2, Crown,
 } from "lucide-react";
 import {
   cloudConfig, clearCloudOverride, signOutCloud,
@@ -163,7 +163,7 @@ export function AccountPage() {
                 <>
                   <div className="fd-plan">
                     <span className="fd-plan__chip fd-plan__chip--pro">
-                      <Sparkle size={12} strokeWidth={2.6} /> PRO
+                      <Crown size={12} strokeWidth={2.6} /> PRO
                     </span>
                     <span className="fd-plan__desc">
                       The full kit, every preset, unlimited zoom, 4× PNG and all vector exports.
@@ -199,7 +199,7 @@ export function AccountPage() {
                   </button>
                 ) : (
                   <button className="fd-ghost" onClick={() => navigate("#/pricing")}>
-                    <Sparkle size={15} strokeWidth={1.8} /> See what Pro adds
+                    <Crown size={15} strokeWidth={1.8} /> See what Pro adds
                   </button>
                 )}
                 {!isPro && plan?.hasCustomer && (

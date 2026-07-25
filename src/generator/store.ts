@@ -854,8 +854,12 @@ export const useGen = create<GenStore>((set, get) => ({
     const [presets, hidden, prof] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier()]);
     const admin = prof.admin;
     // cloud-off (local/dev build) is not the funnel — it gets the free tier,
-    // not guest lockdown; the live site always has cloud configured
-    const tier: Tier = (admin || (prof.plan && prof.plan !== "free")) ? "pro"
+    // not guest lockdown; the live site always has cloud configured.
+    // plan_id is server-truth: only the Stripe webhook writes anything but
+    // 'free', and it writes 'student' or 'pro' from the price purchased.
+    const tier: Tier = admin ? "pro"
+      : prof.plan === "student" ? "student"
+      : (prof.plan && prof.plan !== "free") ? "pro"
       : prof.plan ? "free"
       : cloudStatus().state === "off" ? "free" : "guest";
     set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, tier });
