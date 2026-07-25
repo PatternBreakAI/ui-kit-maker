@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { PRESETS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId } from "@/generator/model";
@@ -222,12 +222,15 @@ function Adv({ label, active, children }: { label: string; active?: boolean; chi
 /* Naming happens in place — the button becomes a small name field with
    confirm/cancel, replacing the browser prompt() dialog. Enter commits,
    Escape backs out; an async commit can veto with an error message. */
-function NameAction({ icon, label, title, defaultName, placeholder, onCommit }: {
+function NameAction({ icon, label, title, defaultName, placeholder, withDate, onCommit }: {
   icon: React.ReactNode; label: string; title?: string; defaultName?: string; placeholder?: string;
-  onCommit: (name: string) => void | Promise<string | null>;
+  /** Show a release-date field and pass it to onCommit. Blank = ship now. */
+  withDate?: boolean;
+  onCommit: (name: string, day?: string) => void | Promise<string | null>;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [day, setDay] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (open) { inputRef.current?.focus(); inputRef.current?.select(); } }, [open]);
@@ -236,8 +239,8 @@ function NameAction({ icon, label, title, defaultName, placeholder, onCommit }: 
     if (!n || busy) return;
     setBusy(true);
     try {
-      const err = await onCommit(n);
-      if (err) window.alert(err); else setOpen(false);
+      const err = await onCommit(n, day);
+      if (err) window.alert(err); else { setOpen(false); setDay(""); }
     } catch (e) {
       // a rejected commit (network drop, failed chunk load) must never
       // strand the field disabled — surface it and leave the name typed
@@ -257,6 +260,11 @@ function NameAction({ icon, label, title, defaultName, placeholder, onCommit }: 
           if (e.key === "Enter" && !e.nativeEvent.isComposing) void commit();
           if (e.key === "Escape" && !busy) setOpen(false);
         }} />
+      {withDate && (
+        <input className="tinput tinput--day" type="date" value={day} aria-label="Release date — leave blank to publish now"
+          title="Release date — leave blank to publish now" readOnly={busy}
+          onChange={(e) => setDay(e.target.value)} />
+      )}
       <button className="chipbtn" title="Save" aria-label={`${label} — confirm`} disabled={busy || !name.trim()} onClick={() => void commit()}>
         <CheckCircle2 size={14} strokeWidth={2.2} />
       </button>
@@ -265,6 +273,21 @@ function NameAction({ icon, label, title, defaultName, placeholder, onCommit }: 
       </button>
     </div>
   );
+}
+
+/* A pack's release date is a plain day: the drop happens at UTC midnight,
+   so a pack dated the 1st is live everywhere on the 1st. */
+function dayToISO(d: string): string | null {
+  if (!d) return null;
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+/** Empty unless the pack is still HELD — a past date is just "live". */
+function heldUntil(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t) || t <= Date.now()) return "";
+  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function AngleDial({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -326,7 +349,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -625,17 +648,37 @@ export function Panel() {
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
             </button>
           ))}
+          {/* The shared library is where the monthly preset packs land, so
+              this lock is about the packs — not about capability. A student
+              has the whole tool; what they don't have is the pack drops. */}
           {cloudPresets.map((p) => tier !== "pro" ? (
-            <button key={p.id} className="presetcard shared lockedp" title={`${p.name} — shared library preset. ${UPGRADE_LINES[tier]}`}
+            <button key={p.id} className="presetcard shared lockedp"
+              title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
               <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? "" }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
             </button>
           ) : (
-            <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}`} title={`${p.name} — shared preset`}
+            <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
+              title={heldUntil(p.publish_at) ? `${p.name} — held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} — preset pack`}
               onClick={() => applyCloudPreset(p.id)}>
               {p.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb }} /> : <span className="presetart" />}
               <span className="presetname">{p.name}</span>
+              {/* Only an admin ever reaches this branch with a held pack —
+                  the read policy hides unreleased rows from everyone else. */}
+              {isAdmin && heldUntil(p.publish_at) && (
+                <span className="presethold" role="button" tabIndex={0}
+                  aria-label={`Reschedule ${p.name} — currently held until ${heldUntil(p.publish_at)}`}
+                  title="Click to change the release date, or clear it to ship now"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = window.prompt(`Release “${p.name}” on (YYYY-MM-DD) — clear the field to ship it now:`, (p.publish_at ?? "").slice(0, 10));
+                    if (next === null) return;
+                    void schedulePreset(p.id, dayToISO(next.trim())).then((err) => { if (err) window.alert(err); });
+                  }}>
+                  <Clock size={10} strokeWidth={2.4} /> {heldUntil(p.publish_at)}
+                </span>
+              )}
               {isAdmin && (
                 <span className="shapedel" role="button" aria-label={`Delete shared preset ${p.name}`} title="Delete for everyone (admin)"
                   onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete the shared preset “${p.name}” for everyone?`)) void removeCloudPresetById(p.id); }}>×</span>
@@ -695,10 +738,18 @@ export function Panel() {
         {isAdmin && (<>
           <div className="sublabel">Shared library — admin</div>
           <div className="actionrow">
+            {/* Dated publishing is what makes "a new pack every month" keep
+                itself: load the whole backlog in one sitting, each with its
+                drop date, instead of remembering to publish one a month. */}
             <NameAction icon={<Globe size={14} strokeWidth={2} />} label="Publish current…"
-              title="Publish the current style as a shared preset — every user will see it"
-              placeholder="Preset name — every visitor sees it"
-              onCommit={(n) => publishPreset(n)} />
+              title="Publish the current style as a preset pack — set a date to hold it until then"
+              placeholder="Pack name — Pro members see it"
+              withDate
+              onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
+            <button className="resetstate" title="Review student & educator applications — approvals unlock the education price"
+              onClick={() => { window.location.hash = "#/review"; }}>
+              <GraduationCap size={14} strokeWidth={2} /> Review applications
+            </button>
             {activeCloudPreset && (
               <button className="resetstate" onClick={() => {
                 if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });

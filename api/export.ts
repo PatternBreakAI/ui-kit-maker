@@ -24,6 +24,35 @@ const RATE_PER_HOUR = 60;
 /** What a caller may ask for. Anything else is refused outright. */
 const KINDS = new Set(["engine", "gamekit", "html", "svg", "sheet"]);
 
+/* Which artifacts each plan may take. This mirrors EXPORT_KINDS in
+   src/generator/entitlements.ts — the client copy shapes the UI, this one
+   decides. Kept as a literal rather than an import because serverless
+   functions bundle separately from the app.
+
+   Student and Pro are deliberately identical. The education price buys the
+   whole tool; what it does not buy is the right to SELL what you build with
+   it, and that difference is carried by the licence block below rather than
+   by withholding formats. See entitlements.ts for the reasoning. */
+const ALLOWED: Record<string, Set<string>> = {
+  student: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
+  pro: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
+};
+
+/* The use grant, per plan. Mirrors LICENCE_GRANT in
+   src/generator/entitlements.ts and Terms §5.6 — change all three
+   together or the file will disagree with the page that sold it. */
+const GRANT: Record<string, string> = {
+  student: `  Coursework, portfolio, personal projects and non-commercial
+  releases — on any number of them, with no attribution required.
+
+  Selling a product built with these assets, or shipping them in
+  anything that earns revenue, needs a Pro licence. Upgrade any time
+  at uikitmaker.com/#/pricing and re-export; the new licence replaces
+  this one.`,
+  pro: `  Ship these assets in any product you make, commercial included, on any
+  number of projects, with no attribution required and no seat limit.`,
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -35,19 +64,19 @@ function json(body: unknown, status = 200): Response {
     the export belongs to, which makes a leaked kit traceable — the honest
     deterrent against redistribution, and a provenance record for the
     customer who actually bought it. */
-function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string): string {
-  return `UI Kit Maker — Pro export licence
-==================================
+function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string, plan: string): string {
+  return `UI Kit Maker — export licence
+============================
 
 Artifact      : ${kind}
+Plan          : ${plan === "student" ? "Student / Educator (education licence)" : "Pro (commercial licence)"}
 Licensed to   : ${email}
 Account       : ${uid}
 Issued        : ${whenISO}
 Reference     : ${nonce}
 
 WHAT YOU MAY DO
-  Ship these assets in any product you make, commercial included, on any
-  number of projects, with no attribution required and no seat limit.
+${GRANT[plan] ?? GRANT.pro}
 
 WHAT YOU MAY NOT DO
   Resell or redistribute the assets themselves — as a kit, an asset pack,
@@ -91,9 +120,18 @@ export async function POST(req: Request): Promise<Response> {
   if (!pr.ok) return json({ error: "Couldn't check your plan — try again." }, 502);
   const rows = (await pr.json()) as { plan_id?: string; is_admin?: boolean }[];
   const profile = rows[0];
-  const entitled = !!profile && (profile.is_admin === true || (!!profile.plan_id && profile.plan_id !== "free"));
-  if (!entitled) {
+  // admins carry pro rights; everyone else gets exactly what their plan buys
+  const plan = !profile ? "free"
+    : profile.is_admin === true ? "pro"
+    : profile.plan_id === "student" ? "student"
+    : (profile.plan_id && profile.plan_id !== "free") ? "pro"
+    : "free";
+
+  if (plan === "free") {
     return json({ error: "Vector and kit exports are part of Pro.", reason: "upgrade" }, 403);
+  }
+  if (!ALLOWED[plan]?.has(kind)) {
+    return json({ error: "That export isn't part of your plan.", reason: "upgrade" }, 403);
   }
 
   // quiet rate limit — invisible to anyone exporting by hand
@@ -125,6 +163,6 @@ export async function POST(req: Request): Promise<Response> {
     reference: nonce,
     issuedAt: whenISO,
     licensedTo: user.email ?? user.id,
-    licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce),
+    licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce, plan),
   });
 }

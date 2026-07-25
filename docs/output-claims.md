@@ -38,7 +38,7 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | **HTML** | **One self-contained `.html` file** — inline CSS, inline SVG, a Google Fonts `<link>`, and a live state-swapping demo button. There is no separate stylesheet. |
 | **Settings JSON** | The full `GenConfig`, re-importable. |
 
-### 1.2 Kit-wide (Pro)
+### 1.2 Kit-wide (Pro and Student — same formats, different licence)
 
 | Artifact | Reality |
 |---|---|
@@ -137,6 +137,100 @@ and `ownR2` (fonts), all seven locales.
 
 ---
 
+## 2b. Plan claims — what each tier is promised
+
+Added 2026-07-25 with the education-licence rework. These are commercial
+promises rather than output claims, but they belong here for the same
+reason: the moment one drifts from what the code does, the page is lying.
+
+| Claim | Status | Backed by |
+|---|---|---|
+| "Student and Pro have the same features and export formats" | **APPROVED** | `TIER_CAPS` and `EXPORT_KINDS` in `entitlements.ts` — student and pro are identical rows. `ALLOWED` in `api/export.ts` mirrors them. |
+| "The education licence covers coursework, portfolio and non-commercial release" | **APPROVED** | `LICENCE_GRANT.student`, stamped into every export by `api/export.ts`; Terms §5.6. |
+| "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
+| "New preset pack every month" | ⚠️ **COMMITMENT — inventory banked, none published** | Delivery path exists and the owner has several packs built and held back. What is missing is publication, not material. The value figure was deliberately withheld — see below. |
+| "Monthly preset packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
+
+### The monthly pack — read this before promoting it
+
+**A pack is a new preset** (owner, 2026-07-25) — a full style recipe that
+restyles the whole kit, published to the shared library. Not new
+components. That distinction matters for the wording: say **preset pack**,
+never "kit pack", because the latter implies the component set grows.
+
+**Packs list at $5 each** — owner decision, 2026-07-25, and the owner owns
+that price. It is settled, not provisional, so the earlier "what if it
+launches at $3 or $8" caveat is closed. Twelve drops a year at $5 is $60,
+and that arithmetic is sound.
+
+**The $60 is nonetheless OFF the page** (owner, 2026-07-25). The figure is
+true but it cites a price no customer can reach: there is no à-la-carte
+purchase path, so nothing is listed at $5 anywhere a visitor could check.
+A value claim resting on an invisible price is the kind of thing this
+ledger exists to catch, and the owner chose to hold it rather than lead
+with it.
+
+So the pricing card carries the cadence alone — "New preset pack every
+month" — which is honest the moment the first pack ships and needs no
+price to stand up.
+
+**To restore it**, when the $5 listing is live and reachable, set the Pro
+row in `PricingPage.tsx` back to:
+
+    { label: "New preset pack every month — $60 a year of packs" },
+
+Do not restore "($60 value)" in the older shape — read plainly it says one
+pack is worth $60. And say **preset pack**, never "kit pack": a pack is a
+preset, and the latter implies the component set grows.
+
+**Still a promise, not a description** — but the shape of the risk changed
+on 2026-07-25, when the owner confirmed **several packs are already built
+and held in the wings**. The earlier worry was that there was nothing to
+ship. There is. What remains is publication.
+
+| Piece | State today |
+|---|---|
+| Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. |
+| Packs to ship | ✅ Several built, unpublished. |
+| A pack actually appearing each month | ✅ Schedulable, and owner-owned. Several packs banked. Owner call 2026-07-25: the first drop is due one month after the FIRST PAYING CUSTOMER (not a calendar date), and each drop gets promotional cards (à la Marvel Snap) planned around it. |
+| The $5 list price | ❌ Decided and owner-owned, but not built. One Stripe product (Pro) plus the student price; no à-la-carte path. This is why the value figure is off the page rather than on it. |
+
+### Scheduled release — built 2026-07-25
+
+Publishing used to be immediate: `presets_read_all` was `using (true)` and
+an insert was live the instant it landed. That meant loading the backlog
+**spent** it — every pack arriving at once, then months of silence against
+a page promising one a month.
+
+Now:
+
+- `presets.publish_at timestamptz`. null = live (every pack from before the
+  column existed), past = live, future = held.
+- The read policy is `presets_read_released`: `publish_at is null or
+  publish_at <= now()` — with an admin exception so the owner can manage
+  the schedule.
+- **The filter is in RLS, not the client.** The anon key ships in the
+  browser, so a UI-only filter would leave the whole unreleased backlog
+  readable to any signed-in user who queried the table directly. Worth
+  restating because it is the sort of thing a later refactor quietly
+  breaks.
+- Admin publish row has a release-date field; blank ships now. Held packs
+  show a dashed card with a date chip, click to reschedule or clear.
+- Drops land at **UTC midnight** on the chosen day.
+
+Not verified end to end: the admin path can't be exercised in local dev
+(cloud is off there, so `isAdmin` is false). Date helpers are unit-checked
+and the panel renders clean; the publish-with-date and reschedule flows
+need one pass on the live site by the owner.
+
+Recommendation on record: load the banked packs in with dates before
+promoting, which turns the cadence claim from something to remember into
+something that keeps itself. The value figure stays held back per the
+owner's call above. The clock on the cadence claim starts the day the
+pricing page goes in front of people, not the day a pack is ready.
+
+---
+
 ## 3. Per-tool claims
 
 The method the owner asked for: name the **parameter the app actually
@@ -145,18 +239,35 @@ voice. Anything marked NEEDS TEST must be opened in that app before it goes
 live — I can verify what we *write*, not what a third-party importer *does*
 with it.
 
-### Unity — APPROVED
+### Unity — APPROVED for the assets; the importer is a convenience, not the claim
 - **Accepts:** PNG sprites; nine-slice via Sprite Editor's `Border` (L/R/T/B in pixels); pivots; `Image` component in `Sliced` mode. Editor scripts under any `Editor/` folder compile automatically.
-- **Pain point:** hand-entering border values for dozens of sprites, then discovering the art baked in a label or a shadow you can't remove.
-- **Our answer:** atomic content-free PNGs with the border values already in the manifest, and an importer script that applies them for you. Labels and numbers stay live engine text; shadows and glows ship as separate tintable blobs.
-- **Copy (v85.3):** "Standard PNGs with every nine-slice border, pivot and size written out in a manifest — set them in Unity's Sprite Editor, or let the bundled importer script do the typing. Labels stay live engine text; nothing is baked in."
-- The importer script is a **bundled convenience, untested by users** — the manifest numbers are the product. Copy must work even if the script is deleted from the ZIP.
+- **What is SOLID (claim freely):** the PNGs are standard files and the nine-slice
+  borders, pivots and native sizes are plain numbers in `kit-manifest.json`.
+  Setting them in the Sprite Editor is typing, not integration — this works in
+  Unity the way any sprite works in Unity, and no importer has to run for it.
+  Content-free faces + live engine text is likewise a property of the assets.
+- **What is UNTESTED (do not lead with it):** `PatternBreakKitImporter.cs` and the
+  two example prefabs have never been run inside a real Unity project. They ship
+  as included conveniences; the kit's own README says the script only saves
+  typing and gives the by-hand path. A tested, deeper Unity export is planned.
+  Owner call 2026-07-25: the pitch is "you CAN use it in Unity and Unreal" — the
+  assets carry that claim on their own.
+- **Copy:** "Standard PNGs with every nine-slice border, pivot and size written
+  out in a manifest — set them in Unity's Sprite Editor, or let the bundled
+  importer script do the typing. Labels stay live engine text; nothing is baked in."
 
-### Unreal Engine — APPROVED
+### Unreal Engine — APPROVED (the claim is arithmetic, not integration)
 - **Accepts:** Texture2D; UMG Brush `Draw As: Box` with `Margin` as **0–1 normalized** values (not pixels).
-- **Pain point:** margins are normalized, so every pixel border must be divided by the texture dimension by hand.
-- **Our answer:** the manifest carries native dimensions beside the pixel margins, and `unreal/README.md` gives the conversion and the recipes.
-- **Copy (v85.3):** "Box-draw margins worked out for you — native size, pixel insets and the 0–1 conversion all in the kit, with step-by-step UMG recipes."
+- **What is SOLID:** the manifest carries native dimensions beside the pixel
+  margins, and `unreal/SliceMargins.csv` ships the 0–1 conversion already done —
+  that is arithmetic anyone can check, not runtime behavior. The recipes in
+  `unreal/UMG_Recipes.md` are written instructions, followed by a human.
+- **What is UNTESTED:** nobody has walked the recipes inside a real Unreal
+  project yet. They are documentation, so the risk is a wording stumble rather
+  than a broken tool — but do not claim "one-click" anything for Unreal; there
+  is no script there at all, by design.
+- **Copy:** "Box-draw margins worked out for you — native size, pixel insets and
+  the 0–1 conversion all in the kit, with step-by-step UMG recipes."
 
 ### Godot — NEEDS TEST
 - **Accepts:** PNG; `NinePatchRect` with `patch_margin_*`. Native SVG import exists and rasterizes at import scale.

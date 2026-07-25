@@ -49,6 +49,7 @@ async function stripe(path: string, key: string, form: Record<string, string>): 
 export async function POST(req: Request): Promise<Response> {
   const key = process.env.STRIPE_SECRET_KEY;
   const price = process.env.STRIPE_PRICE_PRO;
+  const priceEdu = process.env.STRIPE_PRICE_STUDENT;
   const supaUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
   if (!key || !price || !supaUrl || !service) {
@@ -87,6 +88,16 @@ export async function POST(req: Request): Promise<Response> {
       return json({ error: "You're already on Pro — manage it from Account.", alreadyPro: true }, 409);
     }
 
+    /* Which price? The SERVER decides. A student rate is used only when
+       this account has an APPROVED verification row — a table the client
+       can insert into (as pending) but never approve. If the student
+       price isn't configured yet, everyone simply pays the Pro rate. */
+    let chosen = price;
+    if (priceEdu) {
+      const sv = await rest(`student_verifications?user_id=eq.${user.id}&status=eq.approved&select=id&limit=1`);
+      if (sv.ok && ((await sv.json()) as unknown[]).length > 0) chosen = priceEdu;
+    }
+
     let customer = profile?.stripe_customer_id ?? "";
     if (!customer) {
       const made = await stripe("customers", key, {
@@ -105,7 +116,7 @@ export async function POST(req: Request): Promise<Response> {
     const session = await stripe("checkout/sessions", key, {
       mode: "subscription",
       customer,
-      "line_items[0][price]": price,
+      "line_items[0][price]": chosen,
       "line_items[0][quantity]": "1",
       client_reference_id: user.id,
       "subscription_data[metadata][supabase_uid]": user.id,

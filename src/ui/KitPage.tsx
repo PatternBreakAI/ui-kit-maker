@@ -12,7 +12,7 @@ import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
-import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
+import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 
 /* The Kit — a living guideline sheet in five levels: Foundations, Components,
@@ -294,7 +294,7 @@ function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
 function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   const { cfg, locked, size, setKitSize, sizable, name, kit, onEdit } = usePiece(p);
   const tier2 = useGen((s) => s.tier);
-  const vectorOk = capsOf(tier2).vectorExports;
+  const vectorOk = canExport(tier2, "svg");
   const shineOn = useGen((s) => s.shine);
   // the global toggle now rides the clipped SVG band (masked to the face),
   // not the old card overlay
@@ -1020,10 +1020,13 @@ export function KitPage() {
     }
   };
 const kitTier = useGen((s) => s.tier);
-  const kitVectorOk = capsOf(kitTier).vectorExports;
+  /* Per artifact, not one blanket flag: student buys the SVG pack and stops
+     at the engine kit, which is the shipping format. */
+  const mayEngine = canExport(kitTier, "engine");
+  const maySvg = canExport(kitTier, "svg");
   const exportActions = [
-    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !kitVectorOk, run: () => void downloadEngineKit() },
-    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !kitVectorOk, run: () => void downloadSvgPack() },
+    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !mayEngine, run: () => void downloadEngineKit() },
+    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
@@ -2000,7 +2003,11 @@ const kitTier = useGen((s) => s.tier);
         </button>
         <div className="kp-dlrow">
           {([["all", "Download full pack"], ["components", "Components"], ["layers", "Material layers"], ["controls", "Control pieces"], ["type", "Typography recipe"], ["assemblies", "Assemblies"]] as const).map(([which, capn]) => (
-            <button key={which} onClick={() => {
+            <button key={which} title={maySvg ? `Download ${capn.toLowerCase()} as layered SVG` : `Layered SVG packs are a paid format. ${UPGRADE_LINES[kitTier]}`}
+              /* These packs are the same layered SVGs the SVG pack ships, so
+                 they go through the same server gate — otherwise this row was
+                 a way to take every component without a plan. */
+              onClick={() => void guardedExport("svg", gateHandlers, (grant) => {
               const st = useGen.getState();
               const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
               const files: { path: string; data: string }[] = [];
@@ -2067,8 +2074,9 @@ const kitTier = useGen((s) => s.tier);
                   ].join("\n"),
                 });
               }
+              files.push({ path: "LICENCE.txt", data: grant.licence });
               downloadZip(`ui-kit-${which}.zip`, files);
-            }}><Download size={12} strokeWidth={2.2} /> {capn}</button>
+            })}><Download size={12} strokeWidth={2.2} /> {capn}</button>
           ))}
         </div>
         <div className="kp-subhead">Material &amp; structural layers</div>
