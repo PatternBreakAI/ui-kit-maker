@@ -29,6 +29,7 @@ export function currentLocale(): Locale {
 type Table = Record<string, string>;
 
 const EN: Table = {
+  saveKit: "Save kit",
   export: "Export",
   exportSvg: "Export SVG",
   exportPng: "Export PNG",
@@ -49,6 +50,7 @@ const EN: Table = {
 };
 
 const ZH: Table = {
+  saveKit: "保存套件",
   export: "导出",
   exportSvg: "导出 SVG",
   exportPng: "导出 PNG",
@@ -69,6 +71,7 @@ const ZH: Table = {
 };
 
 const FR: Table = {
+  saveKit: "Enregistrer le kit",
   export: "Exporter",
   exportSvg: "Exporter en SVG",
   exportPng: "Exporter en PNG",
@@ -89,6 +92,7 @@ const FR: Table = {
 };
 
 const ES: Table = {
+  saveKit: "Guardar kit",
   export: "Exportar",
   exportSvg: "Exportar SVG",
   exportPng: "Exportar PNG",
@@ -109,6 +113,7 @@ const ES: Table = {
 };
 
 const IT: Table = {
+  saveKit: "Salva kit",
   export: "Esporta",
   exportSvg: "Esporta SVG",
   exportPng: "Esporta PNG",
@@ -129,6 +134,7 @@ const IT: Table = {
 };
 
 const DE: Table = {
+  saveKit: "Kit speichern",
   export: "Exportieren",
   exportSvg: "Als SVG exportieren",
   exportPng: "Als PNG exportieren",
@@ -149,6 +155,7 @@ const DE: Table = {
 };
 
 const JA: Table = {
+  saveKit: "キットを保存",
   export: "書き出し",
   exportSvg: "SVG を書き出す",
   exportPng: "PNG を書き出す",

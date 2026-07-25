@@ -211,7 +211,10 @@ export function CommunityPage() {
             {listed.length === 0 ? (
               <section className="fd-studentcard">
                 <p>The gallery is warming up — the first community kits land here once curated.
-                Save a kit in the editor and it may be featured.</p>
+                Build something, then hit <b>Save kit</b> in the editor's top bar: free and
+                student kits join the curation queue automatically, and Pro kits join when
+                you share them.</p>
+                <p><button className="fd-pricing__cta" onClick={() => navigate("#/app")}>Open the generator</button></p>
               </section>
             ) : (
               <div className="cg-grid">{listed.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>
