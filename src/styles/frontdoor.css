@@ -515,3 +515,11 @@
 .fd-page .fd-projects .menu-pop{position:static;top:auto;right:auto;background:transparent;border:0;box-shadow:none;padding:0;min-width:0}
 .fd-page .fd-projects .proj-head{display:none}
 .fd-page .fd-projects .proj-list{max-height:none}
+/* Pro / confirming plan chips — gold for the paid tier, quiet for the wait */
+.fd-plan__chip--pro{display:inline-flex;align-items:center;gap:5px;border-color:rgba(250,204,21,.6);color:#a16207;
+  background:linear-gradient(180deg,rgba(250,204,21,.16),rgba(250,204,21,.06))}
+[data-theme="dark"] .fd-plan__chip--pro{color:#facc15}
+.fd-plan__chip--wait{display:inline-flex;align-items:center;gap:5px;border-color:var(--line2);color:var(--ink3)}
+.fd-spin{animation:fdspin 1s linear infinite}
+@keyframes fdspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.fd-spin{animation:none}}

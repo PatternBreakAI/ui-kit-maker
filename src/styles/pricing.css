@@ -21,3 +21,10 @@
 .fd-pricing__cta--ghost { background: var(--soft); color: var(--ink); border: 1px solid var(--line2); }
 .fd-pricing__cta--soon { background: var(--soft); color: var(--ink3); border: 1px dashed var(--line2); cursor: default; }
 .fd-pricing__fine { margin-top: 26px; font-size: 12.5px; color: var(--ink3); }
+.fd-pricing__cta:disabled { opacity: .6; cursor: default; }
+.fd-pricing__renew { margin: 2px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--ink3); }
+.fd-pricing__err { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: #dc2626; }
+[data-theme="dark"] .fd-pricing__err { color: #fca5a5; }
+.fd-spin { animation: fdspin 1s linear infinite; }
+@keyframes fdspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fd-spin { animation: none; } }

@@ -248,3 +248,19 @@ create policy "app_settings_admin_delete" on public.app_settings for delete
 -- Make yourself an admin (run once, AFTER that account has signed up so its
 -- profile row exists):
 --   update public.profiles set is_admin = true where email = 'chevon@me.com';
+
+-- ── billing (v85) — Stripe entitlement columns ───────────────────────
+-- plan_id stays server-truth: the RLS update policy above pins any client
+-- write to 'free', and only the Stripe webhook (service-role key, RLS
+-- bypassed) ever grants pro. These pointer columns let the webhook find
+-- the right profile from a Stripe customer, and let the account page open
+-- the billing portal without another Stripe lookup. Column-level revokes
+-- make them unwritable by clients even inside their own row.
+alter table public.profiles add column if not exists stripe_customer_id     text;
+alter table public.profiles add column if not exists stripe_subscription_id text;
+alter table public.profiles add column if not exists plan_status            text;
+alter table public.profiles add column if not exists plan_renews_at         timestamptz;
+revoke update (stripe_customer_id, stripe_subscription_id, plan_status, plan_renews_at)
+  on public.profiles from anon, authenticated;
+create unique index if not exists profiles_stripe_customer_idx
+  on public.profiles (stripe_customer_id) where stripe_customer_id is not null;

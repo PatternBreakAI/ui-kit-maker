@@ -162,6 +162,37 @@ it to 'free'), and the paid tier's exports must move behind server
 functions when Stripe lands. Cloud-off (local/dev) builds run at the free
 tier so development stays unimpeded.
 
+## Billing (v85) — Stripe, live mode
+
+One product, one price: **UI Kit Maker Pro, $29.99/year**, annual-only
+(the deferred "annual-only decision" is now made). Three serverless
+functions in `/api` are the product's first server-side code — see
+`api/_shared.md` for routes, env vars and the coupon-based live test:
+
+- `POST /api/checkout` verifies the caller's Supabase token, finds or
+  creates their Stripe customer, and returns a Checkout URL. It refuses
+  if the account is already Pro, and only ever redirects to our own
+  origins.
+- `POST /api/stripe-webhook` verifies Stripe's HMAC signature (Web
+  Crypto, 5-minute replay window) and is **the only writer of `plan_id`**
+  — it holds the service-role key, which is what gets past the RLS
+  policy pinning client writes to `'free'`. Handles checkout completion
+  plus the subscription lifecycle, so a lapse or cancellation downgrades
+  as reliably as a purchase upgrades.
+- `POST /api/portal` returns a Stripe billing-portal URL — the "cancel
+  anytime online" path the subscription terms promise.
+
+New profile columns (`stripe_customer_id`, `stripe_subscription_id`,
+`plan_status`, `plan_renews_at`) carry the pointers; all four are
+column-revoked from `anon`/`authenticated`, so a client cannot write them
+even inside its own row. No Stripe SDK: REST over `fetch`, so the
+dependency list and the client bundle are untouched.
+
+Still true after this: the *gates* remain client-side. Billing decides
+what `tier` says; it does not yet stop a determined user from reading an
+exporter out of the bundle. Moving the vector exporters server-side is
+the next honest step.
+
 ## Security posture (what is and is not protected)
 
 - The anon key is public by design; **all** access control is row-level
@@ -179,7 +210,7 @@ tier so development stays unimpeded.
 
 | Phase (plan §12)            | Reserved today                                             |
 | --------------------------- | ---------------------------------------------------------- |
-| Stripe test mode, billing   | `plans` table; `profiles.plan_id`; annual-only decision     |
+| Stripe billing              | SHIPPED (v85): live mode, $29.99/yr annual — see Billing above |
 | Entitlement service         | capabilities-as-data in `plans.capabilities` (jsonb)        |
 | Protected exports           | none client-side to remove later — exporters stay free now  |
 | Opt-in showcase             | SHIPPED (v76): named projects + `is_public`/`share_slug`     |
