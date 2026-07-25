@@ -878,6 +878,18 @@ export function Panel() {
         <Section id="kiticon" title="Component content"
           summary={<span>{kitIcons[focus] === "none" ? "no icon" : (kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"}</span>}>
           {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
+          {(KIT_SLOTS[focus] ?? []).some((sl) => sl.kind === "free") && (
+            <div className="slotgrid">
+              {(KIT_SLOTS[focus] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
+                <label key={slot.id} className="slotcell">
+                  <span>{slot.name}</span>
+                  <input className="tinput" value={kitSlotVals[focus]?.[slot.id] ?? ""}
+                    placeholder={slot.def ?? ""} maxLength={slot.maxLen ?? 40} aria-label={slot.name}
+                    onChange={(e) => setKitSlot(focus, slot.id, e.target.value)} />
+                </label>
+              ))}
+            </div>
+          )}
           {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" ? (
             <div key={slot.id}>
               <div className="sublabel">{slot.name}</div>

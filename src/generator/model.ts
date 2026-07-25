@@ -807,6 +807,8 @@ export type SlotDef = {
   id: string; name: string; kind: SlotKind;
   /** choice: the curated list, first entry is the default */
   choices?: string[];
+  /** free: the specimen text shown when the slot is untouched */
+  def?: string;
   maxLen?: number;
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
@@ -823,6 +825,112 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
     { id: "readout", name: "Readout", kind: "value",
       note: "Driven by the value slider — the number and the needle move together. Set the value to stage the exact frame you want." },
+  ],
+  tacho: [
+    { id: "unit", name: "Unit", kind: "choice", choices: ["RPM ×1000", "RPM"],
+      note: "Tachometers read in revs — the ×1000 form is how real clusters print it." },
+    { id: "readout", name: "Readout", kind: "value",
+      note: "Driven by the value slider — needle and number move together." },
+  ],
+  waypoint: [
+    { id: "unit", name: "Distance unit", kind: "choice", choices: ["m", "ft", "km", "mi"],
+      note: "A distance reads as navigation because its unit is real." },
+    { id: "readout", name: "Distance", kind: "value",
+      note: "Driven by the value slider." },
+  ],
+  questpanel: [
+    { id: "eyebrow", name: "Eyebrow", kind: "free", def: "SIDE QUEST", maxLen: 24,
+      note: "The small caption above the quest name." },
+    { id: "obj1", name: "Objective 1", kind: "free", def: "Reach the vault gate", maxLen: 40 },
+    { id: "obj2", name: "Objective 2", kind: "free", def: "Recover ember shards", maxLen: 40 },
+    { id: "obj3", name: "Objective 3", kind: "free", def: "Return to Elder Rowan", maxLen: 40 },
+  ],
+  dialoguebox: [
+    { id: "speaker", name: "Speaker", kind: "free", def: "ELDER ROWAN", maxLen: 24 },
+    { id: "line2", name: "Second line", kind: "free", def: "Take the ember pass at first light.", maxLen: 60 },
+  ],
+  chatbubble: [
+    { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
+    { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
+  ],
+  friendrow: [
+    { id: "status", name: "Status line", kind: "free", def: "In Match · Ranked", maxLen: 32,
+      note: "Online rows show this; offline rows show last-seen." },
+    { id: "cta", name: "Button word", kind: "free", def: "JOIN", maxLen: 10 },
+  ],
+  scorebug: [
+    { id: "scoreA", name: "Home score", kind: "free", def: "2", maxLen: 3 },
+    { id: "scoreB", name: "Away score", kind: "free", def: "1", maxLen: 3 },
+  ],
+  nameplate: [
+    { id: "ribbon", name: "Title ribbon", kind: "free", def: "PIT CHAMPION", maxLen: 24 },
+  ],
+  dialog: [
+    { id: "cta1", name: "Confirm button", kind: "free", def: "CLAIM", maxLen: 12 },
+    { id: "cta2", name: "Dismiss button", kind: "free", def: "LATER", maxLen: 12 },
+  ],
+  pricebtn: [
+    { id: "ribbon", name: "Ribbon", kind: "free", def: "BEST VALUE", maxLen: 16 },
+  ],
+  achievetoast: [
+    { id: "eyebrow", name: "Eyebrow", kind: "free", def: "ACHIEVEMENT UNLOCKED", maxLen: 28 },
+  ],
+  movecounter: [
+    { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },
+    { id: "readout", name: "Count", kind: "value", note: "Driven by the value slider." },
+  ],
+  leaderboard: [
+    { id: "title", name: "Title", kind: "free", def: "TOP 5", maxLen: 16 },
+    { id: "n1", name: "1st name", kind: "free", def: "HAM", maxLen: 12 },
+    { id: "t1", name: "1st time", kind: "free", def: "1:21.548", maxLen: 10 },
+    { id: "n2", name: "2nd name", kind: "free", def: "VER", maxLen: 12 },
+    { id: "t2", name: "2nd time", kind: "free", def: "+0.842", maxLen: 10 },
+    { id: "n3", name: "3rd name", kind: "free", def: "YOU", maxLen: 12 },
+    { id: "t3", name: "3rd time", kind: "free", def: "+2.156", maxLen: 10 },
+    { id: "n4", name: "4th name", kind: "free", def: "LEC", maxLen: 12 },
+    { id: "t4", name: "4th time", kind: "free", def: "+3.271", maxLen: 10 },
+    { id: "n5", name: "5th name", kind: "free", def: "PIA", maxLen: 12 },
+    { id: "t5", name: "5th time", kind: "free", def: "+4.712", maxLen: 10 },
+  ],
+  listmenu: [
+    { id: "row1", name: "Row 1", kind: "free", def: "Equip", maxLen: 18 },
+    { id: "row2", name: "Row 2", kind: "free", def: "Inspect", maxLen: 18 },
+    { id: "row3", name: "Row 3", kind: "free", def: "Reinforce", maxLen: 18 },
+    { id: "row4", name: "Row 4", kind: "free", def: "Drop", maxLen: 18 },
+  ],
+  choicelist: [
+    { id: "c1", name: "Choice 1", kind: "free", def: "Ask about the ruins", maxLen: 40 },
+    { id: "c2", name: "Choice 2", kind: "free", def: "Show the sealed letter", maxLen: 40 },
+    { id: "c3", name: "Choice 3", kind: "free", def: "Leave — for now", maxLen: 40 },
+  ],
+  dropdown: [
+    { id: "o1", name: "Option 1", kind: "free", def: "Option one", maxLen: 24 },
+    { id: "o2", name: "Option 2", kind: "free", def: "Option two", maxLen: 24 },
+    { id: "o3", name: "Option 3", kind: "free", def: "Option three", maxLen: 24 },
+  ],
+  flipclock: [
+    { id: "tag1", name: "Tag 1", kind: "free", def: "DAYS", maxLen: 10 },
+    { id: "tag2", name: "Tag 2", kind: "free", def: "HOURS", maxLen: 10 },
+    { id: "tag3", name: "Tag 3", kind: "free", def: "MINUTES", maxLen: 10 },
+    { id: "tag4", name: "Tag 4", kind: "free", def: "SECONDS", maxLen: 10 },
+  ],
+  equipselector: [
+    { id: "item1", name: "Item 1", kind: "free", def: "FIELD TONIC", maxLen: 18 },
+    { id: "item2", name: "Item 2", kind: "free", def: "SHOCK CHARGE", maxLen: 18 },
+    { id: "item3", name: "Item 3", kind: "free", def: "PRISM MINE", maxLen: 18 },
+  ],
+  seasontrack: [
+    { id: "laneA", name: "Top lane", kind: "free", def: "FREE", maxLen: 12 },
+    { id: "laneB", name: "Bottom lane", kind: "free", def: "PREMIUM", maxLen: 12 },
+  ],
+  weaponwheel: [
+    { id: "w1", name: "Chamber 1", kind: "free", def: "BLADE", maxLen: 10 },
+    { id: "w2", name: "Chamber 2", kind: "free", def: "VOLT", maxLen: 10 },
+    { id: "w3", name: "Chamber 3", kind: "free", def: "TONIC", maxLen: 10 },
+    { id: "w4", name: "Chamber 4", kind: "free", def: "AEGIS", maxLen: 10 },
+    { id: "w5", name: "Chamber 5", kind: "free", def: "PICK", maxLen: 10 },
+    { id: "w6", name: "Chamber 6", kind: "free", def: "PRISM", maxLen: 10 },
+    { id: "hint", name: "Hint line", kind: "free", def: "RELEASE TO EQUIP", maxLen: 24 },
   ],
 };
 
