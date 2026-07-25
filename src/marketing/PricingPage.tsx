@@ -10,6 +10,7 @@ import { cloudConfig } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { startCheckout } from "@/generator/billing";
 import { HUD_LEFT, HUD_RIGHT, paintHud } from "./pricingHud";
+import logoUrl from "../../pb-logo.png";
 
 /* #/pricing — three tiers, in the product's own voice.
 
@@ -143,7 +144,7 @@ export function PricingPage() {
     <div className="fd-pricing" ref={hudRef}>
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
-        <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+        <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
       </header>
 
       <main>

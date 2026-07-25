@@ -5,6 +5,7 @@ import { navigate } from "@/shell/router";
 import { cloudConfig } from "@/generator/cloud";
 import { publicProfile, avatarUrl, type CommunityCard } from "@/generator/community";
 import { Card } from "./CommunityPage";
+import logoUrl from "../../pb-logo.png";
 
 /* #/u/<handle> — a maker's public face: avatar, name, their curated kits,
    and the sum of the hearts those kits have collected. Only LISTED public
@@ -34,7 +35,7 @@ export function UserPage({ handle }: { handle: string }) {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/community")}>← Community Gallery</button>
-        <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+        <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
       </header>
 
       <main className="cg">

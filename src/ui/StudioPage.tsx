@@ -17,6 +17,7 @@ import {
 import { openBillingPortal } from "@/generator/billing";
 import { useGen } from "@/generator/store";
 import { CardArt } from "./CommunityPage";
+import logoUrl from "../../pb-logo.png";
 
 /* #/studio — the maker's own room. One page that answers "where is my
    stuff and who am I out there": the public face (avatar, name, handle),
@@ -136,7 +137,7 @@ export function StudioPage() {
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
           <button className="cg-navbtn" onClick={() => navigate("#/community")}>Community Gallery</button>
-          <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+          <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>
       </header>
 
