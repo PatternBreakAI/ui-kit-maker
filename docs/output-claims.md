@@ -145,7 +145,7 @@ reason: the moment one drifts from what the code does, the page is lying.
 | "Student and Pro have the same features and export formats" | **APPROVED** | `TIER_CAPS` and `EXPORT_KINDS` in `entitlements.ts` — student and pro are identical rows. `ALLOWED` in `api/export.ts` mirrors them. |
 | "The education licence covers coursework, portfolio and non-commercial release" | **APPROVED** | `LICENCE_GRANT.student`, stamped into every export by `api/export.ts`; Terms §5.6. |
 | "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
-| "New preset pack every month" | ⚠️ **COMMITMENT — not yet delivered** | Delivery path exists; no pack has shipped. The value figure was deliberately withheld — see below. |
+| "New preset pack every month" | ⚠️ **COMMITMENT — inventory banked, none published** | Delivery path exists and the owner has several packs built and held back. What is missing is publication, not material. The value figure was deliberately withheld — see below. |
 | "Monthly preset packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
 
 ### The monthly pack — read this before promoting it
@@ -180,14 +180,44 @@ Do not restore "($60 value)" in the older shape — read plainly it says one
 pack is worth $60. And say **preset pack**, never "kit pack": a pack is a
 preset, and the latter implies the component set grows.
 
-**Both halves are still promises, not descriptions.** Everything else in
-§2b can be checked against code today; this cannot:
+**Still a promise, not a description** — but the shape of the risk changed
+on 2026-07-25, when the owner confirmed **several packs are already built
+and held in the wings**. The earlier worry was that there was nothing to
+ship. There is. What remains is publication.
 
 | Piece | State today |
 |---|---|
-| Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. Nothing new to build. |
-| A pack actually shipping each month | ❌ Not started. The clock starts the day the line goes live — a month with no drop is a broken promise on a paid page. |
+| Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. |
+| Packs to ship | ✅ Several built, unpublished. |
+| A pack actually appearing each month | ⚠️ Manual. See the scheduling note below. |
 | The $5 list price | ❌ Decided and owner-owned, but not built. One Stripe product (Pro) plus the student price; no à-la-carte path. This is why the value figure is off the page rather than on it. |
+
+### Publishing is immediate — there is no drip
+
+`presets_read_all` is `for select using (true)` and `publishCloudPreset`
+inserts a row that is live the instant it lands. The table has
+`created_at` but no `publish_at`, so there is no notion of a pack that
+exists-but-is-not-yet-released.
+
+Consequence: publishing the whole backlog at once **spends it**. Pro
+members get everything in one drop and the monthly cadence has nothing
+left to deliver — five packs in one month, then five months of silence,
+against a page that promises one a month.
+
+Two ways to run it:
+
+1. **Manual monthly publish.** Load a pack, hit publish, once a month.
+   Works today, no code. Cost is one calendar reminder and the risk that
+   a busy month becomes a broken promise on a paid page.
+2. **Scheduled release.** Add `publish_at timestamptz` to `presets`,
+   narrow the read policy to `publish_at is null or publish_at <= now()`
+   with an admin exception, and expose the date in the publish UI. Load
+   the backlog once with dates and it drips on its own. The RLS half
+   matters — filtering only in the client would leave unreleased packs
+   readable to anyone who queries the table directly.
+
+Option 2 is the one that makes the cadence claim self-keeping rather than
+dependent on remembering. Not built as of this entry.
 
 Recommendation on record: bank two or three packs before promoting. The
 value figure is already held back per the owner's call above; the cadence
