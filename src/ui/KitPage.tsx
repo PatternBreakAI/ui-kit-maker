@@ -1023,7 +1023,7 @@ const kitTier = useGen((s) => s.tier);
   const kitVectorOk = capsOf(kitTier).vectorExports;
   const exportActions = [
     { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !kitVectorOk, run: () => void downloadEngineKit() },
-    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts embedded, Figma / Illustrator ready.", busy: svgBusy, locked: !kitVectorOk, run: () => void downloadSvgPack() },
+    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts named and linked, verified in Illustrator.", busy: svgBusy, locked: !kitVectorOk, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {

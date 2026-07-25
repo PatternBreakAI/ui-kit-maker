@@ -128,6 +128,10 @@ straight back into the app." True of the SVG pack and engine kit.
 commercial use." True — the README's Fonts section. Do NOT say the fonts
 are bundled; they are linked.
 
+**Both APPROVED claims are now live on the front door** (2026-07-25): the
+ownership section carries them as proof points, dict keys `ownR1` (recipe)
+and `ownR2` (fonts), all seven locales.
+
 ---
 
 ## 3. Per-tool claims
@@ -250,7 +254,23 @@ it solves. This section keeps it honest.
 - **`c_ase`** — "retouch pixel by pixel" sidesteps the pixel-art trap cleanly.
 - **`c_unreal`** — Slate brush margins in JSON: true, and the manifest carries native size beside the pixel margins for the 0–1 conversion.
 
-### ⚠️ Unverified — test before these stay up
+### Round 2 — rewritten 2026-07-25 (front door, all seven locales)
+
+Every row of the "unverified" table below was resolved in the front-door
+workstream after the owner's tests:
+
+| Key | Now says | Basis |
+|---|---|---|
+| `c_ai` | "Verified in Illustrator — opens as a named layer tree: real paths, real gradients, live editable type, effects intact." | §3 approved copy, owner-verified. The two §1.3 caveats (`dominant-baseline`, `paint-order`) are real but didn't affect the test; not led with. |
+| `c_figma` | "Imports as structure, not a screenshot — real paths, named layers, live text. Every piece you need to augment a component or build the one the kit doesn't have, fast." | Owner test: everything imports except font colours, patterns, gloss. Claims structure/editability, never pixel parity. "Fully editable vectors" dropped. |
+| `c_penpot` | Kept, plus "…filter effects included." | Owner-verified; Penpot keeps the filters Figma drops. |
+| `c_sketch` | "Sketch imports SVG 1.1, and that's exactly what we write — named groups, real paths, live gradients in every file." | Modest: claims our file format and Sketch's accepted spec, not an untested import outcome. |
+| `c_aff` | Same shape as Sketch ("…and that's exactly what we write"). | Untested; modest until someone looks. |
+| `c_unity` | "…atomic, content-free PNGs with the nine-slice borders already in the manifest, and our editor importer applies them for you. Nothing typed by hand, nothing baked in." | "Sprite atlas" and "UI Toolkit" removed; names the shipped importer per §3. |
+| `c_rblx` | "…nine-slice margins in the manifest that convert straight to SliceCenter." | "Match" → "convert": L/R/T/B margins are convertible to a SliceCenter Rect, not identical. |
+| `exn_svg` (export-menu note) | "Layered vectors — fonts named and linked, free to install. Verified in Illustrator; SVG-native in Penpot; opens straight in the browser." | Said "fonts embedded" (NEVER since v85.2) and "opens clean in Figma". |
+
+### ⚠️ Unverified — resolved by Round 2 above; kept for history
 
 | Key | The claim | What to check |
 |---|---|---|
@@ -262,10 +282,10 @@ it solves. This section keeps it honest.
 
 ### Still open
 
-Unity and Unreal carry the `NATIVE EXPORT ON THE ROADMAP` flag, but we
-already ship a working Unity editor importer and example prefabs. That
-flag under-sells what's in the box. Unreal (README recipes only) and Godot
-(no specific tooling) are fairly flagged.
+~~Unity and Unreal carry the `NATIVE EXPORT ON THE ROADMAP` flag~~ —
+resolved 2026-07-25: Unity's flag is **dropped** (the spotlight line now
+names the shipped importer instead, which is the stronger and truer
+statement). Unreal (README recipes only) and Godot keep the flag, fairly.
 
 ---
 

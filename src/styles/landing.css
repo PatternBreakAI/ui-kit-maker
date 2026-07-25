@@ -1579,6 +1579,9 @@ html[data-theme="light"] .fd-landing .theme-icon .moon { opacity: 1; transform: 
       text-transform: uppercase;
     }
 .fd-landing .ownership-badge::before { content: "✓"; }
+.fd-landing .own-proof { margin: 18px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.fd-landing .own-proof li { position: relative; padding-left: 24px; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+.fd-landing .own-proof li::before { content: "✓"; position: absolute; left: 0; top: 1px; color: #29e0b9; font-weight: 700; }
 .fd-landing .ownership-copy h2 {
       margin: 23px 0 0;
       font-family: var(--display);
@@ -2982,6 +2985,7 @@ html[data-theme="light"] .fd-landing .ownership-badge { color: #15803d; border-c
 html[data-theme="light"] .fd-landing .kit-ready, html[data-theme="light"] .fd-landing .af-save, html[data-theme="light"] .fd-landing .ship-list-head b, html[data-theme="light"] .fd-landing .ship-li em, html[data-theme="light"] .fd-landing .ship-row em { color: #0b7f60; }
 html[data-theme="light"] .fd-landing .x-badge.free { color: #0b7f60; border-color: rgba(11, 127, 96, .5); }
 html[data-theme="light"] .fd-landing .cc-soon { color: #0b7f60; border-color: rgba(11, 127, 96, .45); }
+html[data-theme="light"] .fd-landing .own-proof li::before { color: #0b7f60; }
 html[data-theme="light"] .fd-landing .sv-x i { color: rgba(64, 48, 120, .7); border-color: rgba(46, 32, 86, .22); }
 html[data-theme="light"] .fd-landing .ownership-marquee { opacity: .12; }
 html[data-theme="light"] .fd-landing .ownership-marquee span { opacity: 1; color: #4c3296; }
