@@ -27,8 +27,8 @@ miss cannot happen again.
 | 0086 student verification | table + private bucket | applied |
 | 0087 scheduled pack release | presets.publish_at + policy | applied |
 | 0088 mailing list mirror | service-role-only table | applied |
-| 0089 community foundations | handles, likes, listed, avatars | applied 2026-07-25 |
-| 0090 admin audit | the plan desk's paper trail | **outstanding — run me** |
+| 0089 community foundations | handles, likes, listed, avatars | **outstanding — run me** (the old pending file carried v89 only as a NOTE, so "ran the file" never ran v89; discovered 2026-07-25 when the community seed hit `column "listed" does not exist`) |
+| 0090 admin audit | the plan desk's paper trail | applied 2026-07-25 |
 
 After running a file, update its row here in the same commit that ships
 the code depending on it. Anything earlier than v85 predates the ledger

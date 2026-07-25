@@ -36,7 +36,9 @@ export function AuthOverlay() {
   const overlay = useAuthOverlay();
   const cfg = cloudConfig();
 
-  const [mode, setMode] = useState<Mode>(overlay.mode);
+  // "projects" is a destination, not a form — signed-out visitors see the
+  // sign-in form first and land in My projects the moment they're in.
+  const [mode, setMode] = useState<Mode>(overlay.mode === "projects" ? "signin" : overlay.mode);
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [agree, setAgree] = useState(false);
@@ -44,7 +46,7 @@ export function AuthOverlay() {
   const [cooldown, setCooldown] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState(false);
-  const [showProjects, setShowProjects] = useState(false);
+  const [showProjects, setShowProjects] = useState(overlay.mode === "projects");
   const [connOpen, setConnOpen] = useState(false);
   const [connUrl, setConnUrl] = useState("");
   const [connKey, setConnKey] = useState("");
@@ -54,7 +56,11 @@ export function AuthOverlay() {
   const restoreFocus = useRef<Element | null>(null);
 
   // Follow the requested entry mode whenever the overlay is (re)opened.
-  useEffect(() => { setMode(overlay.mode); setNote(null); setErr(false); }, [overlay.mode]);
+  useEffect(() => {
+    setMode(overlay.mode === "projects" ? "signin" : overlay.mode);
+    setShowProjects(overlay.mode === "projects");
+    setNote(null); setErr(false);
+  }, [overlay.mode]);
 
   // Escape closes; remember + restore focus for keyboard users.
   useEffect(() => {

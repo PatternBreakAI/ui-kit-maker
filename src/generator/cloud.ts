@@ -622,10 +622,18 @@ export async function saveProject(name: string, doc: unknown, isPublic: boolean)
   const client = await getClient();
   if (!client || !session) return { project: null, error: "Sign in to save projects." };
   const clean = name.trim().slice(0, 120) || "Untitled kit";
-  const { data, error } = await client.from("projects")
-    .insert({ user_id: session.user.id, name: clean, doc, is_public: isPublic }).select(PROJECT_COLS).maybeSingle();
-  if (error) return { project: null, error: error.message };
-  return { project: data as CloudProject, error: null };
+  /* a public save mints its share link immediately — community cards need
+     the slug for "Use this kit", and a public kit without a link is a
+     stage door that doesn't open. Retry the (unlikely) slug collision. */
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const row: Record<string, unknown> = { user_id: session.user.id, name: clean, doc, is_public: isPublic };
+    if (isPublic) row.share_slug = makeSlug();
+    const { data, error } = await client.from("projects")
+      .insert(row).select(PROJECT_COLS).maybeSingle();
+    if (!error) return { project: data as CloudProject, error: null };
+    if (!(isPublic && /duplicate|unique|23505/i.test(error.message))) return { project: null, error: error.message };
+  }
+  return { project: null, error: "Couldn't allocate a share link — try again." };
 }
 
 /** Overwrite an existing project with a new kit snapshot ("save changes"). */

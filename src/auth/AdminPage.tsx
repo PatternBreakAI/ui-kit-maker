@@ -4,6 +4,7 @@ import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import logoUrl from "../../pb-logo.png";
 
 /* #/admin — the owner's desk: find an account by email, set its plan.
@@ -49,6 +50,7 @@ function fmtDay(iso: string | null): string {
 }
 
 export function AdminPage() {
+  usePageScroll();
   const cloud = useCloudStatus();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [q, setQ] = useState("");

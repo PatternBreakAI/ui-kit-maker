@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff, Link2, Check } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud";
@@ -21,11 +22,27 @@ import logoUrl from "../../pb-logo.png";
    inline with List/Unlist buttons — the same reuse-the-page pattern as
    the student review desk. */
 
-const HERO_PIECES: { cid: KitComponentId; v?: number }[] = [
-  { cid: "progress", v: 0.62 },
-  { cid: "toggle", v: 1 },
-  { cid: "badge" },
+/* The feed's variety engine (owner call: a fun, Midjourney-ish wall, not
+   rows of identical buttons). Each card deterministically picks its hero
+   and supporting pieces from POOLS, keyed by the project id — stable per
+   kit across loads, varied across the wall, zero server involvement.
+   Every id in these pools is verified to render standalone. */
+const HERO_POOL: KitComponentId[] = [
+  "primary", "speedo", "dialog", "trophy", "flipclock", "healthglobe",
+  "equipselector", "weaponwheel", "combo", "leaderboard", "waypoint", "dropdown",
+] as KitComponentId[];
+const MINI_SETS: { cid: KitComponentId; v?: number }[][] = [
+  [{ cid: "progress" as KitComponentId, v: 0.62 }, { cid: "toggle" as KitComponentId, v: 1 }, { cid: "badge" as KitComponentId }],
+  [{ cid: "chip" as KitComponentId }, { cid: "orb" as KitComponentId, v: 1 }, { cid: "keycap" as KitComponentId }],
+  [{ cid: "currency" as KitComponentId }, { cid: "slider" as KitComponentId, v: 0.5 }, { cid: "notifydot" as KitComponentId }],
+  [{ cid: "segbar" as KitComponentId, v: 0.6 }, { cid: "iconbtn" as KitComponentId }, { cid: "cooldown" as KitComponentId, v: 0.4 }],
 ];
+/** cheap stable hash of a uuid string */
+function idHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
 
 export function CardArt({ card }: { card: { id: string } }) {
   const host = useRef<HTMLDivElement>(null);
@@ -53,8 +70,10 @@ export function CardArt({ card }: { card: { id: string } }) {
               cid, size, "default", v, undefined,
               { label: labels[cid], slots: slots[cid] },
             ), 18);
-          const hero = piece("primary", "l");
-          const small = HERO_PIECES.map((p) => piece(p.cid, "s", p.v));
+          const h = idHash(card.id);
+          const heroCid = HERO_POOL[h % HERO_POOL.length];
+          const hero = piece(heroCid, "l");
+          const small = MINI_SETS[(h >> 4) % MINI_SETS.length].map((p) => piece(p.cid, "s", p.v));
           host.current.innerHTML =
             `<div class="cg-hero">${hero}</div><div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
           /* the maker's stage rides the payload — paint it behind the art.
@@ -111,6 +130,16 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
     if (err) window.alert(err); else onChanged();
   };
 
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    if (!card.share_slug) return;
+    const url = publicProjectUrl(card.share_slug);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true); setTimeout(() => setCopied(false), 1800);
+    } catch { window.prompt("Link to this kit:", url); }
+  };
+
   const maker = card.display_name || (card.handle ? `@${card.handle}` : "a maker");
   const av = avatarUrl(card.avatar_path);
   return (
@@ -138,6 +167,12 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
               <ExternalLink size={13} strokeWidth={2.2} /> Use this kit
             </a>
           )}
+          {card.share_slug && (
+            <button className="cg-open" onClick={() => void share()} title="Copy this kit's link"
+              aria-label="Copy this kit's link">
+              {copied ? <Check size={13} strokeWidth={2.4} /> : <Link2 size={13} strokeWidth={2.2} />} {copied ? "Copied" : "Share"}
+            </button>
+          )}
           {admin && (
             card.listed
               ? <button className="cg-curate" disabled={busy} onClick={() => void curate(false)}><EyeOff size={13} strokeWidth={2.2} /> Unlist</button>
@@ -150,6 +185,7 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
 }
 
 export function CommunityPage() {
+  usePageScroll();
   const live = !!cloudConfig();
   const [cards, setCards] = useState<CommunityCard[] | null>(null);
   const [admin, setAdmin] = useState(false);
@@ -211,7 +247,10 @@ export function CommunityPage() {
             {listed.length === 0 ? (
               <section className="fd-studentcard">
                 <p>The gallery is warming up — the first community kits land here once curated.
-                Save a kit in the editor and it may be featured.</p>
+                Build something, then hit <b>Save kit</b> in the editor's top bar: free and
+                student kits join the curation queue automatically, and Pro kits join when
+                you share them.</p>
+                <p><button className="fd-pricing__cta" onClick={() => navigate("#/app")}>Open the generator</button></p>
               </section>
             ) : (
               <div className="cg-grid">{listed.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>

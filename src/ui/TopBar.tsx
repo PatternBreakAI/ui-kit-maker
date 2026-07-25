@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save } from "lucide-react";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
@@ -123,6 +123,15 @@ export function TopBar() {
         <button className={`acct${cloud.state === "synced" ? " on" : ""}`} onClick={() => openAuth("signin")}
           aria-label={t("account")} title={cloud.email ? `${t("account")} — ${cloud.email}` : t("account")}>
           <User size={17} strokeWidth={1.9} />
+        </button>
+
+        {/* the submit moment, finally visible (owner report, 2026-07-25:
+            "can't figure out how to submit") — one button straight into
+            My projects, where saving IS submitting: free & student saves
+            join the community queue, Pro kits go public via the globe. */}
+        <button className="exportbtn savekitbtn" onClick={() => openAuth("projects")}
+          title="Save this kit as a project. Free and Student kits join the Community Gallery; Pro kits stay private until you share them.">
+          <Save size={15} strokeWidth={1.9} /> {t("saveKit")}
         </button>
 
         <div ref={menuRef} style={{ position: "relative" }}>

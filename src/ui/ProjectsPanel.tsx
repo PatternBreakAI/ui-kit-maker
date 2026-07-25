@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft, FolderOpen, Save, Trash2, Pencil, Globe, Lock, Link2, Check, RefreshCw,
+  ArrowLeft, FolderOpen, Save, Trash2, Pencil, Link2, Check, RefreshCw, Eye, EyeOff,
 } from "lucide-react";
 import { useGen } from "@/generator/store";
+import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
   listProjects, saveProject, renameProject, deleteProject, setProjectPublic,
   loadProjectDoc, updateProjectDoc, publicProjectUrl, type CloudProject,
@@ -34,6 +35,32 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   const isAdmin = useGen((s) => s.isAdmin);
   const canPrivate = tier === "pro" || isAdmin;
 
+  /* The tier used to resolve only when the EDITOR mounted, so this panel —
+     reachable from the account page and the overlay without ever opening
+     the editor — could read a Pro user as "guest": wrong consent message,
+     and a save that would have gone PUBLIC under the free rule (owner
+     report, 2026-07-25). The panel now resolves the tier itself, and the
+     consent line waits until the answer is real. */
+  const cloud = useCloudStatus();
+  const signedIn = cloud.state === "synced" || cloud.state === "syncing" || cloud.state === "error";
+  const tierKnown = !signedIn || tier !== "guest";
+  useEffect(() => {
+    if (signedIn && useGen.getState().tier === "guest") void useGen.getState().loadCloudPresets();
+  }, [signedIn]);
+
+  /* Pro-only global default (owner call, 2026-07-25): share new kits by
+     default instead of flipping each eye by hand. Lives in the synced
+     ui-generator-* keyspace, so the choice follows the account. Free and
+     student saves are public regardless — this switch never renders for
+     them. */
+  const [shareDef, setShareDef] = useState<boolean>(() => {
+    try { return localStorage.getItem("ui-generator-sharedefault") === "1"; } catch { return false; }
+  });
+  const flipShareDef = (v: boolean) => {
+    setShareDef(v);
+    try { localStorage.setItem("ui-generator-sharedefault", v ? "1" : "0"); } catch { /* private mode */ }
+  };
+
   const refresh = async () => {
     const { projects, error } = await listProjects();
     setItems(projects);
@@ -55,12 +82,15 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     // the kit takes the project's name, so the kit-page title reflects the
     // project you just saved (and the saved snapshot carries it)
     useGen.getState().setKitName(name);
-    const st = useGen.getState();
+    let st = useGen.getState();
+    /* never decide visibility on an unresolved tier — a quick Save could
+       otherwise publish a Pro kit under the free rule */
+    if (signedIn && st.tier === "guest") { await st.loadCloudPresets(); st = useGen.getState(); }
     /* the consent moment's other half: free & student kits save PUBLIC
        (the community launch); Pro and admin default private and keep
        their toggle. RLS enforces the same line server-side. */
     const canPrivate = st.tier === "pro" || st.isAdmin;
-    const { project, error } = await saveProject(name, st.kitPayload(), !canPrivate);
+    const { project, error } = await saveProject(name, st.kitPayload(), !canPrivate || shareDef);
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
@@ -139,13 +169,26 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           <Save size={15} strokeWidth={1.8} /> Save
         </button>
       </div>
-      {!canPrivate && (
+      {!tierKnown ? null : !canPrivate ? (
         /* THE CONSENT MOMENT — said where the decision happens, not in
            fine print: free & student kits are community kits. The same
            sentence is the product's cleanest Pro doorway. */
         <div className="proj-consent">
           Saved kits on the Free plan may be curated into the <b>Community Gallery</b>, where
           other users can use and remix them. <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>Upgrade to Pro</button> to keep your kits private.
+        </div>
+      ) : (
+        /* the Pro mirror of the consent line — their kits save PRIVATE
+           unless the global default below says otherwise. Owner report
+           2026-07-25: a Pro user couldn't find how to enter the community
+           at all. */
+        <div className="proj-consent">
+          Your kits save <b>{shareDef ? "public" : "private"}</b>. Tap the eye on any kit to
+          flip one — public kits get a link and may be curated into the <b>Community Gallery</b>.
+          <label className="check proj-sharedef">
+            <input type="checkbox" checked={shareDef} onChange={(e) => flipShareDef(e.target.checked)} />
+            Share new kits by default
+          </label>
         </div>
       )}
       {note && <div className="menu-note acct-note">{note}</div>}
@@ -165,7 +208,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
             ) : (
               <div className="proj-name" title={p.name}>
                 {p.name}
-                {p.is_public && <span className="proj-badge"><Globe size={11} strokeWidth={2} /> public</span>}
+                {p.is_public && <span className="proj-badge"><Eye size={11} strokeWidth={2} /> public</span>}
               </div>
             )}
             <div className="proj-meta">Updated {new Date(p.updated_at).toLocaleDateString()}</div>
@@ -179,8 +222,12 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
               <button title="Rename" disabled={busy} onClick={() => { setRenaming(p.id); setRenameVal(p.name); }}>
                 <Pencil size={14} strokeWidth={1.8} />
               </button>
-              <button title={p.is_public ? "Make private" : "Publish + copy link"} disabled={busy} onClick={() => void togglePublic(p)}>
-                {p.is_public ? <Lock size={14} strokeWidth={1.8} /> : <Globe size={14} strokeWidth={1.8} />}
+              {/* the eyeball tells the STATE (owner call): open eye = the
+                  world can see it, slashed = private. Click to flip. */}
+              <button className={p.is_public ? "proj-eye on" : "proj-eye"}
+                title={p.is_public ? "Public — anyone with the link can view it, and it may be curated into the Community Gallery. Click to make private." : "Private — only you. Click to share: it gets a public link and may be curated into the Community Gallery."}
+                disabled={busy} onClick={() => void togglePublic(p)}>
+                {p.is_public ? <Eye size={14} strokeWidth={1.8} /> : <EyeOff size={14} strokeWidth={1.8} />}
               </button>
               {p.is_public && p.share_slug && (
                 <button title="Copy public link" disabled={busy} onClick={() => void copyLink(p.share_slug!, p.id)}>
@@ -194,7 +241,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           </div>
         ))}
       </div>
-      <div className="menu-note acct-note">Projects are private until you publish them. A public link shares the kit read-only.</div>
+      <div className="menu-note acct-note">A public link opens the kit read-only for anyone; public kits may be curated into the Community Gallery.</div>
     </div>
   );
 }

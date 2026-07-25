@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Camera, CreditCard, Crown, ExternalLink, Heart, Loader2, Settings,
+  Camera, CreditCard, Crown, ExternalLink, Eye, EyeOff, Heart, Loader2, Settings,
   Trash2, Users, Wand2,
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
@@ -46,6 +47,7 @@ function sortWork(rows: CloudProject[], k: SortKey): CloudProject[] {
 }
 
 export function StudioPage() {
+  usePageScroll();
   const live = !!cloudConfig();
   const cloud = useCloudStatus();
   const signedIn = cloud.state === "synced" || cloud.state === "syncing";
@@ -238,6 +240,7 @@ export function StudioPage() {
                         <div className="cg-title">
                           <b>{p.name}</b>
                           <span className="cg-maker cg-maker--plain">
+                            {p.is_public ? <Eye size={11} strokeWidth={2.4} /> : <EyeOff size={11} strokeWidth={2.4} />}{" "}
                             {m?.listed ? "In the gallery" : p.is_public ? "Public" : "Private"}
                             {m && m.likes > 0 && <> · <Heart size={11} strokeWidth={2.4} /> {m.likes}</>}
                           </span>

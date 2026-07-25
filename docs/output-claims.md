@@ -1,5 +1,12 @@
 # Output claims — the source of truth for marketing copy
 
+> **Surfaces bound by this ledger:** the front-door homepage, the pricing
+> page, and the FAQ at `#/faq` (src/marketing/FaqPage.tsx). The FAQ
+> repeats many claims in plain words — when a row here changes, check the
+> FAQ in the same commit. Roadmap answers in the FAQ are deliberately
+> non-specific (owner call): no dates, no theme names, no prices for
+> unpublished things.
+
 Living document. **Nothing about export capability goes on the front door,
 the pricing page, an ad, or a store listing unless it appears here as
 APPROVED.** If a claim isn't in this file, it hasn't been checked against

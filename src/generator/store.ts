@@ -1155,6 +1155,13 @@ export const useGen = create<GenStore>((set, get) => ({
       const candy = defaultCandy();
       applyPresetCandy(candy, p);
       c.candy = candy;
+      /* a preset is a COMPLETE style recipe — stale per-state forks from
+         the previous look must not survive it, or hover/pressed flash the
+         old design (adversarial review find, 2026-07-25: seven starters
+         flipped to hard-candy blue on hover over site-default's forks).
+         States mirror the new master live again; re-forking is one edit
+         away, and undo restores the old forks whole. */
+      c.stateDesigns = {};
       retintText(c);
     });
   },

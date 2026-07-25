@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import { cloudConfig } from "@/generator/cloud";
 import { publicProfile, avatarUrl, type CommunityCard } from "@/generator/community";
 import { Card } from "./CommunityPage";
@@ -13,6 +14,7 @@ import logoUrl from "../../pb-logo.png";
    maker's page can never leak something curation hasn't put on stage. */
 
 export function UserPage({ handle }: { handle: string }) {
+  usePageScroll();
   const live = !!cloudConfig();
   const [state, setState] = useState<{
     profile: { id: string; handle: string | null; display_name: string | null; avatar_path: string | null } | null;
