@@ -17,10 +17,11 @@ export function initLanding(deps: LandingDeps) {
       
       const root = document.documentElement;
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const prefersLight = window.matchMedia("(prefers-color-scheme: light)");
+      // DARK is the product default (same fallback as shell/theme.ts) —
+      // OS preference no longer overrides it; light is an explicit choice.
       let savedTheme = null;
       try { savedTheme = localStorage.getItem("ui-generator-theme"); } catch (_) {}
-      root.dataset.theme = savedTheme || (prefersLight.matches ? "light" : "dark");
+      root.dataset.theme = savedTheme === "light" ? "light" : "dark";
 
       const themeToggle = document.getElementById("themeToggle");
       const syncThemeLabel = () => themeToggle.setAttribute("aria-label",

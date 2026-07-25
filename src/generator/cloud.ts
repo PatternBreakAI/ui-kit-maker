@@ -723,14 +723,40 @@ export async function amIAdmin(): Promise<boolean> {
 }
 
 /** The signed-in user's plan + admin flag in one read — feeds the tier.
-    plan_id is server-truth: RLS pins it to 'free' until Stripe entitlement
-    resolution exists, so a client can't self-upgrade. */
+    plan_id is server-truth: RLS pins any client write to 'free' and only the
+    Stripe webhook (service role) grants pro, so a client can't self-upgrade. */
 export async function myProfileTier(): Promise<{ plan: string | null; admin: boolean }> {
   const client = await getClient();
   if (!client || !session) return { plan: null, admin: false };
   const { data, error } = await client.from("profiles").select("plan_id, is_admin").eq("id", session.user.id).maybeSingle();
   if (error || !data) return { plan: null, admin: false };
   return { plan: (data.plan_id as string) ?? "free", admin: !!data.is_admin };
+}
+
+/** Billing detail for the account page — what plan, in what state, until
+    when. Reads the same RLS-scoped profile row; every field is written by
+    the webhook, never by this client. */
+export async function myBilling(): Promise<{ plan: string; status: string | null; renewsAt: string | null; hasCustomer: boolean } | null> {
+  const client = await getClient();
+  if (!client || !session) return null;
+  const { data, error } = await client.from("profiles")
+    .select("plan_id, plan_status, plan_renews_at, stripe_customer_id").eq("id", session.user.id).maybeSingle();
+  if (error || !data) return null;
+  return {
+    plan: (data.plan_id as string) ?? "free",
+    status: (data.plan_status as string) ?? null,
+    renewsAt: (data.plan_renews_at as string) ?? null,
+    hasCustomer: !!data.stripe_customer_id,
+  };
+}
+
+/** The current access token — the only identity the billing functions accept.
+    They re-verify it with Supabase, so a stale or forged token buys nothing. */
+export async function accessToken(): Promise<string | null> {
+  const client = await getClient();
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 /** Every shared preset — readable by anyone (even signed-out) when cloud is

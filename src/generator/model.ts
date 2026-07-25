@@ -15,6 +15,8 @@ export const ROLE_HINT: Record<EffectRole, string> = {
 
 export type Shape =
   | "chamfer" | "pill" | "sharp" | "round" | "hex" | "trapezoid" | "notch"
+  // v85 — speech bubble: rounded body + tail as one silhouette
+  | "speech"
   // v19 silhouette library — procedural geometry only; material stays separate
   | "chunky" | "cutline" | "polybar" | "explorer" | "kart" | "mazepill"
   | "fighthud" | "crest" | "blade" | "tavern" | "handdrawn"
@@ -63,6 +65,7 @@ export const SHAPES: { id: Shape; name: string }[] = [
   { id: "kenneyRect", name: "Crisp Panel" },
   { id: "kenneyTag", name: "Pointer Tag" },
   { id: "doboBracket", name: "Bracket Label" },
+  { id: "speech", name: "Speech Bubble" },
 ];
 /** Neutral canvas surfaces only — the stage never competes with the component. */
 export const CANVAS_BGS = [
@@ -783,7 +786,10 @@ export type KitComponentId =
   | "weaponwheel"
   | "starrating" | "levelnode" | "pathconnector" | "heartmeter" | "booster"
   | "spinwheel" | "dailycell" | "combo" | "movecounter" | "pricebtn"
-  | "energymeter";
+  | "energymeter"
+  | "buildqueue" | "unitplate" | "techcard" | "popmeter" | "endturn"
+  | "scorebug" | "friendrow" | "chatbubble" | "emotewheel" | "clancrest"
+  | "seasontrack" | "achievetoast";
 export type KitSize = "s" | "m" | "l";
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
@@ -843,6 +849,18 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "movecounter", name: "Move counter" },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
+  { id: "buildqueue", name: "Build queue" },
+  { id: "unitplate", name: "Unit plate" },
+  { id: "techcard", name: "Tech card" },
+  { id: "popmeter", name: "Population" },
+  { id: "endturn", name: "End turn" },
+  { id: "scorebug", name: "Score bug" },
+  { id: "friendrow", name: "Friend row" },
+  { id: "chatbubble", name: "Chat bubble" },
+  { id: "emotewheel", name: "Emote wheel" },
+  { id: "clancrest", name: "Clan crest" },
+  { id: "seasontrack", name: "Season track" },
+  { id: "achievetoast", name: "Achievement" },
   { id: "secondary", name: "Secondary button" },
   { id: "small", name: "Button (small)" },
   { id: "ghost", name: "Button (ghost)" },
@@ -1039,8 +1057,20 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   booster: "pill",
   dailycell: "kenneyRect",
   movecounter: "round",
+  starrating: "pill",       // results pill — stars live in a themed capsule
   pricebtn: "pill",
   energymeter: "pill",
+  buildqueue: "kenneyRect",
+  unitplate: "kenneyRect",
+  techcard: "round",
+  popmeter: "pill",
+  endturn: "pill",          // the chunky radial lives in a circle
+  scorebug: "kenneyRect",
+  friendrow: "kenneyRect",
+  chatbubble: "speech",   // the tail is part of the silhouette
+  clancrest: "shield",
+  seasontrack: "kenneyRect",
+  achievetoast: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
   badge: "shield",

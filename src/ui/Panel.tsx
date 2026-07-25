@@ -326,7 +326,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -405,8 +405,11 @@ export function Panel() {
 
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
-  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell"] as KitComponentId[]).includes(focus);
-  const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode", "dailycell", "pricebtn", "combo", "heartmeter", "energymeter"] as KitComponentId[]).includes(focus);
+  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel"] as KitComponentId[]).includes(focus);
+  const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode", "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue", "unitplate", "techcard", "friendrow", "chatbubble", "clancrest", "achievetoast", "scorebug", "endturn", "pack", "cardback"] as KitComponentId[]).includes(focus);
+  /* pieces carrying a SECOND text (the combo plate word) get one more field */
+  const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(focus);
+  const subFieldName: Partial<Record<KitComponentId, string>> = { combo: "Plate word — e.g. COMBO!" };
   useEffect(() => {
     if (!ICONS_ENABLED && !iconSwappable) return;
     let live = true;
@@ -809,6 +812,11 @@ export function Panel() {
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
           </>)}
+          {subEditable && (
+            <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24}
+              placeholder={subFieldName[focus] ?? "Secondary text"} aria-label="Secondary text"
+              onChange={(e) => setKitSub(focus, e.target.value)} />
+          )}
           {iconSwappable && (<>
           <div className="sublabel">Icon</div>
           <div className="helper">Swap the glyph on <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Size, color, weight & effects live under <b>Typography → Icons</b>.</div>
@@ -1247,6 +1255,11 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32} aria-label="Label text"
               placeholder={`${KIT_COMPONENTS.find((c) => c.id === focus)?.name} text — empty for the default`}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
+            {subEditable && (
+              <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24} aria-label="Secondary text"
+                placeholder={subFieldName[focus] ?? "Secondary text"}
+                onChange={(e) => setKitSub(focus, e.target.value)} />
+            )}
             <div className="helper">This text belongs to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and exports follow. Clear it to fall back to the default.</div>
           </>
         ) : (

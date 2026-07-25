@@ -1,4 +1,4 @@
-# Component roadmap — 103 shipped → 115 (P1–P4 COMPLETE)
+# Component roadmap — 115 shipped · ROADMAP COMPLETE (P1–P5)
 
 Current inventory (47): primary, secondary, small, ghost, iconbtn, chip,
 badge, tab, segment, header, checkbox, radio, toggle, slider, input,
@@ -119,14 +119,14 @@ interactive sub-element, never the whole frame:
 
 | # | Component | Notes |
 |---|-----------|-------|
-| 1 | Star rating | 0–3 gold candy stars; click replays the pop |
-| 2 | Level node | current pulses; overlay = locked / stars:N |
+| 1 | Star rating | stars in a themed pill on a dark well; full marks = gold flare + replay chip; click replays |
+| 2 | Level node | current pulses; overlay = locked / stars:N (candy-star fan over the foot) |
 | 3 | Path connector | saga-trail beads; value = progress |
 | 4 | Heart meter | lives + refill timer + add knob (hearts-red semantic) |
 | 5 | Booster button | real button; count badge or FREE plate; icon swappable |
-| 6 | Spin wheel | value = rotation; click throws a multi-turn spin |
+| 6 | Spin wheel | paired gold jackpot wedges + glyph wedges, nested pointer, candy hub; value = rotation; click throws |
 | 7 | Daily reward | today glows; overlay = check (claimed) / locked |
-| 8 | Combo burst | shell-free gold burst; value = magnitude |
+| 8 | Combo burst | extruded Glow-lit numeral + burst + COMBO! plate; value = magnitude (x4 → x9 BIG) |
 | 9 | Move counter | ≤5 goes alarm red and pulses |
 | 10 | Price button (IAP) | coin + price + BEST VALUE ribbon; real button |
 | 11 | Energy meter | bolt + ten cells (negative-space canon) + count |
@@ -136,22 +136,42 @@ interactive sub-element, never the whole frame:
 | Piece | Hover / pressed target | Channels |
 |---|---|---|
 | levelnode, booster, pricebtn, dailycell | whole piece (real buttons) | label = level/price/day; icon swap on booster/dailycell |
-| starrating, pathconnector, combo | — (spatial/celebration) | value = stars/progress/magnitude |
+| starrating | shell (pill frame edits like any pill) | value = stars (0..1 → 0..3); full marks shows the replay chip |
+| pathconnector, combo | — (spatial/celebration) | value = progress/magnitude; combo: label = multiplier, overlay = plate word |
 | spinwheel | — | value = rotation (click = throw) |
 | heartmeter, energymeter | frame | value = fill; label = timer/count text |
 | movecounter | — | value = moves; AUTO-ink number (themedText re-themes) |
 
-## P5 · Strategy + social — 12
+## P5 · Strategy + social — 12 ✅ SHIPPED (v84)
 
-build queue card, unit selection plate, tech-tree card, population
-meter, end-turn button (chunky radial), score bug (teams + clock),
-friend row (presence dot), chat bubble, emote wheel frame, clan crest
-frame, season-pass track segment (free/premium lanes), achievement
-toast.
+| # | Component | Notes |
+|---|-----------|-------|
+| 1 | Build queue | unit icon + progress (negative-space) + queue count |
+| 2 | Unit plate | portrait, name, HP rail, stat glyphs; selectable |
+| 3 | Tech card | medallion + cost; overlay = done/locked; connector stubs |
+| 4 | Population | count + bar; >90% warns in alarm red |
+| 5 | End turn | chunky radial button; value = turn-timer arc |
+| 6 | Score bug | teams + clock in a dark instrument well; team hues semantic |
+| 7 | Friend row | presence dot, status, JOIN/INVITE capsule |
+| 8 | Chat bubble | SPEECH silhouette (tail in the shape, effects wrap it); message wraps + bubble grows vertically |
+| 9 | Emote wheel | six sectors; click picks INSTANTLY (no spin) |
+| 10 | Clan crest | shield silhouette + emblem + tag ribbon |
+| 11 | Season track | FREE/PREMIUM lanes around the level spine; premium gold |
+| 12 | Achievement toast | gold medallion + kicker + name |
+
+### Editing contracts — Strategy + social
+
+| Piece | Hover / pressed target | Channels |
+|---|---|---|
+| buildqueue, unitplate, techcard, friendrow, clancrest, endturn, achievetoast | whole piece (real buttons/cards) | label = name/tag/price; icon swap on buildqueue/techcard/clancrest |
+| emotewheel | selected sector | value = sector (instant click pick); icon = selected emote |
+| scorebug | — (instrument well) | label/sub = team names; value = clock |
+| popmeter, seasontrack | frame | value = fill/progress; max = cap |
+| chatbubble | frame | label = the message |
 
 **Math: 47 + 20 + 14 + 11 + 11 + 12 = 115** (weapon wheel added to P3
 per the product owner).
 
-Sequencing: P1 ✅ → P2 ✅ → P3 ✅ → P4 ✅ → P5 strategy + social closes the set. Each pack lands as
+Sequencing: P1 ✅ → P2 ✅ → P3 ✅ → P4 ✅ → P5 ✅ — the set is COMPLETE at 115. Each pack lands as
 its own version so the kit page grows a chapter at a time, and pack
 names double as marketing beats ("the RPG pack just dropped").
