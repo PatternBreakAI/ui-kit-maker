@@ -951,6 +951,15 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
       { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
     ],
   },
+  dropdown: {
+    what: "A select control — one value on show, the whole list on demand; the Pressed state here draws it open. The menu rows speak three voices: resting, HIGHLIGHTED (the row under the cursor — its bar borrows this kit's Hover recipe, so tuning your Hover state retunes the menu too), and SELECTED (the check — the choice that is currently true). Highlighted moves constantly; selected only changes when you commit. Mixing them up is one of the most common menu mistakes in games.",
+    history: "Games inherited the dropdown from the desktop — the Macintosh (1984) fixed the pattern of a closed value unfolding into a list, and PC strategy and sim UIs that already leaned on desktop conventions (SimCity 2000 (1993), Civilization II (1996)) brought it into games. It settled where games are configured rather than played: the settings screen.",
+    games: "Baldur's Gate 3 (2023) and Cyberpunk 2077 (2020) for modern PC settings dropdowns · as the counter-pattern, console games since the PlayStation era mostly use left/right option cyclers instead — a d-pad hates scrolling nested lists, which is why Gran Turismo and FIFA settings flip through values in place rather than dropping a menu.",
+    links: [
+      { label: "Drop-down list — the desktop pattern games inherited", url: "https://en.wikipedia.org/wiki/Drop-down_list" },
+      { label: "Game UI Database — thousands of real game settings screens", url: "https://www.gameuidatabase.com/" },
+    ],
+  },
   speedo2: {
     what: "The HUD cut of the analog gauge — same needle physics, drawn open-faced so it can sit over gameplay without a housing.",
     history: "As the chase camera took over — OutRun (1986) through Need for Speed (1994) — the dial left the cockpit and became a floating HUD instrument, keeping the needle (fast to read) while dropping the chrome. Burnout Paradise (2008) fused it with the boost meter; F-Zero GX (2003) turned raw speed into the spectacle itself.",

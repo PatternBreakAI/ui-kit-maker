@@ -159,6 +159,31 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
   await addPng("iconbtn/base.png", shell("iconbtn"), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell. Icon is a separate tintable glyph." });
 
+  /* ── dropdown: closed shell, menu plate, and the two row overlays.
+     A row's DEFAULT face needs no asset (it's live text on the plate);
+     what the engine needs are the two emphasis layers — the hover bar
+     and the selected check — as swappable pieces. The bar is this kit's
+     Hover recipe made into an asset: the hover state's aura color at the
+     hover glow dial's strength. */
+  {
+    const ddSvg = shell("dropdown");
+    await addPng("dropdown/base.9.png", ddSvg,
+      { component: "dropdown", part: "base", nineSlice: sliceOf(ddSvg, "dropdown", 110), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell. The value text and chevron are live engine content." });
+    await addPng("dropdown/menu.9.png",
+      svgWrap(440, 260, `<path d="${rr(1, 1, 438, 258, 14)}" fill="${darken(innerC, 0.55)}" stroke="${darken(bevelC, 0.5)}" stroke-width="1.5"/>`),
+      { component: "dropdown", part: "menu", nineSlice: { left: 28, right: 28, top: 28, bottom: 28 }, pivot: { x: 0.5, y: 0 }, tintable: false, usage: "Open-menu plate. Stretch vertically to the option count; option rows are live engine text." });
+    const dd = pieceCfg("dropdown");
+    const hd = dd.stateDesigns.hover ?? dd;
+    const hovC = hd.candy.aura.color ?? hd.effects.Glow ?? glowC;
+    const hovOp = Math.min(0.55, 0.1 + 0.35 * (dd.states.hover.glow / 100));
+    await addPng("dropdown/row-highlight.9.png",
+      svgWrap(440, 88, `<path d="${rr(1, 1, 438, 86, 12)}" fill="${hexRgba(hovC, hovOp)}"/>`),
+      { component: "dropdown", part: "row-highlight", nineSlice: { left: 24, right: 24, top: 24, bottom: 24 }, pivot: { x: 0, y: 0.5 }, tintable: true, usage: "The bar for the row under the cursor — derived from this kit's Hover state recipe. Show it on pointer hover AND keyboard/gamepad focus (same visual for both), never on the selected row." });
+    await addPng("dropdown/row-check.png",
+      svgWrap(96, 96, `<path d="M 24 52 l 15 15 l 33 -37" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`),
+      { component: "dropdown", part: "row-check", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The selected-row check — marks the choice that is currently TRUE, with full-strength row text. Keep it distinct from the hover bar: highlighted moves constantly, selected only changes on commit." });
+  }
+
   /* ── racing HUD: dial face + needle, segment arc + one segment, track ── */
   await addPng("speedo/face.png", shell("speedo", { part: "face" }, undefined, 0), { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The km/h readout is live engine text." });
   await addPng("speedo/needle.png", shell("speedo", { part: "needle" }, undefined, 0), { component: "speedo", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Needle at zero (pointing to the sweep start). Rotate up to 270° around the canvas center from live speed." });
