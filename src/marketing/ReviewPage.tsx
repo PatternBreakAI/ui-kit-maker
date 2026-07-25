@@ -9,6 +9,7 @@ import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { cloudConfig, myProfileTier } from "@/generator/cloud";
 import { listApplications, decideApplication, type Application } from "@/generator/studentReview";
+import logoUrl from "../../pb-logo.png";
 
 /* #/review — the reviewer's desk for student & educator applications.
 
@@ -158,7 +159,7 @@ export function ReviewPage() {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/account")}>← Account</button>
-        <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+        <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
       </header>
 
       <main className="fd-student fd-review">

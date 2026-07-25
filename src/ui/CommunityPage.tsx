@@ -10,6 +10,7 @@ import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
 import { renderKit } from "@/generator/bevel";
 import { tightenSvg } from "@/marketing/engine";
+import logoUrl from "../../pb-logo.png";
 
 /* #/community — the gallery. Community-lite, by decree: one fetch per
    page view, and every card is a LIVE render from the kit's saved
@@ -182,7 +183,7 @@ export function CommunityPage() {
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
           <button className="cg-navbtn" onClick={() => navigate("#/studio")}>Your studio</button>
-          <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+          <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>
       </header>
 

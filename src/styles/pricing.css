@@ -35,13 +35,13 @@
 }
 .fd-pricing__brand { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); }
 .fd-pricing__mark { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; letter-spacing: .01em; color: var(--ink); }
-/* the PatternBreak lozenge */
-.fd-pricing__gem {
-  width: 15px; height: 15px; flex: none; border-radius: 3px;
-  transform: rotate(45deg);
-  background: linear-gradient(140deg, #c084fc, #7c3aed);
-  box-shadow: 0 0 12px rgba(139, 92, 246, .6);
-}
+/* the actual PatternBreak mark — pb-logo.png, never redrawn (owner call).
+   The PNG is black-on-transparent, so dark surfaces invert it: the same
+   treatment as the editor top bar (gen.css) and the landing brand mark. */
+.fd-pricing__logo { width: 19px; height: 19px; flex: none; object-fit: contain; }
+[data-theme="dark"] .fd-pricing__logo { filter: invert(1) hue-rotate(180deg); }
+/* the account/admin page bar carries the same PNG */
+[data-theme="dark"] .fd-page__brand img { filter: invert(1) hue-rotate(180deg); }
 
 .fd-pricing main { position: relative; max-width: 1180px; margin: 0 auto; padding: 34px 22px 70px; }
 
