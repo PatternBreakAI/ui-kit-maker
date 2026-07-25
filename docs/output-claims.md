@@ -80,6 +80,21 @@ Remaining known importer gaps, unaffected by this fix:
   over its own fill instead of behind it. Only affects pieces with the
   outline enabled.
 
+### 1.3b Layer depth (observed, not yet addressed)
+
+A full candy button exports as **18 groups, 17 paths, 1 text** — lean for
+what it draws, but *deep*: roughly fifteen nested named groups, the
+extrusion contributing six stacked wall slices, and the text last in paint
+order. In a layers panel that reads as "the text is buried."
+
+Nothing here is wrong, and the owner's judgement is that it doesn't need
+fixing — a designer opening a kit asset is building a missing component,
+not spelunking the tree. If it ever does matter, the cheapest improvement
+is **plain layer names**: groups are currently `id="u17_shell"`, and the
+uid prefix is what makes the panel ugly. The ids aren't referenced by
+anything (only the defs are), so they could read `shell`, `face`, `gloss`
+with no render change.
+
 ### 1.4 Motion
 
 SMIL (`<animate>`) rides inside exported SVGs for the pieces that carry it
@@ -141,22 +156,38 @@ with it.
 - **Our answer:** 2× PNGs with margins that map directly onto `patch_margin_*`.
 - **Test first:** confirm our `*.9.png` naming doesn't collide with Godot's own conventions.
 
-### Figma — NEEDS TEST ⚠️ highest-risk claim
-- **Accepts:** SVG import; groups become frames/groups, `id` becomes the layer name.
-- **Pain point:** kits arrive as flat images you can't restyle.
-- **Our answer:** named groups per material layer — shell, face, gloss, specular, content — so the tree is readable and recolourable.
-- **Test first:** **Figma has no SVG filter-primitive support.** Our shadows, glows and noise are `feGaussianBlur` / `feTurbulence` / `feColorMatrix`. They may drop or flatten on import. Open a real export in Figma and look before we promise "fully editable." This single question decides how strong the Figma claim can be.
+### Figma — TESTED (owner, v85.1)
+**Imports everything except font colours, patterns, and the gloss overlay.**
+Geometry, gradients, layer names and live text all arrive.
 
-### Illustrator — APPROVED (retest after v85.1)
+Causes, in order of certainty:
+- **Patterns** — we fill with an SVG `<pattern>` element. Figma has no
+  `<pattern>` support at all. Not fixable without expanding the pattern to
+  thousands of paths or flattening it to a raster; both are worse than the
+  gap.
+- **Font colours** — gradient text fills (`fill="url(#…)"` on `<text>`)
+  aren't applied by Figma's importer, so type lands with a default fill.
+  Cheaply fixable with a solid approximation *if it ever matters*.
+- **Gloss** — undiagnosed. It's a plain path with a linear gradient in a
+  clipped group, all of which Figma normally handles. Suspect the default
+  "below the face" layering compositing differently.
+
+**Deliberately not chasing this.** The Figma user isn't importing to redesign
+the UI — they're there to build the one component the kit doesn't have, or
+to augment one. Speed of production is the point. Missing stylistic
+overlays cost them nothing; they have every piece they need to construct
+what's missing. Claim structure and editability, not pixel parity.
+
+### Illustrator — APPROVED ✅ VERIFIED (owner, after v85.1)
 - **Accepts:** SVG natively; groups and `id`s become named layers.
 - **Pain point:** downloaded kits open as one flattened path or a linked raster.
-- **Our answer:** the same named layer tree, plus real gradients and geometry.
-- **Confirmed by the owner:** everything imports. Type was invisible until
-  v85.1 — see §1.3; the cause was `feDropShadow` (not SVG 1.1), now fixed.
-  Retest to confirm the type paints, then this becomes a strong claim:
-  "opens as a named layer tree with live, editable type."
-- **Still expect:** baseline shift (`dominant-baseline`) and outline-over-fill
-  (`paint-order`) on pieces that use them.
+- **Owner's test, post-fix:** *"read everything perfectly well and was easiest
+  to edit — cmd+Y, grabbed the text, all effects were read, perfect SVG
+  translation and usability."* The `feDropShadow` fix (§1.3) resolved the
+  invisible type completely.
+- **Approved copy:** "Opens in Illustrator as a named layer tree — real
+  paths, real gradients, live editable type, effects intact."
+- This is our strongest design-tool claim. Lead with it.
 
 ### Photoshop — APPROVED (with the correction above)
 - **Accepts:** PNG with alpha; SVG via Open/Place, rasterized into a Smart Object at a chosen size.
@@ -164,8 +195,14 @@ with it.
 - **Our answer:** true-alpha PNGs at up to 4×, and SVG that places as a Smart Object you can scale without resampling.
 - **Copy:** "Transparent PNGs at up to 4×, or place the SVG as a Smart Object and scale it as far as you like."
 
-### Sketch · Affinity · Penpot — NEEDS TEST
-Same SVG story as Illustrator; same filter question. Don't publish a per-app claim until one file has been opened in each.
+### Penpot — APPROVED ✅ VERIFIED (owner)
+*"Imports everything beautifully as SVGs."* Penpot is SVG-native and, unlike
+Figma, keeps the filter effects. Approved copy: "Penpot is SVG-native — our
+vectors don't get converted, they just become your file."
+
+### Sketch · Affinity — NEEDS TEST
+Same SVG story as Illustrator, which now passes cleanly, so both are likely
+fine. Nobody has opened a file in either yet.
 
 ### After Effects — ⚠️ CURRENT CLAIM IS WRONG
 The band lists AE against the SVG fragment. **After Effects has no native
