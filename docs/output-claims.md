@@ -189,39 +189,41 @@ ship. There is. What remains is publication.
 |---|---|
 | Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. |
 | Packs to ship | ✅ Several built, unpublished. |
-| A pack actually appearing each month | ⚠️ Manual. See the scheduling note below. |
+| A pack actually appearing each month | ✅ Schedulable. `presets.publish_at` + a release-date field in the admin publish row. Load the backlog once, dated, and it drips on its own. |
 | The $5 list price | ❌ Decided and owner-owned, but not built. One Stripe product (Pro) plus the student price; no à-la-carte path. This is why the value figure is off the page rather than on it. |
 
-### Publishing is immediate — there is no drip
+### Scheduled release — built 2026-07-25
 
-`presets_read_all` is `for select using (true)` and `publishCloudPreset`
-inserts a row that is live the instant it lands. The table has
-`created_at` but no `publish_at`, so there is no notion of a pack that
-exists-but-is-not-yet-released.
+Publishing used to be immediate: `presets_read_all` was `using (true)` and
+an insert was live the instant it landed. That meant loading the backlog
+**spent** it — every pack arriving at once, then months of silence against
+a page promising one a month.
 
-Consequence: publishing the whole backlog at once **spends it**. Pro
-members get everything in one drop and the monthly cadence has nothing
-left to deliver — five packs in one month, then five months of silence,
-against a page that promises one a month.
+Now:
 
-Two ways to run it:
+- `presets.publish_at timestamptz`. null = live (every pack from before the
+  column existed), past = live, future = held.
+- The read policy is `presets_read_released`: `publish_at is null or
+  publish_at <= now()` — with an admin exception so the owner can manage
+  the schedule.
+- **The filter is in RLS, not the client.** The anon key ships in the
+  browser, so a UI-only filter would leave the whole unreleased backlog
+  readable to any signed-in user who queried the table directly. Worth
+  restating because it is the sort of thing a later refactor quietly
+  breaks.
+- Admin publish row has a release-date field; blank ships now. Held packs
+  show a dashed card with a date chip, click to reschedule or clear.
+- Drops land at **UTC midnight** on the chosen day.
 
-1. **Manual monthly publish.** Load a pack, hit publish, once a month.
-   Works today, no code. Cost is one calendar reminder and the risk that
-   a busy month becomes a broken promise on a paid page.
-2. **Scheduled release.** Add `publish_at timestamptz` to `presets`,
-   narrow the read policy to `publish_at is null or publish_at <= now()`
-   with an admin exception, and expose the date in the publish UI. Load
-   the backlog once with dates and it drips on its own. The RLS half
-   matters — filtering only in the client would leave unreleased packs
-   readable to anyone who queries the table directly.
+Not verified end to end: the admin path can't be exercised in local dev
+(cloud is off there, so `isAdmin` is false). Date helpers are unit-checked
+and the panel renders clean; the publish-with-date and reschedule flows
+need one pass on the live site by the owner.
 
-Option 2 is the one that makes the cadence claim self-keeping rather than
-dependent on remembering. Not built as of this entry.
-
-Recommendation on record: bank two or three packs before promoting. The
-value figure is already held back per the owner's call above; the cadence
-claim is the one live promise, and the clock on it starts the day the
+Recommendation on record: load the banked packs in with dates before
+promoting, which turns the cadence claim from something to remember into
+something that keeps itself. The value figure stays held back per the
+owner's call above. The clock on the cadence claim starts the day the
 pricing page goes in front of people, not the day a pack is ready.
 
 ---

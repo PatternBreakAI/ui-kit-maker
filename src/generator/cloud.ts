@@ -712,6 +712,9 @@ export function publicProjectUrl(slug: string): string {
 
 export type CloudPreset = {
   id: string; name: string; cfg: unknown; thumb: string | null; sort: number; created_at: string;
+  /** When this pack goes live. null = live now; a future date = held back,
+      and RLS hides the row from everyone but an admin until it passes. */
+  publish_at: string | null;
 };
 
 /** Is the signed-in user an admin? Reads their own profile row (RLS-scoped). */
@@ -764,22 +767,38 @@ export async function accessToken(): Promise<string | null> {
 export async function listCloudPresets(): Promise<CloudPreset[]> {
   const client = await getClient();
   if (!client) return [];
+  /* No publish_at filter here on purpose — the read policy already drops
+     unreleased rows for everyone but an admin, and an admin WANTS to see
+     the backlog to manage it. Filtering here too would only hide the
+     schedule from the one person who needs it. */
   const { data, error } = await client.from("presets")
-    .select("id, name, cfg, thumb, sort, created_at")
+    .select("id, name, cfg, thumb, sort, created_at, publish_at")
     .order("sort", { ascending: true }).order("created_at", { ascending: true });
   if (error) return [];
   return (data ?? []) as CloudPreset[];
 }
 
 /** Publish a config as a shared preset (admin only — RLS enforces). */
-export async function publishCloudPreset(name: string, cfg: unknown, thumb: string | null): Promise<{ preset: CloudPreset | null; error: string | null }> {
+/** Publish a pack. `publishAt` null means live immediately; an ISO date in
+    the future holds it until then. */
+export async function publishCloudPreset(name: string, cfg: unknown, thumb: string | null, publishAt: string | null = null): Promise<{ preset: CloudPreset | null; error: string | null }> {
   const client = await getClient();
   if (!client || !session) return { preset: null, error: "Sign in as an admin to publish presets." };
   const { data, error } = await client.from("presets")
-    .insert({ name: name.trim().slice(0, 80) || "Preset", cfg, thumb, created_by: session.user.id })
-    .select("id, name, cfg, thumb, sort, created_at").maybeSingle();
+    .insert({ name: name.trim().slice(0, 80) || "Preset", cfg, thumb, created_by: session.user.id, publish_at: publishAt })
+    .select("id, name, cfg, thumb, sort, created_at, publish_at").maybeSingle();
   if (error) return { preset: null, error: error.message };
   return { preset: data as CloudPreset, error: null };
+}
+
+/** Move a pack's release date, or clear it to go live now. Admin-only by
+    RLS; the client check here is only to fail with a sentence. */
+export async function setCloudPresetSchedule(id: string, publishAt: string | null): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to schedule packs.";
+  const { error } = await client.from("presets")
+    .update({ publish_at: publishAt, updated_at: new Date().toISOString() }).eq("id", id);
+  return error ? error.message : null;
 }
 
 /** Overwrite a shared preset's look in place (admin only — RLS enforces).

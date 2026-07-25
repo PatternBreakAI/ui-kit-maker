@@ -193,9 +193,9 @@ create policy "terms_select_own" on public.terms_acceptances
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 revoke update (is_admin) on public.profiles from anon, authenticated;
 
--- Shared presets: everyone reads them (they appear in the Presets panel for
--- every user, signed in or not); only admins may write. The payload is a full
--- GenConfig (same shape a local user preset stores), plus a thumbnail.
+-- Shared presets: the monthly preset packs. Only admins may write. The
+-- payload is a full GenConfig (same shape a local user preset stores), plus a
+-- thumbnail.
 create table if not exists public.presets (
   id         uuid primary key default gen_random_uuid(),
   name       text not null check (char_length(name) between 1 and 80),
@@ -208,8 +208,31 @@ create table if not exists public.presets (
 );
 alter table public.presets enable row level security;
 
+-- ── scheduled release ────────────────────────────────────────────────
+-- The pricing page promises "a new preset pack every month". Publishing
+-- used to be immediate, which meant loading the backlog in SPENT it: every
+-- pack landing at once, then months of silence against a page promising a
+-- drop a month. publish_at lets the whole backlog go in once, dated, and
+-- drip on its own.
+--
+-- null  = live now (every pack published before this column existed)
+-- past  = live
+-- future = held
+alter table public.presets add column if not exists publish_at timestamptz;
+
+-- THE FILTER LIVES HERE, NOT IN THE CLIENT. Hiding unreleased packs in the
+-- UI alone would leave the entire backlog readable to anyone who queries
+-- the table directly — which is every signed-in user, since the anon key
+-- ships in the browser. Admins still see everything so they can manage the
+-- schedule.
 drop policy if exists "presets_read_all" on public.presets;
-create policy "presets_read_all" on public.presets for select using (true);
+drop policy if exists "presets_read_released" on public.presets;
+create policy "presets_read_released" on public.presets for select
+  using (
+    publish_at is null
+    or publish_at <= now()
+    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin)
+  );
 
 -- writes require the caller's profile to be flagged admin
 drop policy if exists "presets_admin_insert" on public.presets;
