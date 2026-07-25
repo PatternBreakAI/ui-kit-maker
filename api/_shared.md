@@ -28,6 +28,7 @@ upgrade; it can never upgrade itself.
 | `/api/portal` | POST | Verifies the token, returns a Stripe billing-portal URL so the customer can cancel or update their card. |
 | `/api/stripe-webhook` | POST | Verifies the Stripe signature, then moves `plan_id` between `pro`, `student` and `free` as subscriptions start, renew, lapse or cancel. Which paid plan is read back off the **price that was actually purchased** (`planOf`), not off anything the client said. |
 | `/api/export` | POST | Reads `plan_id` from the database and either refuses or issues an export grant (licence block + reference), logging it for the rate limit. The browser will not assemble a paid artifact without one. |
+| `/api/student-review` | POST | Admin-only (the column-revoked `is_admin` flag). `{action:"list"}` returns applications with ten-minute signed URLs to view pending IDs; `{action:"approve"\|"reject", id}` records the decision **and deletes the ID document in the same call** — the document goes first, so the "we delete your ID" promise on the application form cannot be half-kept. Approval never touches `plan_id`; it only lets `/api/checkout` reach for the student price. |
 
 ## Environment variables
 
