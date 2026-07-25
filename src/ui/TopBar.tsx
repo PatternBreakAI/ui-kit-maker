@@ -8,6 +8,7 @@ import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText } from "@/generator/exportUtils";
 import { guardedExport } from "@/generator/exportGate";
+import { t } from "@/shell/i18n";
 
 // The actual PatternBreak logo file, bundled from the repo's top-level
 // pb-logo.png — never redrawn or interpreted.
@@ -78,7 +79,7 @@ export function TopBar() {
 
   return (
     <header className="top">
-      <button className="brand" onClick={() => navigate("#/")} title="Back to home" aria-label="Back to home">
+      <button className="brand" onClick={() => navigate("#/")} title={t("backHome")} aria-label={t("backHome")}>
         <Logo />
         <span className="name">UI Kit Maker</span>
       </button>
@@ -91,18 +92,18 @@ export function TopBar() {
           /* honest chip: anonymous work is browser-only — one tap to make it
              an account. Quiet wording, not an alarm; the tooltip explains. */
           <button className="saved savedbtn" onClick={() => openAuth("signin")}
-            title="Your work is saved only in this browser — clearing browser data would erase it. Sign in (free) and it syncs to your account.">
+            title={t("localNote")}>
             <span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>
-            {saveStatus === "saved" ? "Saved — this browser only" : "Saving…"}
+            {saveStatus === "saved" ? t("savedLocal") : t("saving")}
           </button>
         ) : (
           <div className="saved">
             {cloud.state === "error" ? (
               <><span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>Cloud paused</>
             ) : cloud.state === "synced" || cloud.state === "syncing" ? (
-              <><span className="ok"><CloudUpload size={18} strokeWidth={1.9} color={cloud.state === "synced" && saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{cloud.state === "synced" && saveStatus === "saved" ? "Saved" : "Syncing…"}</>
+              <><span className="ok"><CloudUpload size={18} strokeWidth={1.9} color={cloud.state === "synced" && saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{cloud.state === "synced" && saveStatus === "saved" ? t("saved") : t("syncing")}</>
             ) : (
-              <><span className="ok"><CheckCircle2 size={18} strokeWidth={1.9} color={saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{saveStatus === "saved" ? "Saved" : "Saving…"}</>
+              <><span className="ok"><CheckCircle2 size={18} strokeWidth={1.9} color={saveStatus === "saved" ? "#16a34a" : "#9aa1ac"} /></span>{saveStatus === "saved" ? t("saved") : t("saving")}</>
             )}
           </div>
         )}
@@ -120,52 +121,52 @@ export function TopBar() {
         </button>
 
         <button className={`acct${cloud.state === "synced" ? " on" : ""}`} onClick={() => openAuth("signin")}
-          aria-label="Account" title={cloud.email ? `Account — ${cloud.email}` : "Account"}>
+          aria-label={t("account")} title={cloud.email ? `${t("account")} — ${cloud.email}` : t("account")}>
           <User size={17} strokeWidth={1.9} />
         </button>
 
         <div ref={menuRef} style={{ position: "relative" }}>
-          <button className="exportbtn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Export and settings" aria-haspopup="menu" aria-expanded={menuOpen}>
-            <Download size={15} strokeWidth={1.9} /> Export <ChevronDown size={14} strokeWidth={2} />
+          <button className="exportbtn" onClick={() => setMenuOpen(!menuOpen)} aria-label={t("exportAndSettings")} aria-haspopup="menu" aria-expanded={menuOpen}>
+            <Download size={15} strokeWidth={1.9} /> {t("export")} <ChevronDown size={14} strokeWidth={2} />
           </button>
           {menuOpen && (
             <div className="menu-pop">
               {may("svg") ? (
                 <button onClick={() => { dlSvg(); setMenuOpen(false); }}>
-                  <Download size={15} strokeWidth={1.8} /> Export SVG
+                  <Download size={15} strokeWidth={1.8} /> {t("exportSvg")}
                 </button>
               ) : (
-                <button className="lockedmi" title={`Vector exports are a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Export SVG")}</button>
+                <button className="lockedmi" title={`Vector exports are a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportSvg"))}</button>
               )}
               <button onClick={() => { void downloadPng(svg(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax); setMenuOpen(false); }}>
-                <Image size={15} strokeWidth={1.8} /> Export PNG {tcaps.pngScaleMax}×
+                <Image size={15} strokeWidth={1.8} /> {t("exportPng")} {tcaps.pngScaleMax}×
               </button>
               {may("html") ? (
                 <button onClick={() => { dlHtml(); setMenuOpen(false); }}>
-                  <FileDown size={15} strokeWidth={1.8} /> Download HTML
+                  <FileDown size={15} strokeWidth={1.8} /> {t("downloadHtml")}
                 </button>
               ) : (
-                <button className="lockedmi" title={`HTML export is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Download HTML")}</button>
+                <button className="lockedmi" title={`HTML export is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("downloadHtml"))}</button>
               )}
               {may("svg") ? (
                 <button onClick={() => { copyCode(); setMenuOpen(false); }}>
-                  <Copy size={15} strokeWidth={1.8} /> Copy SVG code
+                  <Copy size={15} strokeWidth={1.8} /> {t("copySvg")}
                 </button>
               ) : (
-                <button className="lockedmi" title={`SVG code is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Copy SVG code")}</button>
+                <button className="lockedmi" title={`SVG code is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("copySvg"))}</button>
               )}
               {may("gamekit") ? (
                 <button onClick={() => { dlGameKit(); setMenuOpen(false); }}>
-                  <Gamepad2 size={15} strokeWidth={1.8} /> Export game kit
+                  <Gamepad2 size={15} strokeWidth={1.8} /> {t("exportGameKit")}
                 </button>
               ) : (
-                <button className="lockedmi" title={`The game kit is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Export game kit")}</button>
+                <button className="lockedmi" title={`The game kit is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportGameKit"))}</button>
               )}
               <button onClick={() => { downloadSettings(cfg); setMenuOpen(false); }}>
-                <FileJson size={15} strokeWidth={1.8} /> Export settings
+                <FileJson size={15} strokeWidth={1.8} /> {t("exportSettings")}
               </button>
               <button onClick={() => { fileRef.current?.click(); }}>
-                <FileUp size={15} strokeWidth={1.8} /> Import settings…
+                <FileUp size={15} strokeWidth={1.8} /> {t("importSettings")}
               </button>
               <button onClick={() => {
                 // component-only reset: the stage (canvas color, grid, zoom) is
@@ -175,7 +176,7 @@ export function TopBar() {
                 replaceConfig(d);
                 setMenuOpen(false);
               }}>
-                <RotateCcw size={15} strokeWidth={1.8} /> Reset component
+                <RotateCcw size={15} strokeWidth={1.8} /> {t("resetComponent")}
               </button>
             </div>
           )}
