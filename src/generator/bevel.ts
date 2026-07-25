@@ -1233,8 +1233,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     /* filterUnits=userSpaceOnUse: Safari synthesizes the italic slant for
        faces with no italic cut (Russo One) but measures the text bbox
        WITHOUT it — a percentage region inherits that lie and clips the
-       leaning glyph edges diagonally. An absolute region can't. */
-    ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
+       leaning glyph edges diagonally. An absolute region can't. The region
+       must ALSO stay proportionate: WebKit refuses filters whose buffer
+       (region × zoom × devicePixelRatio) exceeds its cap and drops the
+       filtered element outright — a blanket -800/6000/1800 region blows
+       that cap on Retina and the label vanishes in Safari only. */
+    ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(fx0 - fs * 3 - 260).toFixed(0)}" y="${(fy0 - fs * 3 - 260).toFixed(0)}" width="${(fw + fs * 6 + 520).toFixed(0)}" height="${(fh + fs * 6 + 520).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
   const textFilter = prims.length ? ` filter="url(#${id}tf)"` : "";
   const outlineStroke = T2.outline.color2 ? `url(#${id}og) ${P(T2.outline.color)}` : P(T2.outline.color);
@@ -1405,9 +1409,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0" stop-color="${hiC}" stop-opacity="1"/>
     <stop offset="1" stop-color="${hiC}" stop-opacity="0"/>
   </radialGradient>
-  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
-  ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
-  ${hiIdx >= 0 ? (() => { const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1); return `<linearGradient id="${id}thl" x1="0" y1="0" x2="0" y2="1">
+  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
+  ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
+  ${hiIdx >= 0 ? (() => { const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1); return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
     <stop offset="0" stop-color="${hexMix(hiC, "#FFFFFF", 0.25 + 0.64 * hb)}"/>
     <stop offset="1" stop-color="${hexMix(glowC, "#FFFFFF", 0.05 + 0.36 * hb)}"/>
   </linearGradient>`; })() : ""}

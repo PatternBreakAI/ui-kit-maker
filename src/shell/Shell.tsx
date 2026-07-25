@@ -63,6 +63,32 @@ const isMobile = () =>
    about; the first navigation after that fails its dynamic import and, with no
    boundary, React blanks the page. This boundary auto-reloads once to pick up
    the fresh build, and shows a reload card instead of white if that fails. */
+/* GitHub Pages serves index.html with max-age=600, so a plain reload can
+   re-fetch the SAME stale chunk map for up to ten minutes and land right
+   back on the card. A throwaway query param makes the URL new to the CDN,
+   which busts that cache; the hash route survives untouched. */
+const freshReload = () => {
+  const { pathname, hash } = window.location;
+  window.location.replace(`${pathname}?r=${Date.now()}${hash}`);
+};
+
+/* The stale-build card in the visitor's own language (ui-generator-lang —
+   the same key the landing header and MarketingFooter selectors write). */
+const STALE_MSG: Record<string, [string, string, string]> = {
+  en: ["A fresh version just shipped — ", "reload", " to pick it up."],
+  zh: ["新版本刚刚上线——点击", "刷新", "即可使用。"],
+  fr: ["Une nouvelle version vient d'arriver — ", "rechargez", " pour en profiter."],
+  es: ["Acaba de salir una versión nueva — ", "recarga", " para usarla."],
+  it: ["È appena uscita una nuova versione — ", "ricarica", " per usarla."],
+  de: ["Eine neue Version ist gerade live gegangen — ", "neu laden", ", und sie ist da."],
+  ja: ["新しいバージョンが公開されました——", "再読み込み", "してご利用ください。"],
+};
+const staleMsg = (): [string, string, string] => {
+  let l = "en";
+  try { l = localStorage.getItem("ui-generator-lang") || "en"; } catch { /* private mode */ }
+  return STALE_MSG[l] ?? STALE_MSG.en;
+};
+
 class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -71,24 +97,24 @@ class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean
     const chunkErr = /dynamically imported module|Loading chunk|module script failed|Failed to fetch/i.test(msg);
     /* A time window, not a one-shot: with several deploys close together a
        tab can hit stale chunks more than once, and the old boolean guard
-       left it stranded on the reload card. index.html now ships
-       Cache-Control: no-cache (vercel.json), so each auto-reload really
-       fetches the fresh chunk map; the 20s window still prevents a loop. */
+       left it stranded on the reload card. freshReload busts the CDN's
+       index.html cache; the 20s window still prevents a loop. */
     let last = 0;
     try { last = Number(sessionStorage.getItem("fd-chunk-reload") ?? 0) || 0; } catch { /* private mode */ }
     if (chunkErr && Date.now() - last > 20_000) {
       try { sessionStorage.setItem("fd-chunk-reload", String(Date.now())); } catch { /* private mode */ }
-      window.location.reload();
+      freshReload();
     }
   }
   render() {
     if (this.state.failed) {
+      const m = staleMsg();
       return (
         <div className="route-loading" role="alert">
           <span className="route-loading__label">
-            A fresh version just shipped —{" "}
-            <button className="fd-linkbtn" onClick={() => window.location.reload()}>reload</button>{" "}
-            to pick it up.
+            {m[0]}
+            <button className="fd-linkbtn" onClick={freshReload}>{m[1]}</button>
+            {m[2]}
           </span>
         </div>
       );
