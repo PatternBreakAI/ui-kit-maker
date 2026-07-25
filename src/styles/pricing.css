@@ -313,3 +313,69 @@
 .fd-studentcard__ok--wait { color: var(--ink2); }
 .fd-pricing__col li.is-note { color: var(--ink3); }
 .fd-pricing__col li.is-note svg { color: #2dd4bf; }
+
+/* ── #/review — the reviewer's desk ── */
+.fd-review { max-width: 720px; }
+.fd-review > .fd-studentcard { margin-bottom: 14px; }
+.fd-review__bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 0 0 14px; font-size: 13px; font-weight: 600; color: var(--ink2);
+}
+.fd-review__refresh {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--ink2); background: var(--soft); border: 1px solid var(--line2); border-radius: 10px;
+}
+.fd-review__refresh:hover { color: var(--ink); }
+.fd-review__refresh:disabled { opacity: .6; cursor: default; }
+
+.fd-review__who { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fd-review__who b { font-size: 15px; }
+.fd-review__meta { display: block; margin-top: 3px; font-size: 12px; color: var(--ink3); }
+.fd-review__mail { display: inline-flex; align-items: center; gap: 3px; color: var(--accent, #8b5cf6); text-decoration: none; }
+.fd-review__mail:hover { text-decoration: underline; }
+
+.fd-review__chip {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; letter-spacing: .08em;
+}
+.fd-review__chip--wait { background: color-mix(in srgb, var(--accent, #8b5cf6) 16%, transparent); color: var(--accent, #8b5cf6); }
+.fd-review__chip--ok { background: rgba(45, 212, 191, .16); color: #2dd4bf; }
+.fd-review__chip--no { background: rgba(248, 113, 113, .14); color: #f87171; }
+
+/* the document frame — dark well, like every instrument in the product */
+.fd-review__doc {
+  display: block; overflow: hidden; border-radius: 12px;
+  border: 1px solid var(--line2); background: var(--soft);
+}
+.fd-review__doc img { display: block; width: 100%; max-height: 340px; object-fit: contain; }
+.fd-review__doc--pdf {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 16px; font-size: 13.5px; font-weight: 600;
+  color: var(--ink); text-decoration: none;
+}
+.fd-review__demoimg {
+  display: grid; place-items: center; height: 180px;
+  font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--ink3);
+}
+
+.fd-review__opt { font-style: normal; font-weight: 500; font-size: 11px; color: var(--ink3); }
+.fd-field input[type="text"] {
+  height: 44px; padding: 0 13px; border-radius: 11px;
+  border: 1px solid var(--line2); background: var(--soft); color: var(--ink);
+  font: inherit; font-size: 14px;
+}
+.fd-review__actions { display: flex; gap: 10px; }
+.fd-review__actions .fd-pricing__cta { flex: 1; margin-top: 0; }
+.fd-rfine { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--ink3); }
+.fd-rfine svg { flex: none; }
+
+.fd-review__history h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+.fd-review__row {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 9px 0; border-top: 1px solid var(--line);
+}
+.fd-review__row .fd-review__chip { align-self: center; }
+.fd-review__rowmail { font-size: 13px; font-weight: 600; }
+.fd-review__note { flex-basis: 100%; font-size: 12px; color: var(--ink3); }
