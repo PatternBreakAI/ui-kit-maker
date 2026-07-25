@@ -85,6 +85,10 @@ export const LANDING_HTML = `</head>
             <button type="button" data-step="1" class="on">01 MASTER</button>
             <button type="button" data-step="2" disabled>02 KIT</button>
             <button type="button" data-step="3" disabled>03 BOARD</button>
+            <span class="push-hint" id="pushHint" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+              <span id="pushHintTxt">Don't love something? Tweak the master and push again.</span>
+            </span>
           </div>
           <div class="st2-preview" id="previewField">
             <span class="pv-label" id="pvLabel">MASTER / 01</span>
@@ -136,6 +140,16 @@ export const LANDING_HTML = `</head>
                 <div class="ship-list-head"><b>⇣</b><span id="shipCount">0 / 0</span></div>
                 <div class="ship-list-scroll" id="shipList"></div>
               </div>
+              </div>
+
+              <div class="ship-end" id="shipEnd" hidden>
+                <b class="se-flash" id="seFlash">GG — KIT SHIPPED.</b>
+                <span class="se-sub" id="seSub">Master, kit, board, out the door — now make one that's really yours.</span>
+                <div class="se-cta" id="seOpen" role="button" tabindex="0" aria-label="Open the generator"></div>
+                <div class="se-row">
+                  <button type="button" class="se-ghost" id="seAgain">MAKE ANOTHER</button>
+                  <button type="button" class="se-ghost" id="seTour">EXPLORE THE SITE ↓</button>
+                </div>
               </div>
             </div>
             <span class="kit-ready" id="kitReady" aria-hidden="true">KIT READY</span>
@@ -438,6 +452,20 @@ export const LANDING_HTML = `</head>
       </div>
     </section>
 
+    <section class="community-section" aria-labelledby="cmTitle">
+      <div class="shell">
+        <div class="math-header reveal">
+          <p class="section-label" id="cmLbl">PLAYER-MADE</p>
+          <h2 class="section-title" id="cmTitle">Built by players. <em>Yours to remix.</em></h2>
+          <p class="cm-sub" id="cmSub">Open any kit, remix everything — every card is drawn live in your browser from the kit's real settings, by the same engine you just played with.</p>
+        </div>
+        <div class="cm-cards" id="cmCards"></div>
+        <div class="cm-ctarow reveal">
+          <a class="cm-cta" href="#/community" id="cmCta">Browse the Community Gallery →</a>
+        </div>
+      </div>
+    </section>
+
     <section class="steps-section" aria-labelledby="stepsTitle">
       <span class="hud-corner hc-tl" aria-hidden="true">UI SYSTEM PROTOCOL<br>v2.4</span>
       <span class="hud-corner hc-tr" aria-hidden="true">DESIGN ONCE.<br>DEPLOY EVERYWHERE.</span>
@@ -557,6 +585,7 @@ export const LANDING_HTML = `</head>
           <a href="#/pricing" id="fpPricing">Pricing</a>
           <a href="#/community" id="fpCommunity">Community</a>
           <a href="#/signin" id="fpSignin">Sign in</a>
+          <a href="#/faq" id="fpFaq">FAQ</a>
           <a href="#" id="fpHow">How it works</a>
         </nav>
         <nav class="footer-col" aria-labelledby="fpLegalH">
