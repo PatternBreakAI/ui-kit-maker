@@ -42,14 +42,14 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 
 | Artifact | Reality |
 |---|---|
-| **SVG pack** (ZIP) | One layered SVG per catalog entry — every component, variant and state, with content overrides baked in. Fonts embedded as data-URI `@font-face` (woff2) inside text-bearing files. README lists Google Fonts links for design tools. |
+| **SVG pack** (ZIP) | One layered SVG per catalog entry — every component, variant and state, with content overrides baked in. Fonts are **linked, not embedded**: the README names every face with its free install link. Design tools substitute installed fonts regardless of embedding, so this costs nothing there and keeps the export free of network calls. |
 | **Engine kit** (ZIP) | Atomic, **content-free**, transparent PNGs at **2×**, in `assets/`. Parts are separated for engine composition: `progress/track` + `fill`, `slider/track` + `fill` + `thumb`, `toggle/track` + `thumb`, `speedo/face` + `needle`, `speedo2/face` + `segment`, `checkbox/base`, `orb/lit` + `off`, icons as standalone tintable glyphs, `fx/drop-shadow` and `fx/glow` blobs, plus a `base-flat` variant per component with gloss/specular/pattern stripped for free tinting. Nine-slice assets are named `*.9.png`. `kit-manifest.json` carries per-asset `nativeW/nativeH`, `nineSlice` margins (in PNG pixels at 2×), `pivot`, `tintable`, `usage`, plus the palette, the typography face with its Google Fonts query, and the "nothing replaceable is baked" rules. Ships `unity/Editor/PatternBreakKitImporter.cs` (applies borders and pivots from the manifest), two example prefabs, and `unreal/README.md` with UMG recipes. |
 | **Game kit** | Sprite sheet PNG at **2×**, states stacked vertically, plus `ui-<preset>-kit.json` with per-state rects, suggested nine-slice insets, and Unity/Unreal import notes. |
 | **Sprite sheet** | One labelled catalog image. **A visual reference for humans, not a slicing source.** Guest gets a five-component starter sheet. |
 | **LICENCE.txt** | In every Pro bundle. Names the account, issue time and reference. |
 | **README.md** | In the SVG pack and engine kit: how the bundle is laid out, plus **the full recipe** — every colour role with its hex, silhouette and bevel, depth and light, gloss and specular geometry, pattern and texture, the complete typography block, and the per-state adjustments. Enough to rebuild the kit by hand in any tool. |
 | **settings.json** | The complete `GenConfig` beside the README — drop it into Export › Import settings to restore the exact kit. |
-| **fonts/FONT-LICENSE.md** | Every embedded family with its authoritative licence link, a plain-English summary of what the buyer may do, and the full SIL OFL 1.1 text. Required: embedding a face **is** redistribution. |
+| **Fonts section** (in the README) | Every face the kit uses, with its free install link and its licence link. We link rather than redistribute, so no licence file is required and none ships. Rasterized exports (sprite sheet, engine PNGs) still embed the face *during* rasterization — pixels ship, not the font, which needs no licence. |
 
 ### 1.3 Filter portability (fixed v85.1)
 
@@ -109,8 +109,9 @@ by accident.
 colour, token and type setting written out, plus a settings file that loads
 straight back into the app." True of the SVG pack and engine kit.
 
-**Also APPROVED:** "The fonts come licensed for commercial use, with the
-terms in the box." True — `fonts/FONT-LICENSE.md`.
+**Also APPROVED:** "Every face the kit uses is named, linked and free for
+commercial use." True — the README's Fonts section. Do NOT say the fonts
+are bundled; they are linked.
 
 ---
 
