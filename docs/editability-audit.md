@@ -132,6 +132,24 @@ slider"). Because it's generated, it can never drift from the truth the way
 the old hand-kept allowlists did. Smart Help's part stamps and help mode are
 the natural mount point.
 
+**And the card teaches (owner, 2026-07-25).** The site should be educational
+about design itself — UI design, styles, history, the games that defined
+each pattern, further reading. So the ⓘ card is two layers:
+
+1. *The manual* (generated from the slot table): what's editable, how.
+2. *The lesson* (authored, one per component): what this pattern is called
+   in the industry, where it comes from, games that use it brilliantly,
+   what makes a good one, and one or two relevant links. The health globe
+   points at Diablo; the weapon wheel at its console lineage; the season
+   track at the battle-pass era. Industry vocabulary throughout — a student
+   should leave knowing the *names* of things.
+
+This is a product pillar, not a tooltip: it is the difference between an
+asset tool and a design education that happens to ship assets. It compounds
+the student/educator tier ("learn with the real tool" becomes literal) and
+it is content no competitor can copy overnight. ~115 short write-ups,
+authored once, reviewed by the owner as creative director.
+
 ## Build order
 
 | Phase | What | Size |
