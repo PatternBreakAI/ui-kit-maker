@@ -419,6 +419,10 @@ export const LANDING_HTML = `</head>
           <div class="ownership-badge">Yours, for real</div>
           <h2 id="ownershipTitle">No AI. No templates. <em>No gray areas.</em></h2>
           <p>Every kit is drawn by a deterministic design engine — not a model trained on other people’s work. Nothing is scraped, nothing is “in the style of” someone else. What you make is unique to your settings, and it’s yours to ship, sell, and call your own.</p>
+          <ul class="own-proof">
+            <li id="ownR1">Every kit ships with its own recipe — every colour, token, and type setting written out, plus a settings file that loads straight back into the app.</li>
+            <li id="ownR2">Every typeface the kit uses is named, linked, and free for commercial use.</li>
+          </ul>
           <p class="own-lic" id="ownLic"></p>
         </div>
         <div class="ownership-seal reveal" aria-hidden="true">
