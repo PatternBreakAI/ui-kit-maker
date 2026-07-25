@@ -88,6 +88,9 @@ export function AccountPage() {
   }, [signedIn, awaiting]);
 
   const isPro = plan?.plan === "pro";
+  const isStudent = plan?.plan === "student";
+  // 'comped' = granted by the owner via the admin desk — no billing exists
+  const comped = plan?.status === "comped";
   const manage = async () => {
     setPlanBusy(true); setPlanErr(null);
     const e = await openBillingPortal();   // navigates away on success
@@ -170,13 +173,38 @@ export function AccountPage() {
                     </span>
                   </div>
                   <p className="fd-fine">
-                    {plan?.status === "canceled"
-                      ? `Cancelled — your Pro access runs until ${fmtDate(plan.renewsAt)}.`
-                      : plan?.status === "past_due"
-                        ? "We couldn't take the last payment — update your card to keep Pro."
-                        : plan?.renewsAt
-                          ? `$29.99/year · renews ${fmtDate(plan.renewsAt)}. Cancel anytime; access runs to the end of the term.`
-                          : "$29.99/year · renews automatically. Cancel anytime; access runs to the end of the term."}
+                    {comped
+                      ? "Complimentary Pro — on the house from PatternBreak. No billing, nothing to renew."
+                      : plan?.status === "canceled"
+                        ? `Cancelled — your Pro access runs until ${fmtDate(plan.renewsAt)}.`
+                        : plan?.status === "past_due"
+                          ? "We couldn't take the last payment — update your card to keep Pro."
+                          : plan?.renewsAt
+                            ? `$29.99/year · renews ${fmtDate(plan.renewsAt)}. Cancel anytime; access runs to the end of the term.`
+                            : "$29.99/year · renews automatically. Cancel anytime; access runs to the end of the term."}
+                  </p>
+                </>
+              ) : isStudent ? (
+                <>
+                  <div className="fd-plan">
+                    <span className="fd-plan__chip fd-plan__chip--pro">
+                      <Crown size={12} strokeWidth={2.6} /> STUDENT / EDUCATOR
+                    </span>
+                    <span className="fd-plan__desc">
+                      Everything Pro has, under the education licence — coursework, portfolio and
+                      non-commercial releases.
+                    </span>
+                  </div>
+                  <p className="fd-fine">
+                    {comped
+                      ? "Complimentary access — on the house from PatternBreak. No billing, nothing to renew."
+                      : plan?.status === "canceled"
+                        ? `Cancelled — your access runs until ${fmtDate(plan.renewsAt)}.`
+                        : plan?.status === "past_due"
+                          ? "We couldn't take the last payment — update your card to keep your plan."
+                          : plan?.renewsAt
+                            ? `$15.99/year · renews ${fmtDate(plan.renewsAt)}. Selling what you build? Pro carries the commercial licence.`
+                            : "$15.99/year. Selling what you build? Pro carries the commercial licence."}
                   </p>
                 </>
               ) : (
@@ -192,17 +220,17 @@ export function AccountPage() {
                 </>
               )}
               <div className="fd-actions">
-                {isPro ? (
+                {(isPro || isStudent) && !comped ? (
                   <button className="fd-ghost" disabled={planBusy} onClick={() => void manage()}>
                     {planBusy ? <Loader2 size={15} strokeWidth={1.8} className="fd-spin" /> : <CreditCard size={15} strokeWidth={1.8} />}
                     {planBusy ? "Opening…" : "Manage subscription"}
                   </button>
-                ) : (
+                ) : !isPro && !isStudent ? (
                   <button className="fd-ghost" onClick={() => navigate("#/pricing")}>
                     <Crown size={15} strokeWidth={1.8} /> See what Pro adds
                   </button>
-                )}
-                {!isPro && plan?.hasCustomer && (
+                ) : null}
+                {(!isPro && !isStudent || comped) && plan?.hasCustomer && (
                   <button className="fd-ghost" disabled={planBusy} onClick={() => void manage()}>
                     <CreditCard size={15} strokeWidth={1.8} /> Billing history
                   </button>

@@ -160,6 +160,21 @@ export async function POST(req: Request): Promise<Response> {
       const status = sub.status ?? "";
       // Stripe's own words for "this person is entitled right now"
       const entitled = status === "active" || status === "trialing" || status === "past_due";
+      /* Comped accounts (plan_status 'comped', granted via /api/admin) are
+         entitled by the OWNER, not by Stripe. If such an account still has
+         an old subscription on file and that subscription dies, this event
+         must not strip the comp — the grant outranks a lapsed sub. A comped
+         user genuinely subscribing lands in the entitled path below, and
+         Stripe's 'active' rightly replaces the comp. */
+      if (!entitled || type === "customer.subscription.deleted") {
+        const cur = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}&select=plan_status`, {
+          headers: { apikey: service, authorization: `Bearer ${service}` },
+        });
+        if (cur.ok) {
+          const rows = (await cur.json()) as { plan_status?: string }[];
+          if (rows[0]?.plan_status === "comped") return ok("Comped account — Stripe downgrade ignored.");
+        }
+      }
       await setPlan(uid, {
         plan_id: entitled && type !== "customer.subscription.deleted" ? planOf(sub) : "free",
         plan_status: type === "customer.subscription.deleted" ? "canceled" : status,
