@@ -32,6 +32,8 @@ export const LANDING_HTML = `</head>
         <small>by PatternBreak</small>
       </a>
       <div class="nav-actions">
+        <a class="nav-link" href="#/community" id="navCommunity">Community</a>
+        <a class="nav-link" href="#/pricing" id="navPricing">Pricing</a>
         <select class="lang-sel" id="langSel" aria-label="Language">
           <option value="en">EN</option><option value="zh">中文</option><option value="fr">FR</option>
           <option value="es">ES</option><option value="it">IT</option><option value="de">DE</option><option value="ja">日本語</option>
@@ -553,6 +555,7 @@ export const LANDING_HTML = `</head>
           <h4 id="fpProdH">PRODUCT</h4>
           <a href="#/app" id="fpOpen">Open the generator</a>
           <a href="#/pricing" id="fpPricing">Pricing</a>
+          <a href="#/community" id="fpCommunity">Community</a>
           <a href="#/signin" id="fpSignin">Sign in</a>
           <a href="#" id="fpHow">How it works</a>
         </nav>
