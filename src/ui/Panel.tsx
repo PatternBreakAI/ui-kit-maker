@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { PRESETS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign } from "@/generator/model";
-import type { GenStateName, BlendMode, PatternType, KitComponentId } from "@/generator/model";
+import { LessonBody } from "./LessonCard";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign  } from "@/generator/model";
+import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath } from "@/generator/bevel";
 import { hydrate, retintText } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
-import { defaultConfig, defaultCandy, applyPresetCandy } from "@/generator/model";
-import type { GenConfig } from "@/generator/model";
+import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
+import type { GenConfig  } from "@/generator/model";
 import { PRESET_DEFAULTS } from "@/generator/store";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -222,6 +223,25 @@ function Adv({ label, active, children }: { label: string; active?: boolean; chi
 /* Naming happens in place — the button becomes a small name field with
    confirm/cancel, replacing the browser prompt() dialog. Enter commits,
    Escape backs out; an async commit can veto with an error message. */
+/* ⓘ — the component explains itself: a generated "what can I edit" manual
+   from the slot table, then the authored lesson — pattern name, lineage,
+   games that do it well, further reading. Links open in NEW TABS (owner
+   rule): the reader never loses work to a citation. */
+function InfoCard({ cid }: { cid: KitComponentId }) {
+  const [open, setOpen] = useState(false);
+  const lesson = KIT_LESSONS[cid];
+  const name = KIT_COMPONENTS.find((c) => c.id === cid)?.name ?? cid;
+  if (!lesson) return null;
+  return (
+    <div className="infocard">
+      <button className="resetstate" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Info size={13} strokeWidth={2.2} /> About {name} {open ? "–" : "+"}
+      </button>
+      {open && <LessonBody cid={cid} />}
+    </div>
+  );
+}
+
 function NameAction({ icon, label, title, defaultName, placeholder, withDate, onCommit }: {
   icon: React.ReactNode; label: string; title?: string; defaultName?: string; placeholder?: string;
   /** Show a release-date field and pass it to onCommit. Blank = ship now. */
@@ -349,7 +369,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -854,9 +874,29 @@ export function Panel() {
       </Section>
 
       {/* ── v57/58: Component content — this piece's text and glyph ── */}
-      {(iconSwappable || labelEditable) && focus && (
+      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus]))) && focus && (
         <Section id="kiticon" title="Component content"
           summary={<span>{kitIcons[focus] === "none" ? "no icon" : (kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"}</span>}>
+          {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
+          {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" ? (
+            <div key={slot.id}>
+              <div className="sublabel">{slot.name}</div>
+              <div className="segmini" role="radiogroup" aria-label={slot.name}>
+                {(slot.choices ?? []).map((c) => {
+                  const cur = kitSlotVals[focus]?.[slot.id] ?? slot.choices?.[0];
+                  return (
+                    <button key={c} className={cur === c ? "on" : ""} role="radio" aria-checked={cur === c}
+                      onClick={() => setKitSlot(focus, slot.id, c === slot.choices?.[0] ? null : c)}>{c}</button>
+                  );
+                })}
+              </div>
+              {slot.note && <div className="helper">{slot.note}</div>}
+            </div>
+          ) : slot.kind === "value" ? (
+            /* no input on purpose — the readout is DRIVEN; say so instead of
+               offering a field that would be a lie */
+            <div key={slot.id} className="helper"><b>{slot.name}</b> — {slot.note ?? "driven by the value slider."}</div>
+          ) : null)}
           {labelEditable && (<>
             <div className="sublabel">Text</div>
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32}

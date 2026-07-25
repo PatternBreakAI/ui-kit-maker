@@ -2161,3 +2161,35 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
   70% { box-shadow: 0 0 0 2px var(--accent, #6366f1), 0 0 14px rgba(99, 102, 241, .35); }
   100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
 }
+
+/* ── ⓘ card — the component explains itself ─────────────────────────
+   Quiet until asked: a plain "About" row that unfolds into the manual
+   (generated from the slot table) and the lesson (authored). Links open
+   in new tabs and read as citations, not buttons. */
+.infocard { display: flex; flex-direction: column; gap: 8px; }
+.infocard__body {
+  padding: 11px 13px; border-radius: 11px;
+  border: 1px solid var(--line2); background: var(--soft);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.infocard__body p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--ink2); }
+.infocard__body b { color: var(--ink); }
+.infocard__manual {
+  padding: 7px 9px; border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #6366f1) 8%, transparent);
+}
+.infocard__links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.infocard__links a { color: var(--accent, #6366f1); text-decoration: none; font-weight: 600; }
+.infocard__links a:hover { text-decoration: underline; }
+
+/* the banner ⓘ + its popover — chrome over the canvas, never on the art */
+.focusrow { position: relative; display: inline-flex; align-items: center; gap: 6px; z-index: 30; }
+.focuschip--info { padding: 4px 8px; }
+.focuschip--info.on { border-color: var(--accent, #6366f1); color: var(--accent, #6366f1); }
+.lessonpop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 40;
+  width: 340px; max-width: 74vw; max-height: 60vh; overflow: auto;
+  border-radius: 13px; border: 1px solid var(--line2); background: var(--card);
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.55);
+  padding: 4px;
+}

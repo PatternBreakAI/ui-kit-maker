@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, CircleHelp } from "lucide-react";
+import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
+import { LessonBody } from "./LessonCard";
+import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit } from "@/generator/bevel";
@@ -13,7 +15,7 @@ import { BoardView } from "./Board";
 const CAP: Record<GenStateName, string> = { default: "Default", hover: "Hover", pressed: "Pressed", disabled: "Disabled" };
 
 export function CanvasView() {
-  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg } = useGen();
+  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const [gridPop, setGridPop] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -36,10 +38,12 @@ export function CanvasView() {
      into the panel (open + scroll + glow). Pure DOM hit-testing over
      the same svg the user is looking at — no geometry duplicated. */
   const [helpOn, setHelpOn] = useState(false);
+  const [lessonOpen, setLessonOpen] = useState(false);
   const [helpHover, setHelpHover] = useState<{ x: number; y: number; w: number; h: number; parts: string[] } | null>(null);
   const [helpMenu, setHelpMenu] = useState<{ x: number; y: number; parts: string[] } | null>(null);
   const helpWrap = useRef<HTMLDivElement>(null);
   useEffect(() => { if (!helpOn) { setHelpHover(null); setHelpMenu(null); } }, [helpOn]);
+  useEffect(() => { setLessonOpen(false); }, [focus]);
   useEffect(() => {
     if (!helpMenu) return;
     const close = (e: MouseEvent) => {
@@ -98,8 +102,8 @@ export function CanvasView() {
   const fBar = focus === "progress" || focus === "segbar" ? kitBar[focus] : undefined;
   const fDock = fBar?.dock ? { icon: resolveKitIcon(kitIcons[focus!], undefined), side: fBar.dockSide ?? "left" as const } : undefined;
   const heroSvg = useMemo(
-    () => (focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, focus === "toggle" && displayed === "pressed" ? 0 : undefined, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, undefined, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed)),
-    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, kitBar, kitTextFill, kitIcons, kitLabels, kitSubs, kitDesigns]
+    () => (focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, focus === "toggle" && displayed === "pressed" ? 0 : undefined, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, undefined, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed)),
+    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, kitBar, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitDesigns]
   );
   // Fixed order, selected included — the stack never reshuffles.
   const sideStates = STATE_NAMES.filter(
@@ -158,9 +162,26 @@ export function CanvasView() {
         {phase === "master" ? (
           <div className="stage" style={{ transform: `scale(${zoom})` }}>
             {focus && (
-              <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
-                <PenTool size={13} strokeWidth={2} /> Editing: {KIT_COMPONENTS.find((c) => c.id === focus)?.name} — back to button
-              </button>
+              <span className="focusrow">
+                <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
+                  <PenTool size={13} strokeWidth={2} /> Editing: {KIT_COMPONENTS.find((c) => c.id === focus)?.name} — back to button
+                </button>
+                {/* the ⓘ lives on the BANNER, always visible while a
+                    component is focused — it was buried in a collapsed
+                    panel section before, and the owner rightly never
+                    found it. The banner is chrome, not art, so the
+                    pristine-canvas rule holds. */}
+                {KIT_LESSONS[focus] && (
+                  <button className={`focuschip focuschip--info${lessonOpen ? " on" : ""}`} aria-expanded={lessonOpen}
+                    title={`About ${KIT_COMPONENTS.find((c) => c.id === focus)?.name} — what it is, what's editable, where it comes from`}
+                    onClick={() => setLessonOpen(!lessonOpen)}>
+                    <Info size={13} strokeWidth={2.2} />
+                  </button>
+                )}
+                {lessonOpen && KIT_LESSONS[focus] && (
+                  <div className="lessonpop"><LessonBody cid={focus} /></div>
+                )}
+              </span>
             )}
             <div className="state-cap" style={{ color: capColor }}>
               {playing && focus ? "Live — hover, press, drag" : `${CAP[displayed]}${playing && live ? " · live" : ""}`}
@@ -172,7 +193,7 @@ export function CanvasView() {
               <div className="hero-slot hot" onPointerDown={(e) => e.stopPropagation()}>
                 <LiveArt playing scale={1}
                   cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus])}
-                  kit={{ id: focus, size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus],
+                  kit={{ id: focus, size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus],
                     icon: resolveKitIcon(kitIcons[focus], undefined), textOy: fOy, textOx: fOx,
                     dock: fDock, bar: fBar,
                     row: focus === "datarow" ? kitRow : undefined,
@@ -241,10 +262,12 @@ export function CanvasView() {
             aria-pressed={playing} onClick={() => { setCanvasMode("play"); }}>
             <Play size={17} strokeWidth={1.8} />
           </button>
+          {/* Dissect, not "help": the owner named the interaction — the mode
+              takes the artwork apart. A question mark undersold it. */}
           {phase === "master" && (
-            <button className={helpOn ? "on" : ""} title="Smart Help — rollover the art to find the control that edits it"
-              aria-pressed={helpOn} onClick={() => setHelpOn(!helpOn)}>
-              <CircleHelp size={17} strokeWidth={1.8} />
+            <button className={helpOn ? "on" : ""} title="Dissect — click any part of the art to see what it is and where to edit it"
+              aria-pressed={helpOn} aria-label="Dissect mode" onClick={() => setHelpOn(!helpOn)}>
+              <Microscope size={17} strokeWidth={1.8} />
             </button>
           )}
           <span className="zdiv" />

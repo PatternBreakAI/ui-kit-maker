@@ -791,6 +791,68 @@ export type KitComponentId =
   | "scorebug" | "friendrow" | "chatbubble" | "emotewheel" | "clancrest"
   | "seasontrack" | "achievetoast";
 export type KitSize = "s" | "m" | "l";
+/* ── Content slots — "editable within reason" ─────────────────────────
+   Every piece of text a component draws is a SLOT with a kind, and the
+   kind decides what editing offers (see docs/editability-audit.md):
+     free    type anything (maxLen caps it)
+     choice  pick from a curated list — no free typing, no exceptions
+     value   the number is DRIVEN — typing it moves the component
+     locked  fixed; the note explains why and points at the alternative
+   The table below is the single source of truth: the renderer reads the
+   chosen values, the panel GENERATES its controls from it, and the i card
+   generates its "what can I edit" manual from it. Proof components first
+   (speedo family); the full sweep migrates everything else onto it. */
+export type SlotKind = "free" | "choice" | "value" | "locked";
+export type SlotDef = {
+  id: string; name: string; kind: SlotKind;
+  /** choice: the curated list, first entry is the default */
+  choices?: string[];
+  maxLen?: number;
+  /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
+  note?: string;
+};
+export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  speedo: [
+    { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
+      note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
+    { id: "readout", name: "Readout", kind: "value",
+      note: "Driven by the value slider — the number and the needle move together. Set the value to stage the exact frame you want." },
+  ],
+  speedo2: [
+    { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
+      note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
+    { id: "readout", name: "Readout", kind: "value",
+      note: "Driven by the value slider — the number and the needle move together. Set the value to stage the exact frame you want." },
+  ],
+};
+
+/* ── Lessons — the authored half of the i card ────────────────────────
+   What the pattern is called, where it comes from, who does it well, and
+   further reading. Links open in new tabs (owner rule). One entry per
+   component as the sweep reaches it. */
+export type KitLesson = {
+  what: string; history: string; games: string; links: { label: string; url: string }[];
+};
+export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
+  speedo: {
+    what: "An analog gauge — the industry calls this a dial or needle gauge. Value maps to needle angle, with the danger zone marked in the alarm color.",
+    history: "Borrowed straight from car dashboards into racing games — Pole Position (1982) used a number, but by the era of Ridge Racer and Gran Turismo the skeuomorphic dial was the genre's signature. It survives because a needle's ANGLE reads faster in peripheral vision than a number.",
+    games: "Gran Turismo, Forza Horizon, Need for Speed — and outside racing, Dead Space's kinesis meters show how far the instrument idea travels.",
+    links: [
+      { label: "Speedometer — the real-world instrument", url: "https://en.wikipedia.org/wiki/Speedometer" },
+      { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
+    ],
+  },
+  speedo2: {
+    what: "The HUD cut of the analog gauge — same needle physics, drawn open-faced so it can sit over gameplay without a housing.",
+    history: "As racing games moved the camera behind the car, the dashboard dial left the cockpit and became a floating HUD instrument — keeping the needle (fast to read) while dropping the chrome.",
+    games: "Forza Horizon's minimal dial, Mario Kart's speed feel without any dial at all — a good study in when you need one.",
+    links: [
+      { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
+    ],
+  },
+};
+
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "primary", name: "Primary button" },
   { id: "dialog", name: "Dialog" },

@@ -88,24 +88,101 @@ becomes the single source of truth that drives all three surfaces:
 2. **The panel** generates its content section from the slot table — the
    allowlists are deleted, and "no fields for this component" becomes
    impossible by construction.
-3. **The canvas** gets click-to-edit: hover any `data-slot` text → glow +
-   text cursor; click → in-place input in the component's own font; Enter
-   commits, Esc reverts. Copy slots retype; the `value` slot is honestly
-   different — typing a number *drives the value* (type 87, the needle
-   sweeps there). Panel auto-scrolls to typography on entry (Smart Help's
-   routing already maps label→typography). Icons phase: click an icon →
-   the existing icon picker opens.
+3. **The canvas** gets a text MODE, not hover chrome. Owner decisions,
+   2026-07-25, superseding the earlier hover-glow sketch:
+   - The canvas is for viewing the artwork in all its splendor — no glowing
+     text, no always-on affordances. Pristine by default.
+   - Editing enters through the **T tool in the tray**: choose T and the
+     text becomes editable in place; leave T and the canvas is art again.
+   - **Dynamic readouts stay driven, and that is a feature.** In T mode a
+     value readout (the speedo's 108) is labeled as dynamic rather than
+     dressed as copy; typing a number DRIVES the component — type 88 and
+     the needle sweeps there, wanting the redline version is a legitimate
+     art direction. The only styling such text needs is its existing
+     nudge (lift/textOy).
+   - Unit words welded beside readouts (MPH) are copy, and edit normally.
+   - Context: a real audience uses this app to make one beautiful image —
+     music videos, t-shirts, album covers, games within games. For them,
+     an exact number on the dial IS the deliverable.
 
-Owner's design intent (2026-07-25): the canvas becomes the ONLY place words
-change; the panel styles. "Click any word to change it; use the panel to
-style it."
+## Slot kinds — "editable within reason" (owner, 2026-07-25)
+
+Free text everywhere is wrong, and the owner named the principle: **smart
+editing**. Every slot declares a kind, and the kind decides what the T tool
+offers when you click it:
+
+| Kind | Click behavior | Examples |
+|---|---|---|
+| **free** | type anything (per-slot max length) | button labels, names, quest titles, chat messages |
+| **choice** | pick from a curated list — no free typing, no exceptions | speedo unit: **MPH ↔ KPH only** (owner call, verbatim "no exceptions"). Each unit slot gets its own curated list (tacho, waypoint distance, timers). The list is per-slot data, so widening one later is an edit, not a redesign. |
+| **value** | typing a number DRIVES the component — the needle moves | speedo/tacho readouts, scores, counts, timers |
+| **locked** | shows a friendly card: what this is, why it's fixed, and what you CAN do instead | structural glyphs (+/− on the stepper), semantic marks (the checkmark), index numbers |
+
+**No dead clicks.** Clicking anything in T mode always answers. Locked text
+never fails silently — it explains itself and points at the alternative
+("this checkmark is the done-marker; swap the slot icon instead").
+
+## The "i" card — every component explains itself
+
+Owner requirement: each component carries an **ⓘ** affordance that says what
+the component is, what's editable on it, and how. The card is GENERATED from
+the slot table — name, one-line description, then each slot with its kind
+("Label — free text · Unit — MPH or KPH · Readout — driven by the value
+slider"). Because it's generated, it can never drift from the truth the way
+the old hand-kept allowlists did. Smart Help's part stamps and help mode are
+the natural mount point.
+
+**And the card teaches (owner, 2026-07-25).** The site should be educational
+about design itself — UI design, styles, history, the games that defined
+each pattern, further reading. So the ⓘ card is two layers:
+
+1. *The manual* (generated from the slot table): what's editable, how.
+2. *The lesson* (authored, one per component): what this pattern is called
+   in the industry, where it comes from, games that use it brilliantly,
+   what makes a good one, and one or two relevant links. The health globe
+   points at Diablo; the weapon wheel at its console lineage; the season
+   track at the battle-pass era. Industry vocabulary throughout — a student
+   should leave knowing the *names* of things.
+
+This is a product pillar, not a tooltip: it is the difference between an
+asset tool and a design education that happens to ship assets. It compounds
+the student/educator tier ("learn with the real tool" becomes literal) and
+it is content no competitor can copy overnight. ~115 short write-ups,
+authored once, reviewed by the owner as creative director.
+
+**Links open in new tabs** (owner, 2026-07-25): every external reference in
+a lesson card is `target="_blank"` with `rel="noopener noreferrer"` — the
+reader never loses their work to a citation.
+
+## Language follows the visitor (owner, 2026-07-25 — separate workstream)
+
+If someone picks a language on the homepage, the APP must adopt it
+throughout. The homepage already persists the choice (`ui-generator-lang`
+in localStorage, seven locales); the editor simply never reads it.
+
+Honest sizing: this is a major workstream, not a toggle. The editor has
+hundreds of strings (panel sections, tooltips, buttons, error messages),
+none behind a translation layer today — and the ~115 lesson cards
+eventually multiply by seven. Phasing that keeps it honest:
+
+1. **Plumb the choice now** — the editor reads the stored language and a
+   string table exists, English-first. Cheap, unblocks everything.
+2. **Translate the shell** — the chrome a user touches constantly (section
+   names, common buttons, export menu). Bounded, high-visibility.
+3. **The long tail** — every tooltip, error and lesson card. Content work
+   on the scale of the front door's seven-locale build; plan it as such.
+
+Until phase 2 lands, the honest position is what exists: the SITE speaks
+seven languages, the TOOL speaks English. Nothing on the front door should
+claim otherwise.
 
 ## Build order
 
 | Phase | What | Size |
 |---|---|---|
+| 0 ✅ | **Proof piece shipped 2026-07-25**: KIT_SLOTS/KIT_LESSONS tables, speedo family unit as MPH↔KPH choice, value slot explained not faked, generated panel controls, two-layer ⓘ card with new-tab links | done — the pattern every sweep component follows |
 | 1 | Slot tables + un-weld all 115 renderers + stamped text + generated panel section (kills both root causes) | the big one — wide but mechanical |
-| 2 | Canvas hover/click/type editing riding the stamps | medium |
+| 2 | T-mode canvas editing riding the stamps: free/choice/value/locked behaviors + the ⓘ card | medium |
 | 3 | Icon click-to-swap + un-weld pattern-8 icons | small-medium |
 | 4 | Demo datasets as row slots (leaderboard, listmenu…) | medium, can trail launch if the rows are labeled as specimen data |
 

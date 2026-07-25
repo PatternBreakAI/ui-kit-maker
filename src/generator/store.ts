@@ -327,6 +327,8 @@ interface GenStore {
   tier: Tier;
   loadCloudPresets: () => Promise<void>;
   applyCloudPreset: (id: string) => void;
+  kitSlotVals: Partial<Record<KitComponentId, Record<string, string>>>;
+  setKitSlot: (id: KitComponentId, slotId: string, val: string | null) => void;
   publishPreset: (name: string, publishAt?: string | null) => Promise<string | null>;
   schedulePreset: (id: string, publishAt: string | null) => Promise<string | null>;
   removeCloudPresetById: (id: string) => Promise<void>;
@@ -687,7 +689,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
     };
   },
@@ -705,6 +707,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitLabels: (p.kitLabels as GenStore["kitLabels"]) ?? {},
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
+      kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
       kitSizes: (p.kitSizes as GenStore["kitSizes"]) ?? {},
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
@@ -786,6 +789,18 @@ export const useGen = create<GenStore>((set, get) => ({
     if (def) kitIcons[id] = def; else delete kitIcons[id];
     saveJson("ui-generator-kiticons", kitIcons);
     set({ kitIcons });
+  },
+  /* Chosen slot values per component (unit choices etc). Same lifecycle
+     as kitLabels: local, synced with the workspace, riding kit payloads. */
+  kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
+  setKitSlot: (id, slotId, val) => {
+    markTouched();
+    const kitSlotVals = { ...get().kitSlotVals };
+    const cur = { ...(kitSlotVals[id] ?? {}) };
+    if (val !== null && val !== "") cur[slotId] = val; else delete cur[slotId];
+    if (Object.keys(cur).length) kitSlotVals[id] = cur; else delete kitSlotVals[id];
+    saveJson("ui-generator-kitslots", kitSlotVals);
+    set({ kitSlotVals });
   },
   kitLabels: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitlabels", {}),
   setKitLabel: (id, label) => {
