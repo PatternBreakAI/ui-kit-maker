@@ -47,6 +47,9 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | **Game kit** | Sprite sheet PNG at **2×**, states stacked vertically, plus `ui-<preset>-kit.json` with per-state rects, suggested nine-slice insets, and Unity/Unreal import notes. |
 | **Sprite sheet** | One labelled catalog image. **A visual reference for humans, not a slicing source.** Guest gets a five-component starter sheet. |
 | **LICENCE.txt** | In every Pro bundle. Names the account, issue time and reference. |
+| **README.md** | In the SVG pack and engine kit: how the bundle is laid out, plus **the full recipe** — every colour role with its hex, silhouette and bevel, depth and light, gloss and specular geometry, pattern and texture, the complete typography block, and the per-state adjustments. Enough to rebuild the kit by hand in any tool. |
+| **settings.json** | The complete `GenConfig` beside the README — drop it into Export › Import settings to restore the exact kit. |
+| **fonts/FONT-LICENSE.md** | Every embedded family with its authoritative licence link, a plain-English summary of what the buyer may do, and the full SIL OFL 1.1 text. Required: embedding a face **is** redistribution. |
 
 ### 1.3 Filter portability (fixed v85.1)
 
@@ -101,6 +104,13 @@ by accident.
 | "Import our SVGs into After Effects" | AE has **no native SVG import**. | Point AE users at PNG sequences, or at Illustrator as the intermediate. |
 | "Pixel-art ready" (Aseprite) | Our output is smooth vector-derived art, not pixel art. | "Opens as flat transparent PNGs for reference or overpainting." |
 | "Your assets are protected / can't be copied" | The renderer runs in the browser; on-screen SVG is in the DOM. | "Every paid export is licensed to your account and traceable." |
+
+**Newly APPROVED (v85.2):** "Every kit ships with its own recipe — every
+colour, token and type setting written out, plus a settings file that loads
+straight back into the app." True of the SVG pack and engine kit.
+
+**Also APPROVED:** "The fonts come licensed for commercial use, with the
+terms in the box." True — `fonts/FONT-LICENSE.md`.
 
 ---
 
