@@ -364,3 +364,16 @@ drop policy if exists "student_ids_delete_own" on storage.objects;
 create policy "student_ids_delete_own" on storage.objects
   for delete to authenticated
   using (bucket_id = 'student-ids' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ── mailing list mirror (v88) ────────────────────────────────────────
+-- /api/subscribe forwards sign-ups to Buttondown (the record of consent
+-- and unsubscribes) and mirrors a copy here so we own our list. Written
+-- only by the service role; RLS is enabled with NO policies, so the anon
+-- and authenticated keys can neither read nor write a single row.
+create table if not exists public.mailing_list (
+  email      text primary key,
+  source     text,
+  locale     text,
+  created_at timestamptz not null default now()
+);
+alter table public.mailing_list enable row level security;
