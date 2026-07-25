@@ -420,6 +420,46 @@ export function effectiveWall(width: number, shape: Shape, off?: boolean): numbe
 /** Inner shape at true offset `delta` — falls back to the classic scaled
  *  inset for arc-built paths (pill/round — convex, scaling was never wrong)
  *  and for offsets too deep to survive. */
+/* ── portable drop shadow (SVG 1.1) ───────────────────────────────────
+   `feDropShadow` is NOT part of SVG 1.1 — it arrived later, in the Filter
+   Effects module. Importers that target 1.1 (Illustrator, Affinity,
+   Sketch, Inkscape) treat a filter referencing an unknown primitive as an
+   error, and the spec says an element in error is NOT RENDERED. That is
+   exactly why exported type used to arrive in the layer tree but paint
+   nothing: our shells filter with feGaussianBlur / feTurbulence /
+   feColorMatrix (all 1.1, all fine) while our TEXT filtered with
+   feDropShadow.
+
+   This chain is the portable equivalent — blur the alpha, offset it, flood
+   it with the shadow colour, mask, and merge back under the source. It
+   rasterizes identically in browsers and parses everywhere.
+
+   Pass `inp`/`out` to stack several: each stage reads the previous merge. */
+let SH11 = 0;
+export function shadow11(
+  dx: number | string, dy: number | string, dev: number | string,
+  color: string, op: number | string,
+  inp = "SourceGraphic", out?: string,
+): string {
+  const u = "d" + SH11++;
+  const d = typeof dev === "number" ? dev.toFixed(1) : dev;
+  return `<feGaussianBlur in="${inp}" stdDeviation="${d}" result="${u}b"/>`
+    + `<feOffset in="${u}b" dx="${dx}" dy="${dy}" result="${u}o"/>`
+    + `<feFlood flood-color="${color}" flood-opacity="${op}" result="${u}c"/>`
+    + `<feComposite in="${u}c" in2="${u}o" operator="in" result="${u}s"/>`
+    + `<feMerge${out ? ` result="${out}"` : ""}><feMergeNode in="${u}s"/><feMergeNode in="${inp}"/></feMerge>`;
+}
+
+/** Stack shadow specs into one 1.1-safe chain, each reading the last. */
+type ShadowSpec = [number | string, number | string, number | string, string, number | string];
+export function shadowChain11(specs: ShadowSpec[]): string {
+  return specs.map((s, i) => shadow11(
+    s[0], s[1], s[2], s[3], s[4],
+    i === 0 ? "SourceGraphic" : `m${i - 1}`,
+    i === specs.length - 1 ? undefined : `m${i}`,
+  )).join("");
+}
+
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
     const off = offsetPathInward(outer, delta);
@@ -1156,9 +1196,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // region — CSS filters on SVG text clip and misrender in Safari, which is
   // exactly the "cut-off italics / invisible emboss" failure. Geometry scales
   // with the type size so a 76px headline carries the same relief as 40px.
-  const prims: string[] = [];
-  const fds = (dx: number | string, dy: number | string, dev: number, color: string, op: number | string) =>
-    `<feDropShadow dx="${dx}" dy="${dy}" stdDeviation="${dev.toFixed(1)}" flood-color="${color}" flood-opacity="${op}"/>`;
+  const prims: ShadowSpec[] = [];
+  // specs, not markup — shadowChain11 stacks them as portable SVG 1.1
+  const fds = (dx: number | string, dy: number | string, dev: number, color: string, op: number | string): ShadowSpec =>
+    [dx, dy, dev.toFixed(1), color, op];
   const fsc = fs / 40;
   if (T2.emboss.on && !disabled) {
     // emboss (raised) or deboss (engraved). The relief follows the master
@@ -1186,7 +1227,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     prims.push(fds(0, 0, T2.glow.size * 0.8, T2.glow.color, ((T2.glow.opacity / 100) * 0.6).toFixed(2)));
   }
   const textFxDef = prims.length
-    ? `<filter id="${id}tf" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${prims.join("")}</filter>`
+    ? `<filter id="${id}tf" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
   const textFilter = prims.length ? ` filter="url(#${id}tf)"` : "";
   const outlineStroke = T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color);
@@ -1659,15 +1700,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       fill4 = `url(#${gid4}g)`;
     }
     const fsc4 = fs2 / 40;
-    const prims4: string[] = [];
-    const fd4 = (dx3: string, dy3: string, dev: number, col: string, op3: string) =>
-      `<feDropShadow dx="${dx3}" dy="${dy3}" stdDeviation="${dev.toFixed(1)}" flood-color="${col}" flood-opacity="${op3}"/>`;
+    const prims4: ShadowSpec[] = [];
+    const fd4 = (dx3: string, dy3: string, dev: number, col: string, op3: string): ShadowSpec =>
+      [dx3, dy3, dev.toFixed(1), col, op3];
     if (T4.shadow.on) prims4.push(fd4((T4.shadow.x * fsc4).toFixed(1), (T4.shadow.y * fsc4).toFixed(1), T4.shadow.blur * fsc4 * 0.5, T4.shadow.color, (T4.shadow.opacity / 100).toFixed(2)));
     if (T4.glow.on && state !== "disabled") {
       prims4.push(fd4("0", "0", T4.glow.size * 0.3, T4.glow.color, (T4.glow.opacity / 100).toFixed(2)));
       prims4.push(fd4("0", "0", T4.glow.size * 0.8, T4.glow.color, ((T4.glow.opacity / 100) * 0.6).toFixed(2)));
     }
-    if (prims4.length) defs4 += `<filter id="${gid4}f" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${prims4.join("")}</filter>`;
+    if (prims4.length) defs4 += `<filter id="${gid4}f" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
     const outline4 = T4.outline.on && state !== "disabled"
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
       : "";
@@ -1711,7 +1752,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       over += `<path d="${roundRect(bx2, by2, fw2, bh2, r2)}" fill="url(#${gid}is)"/>`;
     }
     if (fw2 > 1 && BFX?.glow.on && state !== "disabled") {
-      defs += `<filter id="${gid}bg" x="-60%" y="-160%" width="220%" height="420%" color-interpolation-filters="sRGB"><feDropShadow dx="0" dy="0" stdDeviation="${(BFX.glow.size * 0.6).toFixed(1)}" flood-color="${BFX.glow.color}" flood-opacity="${(BFX.glow.opacity / 100).toFixed(2)}"/></filter>`;
+      defs += `<filter id="${gid}bg" x="-60%" y="-160%" width="220%" height="420%" color-interpolation-filters="sRGB">${shadow11(0, 0, (BFX.glow.size * 0.6).toFixed(1), BFX.glow.color, (BFX.glow.opacity / 100).toFixed(2))}</filter>`;
       open = `<g filter="url(#${gid}bg)">`; close = "</g>";
     }
     return { defs, over, open, close };
@@ -4861,10 +4902,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
         return inject(track.replace("<svg ", '<svg data-race="speedo2" '),
-          `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="${(4 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.7"/></filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
+          `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
       }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="HUD speedometer" data-race="speedo2">
-<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="${(4 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.7"/></filter></defs>
+<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs>
 <g opacity="${dim}">${segs}${arc}${readout}</g>
 </svg>`;
     }
@@ -4900,7 +4941,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(trackT.replace("<svg ", `<svg data-race="tacho"${v3 > 0.82 ? ' data-urgent="1"' : ""} `),
         `<defs>
   <linearGradient id="${gidT2}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient>
-  <filter id="${gidT2}g" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="0" stdDeviation="${(3.5 * k).toFixed(1)}" flood-color="${v3 > 0.82 ? alarm : "#7CE6A0"}" flood-opacity="0.5"/></filter>
+  <filter id="${gidT2}g" x="-40%" y="-40%" width="180%" height="180%">${shadow11(0, 0, (3.5 * k).toFixed(1), v3 > 0.82 ? alarm : "#7CE6A0", 0.5)}</filter>
 </defs>
 <g opacity="${dim}">
   <circle cx="${cx3}" cy="${cy3}" r="${r0}" fill="url(#${gidT2})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>
@@ -4937,7 +4978,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* isometric squash makes the extrusion read as elevation */
       const iso = (inner: string) => `<g transform="translate(0 ${(H2 * 0.13).toFixed(1)}) scale(1 0.74)">${inner}</g>`;
       if (opts.part === "track") {
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}"><defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="0" stdDeviation="${(3 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.55"/></filter></defs>${iso(track)}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}"><defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.55)}</filter></defs>${iso(track)}</svg>`;
       }
       const markers =
         `<circle cx="${(64 * sx3 + pad2).toFixed(1)}" cy="${(68 * sy3 + pad2).toFixed(1)}" r="${(6.5 * k).toFixed(1)}" fill="${glow}" filter="url(#${gid9}g)"/>` +
@@ -4945,7 +4986,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<circle cx="${(114 * sx3 + pad2).toFixed(1)}" cy="${(34 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${hexMix("#FF4D5A", bevel, 0.18)}" opacity="0.9"/>`;
       const tag = `<text x="${(cxOf(W2)).toFixed(1)}" y="${(H2 - 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">KAZURI RING · GP CIRCUIT</text>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="race circuit map" data-race="circuit">
-<defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="0" stdDeviation="${(3 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.55"/></filter></defs>
+<defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.55)}</filter></defs>
 <g opacity="${dim}">${iso(track + markers)}${tag}</g>
 </svg>`;
     }
@@ -5063,7 +5104,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }).join("");
       const legY = 30 + inset + 16 * k;
       const parts = wellD +
-        `<defs><filter id="${gid12}g" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="${(3 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.7"/></filter></defs>` +
+        `<defs><filter id="${gid12}g" x="-60%" y="-60%" width="220%" height="220%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.7)}</filter></defs>` +
         `<text x="${x0.toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".14em" fill="rgba(255,255,255,0.92)">LAP COMPARISON</text>` +
         `<line x1="${(x1 - 104 * k).toFixed(1)}" y1="${(legY - 3.5 * k).toFixed(1)}" x2="${(x1 - 90 * k).toFixed(1)}" y2="${(legY - 3.5 * k).toFixed(1)}" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linecap="round"/>` +
         `<text x="${(x1 - 85 * k).toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.85)">YOU</text>` +
@@ -5111,7 +5152,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<line x1="${px0.toFixed(1)}" y1="${(y0 + H3 * t).toFixed(1)}" x2="${px1.toFixed(1)}" y2="${(y0 + H3 * t).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="2 4"/>`).join("");
       const legY = 30 + inset + 16 * k;
       const parts = wellD +
-        `<defs><filter id="${gid13}g" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="${(3 * k).toFixed(1)}" flood-color="${glow}" flood-opacity="0.65"/></filter></defs>` +
+        `<defs><filter id="${gid13}g" x="-60%" y="-60%" width="220%" height="220%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.65)}</filter></defs>` +
         `<text x="${x0.toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".14em" fill="rgba(255,255,255,0.92)">TELEMETRY · S2</text>` +
         `<text x="${x1.toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="800"><tspan fill="#4ADE80">THR</tspan><tspan fill="rgba(255,255,255,0.3)">  </tspan><tspan fill="${brkC}">BRK</tspan><tspan fill="rgba(255,255,255,0.3)">  </tspan><tspan fill="${glow}">SPD</tspan></text>`.replace('font-weight="800">', 'font-weight="800" text-anchor="end">') +
         vgrid +
@@ -5160,7 +5201,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const tag = isBase ? "" :
         `<text x="${(W2 / 2).toFixed(1)}" y="${(hy + housH + 24 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${lit === 0 ? "#4ADE80" : isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">${lit === 0 ? "LIGHTS OUT" : "GET READY"}</text>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" data-shell="${hx.toFixed(1)} ${hy.toFixed(1)} ${housW.toFixed(1)} ${housH.toFixed(1)}" role="img" aria-label="start lights" data-race="lights">
-<defs><filter id="${gid14}g" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="0" stdDeviation="${(6 * k).toFixed(1)}" flood-color="${alarm}" flood-opacity="0.8"/></filter></defs>
+<defs><filter id="${gid14}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (6 * k).toFixed(1), alarm, 0.8)}</filter></defs>
 <g opacity="${dim}">
   <rect x="${(W2 / 2 - 3 * k).toFixed(1)}" y="${(pad5 - 12 * k).toFixed(1)}" width="${(6 * k).toFixed(1)}" height="${(16 * k).toFixed(1)}" fill="${darken(bevel, 0.5)}"/>
   <path d="${roundRect(hx, hy, housW, housH, 14 * k)}" fill="${hexMix(bevel, "#0A0C14", 0.68)}" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>

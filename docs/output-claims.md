@@ -48,7 +48,36 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | **Sprite sheet** | One labelled catalog image. **A visual reference for humans, not a slicing source.** Guest gets a five-component starter sheet. |
 | **LICENCE.txt** | In every Pro bundle. Names the account, issue time and reference. |
 
-### 1.3 Motion
+### 1.3 Filter portability (fixed v85.1)
+
+Every filter we emit is now **SVG 1.1**. This was a real bug, found by
+opening an export in Illustrator: everything imported except the type,
+which landed in the layer tree and painted nothing.
+
+The cause was not fonts and not `paint-order`. `feDropShadow` is **not part
+of SVG 1.1** — it arrived later, in the Filter Effects module — and SVG 1.1
+says an element whose filter is in error is *not rendered*. Our shells
+filter with `feGaussianBlur` / `feTurbulence` / `feColorMatrix` (all 1.1, so
+they came through fine) while our **text** filtered with `feDropShadow`.
+That is precisely the "everything but the type" signature.
+
+All shadow and glow filters now build from a portable 1.1 chain
+(`shadow11` / `shadowChain11` in `bevel.ts`): blur the alpha, offset, flood,
+mask, merge. Verified pixel-equivalent in-browser — 97% of changed pixels
+differ by 1/255, max delta 5, confined to the glyph edges.
+
+**Text stays live and editable** — no outlining needed, which is the better
+outcome: type you can restyle in Illustrator beats type flattened to paths.
+
+Remaining known importer gaps, unaffected by this fix:
+- `dominant-baseline="central"` is unsupported by Illustrator, which falls
+  back to the alphabetic baseline — text may sit low. Worth an export-time
+  `dy` pass if it proves annoying.
+- `paint-order="stroke"` is unsupported there too, so a text outline paints
+  over its own fill instead of behind it. Only affects pieces with the
+  outline enabled.
+
+### 1.4 Motion
 
 SMIL (`<animate>`) rides inside exported SVGs for the pieces that carry it
 (spinner, globes, wheels, breathing rings). It animates in browsers. It is
@@ -107,11 +136,16 @@ with it.
 - **Our answer:** named groups per material layer — shell, face, gloss, specular, content — so the tree is readable and recolourable.
 - **Test first:** **Figma has no SVG filter-primitive support.** Our shadows, glows and noise are `feGaussianBlur` / `feTurbulence` / `feColorMatrix`. They may drop or flatten on import. Open a real export in Figma and look before we promise "fully editable." This single question decides how strong the Figma claim can be.
 
-### Illustrator — NEEDS TEST
+### Illustrator — APPROVED (retest after v85.1)
 - **Accepts:** SVG natively; groups and `id`s become named layers.
 - **Pain point:** downloaded kits open as one flattened path or a linked raster.
 - **Our answer:** the same named layer tree, plus real gradients and geometry.
-- **Test first:** how filter effects survive the round trip.
+- **Confirmed by the owner:** everything imports. Type was invisible until
+  v85.1 — see §1.3; the cause was `feDropShadow` (not SVG 1.1), now fixed.
+  Retest to confirm the type paints, then this becomes a strong claim:
+  "opens as a named layer tree with live, editable type."
+- **Still expect:** baseline shift (`dominant-baseline`) and outline-over-fill
+  (`paint-order`) on pieces that use them.
 
 ### Photoshop — APPROVED (with the correction above)
 - **Accepts:** PNG with alpha; SVG via Open/Place, rasterized into a Smart Object at a chosen size.
