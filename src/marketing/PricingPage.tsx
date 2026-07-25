@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Check, Gift, Loader2 } from "lucide-react";
+import {
+  Check, X, Calendar, ShieldCheck, Compass, Crown, GraduationCap,
+  Loader2, Globe, Target, Code2, ChevronRight, BadgeCheck, Sparkle,
+} from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
 import { openAuth } from "@/shell/authOverlay";
@@ -7,21 +10,67 @@ import { cloudConfig } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { startCheckout } from "@/generator/billing";
 
-/* Three columns, no fine print games: what each tier actually does, in the
-   product's voice. The Pro column takes real money through Stripe Checkout:
-   signed-out visitors are sent to sign-in first (a subscription needs an
-   account to attach to), and the upgrade itself is granted server-side by
-   the webhook — never by this page. */
+/* #/pricing — three tiers, in the product's own voice.
 
-const ROWS: { label: string; guest: string; free: string; pro: string }[] = [
-  { label: "Kit components", guest: "5 — proof of concept", free: "Full kit", pro: "Full kit" },
-  { label: "Starter presets", guest: "4", free: "6 + two packs at signup", pro: "All + shared library" },
-  { label: "Zoom", guest: "100%", free: "150%", pro: "Unlimited" },
-  { label: "PNG export", guest: "Starter sheet 1×", free: "1×", pro: "Up to 4×" },
-  { label: "Vector exports (SVG · HTML · game kit)", guest: "—", free: "—", pro: "Included" },
-  { label: "Cloud saves & named projects", guest: "—", free: "Included", pro: "Included" },
-  { label: "Share links", guest: "Read-only viewer", free: "Included", pro: "Included" },
+   Explorer is the no-account trial (today's guest caps exactly), Pro is the
+   one everyone buys, Student is the same tool at a verified discount. The
+   Pro column takes real money through Stripe Checkout: signed-out visitors
+   sign in first (a subscription needs an account to attach to), and the
+   upgrade is granted server-side by the webhook — never by this page. */
+
+type Row = { label: string; on?: boolean };
+
+const EXPLORER: Row[] = [
+  { label: "Starter kit components" },
+  { label: "4 starter presets" },
+  { label: "100% zoom" },
+  { label: "Limited PNG export" },
+  { label: "Read-only share links" },
+  { label: "No vector exports or cloud saves", on: false },
 ];
+
+const PRO: Row[] = [
+  { label: "Full kit components" },
+  { label: "All starter presets + shared library" },
+  { label: "Unlimited zoom" },
+  { label: "PNG export up to 4×" },
+  { label: "Vector exports: SVG, HTML, JSON, game kit" },
+  { label: "Cloud saves & named projects" },
+  { label: "Share links included" },
+  { label: "Commercial use included" },
+];
+
+const STUDENT: Row[] = [
+  { label: "Full kit components" },
+  { label: "Essential preset library" },
+  { label: "150% zoom" },
+  { label: "PNG export 1×" },
+  { label: "SVG + HTML export" },
+  { label: "Cloud saves included" },
+  { label: "Share links included" },
+];
+
+const PROOF = [
+  { icon: Globe, title: "Runs in your browser", note: "No installs. Always up to date." },
+  { icon: Target, title: "Deterministic, not AI", note: "You control every pixel." },
+  { icon: ShieldCheck, title: "Commercial use included", note: "Ship with confidence." },
+  { icon: Code2, title: "Export for engines, web, and mockups", note: "SVG, HTML, JSON & more." },
+];
+
+function Rows({ rows }: { rows: Row[] }) {
+  return (
+    <ul>
+      {rows.map((r) => (
+        <li key={r.label} className={r.on === false ? "is-off" : undefined}>
+          {r.on === false
+            ? <X size={14} strokeWidth={2.6} />
+            : <Check size={14} strokeWidth={2.8} />}
+          <span>{r.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function PricingPage() {
   const status = useCloudStatus();
@@ -42,40 +91,54 @@ export function PricingPage() {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
+        <span className="fd-pricing__mark">PatternBreak</span>
       </header>
+
       <main>
+        <div className="fd-pricing__pills">
+          <span className="fd-pill"><Calendar size={13} strokeWidth={2.2} /> Annual pricing</span>
+          <span className="fd-pill"><ShieldCheck size={13} strokeWidth={2.2} /> Commercial use included</span>
+        </div>
+
         <h1>Pick your tier</h1>
-        <p className="fd-pricing__sub">Everything is made in your browser and everything you export is yours to ship — the tiers only decide how much of the machine you're holding.</p>
+        <p className="fd-pricing__sub">
+          Everything runs in your browser, and what you export is yours to ship.<br />
+          Start with Free Explorer, then upgrade when you're ready for the full production toolkit.
+        </p>
+
         <div className="fd-pricing__cols">
+          {/* ── Explorer — the no-account trial ── */}
           <section className="fd-pricing__col">
+            <span className="fd-pricing__ico"><Compass size={17} strokeWidth={2.1} /></span>
             <h2>Explorer</h2>
-            <div className="fd-pricing__price">Free<span> · no account</span></div>
-            <ul>
-              {ROWS.map((r) => <li key={r.label}><Check size={13} strokeWidth={2.4} /><span><b>{r.label}:</b> {r.guest}</span></li>)}
-            </ul>
-            <button className="fd-pricing__cta fd-pricing__cta--ghost" onClick={() => navigate("#/app")}>Open the generator</button>
+            <div className="fd-pricing__price">Free</div>
+            <div className="fd-pricing__note">No account required</div>
+            <div className="fd-pricing__forwho">Try the system</div>
+            <Rows rows={EXPLORER} />
+            <button className="fd-pricing__cta fd-pricing__cta--ghost" onClick={() => navigate("#/app")}>
+              Start Building Free <ChevronRight size={15} strokeWidth={2.4} />
+            </button>
           </section>
+
+          {/* ── Pro — the one that pays for the thing ── */}
           <section className="fd-pricing__col fd-pricing__col--mid">
-            <div className="fd-pricing__tag"><Gift size={12} strokeWidth={2.4} /> TWO PACKS AT SIGNUP</div>
-            <h2>Player</h2>
-            <div className="fd-pricing__price">Free<span> · account</span></div>
-            <ul>
-              {ROWS.map((r) => <li key={r.label}><Check size={13} strokeWidth={2.4} /><span><b>{r.label}:</b> {r.free}</span></li>)}
-            </ul>
-            <button className="fd-pricing__cta" onClick={() => openAuth("signin")}>Create free account</button>
-          </section>
-          <section className="fd-pricing__col">
+            <div className="fd-pricing__tag"><Crown size={12} strokeWidth={2.6} /> MOST POPULAR</div>
+            <span className="fd-pricing__ico fd-pricing__ico--pro"><Sparkle size={17} strokeWidth={2.1} /></span>
             <h2>Pro</h2>
-            <div className="fd-pricing__price">$29.99<span> · per year</span></div>
-            <ul>
-              {ROWS.map((r) => <li key={r.label}><Check size={13} strokeWidth={2.4} /><span><b>{r.label}:</b> {r.pro}</span></li>)}
-            </ul>
-            <button className="fd-pricing__cta" disabled={busy || !billingLive}
+            <div className="fd-pricing__price">$29.99<span> / year</span></div>
+            <div className="fd-pricing__note fd-pricing__note--accent">Founding price</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--accent">For creators who ship</div>
+            <Rows rows={PRO} />
+            <button className="fd-pricing__cta fd-pricing__cta--pro" disabled={busy || !billingLive}
               title={billingLive ? "Secure checkout on Stripe" : "Checkout isn't available on this deployment."}
               onClick={() => void goPro()}>
-              {busy ? (<><Loader2 size={13} strokeWidth={2.4} className="fd-spin" /> Opening checkout…</>)
-                : signedIn ? "Go Pro — $29.99/year" : "Sign in and go Pro"}
+              {busy
+                ? (<><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Opening checkout…</>)
+                : (<>{signedIn ? "Go Pro" : "Sign in and go Pro"} <ChevronRight size={15} strokeWidth={2.4} /></>)}
             </button>
+            <p className="fd-pricing__founding">
+              <ShieldCheck size={12} strokeWidth={2.2} /> Founding members keep this price while subscribed.
+            </p>
             {/* The annual-renewal disclosure of record. It must appear before
                 payment: Stripe Managed Payments rejects custom_text, so
                 Checkout can't carry it and this line does. Wording tracks
@@ -88,7 +151,44 @@ export function PricingPage() {
             </p>
             {err && <p className="fd-pricing__err">{err}</p>}
           </section>
+
+          {/* ── Student — same tool, verified discount ── */}
+          <section className="fd-pricing__col fd-pricing__col--edu">
+            <div className="fd-pricing__tag fd-pricing__tag--edu"><BadgeCheck size={12} strokeWidth={2.6} /> VERIFIED DISCOUNT</div>
+            <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
+            <h2>Student</h2>
+            <div className="fd-pricing__price">$15.99<span> / year</span></div>
+            <div className="fd-pricing__note">For verified students</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--edu">Learn with the real tool</div>
+            <Rows rows={STUDENT} />
+            <button className="fd-pricing__cta fd-pricing__cta--edu" onClick={() => navigate("#/student")}>
+              Get Student Access <ChevronRight size={15} strokeWidth={2.4} />
+            </button>
+          </section>
         </div>
+
+        <div className="fd-proof">
+          {PROOF.map(({ icon: Ico, title, note }) => (
+            <div className="fd-proof__item" key={title}>
+              <span className="fd-proof__ico"><Ico size={17} strokeWidth={2} /></span>
+              <div>
+                <b>{title}</b>
+                <span>{note}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <section className="fd-studio">
+          <div>
+            <h3>Need a studio or classroom plan?</h3>
+            <p>Custom seats, team libraries, and flexible licensing.</p>
+          </div>
+          <a className="fd-pricing__cta fd-pricing__cta--ghost" href="mailto:hello@uikitmaker.com?subject=Studio%20%2F%20classroom%20plan">
+            Contact us <ChevronRight size={15} strokeWidth={2.4} />
+          </a>
+        </section>
+
         <p className="fd-pricing__fine">License in one line: ship your kits in any product, commercial included — just don't resell or redistribute the assets themselves.</p>
       </main>
     </div>
