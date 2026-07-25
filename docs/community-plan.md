@@ -18,7 +18,25 @@ need profile pages: picture, name, likes (**no comments**), "use this kit."
   pieces" card can be REAL renders, the same trick as the pricing page HUD.
 - Curated shared presets + admin publishing + scheduled release.
 
-## The two decisions that need the owner before any build
+## Decisions landed (owner, 2026-07-25)
+
+1. **Consent framing: YES** to the recommended framing — public-by-default
+   sold as the stage it is, said at the save moment, with private as the
+   Pro doorway in the same sentence. Shipped: the consent note lives under
+   the project-save box; RLS enforces the same line server-side.
+2. **Students are PUBLIC** — learning in the open, portfolios want an
+   audience.
+3. **Pros keep their toggle** — defaults private, may opt INTO the
+   community per project. (Their existing per-project public/private
+   switch is unchanged.)
+4. **Community-lite** (owner, verbatim intent): keep the it-happens-in-
+   your-browser ethos. The gallery fetches once per page view and renders
+   every card LIVE from the kit's settings with the same engine that draws
+   the editor — no server rendering, no realtime, no live counters. Likes
+   flip optimistically on screen and sync underneath; counts refresh when
+   the page refreshes. Cheapest thing to run, truest to the product.
+
+## Superseded — the two decisions that needed the owner
 
 1. **Consent framing for public-by-default.** Auto-publishing a user's
    work is a real policy shift: the schema, the Terms and the current UX

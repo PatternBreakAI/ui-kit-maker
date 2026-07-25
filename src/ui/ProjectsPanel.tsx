@@ -30,6 +30,9 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   const [renameVal, setRenameVal] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const kitName = useGen((s) => s.kitName);
+  const tier = useGen((s) => s.tier);
+  const isAdmin = useGen((s) => s.isAdmin);
+  const canPrivate = tier === "pro" || isAdmin;
 
   const refresh = async () => {
     const { projects, error } = await listProjects();
@@ -52,7 +55,12 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     // the kit takes the project's name, so the kit-page title reflects the
     // project you just saved (and the saved snapshot carries it)
     useGen.getState().setKitName(name);
-    const { project, error } = await saveProject(name, useGen.getState().kitPayload());
+    const st = useGen.getState();
+    /* the consent moment's other half: free & student kits save PUBLIC
+       (the community launch); Pro and admin default private and keep
+       their toggle. RLS enforces the same line server-side. */
+    const canPrivate = st.tier === "pro" || st.isAdmin;
+    const { project, error } = await saveProject(name, st.kitPayload(), !canPrivate);
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
@@ -101,6 +109,13 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   };
 
   const togglePublic = async (p: CloudProject) => {
+    /* free & student going PRIVATE is the Pro doorway, said honestly —
+       not an RLS error. Publishing (the other direction) is open to all. */
+    const st = useGen.getState();
+    if (p.is_public && !(st.tier === "pro" || st.isAdmin)) {
+      setNote("Private kits come with Pro — free and student kits are part of the community.");
+      return;
+    }
     setBusy(true); setNote(null);
     const { share_slug, error } = await setProjectPublic(p.id, !p.is_public);
     setBusy(false);
@@ -124,7 +139,15 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           <Save size={15} strokeWidth={1.8} /> Save
         </button>
       </div>
-
+      {!canPrivate && (
+        /* THE CONSENT MOMENT — said where the decision happens, not in
+           fine print: free & student kits are community kits. The same
+           sentence is the product's cleanest Pro doorway. */
+        <div className="proj-consent">
+          Saved kits join the <b>community gallery</b> once curated — that's the free plan's stage.
+          Want them private? That comes with <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>Pro</button>.
+        </div>
+      )}
       {note && <div className="menu-note acct-note">{note}</div>}
 
       <div className="proj-list">

@@ -611,12 +611,17 @@ export async function listProjects(): Promise<{ projects: CloudProject[]; error:
   return { projects: (data ?? []) as CloudProject[], error: null };
 }
 
-export async function saveProject(name: string, doc: unknown): Promise<{ project: CloudProject | null; error: string | null }> {
+/** Save a named kit. Visibility is decided by the CALLER from the tier —
+    free and student kits are public by default (the community launch,
+    owner call 2026-07-25), Pro defaults private with its toggle. RLS
+    enforces the same rule server-side, so a tampered client changes
+    nothing. */
+export async function saveProject(name: string, doc: unknown, isPublic: boolean): Promise<{ project: CloudProject | null; error: string | null }> {
   const client = await getClient();
   if (!client || !session) return { project: null, error: "Sign in to save projects." };
   const clean = name.trim().slice(0, 120) || "Untitled kit";
   const { data, error } = await client.from("projects")
-    .insert({ user_id: session.user.id, name: clean, doc }).select(PROJECT_COLS).maybeSingle();
+    .insert({ user_id: session.user.id, name: clean, doc, is_public: isPublic }).select(PROJECT_COLS).maybeSingle();
   if (error) return { project: null, error: error.message };
   return { project: data as CloudProject, error: null };
 }
