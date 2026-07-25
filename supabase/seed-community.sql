@@ -12,7 +12,7 @@
 --   2. Open its Studio (#/studio) and set the public face: handle
 --      (e.g. patternbreak), display name, avatar. That's the byline
 --      every card will carry.
---   3. Replace the email on the line marked >>> below.
+--   3. The email below is pre-filled: info@uikitmaker.com.
 --   4. Paste this whole file into the Supabase SQL editor and Run.
 --
 -- Re-running is safe: fixed share slugs + on conflict do nothing.
@@ -23,7 +23,7 @@ do $$
 declare uid uuid;
 begin
   -- >>> the house account's email:
-  select id into uid from auth.users where email = 'HOUSE_ACCOUNT_EMAIL_HERE';
+  select id into uid from auth.users where email = 'info@uikitmaker.com';
   if uid is null then
     raise exception 'No account with that email — sign it up on the site first, then edit the email above.';
   end if;
@@ -45,4 +45,4 @@ end $$;
 
 -- verify: expect 10 rows for the house account
 -- select name, share_slug, listed from public.projects
---   where user_id = (select id from auth.users where email = 'HOUSE_ACCOUNT_EMAIL_HERE');
+--   where user_id = (select id from auth.users where email = 'info@uikitmaker.com');
