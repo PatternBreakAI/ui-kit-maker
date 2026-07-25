@@ -144,6 +144,13 @@ each pattern, further reading. So the ⓘ card is two layers:
    track at the battle-pass era. Industry vocabulary throughout — a student
    should leave knowing the *names* of things.
 
+**Authoring standard** (owner note, 2026-07-25): no vague history. Every
+claim names its titles and carries its dates — never "games moved the HUD
+behind the car," always "OutRun (1986) through Need for Speed (1994)." The
+reader should finish each card with names they can go look up. Links must
+be specific or canonical (the Game UI Database over a generic article when
+the point is seeing real HUDs), and always open in new tabs.
+
 This is a product pillar, not a tooltip: it is the difference between an
 asset tool and a design education that happens to ship assets. It compounds
 the student/educator tier ("learn with the real tool" becomes literal) and
