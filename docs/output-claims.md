@@ -38,7 +38,7 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | **HTML** | **One self-contained `.html` file** — inline CSS, inline SVG, a Google Fonts `<link>`, and a live state-swapping demo button. There is no separate stylesheet. |
 | **Settings JSON** | The full `GenConfig`, re-importable. |
 
-### 1.2 Kit-wide (Pro)
+### 1.2 Kit-wide (Pro and Student — same formats, different licence)
 
 | Artifact | Reality |
 |---|---|
@@ -131,6 +131,45 @@ are bundled; they are linked.
 **Both APPROVED claims are now live on the front door** (2026-07-25): the
 ownership section carries them as proof points, dict keys `ownR1` (recipe)
 and `ownR2` (fonts), all seven locales.
+
+---
+
+## 2b. Plan claims — what each tier is promised
+
+Added 2026-07-25 with the education-licence rework. These are commercial
+promises rather than output claims, but they belong here for the same
+reason: the moment one drifts from what the code does, the page is lying.
+
+| Claim | Status | Backed by |
+|---|---|---|
+| "Student and Pro have the same features and export formats" | **APPROVED** | `TIER_CAPS` and `EXPORT_KINDS` in `entitlements.ts` — student and pro are identical rows. `ALLOWED` in `api/export.ts` mirrors them. |
+| "The education licence covers coursework, portfolio and non-commercial release" | **APPROVED** | `LICENCE_GRANT.student`, stamped into every export by `api/export.ts`; Terms §5.6. |
+| "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
+| "New kit pack every month ($60 value)" | ⚠️ **COMMITMENT — not yet delivered** | See below. |
+| "Monthly kit packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
+
+### The monthly pack — read this before promoting it
+
+This is the one claim on the pricing page that is a **promise about the
+future**, not a description of the present. Everything else there can be
+checked against code today; this one becomes true only if a pack actually
+ships each month.
+
+- **Delivery path exists.** An admin publishes a cloud preset, RLS lets
+  everyone read the row, and `Panel.tsx` shows it unlocked to `pro` only.
+  Nothing new has to be built to honour it.
+- **The clock starts at announcement.** From the moment the line is live,
+  a month with no drop is a broken promise on a paid page. If promotion is
+  weeks out, consider having the first two or three packs banked first.
+- **"$60 value" is a comparative price claim.** It is defensible while
+  comparable kits genuinely sell around that on the asset stores, and it
+  gets weaker if they don't. The safer phrasing, if it's ever questioned,
+  is comparative and explicit: "a new kit pack every month — the kind that
+  sells for around $60 on the asset stores." Owner chose the shorter form;
+  this note records the tradeoff.
+- **What a "pack" is has not been defined yet.** A themed preset? A preset
+  plus new components? Pin that down before the first drop, because it
+  sets the expectation for every one after it.
 
 ---
 

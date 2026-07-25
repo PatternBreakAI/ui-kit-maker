@@ -14,7 +14,7 @@ import { HUD_LEFT, HUD_RIGHT, paintHud } from "./pricingHud";
 /* #/pricing — three tiers, in the product's own voice.
 
    Explorer is the no-account trial (today's guest caps exactly), Pro is the
-   one everyone buys, Student is the learning tier at a verified price. The
+   one everyone buys, Student is the same tool on an education licence. The
    Pro column takes real money through Stripe Checkout: signed-out visitors
    sign in first (a subscription needs an account to attach to), and the
    upgrade is granted server-side by the webhook — never by this page.
@@ -35,41 +35,50 @@ const EXPLORER: Row[] = [
 ];
 
 const PRO: Row[] = [
-  { label: "Full kit components" },
-  { label: "All starter presets + shared library" },
+  { label: "Full kit components + all starter presets" },
+  { label: "New kit pack every month ($60 value)" },
   { label: "Unlimited zoom" },
   { label: "PNG export up to 4×" },
   { label: "Every export: SVG, HTML, engine kit, game kit" },
   { label: "Cloud saves & named projects" },
   { label: "Share links included" },
-  { label: "Commercial use included" },
+  { label: "Commercial licence — sell what you ship" },
 ];
 
-/* Student is a real tier, not a discount code on Pro — every line below is
-   enforced. `student` has its own row in TIER_CAPS and its own entry in
-   EXPORT_KINDS, and /api/export checks the requested artifact against the
-   plan_id in the database before it issues anything.
+/* Student restricts the LICENCE, not the tool.
 
-   Where the line falls: everything you need to LEARN and to build a
-   portfolio, stopping short of the SHIPPING formats. The engine kit (Unity
-   importer, nine-slice manifest) and the game-kit atlas are what a studio
-   putting a product on a store needs, and those stay with Pro. Keep this
-   list in step with EXPORT_KINDS and TIER_CAPS. */
+   An earlier cut gave students less zoom, smaller PNGs and no engine kit.
+   That was wrong: a capstone project, a game jam and a class assignment
+   all need the engine kit specifically, so capping output punished exactly
+   the people the price exists for. Students now get the whole tool at full
+   capability — see TIER_CAPS and EXPORT_KINDS, where student and pro are
+   identical rows.
+
+   What the education price does not buy is the right to SELL what you
+   build, and the monthly kit packs. Both are real differences that cost a
+   student nothing while they are learning, and both are things they would
+   happily pay to lift the day they start earning — which is when Pro
+   becomes affordable anyway.
+
+   The licence line is stamped into every export by /api/export
+   (LICENCE_GRANT in entitlements.ts) and stated in Terms §5.6. Keep the
+   three in step. */
 const STUDENT: Row[] = [
-  { label: "Full kit components + all presets" },
-  { label: "150% zoom" },
-  { label: "PNG export up to 2×" },
-  { label: "Vector exports: SVG, HTML, sprite sheet" },
-  { label: "Cloud saves & named projects" },
-  { label: "Commercial use included" },
-  { label: "Engine kit and game kit are Pro formats", on: false },
-  { label: "Verified once, re-checked each year", note: true },
+  { label: "Full kit components + all starter presets" },
+  { label: "Unlimited zoom" },
+  { label: "PNG export up to 4×" },
+  { label: "Every export: SVG, HTML, engine kit, game kit" },
+  { label: "Cloud saves, named projects & share links" },
+  { label: "Coursework, portfolio & non-commercial release" },
+  { label: "Selling what you build needs Pro", on: false },
+  { label: "Monthly kit packs are a Pro perk", on: false },
+  { label: "Personal and non-transferable — verified yearly", note: true },
 ];
 
 const PROOF = [
   { icon: Globe, title: "Runs in your browser", note: "No installs. Always up to date." },
   { icon: Target, title: "Deterministic, not AI", note: "You control every pixel." },
-  { icon: ShieldCheck, title: "Commercial use included", note: "Ship with confidence." },
+  { icon: ShieldCheck, title: "Commercial licence", note: "Included with Pro." },
   { icon: Code2, title: "Export for engines, web, and mockups", note: "SVG, HTML, JSON & more." },
 ];
 
@@ -168,7 +177,7 @@ export function PricingPage() {
 
         <div className="fd-pricing__pills">
           <span className="fd-pill"><Calendar size={13} strokeWidth={2.2} /> Annual pricing</span>
-          <span className="fd-pill"><ShieldCheck size={13} strokeWidth={2.2} /> Commercial use included</span>
+          <span className="fd-pill"><ShieldCheck size={13} strokeWidth={2.2} /> Own what you export</span>
         </div>
 
         <h1>Pick your tier</h1>
@@ -221,14 +230,14 @@ export function PricingPage() {
 
           {/* ── Student — the learning tier, verified ── */}
           <section className="fd-pricing__col fd-pricing__col--edu">
-            <div className="fd-pricing__tag fd-pricing__tag--edu"><BadgeCheck size={12} strokeWidth={2.6} /> VERIFIED DISCOUNT</div>
+            <div className="fd-pricing__tag fd-pricing__tag--edu"><BadgeCheck size={12} strokeWidth={2.6} /> EDUCATION PRICE</div>
             <div className="fd-pricing__head">
               <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={18} strokeWidth={2.1} /></span>
               <h2>Student</h2>
             </div>
             <Price amount="$15.99" per="year" />
             <div className="fd-pricing__note">For verified students &amp; educators</div>
-            <div className="fd-pricing__forwho fd-pricing__forwho--edu">Learn with the real tool</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--edu">The full tool, student price</div>
             <Rows rows={STUDENT} />
             <button className="fd-pricing__cta fd-pricing__cta--edu" onClick={() => navigate("#/student")}>
               Get Student Access <ChevronRight size={15} strokeWidth={2.4} />
@@ -273,7 +282,11 @@ export function PricingPage() {
           </a>
         </section>
 
-        <p className="fd-pricing__fine">License in one line: ship your kits in any product, commercial included — just don't resell or redistribute the assets themselves.</p>
+        <p className="fd-pricing__fine">
+          Licence in one line: Pro ships your kits in any product, commercial included. The education
+          licence covers coursework, portfolio and non-commercial release. Neither may resell or
+          redistribute the assets themselves.
+        </p>
       </main>
     </div>
   );
