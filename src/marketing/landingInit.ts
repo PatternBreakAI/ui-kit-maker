@@ -462,11 +462,13 @@ export function initLanding(deps: LandingDeps) {
         "segbar", "emblembar", "vsbar", "hotbar", "header", "segment", "toast", "tooltip", "datarow",
         "nameplate", "timerdigits", "flipclock", "steps",
         "xpbar", "manarails", "compass", "killfeed", "magazine", "streakmeter", "heartmeter",
-        "energymeter", "loottag", "equipselector"]);
+        "energymeter", "loottag", "equipselector",
+        "popmeter", "scorebug", "friendrow", "achievetoast"]);
       const B_IDS = new Set(["dialog", "panel", "listmenu", "scrollbar", "minimap", "leaderboard", "laptimes",
         "telemetry", "circuit", "speedo", "speedo2", "tacho", "cardback", "pack",
         "questpanel", "dialoguebox", "choicelist", "invgrid", "partyframe", "respawn",
-        "weaponwheel", "spinwheel"]);
+        "weaponwheel", "spinwheel",
+        "buildqueue", "unitplate", "techcard", "chatbubble", "emotewheel", "seasontrack"]);
       const SHEET = (() => {
         /* every engine component exactly once — no size duplicates, no state repeats */
         const byId = new Map(E.KIT_COMPONENTS.map((k) => [k.id, k]));
