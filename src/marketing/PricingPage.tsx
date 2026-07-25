@@ -18,7 +18,7 @@ import { startCheckout } from "@/generator/billing";
    sign in first (a subscription needs an account to attach to), and the
    upgrade is granted server-side by the webhook — never by this page. */
 
-type Row = { label: string; on?: boolean };
+type Row = { label: string; on?: boolean; note?: boolean };
 
 const EXPLORER: Row[] = [
   { label: "Starter kit components" },
@@ -40,14 +40,20 @@ const PRO: Row[] = [
   { label: "Commercial use included" },
 ];
 
+/* Student is Pro at a discount — NOT a cut-down build. There is no
+   student tier in the caps table: any paid plan resolves to `pro`, so a
+   student gets unlimited zoom, 4× PNG and every export. Listing smaller
+   numbers here would be a straight lie, and crippling it would be the
+   wrong move anyway — the point of student pricing is fluency in the
+   whole tool, so they ask for it at work later. The only real difference
+   is that eligibility is checked, and re-checked. */
 const STUDENT: Row[] = [
-  { label: "Full kit components" },
-  { label: "Essential preset library" },
-  { label: "150% zoom" },
-  { label: "PNG export 1×" },
-  { label: "SVG + HTML export" },
-  { label: "Cloud saves included" },
-  { label: "Share links included" },
+  { label: "Everything in Pro — nothing held back" },
+  { label: "Full kit, all presets, unlimited zoom" },
+  { label: "PNG up to 4× and every vector export" },
+  { label: "Cloud saves & named projects" },
+  { label: "Commercial use included — keep what you ship" },
+  { label: "Verified once, re-checked each year", note: true },
 ];
 
 const PROOF = [
@@ -61,10 +67,12 @@ function Rows({ rows }: { rows: Row[] }) {
   return (
     <ul>
       {rows.map((r) => (
-        <li key={r.label} className={r.on === false ? "is-off" : undefined}>
+        <li key={r.label} className={r.on === false ? "is-off" : r.note ? "is-note" : undefined}>
           {r.on === false
             ? <X size={14} strokeWidth={2.6} />
-            : <Check size={14} strokeWidth={2.8} />}
+            : r.note
+              ? <BadgeCheck size={14} strokeWidth={2.6} />
+              : <Check size={14} strokeWidth={2.8} />}
           <span>{r.label}</span>
         </li>
       ))}
@@ -159,7 +167,7 @@ export function PricingPage() {
             <h2>Student</h2>
             <div className="fd-pricing__price">$15.99<span> / year</span></div>
             <div className="fd-pricing__note">For verified students &amp; educators</div>
-            <div className="fd-pricing__forwho fd-pricing__forwho--edu">Learn and teach with the real tool</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--edu">The whole tool, half the price</div>
             <Rows rows={STUDENT} />
             <button className="fd-pricing__cta fd-pricing__cta--edu" onClick={() => navigate("#/student")}>
               Get Student Access <ChevronRight size={15} strokeWidth={2.4} />
