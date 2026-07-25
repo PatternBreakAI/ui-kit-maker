@@ -540,15 +540,42 @@ export const LANDING_HTML = `</head>
 
   <footer class="footer">
     <div class="footer-inner">
-      <div class="footer-brand">
+      <div class="footer-grid">
+        <div class="footer-col footer-colbrand">
+          <div class="footer-brand">
 <img class="brand-mark" src="data:image/png;base64,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" alt="" width="26" height="26">
-        <span><strong>UI Kit Maker</strong> by PatternBreak</span>
+            <span><strong>UI Kit Maker</strong> by PatternBreak</span>
+          </div>
+          <p class="footer-tag" id="fpTag">Game-ready UI kits from one master component — drawn by a deterministic engine, never scraped.</p>
+          <p class="footer-copy" id="fpCopy">© 2026 PatternBreak. All rights reserved.</p>
+        </div>
+        <nav class="footer-col" aria-labelledby="fpProdH">
+          <h4 id="fpProdH">PRODUCT</h4>
+          <a href="#/app" id="fpOpen">Open the generator</a>
+          <a href="#/pricing" id="fpPricing">Pricing</a>
+          <a href="#/signin" id="fpSignin">Sign in</a>
+          <a href="#" id="fpHow">How it works</a>
+        </nav>
+        <nav class="footer-col" aria-labelledby="fpLegalH">
+          <h4 id="fpLegalH">LEGAL</h4>
+          <a href="#/terms" id="fpTerms">Terms of Use</a>
+          <a href="#/privacy" id="fpPrivacy">Privacy Policy</a>
+          <a href="#" id="fpLicense">Licensing in one line</a>
+        </nav>
+        <div class="footer-col footer-colnews">
+          <h4 id="fpNewsH">STAY IN THE LOOP</h4>
+          <p class="footer-newsp" id="fpNewsP">New components, presets, and features — a short email now and then. No spam, unsubscribe anytime.</p>
+          <form class="footer-news" id="fpForm" novalidate>
+            <input type="email" id="fpEmail" placeholder="you@studio.com" autocomplete="email" aria-label="Email address">
+            <input type="text" id="fpHp" class="fp-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button type="submit" id="fpGo">SIGN ME UP</button>
+          </form>
+          <p class="footer-note" id="fpNote" hidden></p>
+        </div>
       </div>
-      <div class="footer-links">
-        <a href="#/terms">Terms</a>
-        <a href="#/privacy">Privacy</a>
+      <div class="footer-bottom">
+        <p class="footer-lic" id="footLic"></p>
       </div>
-      <p class="footer-lic" id="footLic"></p>
     </div>
   </footer>
 
