@@ -7,6 +7,7 @@ import { navigate } from "@/shell/router";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText } from "@/generator/exportUtils";
+import { guardedExport } from "@/generator/exportGate";
 
 // The actual PatternBreak logo file, bundled from the repo's top-level
 // pb-logo.png — never redrawn or interpreted.
@@ -41,12 +42,23 @@ export function TopBar() {
   }, []);
 
   const svg = () => renderBevel(cfg, selectedState);
-  const copyCode = () => {
-    void copyText(svg()).then((ok) => {
-      if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1400); }
-    });
+  /* Paid formats go through the server gate — the client's caps decide how
+     the menu LOOKS, the server decides whether the file is produced. */
+  const handlers = {
+    onSignIn: () => openAuth("signin"),
+    onUpgrade: () => navigate("#/pricing"),
+    onMessage: (m: string) => window.alert(m),
   };
-  const dlHtml = () => downloadHtml(cfg, `ui-${cfg.presetId}.html`);
+  const dlSvg = () => void guardedExport("svg", handlers, () =>
+    downloadSvg(svg(), `ui-${cfg.presetId}-${selectedState}.svg`));
+  const copyCode = () => void guardedExport("svg", handlers, async () => {
+    const ok = await copyText(svg());
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1400); }
+  });
+  const dlHtml = () => void guardedExport("html", handlers, () =>
+    downloadHtml(cfg, `ui-${cfg.presetId}.html`));
+  const dlGameKit = () => void guardedExport("gamekit", handlers, (g) =>
+    downloadGameKit(cfg, g.licence));
 
   const importSettings = (file: File) => {
     const reader = new FileReader();
@@ -115,7 +127,7 @@ export function TopBar() {
           {menuOpen && (
             <div className="menu-pop">
               {tcaps.vectorExports ? (
-                <button onClick={() => { downloadSvg(svg(), `ui-${cfg.presetId}-${selectedState}.svg`); setMenuOpen(false); }}>
+                <button onClick={() => { dlSvg(); setMenuOpen(false); }}>
                   <Download size={15} strokeWidth={1.8} /> Export SVG
                 </button>
               ) : (
@@ -139,7 +151,7 @@ export function TopBar() {
                 <button className="lockedmi" title={`SVG code is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Copy SVG code")}</button>
               )}
               {tcaps.vectorExports ? (
-                <button onClick={() => { void downloadGameKit(cfg); setMenuOpen(false); }}>
+                <button onClick={() => { dlGameKit(); setMenuOpen(false); }}>
                   <Gamepad2 size={15} strokeWidth={1.8} /> Export game kit
                 </button>
               ) : (

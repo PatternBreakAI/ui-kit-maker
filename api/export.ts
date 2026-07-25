@@ -1,0 +1,132 @@
+/* POST /api/export — the paid artifacts' entitlement check.
+
+   WHY THIS SHAPE. The renderer has to live in the browser (it draws the
+   canvas the user is editing), and the engine kit and game kit ship
+   rasterized PNGs that only a real browser renders faithfully — our SVG
+   leans on gaussian blur, turbulence and colour-matrix filters that
+   server-side rasterizers support only partially. Rasterizing on the
+   server would quietly degrade what customers paid for, which is a worse
+   outcome than piracy.
+
+   So the split is: the SERVER decides whether an export may happen and
+   stamps it; the BROWSER does the drawing. This function reads plan_id
+   from the database — never from anything the client says — and returns
+   a short-lived grant carrying the licence block that every Pro artifact
+   must embed. No grant, no artifact: flipping a flag in devtools now
+   yields a 403 instead of a kit.
+
+   It also logs every issue, which powers a quiet per-account rate limit.
+   That is aimed at scripted harvesting and wholesale account sharing; a
+   real person exporting all day never reaches it. */
+
+const RATE_PER_HOUR = 60;
+
+/** What a caller may ask for. Anything else is refused outright. */
+const KINDS = new Set(["engine", "gamekit", "html", "svg", "sheet"]);
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
+}
+
+/** The licence block embedded in every paid artifact. It names the account
+    the export belongs to, which makes a leaked kit traceable — the honest
+    deterrent against redistribution, and a provenance record for the
+    customer who actually bought it. */
+function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string): string {
+  return `UI Kit Maker — Pro export licence
+==================================
+
+Artifact      : ${kind}
+Licensed to   : ${email}
+Account       : ${uid}
+Issued        : ${whenISO}
+Reference     : ${nonce}
+
+WHAT YOU MAY DO
+  Ship these assets in any product you make, commercial included, on any
+  number of projects, with no attribution required and no seat limit.
+
+WHAT YOU MAY NOT DO
+  Resell or redistribute the assets themselves — as a kit, an asset pack,
+  a template, or any other bundle whose value is these files.
+
+This export was issued to the account above. Please don't share the file
+itself; share the link and let people make their own.
+
+uikitmaker.com
+`;
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+
+  const supaUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
+  if (!supaUrl || !service) return json({ error: "Exports aren't configured on this deployment." }, 503);
+
+  let kind = "";
+  try {
+    kind = String(((await req.json()) as { kind?: string }).kind ?? "");
+  } catch {
+    return json({ error: "Bad request." }, 400);
+  }
+  if (!KINDS.has(kind)) return json({ error: "Unknown export kind." }, 400);
+
+  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return json({ error: "Sign in to export.", reason: "signin" }, 401);
+
+  // identity comes from Supabase, never from the request body
+  const who = await fetch(`${supaUrl}/auth/v1/user`, {
+    headers: { authorization: `Bearer ${token}`, apikey: service },
+  });
+  if (!who.ok) return json({ error: "Your session expired — sign in again.", reason: "signin" }, 401);
+  const user = (await who.json()) as { id?: string; email?: string };
+  if (!user.id) return json({ error: "Your session expired — sign in again.", reason: "signin" }, 401);
+
+  const svc = { apikey: service, authorization: `Bearer ${service}` };
+
+  // entitlement: read the plan from the row the client cannot write
+  const pr = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${user.id}&select=plan_id,is_admin`, { headers: svc });
+  if (!pr.ok) return json({ error: "Couldn't check your plan — try again." }, 502);
+  const rows = (await pr.json()) as { plan_id?: string; is_admin?: boolean }[];
+  const profile = rows[0];
+  const entitled = !!profile && (profile.is_admin === true || (!!profile.plan_id && profile.plan_id !== "free"));
+  if (!entitled) {
+    return json({ error: "Vector and kit exports are part of Pro.", reason: "upgrade" }, 403);
+  }
+
+  // quiet rate limit — invisible to anyone exporting by hand
+  const since = new Date(Date.now() - 3600_000).toISOString();
+  const cnt = await fetch(
+    `${supaUrl}/rest/v1/export_events?user_id=eq.${user.id}&created_at=gte.${since}&select=id`,
+    { headers: { ...svc, prefer: "count=exact", range: "0-0" } },
+  );
+  const total = Number((cnt.headers.get("content-range") ?? "").split("/")[1] ?? "0");
+  if (Number.isFinite(total) && total >= RATE_PER_HOUR) {
+    return json({
+      error: "That's a lot of exports in one hour — give it a few minutes and try again.",
+      reason: "rate",
+    }, 429);
+  }
+
+  const whenISO = new Date().toISOString();
+  const nonce = crypto.randomUUID();
+
+  await fetch(`${supaUrl}/rest/v1/export_events`, {
+    method: "POST",
+    headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+    body: JSON.stringify({ user_id: user.id, kind }),
+  });
+
+  return json({
+    granted: true,
+    kind,
+    reference: nonce,
+    issuedAt: whenISO,
+    licensedTo: user.email ?? user.id,
+    licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce),
+  });
+}
