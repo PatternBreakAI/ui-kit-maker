@@ -112,10 +112,16 @@ export function LootModal() {
     // review affordance: ?lootpreview opens the modal without auth
     if (window.location.search.includes("lootpreview")) { setOpen(true); return; }
     if (cloud.state !== "synced" || !cloud.email || tier === "guest") return;
-    /* TEMP while the pull animation is under review: play on EVERY signed-in
-       editor load. When it moves into FTUE, restore the once-per-account
-       gate (localStorage "ui-generator-loot:<email>" — set on first show,
-       skip when present). */
+    /* Once per account per browser (owner call, 2026-07-25 — the review
+       period's play-every-load is over). The key is per-email so a second
+       account on the same machine still gets its own celebration; the
+       flag is set on SHOW, not on close, so a refresh mid-animation
+       doesn't replay it. ?lootpreview stays as the review door. */
+    const key = `ui-generator-loot:${cloud.email}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, new Date().toISOString());
+    } catch { /* private mode — showing twice beats never showing */ }
     setOpen(true);
   }, [cloud.state, cloud.email, tier]);
 
