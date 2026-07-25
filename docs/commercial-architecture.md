@@ -188,10 +188,44 @@ column-revoked from `anon`/`authenticated`, so a client cannot write them
 even inside its own row. No Stripe SDK: REST over `fetch`, so the
 dependency list and the client bundle are untouched.
 
-Still true after this: the *gates* remain client-side. Billing decides
-what `tier` says; it does not yet stop a determined user from reading an
-exporter out of the bundle. Moving the vector exporters server-side is
-the next honest step.
+## Paid exports (v85) — server-issued grants
+
+The first capability that is actually *enforced* rather than merely
+displayed. `POST /api/export` reads `plan_id` from the profile row (which
+no client can write) and either refuses or returns a short-lived grant
+carrying a licence block. `src/generator/exportGate.ts` is the single
+door every paid artifact passes through — call sites no longer decide
+entitlement, so the old "flip a boolean in devtools" bypass now returns
+403 instead of a kit.
+
+**Why rasterization stays in the browser.** The engine kit and game kit
+ship rasterized PNGs, and our SVG leans on gaussian blur, turbulence and
+colour-matrix filters that server-side rasterizers support only
+partially. Rendering those on the server would quietly degrade what
+customers paid for — a worse outcome than piracy. So the split is:
+the server decides *whether* an export happens and stamps it; the
+browser does the drawing.
+
+Three deterrents, none of which a normal user ever notices:
+
+1. **Entitlement at the source** — the plan is read from the database per
+   export, so a lapsed or downgraded account stops producing artifacts
+   immediately, with no client state involved.
+2. **A licence block in every bundle** (`LICENCE.txt` in the engine kit,
+   SVG pack and game kit) naming the account, the issue time and a
+   reference. A redistributed kit is traceable to the account that leaked
+   it, and a paying customer gets a provenance record.
+3. **A quiet per-account rate limit** (60/hour, logged in
+   `public.export_events`) that makes scripted harvesting and wholesale
+   account-sharing impractical. Hand-exporting all day never reaches it.
+
+**What this does NOT claim.** The renderer must live in the browser to
+draw the canvas, so the SVG of anything on screen is in the DOM and
+always copyable. This raises the cost of taking the *assembled* products
+— the engine kit, the SVG pack, the sheets — from "flip a flag" to
+"rebuild the manifests and tooling yourself, one component at a time".
+It does not make the artwork secret, and nothing in the product should
+imply it does.
 
 ## Security posture (what is and is not protected)
 

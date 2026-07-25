@@ -8,6 +8,7 @@ import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport } from "@/generator/engineExport";
+import { guardedExport } from "@/generator/exportGate";
 import { LiveArt } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -922,6 +923,14 @@ export function KitPage() {
   });
   const [activeChap, setActiveChap] = useState("foundations");
 
+  /* Paid artifacts ask the server first (see exportGate): the client caps
+     still decide how the buttons LOOK, but the file itself is only ever
+     produced against a grant issued from plan_id in the database. */
+  const gateHandlers = {
+    onSignIn: () => openAuth("signin"),
+    onUpgrade: () => { window.location.hash = "#/pricing"; },
+    onMessage: (m: string) => window.alert(m),
+  };
   /* the packed sheet is a VISUAL CATALOG; engines get atomic assets */
   const [sheetBusy, setSheetBusy] = useState(false);
   const [engineBusy, setEngineBusy] = useState(false);
@@ -929,13 +938,16 @@ export function KitPage() {
     if (engineBusy) return;
     setEngineBusy(true);
     try {
-      const st = useGen.getState();
-      const name = st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`;
-      const fdef2 = fontByName(st.cfg.type.font);
-      await downloadEngineExport(
-        { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name },
-        () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null),
-      );
+      await guardedExport("engine", gateHandlers, async (grant) => {
+        const st = useGen.getState();
+        const name = st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`;
+        const fdef2 = fontByName(st.cfg.type.font);
+        await downloadEngineExport(
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name },
+          () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null),
+          grant.licence,
+        );
+      });
     } finally {
       setEngineBusy(false);
     }
@@ -962,6 +974,7 @@ export function KitPage() {
     if (svgBusy) return;
     setSvgBusy(true);
     try {
+      await guardedExport("svg", gateHandlers, async (grant) => {
       const st = useGen.getState();
       const slug = (s2: string) => s2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       /* fonts travel with the pack: every face the kit uses is embedded as a
@@ -999,17 +1012,18 @@ export function KitPage() {
           "## Illustrator", "Open directly; the 'SVG Tiny' warning only concerns re-saving.",
         ].join("\n"),
       });
+      files.push({ path: "LICENCE.txt", data: grant.licence });
       downloadZip(`${slug(st.kitName ?? "ui-kit")}-svg-pack.zip`, files);
+      });
     } finally {
       setSvgBusy(false);
     }
   };
 const kitTier = useGen((s) => s.tier);
   const kitVectorOk = capsOf(kitTier).vectorExports;
-  const gateNudge = () => { if (kitTier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; };
   const exportActions = [
-    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !kitVectorOk, run: () => { if (!kitVectorOk) { gateNudge(); return; } void downloadEngineKit(); } },
-    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts embedded, Figma / Illustrator ready.", busy: svgBusy, locked: !kitVectorOk, run: () => { if (!kitVectorOk) { gateNudge(); return; } void downloadSvgPack(); } },
+    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !kitVectorOk, run: () => void downloadEngineKit() },
+    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — fonts embedded, Figma / Illustrator ready.", busy: svgBusy, locked: !kitVectorOk, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {

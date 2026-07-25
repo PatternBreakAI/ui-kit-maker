@@ -11,6 +11,7 @@ may grant Pro. The browser can ask to upgrade; it can never upgrade itself.
 | `/api/checkout` | POST | Verifies the caller's Supabase token, finds or creates their Stripe customer, opens a Checkout Session for `STRIPE_PRICE_PRO`, returns the URL. |
 | `/api/portal` | POST | Verifies the token, returns a Stripe billing-portal URL so the customer can cancel or update their card. |
 | `/api/stripe-webhook` | POST | Verifies the Stripe signature, then flips `plan_id` between `pro` and `free` as subscriptions start, renew, lapse or cancel. |
+| `/api/export` | POST | Reads `plan_id` from the database and either refuses or issues an export grant (licence block + reference), logging it for the rate limit. The browser will not assemble a paid artifact without one. |
 
 ## Environment variables
 
