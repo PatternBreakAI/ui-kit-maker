@@ -41,6 +41,9 @@ const StudioPage = lazy(() =>
 const UserPage = lazy(() =>
   import("@/ui/UserPage").then((m) => ({ default: m.UserPage })),
 );
+const AdminPage = lazy(() =>
+  import("../auth/AdminPage").then((m) => ({ default: m.AdminPage })),
+);
 
 // `?lab=silhouettes` is a boot-time dev harness, decided once and never at
 // runtime — it bypasses routing entirely, exactly as main.tsx did before.
@@ -186,6 +189,10 @@ export function Shell() {
       ) : route.name === "user" && route.param ? (
         <Suspense fallback={<RouteLoading />}>
           <UserPage handle={route.param} />
+        </Suspense>
+      ) : route.name === "admin" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <AdminPage />
         </Suspense>
       ) : (
         <Landing />

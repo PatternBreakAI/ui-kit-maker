@@ -188,6 +188,41 @@ column-revoked from `anon`/`authenticated`, so a client cannot write them
 even inside its own row. No Stripe SDK: REST over `fetch`, so the
 dependency list and the client bundle are untouched.
 
+## Comped plans (v90) — the admin desk
+
+`POST /api/admin` + the unlinked `#/admin` page replace hand-written SQL
+for comping accounts. The security model is the student-review desk's:
+the client-side `is_admin` flag only decides what renders; the function
+re-reads the **caller's own** profile row with the service role on every
+call and 403s anyone the database doesn't flag. Admin itself is granted
+exactly once, by the owner, in the SQL editor — there is deliberately no
+in-app way to grant it:
+
+    update public.profiles set is_admin = true where email = '<owner email>';
+
+**How comps and Stripe coexist.** Grants stamp `plan_status = 'comped'`
+(revokes: `'canceled'`), which makes a comp distinguishable from Stripe's
+`'active'` in the data. The interaction is safe in all four directions:
+
+1. **Comped, no Stripe history** — subscription events find the profile
+   via `stripe_customer_id` or carried metadata; a comped account with
+   neither can never be matched, so nothing can clobber it.
+2. **Comped, later subscribes for real** — `checkout.session.completed`
+   overwrites the comp with `'active'`. Correct: they're paying now, and
+   the record should say so.
+3. **Comped over an old Stripe customer, old subscription then dies** —
+   the webhook's downgrade paths (subscription deleted / lapsed) check
+   `plan_status` first and **skip the downgrade when it reads `'comped'`**:
+   the owner's grant outranks a lapsed subscription.
+4. **Revoked (`plan_id='free'`, `'canceled'`)** — inert; any later real
+   purchase proceeds normally.
+
+The desk warns when a target still has a live subscription (case 2 in
+reverse: Stripe's next event overwrites the change — cancel in Stripe if
+the change should stick). Every action lands in the Vercel function logs
+as a structured line and, once the v90 migration is applied, in the
+service-role-only `admin_audit` table (who, to whom, old→new, when).
+
 ## Paid exports (v85) — server-issued grants
 
 The first capability that is actually *enforced* rather than merely
