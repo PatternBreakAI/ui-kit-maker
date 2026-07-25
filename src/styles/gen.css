@@ -2181,3 +2181,15 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .infocard__links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .infocard__links a { color: var(--accent, #6366f1); text-decoration: none; font-weight: 600; }
 .infocard__links a:hover { text-decoration: underline; }
+
+/* the banner ⓘ + its popover — chrome over the canvas, never on the art */
+.focusrow { position: relative; display: inline-flex; align-items: center; gap: 6px; z-index: 30; }
+.focuschip--info { padding: 4px 8px; }
+.focuschip--info.on { border-color: var(--accent, #6366f1); color: var(--accent, #6366f1); }
+.lessonpop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 40;
+  width: 340px; max-width: 74vw; max-height: 60vh; overflow: auto;
+  border-radius: 13px; border: 1px solid var(--line2); background: var(--card);
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.55);
+  padding: 4px;
+}
