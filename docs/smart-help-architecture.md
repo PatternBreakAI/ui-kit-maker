@@ -15,6 +15,16 @@ document is the design it implements plus what remains.
 - `PART_ROUTES` + `helpNavigate` in `src/ui/smartHelp.ts`: choosing a
   layer opens its Panel section (the same `open` map search uses),
   scrolls it to center, and glows it for ~1.6s (`.sh-glow`).
+- **Inner anchors** (owner bug report, 2026-07-25): a route may name an
+  `anchor` — a `data-anchor` stamp INSIDE the section — for controls
+  that live partway down a long section. First user: `icon`, whose
+  standalone Panel section is parked behind `ICONS_ENABLED` and never
+  mounts; the route now lands on the Icons block inside Typography.
+  The rule this encodes: **never route to a conditionally-mounted
+  section** — an unmounted target is a silent dead click, the exact
+  failure Smart Help exists to prevent. `helpNavigate` also clears the
+  panel search on jump, since a non-matching query hides sections the
+  same silent way.
 
 ## v2 candidates (not yet built)
 
