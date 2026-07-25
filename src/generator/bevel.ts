@@ -4292,7 +4292,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (opts.label) {
         const py = 30 + h - 76 * k;
         parts += `<path d="${roundRect(39 + w * 0.12, py, w * 0.76, 46 * k, 12 * k)}" fill="${wellFill}" opacity="0.94" stroke="${hexRgba(darken(bevel, 0.35), 0.6)}" stroke-width="1"/>` +
-          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${opts.label}</text>`;
+          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text>`;
       }
       return inject(track.replace("<svg ", '<svg data-cardback="1" '), parts);
     }
@@ -4322,7 +4322,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           `<g style="filter: drop-shadow(0 0 ${(9 * k).toFixed(0)}px ${glow})">${themedIcon(emb, cxP - embS / 2, cyP - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
       }
       parts += sparkP(39 + w * 0.24, 30 + h * 0.26, 6 * k) + sparkP(39 + w * 0.78, 30 + h * 0.32, 8 * k) + sparkP(39 + w * 0.3, 30 + h * 0.66, 5 * k);
-      parts += `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${opts.label ?? "12 CARDS"}</text>`;
+      parts += `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`;
       parts += crimp(30 - 2 * k) + crimp(30 + h - 32 * k);
       return inject(track.replace("<svg ", '<svg data-pack="1" '), parts);
     }
