@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { LessonBody } from "./LessonCard";
 import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign  } from "@/generator/model";
@@ -110,6 +110,12 @@ export function Rail() {
         </button>
       ))}
       <span className="gap" />
+      {/* Help = the FAQ (owner call: linked from the sidenav). The editor
+          state is already saved continuously, so navigating away is safe. */}
+      <button title="Help & FAQ — the product, every control, files, plans" aria-label="Help and FAQ"
+        onClick={() => { window.location.hash = "#/faq"; }}>
+        <HelpCircle size={22} strokeWidth={1.7} />
+      </button>
       <button title="Settings" aria-label="Settings"><Settings size={22} strokeWidth={1.7} /></button>
     </nav>
   );
