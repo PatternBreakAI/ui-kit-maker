@@ -4,13 +4,14 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Wand2, LogOut, KeyRound, RefreshCw, FileDown, History,
-  CheckCircle2, CloudOff, CloudUpload,
+  CheckCircle2, CloudOff, CloudUpload, CreditCard, Loader2, Sparkle,
 } from "lucide-react";
 import {
   cloudConfig, clearCloudOverride, signOutCloud,
   syncNow, downloadMyData, hasLocalSnapshot, restoreLocalSnapshot,
-  requestPasswordReset,
+  requestPasswordReset, myBilling,
 } from "@/generator/cloud";
+import { openBillingPortal, justUpgraded } from "@/generator/billing";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import logoUrl from "../../pb-logo.png";
@@ -18,6 +19,15 @@ import logoUrl from "../../pb-logo.png";
 const ProjectsPanel = lazy(() =>
   import("@/ui/ProjectsPanel").then((m) => ({ default: m.ProjectsPanel })),
 );
+
+/** Renewal dates read as dates, not timestamps. */
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "the end of the term";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? "the end of the term"
+    : d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
 
 export function AccountPage() {
   const status = useCloudStatus();
@@ -49,6 +59,39 @@ export function AccountPage() {
     const e = await requestPasswordReset(status.email);
     setBusy(false);
     setNote(e ?? "Password reset email sent — check your inbox.");
+  };
+
+  /* ── plan & billing ───────────────────────────────────────────────
+     Stripe redirects back the instant payment succeeds, which can beat
+     its own webhook by a second or two. So when we arrive with
+     ?upgraded=1 we poll the profile for a short while rather than
+     announcing a failure that isn't one. */
+  const [plan, setPlan] = useState<Awaited<ReturnType<typeof myBilling>>>(null);
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planErr, setPlanErr] = useState<string | null>(null);
+  const [awaiting, setAwaiting] = useState(justUpgraded());
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    let tries = 0;
+    const read = async () => {
+      const b = await myBilling();
+      if (!live) return;
+      if (b) setPlan(b);
+      if (awaiting && b?.plan === "pro") { setAwaiting(false); return; }
+      if (awaiting && ++tries < 10) window.setTimeout(() => { void read(); }, 1500);
+      else if (awaiting) setAwaiting(false);
+    };
+    void read();
+    return () => { live = false; };
+  }, [signedIn, awaiting]);
+
+  const isPro = plan?.plan === "pro";
+  const manage = async () => {
+    setPlanBusy(true); setPlanErr(null);
+    const e = await openBillingPortal();   // navigates away on success
+    if (e) { setPlanErr(e); setPlanBusy(false); }
   };
 
   return (
@@ -109,14 +152,63 @@ export function AccountPage() {
             {/* ── plan ── */}
             <section className="fd-card">
               <h2 className="fd-card__title">Plan &amp; billing</h2>
-              <div className="fd-plan">
-                <span className="fd-plan__chip">FREE EXPLORER</span>
-                <span className="fd-plan__desc">Selected kits and limited PNG exports included.</span>
+              {awaiting ? (
+                <div className="fd-plan">
+                  <span className="fd-plan__chip fd-plan__chip--wait">
+                    <Loader2 size={12} strokeWidth={2.6} className="fd-spin" /> CONFIRMING
+                  </span>
+                  <span className="fd-plan__desc">Payment received — unlocking Pro on your account…</span>
+                </div>
+              ) : isPro ? (
+                <>
+                  <div className="fd-plan">
+                    <span className="fd-plan__chip fd-plan__chip--pro">
+                      <Sparkle size={12} strokeWidth={2.6} /> PRO
+                    </span>
+                    <span className="fd-plan__desc">
+                      The full kit, every preset, unlimited zoom, 4× PNG and all vector exports.
+                    </span>
+                  </div>
+                  <p className="fd-fine">
+                    {plan?.status === "canceled"
+                      ? `Cancelled — your Pro access runs until ${fmtDate(plan.renewsAt)}.`
+                      : plan?.status === "past_due"
+                        ? "We couldn't take the last payment — update your card to keep Pro."
+                        : plan?.renewsAt
+                          ? `$29.99/year · renews ${fmtDate(plan.renewsAt)}. Cancel anytime; access runs to the end of the term.`
+                          : "$29.99/year · renews automatically. Cancel anytime; access runs to the end of the term."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="fd-plan">
+                    <span className="fd-plan__chip">FREE PLAYER</span>
+                    <span className="fd-plan__desc">The full kit in the browser, cloud saves, and 1× PNG exports.</span>
+                  </div>
+                  <p className="fd-fine">
+                    Pro adds every starter preset, unlimited zoom, 4× PNG and the vector
+                    exports (SVG, HTML, game kit, engine ZIP) for $29.99 a year.
+                  </p>
+                </>
+              )}
+              <div className="fd-actions">
+                {isPro ? (
+                  <button className="fd-ghost" disabled={planBusy} onClick={() => void manage()}>
+                    {planBusy ? <Loader2 size={15} strokeWidth={1.8} className="fd-spin" /> : <CreditCard size={15} strokeWidth={1.8} />}
+                    {planBusy ? "Opening…" : "Manage subscription"}
+                  </button>
+                ) : (
+                  <button className="fd-ghost" onClick={() => navigate("#/pricing")}>
+                    <Sparkle size={15} strokeWidth={1.8} /> See what Pro adds
+                  </button>
+                )}
+                {!isPro && plan?.hasCustomer && (
+                  <button className="fd-ghost" disabled={planBusy} onClick={() => void manage()}>
+                    <CreditCard size={15} strokeWidth={1.8} /> Billing history
+                  </button>
+                )}
               </div>
-              <p className="fd-fine">
-                Paid plans are on the way — there's nothing to manage here yet, and
-                you'll never be moved onto one without choosing it.
-              </p>
+              {planErr && <p className="fd-note">{planErr}</p>}
             </section>
 
             {/* ── projects ── */}
