@@ -154,6 +154,8 @@ export function onCloudStatus(fn: (s: CloudStatus) => void): () => void {
 /* ── sync engine state ─────────────────────────────────────────────── */
 
 let session: Session | null = null;
+/** The live session, read-only — community.ts needs the uid for likes. */
+export function currentSession(): Session | null { return session; }
 let reconciled = false;       // invariant 1: no push until a pull decided
 let recoveryHold = false;     // password-recovery pauses normal session start
 let pollT: ReturnType<typeof setInterval> | null = null;

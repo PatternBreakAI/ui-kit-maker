@@ -144,8 +144,8 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
            fine print: free & student kits are community kits. The same
            sentence is the product's cleanest Pro doorway. */
         <div className="proj-consent">
-          Saved kits join the <b>community gallery</b> once curated — that's the free plan's stage.
-          Want them private? That comes with <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>Pro</button>.
+          Saved kits on the Free plan may be curated into the <b>Community Gallery</b>, where
+          other users can use and remix them. <button className="fd-linkbtn" onClick={() => { window.location.hash = "#/pricing"; }}>Upgrade to Pro</button> to keep your kits private.
         </div>
       )}
       {note && <div className="menu-note acct-note">{note}</div>}

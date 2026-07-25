@@ -691,6 +691,8 @@ export const useGen = create<GenStore>((set, get) => ({
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
       kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
+      // the stage travels with the kit — only portable (data:) backdrops
+      bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
     };
   },
   loadKitPayload: (p, opts) => {
@@ -698,6 +700,11 @@ export const useGen = create<GenStore>((set, get) => ({
     const viewer = opts?.viewer ?? true;
     set({ activeCloudPreset: null }); // a loaded kit isn't a shared preset — no Overwrite target
     const cfg = (p.cfg as GenConfig) ?? st.cfg;
+    /* the travelling stage: strict base64 image data URLs only — this string
+       ends up in CSS url(), so nothing that could break out of it gets in.
+       A payload without one keeps the local backdrop (it's workspace). */
+    const bg = typeof p.bgImage === "string" && /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(p.bgImage)
+      ? p.bgImage : null;
     const next = {
       cfg,
       kitName: (p.kitName as string) ?? st.kitName,
@@ -712,6 +719,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
       kitTextOx: (p.kitTextOx as GenStore["kitTextOx"]) ?? {},
+      ...(bg ? { bgImage: bg } : {}),
     };
     if (!viewer) {
       // opening your own project: persist to the same keys the app boots from
@@ -729,6 +737,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitbar", next.kitBar);
       saveJson("ui-generator-kittextoy", next.kitTextOy);
       saveJson("ui-generator-kittextox", next.kitTextOx);
+      if (bg) saveJson("ui-generator-bgimage", bg);
     }
     set({ ...next, viewer, phase: "kit" });
   },
@@ -989,8 +998,13 @@ export const useGen = create<GenStore>((set, get) => ({
     saveJson("ui-generator-kitbar", kitBar);
     set({ kitBar });
   },
-  bgImage: null,
-  setBgImage: (url) => set({ bgImage: url }),
+  bgImage: loadJson<string | null>("ui-generator-bgimage", null),
+  setBgImage: (url) => {
+    // data URLs persist (and ride the workspace sync + kit payload, so the
+    // backdrop travels with shares); blob URLs stay session-only
+    if (url === null || url.startsWith("data:")) { markTouched(); saveJson("ui-generator-bgimage", url); }
+    set({ bgImage: url });
+  },
   helpOn: false,
   setHelpOn: (v) => set({ helpOn: v }),
   refreshLibraryItem: (id) => {

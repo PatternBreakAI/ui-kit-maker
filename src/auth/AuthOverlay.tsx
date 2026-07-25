@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LogIn, UserPlus, Mail, KeyRound, RefreshCw, FileDown, Cable, History,
   FolderOpen, LogOut, X, CheckCircle2, CloudOff, CloudUpload, ArrowLeft,
-  Wand2, UserRound,
+  Wand2, UserRound, Palette, Users,
 } from "lucide-react";
 import {
   cloudConfig, setCloudOverride, clearCloudOverride,
@@ -196,6 +196,14 @@ export function AuthOverlay() {
                   </button>
                   <button className="fd-ghost" onClick={() => { closeAuth(); navigate("#/account"); }}>
                     <UserRound size={15} strokeWidth={1.8} /> Account
+                  </button>
+                </div>
+                <div className="fd-actions">
+                  <button className="fd-ghost" onClick={() => { closeAuth(); navigate("#/studio"); }}>
+                    <Palette size={15} strokeWidth={1.8} /> Your studio
+                  </button>
+                  <button className="fd-ghost" onClick={() => { closeAuth(); navigate("#/community"); }}>
+                    <Users size={15} strokeWidth={1.8} /> Community
                   </button>
                 </div>
                 <button className="fd-ghost fd-ghost--wide" onClick={() => { void signOutCloud(); closeAuth(); }}>

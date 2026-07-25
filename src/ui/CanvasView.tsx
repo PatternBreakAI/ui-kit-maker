@@ -322,10 +322,11 @@ export function CanvasView() {
           <input ref={bgInput} type="file" accept="image/*" style={{ display: "none" }}
             onChange={(e) => {
               const f = e.target.files?.[0];
-              // the board keeps ONE image per artboard, persisted as a
-              // downscaled data URL; the editor backdrop stays session-only
+              // both stages persist as downscaled data URLs — the editor
+              // backdrop travels with the kit payload, so it comes through
+              // in shares and saved projects
               if (f && phase === "board") void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgShow: true }));
-              else if (f) setBgImage(URL.createObjectURL(f));
+              else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));
               e.target.value = "";
             }} />
           <span className="zdiv" />
