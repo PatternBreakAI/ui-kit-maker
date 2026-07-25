@@ -1645,6 +1645,11 @@ export interface KitOpts {
    *  "segment" | "track" — draws only that layer of a gauge/circuit. */
   part?: string;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string;
+  /** Chosen slot values, keyed by slot id (see KIT_SLOTS in model.ts).
+   *  The renderer validates against the slot's curated list — a choice
+   *  slot never renders a value outside its choices, no matter what the
+   *  store carries. */
+  slots?: Record<string, string>;
   /** The user has explicitly themed this piece's text (a type fork or a
    *  per-piece text color) — instrument readouts that default to plain AUTO
    *  ink (cooldown) switch to the full type treatment when set. */
@@ -4849,7 +4854,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<line x1="${(cx3 - Math.cos(ang) * 16 * k).toFixed(1)}" y1="${(cy3 - Math.sin(ang) * 16 * k).toFixed(1)}" x2="${(cx3 + Math.cos(ang) * (r0 - 30 * k)).toFixed(1)}" y2="${(cy3 + Math.sin(ang) * (r0 - 30 * k)).toFixed(1)}" stroke="${alarm}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round"/>` +
         candyKnob(cx3, cy3, 9 * k, bevel) + `</g>`;
       const readout = contentText(String(Math.round(v3 * 174)), cx3, cy3 + r0 * 0.5, Math.min(d2 * 0.17, r0 * 0.44) * typeK, { anchor: "middle", keepCase: true, opacity: dim }) +
-        `<text x="${cx3}" y="${(cy3 + r0 * 0.82).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">MPH</text>`;
+        `<text x="${cx3}" y="${(cy3 + r0 * 0.82).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">${opts.slots?.unit === "KPH" ? "KPH" : "MPH"}</text>`;
       const face =
         `<circle cx="${cx3}" cy="${cy3}" r="${r0}" fill="url(#${gid8})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
         `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 9 * k).toFixed(1)}" fill="${wellFill}"/>` + ticks;
@@ -4897,7 +4902,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const arc = `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 30 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.25)}" stroke-width="1.5" stroke-dasharray="3 7"/>`;
       const readout = part === "face" ? "" :
         contentText(String(Math.round(v3 * 174)), cx3, cy3 - 4 * k, Math.min(d2 * 0.24, r0 * 0.6) * typeK, { anchor: "middle", keepCase: true, opacity: dim }) +
-        `<text x="${cx3}" y="${(cy3 + r0 * 0.46).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">MPH</text>`;
+        `<text x="${cx3}" y="${(cy3 + r0 * 0.46).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">${opts.slots?.unit === "KPH" ? "KPH" : "MPH"}</text>`;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
