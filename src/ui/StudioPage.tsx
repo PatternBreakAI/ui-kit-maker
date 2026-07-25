@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { t } from "@/shell/i18n";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -30,11 +31,11 @@ import logoUrl from "../../pb-logo.png";
    the packs. */
 
 type SortKey = "new" | "old" | "az" | "public";
-const SORTS: { k: SortKey; label: string }[] = [
-  { k: "new", label: "Newest" },
-  { k: "old", label: "Oldest" },
-  { k: "az", label: "A–Z" },
-  { k: "public", label: "Public first" },
+const SORTS = (): { k: SortKey; label: string }[] => [
+  { k: "new", label: t("sortNew") },
+  { k: "old", label: t("sortOld") },
+  { k: "az", label: t("sortAz") },
+  { k: "public", label: t("sortPublic") },
 ];
 
 function sortWork(rows: CloudProject[], k: SortKey): CloudProject[] {
@@ -138,14 +139,14 @@ export function StudioPage() {
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
-          <button className="cg-navbtn" onClick={() => navigate("#/community")}>Community Gallery</button>
+          <button className="cg-navbtn" onClick={() => navigate("#/community")}>{t("cgTitle")}</button>
           <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>
       </header>
 
       <main className="cg">
-        <h1>Your Studio</h1>
-        <p className="fd-pricing__sub">Your public face, your doors, your work — all in one room.</p>
+        <h1>{t("studioTitle")}</h1>
+        <p className="fd-pricing__sub">{t("studioSub")}</p>
 
         {!live ? (
           <section className="fd-studentcard"><p>The studio needs the cloud, which isn't configured on this deployment.</p></section>
@@ -191,26 +192,26 @@ export function StudioPage() {
             {/* ── the doors ── */}
             <div className="cg-doors">
               <button className="cg-door" onClick={() => navigate("#/account")}>
-                <Settings size={15} strokeWidth={2} /> Account settings
+                <Settings size={15} strokeWidth={2} /> {t("doorSettings")}
               </button>
               <button className="cg-door" onClick={() => void billing()}>
-                <CreditCard size={15} strokeWidth={2} /> Billing
+                <CreditCard size={15} strokeWidth={2} /> {t("doorBilling")}
               </button>
               <button className="cg-door" onClick={() => navigate("#/pricing")}>
-                <Crown size={15} strokeWidth={2} /> Plans
+                <Crown size={15} strokeWidth={2} /> {t("doorPlans")}
               </button>
               <button className="cg-door" onClick={() => navigate("#/community")}>
-                <Users size={15} strokeWidth={2} /> Community Gallery
+                <Users size={15} strokeWidth={2} /> {t("cgTitle")}
               </button>
             </div>
 
             {/* ── the work ── */}
             <div className="cg-secline">
-              Your work
+              {t("yourWork")}
               <span className="cg-sort">
-                Sort
+                {t("sortLbl")}
                 <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                  {SORTS.map((s) => <option key={s.k} value={s.k}>{s.label}</option>)}
+                  {SORTS().map((s) => <option key={s.k} value={s.k}>{s.label}</option>)}
                 </select>
               </span>
             </div>
@@ -241,21 +242,21 @@ export function StudioPage() {
                           <b>{p.name}</b>
                           <span className="cg-maker cg-maker--plain">
                             {p.is_public ? <Eye size={11} strokeWidth={2.4} /> : <EyeOff size={11} strokeWidth={2.4} />}{" "}
-                            {m?.listed ? "In the gallery" : p.is_public ? "Public" : "Private"}
+                            {m?.listed ? t("inGallery") : p.is_public ? t("pubLbl") : t("privLbl")}
                             {m && m.likes > 0 && <> · <Heart size={11} strokeWidth={2.4} /> {m.likes}</>}
                           </span>
                         </div>
                         <div className="cg-actions">
                           <button className="cg-open" disabled={busyId === p.id} onClick={() => void openKit(p)}>
-                            {busyId === p.id ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" /> : <Wand2 size={13} strokeWidth={2.2} />} Open
+                            {busyId === p.id ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" /> : <Wand2 size={13} strokeWidth={2.2} />} {t("openBtn")}
                           </button>
                           {p.is_public && p.share_slug && (
                             <a className="cg-open" href={publicProjectUrl(p.share_slug)} title="The public share link">
-                              <ExternalLink size={13} strokeWidth={2.2} /> Share link
+                              <ExternalLink size={13} strokeWidth={2.2} /> {t("shareLink")}
                             </a>
                           )}
                           <button className="cg-curate cg-del" disabled={busyId === p.id} onClick={() => void removeKit(p)}>
-                            <Trash2 size={13} strokeWidth={2.2} /> Delete
+                            <Trash2 size={13} strokeWidth={2.2} /> {t("deleteBtn")}
                           </button>
                         </div>
                       </div>

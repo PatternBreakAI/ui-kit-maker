@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { t } from "@/shell/i18n";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { cloudConfig } from "@/generator/cloud";
 import { publicProfile, avatarUrl, type CommunityCard } from "@/generator/community";
@@ -36,7 +37,7 @@ export function UserPage({ handle }: { handle: string }) {
   return (
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
-        <button className="fd-pricing__brand" onClick={() => navigate("#/community")}>← Community Gallery</button>
+        <button className="fd-pricing__brand" onClick={() => navigate("#/community")}>← {t("cgTitle")}</button>
         <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
       </header>
 
