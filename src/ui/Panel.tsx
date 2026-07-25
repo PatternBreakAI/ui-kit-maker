@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { PRESETS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId } from "@/generator/model";
@@ -746,6 +746,10 @@ export function Panel() {
               placeholder="Pack name — Pro members see it"
               withDate
               onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
+            <button className="resetstate" title="Review student & educator applications — approvals unlock the education price"
+              onClick={() => { window.location.hash = "#/review"; }}>
+              <GraduationCap size={14} strokeWidth={2} /> Review applications
+            </button>
             {activeCloudPreset && (
               <button className="resetstate" onClick={() => {
                 if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });

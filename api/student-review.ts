@@ -35,6 +35,16 @@ type Row = {
   status: string; note: string | null; created_at: string; reviewed_at: string | null;
 };
 
+/** id_path is written by the APPLICANT'S client (RLS lets them insert their
+    own pending row with any string in that column). Trust it only inside
+    the applicant's own folder — otherwise a hostile application could point
+    at another user's document and have the admin's decision delete it. */
+function ownPath(r: Pick<Row, "user_id" | "id_path">): string | null {
+  const p = r.id_path;
+  if (!p || !p.startsWith(`${r.user_id}/`) || p.includes("..") || p.includes("//")) return null;
+  return p;
+}
+
 export async function POST(req: Request): Promise<Response> {
   const supaUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
@@ -84,8 +94,9 @@ export async function POST(req: Request): Promise<Response> {
       // a short-lived signed URL for the document, pending rows only —
       // decided rows have no document left to sign, by design
       let idUrl: string | null = null;
-      if (r.id_path && r.status === "pending") {
-        const sg = await fetch(`${supaUrl}/storage/v1/object/sign/student-ids/${r.id_path}`, {
+      const rp = ownPath(r);
+      if (rp && r.status === "pending") {
+        const sg = await fetch(`${supaUrl}/storage/v1/object/sign/student-ids/${rp}`, {
           method: "POST",
           headers: { ...svc, "content-type": "application/json" },
           body: JSON.stringify({ expiresIn: 600 }),   // ten minutes — one sitting
@@ -124,8 +135,9 @@ export async function POST(req: Request): Promise<Response> {
 
   /* Delete the document FIRST. A 404 means it is already gone (an earlier
      attempt that failed after this step) — that is success, not an error. */
-  if (row.id_path) {
-    const del = await fetch(`${supaUrl}/storage/v1/object/student-ids/${row.id_path}`, {
+  const delPath = ownPath(row);
+  if (delPath) {
+    const del = await fetch(`${supaUrl}/storage/v1/object/student-ids/${delPath}`, {
       method: "DELETE",
       headers: svc,
     });
