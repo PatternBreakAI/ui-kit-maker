@@ -119,6 +119,9 @@ by accident.
 | "Import our SVGs into After Effects" | AE has **no native SVG import**. | Point AE users at PNG sequences, or at Illustrator as the intermediate. |
 | "Pixel-art ready" (Aseprite) | Our output is smooth vector-derived art, not pixel art. | "Opens as flat transparent PNGs for reference or overpainting." |
 | "Your assets are protected / can't be copied" | The renderer runs in the browser; on-screen SVG is in the DOM. | "Every paid export is licensed to your account and traceable." |
+| "One-click Unity setup" / "drag and drop and it just works" | The importer script is an untested bundled convenience, not the product. | "Set the manifest numbers in the Sprite Editor, or let the bundled importer script do the typing." |
+| "Tested in Unity" / "tested in Unreal" | Nobody has run the kit through either engine end-to-end. | Name what ships: standard PNGs and manifest numbers that engines accept. |
+| Announcing the deeper Unity export | It's roadmap, not product. | Nothing — do not announce it. |
 
 **Newly APPROVED (v85.2):** "Every kit ships with its own recipe — every
 colour, token and type setting written out, plus a settings file that loads
@@ -146,13 +149,14 @@ with it.
 - **Accepts:** PNG sprites; nine-slice via Sprite Editor's `Border` (L/R/T/B in pixels); pivots; `Image` component in `Sliced` mode. Editor scripts under any `Editor/` folder compile automatically.
 - **Pain point:** hand-entering border values for dozens of sprites, then discovering the art baked in a label or a shadow you can't remove.
 - **Our answer:** atomic content-free PNGs with the border values already in the manifest, and an importer script that applies them for you. Labels and numbers stay live engine text; shadows and glows ship as separate tintable blobs.
-- **Copy:** "Drops in with the nine-slice borders already set — our importer reads them straight from the manifest, so nothing is typed by hand and nothing is baked in."
+- **Copy (v85.3):** "Standard PNGs with every nine-slice border, pivot and size written out in a manifest — set them in Unity's Sprite Editor, or let the bundled importer script do the typing. Labels stay live engine text; nothing is baked in."
+- The importer script is a **bundled convenience, untested by users** — the manifest numbers are the product. Copy must work even if the script is deleted from the ZIP.
 
 ### Unreal Engine — APPROVED
 - **Accepts:** Texture2D; UMG Brush `Draw As: Box` with `Margin` as **0–1 normalized** values (not pixels).
 - **Pain point:** margins are normalized, so every pixel border must be divided by the texture dimension by hand.
 - **Our answer:** the manifest carries native dimensions beside the pixel margins, and `unreal/README.md` gives the conversion and the recipes.
-- **Copy:** "Box-draw margins worked out for you — native size and insets both in the manifest, so the 0–1 conversion is done."
+- **Copy (v85.3):** "Box-draw margins worked out for you — native size, pixel insets and the 0–1 conversion all in the kit, with step-by-step UMG recipes."
 
 ### Godot — NEEDS TEST
 - **Accepts:** PNG; `NinePatchRect` with `patch_margin_*`. Native SVG import exists and rasterizes at import scale.
@@ -270,7 +274,22 @@ workstream after the owner's tests:
 | `c_rblx` | "…nine-slice margins in the manifest that convert straight to SliceCenter." | "Match" → "convert": L/R/T/B margins are convertible to a SliceCenter Rect, not identical. |
 | `exn_svg` (export-menu note) | "Layered vectors — fonts named and linked, free to install. Verified in Illustrator; SVG-native in Penpot; opens straight in the browser." | Said "fonts embedded" (NEVER since v85.2) and "opens clean in Figma". |
 
-### ⚠️ Unverified — resolved by Round 2 above; kept for history
+### Round 3 — engine lines corrected 2026-07-25 (front door, all seven locales)
+
+Round 2's `c_unity` leaned on the importer script, which no one has
+tested. Both engine lines now claim the assets and the manifest numbers —
+which stand on their own — with the importer demoted to a mentioned
+convenience:
+
+| Key | Now says | Basis |
+|---|---|---|
+| `c_unity` | "Standard PNGs with every nine-slice border, pivot and size written out in a manifest — set them in Unity's Sprite Editor, or let the bundled importer script do the typing. Labels stay live engine text; nothing is baked in." | §1.2 engine kit: PNGs + `kit-manifest.json` (`nineSlice`, `pivot`, `nativeW/H`). Manual path is primary; script is optional. |
+| `c_unreal` | "Box-draw margins worked out for you — native size, pixel insets and the 0–1 conversion all in the kit, with step-by-step UMG recipes." | §1.2: manifest carries native dimensions beside pixel margins; `unreal/README.md` has the conversion and recipes. |
+
+Chips unchanged: Unity's roadmap chip stays off (announcing the deeper
+tested export is on the NEVER list), Unreal keeps its fairly-earned flag.
+
+### ⚠️ Unverified — resolved by Rounds 2–3 above; kept for history
 
 | Key | The claim | What to check |
 |---|---|---|
