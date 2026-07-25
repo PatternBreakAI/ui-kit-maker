@@ -392,23 +392,24 @@ export const LANDING_HTML = `</head>
     <section class="compat-section" aria-labelledby="compatTitle">
       <div class="shell">
         <div class="math-header reveal">
-          <p class="section-label" id="compatLabel">Plays nice with your stack</p>
-          <h2 class="section-title" id="compatTitle">Lands in the tools you already use.</h2>
+          <div class="compat-head" id="compatHead">
+            <div class="compat-head__idle">
+              <p class="section-label" id="compatLabel">Plays nice with your stack</p>
+              <h2 class="section-title" id="compatTitle">Lands in the tools you already use.</h2>
+            </div>
+            <div class="compat-spot" id="compatSpot" aria-live="polite">
+              <span class="cs-ico" id="csIco" aria-hidden="true"></span>
+              <b class="cs-name" id="csName"></b>
+              <p class="cs-how" id="csHow"></p>
+              <span class="cc-soon" id="csSoon" hidden>NATIVE EXPORT ON THE ROADMAP</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="compat-band reveal" id="compatBand">
         <div class="compat-track" id="compatTrack"></div>
       </div>
-      <div class="shell">
-        <div class="compat-card reveal" id="compatCard">
-          <span class="cc-ico" id="ccIco" aria-hidden="true">✦</span>
-          <div class="cc-txt">
-            <b id="ccName"></b>
-            <p id="ccHow">Roll over a logo — here's how your kit lands there.</p>
-            <span class="cc-soon" id="ccSoon" hidden>NATIVE EXPORT ON THE ROADMAP</span>
-          </div>
-        </div>
-      </div>
+      <p class="compat-hint reveal" id="compatHint">Roll over a logo — here's how your kit lands there.</p>
     </section>
 
     <section class="ownership-section" aria-labelledby="ownershipTitle">

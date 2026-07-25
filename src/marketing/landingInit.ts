@@ -1458,8 +1458,7 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         document.querySelectorAll(".kit-sec span").forEach((el2) => { el2.textContent = t(el2.dataset.k); });
         const cl2 = document.getElementById("compatLabel"); if (cl2) cl2.textContent = t("compatLbl");
         const ct2 = document.getElementById("compatTitle"); if (ct2) ct2.textContent = t("compatTitle");
-        const ch2 = document.getElementById("ccHow");
-        if (ch2 && !ch2.dataset.k) ch2.textContent = t("c_rest");
+        const ch2 = document.getElementById("compatHint"); if (ch2) ch2.textContent = t("c_rest");
         const kh = document.querySelector(".kit-headline");
         if (kh) kh.innerHTML = `<span><b id="khN">${SHEET_N}</b> ${t("comp")}</span><i>×</i><span><b>4</b> ${t("states")}</span><i>—</i><span class="kh-dl">${t("ready")}</span>`;
         const upB = document.getElementById("b2Up"); if (upB) upB.textContent = t("upBtn");
@@ -1793,9 +1792,11 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           ["HTML / CSS", "#e34f26", ["p", CP.html5, "#e34f26"], ["c_html", "c_svg"], 0],
         ];
         const cTrack = document.getElementById("compatTrack");
-        const ccName = document.getElementById("ccName"), ccHow = document.getElementById("ccHow"), ccSoon = document.getElementById("ccSoon");
-        const ccIco = document.getElementById("ccIco"), ccCard = document.getElementById("compatCard");
-        if (cTrack && ccName && ccHow && ccSoon && ccIco && ccCard) {
+        const head = document.getElementById("compatHead"), spot = document.getElementById("compatSpot");
+        const csIco = document.getElementById("csIco"), csName = document.getElementById("csName");
+        const csHow = document.getElementById("csHow"), csSoon = document.getElementById("csSoon");
+        if (cTrack && head && spot && csIco && csName && csHow && csSoon) {
+          let hideT = 0;
           const NS = "http://www.w3.org/2000/svg";
           const mkIco = (ic) => {
             if (ic[0] === "b") {
@@ -1822,19 +1823,26 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
             b2.appendChild(document.createTextNode(nm));
             if (ghost) { b2.tabIndex = -1; b2.setAttribute("aria-hidden", "true"); }
             const show = () => {
-              ccName.textContent = nm;
-              ccHow.dataset.k = "1";
-              ccHow.textContent = frags.map((f2) => t(f2)).join(" ");
-              ccSoon.hidden = !soon;
-              ccSoon.textContent = t("c_soon");
-              ccCard.style.setProperty("--ac", ac);
-              ccIco.classList.toggle("cc-ico--mono", ic[0] === "p" && ic[2] === "mono");
-              ccIco.textContent = "";
-              ccIco.appendChild(mkIco(ic));
+              clearTimeout(hideT);
+              csName.textContent = nm;
+              csHow.textContent = frags.map((f2) => t(f2)).join(" ");
+              csSoon.hidden = !soon;
+              csSoon.textContent = t("c_soon");
+              spot.style.setProperty("--ac", ac);
+              csIco.classList.toggle("cs-ico--mono", ic[0] === "p" && ic[2] === "mono");
+              csIco.textContent = "";
+              csIco.appendChild(mkIco(ic));
+              head.classList.add("is-spot");
+            };
+            const hide = () => {
+              clearTimeout(hideT);
+              hideT = setTimeout(() => head.classList.remove("is-spot"), 350);
             };
             b2.addEventListener("pointerenter", show);
             b2.addEventListener("focus", show);
             b2.addEventListener("click", show);
+            b2.addEventListener("pointerleave", hide);
+            b2.addEventListener("blur", hide);
             return b2;
           };
           CTOOLS.forEach((t2) => cTrack.appendChild(mkTile(t2, false)));
