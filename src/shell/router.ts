@@ -47,7 +47,7 @@ export function parseHash(hash: string): Route {
   if (path === "/account") return { name: "account", viewer: false };
   if (path === "/community") return { name: "community", viewer: false };
   if (path === "/studio") return { name: "studio", viewer: false };
-  // deliberately unlinked from any UI — the admin desk is direct-URL only
+  // the admin desk — linked only from the Account page's admin-only card
   if (path === "/admin") return { name: "admin", viewer: false };
   // /u/<handle> — the one parameterized route: a maker's public page.
   const u = /^\/u\/([a-z0-9_]{3,20})$/.exec(path);

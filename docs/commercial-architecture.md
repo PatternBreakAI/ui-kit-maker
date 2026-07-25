@@ -190,8 +190,11 @@ dependency list and the client bundle are untouched.
 
 ## Comped plans (v90) — the admin desk
 
-`POST /api/admin` + the unlinked `#/admin` page replace hand-written SQL
-for comping accounts. The security model is the student-review desk's:
+`POST /api/admin` + the `#/admin` page replace hand-written SQL for
+comping accounts. The page is linked from exactly one place — an
+admin-only card on the Account page (owner call, 2026-07-25) — and that
+card's visibility is cosmetic. The security model is the student-review
+desk's:
 the client-side `is_admin` flag only decides what renders; the function
 re-reads the **caller's own** profile row with the service role on every
 call and 403s anyone the database doesn't flag. Admin itself is granted

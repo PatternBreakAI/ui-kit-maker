@@ -5,11 +5,12 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Wand2, LogOut, KeyRound, RefreshCw, FileDown, History,
   CheckCircle2, CloudOff, CloudUpload, CreditCard, Loader2, Crown,
+  ShieldCheck, GraduationCap, Eye,
 } from "lucide-react";
 import {
   cloudConfig, clearCloudOverride, signOutCloud,
   syncNow, downloadMyData, hasLocalSnapshot, restoreLocalSnapshot,
-  requestPasswordReset, myBilling,
+  requestPasswordReset, myBilling, myProfileTier,
 } from "@/generator/cloud";
 import { openBillingPortal, justUpgraded } from "@/generator/billing";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -70,6 +71,17 @@ export function AccountPage() {
   const [planBusy, setPlanBusy] = useState(false);
   const [planErr, setPlanErr] = useState<string | null>(null);
   const [awaiting, setAwaiting] = useState(justUpgraded());
+
+  /* Admin card visibility (owner call: the desks get a door in settings,
+     for every admin). The flag only decides what RENDERS — each desk
+     re-verifies is_admin server-side on every call. */
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    void myProfileTier().then((p) => { if (live) setIsAdmin(p.admin); });
+    return () => { live = false; };
+  }, [signedIn]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -238,6 +250,28 @@ export function AccountPage() {
               </div>
               {planErr && <p className="fd-note">{planErr}</p>}
             </section>
+
+            {/* ── admin desks (renders for admins only; every desk
+                 re-verifies is_admin server-side) ── */}
+            {isAdmin && (
+              <section className="fd-card">
+                <h2 className="fd-card__title"><ShieldCheck size={17} strokeWidth={2.1} style={{ verticalAlign: "-3px" }} /> Admin</h2>
+                <p className="fd-fine">
+                  Only admin accounts see this card. Comps and plan changes are audit-logged.
+                </p>
+                <div className="fd-actions">
+                  <button className="fd-ghost" onClick={() => navigate("#/admin")}>
+                    <CreditCard size={15} strokeWidth={1.8} /> Plans desk
+                  </button>
+                  <button className="fd-ghost" onClick={() => navigate("#/review")}>
+                    <GraduationCap size={15} strokeWidth={1.8} /> Student review
+                  </button>
+                  <button className="fd-ghost" onClick={() => navigate("#/community")}>
+                    <Eye size={15} strokeWidth={1.8} /> Curation queue
+                  </button>
+                </div>
+              </section>
+            )}
 
             {/* ── projects ── */}
             <section className="fd-card">
