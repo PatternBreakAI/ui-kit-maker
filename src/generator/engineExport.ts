@@ -11,6 +11,7 @@ import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName,
 import { renderKit } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes } from "./exportUtils";
+import { kitSpecMarkdown, fontLicenceText, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
@@ -245,6 +246,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     files.push({ path: "atlas/README.md", data: "The packed sheet is a VISUAL CATALOG for humans.\nDo not slice it for engine use — build from /assets and kit-manifest.json instead.\n" });
   }
 
+  /* paperwork — the recipe by hand, the machine file, the font terms */
+  files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) });
+  files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
+  files.push({ path: "FONT-LICENSE.md", data: fontLicenceText(kitFontFamilies(st.cfg)) });
   if (licence) files.push({ path: "LICENCE.txt", data: licence });
   download(`${st.kitName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-engine-kit.zip`, makeZip(files));
 }

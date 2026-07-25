@@ -9,6 +9,7 @@ import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport } from "@/generator/engineExport";
 import { guardedExport } from "@/generator/exportGate";
+import { kitSpecMarkdown, fontLicenceText, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -992,6 +993,11 @@ export function KitPage() {
         path: `svg/${slug(e.name)}.svg`,
         data: styleTag && e.svg.includes("<text") ? e.svg.replace(/(<svg[^>]*>)/, `$1${styleTag}`) : e.svg,
       }));
+      /* Paperwork. README = how the pack is built PLUS the full recipe, so a
+         designer can rebuild the look by hand. settings.json goes straight
+         back into the app. FONT-LICENSE ships because embedding a face IS
+         redistribution and the OFL requires its terms to travel with it.
+         All plain string work — no server involved. */
       files.push({
         path: "README.md",
         data: [
@@ -1003,15 +1009,24 @@ export function KitPage() {
           "## Fonts",
           "Each text-bearing SVG embeds its font as a data-URI @font-face (one",
           "weight), so browsers render the real type out of the box. Design",
-          "tools (Figma / Illustrator) substitute installed fonts instead —",
-          "install the families below for full fidelity:", "",
+          "tools may substitute an installed face instead — install the",
+          "families below for full fidelity. Licence terms are in",
+          "`fonts/FONT-LICENSE.md`:", "",
           ...famDefs.map(({ fam, css }) => css
             ? `- ${fam} — https://fonts.google.com/specimen/${fam.replace(/ /g, "+")} · stylesheet: https://fonts.googleapis.com/css2?family=${css}&display=swap`
             : `- ${fam} — bundled system face`), "",
-          "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the layers.", "",
-          "## Illustrator", "Open directly; the 'SVG Tiny' warning only concerns re-saving.",
+          "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the layers.",
+          "Figma doesn't render SVG filter effects, so soft glows and grain drop",
+          "on import — the geometry, gradients, layer names and live text all",
+          "arrive intact, ready to restyle with Figma's own effects. Want the",
+          "rendered look exactly? Use the PNG exports.", "",
+          "## Illustrator", "Open directly; the 'SVG Tiny' warning only concerns re-saving.", "",
+          "---", "",
+          kitSpecMarkdown(st.cfg, st.kitName ?? "Your kit"),
         ].join("\n"),
       });
+      files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
+      files.push({ path: "fonts/FONT-LICENSE.md", data: fontLicenceText(kitFontFamilies(st.cfg, fams)) });
       files.push({ path: "LICENCE.txt", data: grant.licence });
       downloadZip(`${slug(st.kitName ?? "ui-kit")}-svg-pack.zip`, files);
       });
