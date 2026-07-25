@@ -1227,7 +1227,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     prims.push(fds(0, 0, T2.glow.size * 0.8, T2.glow.color, ((T2.glow.opacity / 100) * 0.6).toFixed(2)));
   }
   const textFxDef = prims.length
-    ? `<filter id="${id}tf" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
+    /* filterUnits=userSpaceOnUse: Safari synthesizes the italic slant for
+       faces with no italic cut (Russo One) but measures the text bbox
+       WITHOUT it — a percentage region inherits that lie and clips the
+       leaning glyph edges diagonally. An absolute region can't. */
+    ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
   const textFilter = prims.length ? ` filter="url(#${id}tf)"` : "";
   const outlineStroke = T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color);
@@ -1713,7 +1717,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       prims4.push(fd4("0", "0", T4.glow.size * 0.3, T4.glow.color, (T4.glow.opacity / 100).toFixed(2)));
       prims4.push(fd4("0", "0", T4.glow.size * 0.8, T4.glow.color, ((T4.glow.opacity / 100) * 0.6).toFixed(2)));
     }
-    if (prims4.length) defs4 += `<filter id="${gid4}f" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
+    if (prims4.length) defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;   // absolute region — same Safari synthetic-italic clip fix as ${id}tf
     const outline4 = T4.outline.on && state !== "disabled"
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
       : "";

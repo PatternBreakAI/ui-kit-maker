@@ -267,7 +267,7 @@ export function CanvasView() {
           {phase === "master" && (
             <button className={helpOn ? "on" : ""} title="Dissect — click any part of the art to see what it is and where to edit it"
               aria-pressed={helpOn} aria-label="Dissect mode" onClick={() => setHelpOn(!helpOn)}>
-              <Microscope size={17} strokeWidth={1.8} />
+              <Microscope size={20} strokeWidth={1.7} />
             </button>
           )}
           <span className="zdiv" />

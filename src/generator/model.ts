@@ -836,18 +836,19 @@ export type KitLesson = {
 export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
   speedo: {
     what: "An analog gauge — the industry calls this a dial or needle gauge. Value maps to needle angle, with the danger zone marked in the alarm color.",
-    history: "Borrowed straight from car dashboards into racing games — Pole Position (1982) used a number, but by the era of Ridge Racer and Gran Turismo the skeuomorphic dial was the genre's signature. It survives because a needle's ANGLE reads faster in peripheral vision than a number.",
-    games: "Gran Turismo, Forza Horizon, Need for Speed — and outside racing, Dead Space's kinesis meters show how far the instrument idea travels.",
+    history: "Pole Position (1982) showed speed as a bare number; OutRun (1986) put a dashboard under it; by Ridge Racer (1993) and Gran Turismo (1997) the skeuomorphic dial was the racing genre's signature. It survives because a needle's angle reads faster in peripheral vision than a number.",
+    games: "Gran Turismo 7 (2022) for cockpit-grade dials · Forza Horizon 5 (2021) for the minimal floating dial · and as a counter-example, Mario Kart 8 (2014) has no speedometer at all — speed is told through field-of-view and motion blur.",
     links: [
       { label: "Speedometer — the real-world instrument", url: "https://en.wikipedia.org/wiki/Speedometer" },
-      { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
+      { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
     ],
   },
   speedo2: {
     what: "The HUD cut of the analog gauge — same needle physics, drawn open-faced so it can sit over gameplay without a housing.",
-    history: "As racing games moved the camera behind the car, the dashboard dial left the cockpit and became a floating HUD instrument — keeping the needle (fast to read) while dropping the chrome.",
-    games: "Forza Horizon's minimal dial, Mario Kart's speed feel without any dial at all — a good study in when you need one.",
+    history: "As the chase camera took over — OutRun (1986) through Need for Speed (1994) — the dial left the cockpit and became a floating HUD instrument, keeping the needle (fast to read) while dropping the chrome. Burnout Paradise (2008) fused it with the boost meter; F-Zero GX (2003) turned raw speed into the spectacle itself.",
+    games: "Forza Horizon 5 (2021) for restraint · Burnout Paradise (2008) for speed-plus-boost in one instrument · F-Zero GX (2003) for speed as drama.",
     links: [
+      { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
       { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
     ],
   },
