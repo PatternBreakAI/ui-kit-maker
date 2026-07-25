@@ -4,7 +4,11 @@
    Stripe customer, and hand back a Checkout URL. Nothing here grants Pro —
    only the webhook does that, after Stripe confirms payment. */
 
-const PRO_ANNUAL_CONSENT =
+/* The annual-renewal disclosure of record, from the checkout copy doc.
+   It cannot be passed to Checkout on a Managed Payments account (see the
+   session call below), so it is presented on #/pricing directly above the
+   CTA. Kept here so the two never drift. */
+export const PRO_ANNUAL_CONSENT =
   "You will be charged $29.99 today, plus applicable tax. This membership renews automatically every 12 months at the then-current annual price unless you cancel. Cancel anytime in Account › Plan & billing — cancelling stops the next charge and your Pro access continues to the end of the term.";
 
 function json(body: unknown, status = 200): Response {
@@ -108,9 +112,14 @@ export async function POST(req: Request): Promise<Response> {
       "metadata[supabase_uid]": user.id,
       allow_promotion_codes: "true",
       billing_address_collection: "auto",
-      // the annual-renewal disclosure our checkout copy requires, shown
-      // directly above the pay button
-      "custom_text[submit][message]": PRO_ANNUAL_CONSENT,
+      /* NO custom_text HERE. This account uses Stripe Managed Payments,
+         which rejects the parameter outright:
+           "custom_text cannot be used with Managed Payments"
+         Managed Payments is worth keeping — Stripe handles tax calculation
+         and remittance, which is what our "plus applicable tax" copy leans
+         on — so the disclosure lives where it always did: immediately above
+         the CTA on #/pricing, plus Stripe's own recurring-terms display in
+         Checkout. See PRO_ANNUAL_CONSENT below for the wording of record. */
       success_url: `${origin}/#/account?upgraded=1`,
       cancel_url: `${origin}/#/pricing`,
     });
