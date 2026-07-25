@@ -36,7 +36,7 @@ const EXPLORER: Row[] = [
 
 const PRO: Row[] = [
   { label: "Full kit components + all starter presets" },
-  { label: "New kit pack every month ($60 value)" },
+  { label: "New preset pack every month — $60 a year of packs" },
   { label: "Unlimited zoom" },
   { label: "PNG export up to 4×" },
   { label: "Every export: SVG, HTML, engine kit, game kit" },
@@ -55,7 +55,7 @@ const PRO: Row[] = [
    identical rows.
 
    What the education price does not buy is the right to SELL what you
-   build, and the monthly kit packs. Both are real differences that cost a
+   build, and the monthly preset packs. Both are real differences that cost a
    student nothing while they are learning, and both are things they would
    happily pay to lift the day they start earning — which is when Pro
    becomes affordable anyway.
@@ -71,7 +71,7 @@ const STUDENT: Row[] = [
   { label: "Cloud saves, named projects & share links" },
   { label: "Coursework, portfolio & non-commercial release" },
   { label: "Selling what you build needs Pro", on: false },
-  { label: "Monthly kit packs are a Pro perk", on: false },
+  { label: "Monthly preset packs are a Pro perk", on: false },
   { label: "Personal and non-transferable — verified yearly", note: true },
 ];
 
