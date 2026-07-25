@@ -3,6 +3,7 @@ import {
   ArrowLeft, FolderOpen, Save, Trash2, Pencil, Link2, Check, RefreshCw, Eye, EyeOff,
 } from "lucide-react";
 import { useGen } from "@/generator/store";
+import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
   listProjects, saveProject, renameProject, deleteProject, setProjectPublic,
   loadProjectDoc, updateProjectDoc, publicProjectUrl, type CloudProject,
@@ -33,6 +34,19 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   const tier = useGen((s) => s.tier);
   const isAdmin = useGen((s) => s.isAdmin);
   const canPrivate = tier === "pro" || isAdmin;
+
+  /* The tier used to resolve only when the EDITOR mounted, so this panel —
+     reachable from the account page and the overlay without ever opening
+     the editor — could read a Pro user as "guest": wrong consent message,
+     and a save that would have gone PUBLIC under the free rule (owner
+     report, 2026-07-25). The panel now resolves the tier itself, and the
+     consent line waits until the answer is real. */
+  const cloud = useCloudStatus();
+  const signedIn = cloud.state === "synced" || cloud.state === "syncing" || cloud.state === "error";
+  const tierKnown = !signedIn || tier !== "guest";
+  useEffect(() => {
+    if (signedIn && useGen.getState().tier === "guest") void useGen.getState().loadCloudPresets();
+  }, [signedIn]);
 
   /* Pro-only global default (owner call, 2026-07-25): share new kits by
      default instead of flipping each eye by hand. Lives in the synced
@@ -68,7 +82,10 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     // the kit takes the project's name, so the kit-page title reflects the
     // project you just saved (and the saved snapshot carries it)
     useGen.getState().setKitName(name);
-    const st = useGen.getState();
+    let st = useGen.getState();
+    /* never decide visibility on an unresolved tier — a quick Save could
+       otherwise publish a Pro kit under the free rule */
+    if (signedIn && st.tier === "guest") { await st.loadCloudPresets(); st = useGen.getState(); }
     /* the consent moment's other half: free & student kits save PUBLIC
        (the community launch); Pro and admin default private and keep
        their toggle. RLS enforces the same line server-side. */
@@ -152,7 +169,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           <Save size={15} strokeWidth={1.8} /> Save
         </button>
       </div>
-      {!canPrivate ? (
+      {!tierKnown ? null : !canPrivate ? (
         /* THE CONSENT MOMENT — said where the decision happens, not in
            fine print: free & student kits are community kits. The same
            sentence is the product's cleanest Pro doorway. */
