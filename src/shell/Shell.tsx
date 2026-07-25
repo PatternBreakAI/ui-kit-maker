@@ -66,10 +66,15 @@ class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean
   componentDidCatch(err: unknown) {
     const msg = String((err as Error)?.message ?? err);
     const chunkErr = /dynamically imported module|Loading chunk|module script failed|Failed to fetch/i.test(msg);
-    let reloaded = false;
-    try { reloaded = sessionStorage.getItem("fd-chunk-reload") === "1"; } catch { /* private mode */ }
-    if (chunkErr && !reloaded) {
-      try { sessionStorage.setItem("fd-chunk-reload", "1"); } catch { /* private mode */ }
+    /* A time window, not a one-shot: with several deploys close together a
+       tab can hit stale chunks more than once, and the old boolean guard
+       left it stranded on the reload card. index.html now ships
+       Cache-Control: no-cache (vercel.json), so each auto-reload really
+       fetches the fresh chunk map; the 20s window still prevents a loop. */
+    let last = 0;
+    try { last = Number(sessionStorage.getItem("fd-chunk-reload") ?? 0) || 0; } catch { /* private mode */ }
+    if (chunkErr && Date.now() - last > 20_000) {
+      try { sessionStorage.setItem("fd-chunk-reload", String(Date.now())); } catch { /* private mode */ }
       window.location.reload();
     }
   }
