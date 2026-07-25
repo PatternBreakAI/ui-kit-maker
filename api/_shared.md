@@ -1,10 +1,26 @@
 # /api — server authority for billing
 
 These are Vercel serverless functions (Node runtime, web-standard
-`Request`/`Response` handlers). They are the FIRST server-side code in the
-product, and they exist because of Appendix A: `profiles.plan_id` is
-server-truth, so only something holding the Supabase **service-role** key
-may grant Pro. The browser can ask to upgrade; it can never upgrade itself.
+`Request`/`Response` handlers).
+
+> **Export a NAMED HTTP METHOD, never a default.**
+> `export async function POST(req: Request): Promise<Response>`
+>
+> A `export default function handler(req)` is read as the Node
+> `(req, res) => void` signature: Vercel **ignores the returned Response**,
+> nothing ever writes to `res`, and the invocation hangs until the 300s
+> ceiling and 504s. That cost us a day of "the export service didn't
+> answer" — every function here was affected, including checkout and the
+> webhook. The platform log names it exactly:
+> `WARN: default export returned a Response`.
+>
+> A bonus: with a named method, the platform answers non-POST requests
+> with 405 for free, so no method guard is needed in the handler.
+
+They are the first server-side code in the product, and they exist because
+of Appendix A: `profiles.plan_id` is server-truth, so only something holding
+the Supabase **service-role** key may grant Pro. The browser can ask to
+upgrade; it can never upgrade itself.
 
 | Route | Method | What it does |
 |---|---|---|
