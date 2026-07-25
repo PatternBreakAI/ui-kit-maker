@@ -4,7 +4,7 @@ import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
-import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
+import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText } from "@/generator/exportUtils";
 import { guardedExport } from "@/generator/exportGate";
@@ -25,6 +25,10 @@ function Logo() {
 export function TopBar() {
   const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier } = useGen();
   const tcaps = capsOf(tier);
+  /* Per-artifact, not one blanket "vectors yes/no" — student buys the
+     learning formats and stops short of the shipping ones, so the game kit
+     row locks for them while SVG and HTML stay open. */
+  const may = (k: Parameters<typeof canExport>[1]) => canExport(tier, k);
   const gate = () => { if (tier === "guest") openAuth("signin"); else navigate("#/pricing"); };
   const lockrow = (label: string) => (<><Lock size={13} strokeWidth={2.2} /> {label} <i className="protag">PRO</i></>);
   const cloud = useCloudStatus();
@@ -126,7 +130,7 @@ export function TopBar() {
           </button>
           {menuOpen && (
             <div className="menu-pop">
-              {tcaps.vectorExports ? (
+              {may("svg") ? (
                 <button onClick={() => { dlSvg(); setMenuOpen(false); }}>
                   <Download size={15} strokeWidth={1.8} /> Export SVG
                 </button>
@@ -136,21 +140,21 @@ export function TopBar() {
               <button onClick={() => { void downloadPng(svg(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax); setMenuOpen(false); }}>
                 <Image size={15} strokeWidth={1.8} /> Export PNG {tcaps.pngScaleMax}×
               </button>
-              {tcaps.vectorExports ? (
+              {may("html") ? (
                 <button onClick={() => { dlHtml(); setMenuOpen(false); }}>
                   <FileDown size={15} strokeWidth={1.8} /> Download HTML
                 </button>
               ) : (
                 <button className="lockedmi" title={`HTML export is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Download HTML")}</button>
               )}
-              {tcaps.vectorExports ? (
+              {may("svg") ? (
                 <button onClick={() => { copyCode(); setMenuOpen(false); }}>
                   <Copy size={15} strokeWidth={1.8} /> Copy SVG code
                 </button>
               ) : (
                 <button className="lockedmi" title={`SVG code is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow("Copy SVG code")}</button>
               )}
-              {tcaps.vectorExports ? (
+              {may("gamekit") ? (
                 <button onClick={() => { dlGameKit(); setMenuOpen(false); }}>
                   <Gamepad2 size={15} strokeWidth={1.8} /> Export game kit
                 </button>

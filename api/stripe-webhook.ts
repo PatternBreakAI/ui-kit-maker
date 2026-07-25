@@ -47,16 +47,30 @@ type Sub = {
   status?: string;
   customer?: string;
   current_period_end?: number;
+  /* which price they actually bought — this is what separates a student
+     from a pro. Without it both would land as the same plan and the
+     student limits could never be enforced. */
+  items?: { data?: { current_period_end?: number; price?: { id?: string } }[] };
   /* Stripe moved the period end onto the items in the 2025 API versions;
      new accounts default to those, older ones still send the top-level
      field. Read whichever one this account's version provides. */
-  items?: { data?: { current_period_end?: number }[] };
   metadata?: Record<string, string>;
 };
 
 function renewalOf(sub: Sub): string | null {
   const secs = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
   return secs ? new Date(secs * 1000).toISOString() : null;
+}
+
+/** Student and pro are different plans with different export rights, so
+    the plan follows the PRICE that was actually purchased. Anything we
+    don't recognise is treated as pro — never silently downgrade someone
+    who paid. */
+function planOf(sub: Sub): "pro" | "student" {
+  const edu = process.env.STRIPE_PRICE_STUDENT;
+  if (!edu) return "pro";
+  const bought = sub.items?.data?.map((d) => d.price?.id).filter(Boolean) ?? [];
+  return bought.includes(edu) ? "student" : "pro";
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -117,14 +131,19 @@ export async function POST(req: Request): Promise<Response> {
       if (!uid) return ok("No matching profile — ignored.");
       // the session tells us it's paid; read the subscription for the term end
       let renews: string | null = null;
+      let plan: "pro" | "student" = "pro";
       if (subId && stripeKey) {
         const s = await fetch(`https://api.stripe.com/v1/subscriptions/${subId}`, {
           headers: { authorization: `Bearer ${stripeKey}` },
         });
-        if (s.ok) renews = renewalOf((await s.json()) as Sub);
+        if (s.ok) {
+          const sub = (await s.json()) as Sub;
+          renews = renewalOf(sub);
+          plan = planOf(sub);
+        }
       }
       await setPlan(uid, {
-        plan_id: "pro",
+        plan_id: plan,
         plan_status: "active",
         stripe_customer_id: customer || null,
         stripe_subscription_id: subId || null,
@@ -142,7 +161,7 @@ export async function POST(req: Request): Promise<Response> {
       // Stripe's own words for "this person is entitled right now"
       const entitled = status === "active" || status === "trialing" || status === "past_due";
       await setPlan(uid, {
-        plan_id: entitled && type !== "customer.subscription.deleted" ? "pro" : "free",
+        plan_id: entitled && type !== "customer.subscription.deleted" ? planOf(sub) : "free",
         plan_status: type === "customer.subscription.deleted" ? "canceled" : status,
         stripe_subscription_id: sub.id ?? null,
         plan_renews_at: renewalOf(sub),

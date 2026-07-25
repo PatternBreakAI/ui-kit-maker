@@ -73,9 +73,10 @@ export function StudentPage() {
         <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
         <h1>Student &amp; educator access</h1>
         <p className="fd-pricing__sub">
-          The full Pro tool at $15.99 a year instead of $29.99 — same components,
-          same exports, same commercial rights. Nothing is held back; the only
-          difference is that we check you're enrolled or teaching.
+          $15.99 a year, built for coursework and portfolios: the full component
+          kit, every preset, cloud saves, and SVG, HTML and sprite-sheet exports
+          you own commercially. The engine kit and game kit — the formats a
+          studio ships a product with — stay with Pro.
         </p>
 
         {state === "approved" ? (
@@ -84,9 +85,10 @@ export function StudentPage() {
               <CheckCircle2 size={18} strokeWidth={2.2} /> You're verified
             </p>
             <p>
-              Your rate is ready. Checkout below bills $15.99 a year instead of
-              $29.99, on the same account you're already signed in to — and you
-              get the complete Pro toolkit, not a reduced version of it.
+              Your rate is ready. Checkout below bills $15.99 a year on the same
+              account you're already signed in to, and your plan switches over
+              the moment it clears — full kit, all presets, cloud saves, and the
+              SVG, HTML and sprite-sheet exports.
             </p>
             <button className="fd-pricing__cta fd-pricing__cta--edu" disabled={busy} onClick={() => void buy()}>
               {busy

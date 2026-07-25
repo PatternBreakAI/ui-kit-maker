@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Check, X, Calendar, ShieldCheck, Compass, Crown, GraduationCap,
-  Loader2, Globe, Target, Code2, ChevronRight, BadgeCheck, Sparkle,
+  Loader2, Globe, Target, Code2, ChevronRight, BadgeCheck, Star,
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
@@ -13,7 +13,7 @@ import { startCheckout } from "@/generator/billing";
 /* #/pricing — three tiers, in the product's own voice.
 
    Explorer is the no-account trial (today's guest caps exactly), Pro is the
-   one everyone buys, Student is the same tool at a verified discount. The
+   one everyone buys, Student is the learning tier at a verified price. The
    Pro column takes real money through Stripe Checkout: signed-out visitors
    sign in first (a subscription needs an account to attach to), and the
    upgrade is granted server-side by the webhook — never by this page. */
@@ -34,25 +34,30 @@ const PRO: Row[] = [
   { label: "All starter presets + shared library" },
   { label: "Unlimited zoom" },
   { label: "PNG export up to 4×" },
-  { label: "Vector exports: SVG, HTML, JSON, game kit" },
+  { label: "Every export: SVG, HTML, engine kit, game kit" },
   { label: "Cloud saves & named projects" },
   { label: "Share links included" },
   { label: "Commercial use included" },
 ];
 
-/* Student is Pro at a discount — NOT a cut-down build. There is no
-   student tier in the caps table: any paid plan resolves to `pro`, so a
-   student gets unlimited zoom, 4× PNG and every export. Listing smaller
-   numbers here would be a straight lie, and crippling it would be the
-   wrong move anyway — the point of student pricing is fluency in the
-   whole tool, so they ask for it at work later. The only real difference
-   is that eligibility is checked, and re-checked. */
+/* Student is a real tier, not a discount code on Pro — every line below is
+   enforced. `student` has its own row in TIER_CAPS and its own entry in
+   EXPORT_KINDS, and /api/export checks the requested artifact against the
+   plan_id in the database before it issues anything.
+
+   Where the line falls: everything you need to LEARN and to build a
+   portfolio, stopping short of the SHIPPING formats. The engine kit (Unity
+   importer, nine-slice manifest) and the game-kit atlas are what a studio
+   putting a product on a store needs, and those stay with Pro. Keep this
+   list in step with EXPORT_KINDS and TIER_CAPS. */
 const STUDENT: Row[] = [
-  { label: "Everything in Pro — nothing held back" },
-  { label: "Full kit, all presets, unlimited zoom" },
-  { label: "PNG up to 4× and every vector export" },
+  { label: "Full kit components + all presets" },
+  { label: "150% zoom" },
+  { label: "PNG export up to 2×" },
+  { label: "Vector exports: SVG, HTML, sprite sheet" },
   { label: "Cloud saves & named projects" },
   { label: "Commercial use included — keep what you ship" },
+  { label: "Engine kit and game kit are Pro formats", on: false },
   { label: "Verified once, re-checked each year", note: true },
 ];
 
@@ -130,8 +135,8 @@ export function PricingPage() {
 
           {/* ── Pro — the one that pays for the thing ── */}
           <section className="fd-pricing__col fd-pricing__col--mid">
-            <div className="fd-pricing__tag"><Crown size={12} strokeWidth={2.6} /> MOST POPULAR</div>
-            <span className="fd-pricing__ico fd-pricing__ico--pro"><Sparkle size={17} strokeWidth={2.1} /></span>
+            <div className="fd-pricing__tag"><Star size={12} strokeWidth={2.6} /> MOST POPULAR</div>
+            <span className="fd-pricing__ico fd-pricing__ico--pro"><Crown size={17} strokeWidth={2.1} /></span>
             <h2>Pro</h2>
             <div className="fd-pricing__price">$29.99<span> / year</span></div>
             <div className="fd-pricing__note fd-pricing__note--accent">Founding price</div>
@@ -167,7 +172,7 @@ export function PricingPage() {
             <h2>Student</h2>
             <div className="fd-pricing__price">$15.99<span> / year</span></div>
             <div className="fd-pricing__note">For verified students &amp; educators</div>
-            <div className="fd-pricing__forwho fd-pricing__forwho--edu">The whole tool, half the price</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--edu">For learning and portfolios</div>
             <Rows rows={STUDENT} />
             <button className="fd-pricing__cta fd-pricing__cta--edu" onClick={() => navigate("#/student")}>
               Get Student Access <ChevronRight size={15} strokeWidth={2.4} />
