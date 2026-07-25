@@ -570,6 +570,23 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .presetcard .presetart { width: 100%; display: grid; place-items: center; overflow: hidden; }
 .presetcard .presetart svg { width: 100%; height: auto; max-height: 74px; display: block; }
 .presetcard .presetname { font-size: 12px; font-weight: 600; color: var(--ink2); }
+
+/* ── held packs (admin only) ──────────────────────────────────────
+   A pack with a future publish_at is invisible to everyone else — the
+   read policy drops the row. The dashed edge is the tell that what the
+   admin is looking at is not what a customer sees. */
+.presetcard.held { border-style: dashed; opacity: .74; }
+.presetcard.held:hover { opacity: 1; }
+.presethold {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 6px 1px 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #6366f1) 16%, transparent);
+  color: var(--accent, #6366f1);
+  font-size: 9.5px; font-weight: 800; letter-spacing: .04em; white-space: nowrap;
+}
+.presethold:hover { background: color-mix(in srgb, var(--accent, #6366f1) 30%, transparent); }
+/* the release-date field in the publish row */
+.tinput--day { flex: none; width: 132px; font-size: 11.5px; }
 .presetcard.on .presetname { color: var(--ink); }
 .shapegrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .shapecard {

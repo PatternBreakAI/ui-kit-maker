@@ -4,7 +4,7 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetB
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, type CloudPreset } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, type CloudPreset } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -327,7 +327,8 @@ interface GenStore {
   tier: Tier;
   loadCloudPresets: () => Promise<void>;
   applyCloudPreset: (id: string) => void;
-  publishPreset: (name: string) => Promise<string | null>;
+  publishPreset: (name: string, publishAt?: string | null) => Promise<string | null>;
+  schedulePreset: (id: string, publishAt: string | null) => Promise<string | null>;
   removeCloudPresetById: (id: string) => Promise<void>;
   /** The shared preset most recently applied — the Overwrite target. */
   activeCloudPreset: { id: string; name: string } | null;
@@ -878,9 +879,9 @@ export const useGen = create<GenStore>((set, get) => ({
     get().setKitName(p.name);
     set({ activeCloudPreset: { id: p.id, name: p.name } });
   },
-  publishPreset: async (name) => {
+  publishPreset: async (name, publishAt = null) => {
     const { cfg, thumb } = presetSnapshot(get().cfg);
-    const { preset, error } = await publishCloudPreset(name, cfg, thumb);
+    const { preset, error } = await publishCloudPreset(name, cfg, thumb, publishAt);
     if (error) return error;
     // the fresh publish becomes the Overwrite target — tweak-and-save flows on
     if (preset) set({ activeCloudPreset: { id: preset.id, name: preset.name } });
@@ -890,6 +891,14 @@ export const useGen = create<GenStore>((set, get) => ({
   removeCloudPresetById: async (id) => {
     await deleteCloudPreset(id);
     await get().loadCloudPresets();
+  },
+  /* Move a pack's release date (or clear it to ship now). Admin-only —
+     the read policy is what actually holds a dated pack back. */
+  schedulePreset: async (id, publishAt) => {
+    const err = await setCloudPresetSchedule(id, publishAt);
+    if (err) return err;
+    await get().loadCloudPresets();
+    return null;
   },
   activeCloudPreset: null,
   overwriteActivePreset: async () => {
