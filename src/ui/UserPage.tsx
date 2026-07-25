@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect, useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import "@/styles/pricing.css";
@@ -73,6 +74,7 @@ export function UserPage({ handle }: { handle: string }) {
           </>
         )}
       </main>
+      <MarketingFooter />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect, useState } from "react";
 import { GraduationCap, ShieldCheck, Upload, CheckCircle2, Loader2, Clock, ChevronRight } from "lucide-react";
 import "@/styles/pricing.css";
@@ -194,6 +195,7 @@ export function StudentPage() {
           </section>
         )}
       </main>
+      <MarketingFooter />
     </div>
   );
 }

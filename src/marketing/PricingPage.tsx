@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect, useRef, useState } from "react";
 import {
   Check, X, Calendar, ShieldCheck, Compass, Crown, GraduationCap,
@@ -326,6 +327,7 @@ function StudioArt() {
           <path d="M6 92h188" />
         </g>
       </svg>
+      <MarketingFooter />
     </>
   );
 }

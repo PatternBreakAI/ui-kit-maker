@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useMemo, useState, type ReactNode } from "react";
 import { Search, ChevronDown, X } from "lucide-react";
 import "@/styles/pricing.css";
@@ -347,6 +348,7 @@ export function FaqPage() {
           </section>
         ))}
       </main>
+      <MarketingFooter />
     </div>
   );
 }

@@ -3321,3 +3321,9 @@ html[data-theme="light"] .fd-landing .af-sl i::after { background: #fff; box-sha
 .fd-landing .step-tag, .fd-landing .step-card h3, .fd-landing .step-card > p { margin-left: 70px; }
     }
   
+/* ── shared subpage chrome (MarketingFooter) ─────────────────────── */
+.fd-chrome .footer { margin-top: 56px; }
+.fd-chrome .footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fd-chrome__lang { border: 1px solid var(--line-strong); background: transparent; color: var(--muted);
+  font: inherit; font-size: 12px; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.fd-chrome__lang:hover { color: var(--text); border-color: var(--text); }

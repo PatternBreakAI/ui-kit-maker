@@ -1,5 +1,6 @@
 /* Terms of Use and Privacy Policy pages (#/terms · #/privacy), rendering the
    PatternBreak legal package v1 documents with the front-door chrome. */
+import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect } from "react";
 import "@/styles/legal.css";
 import { LEGAL_TERMS_HTML } from "./legal-terms";
@@ -38,6 +39,7 @@ export function LegalPage({ doc }: { doc: "terms" | "privacy" }) {
         className="fd-legal__doc"
         dangerouslySetInnerHTML={{ __html: doc === "terms" ? LEGAL_TERMS_HTML : LEGAL_PRIVACY_HTML }}
       />
+      <MarketingFooter />
     </div>
   );
 }
