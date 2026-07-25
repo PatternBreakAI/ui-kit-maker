@@ -315,5 +315,5 @@ Legend: **L**=opts.label (kitLabels) · **S**=opts.sub · **I**=opts.icon ·
 |112|laptimes|HC everything (labels, axes, series)|none|WELDED SHUT|
 |113|telemetry|HC everything|none|WELDED SHUT|
 |114|startlights|HC "LIGHTS OUT"/"GET READY"|none|PARTIAL|
-|115|dropdown|button = L; HC option rows|chevron HC|PARTIAL - rows|
+|115|dropdown|button = L; option rows = slots o1–o3|chevron HC|DONE — rows slotted; open-menu highlight derives from the Hover state recipe (floored so it can't vanish); selected row carries a structural check (dynamic element, like the speedo's 108); lesson card authored; engine export ships base/menu/row-highlight/row-check parts|
 

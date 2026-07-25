@@ -5232,10 +5232,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bw2 = vw - 78, rowH = 44 * k, pad = 10 * k, menuH = rowH * 3 + pad * 2;
       const my = 30 + 110 * k + 10 * k;
       const face = darken(effect(cfg.effects, "Inner Fill"), 0.55);
-      const hi = effect(cfg.effects, "Glow");
+      /* The open menu speaks three row voices (owner decision, 2026-07-25):
+         resting · HIGHLIGHTED (the row under the cursor) · SELECTED (the
+         choice that is currently true). The highlight is the kit's Hover
+         language made small: color from the hover state's aura (its candy
+         aura, else its Glow role), strength from the hover glow dial. The
+         floor keeps the pointer from ever getting lost — a menu with an
+         invisible highlight reads as broken, so this is editable within
+         reason. Selected gets the check and full-strength text, no bar:
+         highlighted moves constantly, selected only changes on commit. */
+      const hd = cfg.stateDesigns.hover ?? cfg;
+      const hovC = hd.candy.aura.color ?? hd.effects.Glow ?? effect(cfg.effects, "Glow");
+      const hovOp = Math.min(0.55, 0.1 + 0.35 * (cfg.states.hover.glow / 100));
+      const selCy = my + pad + rowH / 2;
+      const check = `<path d="M ${(39 + bw2 - 38 * k).toFixed(1)} ${selCy.toFixed(1)} l ${(7 * k).toFixed(1)} ${(7 * k).toFixed(1)} l ${(14 * k).toFixed(1)} ${(-16 * k).toFixed(1)}" fill="none" stroke="#FFFFFF" stroke-width="${(3.5 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`;
       const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
-        `${i === 0 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hi, 0.22)}"/>` : ""}
-         <text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i === 0 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${t}</text>`).join("");
+        `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
+         <text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${t}</text>${i === 0 ? check : ""}`).join("");
       const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component
