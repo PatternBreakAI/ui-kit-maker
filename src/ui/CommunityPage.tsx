@@ -1,0 +1,223 @@
+import { useEffect, useRef, useState } from "react";
+import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff } from "lucide-react";
+import "@/styles/pricing.css";
+import { navigate } from "@/shell/router";
+import { openAuth } from "@/shell/authOverlay";
+import { useCloudStatus } from "@/shell/useCloudStatus";
+import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud";
+import { listCommunity, setLike, curateProject, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
+import { hydrate } from "@/generator/store";
+import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
+import { renderKit } from "@/generator/bevel";
+import { tightenSvg } from "@/marketing/engine";
+
+/* #/community — the gallery. Community-lite, by decree: one fetch per
+   page view, and every card is a LIVE render from the kit's saved
+   settings — the engine that draws the editor, drawing in the visitor's
+   browser. No screenshots exist anywhere in this feature.
+
+   Curation happens here too: admins see the queue (public, unlisted)
+   inline with List/Unlist buttons — the same reuse-the-page pattern as
+   the student review desk. */
+
+const HERO_PIECES: { cid: KitComponentId; v?: number }[] = [
+  { cid: "progress", v: 0.62 },
+  { cid: "toggle", v: 1 },
+  { cid: "badge" },
+];
+
+export function CardArt({ card }: { card: { id: string } }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el || state !== "idle") return;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      setState("loading");
+      void (async () => {
+        const doc = await fetchCardDoc(card.id);
+        if (!doc || !host.current) { setState("failed"); return; }
+        try {
+          const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
+          const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
+          const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
+          const labels = (doc.kitLabels ?? {}) as Record<string, string>;
+          const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
+          const piece = (cid: KitComponentId, size: "s" | "m" | "l", v?: number) =>
+            tightenSvg(renderKit(
+              applyKitTextFill(applyKitDesign(cfg, designs[cid]), fills[cid]),
+              cid, size, "default", v, undefined,
+              { label: labels[cid], slots: slots[cid] },
+            ), 18);
+          const hero = piece("primary", "l");
+          const small = HERO_PIECES.map((p) => piece(p.cid, "s", p.v));
+          host.current.innerHTML =
+            `<div class="cg-hero">${hero}</div><div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
+          /* the maker's stage rides the payload — paint it behind the art.
+             Strict base64-image match only: this string enters CSS url(),
+             so nothing that could escape it is accepted. Public cards are
+             admin-curated before listing, so the stage is seen before it
+             is staged. */
+          const bg = (doc as { bgImage?: unknown }).bgImage;
+          if (typeof bg === "string" && /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(bg)) {
+            host.current.classList.add("cg-art--stage");
+            host.current.style.backgroundImage = `url("${bg}")`;
+          }
+          setState("done");
+        } catch {
+          setState("failed");
+        }
+      })();
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [card.id, state]);
+
+  return (
+    <div ref={host} className="cg-art" aria-hidden="true">
+      {state !== "done" && (
+        <span className="cg-art__wait">
+          {state === "failed" ? "—" : <Loader2 size={16} strokeWidth={2.2} className="fd-spin" />}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: boolean; onChanged: () => void }) {
+  const [liked, setLiked] = useState(card.liked);
+  const [count, setCount] = useState(card.likes);
+  const [busy, setBusy] = useState(false);
+  const cloud = useCloudStatus();
+  const signedIn = cloud.state === "synced" || cloud.state === "syncing";
+
+  const heart = async () => {
+    if (!signedIn) { openAuth("signin"); return; }
+    // optimistic — the community-lite contract: flip now, sync under
+    const next = !liked;
+    setLiked(next); setCount((c) => c + (next ? 1 : -1));
+    const err = await setLike(card.id, next);
+    if (err) { setLiked(!next); setCount((c) => c + (next ? -1 : 1)); }
+  };
+
+  const curate = async (listed: boolean) => {
+    setBusy(true);
+    const err = await curateProject(card.id, listed);
+    setBusy(false);
+    if (err) window.alert(err); else onChanged();
+  };
+
+  const maker = card.display_name || (card.handle ? `@${card.handle}` : "a maker");
+  const av = avatarUrl(card.avatar_path);
+  return (
+    <article className={`cg-card${card.listed ? "" : " cg-card--queue"}`}>
+      {!card.listed && <span className="cg-queuechip">IN REVIEW</span>}
+      <CardArt card={card} />
+      <div className="cg-meta">
+        <div className="cg-title">
+          <b>{card.name}</b>
+          {card.handle ? (
+            <button className="cg-maker" onClick={() => navigate(`#/u/${card.handle}`)}>
+              {av && <img className="cg-avatar" src={av} alt="" />}by {maker}
+            </button>
+          ) : (
+            <span className="cg-maker cg-maker--plain">by {maker}</span>
+          )}
+        </div>
+        <div className="cg-actions">
+          <button className={`cg-like${liked ? " on" : ""}`} onClick={() => void heart()}
+            aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}>
+            <Heart size={14} strokeWidth={2.2} /> {count}
+          </button>
+          {card.share_slug && (
+            <a className="cg-open" href={publicProjectUrl(card.share_slug)} title="Open this kit in the editor — view, then remix">
+              <ExternalLink size={13} strokeWidth={2.2} /> Use this kit
+            </a>
+          )}
+          {admin && (
+            card.listed
+              ? <button className="cg-curate" disabled={busy} onClick={() => void curate(false)}><EyeOff size={13} strokeWidth={2.2} /> Unlist</button>
+              : <button className="cg-curate cg-curate--add" disabled={busy} onClick={() => void curate(true)}><Eye size={13} strokeWidth={2.2} /> List</button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export function CommunityPage() {
+  const live = !!cloudConfig();
+  const [cards, setCards] = useState<CommunityCard[] | null>(null);
+  const [admin, setAdmin] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async (isAdmin: boolean) => {
+    setLoading(true); setErr(null);
+    const { cards: cs, error } = await listCommunity({ includeQueue: isAdmin });
+    setLoading(false);
+    if (error) setErr(error); else setCards(cs);
+  };
+
+  useEffect(() => {
+    if (!live) return;
+    let on = true;
+    void myProfileTier().then((p) => {
+      if (!on) return;
+      setAdmin(p.admin);
+      void refresh(p.admin);
+    });
+    return () => { on = false; };
+  }, [live]);
+
+  const listed = (cards ?? []).filter((c) => c.listed);
+  const queue = (cards ?? []).filter((c) => !c.listed);
+
+  return (
+    <div className="fd-pricing">
+      <header className="fd-pricing__nav">
+        <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
+        <span className="cg-nav">
+          <button className="cg-navbtn" onClick={() => navigate("#/studio")}>Your studio</button>
+          <span className="fd-pricing__mark"><i className="fd-pricing__gem" aria-hidden="true" />PatternBreak</span>
+        </span>
+      </header>
+
+      <main className="cg">
+        <h1>Community Gallery</h1>
+        <p className="fd-pricing__sub">
+          Kits by the community, drawn live in your browser by the same engine that made them.
+          Open any of them, remix everything.
+        </p>
+
+        {!live ? (
+          <section className="fd-studentcard"><p>Community isn't available on this deployment.</p></section>
+        ) : err ? (
+          <section className="fd-studentcard"><p className="fd-pricing__err">{err}</p></section>
+        ) : cards === null ? (
+          <section className="fd-studentcard"><p><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Loading the gallery…</p></section>
+        ) : (
+          <>
+            {admin && queue.length > 0 && (
+              <>
+                <div className="cg-secline">Curation queue — public kits waiting for a spot <button className="fd-review__refresh" disabled={loading} onClick={() => void refresh(admin)}><RefreshCw size={13} strokeWidth={2.2} /> Refresh</button></div>
+                <div className="cg-grid">{queue.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>
+              </>
+            )}
+            {listed.length === 0 ? (
+              <section className="fd-studentcard">
+                <p>The gallery is warming up — the first community kits land here once curated.
+                Save a kit in the editor and it may be featured.</p>
+              </section>
+            ) : (
+              <div className="cg-grid">{listed.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}

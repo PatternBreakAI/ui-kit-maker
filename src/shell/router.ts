@@ -22,8 +22,9 @@
 import { useEffect, useState } from "react";
 
 export type RouteName =
-  | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review";
-export type Route = { name: RouteName; viewer: boolean };
+  | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
+  | "community" | "studio" | "user";
+export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
   // Deep links → editor (viewer mode handled inside App.tsx).
@@ -44,6 +45,11 @@ export function parseHash(hash: string): Route {
   if (path === "/student") return { name: "student", viewer: false };
   if (path === "/review") return { name: "review", viewer: false };
   if (path === "/account") return { name: "account", viewer: false };
+  if (path === "/community") return { name: "community", viewer: false };
+  if (path === "/studio") return { name: "studio", viewer: false };
+  // /u/<handle> — the one parameterized route: a maker's public page.
+  const u = /^\/u\/([a-z0-9_]{3,20})$/.exec(path);
+  if (u) return { name: "user", viewer: false, param: u[1] };
   // "", "/", unknown routes, and Supabase auth hashes → landing.
   return { name: "landing", viewer: false };
 }

@@ -68,6 +68,18 @@ need profile pages: picture, name, likes (**no comments**), "use this kit."
   unreviewed), report button on everything public, admin delete anywhere.
   Avatars and handles are the only free-text/user-media surfaces at
   launch — deliberately small.
+- **Background images (owner question, 2026-07-25):** uploaded canvas
+  backdrops travel with the kit payload (shares, projects, gallery cards)
+  as downscaled data URLs. Moderation exposure is contained by the same
+  curation-first design: the gallery and profile pages show LISTED kits
+  only, and the curation queue renders each card WITH its backdrop — the
+  admin sees the stage before the public does. Person-to-person share
+  links are private distribution (like sending a file); Terms + admin
+  delete cover abuse there. If queue volume ever makes eyeballing a
+  chore, add automated NSFW screening at queue time (client-side nsfwjs
+  is free but bypassable; server-side Rekognition/SafeSearch ≈ $1 per
+  1,000 images and robust). Restricting to pre-baked backdrops was
+  considered and held as the fallback lever, not the default.
 
 ## Claims-ledger note
 
