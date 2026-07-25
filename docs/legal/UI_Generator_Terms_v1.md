@@ -73,7 +73,9 @@ If a payment fails, we or our payment processor may retry the charge, ask you to
 
 ### 5.6 Student plans
 
-Student pricing may require a qualifying education email address, instructor code, or another reasonable eligibility check. You agree to provide truthful eligibility information. We may reverify eligibility before renewal. If you are no longer eligible, we may end the student discount or offer conversion to another plan after advance notice.
+Student pricing may require a qualifying education email address, a current student or faculty ID, an instructor code, or another reasonable eligibility check. You agree to provide truthful eligibility information. We may reverify eligibility before renewal. If you are no longer eligible, we may end the student price or offer conversion to another plan after advance notice. A student plan is personal and non-transferable.
+
+Student plans include the same features and export formats as Pro. They are licensed for education use: coursework, academic work, your portfolio, personal projects, and non-commercial release. Selling a product built with assets exported under a student plan, or distributing them in anything that generates revenue, requires a Pro licence. You may upgrade at any time and re-export under the Pro licence, which then governs those files.
 
 ## 6. Limited license to use the Service
 

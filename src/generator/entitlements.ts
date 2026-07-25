@@ -9,20 +9,21 @@
    The caps here still drive the UI — what looks locked, what the zoom
    slider allows — which is presentation, not security.
 
-   WHY THE STUDENT LINE FALLS WHERE IT DOES. Student keeps everything you
-   need to LEARN and to build a portfolio: the full component kit, every
-   preset, cloud saves, the SVG pack and the HTML export. What it doesn't
-   include are the SHIPPING artifacts — the engine kit with its Unity
-   importer and nine-slice manifest, and the game kit sprite atlas. Those
-   are what a studio putting a product on a store needs, and that's the
-   honest place to draw the line: learning is discounted, shipping isn't.
+   STUDENT AND PRO HAVE THE SAME CAPABILITY. That is deliberate, and it
+   reverses an earlier design that gave students less zoom, smaller PNGs
+   and no engine kit. Restricting the OUTPUT punished exactly the people
+   the price exists for: a capstone project, a game jam and a class
+   assignment all need the engine kit specifically. So the line moved off
+   capability and onto the LICENCE, which is how education pricing works
+   everywhere else — the student gets the whole tool, and the grant that
+   ships with their exports covers coursework, portfolio and non-commercial
+   release. Shipping something commercially is what Pro is for.
 
-   A per-week download cap was considered and rejected. Students iterate —
-   design, export, spot a wrong button, fix, export again — so a weekly cap
-   breaks the real workflow on day one, while someone sharing files only
-   ever needs one download. It would punish the honest case and miss the
-   abusive one. Bulk harvesting is already handled by the per-hour rate
-   limit in /api/export. */
+   That difference is not enforceable in code and is not meant to be. It
+   lives in LICENCE_GRANT below, is stamped into every export by
+   /api/export, and is stated in the Terms. Enforcement is the same as
+   every other education licence in the industry: the artifact carries its
+   own terms. */
 
 export type Tier = "guest" | "free" | "student" | "pro";
 
@@ -44,19 +45,34 @@ export type TierCaps = {
   vectorExports: boolean;
 };
 
-/** Which artifacts each tier may take. Enforced server-side. */
+/** Which artifacts each tier may take. Enforced server-side. Student and
+    pro are identical here; they differ in LICENCE_GRANT, not in this map. */
 export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
   guest: [],
   free: [],
-  student: ["svg", "html", "sheet"],
+  student: ["svg", "html", "sheet", "gamekit", "engine"],
   pro: ["svg", "html", "sheet", "gamekit", "engine"],
 };
 
 export const TIER_CAPS: Record<Tier, TierCaps> = {
   guest:   { zoomMax: 1.0, presetLimit: 4, kitComponents: 5, pngScaleMax: 1, vectorExports: false },
   free:    { zoomMax: 1.5, presetLimit: 6, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
-  student: { zoomMax: 1.5, presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 2, vectorExports: true },
+  student: { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
   pro:     { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
+};
+
+/** What the exported files may be USED for. This — not the feature list —
+    is the difference between the two paid tiers. Mirrored verbatim in the
+    licence block /api/export stamps into every download; keep the two in
+    step, and keep both in step with Terms §5.6. */
+export const LICENCE_GRANT: Record<"student" | "pro", string> = {
+  student:
+    "Coursework, portfolio, personal projects and non-commercial releases. " +
+    "Selling a product built with these assets, or shipping them in anything " +
+    "that earns revenue, needs a Pro licence.",
+  pro:
+    "Any product you make, commercial included, on any number of projects, " +
+    "with no attribution required and no seat limit.",
 };
 
 export function capsOf(tier: Tier): TierCaps { return TIER_CAPS[tier]; }
@@ -71,6 +87,6 @@ export function canExport(tier: Tier, kind: ExportKind): boolean {
 export const UPGRADE_LINES: Record<Tier, string> = {
   guest: "Sign in free — unlock the full kit, 150% zoom and two preset packs.",
   free: "Go Pro — every preset, vector exports and unlimited zoom.",
-  student: "The engine and game kits are the shipping formats — those come with Pro.",
+  student: "Selling what you build? Pro carries the commercial licence.",
   pro: "",
 };
