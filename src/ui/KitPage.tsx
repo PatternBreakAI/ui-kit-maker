@@ -323,11 +323,11 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
           onClick={(e) => {
             e.stopPropagation();
             if (!vectorOk) { if (tier2 === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
-            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf } = useGen.getState();
+            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             downloadSvg(
               renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), p.id, size, p.baseState ?? "default", p.value, ks[p.id],
-                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`] }),
+                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id] }),
               `kit-${variant}-${size}.svg`
             );
           }}>
@@ -1039,6 +1039,7 @@ const kitTier = useGen((s) => s.tier);
         };
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
+        o.slots = { ...st.kitSlotVals[cid], ...o.slots };
         if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
         if (cid === "progress" || cid === "segbar") {
@@ -2014,7 +2015,7 @@ const kitTier = useGen((s) => s.tier);
               if (which === "all" || which === "layers") layerCards.forEach((lc) => files.push({ path: `build-parts/material-layers/${slug(lc.name)}.svg`, data: lc.svg }));
               if (which === "all" || which === "type") recipe.forEach((r) => files.push({ path: `build-parts/typography-recipe/${slug(r.name)}.svg`, data: r.svg }));
               if (which === "all" || which === "controls") (["slider", "toggle", "progress", "badge", "ring", "slot", "resource", "datarow"] as KitComponentId[]).forEach((cid) =>
-                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, row: cid === "datarow" ? st.kitRow : undefined }) }));
+                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
               if (which === "all" || which === "assemblies") {
                 // containers + the pieces every assembly is composed from,
                 // plus a recipe sheet describing the compositions
@@ -2023,7 +2024,7 @@ const kitTier = useGen((s) => s.tier);
                 (["circle", "oval", "strip"] as const).forEach((kind) =>
                   files.push({ path: `assemblies/containers/panel-${kind}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", "m", "default", undefined, st.kitShapes.panel, { expand: true, kind }) }));
                 ([["header", "banner"], ["tab", "section-tab"], ["datarow", "list-row"], ["resource", "hud-counter"], ["slot", "item-slot"], ["ring", "progress-ring"], ["chip", "stat-chip"], ["badge", "medallion"]] as [KitComponentId, string][]).forEach(([cid, nm]) =>
-                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, row: cid === "datarow" ? st.kitRow : undefined }) }));
+                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
                 files.push({
                   path: "assemblies/RECIPES.md",
                   data: [
@@ -2043,7 +2044,7 @@ const kitTier = useGen((s) => s.tier);
               }
               if (which === "all" || which === "components") KIT_COMPONENTS.forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
               if (which === "all") {
                 files.push({

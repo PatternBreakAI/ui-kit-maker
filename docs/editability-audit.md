@@ -188,7 +188,8 @@ claim otherwise.
 | Phase | What | Size |
 |---|---|---|
 | 0 ✅ | **Proof piece shipped 2026-07-25**: KIT_SLOTS/KIT_LESSONS tables, speedo family unit as MPH↔KPH choice, value slot explained not faked, generated panel controls, two-layer ⓘ card with new-tab links | done — the pattern every sweep component follows |
-| 1 | Slot tables + un-weld all 115 renderers + stamped text + generated panel section (kills both root causes) | the big one — wide but mechanical |
+| 1a ✅ | **Sweep batch 1 shipped 2026-07-25** — 19 components un-welded onto slots: questpanel (eyebrow + 3 objectives), dialoguebox (speaker + line 2), chatbubble (sender + time), friendrow (status + CTA), scorebug (both scores), nameplate ribbon, dialog CTAs, pricebtn ribbon, achievetoast eyebrow, movecounter caption, leaderboard (title + all 5 rows), listmenu (4 rows), choicelist (3), dropdown (3), flipclock (4 tags), equipselector (3 items), seasontrack lanes, weaponwheel (6 chambers + hint), tacho + waypoint units. Free slots render as a generated two-up grid in the panel; slot values flow through every export path (per-piece SVG, catalog, build-parts ZIPs, components ZIP). Three of the eight welded-shut components are now open (leaderboard, listmenu, choicelist). | done |
+| 1b | Remaining sweep: laptimes + telemetry + invgrid + hotbar (series/data casts), stepper, second-slot stragglers (buildqueue qty, unitplate stats, techcard cost, partyframe level, xpbar next-label), placeholders (input, searchfield), circuit tag, respawn state words, startlights, compass, rarity vocab — plus data-slot stamps for T-mode | medium — same pattern |
 | 2 | T-mode canvas editing riding the stamps: free/choice/value/locked behaviors + the ⓘ card | medium |
 | 3 | Icon click-to-swap + un-weld pattern-8 icons | small-medium |
 | 4 | Demo datasets as row slots (leaderboard, listmenu…) | medium, can trail launch if the rows are labeled as specimen data |
