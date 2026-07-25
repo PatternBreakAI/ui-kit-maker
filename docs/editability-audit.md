@@ -88,17 +88,22 @@ becomes the single source of truth that drives all three surfaces:
 2. **The panel** generates its content section from the slot table — the
    allowlists are deleted, and "no fields for this component" becomes
    impossible by construction.
-3. **The canvas** gets click-to-edit: hover any `data-slot` text → glow +
-   text cursor; click → in-place input in the component's own font; Enter
-   commits, Esc reverts. Copy slots retype; the `value` slot is honestly
-   different — typing a number *drives the value* (type 87, the needle
-   sweeps there). Panel auto-scrolls to typography on entry (Smart Help's
-   routing already maps label→typography). Icons phase: click an icon →
-   the existing icon picker opens.
-
-Owner's design intent (2026-07-25): the canvas becomes the ONLY place words
-change; the panel styles. "Click any word to change it; use the panel to
-style it."
+3. **The canvas** gets a text MODE, not hover chrome. Owner decisions,
+   2026-07-25, superseding the earlier hover-glow sketch:
+   - The canvas is for viewing the artwork in all its splendor — no glowing
+     text, no always-on affordances. Pristine by default.
+   - Editing enters through the **T tool in the tray**: choose T and the
+     text becomes editable in place; leave T and the canvas is art again.
+   - **Dynamic readouts stay driven, and that is a feature.** In T mode a
+     value readout (the speedo's 108) is labeled as dynamic rather than
+     dressed as copy; typing a number DRIVES the component — type 88 and
+     the needle sweeps there, wanting the redline version is a legitimate
+     art direction. The only styling such text needs is its existing
+     nudge (lift/textOy).
+   - Unit words welded beside readouts (MPH) are copy, and edit normally.
+   - Context: a real audience uses this app to make one beautiful image —
+     music videos, t-shirts, album covers, games within games. For them,
+     an exact number on the dial IS the deliverable.
 
 ## Build order
 
