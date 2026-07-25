@@ -42,8 +42,10 @@ export async function listCommunity(opts?: { includeQueue?: boolean }): Promise<
   const ids = [...new Set(rows.map((r) => r.user_id))];
   const profs = new Map<string, { handle: string | null; display_name: string | null; avatar_path: string | null }>();
   if (ids.length) {
-    const { data: ps } = await client.from("public_profiles")
+    const { data: ps, error: perr } = await client.from("public_profiles")
       .select("id, handle, display_name, avatar_path").in("id", ids);
+    // absent view (schema drift) leaves every byline as "a maker" — say why
+    if (perr) console.warn("[community] profiles fetch failed:", perr.message);
     for (const p of (ps ?? []) as { id: string; handle: string | null; display_name: string | null; avatar_path: string | null }[]) {
       profs.set(p.id, p);
     }
@@ -247,6 +249,8 @@ export async function uploadAvatar(file: File): Promise<string | null> {
 export async function fetchCardDoc(id: string): Promise<Record<string, unknown> | null> {
   const client = await getClient();
   if (!client) return null;
-  const { data } = await client.from("projects").select("doc").eq("id", id).maybeSingle();
+  const { data, error } = await client.from("projects").select("doc").eq("id", id).maybeSingle();
+  // a schema/RLS miss here renders every card as "—" with no trace; say why
+  if (error) console.warn("[community] doc fetch failed:", error.message);
   return ((data as { doc?: Record<string, unknown> } | null)?.doc) ?? null;
 }

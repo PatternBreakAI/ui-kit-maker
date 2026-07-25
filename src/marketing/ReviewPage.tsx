@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useCallback, useEffect, useState } from "react";
 import {
   ShieldCheck, CheckCircle2, XCircle, Loader2, RefreshCw, GraduationCap,
@@ -224,6 +225,7 @@ export function ReviewPage() {
           </>
         )}
       </main>
+      <MarketingFooter />
     </div>
   );
 }

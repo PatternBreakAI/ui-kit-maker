@@ -1,3 +1,4 @@
+import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect, useRef, useState } from "react";
 import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff, Link2, Check } from "lucide-react";
 import "@/styles/pricing.css";
@@ -258,6 +259,7 @@ export function CommunityPage() {
           </>
         )}
       </main>
+      <MarketingFooter />
     </div>
   );
 }

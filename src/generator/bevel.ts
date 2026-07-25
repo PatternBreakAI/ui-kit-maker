@@ -1190,8 +1190,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : "";
 
   /* ── 12 · content: expanded text & icon treatment ────────────── */
+  /* funciri paints carry a solid fallback (SVG 1.1 <paint> syntax): WebKit
+     paints nothing at all on a reference it fails to resolve, so the top
+     stop keeps the label legible instead of vanishing */
   const tFill = T2.fillMode === "auto" ? autoLabel
-    : T2.fillMode === "gradient" ? `url(#${id}tg)` : P(T2.fill);
+    : T2.fillMode === "gradient" ? `url(#${id}tg) ${P(T2.fill)}` : P(T2.fill);
   // Text effects render through a native SVG filter with a generous explicit
   // region — CSS filters on SVG text clip and misrender in Safari, which is
   // exactly the "cut-off italics / invisible emboss" failure. Geometry scales
@@ -1234,7 +1237,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
   const textFilter = prims.length ? ` filter="url(#${id}tf)"` : "";
-  const outlineStroke = T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color);
+  const outlineStroke = T2.outline.color2 ? `url(#${id}og) ${P(T2.outline.color)}` : P(T2.outline.color);
   /* synthetic weight — single-master display faces can't get heavier from the
      font file, so weights above the shipped master fatten the glyphs optically
      with a same-paint stroke. Variable and multi-weight faces never enter. */
@@ -1444,7 +1447,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
       ${showText ? `<g data-part="label">` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
-      ${showText ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${textFilter}>${textInner}</text>` : ""}
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${glintsLayer}
       ${showText ? `</g>` : ""}
@@ -1729,7 +1732,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // the horizontal nudge rides inside the helper so every self-drawn text
     // (counters, rows, segments) shifts with the same control as built labels
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${y2.toFixed(1)}" font-family="'${T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${prims4.length ? ` filter="url(#${gid4}f)"` : ""}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>`;
+      (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${y2.toFixed(1)}" font-family="'${T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      (prims4.length ? `</g>` : "");
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
   const font = cfg.type.font;
