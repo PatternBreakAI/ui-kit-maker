@@ -51,6 +51,16 @@ export async function guardedExport(
     else handlers.onMessage(grant.error);
     return false;
   }
-  await build(grant);
+  /* A failure inside the build used to vanish: call sites fire this with
+     `void`, so a throw became an unhandled rejection and the user was left
+     staring at a button that had quietly stopped working. Say something. */
+  try {
+    await build(grant);
+  } catch (e) {
+    handlers.onMessage(
+      `The export didn't finish: ${e instanceof Error ? e.message : "unknown error"}. Nothing was downloaded — try again.`,
+    );
+    return false;
+  }
   return true;
 }

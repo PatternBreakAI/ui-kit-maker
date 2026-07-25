@@ -136,15 +136,27 @@ function cropSheetPad(svg: string, keep = 0.3): string {
 }
 
 /** Resolve a Google face to a base64 woff2 data URI (cached; null on failure). */
+/** Fetch with a deadline. An export must never wait on the network
+    forever — a stalled request used to leave the button reading
+    "Working…" with no way back except a reload. */
+function fetchDeadline(url: string, ms = 8000): Promise<Response> {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return fetch(url, { signal: (AbortSignal as { timeout(n: number): AbortSignal }).timeout(ms) });
+  }
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  return fetch(url, { signal: ac.signal }).finally(() => clearTimeout(t));
+}
+
 export async function fontDataUri(family: string, cssQuery: string | null): Promise<string | null> {
   if (FONT_CACHE.has(family)) return FONT_CACHE.get(family) ?? null;
   let uri: string | null = null;
   try {
     if (cssQuery) {
-      const css = await (await fetch(`https://fonts.googleapis.com/css2?family=${cssQuery}&display=swap`)).text();
+      const css = await (await fetchDeadline(`https://fonts.googleapis.com/css2?family=${cssQuery}&display=swap`)).text();
       const m = /url\((https:[^)]+\.woff2)\)/.exec(css);
       if (m) {
-        const buf = await (await fetch(m[1])).arrayBuffer();
+        const buf = await (await fetchDeadline(m[1])).arrayBuffer();
         let bin = "";
         const bytes = new Uint8Array(buf);
         for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));

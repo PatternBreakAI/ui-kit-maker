@@ -87,13 +87,24 @@ export async function requestExportGrant(kind: ExportKind): Promise<ExportGrant 
   if (!token) return { error: "Sign in to export.", reason: "signin" };
   let res: Response;
   try {
+    // hard deadline: a stalled request must surface, never spin forever
+    const sig = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? (AbortSignal as { timeout(n: number): AbortSignal }).timeout(15000)
+      : undefined;
     res = await fetch("/api/export", {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ kind }),
+      ...(sig ? { signal: sig } : {}),
     });
-  } catch {
-    return { error: "Couldn't reach the export service — check your connection.", reason: "offline" };
+  } catch (e) {
+    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    return {
+      error: timedOut
+        ? "The export service didn't answer in time. Try again in a moment."
+        : "Couldn't reach the export service — check your connection.",
+      reason: "offline",
+    };
   }
   let body: Record<string, unknown> = {};
   try {
