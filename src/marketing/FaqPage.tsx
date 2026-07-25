@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Search, ChevronDown, X } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import logoUrl from "../../pb-logo.png";
 
 /* #/faq — the answer desk. Searchable, data-driven, and honest: every
@@ -295,6 +296,7 @@ function Item({ item, id, forceOpen }: { item: FaqItem; id: string; forceOpen: b
 }
 
 export function FaqPage() {
+  usePageScroll();
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
 

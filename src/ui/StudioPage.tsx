@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
@@ -46,6 +47,7 @@ function sortWork(rows: CloudProject[], k: SortKey): CloudProject[] {
 }
 
 export function StudioPage() {
+  usePageScroll();
   const live = !!cloudConfig();
   const cloud = useCloudStatus();
   const signedIn = cloud.state === "synced" || cloud.state === "syncing";
