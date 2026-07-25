@@ -296,7 +296,10 @@ export function downloadSettings(cfg: GenConfig) {
 /** Game-engine kit: one sprite sheet PNG @2x (states stacked vertically) plus
  *  a JSON manifest with per-state rects and suggested 9-slice insets — the
  *  shape Unity's Sprite Editor and Unreal's UMG box-draw both ingest. */
-export async function downloadGameKit(cfg: GenConfig): Promise<void> {
+/** The licence block is issued by /api/export and travels with the kit —
+    it names the account the files belong to, so a leaked bundle is
+    traceable. Call sites reach this through guardedExport, never directly. */
+export async function downloadGameKit(cfg: GenConfig, licence?: string): Promise<void> {
   const scale = 2;
   const states = STATE_NAMES.filter(
     (s) => s === "default" || cfg.visible[s as Exclude<GenStateName, "default">]
@@ -341,4 +344,5 @@ export async function downloadGameKit(cfg: GenConfig): Promise<void> {
     cv.toBlob((b) => { if (b) { download(manifest.sheet, b); resolve(); } else reject(new Error("raster failed")); }, "image/png");
   });
   download(`ui-${cfg.presetId}-kit.json`, new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }));
+  if (licence) download("LICENCE.txt", new Blob([licence], { type: "text/plain" }));
 }

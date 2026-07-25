@@ -41,7 +41,10 @@ const rr = (x: number, y: number, w: number, h: number, r: number) => {
 const svgWrap = (w: number, h: number, inner: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`;
 
-export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>): Promise<void> {
+/** `licence` is issued by /api/export and rides inside the ZIP — it names
+    the account the kit belongs to, so a redistributed bundle is traceable
+    back to its source. Reached through guardedExport, never directly. */
+export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
 
@@ -242,6 +245,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     files.push({ path: "atlas/README.md", data: "The packed sheet is a VISUAL CATALOG for humans.\nDo not slice it for engine use — build from /assets and kit-manifest.json instead.\n" });
   }
 
+  if (licence) files.push({ path: "LICENCE.txt", data: licence });
   download(`${st.kitName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-engine-kit.zip`, makeZip(files));
 }
 
