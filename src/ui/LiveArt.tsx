@@ -9,6 +9,8 @@ export interface LiveKit {
   size?: KitSize;
   shape?: Shape;
   label?: string;
+  /** Chosen slot values (unit choices etc) — see KIT_SLOTS. */
+  slots?: Record<string, string>;
   segments?: string[];
   icon?: IconDef | null;
   /** Starting value — toggle on/off (1/0), slider/progress fill, segment index. */
@@ -125,7 +127,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const svg = useMemo(
     () => {
       const raw = kit
-        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stick: id === "joystick" && playing ? stick : undefined })
+        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       return shine ? addShine(raw) : raw;
     },

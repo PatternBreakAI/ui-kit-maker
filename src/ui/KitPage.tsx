@@ -144,7 +144,7 @@ interface PieceOpts {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
+  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
   // an explicit size (the Primary ramp) is fixed; everything else follows the
   // per-component size the user picks with the caption's S/M/L chips
   // the documentation shows medium and large only — a stored Small reads as Medium
@@ -161,7 +161,7 @@ function usePiece(p: PieceOpts) {
       id: p.id, size, shape: p.shape ?? kitShapes[p.id],
       // user content overrides beat the specimen's demo text and glyph;
       // an explicit "no icon" instance stays empty
-      label: kitLabels[p.id] ?? p.label, segments: p.segments,
+      label: kitLabels[p.id] ?? p.label, slots: kitSlotVals[p.id], segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork

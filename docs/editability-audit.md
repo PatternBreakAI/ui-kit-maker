@@ -150,10 +150,37 @@ the student/educator tier ("learn with the real tool" becomes literal) and
 it is content no competitor can copy overnight. ~115 short write-ups,
 authored once, reviewed by the owner as creative director.
 
+**Links open in new tabs** (owner, 2026-07-25): every external reference in
+a lesson card is `target="_blank"` with `rel="noopener noreferrer"` — the
+reader never loses their work to a citation.
+
+## Language follows the visitor (owner, 2026-07-25 — separate workstream)
+
+If someone picks a language on the homepage, the APP must adopt it
+throughout. The homepage already persists the choice (`ui-generator-lang`
+in localStorage, seven locales); the editor simply never reads it.
+
+Honest sizing: this is a major workstream, not a toggle. The editor has
+hundreds of strings (panel sections, tooltips, buttons, error messages),
+none behind a translation layer today — and the ~115 lesson cards
+eventually multiply by seven. Phasing that keeps it honest:
+
+1. **Plumb the choice now** — the editor reads the stored language and a
+   string table exists, English-first. Cheap, unblocks everything.
+2. **Translate the shell** — the chrome a user touches constantly (section
+   names, common buttons, export menu). Bounded, high-visibility.
+3. **The long tail** — every tooltip, error and lesson card. Content work
+   on the scale of the front door's seven-locale build; plan it as such.
+
+Until phase 2 lands, the honest position is what exists: the SITE speaks
+seven languages, the TOOL speaks English. Nothing on the front door should
+claim otherwise.
+
 ## Build order
 
 | Phase | What | Size |
 |---|---|---|
+| 0 ✅ | **Proof piece shipped 2026-07-25**: KIT_SLOTS/KIT_LESSONS tables, speedo family unit as MPH↔KPH choice, value slot explained not faked, generated panel controls, two-layer ⓘ card with new-tab links | done — the pattern every sweep component follows |
 | 1 | Slot tables + un-weld all 115 renderers + stamped text + generated panel section (kills both root causes) | the big one — wide but mechanical |
 | 2 | T-mode canvas editing riding the stamps: free/choice/value/locked behaviors + the ⓘ card | medium |
 | 3 | Icon click-to-swap + un-weld pattern-8 icons | small-medium |
