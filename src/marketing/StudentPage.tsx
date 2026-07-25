@@ -73,8 +73,9 @@ export function StudentPage() {
         <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
         <h1>Student &amp; educator access</h1>
         <p className="fd-pricing__sub">
-          The same tool professionals ship with, at $15.99 a year instead of $29.99.
-          Send us proof you're enrolled or teaching and we'll switch your account over.
+          The full Pro tool at $15.99 a year instead of $29.99 — same components,
+          same exports, same commercial rights. Nothing is held back; the only
+          difference is that we check you're enrolled or teaching.
         </p>
 
         {state === "approved" ? (
@@ -83,9 +84,9 @@ export function StudentPage() {
               <CheckCircle2 size={18} strokeWidth={2.2} /> You're verified
             </p>
             <p>
-              Your student rate is ready. Checkout below bills $15.99 a year
-              instead of $29.99 — everything else is the same account you're
-              already signed in to.
+              Your rate is ready. Checkout below bills $15.99 a year instead of
+              $29.99, on the same account you're already signed in to — and you
+              get the complete Pro toolkit, not a reduced version of it.
             </p>
             <button className="fd-pricing__cta fd-pricing__cta--edu" disabled={busy} onClick={() => void buy()}>
               {busy
