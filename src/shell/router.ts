@@ -30,7 +30,12 @@ export function parseHash(hash: string): Route {
   if (/^#(share|p)=/.test(hash)) {
     return { name: "app", viewer: true };
   }
-  const path = hash.replace(/^#/, "");
+  /* A route may carry its own query string — Stripe returns to
+     `#/account?upgraded=1`, for instance. Match on the path alone, or
+     that customer lands on the marketing page right after paying. */
+  const raw = hash.replace(/^#/, "");
+  const qi = raw.indexOf("?");
+  const path = qi === -1 ? raw : raw.slice(0, qi);
   if (path === "/app") return { name: "app", viewer: false };
   if (path === "/terms") return { name: "terms", viewer: false };
   if (path === "/privacy") return { name: "privacy", viewer: false };
