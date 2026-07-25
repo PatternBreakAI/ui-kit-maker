@@ -95,6 +95,14 @@ create policy "presets_read_released" on public.presets for select
   );
 
 
+-- ── 3. community foundations (v89) — run when ready to build community ─
+-- Copy the "community foundations (v89)" section from schema.sql verbatim;
+-- it is idempotent like everything else here. It adds handle/avatar to
+-- profiles (and fixes the update policy that locked PAID users out of
+-- editing their own profile row), the public_profiles view, projects.listed
+-- + the public-by-default enforcement, the likes table, and the public
+-- avatars bucket.
+
 -- ── verify ───────────────────────────────────────────────────────────
 -- Expect: publish_at present, and the two student objects listed.
 select column_name, data_type
