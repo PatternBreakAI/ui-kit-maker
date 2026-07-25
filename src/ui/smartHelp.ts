@@ -14,6 +14,10 @@ export interface PartRoute {
   hint: string;
   /** Panel section to open + scroll to (the Section's data-sec id). */
   section: string;
+  /** Optional landing spot INSIDE the section (a data-anchor stamp) — for
+      controls that live partway down a long section, like the icon block
+      in Typography. Falls back to the section head when absent. */
+  anchor?: string;
 }
 
 export const PART_ROUTES: Record<string, PartRoute> = {
@@ -31,7 +35,11 @@ export const PART_ROUTES: Record<string, PartRoute> = {
   texture:          { label: "Micro texture",  hint: "Grain amount and scale", section: "surface" },
   content:          { label: "Content",        hint: "The label and icon block", section: "typography" },
   label:            { label: "Label",          hint: "Text, case, weight, fills, outline, depth effects", section: "typography" },
-  icon:             { label: "Icon",           hint: "Glyph, size, color, stroke and effects", section: "icon" },
+  /* The standalone Icon section is parked behind ICONS_ENABLED, so this
+     routes to where icon controls actually live: the Icons block inside
+     Typography. Routing to an unmounted section is a silent dead click —
+     the bug the anchor mechanism exists to prevent. */
+  icon:             { label: "Icon",           hint: "Size, weight, color and effects — swap a specific piece's glyph in Component content on the Kit page", section: "typography", anchor: "icons" },
 };
 
 /** Anything stamped but unrouted (future parts) lands on the master row. */
@@ -43,11 +51,15 @@ export const routeOf = (part: string): PartRoute => PART_ROUTES[part] ?? FALLBAC
  *  Reuses the same store `open` map the search force-open rides. */
 export function helpNavigate(part: string): void {
   const route = routeOf(part);
-  useGen.setState((st) => ({ open: { ...st.open, [route.section]: true } }));
+  // clear any live panel search — a non-matching query display:nones the
+  // target section, which would make this scroll land on nothing
+  useGen.setState((st) => ({ panelQuery: "", open: { ...st.open, [route.section]: true } }));
   // let the section body mount before measuring
   window.setTimeout(() => {
-    const el = document.querySelector(`[data-sec="${route.section}"]`);
-    if (!el) return;
+    const sec = document.querySelector(`[data-sec="${route.section}"]`);
+    if (!sec) return;
+    // land on the inner anchor when the route names one and it exists
+    const el = (route.anchor && sec.querySelector(`[data-anchor="${route.anchor}"]`)) || sec;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     el.classList.add("sh-glow");
     window.setTimeout(() => el.classList.remove("sh-glow"), 1600);

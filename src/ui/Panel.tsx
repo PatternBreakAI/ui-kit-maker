@@ -1564,6 +1564,10 @@ export function Panel() {
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
         </FxToggle>
+        {/* data-anchor: Dissect's "icon" deep link lands here — the parked
+            standalone Icon section never mounts, so this block is the icon's
+            real home (smartHelp.ts routes to it) */}
+        <div data-anchor="icons">
         <div className="sublabel">Icons</div>
         <Slider label="Size" value={cfg.icon.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
         <Slider label="Weight" value={cfg.icon.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
@@ -1582,6 +1586,7 @@ export function Panel() {
           ))}
         </div>
         <div className="helper">Every glyph in the kit (buttons, counters, slots, rows) follows this one treatment — swap a specific component's glyph in <b>Component content</b>. Color inherits the type until you set your own; the effects are always the icon's own, independent of Type.</div>
+        </div>
       </Section>
 
 
