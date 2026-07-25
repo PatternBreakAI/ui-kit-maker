@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Camera, CreditCard, Crown, ExternalLink, Heart, Loader2, Settings,
+  Camera, CreditCard, Crown, ExternalLink, Eye, EyeOff, Heart, Loader2, Settings,
   Trash2, Users, Wand2,
 } from "lucide-react";
 import "@/styles/pricing.css";
@@ -238,6 +238,7 @@ export function StudioPage() {
                         <div className="cg-title">
                           <b>{p.name}</b>
                           <span className="cg-maker cg-maker--plain">
+                            {p.is_public ? <Eye size={11} strokeWidth={2.4} /> : <EyeOff size={11} strokeWidth={2.4} />}{" "}
                             {m?.listed ? "In the gallery" : p.is_public ? "Public" : "Private"}
                             {m && m.likes > 0 && <> · <Heart size={11} strokeWidth={2.4} /> {m.likes}</>}
                           </span>

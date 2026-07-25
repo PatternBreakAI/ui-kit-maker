@@ -2208,3 +2208,8 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
   font-size: 11.5px; line-height: 1.5; color: var(--ink2);
 }
 .proj-consent b { color: var(--ink); }
+
+/* the visibility eyeball on project rows — open eye (public) carries the
+   accent so a shared kit is spottable at a glance down the list */
+.proj-eye.on { color: var(--accent, #8b5cf6); }
+.proj-sharedef { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-weight: 600; cursor: pointer; }
