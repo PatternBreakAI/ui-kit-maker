@@ -158,8 +158,8 @@ export function PricingPage() {
             <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
             <h2>Student</h2>
             <div className="fd-pricing__price">$15.99<span> / year</span></div>
-            <div className="fd-pricing__note">For verified students</div>
-            <div className="fd-pricing__forwho fd-pricing__forwho--edu">Learn with the real tool</div>
+            <div className="fd-pricing__note">For verified students &amp; educators</div>
+            <div className="fd-pricing__forwho fd-pricing__forwho--edu">Learn and teach with the real tool</div>
             <Rows rows={STUDENT} />
             <button className="fd-pricing__cta fd-pricing__cta--edu" onClick={() => navigate("#/student")}>
               Get Student Access <ChevronRight size={15} strokeWidth={2.4} />

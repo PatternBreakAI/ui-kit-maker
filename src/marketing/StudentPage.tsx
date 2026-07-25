@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { GraduationCap, ShieldCheck, Upload, CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { GraduationCap, ShieldCheck, Upload, CheckCircle2, Loader2, Clock, ChevronRight } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
-import { submitStudentVerification } from "@/generator/student";
+import { submitStudentVerification, myStudentStatus, type StudentStatus } from "@/generator/student";
+import { startCheckout } from "@/generator/billing";
 
 /* #/student — apply for the verified student rate.
 
@@ -33,6 +34,23 @@ export function StudentPage() {
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  /* Where this account stands. This page is the ONE place a student lands
+     for the whole journey — apply, wait, then buy — so the CTA on the
+     pricing page can always point here without knowing anything. */
+  const [state, setState] = useState<StudentStatus | null>(null);
+  useEffect(() => {
+    if (!signedIn) { setState("none"); return; }
+    let live = true;
+    void myStudentStatus().then((s2) => { if (live) setState(s2); });
+    return () => { live = false; };
+  }, [signedIn, done]);
+
+  const buy = async () => {
+    setBusy(true); setErr(null);
+    const e = await startCheckout();   // server prices this at the student rate
+    if (e) { setErr(e); setBusy(false); }
+  };
+
   const tooBig = !!file && file.size > MAX_MB * 1024 * 1024;
   const ready = signedIn && !!school.trim() && !!file && !tooBig && attest && !busy;
 
@@ -53,13 +71,51 @@ export function StudentPage() {
 
       <main className="fd-student">
         <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
-        <h1>Student access</h1>
+        <h1>Student &amp; educator access</h1>
         <p className="fd-pricing__sub">
           The same tool professionals ship with, at $15.99 a year instead of $29.99.
-          Send us proof you're enrolled and we'll switch your account over.
+          Send us proof you're enrolled or teaching and we'll switch your account over.
         </p>
 
-        {done ? (
+        {state === "approved" ? (
+          <section className="fd-studentcard">
+            <p className="fd-studentcard__ok">
+              <CheckCircle2 size={18} strokeWidth={2.2} /> You're verified
+            </p>
+            <p>
+              Your student rate is ready. Checkout below bills $15.99 a year
+              instead of $29.99 — everything else is the same account you're
+              already signed in to.
+            </p>
+            <button className="fd-pricing__cta fd-pricing__cta--edu" disabled={busy} onClick={() => void buy()}>
+              {busy
+                ? (<><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Opening checkout…</>)
+                : (<>Subscribe — $15.99/year <ChevronRight size={15} strokeWidth={2.4} /></>)}
+            </button>
+            <p className="fd-pricing__renew">
+              You'll be charged $15.99 today, plus applicable tax. Renews automatically
+              every 12 months at the then-current student price unless you cancel.
+              Cancel anytime from your account — cancelling stops the next charge and
+              your access runs to the end of the term. We may ask you to re-verify
+              enrolment or teaching status before a renewal.
+            </p>
+            {err && <p className="fd-pricing__err">{err}</p>}
+          </section>
+        ) : state === "pending" && !done ? (
+          <section className="fd-studentcard">
+            <p className="fd-studentcard__ok fd-studentcard__ok--wait">
+              <Clock size={18} strokeWidth={2.2} /> Under review
+            </p>
+            <p>
+              We've got your application and we're looking at it — usually a day or
+              two. We'll email you, and this page will show a checkout button the
+              moment you're approved.
+            </p>
+            <button className="fd-pricing__cta fd-pricing__cta--ghost" onClick={() => navigate("#/app")}>
+              Back to the generator
+            </button>
+          </section>
+        ) : done ? (
           <section className="fd-studentcard">
             <p className="fd-studentcard__ok">
               <CheckCircle2 size={18} strokeWidth={2.2} /> Application received
@@ -95,7 +151,7 @@ export function StudentPage() {
             </label>
 
             <label className="fd-field">
-              <span>Current student ID</span>
+              <span>Current student or faculty ID</span>
               <div className={`fd-drop${file ? " has-file" : ""}`}>
                 <input type="file" accept="image/*,.pdf" disabled={!signedIn}
                   onChange={(e) => { setFile(e.target.files?.[0] ?? null); setErr(null); }} />
@@ -103,8 +159,8 @@ export function StudentPage() {
                 <span>{file ? file.name : "Choose a photo or PDF"}</span>
               </div>
               <small>
-                It needs to show your name and a date that hasn't passed. Photos of a
-                physical card are fine.
+                It needs to show your name and a date that hasn't passed. A faculty or
+                staff card works too. Photos of a physical card are fine.
               </small>
               {tooBig && <small className="fd-field__err">That file is over {MAX_MB} MB — try a photo instead of a scan.</small>}
             </label>
@@ -112,7 +168,7 @@ export function StudentPage() {
             <label className="fd-check">
               <input type="checkbox" checked={attest} disabled={!signedIn}
                 onChange={(e) => setAttest(e.target.checked)} />
-              <span>I'm currently enrolled at the institution above, and this ID is mine.</span>
+              <span>I'm currently enrolled at, or teaching at, the institution above, and this ID is mine.</span>
             </label>
 
             <p className="fd-privacy">

@@ -193,3 +193,4 @@
 .fd-privacy b { color: var(--ink); }
 
 .fd-linkbtn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: inherit; color: var(--accent, #8b5cf6); text-decoration: underline; }
+.fd-studentcard__ok--wait { color: var(--ink2); }
