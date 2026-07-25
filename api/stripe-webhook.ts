@@ -59,9 +59,7 @@ function renewalOf(sub: Sub): string | null {
   return secs ? new Date(secs * 1000).toISOString() : null;
 }
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== "POST") return ok("Method not allowed.", 405);
-
+export async function POST(req: Request): Promise<Response> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   const supaUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
