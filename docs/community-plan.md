@@ -83,5 +83,11 @@ need profile pages: picture, name, likes (**no comments**), "use this kit."
 
 ## Claims-ledger note
 
-"Community" on any marketing surface stays off until C2 is live — the
-cadence rule applies: don't promise the gallery before the gallery exists.
+~~"Community" on any marketing surface stays off until C2 is live — the
+cadence rule applies: don't promise the gallery before the gallery exists.~~
+**LIFTED 2026-07-25:** the gallery (#/community), public profiles
+(#/u/handle) and the studio (#/studio) are live and the v89 schema is
+applied to prod. Marketing may now speak of community — approved wording
+lives in docs/output-claims.md §2b. Owner has asked the Front Door for a
+Community tab in the homepage nav, visible to everyone including
+signed-out visitors (the gallery is anonymous-viewable by design).

@@ -150,6 +150,9 @@ reason: the moment one drifts from what the code does, the page is lying.
 | "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
 | "New preset pack every month" | ⚠️ **COMMITMENT — inventory banked, none published** | Delivery path exists and the owner has several packs built and held back. What is missing is publication, not material. The value figure was deliberately withheld — see below. |
 | "Monthly preset packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
+| "Community Gallery — kits by the community, remix any of them" | **APPROVED — LIVE 2026-07-25** | `#/community` shipped (PR #84) and the v89 schema is applied to prod. Public and anonymous-viewable: no sign-in needed to browse, like, however, requires an account. Cards render LIVE from kit settings; everything on the page is admin-curated before listing. The hold on community marketing is LIFTED — the gallery exists, so the cadence rule is satisfied. |
+| "Maker profiles" | **APPROVED — LIVE 2026-07-25** | `#/u/<handle>` public pages + `#/studio` (own room). Profiles only surface curated kits, so marketing may show them without leaking anything unreviewed. |
+| "Free and Student kits join the community; Pro keeps kits private" | **APPROVED** | RLS-enforced (v89 insert/update policies) + the consent line at the save moment (owner's verbatim copy). Say it exactly this way — it is a licence-style trade, not a footnote. |
 
 ### The monthly pack — read this before promoting it
 
