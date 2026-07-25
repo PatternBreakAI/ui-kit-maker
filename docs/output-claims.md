@@ -145,31 +145,41 @@ reason: the moment one drifts from what the code does, the page is lying.
 | "Student and Pro have the same features and export formats" | **APPROVED** | `TIER_CAPS` and `EXPORT_KINDS` in `entitlements.ts` — student and pro are identical rows. `ALLOWED` in `api/export.ts` mirrors them. |
 | "The education licence covers coursework, portfolio and non-commercial release" | **APPROVED** | `LICENCE_GRANT.student`, stamped into every export by `api/export.ts`; Terms §5.6. |
 | "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
-| "New kit pack every month ($60 value)" | ⚠️ **COMMITMENT — not yet delivered** | See below. |
-| "Monthly kit packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
+| "New preset pack every month — $60 a year of packs" | ⚠️ **COMMITMENT — not yet delivered** | Arithmetic is sound (12 × $5); the delivery and the $5 list price are both still ahead of us. See below. |
+| "Monthly preset packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
 
 ### The monthly pack — read this before promoting it
 
-This is the one claim on the pricing page that is a **promise about the
-future**, not a description of the present. Everything else there can be
-checked against code today; this one becomes true only if a pack actually
-ships each month.
+**A pack is a new preset** (owner, 2026-07-25) — a full style recipe that
+restyles the whole kit, published to the shared library. Not new
+components. That distinction matters for the wording: say **preset pack**,
+never "kit pack", because the latter implies the component set grows.
 
-- **Delivery path exists.** An admin publishes a cloud preset, RLS lets
-  everyone read the row, and `Panel.tsx` shows it unlocked to `pro` only.
-  Nothing new has to be built to honour it.
-- **The clock starts at announcement.** From the moment the line is live,
-  a month with no drop is a broken promise on a paid page. If promotion is
-  weeks out, consider having the first two or three packs banked first.
-- **"$60 value" is a comparative price claim.** It is defensible while
-  comparable kits genuinely sell around that on the asset stores, and it
-  gets weaker if they don't. The safer phrasing, if it's ever questioned,
-  is comparative and explicit: "a new kit pack every month — the kind that
-  sells for around $60 on the asset stores." Owner chose the shorter form;
-  this note records the tradeoff.
-- **What a "pack" is has not been defined yet.** A themed preset? A preset
-  plus new components? Pin that down before the first drop, because it
-  sets the expectation for every one after it.
+**Packs will list at $5 each** (owner, 2026-07-25). That is where the $60
+comes from — 12 drops a year at $5. It is arithmetic, not a comparison to
+asset-store pricing, which is a much firmer footing than the earlier
+"$60 value" phrasing had. Two consequences worth holding onto:
+
+- **The row must not imply one pack is worth $60.** "New kit pack every
+  month ($60 value)" read that way, which is why it now says "New preset
+  pack every month — $60 a year of packs".
+- **The figure is tied to the list price.** If packs ever launch at $3 or
+  $8, the $60 on the pricing page is wrong the same day. Whoever changes
+  the price changes this line.
+
+**Both halves are still promises, not descriptions.** Everything else in
+§2b can be checked against code today; this cannot:
+
+| Piece | State today |
+|---|---|
+| Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. Nothing new to build. |
+| A pack actually shipping each month | ❌ Not started. The clock starts the day the line goes live — a month with no drop is a broken promise on a paid page. |
+| The $5 list price | ❌ No à-la-carte purchase path exists. There is one Stripe product (Pro) plus the student price. Until packs are actually listed at $5, the $60 references a price no customer can see. |
+
+Recommendation on record: bank two or three packs before promoting, and
+either stand up the $5 listing or hold the value figure until it exists.
+The cadence claim can run on its own — "a new preset pack every month" is
+true the moment the first one ships and needs no price to be honest.
 
 ---
 

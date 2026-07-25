@@ -625,12 +625,12 @@ export function Panel() {
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
             </button>
           ))}
-          {/* The shared library is where the monthly kit packs land, so this
-              lock is about the packs — not about capability. A student has
-              the whole tool; what they don't have is the pack drops. */}
+          {/* The shared library is where the monthly preset packs land, so
+              this lock is about the packs — not about capability. A student
+              has the whole tool; what they don't have is the pack drops. */}
           {cloudPresets.map((p) => tier !== "pro" ? (
             <button key={p.id} className="presetcard shared lockedp"
-              title={`${p.name} — from the monthly kit packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
+              title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
               <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? "" }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
