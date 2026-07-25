@@ -2973,9 +2973,15 @@ html[data-theme="light"] .fd-landing .step-card { background: #fff; border-color
       box-shadow: 0 16px 36px -20px rgba(76, 50, 150, .28); }
 html[data-theme="light"] .fd-landing .step-ghost { -webkit-text-stroke-color: rgba(76, 50, 150, .3); opacity: .55; }
 html[data-theme="light"] .fd-landing .hud-corner { color: rgba(64, 48, 120, .55); opacity: 1; }
-html[data-theme="light"] .fd-landing .sv-row, html[data-theme="light"] .fd-landing .sv-x { background: #fff; border-color: rgba(46, 32, 86, .12); }
-html[data-theme="light"] .fd-landing .sv-wires path { stroke: rgba(124, 58, 237, .38); }
-html[data-theme="light"] .fd-landing .sv-row b, html[data-theme="light"] .fd-landing .step-foot { color: rgba(64, 48, 120, .55); }
+html[data-theme="light"] .fd-landing .sv-row, html[data-theme="light"] .fd-landing .sv-x { background: #fff; border-color: rgba(46, 32, 86, .22); }
+html[data-theme="light"] .fd-landing .sv-wires path { stroke: rgba(109, 40, 217, .62); stroke-width: 1.5; }
+html[data-theme="light"] .fd-landing .sv-row b, html[data-theme="light"] .fd-landing .step-foot { color: rgba(42, 30, 84, .85); }
+html[data-theme="light"] .fd-landing .console-head span:last-child { color: #15803d; }
+html[data-theme="light"] .fd-landing .ownership-badge { color: #15803d; border-color: rgba(21, 128, 61, .45);
+      background: rgba(21, 128, 61, .08); }
+html[data-theme="light"] .fd-landing .kit-ready, html[data-theme="light"] .fd-landing .af-save, html[data-theme="light"] .fd-landing .ship-list-head b, html[data-theme="light"] .fd-landing .ship-li em, html[data-theme="light"] .fd-landing .ship-row em { color: #0b7f60; }
+html[data-theme="light"] .fd-landing .x-badge.free { color: #0b7f60; border-color: rgba(11, 127, 96, .5); }
+html[data-theme="light"] .fd-landing .cc-soon { color: #0b7f60; border-color: rgba(11, 127, 96, .45); }
 html[data-theme="light"] .fd-landing .sv-x i { color: rgba(64, 48, 120, .7); border-color: rgba(46, 32, 86, .22); }
 html[data-theme="light"] .fd-landing .ownership-marquee { opacity: .12; }
 html[data-theme="light"] .fd-landing .ownership-marquee span { opacity: 1; color: #4c3296; }
