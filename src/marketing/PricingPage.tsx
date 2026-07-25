@@ -76,9 +76,15 @@ export function PricingPage() {
               {busy ? (<><Loader2 size={13} strokeWidth={2.4} className="fd-spin" /> Opening checkout…</>)
                 : signedIn ? "Go Pro — $29.99/year" : "Sign in and go Pro"}
             </button>
+            {/* The annual-renewal disclosure of record. It must appear before
+                payment: Stripe Managed Payments rejects custom_text, so
+                Checkout can't carry it and this line does. Wording tracks
+                PRO_ANNUAL_CONSENT in api/checkout.ts — keep them together. */}
             <p className="fd-pricing__renew">
-              Billed $29.99 once a year plus applicable tax. Renews automatically;
-              cancel anytime from your account — access runs to the end of the term.
+              You'll be charged $29.99 today, plus applicable tax. Renews automatically
+              every 12 months at the then-current annual price unless you cancel.
+              Cancel anytime from your account — cancelling stops the next charge and
+              your Pro access runs to the end of the term.
             </p>
             {err && <p className="fd-pricing__err">{err}</p>}
           </section>
