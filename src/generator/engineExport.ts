@@ -270,6 +270,12 @@ const UNITY_README = `# PatternBreak kit — Unity import
 Sliced Image setup: Image Type = Sliced, and the borders arrive from the importer.
 Progress bar: track Image (sliced) + fill Image (sliced, Fill or scissored by a mask).
 Slider: track + fill Images, thumb on the handle rect.
+
+No importer required: everything the script does is plain data you can set by
+hand. Each sprite's border (L/R/T/B px) and pivot sit in kit-manifest.json —
+open the Sprite Editor, type the four numbers, done. The script only saves you
+the typing. If it misbehaves in your Unity version, tell us and work from the
+manifest meanwhile — nothing about the assets depends on it.
 `;
 
 const UNITY_IMPORTER = `// PatternBreak kit importer — applies nine-slice borders and pivots from

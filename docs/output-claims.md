@@ -189,7 +189,7 @@ ship. There is. What remains is publication.
 |---|---|
 | Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. |
 | Packs to ship | ✅ Several built, unpublished. |
-| A pack actually appearing each month | ✅ Schedulable. `presets.publish_at` + a release-date field in the admin publish row. Load the backlog once, dated, and it drips on its own. |
+| A pack actually appearing each month | ✅ Schedulable, and owner-owned. Several packs banked. Owner call 2026-07-25: the first drop is due one month after the FIRST PAYING CUSTOMER (not a calendar date), and each drop gets promotional cards (à la Marvel Snap) planned around it. |
 | The $5 list price | ❌ Decided and owner-owned, but not built. One Stripe product (Pro) plus the student price; no à-la-carte path. This is why the value figure is off the page rather than on it. |
 
 ### Scheduled release — built 2026-07-25
@@ -236,17 +236,35 @@ voice. Anything marked NEEDS TEST must be opened in that app before it goes
 live — I can verify what we *write*, not what a third-party importer *does*
 with it.
 
-### Unity — APPROVED
+### Unity — APPROVED for the assets; the importer is a convenience, not the claim
 - **Accepts:** PNG sprites; nine-slice via Sprite Editor's `Border` (L/R/T/B in pixels); pivots; `Image` component in `Sliced` mode. Editor scripts under any `Editor/` folder compile automatically.
-- **Pain point:** hand-entering border values for dozens of sprites, then discovering the art baked in a label or a shadow you can't remove.
-- **Our answer:** atomic content-free PNGs with the border values already in the manifest, and an importer script that applies them for you. Labels and numbers stay live engine text; shadows and glows ship as separate tintable blobs.
-- **Copy:** "Drops in with the nine-slice borders already set — our importer reads them straight from the manifest, so nothing is typed by hand and nothing is baked in."
+- **What is SOLID (claim freely):** the PNGs are standard files and the nine-slice
+  borders, pivots and native sizes are plain numbers in `kit-manifest.json`.
+  Setting them in the Sprite Editor is typing, not integration — this works in
+  Unity the way any sprite works in Unity, and no importer has to run for it.
+  Content-free faces + live engine text is likewise a property of the assets.
+- **What is UNTESTED (do not lead with it):** `PatternBreakKitImporter.cs` and the
+  two example prefabs have never been run inside a real Unity project. They ship
+  as included conveniences; the kit's own README says the script only saves
+  typing and gives the by-hand path. A tested, deeper Unity export is planned.
+  Owner call 2026-07-25: the pitch is "you CAN use it in Unity and Unreal" — the
+  assets carry that claim on their own.
+- **Copy:** "Standard PNGs with every nine-slice border, pivot and size written
+  out in a manifest — set them in Unity's Sprite Editor, or let the bundled
+  importer script do the typing. Labels stay live engine text; nothing is baked in."
 
-### Unreal Engine — APPROVED
+### Unreal Engine — APPROVED (the claim is arithmetic, not integration)
 - **Accepts:** Texture2D; UMG Brush `Draw As: Box` with `Margin` as **0–1 normalized** values (not pixels).
-- **Pain point:** margins are normalized, so every pixel border must be divided by the texture dimension by hand.
-- **Our answer:** the manifest carries native dimensions beside the pixel margins, and `unreal/README.md` gives the conversion and the recipes.
-- **Copy:** "Box-draw margins worked out for you — native size and insets both in the manifest, so the 0–1 conversion is done."
+- **What is SOLID:** the manifest carries native dimensions beside the pixel
+  margins, and `unreal/SliceMargins.csv` ships the 0–1 conversion already done —
+  that is arithmetic anyone can check, not runtime behavior. The recipes in
+  `unreal/UMG_Recipes.md` are written instructions, followed by a human.
+- **What is UNTESTED:** nobody has walked the recipes inside a real Unreal
+  project yet. They are documentation, so the risk is a wording stumble rather
+  than a broken tool — but do not claim "one-click" anything for Unreal; there
+  is no script there at all, by design.
+- **Copy:** "Box-draw margins worked out for you — native size, pixel insets and
+  the 0–1 conversion all in the kit, with step-by-step UMG recipes."
 
 ### Godot — NEEDS TEST
 - **Accepts:** PNG; `NinePatchRect` with `patch_margin_*`. Native SVG import exists and rasterizes at import scale.
