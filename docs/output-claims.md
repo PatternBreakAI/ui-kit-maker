@@ -145,7 +145,7 @@ reason: the moment one drifts from what the code does, the page is lying.
 | "Student and Pro have the same features and export formats" | **APPROVED** | `TIER_CAPS` and `EXPORT_KINDS` in `entitlements.ts` — student and pro are identical rows. `ALLOWED` in `api/export.ts` mirrors them. |
 | "The education licence covers coursework, portfolio and non-commercial release" | **APPROVED** | `LICENCE_GRANT.student`, stamped into every export by `api/export.ts`; Terms §5.6. |
 | "Selling what you build needs Pro" | **APPROVED — but unenforceable by design** | It is a licence term, not a gate. No code detects commercial use, and none should; this is how every education licence in the industry works. The deterrent is that each export names the account it was issued to. |
-| "New preset pack every month — $60 a year of packs" | ⚠️ **COMMITMENT — not yet delivered** | Arithmetic is sound (12 × $5); the delivery and the $5 list price are both still ahead of us. See below. |
+| "New preset pack every month" | ⚠️ **COMMITMENT — not yet delivered** | Delivery path exists; no pack has shipped. The value figure was deliberately withheld — see below. |
 | "Monthly preset packs are a Pro perk" | **APPROVED** | `Panel.tsx` renders the shared cloud-preset library locked for any tier that is not `pro`; the packs land there. |
 
 ### The monthly pack — read this before promoting it
@@ -155,17 +155,30 @@ restyles the whole kit, published to the shared library. Not new
 components. That distinction matters for the wording: say **preset pack**,
 never "kit pack", because the latter implies the component set grows.
 
-**Packs will list at $5 each** (owner, 2026-07-25). That is where the $60
-comes from — 12 drops a year at $5. It is arithmetic, not a comparison to
-asset-store pricing, which is a much firmer footing than the earlier
-"$60 value" phrasing had. Two consequences worth holding onto:
+**Packs list at $5 each** — owner decision, 2026-07-25, and the owner owns
+that price. It is settled, not provisional, so the earlier "what if it
+launches at $3 or $8" caveat is closed. Twelve drops a year at $5 is $60,
+and that arithmetic is sound.
 
-- **The row must not imply one pack is worth $60.** "New kit pack every
-  month ($60 value)" read that way, which is why it now says "New preset
-  pack every month — $60 a year of packs".
-- **The figure is tied to the list price.** If packs ever launch at $3 or
-  $8, the $60 on the pricing page is wrong the same day. Whoever changes
-  the price changes this line.
+**The $60 is nonetheless OFF the page** (owner, 2026-07-25). The figure is
+true but it cites a price no customer can reach: there is no à-la-carte
+purchase path, so nothing is listed at $5 anywhere a visitor could check.
+A value claim resting on an invisible price is the kind of thing this
+ledger exists to catch, and the owner chose to hold it rather than lead
+with it.
+
+So the pricing card carries the cadence alone — "New preset pack every
+month" — which is honest the moment the first pack ships and needs no
+price to stand up.
+
+**To restore it**, when the $5 listing is live and reachable, set the Pro
+row in `PricingPage.tsx` back to:
+
+    { label: "New preset pack every month — $60 a year of packs" },
+
+Do not restore "($60 value)" in the older shape — read plainly it says one
+pack is worth $60. And say **preset pack**, never "kit pack": a pack is a
+preset, and the latter implies the component set grows.
 
 **Both halves are still promises, not descriptions.** Everything else in
 §2b can be checked against code today; this cannot:
@@ -174,12 +187,12 @@ asset-store pricing, which is a much firmer footing than the earlier
 |---|---|
 | Delivery mechanism | ✅ Exists. Admin publishes a cloud preset; RLS lets everyone read the row; `Panel.tsx` unlocks it for `pro` only. Nothing new to build. |
 | A pack actually shipping each month | ❌ Not started. The clock starts the day the line goes live — a month with no drop is a broken promise on a paid page. |
-| The $5 list price | ❌ No à-la-carte purchase path exists. There is one Stripe product (Pro) plus the student price. Until packs are actually listed at $5, the $60 references a price no customer can see. |
+| The $5 list price | ❌ Decided and owner-owned, but not built. One Stripe product (Pro) plus the student price; no à-la-carte path. This is why the value figure is off the page rather than on it. |
 
-Recommendation on record: bank two or three packs before promoting, and
-either stand up the $5 listing or hold the value figure until it exists.
-The cadence claim can run on its own — "a new preset pack every month" is
-true the moment the first one ships and needs no price to be honest.
+Recommendation on record: bank two or three packs before promoting. The
+value figure is already held back per the owner's call above; the cadence
+claim is the one live promise, and the clock on it starts the day the
+pricing page goes in front of people, not the day a pack is ready.
 
 ---
 

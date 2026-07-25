@@ -36,7 +36,10 @@ const EXPLORER: Row[] = [
 
 const PRO: Row[] = [
   { label: "Full kit components + all starter presets" },
-  { label: "New preset pack every month — $60 a year of packs" },
+  /* Cadence only. The "$60 a year of packs" figure is true arithmetic
+     (12 x $5) but cites a price no customer can reach yet — it goes
+     back on the day the $5 listing is live. See output-claims.md 2b. */
+  { label: "New preset pack every month" },
   { label: "Unlimited zoom" },
   { label: "PNG export up to 4×" },
   { label: "Every export: SVG, HTML, engine kit, game kit" },
