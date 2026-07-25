@@ -1229,12 +1229,23 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     prims.push(fds(0, 0, T2.glow.size * 0.3, T2.glow.color, (T2.glow.opacity / 100).toFixed(2)));
     prims.push(fds(0, 0, T2.glow.size * 0.8, T2.glow.color, ((T2.glow.opacity / 100) * 0.6).toFixed(2)));
   }
+  /* filterUnits=userSpaceOnUse: Safari synthesizes the italic slant for
+     faces with no italic cut (Russo One) but measures the text bbox
+     WITHOUT it — a percentage region inherits that lie and clips the
+     leaning glyph edges diagonally. An absolute region can't.
+
+     But the region must be BOUNDED (owner report, 2026-07-25: no text at
+     all in Safari): Safari refuses to render a filtered element whose
+     region rasterizes past its buffer cap, and the old fixed 6000×1800
+     region blew that cap at hero scale — thumbnails survived, the big
+     canvas text vanished, Chrome tiled and never showed it. Sized here
+     from the shell the label lives in plus the largest effect spread. */
+  const tfSpread = Math.max(
+    T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
+    T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
+    8) + fs;
   const textFxDef = prims.length
-    /* filterUnits=userSpaceOnUse: Safari synthesizes the italic slant for
-       faces with no italic cut (Russo One) but measures the text bbox
-       WITHOUT it — a percentage region inherits that lie and clips the
-       leaning glyph edges diagonally. An absolute region can't. */
-    ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
+    ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
   const textFilter = prims.length ? ` filter="url(#${id}tf)"` : "";
   const outlineStroke = T2.outline.color2 ? `url(#${id}og) ${P(T2.outline.color)}` : P(T2.outline.color);
@@ -1720,7 +1731,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       prims4.push(fd4("0", "0", T4.glow.size * 0.3, T4.glow.color, (T4.glow.opacity / 100).toFixed(2)));
       prims4.push(fd4("0", "0", T4.glow.size * 0.8, T4.glow.color, ((T4.glow.opacity / 100) * 0.6).toFixed(2)));
     }
-    if (prims4.length) defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="-800" y="-800" width="6000" height="1800" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;   // absolute region — same Safari synthetic-italic clip fix as ${id}tf
+    /* absolute region — same Safari synthetic-italic fix as ${id}tf, and
+       the same bound: an unbounded region trips Safari's filter-buffer
+       cap and the text vanishes wholesale. Sized from this text's own
+       metrics: estimated run width + the largest effect spread. */
+    if (prims4.length) {
+      const estW4 = cased4.length * fs2 * 0.8 + Math.abs(o2.track ?? 0) * cased4.length;
+      const spread4 = Math.max(
+        T4.glow.on && state !== "disabled" ? T4.glow.size * 0.8 * 3 : 0,
+        T4.shadow.on ? (Math.abs(T4.shadow.x) + Math.abs(T4.shadow.y) + T4.shadow.blur * 1.5) * fsc4 : 0,
+        8) + fs2 * 1.2;
+      const rx4 = o2.anchor === "middle" ? x2 - estW4 / 2 : o2.anchor === "end" ? x2 - estW4 : x2;
+      defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="${(rx4 - spread4).toFixed(0)}" y="${(y2 - fs2 - spread4).toFixed(0)}" width="${(estW4 + spread4 * 2).toFixed(0)}" height="${(fs2 * 2 + spread4 * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
+    }
     const outline4 = T4.outline.on && state !== "disabled"
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
       : "";

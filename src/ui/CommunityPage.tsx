@@ -59,7 +59,11 @@ export function CardArt({ card }: { card: { id: string } }) {
       setState("loading");
       void (async () => {
         const doc = await fetchCardDoc(card.id);
-        if (!doc || !host.current) { setState("failed"); return; }
+        if (!doc || !host.current) {
+          // name the failure — a silent dash taught us nothing in the field
+          console.warn("[community] card doc fetch returned nothing", { id: card.id });
+          setState("failed"); return;
+        }
         try {
           const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
           const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
@@ -89,7 +93,8 @@ export function CardArt({ card }: { card: { id: string } }) {
             host.current.style.backgroundImage = `url("${bg}")`;
           }
           setState("done");
-        } catch {
+        } catch (e) {
+          console.warn("[community] card render failed", { id: card.id, error: e });
           setState("failed");
         }
       })();
