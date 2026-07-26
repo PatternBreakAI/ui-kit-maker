@@ -1418,9 +1418,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   </radialGradient>
   ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
   ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
-  ${hiIdx >= 0 ? (() => { const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1); return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
-    <stop offset="0" stop-color="${hexMix(hiC, "#FFFFFF", 0.25 + 0.64 * hb)}"/>
-    <stop offset="1" stop-color="${hexMix(glowC, "#FFFFFF", 0.05 + 0.36 * hb)}"/>
+  ${hiIdx >= 0 ? (() => {
+    const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1);
+    /* intensity sweeps from the BASE ink (0 = the phrase melts into the
+       rest) up to fully lit (100). The old formula anchored both ends on
+       the Highlight token — near-white in almost every kit — so the
+       slider swept white-to-white and read as dead ("why doesn't
+       highlight intensity work"). Anchoring the start on what the other
+       glyphs actually wear makes the whole range visible, and the
+       glow-tinted bottom stop keeps the lift perceptible even when the
+       base ink itself is white. */
+    const baseTop = T2.fillMode === "auto" ? autoLabel : P(T2.fill);
+    const baseBot = T2.fillMode === "gradient" ? P(T2.fill2) : baseTop;
+    return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
+    <stop offset="0" stop-color="${hexMix(baseTop, hexMix(hiC, "#FFFFFF", 0.89), hb)}"/>
+    <stop offset="1" stop-color="${hexMix(baseBot, hexMix(glowC, "#FFFFFF", 0.41), hb)}"/>
   </linearGradient>`; })() : ""}
   ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
