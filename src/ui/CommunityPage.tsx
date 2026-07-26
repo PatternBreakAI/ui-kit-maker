@@ -157,6 +157,11 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
 
   const maker = card.display_name || (card.handle ? `@${card.handle}` : "a maker");
   const av = avatarUrl(card.avatar_path);
+  // every byline wears a face: the real avatar, or a candy monogram until
+  // the maker uploads one
+  const face = av
+    ? <img className="cg-avatar" src={av} alt="" />
+    : <span className="cg-avatar cg-avatar--mono" aria-hidden="true">{maker.replace(/^@/, "").trim().charAt(0).toUpperCase() || "?"}</span>;
   return (
     <article className={`cg-card${card.listed ? "" : " cg-card--queue"}`}>
       {!card.listed && <span className="cg-queuechip">IN REVIEW</span>}
@@ -166,10 +171,10 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
           <b>{card.name}</b>
           {card.handle ? (
             <button className="cg-maker" onClick={() => navigate(`#/u/${card.handle}`)}>
-              {av && <img className="cg-avatar" src={av} alt="" />}{t("byMaker")} {maker}
+              {face}{t("byMaker")} {maker}
             </button>
           ) : (
-            <span className="cg-maker cg-maker--plain">{t("byMaker")} {maker}</span>
+            <span className="cg-maker cg-maker--plain">{face}{t("byMaker")} {maker}</span>
           )}
         </div>
         <div className="cg-actions">
@@ -239,6 +244,7 @@ export function CommunityPage() {
       </header>
 
       <main className="cg">
+        <span className="fd-kicker">UI Kit Maker</span>
         <h1>{t("cgTitle")}</h1>
         <p className="fd-pricing__sub">{t("cgSub")}</p>
 
