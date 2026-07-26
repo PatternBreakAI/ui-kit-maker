@@ -1019,21 +1019,52 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitKind: (k) => set({ kitKind: k }),
   inheritDefaults: () => {
     const cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
-    cfg.stateDesigns = {};
     cfg.states.hover = { ...cfg.states.default };
     cfg.states.pressed = { ...cfg.states.default };
     cfg.states.disabled = { ...cfg.states.default };
+    /* A locked focused piece keeps its state forks in the LOCK — the master's
+       map isn't the one on screen, so clearing only it looked like a dead
+       button. Clear the piece's forks and pin an empty map so the master's
+       forks can't show through either; the master (and every other piece)
+       doesn't move. Unfocused, the master's forks ARE the visible ones. */
+    const focus0 = get().focus;
+    const kd = focus0 ? get().kitDesigns[focus0] : undefined;
+    if (focus0 && kd) {
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...kd, stateDesigns: {} } };
+      saveJson("ui-generator-kitdesigns", kitDesigns);
+      set({ kitDesigns });
+    } else {
+      cfg.stateDesigns = {};
+    }
     get().replaceConfig(cfg);
   },
   makeStateDefault: () => {
     const sel = get().selectedState;
     if (sel === "default") return;
-    const cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
-    const d = cfg.stateDesigns?.[sel];
-    if (d) {
-      // the state's forked design becomes the root design
-      for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
-      delete cfg.stateDesigns[sel];
+    const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
+    const cfg = clone2(get().cfg);
+    const focus0 = get().focus;
+    const kd0 = focus0 ? get().kitDesigns[focus0] : undefined;
+    if (focus0 && kd0) {
+      /* What the user SEES on a locked piece is master ⊕ lock — promote THAT
+         fork into the piece's pinned design. The master's design keys don't
+         move; only the shared state adjustments follow below. */
+      const work = clone2(applyKitDesign(cfg, kd0));
+      const d = work.stateDesigns?.[sel];
+      if (d) {
+        for (const key of DESIGN_KEYS) (work as any)[key] = (d as any)[key];
+        delete work.stateDesigns![sel];
+      }
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {} } };
+      saveJson("ui-generator-kitdesigns", kitDesigns);
+      set({ kitDesigns });
+    } else {
+      const d = cfg.stateDesigns?.[sel];
+      if (d) {
+        // the state's forked design becomes the root design
+        for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
+        delete cfg.stateDesigns[sel];
+      }
     }
     // its whole-component adjustments become the default baseline too
     cfg.states.default = { ...cfg.states[sel] };
