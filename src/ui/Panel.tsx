@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -56,6 +56,7 @@ const GROUPS: Record<string, string[]> = {
   states: ["state", "states"],
   style: ["shape"],
   silhouette: ["silhouette"],
+  content: ["kiticon", "barsec"],
   color: ["mapping"],
   material: ["structure", "surface", "bars"],
   lighting: ["lighting", "gloss", "glow", "depth"],
@@ -65,11 +66,15 @@ const GROUPS: Record<string, string[]> = {
 };
 
 export function Rail() {
-  const { sectionFilter, setSectionFilter, phase, setPhase } = useGen();
+  const { sectionFilter, setSectionFilter, phase, setPhase, focus } = useGen();
   const items = [
     { id: "states", Icon: Globe, label: t("railStates") },
     { id: "style", Icon: Layers, label: t("railStyle") },
     { id: "silhouette", Icon: Shapes, label: t("railSilhouette") },
+    // Component content exists only while a piece is focused — the stop
+    // appears with the section, never as a dead click (the master's text
+    // lives in Typography)
+    ...(focus ? [{ id: "content", Icon: TextCursorInput, label: t("railContent") }] : []),
     { id: "color", Icon: Palette, label: t("railColor") },
     { id: "material", Icon: Box, label: t("railMaterial") },
     { id: "lighting", Icon: Sun, label: t("railLighting") },
