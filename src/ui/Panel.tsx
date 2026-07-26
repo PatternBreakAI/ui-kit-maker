@@ -916,6 +916,18 @@ export function Panel() {
               </div>
               {slot.note && <div className="helper">{slot.note}</div>}
             </div>
+          ) : slot.kind === "color" ? (
+            <div key={slot.id}>
+              <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id] ?? slot.def ?? "#FFFFFF"}
+                onChange={(v) => setKitSlot(focus, slot.id, v)} />
+              {kitSlotVals[focus]?.[slot.id] && (
+                <button className="resetstate" title="Back to the factory color"
+                  onClick={() => setKitSlot(focus, slot.id, null)}>
+                  <RotateCcw size={13} strokeWidth={2} /> Factory color
+                </button>
+              )}
+              {slot.note && <div className="helper">{slot.note}</div>}
+            </div>
           ) : slot.kind === "value" ? (
             /* no input on purpose — the readout is DRIVEN; say so instead of
                offering a field that would be a lie */
