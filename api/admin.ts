@@ -392,11 +392,14 @@ export async function POST(req: Request): Promise<Response> {
        preset living in a maker's synced studio — both freeze the same way */
     let proj: { name: string; user_id: string; doc: Record<string, unknown> };
     let sourceProjectId: string | null = null;
+    let sourceUpId: string | null = null;
     if (b.studio) {
       const userId = String(b.studio.userId ?? "");
-      const got = await studioPreset(userId, String(b.studio.upId ?? ""));
+      const upId = String(b.studio.upId ?? "");
+      const got = await studioPreset(userId, upId);
       if ("error" in got) return json({ error: got.error }, got.status);
       proj = { name: got.name, user_id: userId, doc: got.doc };
+      sourceUpId = upId;
     } else {
       const pid = String(b.projectId ?? "");
       if (!/^[0-9a-f-]{36}$/.test(pid)) return json({ error: "Bad kit id." }, 400);
@@ -435,14 +438,29 @@ export async function POST(req: Request): Promise<Response> {
     const desig = {
       kit_name: proj.name, preset_name: presetName, placement,
       preset_id: presetId, source_project_id: sourceProjectId, source_user_id: proj.user_id,
+      source_up_id: sourceUpId,
       source_email: ownerEmail, deal_note: dealNote,
       snapshot: proj.doc, created_by: caller.id,
     };
-    const dr = await fetch(`${supaUrl}/rest/v1/kit_designations`, {
+    let dr = await fetch(`${supaUrl}/rest/v1/kit_designations`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json", prefer: "return=representation" },
       body: JSON.stringify(desig),
     });
+    if (!dr.ok) {
+      /* pre-0092 database: the refresh-source column doesn't exist yet.
+         Designating still works — Refresh just falls back to name-match. */
+      const firstErr = await dr.clone().text().catch(() => "");
+      if (firstErr.includes("source_up_id")) {
+        const { source_up_id: _drop, ...legacy } = desig;
+        void _drop;
+        dr = await fetch(`${supaUrl}/rest/v1/kit_designations`, {
+          method: "POST",
+          headers: { ...svc, "content-type": "application/json", prefer: "return=representation" },
+          body: JSON.stringify(legacy),
+        });
+      }
+    }
     if (!dr.ok) {
       const detail = await dr.text().catch(() => "");
       // don't leave a half-designation: retire the preset row we just made
@@ -497,6 +515,90 @@ export async function POST(req: Request): Promise<Response> {
         publishAt: r.preset_id ? (dates.get(r.preset_id) ?? null) : null,
       })),
     });
+  }
+
+  /* ── refreeze — re-approve a designation from the maker's CURRENT
+     version. The freeze is the moderation gate: edits never reach the
+     homepage or the Presets panel on their own; this click is the owner
+     saying "the new version is approved too." Snapshot is replaced, and
+     the linked preset row's recipe (if any) moves with it — name,
+     placement, schedule and deal note all stay. ──────────────────────── */
+  if (body.action === "refreeze") {
+    const did = String((body as { designationId?: unknown }).designationId ?? "");
+    if (!/^[0-9a-f-]{36}$/.test(did)) return json({ error: "Bad designation id." }, 400);
+    const rr = await fetch(
+      `${supaUrl}/rest/v1/kit_designations?id=eq.${did}&select=id,kit_name,preset_name,placement,preset_id,source_project_id,source_user_id,source_up_id`,
+      { headers: svc },
+    ).then(async (r) => (r.ok ? r : /* pre-0092: no source_up_id column */ fetch(
+      `${supaUrl}/rest/v1/kit_designations?id=eq.${did}&select=id,kit_name,preset_name,placement,preset_id,source_project_id,source_user_id`,
+      { headers: svc },
+    )));
+    if (!rr.ok) return json({ error: "Couldn't read that designation." }, 502);
+    const row = ((await rr.json()) as {
+      id: string; kit_name: string; preset_name: string; placement: string; preset_id: string | null;
+      source_project_id: string | null; source_user_id: string | null; source_up_id?: string | null;
+    }[])[0];
+    if (!row) return json({ error: "That designation is gone." }, 404);
+
+    let fresh: { name: string; doc: Record<string, unknown> } | null = null;
+    if (row.source_project_id) {
+      const pr = await fetch(`${supaUrl}/rest/v1/projects?id=eq.${row.source_project_id}&select=name,doc`, { headers: svc });
+      if (!pr.ok) return json({ error: "Couldn't read the source kit." }, 502);
+      const p = ((await pr.json()) as { name: string; doc: Record<string, unknown> }[])[0];
+      if (!p) return json({ error: "The maker deleted the source kit — the frozen version is all that's left. Remove and re-designate if there's a new source." }, 404);
+      fresh = { name: p.name, doc: p.doc };
+    } else if (row.source_user_id) {
+      // studio-preset source: by stored local id, else by name (legacy rows)
+      const ws = await fetch(
+        `${supaUrl}/rest/v1/workspaces?user_id=eq.${row.source_user_id}&select=ups:doc->>ui-generator-userpresets`,
+        { headers: svc },
+      );
+      if (!ws.ok) return json({ error: "Couldn't read the maker's studio." }, 502);
+      const ups = ((await ws.json()) as { ups: string | null }[])[0]?.ups;
+      let entry: { id?: string; name?: string; cfg?: unknown } | undefined;
+      try {
+        const list = ups ? (JSON.parse(ups) as { id?: string; name?: string; cfg?: unknown }[]) : [];
+        entry = (row.source_up_id ? list.find((u) => u?.id === row.source_up_id) : undefined)
+          ?? list.find((u) => u?.name === row.kit_name)
+          ?? list.find((u) => u?.name === row.preset_name);
+      } catch { /* malformed mirror */ }
+      if (!entry?.cfg || typeof entry.name !== "string") {
+        return json({ error: "The preset is gone from the maker's studio — the frozen version is all that's left. Remove and re-designate if there's a new source." }, 404);
+      }
+      fresh = { name: entry.name, doc: { cfg: entry.cfg, kitName: entry.name, fromStudioPreset: true } };
+    } else {
+      return json({ error: "This designation has no source recorded — remove it and designate the kit again once." }, 400);
+    }
+    if (!fresh.doc.cfg) return json({ error: "The current version has no design payload — ask the maker to re-save." }, 400);
+
+    const up1 = await fetch(`${supaUrl}/rest/v1/kit_designations?id=eq.${did}`, {
+      method: "PATCH",
+      headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ kit_name: fresh.name, snapshot: fresh.doc }),
+    });
+    if (!up1.ok) return json({ error: `Couldn't replace the snapshot (${up1.status}).` }, 502);
+    if (row.preset_id) {
+      const up2 = await fetch(`${supaUrl}/rest/v1/presets?id=eq.${row.preset_id}`, {
+        method: "PATCH",
+        headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+        body: JSON.stringify({ cfg: fresh.doc.cfg, updated_at: new Date().toISOString() }),
+      });
+      if (!up2.ok) return json({ error: `Snapshot updated, but the shipped preset didn't take (${up2.status}) — hit Refresh again.` }, 502);
+    }
+
+    const audit = {
+      at: new Date().toISOString(), admin: caller.id, adminEmail: caller.email ?? null,
+      designation: did, kit: fresh.name, presetName: row.preset_name, placement: row.placement,
+      snapshotBytes: JSON.stringify(fresh.doc).length,
+    };
+    console.log(`[admin] refreeze ${JSON.stringify(audit)}`);
+    await fetch(`${supaUrl}/rest/v1/admin_audit`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ admin_id: caller.id, target_id: row.source_user_id ?? caller.id, action: "refreeze", detail: audit }),
+    }).catch(() => { /* audit table optional — the console line stands */ });
+
+    return json({ ok: true, name: fresh.name });
   }
 
   /* ── undesignate — take it off the slate (and off the shelf) ─────── */

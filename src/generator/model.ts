@@ -557,9 +557,12 @@ export const PRESETS: Preset[] = [
   { id: "royal-vault", name: "Royal Vault", shape: "shield", bevel: { width: 13, softness: 45 },
     effects: { Bevel: "#6C3FC9", Glow: "#C9A5FF", Highlight: "#FFEDB8", Shadow: "#251057", "Inner Fill": "#8F5BEF" },
     candy: { pattern: { type: "stars", scale: 62, angle: 0, opacity: 24, color: null }, gloss: { height: 44, curve: 22, opacity: 60, softness: 34 }, specular: { on: true, mode: "soft", size: 34, intensity: 58, softness: 60 }, innerGlow: { opacity: 66, size: 52 }, extrusion: { depth: 14, darkness: 80 } } },
+  /* citrus-pop's full authored design lives in preset-citrus-pop.json
+     (PRESET_DEFAULTS) — this recipe mirrors its construction for the
+     surfaces that derive from recipes (preset tiles, homepage picker). */
   { id: "citrus-pop", name: "Citrus Pop", shape: "mazepill", bevel: { width: 11, softness: 88 },
     effects: { Bevel: "#E8890C", Glow: "#FFD34D", Highlight: "#FFF7DB", Shadow: "#7A3B00", "Inner Fill": "#FFA726" },
-    candy: { gloss: { height: 48, curve: 30, opacity: 74 }, specular: { on: true, mode: "anime", size: 28, intensity: 80 }, extrusion: { depth: 11 }, bloom: { opacity: 55, size: 66 } } },
+    candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 48, curve: 30, opacity: 100, softness: 95 }, specular: { on: true, mode: "anime", size: 29, intensity: 93 }, extrusion: { depth: 11, darkness: 94 }, bloom: { opacity: 55, size: 66 } } },
   { id: "comic-pop", name: "Comic Pop", shape: "notch", bevel: { width: 12, softness: 30 },
     effects: { Bevel: "#1E1F26", Glow: "#FFE24A", Highlight: "#FFFFFF", Shadow: "#0B0B12", "Inner Fill": "#FFC61A" },
     candy: { pattern: { type: "halftone", scale: 70, angle: 0, opacity: 38, color: null }, gloss: { height: 40, curve: 18, opacity: 58, softness: 20 }, specular: { on: true, mode: "hard", size: 26, intensity: 88 }, extrusion: { depth: 13, darkness: 88 } } },
