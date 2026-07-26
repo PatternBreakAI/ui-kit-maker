@@ -1319,6 +1319,17 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const textInner = hiIdx >= 0
     ? `${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}`
     : label;
+  /* burn-through: the lit phrase thins the pattern overlay in step with
+     the intensity — light through texture. On pattern-heavy kits this is
+     what makes the slider unmissable; fill-opacity (not opacity) because
+     SVG 1.1 tspans only honor the former, and it multiplies with the
+     overlay element's own opacity. */
+  const stripesInner = hiIdx >= 0
+    ? (() => {
+        const burn = clamp(1 - (T2.highlightBoost ?? 70) / 100, 0, 1);
+        return `${esc(cased.slice(0, hiIdx))}<tspan fill-opacity="${burn.toFixed(2)}">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}`;
+      })()
+    : label;
 
   /* vector glints — a crisp specular slab clipped to the glyphs plus star
      sparkles riding the letter faces. Placement follows the master light,
@@ -1418,9 +1429,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   </radialGradient>
   ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
   ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
-  ${hiIdx >= 0 ? (() => { const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1); return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
-    <stop offset="0" stop-color="${hexMix(hiC, "#FFFFFF", 0.25 + 0.64 * hb)}"/>
-    <stop offset="1" stop-color="${hexMix(glowC, "#FFFFFF", 0.05 + 0.36 * hb)}"/>
+  ${hiIdx >= 0 ? (() => {
+    const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1);
+    /* intensity sweeps from the BASE ink (0 = the phrase melts into the
+       rest) up to fully lit (100). The old formula anchored both ends on
+       the Highlight token — near-white in almost every kit — so the
+       slider swept white-to-white and read as dead ("why doesn't
+       highlight intensity work"). Anchoring the start on what the other
+       glyphs actually wear makes the whole range visible, and the
+       glow-tinted bottom stop keeps the lift perceptible even when the
+       base ink itself is white. */
+    const baseTop = T2.fillMode === "auto" ? autoLabel : P(T2.fill);
+    const baseBot = T2.fillMode === "gradient" ? P(T2.fill2) : baseTop;
+    return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
+    <stop offset="0" stop-color="${hexMix(baseTop, hexMix(hiC, "#FFFFFF", 0.89), hb)}"/>
+    <stop offset="1" stop-color="${hexMix(baseBot, hexMix(glowC, "#FFFFFF", 0.41), hb)}"/>
   </linearGradient>`; })() : ""}
   ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
@@ -1459,7 +1482,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${showText ? `<g data-part="label">` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
-      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
+      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
@@ -4324,17 +4347,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const frameP = wellOf(w, h, bw + 12 * k);
       const cxC = 39 + w / 2, cyC = 30 + h * (opts.label ? 0.44 : 0.5);
       const emb = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
-      const embS = w * 0.44;
+      /* the card's own dials (KIT_SLOTS.cardback): emblem footprint,
+         corner sparkles, inner frame — first choice is the factory look */
+      const slC = opts.slots ?? {};
+      const embS = w * (slC.emblem === "Small" ? 0.32 : slC.emblem === "Large" ? 0.56 : slC.emblem === "Hero" ? 0.66 : 0.44);
+      const sparklesOn = slC.sparkles !== "Off";
+      const frameOn = slC.frame !== "Off";
       const spark = (sx: number, sy: number, r: number) =>
         `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
-      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${glow}" stop-opacity="0.18"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>
-        <path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
+      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${glow}" stop-opacity="0.18"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
+      if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       if (emb) {
         parts += `<circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(embS * 0.85).toFixed(1)}" fill="url(#${gid}g)"/>` +
           `<g style="filter: drop-shadow(0 0 ${(10 * k).toFixed(0)}px ${glow})">${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
       }
       const inX = 39 + bw + 34 * k, inY = 30 + bw + 34 * k;
-      parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
+      if (sparklesOn) parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
       if (opts.label) {
         const py = 30 + h - 76 * k;
         parts += `<path d="${roundRect(39 + w * 0.12, py, w * 0.76, 46 * k, 12 * k)}" fill="${wellFill}" opacity="0.94" stroke="${hexRgba(darken(bevel, 0.35), 0.6)}" stroke-width="1"/>` +

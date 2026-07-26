@@ -569,9 +569,12 @@ export const PRESETS: Preset[] = [
   { id: "deep-ocean", name: "Deep Ocean", shape: "explorer", bevel: { width: 13, softness: 62 },
     effects: { Bevel: "#0A5B8F", Glow: "#4DE3FF", Highlight: "#EAFBFF", Shadow: "#04263F", "Inner Fill": "#0E7FC0" },
     candy: { gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
-  { id: "grape-jelly", name: "Grape Jelly", shape: "pill", bevel: { width: 9, softness: 100 },
+  /* grape-jelly's full authored design lives in preset-grape-jelly.json
+     (PRESET_DEFAULTS) — this recipe mirrors its construction for the
+     surfaces that derive from recipes (preset tiles, homepage picker). */
+  { id: "grape-jelly", name: "Grape Jelly", shape: "pill", bevel: { width: 14, softness: 0 },
     effects: { Bevel: "#8B34D8", Glow: "#E29CFF", Highlight: "#FFFFFF", Shadow: "#4A1178", "Inner Fill": "#A855F7" },
-    candy: { gloss: { height: 54, curve: 40, opacity: 62, softness: 46 }, specular: { mode: "dual", softness: 55 }, innerGlow: { opacity: 72, size: 66 }, bloom: { opacity: 60, size: 72 }, extrusion: { depth: 12 } } },
+    candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 40, curve: 20, opacity: 89, softness: 46 }, specular: { on: true, mode: "anime", size: 52, intensity: 35, softness: 30 }, innerGlow: { opacity: 72, size: 66 }, bloom: { opacity: 60, size: 72 }, extrusion: { depth: 14, darkness: 94 } } },
   { id: "glacier-tech", name: "Glacier Tech", shape: "polybar", bevel: { width: 12, softness: 22 },
     effects: { Bevel: "#4E7E9C", Glow: "#B8F1FF", Highlight: "#F0FBFF", Shadow: "#122C40", "Inner Fill": "#7FB8D9" },
     candy: { pattern: { type: "none", scale: 100, angle: 45, opacity: 0, color: null }, texture: { amount: 26, scale: 44 }, gloss: { height: 36, curve: 10, opacity: 44, softness: 16 }, specular: { on: true, mode: "sweep", size: 18, intensity: 60 }, extrusion: { depth: 13, darkness: 76 }, innerEdge: { strength: 58, width: 3 } } },
@@ -817,6 +820,14 @@ export type SlotDef = {
   note?: string;
 };
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  cardback: [
+    { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
+      note: "The set emblem's footprint — Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
+    { id: "sparkles", name: "Corner sparkles", kind: "choice", choices: ["On", "Off"],
+      note: "The four corner glints. Off reads cleaner on busy themes and photo backdrops." },
+    { id: "frame", name: "Inner frame", kind: "choice", choices: ["On", "Off"],
+      note: "The frame line echoing the silhouette inside the wall — the classic card-back border." },
+  ],
   speedo: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
       note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
@@ -970,6 +981,24 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
     links: [
       { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
       { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
+    ],
+  },
+  secondary: {
+    what: "The companion action — the industry says secondary button. It is the SAME button as your primary (same silhouette, bevel, gloss, states) with exactly two things turned down: the candy face washes almost all the way toward the surface, and the label ink trades white for a tint of your Bevel color. Every screen has one action the game wants (PLAY, CLAIM) and companions that must exist without competing (Back, Not now) — the pair encodes that choice physically, so the eye lands on the primary first, every time.",
+    history: "The two-volume button pair is older than games: the Macintosh (1984) fixed the dialog convention of one emphasized default beside quieter alternatives, and games absorbed it through their settings screens and confirm dialogs. Mobile free-to-play hardened it into grammar — when every screen sells one thing, Candy Crush Saga (2012) and Clash of Clans (2012) made the wanted answer candy-bright and the polite refusal matte. A gray stock secondary next to a candy primary reads as borrowed furniture, which is why this kit cuts both buttons from the same material and only changes the volume.",
+    games: "Fortnite (2017) — a lobby built so one loud PLAY outranks a dozen quiet doors · Hades (2020) for disciplined loud/quiet pairs in shops and prompts · counter-example: dark-pattern purchase dialogs that make BOTH buttons shout (or swap their positions) to farm misclicks — players notice, and reviews say so.",
+    links: [
+      { label: "Material Design — button hierarchy, the reference write-up", url: "https://m3.material.io/components/buttons/overview" },
+      { label: "Game UI Database — thousands of real game dialogs and lobbies", url: "https://www.gameuidatabase.com/" },
+    ],
+  },
+  ghost: {
+    what: "The quietest rung of the ladder — primary speaks, secondary accompanies, ghost whispers. Same washed-face treatment as the secondary on a smaller, icon-less frame, for actions that must exist but should nearly disappear: skip, dismiss, \"maybe later\", the legal link under a big decision.",
+    history: "The name comes from the flat-design web (~2013–2014): transparent buttons with hairline borders floating on hero images, back when every startup homepage had one. Games were flattening at the same time, and the ghost settled where games whisper — the press-to-continue prompt, the skip control, the fine-print action under a paywall.",
+    games: "Destiny (2014) for whisper-quiet menu chrome around loud reward moments · Alto's Adventure (2015) for menus that nearly dissolve into the scene · counter-example: the skip button in mobile ads, ghosted specifically so you miss it — your game earns goodwill by making skip honest.",
+    links: [
+      { label: "Flat design — the era that named the ghost button", url: "https://en.wikipedia.org/wiki/Flat_design" },
+      { label: "Game UI Database — thousands of real game menu screens", url: "https://www.gameuidatabase.com/" },
     ],
   },
 };

@@ -1,148 +1,6 @@
 {
   "presetId": "grape-jelly",
-  "stateDesigns": {
-    "hover": {
-      "shape": "pill",
-      "effects": {
-        "Bevel": "#8B34D8",
-        "Glow": "#E29CFF",
-        "Highlight": "#FFFFFF",
-        "Shadow": "#4A1178",
-        "Inner Fill": "#A855F7"
-      },
-      "face": {
-        "mode": "light",
-        "contrast": 0,
-        "midpoint": 61
-      },
-      "bevel": {
-        "width": 14,
-        "softness": 0
-      },
-      "candy": {
-        "extrusion": {
-          "depth": 24,
-          "darkness": 94,
-          "glow": 69
-        },
-        "rim": {
-          "width": 6,
-          "brightness": 80
-        },
-        "innerEdge": {
-          "strength": 100,
-          "width": 6
-        },
-        "innerGlow": {
-          "opacity": 72,
-          "size": 66,
-          "color": null
-        },
-        "aura": {
-          "color": null
-        },
-        "gloss": {
-          "on": true,
-          "height": 40,
-          "curve": 20,
-          "opacity": 89,
-          "softness": 46,
-          "layer": "above",
-          "fill": "gradient",
-          "tint": "#591a7a",
-          "tint2": "#DFF7FF",
-          "blend": "hard-light"
-        },
-        "specular": {
-          "on": true,
-          "mode": "anime",
-          "size": 52,
-          "stretch": 17,
-          "intensity": 35,
-          "softness": 30,
-          "angle": 1,
-          "gap": 50,
-          "ox": 45,
-          "oy": -21,
-          "blend": "hard-light"
-        },
-        "bloom": {
-          "opacity": 60,
-          "size": 72
-        },
-        "contact": {
-          "opacity": 32
-        },
-        "texture": {
-          "amount": 25,
-          "scale": 50
-        },
-        "pattern": {
-          "type": "stripes",
-          "scale": 100,
-          "angle": 45,
-          "opacity": 71,
-          "color": "#1d819a"
-        }
-      },
-      "lighting": {
-        "angle": 93,
-        "highlight": 78,
-        "lowlight": 46
-      },
-      "shadow": {
-        "distance": 28,
-        "blur": 14,
-        "opacity": 40
-      },
-      "transparency": {
-        "frame": 100,
-        "interior": 100,
-        "content": 100
-      },
-      "type": {
-        "font": "Fredoka",
-        "customFonts": [],
-        "size": 76,
-        "weight": 500,
-        "italic": true,
-        "spacing": 1,
-        "case": "upper",
-        "fillMode": "gradient",
-        "fill": "#e5a6ff",
-        "fill2": "#b263ea",
-        "fillOpacity": 100,
-        "outline": {
-          "on": true,
-          "color": "#461a6c",
-          "color2": "#2a1041",
-          "width": 2
-        },
-        "shadow": {
-          "on": true,
-          "color": "#351452",
-          "x": 3,
-          "y": 2,
-          "blur": 6,
-          "opacity": 91
-        },
-        "emboss": {
-          "on": false,
-          "strength": -54,
-          "softness": 31,
-          "hiOpacity": 42,
-          "shOpacity": 100
-        },
-        "glow": {
-          "on": false,
-          "color": "#E29CFF",
-          "size": 8,
-          "opacity": 100
-        },
-        "preset": "candy"
-      }
-    }
-  },
+  "stateDesigns": {},
   "shape": "pill",
   "effects": {
     "Bevel": "#8B34D8",
@@ -248,19 +106,19 @@
     "font": "Fredoka",
     "customFonts": [],
     "size": 76,
-    "weight": 500,
-    "italic": true,
+    "weight": 670,
+    "italic": false,
     "spacing": 1,
     "case": "upper",
-    "fillMode": "gradient",
-    "fill": "#e5a6ff",
+    "fillMode": "solid",
+    "fill": "#dcbfe8",
     "fill2": "#b263ea",
     "fillOpacity": 100,
     "outline": {
       "on": true,
       "color": "#461a6c",
       "color2": "#2a1041",
-      "width": 2
+      "width": 5.5
     },
     "shadow": {
       "on": true,
@@ -283,7 +141,20 @@
       "size": 8,
       "opacity": 100
     },
-    "preset": "candy"
+    "preset": "candy",
+    "width": 121,
+    "stripes": {
+      "on": true,
+      "angle": 45,
+      "opacity": 30,
+      "style": "halftone",
+      "scale": 93
+    },
+    "glints": {
+      "opacity": 55,
+      "on": false
+    },
+    "highlightBoost": 100
   },
   "icon": {
     "show": true,
@@ -296,7 +167,7 @@
     },
     "placement": "right",
     "only": false,
-    "size": 100,
+    "size": 78,
     "strokeWidth": 24,
     "color": null,
     "opacity": 100,
@@ -320,21 +191,21 @@
     },
     "hover": {
       "brightness": 8,
-      "glow": 100,
+      "glow": 0,
       "lift": 2,
       "opacity": 100,
-      "saturation": 100
+      "saturation": 81
     },
     "pressed": {
       "brightness": 8,
-      "glow": 70,
+      "glow": 0,
       "lift": 2,
       "opacity": 100,
       "saturation": 81
     },
     "disabled": {
       "brightness": 8,
-      "glow": 70,
+      "glow": 0,
       "lift": 2,
       "opacity": 100,
       "saturation": 81
@@ -346,5 +217,8 @@
     "disabled": true
   },
   "canvas": "#000000",
+  "knob": {
+    "color": null
+  },
   "skew": 0
 }

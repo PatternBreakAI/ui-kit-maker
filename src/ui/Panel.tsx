@@ -456,6 +456,11 @@ export function Panel() {
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
   const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel"] as KitComponentId[]).includes(focus);
+  /* the icon on/off rides every text line whose component can wear a glyph
+     (owner call) — swappables plus the master-icon carriers. iconbtn is
+     icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
+  const iconTogglable = !!focus && focus !== "iconbtn" &&
+    (iconSwappable || focus === "primary" || focus === "secondary");
   const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode", "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue", "unitplate", "techcard", "friendrow", "chatbubble", "clancrest", "achievetoast", "scorebug", "endturn", "pack", "cardback"] as KitComponentId[]).includes(focus);
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
   const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(focus);
@@ -921,6 +926,10 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32}
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
+            {iconTogglable && (
+              <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
+                onChange={(e) => setKitIcon(focus, e.target.checked ? null : "none")} /> Icon at the end of the text</label>
+            )}
           </>)}
           {subEditable && (
             <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24}
@@ -1365,6 +1374,10 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32} aria-label="Label text"
               placeholder={`${KIT_COMPONENTS.find((c) => c.id === focus)?.name} text — empty for the default`}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
+            {iconTogglable && (
+              <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
+                onChange={(e) => setKitIcon(focus, e.target.checked ? null : "none")} /> Icon at the end of the text</label>
+            )}
             {subEditable && (
               <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24} aria-label="Secondary text"
                 placeholder={subFieldName[focus] ?? "Secondary text"}
@@ -1464,6 +1477,11 @@ export function Panel() {
           </div>
         </div>
         <label className="check"><input type="checkbox" checked={T2.italic} onChange={(e) => update((c) => { c.type.italic = e.target.checked; })} /> Italic</label>
+        {/* while a per-piece text color is pinned, these global fill controls
+            are OUT-VOTED (applyKitTextFill wins) — leaving them live-looking
+            taught the owner "color controls don't work". Asleep + explained. */}
+        {(() => { const fillPinned = !!(focus && kitTextFill[focus]); return (
+        <div style={fillPinned ? { opacity: 0.45, pointerEvents: "none" } : undefined} aria-disabled={fillPinned || undefined}>
         <div className="ctl">
           <label>Fill</label>
           <div className="segmini" role="radiogroup">
@@ -1482,6 +1500,11 @@ export function Panel() {
           </button>
         </>)}
         <Slider label="Fill opacity" value={T2.fillOpacity ?? 100} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.fillOpacity = v; })} />
+        </div>
+        ); })()}
+        {!!(focus && kitTextFill[focus]) && (
+          <div className="helper">These fill controls are asleep — <b>Own text color</b> below pins {KIT_COMPONENTS.find((c) => c.id === focus)?.name}'s text and outranks them. Untick it to hand color back to the kit.</div>
+        )}
 
         {/* per-piece text color — the escape hatch from "changing text color
             changes it everywhere". Only offered while a component is focused. */}
@@ -1576,6 +1599,19 @@ export function Panel() {
             real home (smartHelp.ts routes to it) */}
         <div data-anchor="icons">
         <div className="sublabel">Icons</div>
+        {/* the on/off lives here too (owner call): Dissect's Icon row lands
+            on this block, so the switch must be visible where you arrive.
+            Same state as the text-line checkbox — the focused piece's
+            "none" override, or the master's icon.show when nothing is
+            focused. iconbtn is icon-only, so no kill switch there. */}
+        {focus !== "iconbtn" && (
+          <label className="check"><input type="checkbox"
+            checked={focus ? kitIcons[focus] !== "none" : cfg.icon.show}
+            onChange={(e) => {
+              if (focus) setKitIcon(focus, e.target.checked ? null : "none");
+              else update((c) => { c.icon.show = e.target.checked; });
+            }} /> Icon at the end of the text{focus ? ` — ${KIT_COMPONENTS.find((c) => c.id === focus)?.name}` : ""}</label>
+        )}
         <Slider label="Size" value={cfg.icon.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
         <Slider label="Weight" value={cfg.icon.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
         <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
