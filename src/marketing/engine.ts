@@ -12,6 +12,7 @@ import grapeJelly from "@/generator/preset-grape-jelly.json";
 import neonVersus from "@/generator/preset-neon-versus.json";
 import bubblePop from "@/generator/preset-bubble-pop.json";
 import citrusPop from "@/generator/preset-citrus-pop.json";
+import { ensureFont } from "@/generator/fonts";
 
 /* keep in step with store.PRESET_DEFAULTS — a preset missing here can't
    play its authored form on the homepage (auth:<id> reel entries) */
@@ -42,6 +43,11 @@ export const engineApi = {
   defaultConfig, defaultCandy, randomizeConfig, applyPresetCandy, presetById,
   pickDesign, PRESETS, SHAPES, PATTERN_TYPES, KIT_COMPONENTS, STATE_NAMES,
   AUTHORED, applyPresetFull, retintText,
+  /* Google-Fonts-on-demand, same loader the editor uses (idempotent, one
+     <link> per family). The landing must call this for every cfg it
+     applies — authored presets carry real typefaces (Shrikhand, Fredoka)
+     that silently fall back to Inter unless someone loads them. */
+  ensureFont,
 };
 
 /* Crop a render's viewBox to its shell (plus glow padding) so it displays
