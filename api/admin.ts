@@ -253,17 +253,64 @@ export async function POST(req: Request): Promise<Response> {
     return json({ ok: true, moved, fromEmail: from.email, toEmail: to.email });
   }
 
-  /* ── findKits — any account's kits, by name ──────────────────────── */
+  /* ── findKits — any account's kits, by either of a kit's names ───── */
   if (body.action === "findKits") {
-    // kit names are free text; only pattern metacharacters are stripped
+    // kit names are free text; only pattern/filter metacharacters are
+    // stripped (comma and parens would break the or=() syntax below)
     const q = String((body as { q?: unknown }).q ?? "").trim().replace(/[%_\\,()*]/g, "").slice(0, 80);
     if (q.length < 2) return json({ error: "Give me at least two characters of the kit's name." }, 400);
+    const pat = encodeURIComponent(`*${q}*`);
+    /* a kit answers to TWO names: the save-dialog name (projects.name) and
+       the kit-page title stored inside the doc (doc->>kitName). "YASS
+       DESERT SUNSET" taught us people search the one they can see. */
     const res = await fetch(
-      `${supaUrl}/rest/v1/projects?name=ilike.${encodeURIComponent(`*${q}*`)}&select=id,name,user_id,updated_at&order=updated_at.desc&limit=10`,
+      `${supaUrl}/rest/v1/projects?or=(name.ilike.${pat},doc->>kitName.ilike.${pat})&select=id,name,user_id,updated_at,kitName:doc->>kitName&order=updated_at.desc&limit=10`,
       { headers: svc },
     );
     if (!res.ok) return json({ error: `Search failed (${res.status}).` }, 502);
-    const rows = (await res.json()) as { id: string; name: string; user_id: string; updated_at: string }[];
+    const rows = (await res.json()) as { id: string; name: string; kitName: string | null; user_id: string; updated_at: string }[];
+
+    /* nothing saved under that name? check the live studios — the design
+       may exist only in someone's auto-synced working doc: as the open
+       kit's title, or as a PERSONAL PRESET the maker saved for themselves
+       (userpresets never leave their browser+sync; "my wife made a preset
+       and I couldn't find it" taught us both). workspaces.doc mirrors
+       localStorage, so every value is a JSON-encoded string. */
+    let studios: {
+      userId: string; email: string | null; kitName: string | null; updatedAt: string;
+      presets: { upId: string; name: string }[];
+    }[] = [];
+    if (rows.length === 0) {
+      const ws = await fetch(
+        `${supaUrl}/rest/v1/workspaces?or=(doc->>ui-generator-kitname.ilike.${pat},doc->>ui-generator-userpresets.ilike.${pat})&select=user_id,updated_at,kn:doc->>ui-generator-kitname,ups:doc->>ui-generator-userpresets&order=updated_at.desc&limit=3`,
+        { headers: svc },
+      ).catch(() => null);
+      if (ws?.ok) {
+        const wrows = (await ws.json()) as { user_id: string; updated_at: string; kn: string | null; ups: string | null }[];
+        const emap = new Map<string, string | null>();
+        if (wrows.length) {
+          const pr = await fetch(
+            `${supaUrl}/rest/v1/profiles?id=in.(${wrows.map((r) => r.user_id).join(",")})&select=id,email`,
+            { headers: svc },
+          );
+          if (pr.ok) for (const p of (await pr.json()) as { id: string; email: string | null }[]) emap.set(p.id, p.email);
+        }
+        const needle = q.toLowerCase();
+        studios = wrows.map((r) => {
+          let kn: string | null = null;
+          try { kn = r.kn ? (JSON.parse(r.kn) as string) : null; } catch { kn = r.kn; }
+          let presets: { upId: string; name: string }[] = [];
+          try {
+            const ups = r.ups ? (JSON.parse(r.ups) as { id?: string; name?: string }[]) : [];
+            presets = ups
+              .filter((u) => u && typeof u.id === "string" && typeof u.name === "string" && u.name.toLowerCase().includes(needle))
+              .map((u) => ({ upId: u.id as string, name: u.name as string }));
+          } catch { /* malformed mirror — the kit-title hint still helps */ }
+          return { userId: r.user_id, email: emap.get(r.user_id) ?? null, kitName: kn, updatedAt: r.updated_at, presets };
+        }).filter((s) => s.presets.length > 0 || (s.kitName ?? "").toLowerCase().includes(needle));
+      }
+    }
+
     const emails = new Map<string, string | null>();
     if (rows.length) {
       const pr = await fetch(
@@ -274,9 +321,10 @@ export async function POST(req: Request): Promise<Response> {
     }
     return json({
       kits: rows.map((r) => ({
-        projectId: r.id, name: r.name, updatedAt: r.updated_at,
+        projectId: r.id, name: r.name, kitName: r.kitName, updatedAt: r.updated_at,
         email: emails.get(r.user_id) ?? null,
       })),
+      studios,
     });
   }
 
@@ -291,10 +339,43 @@ export async function POST(req: Request): Promise<Response> {
     return json({ name: row.name, doc: row.doc });
   }
 
+  /* shared by studioDoc + designate: pull one personal preset out of a
+     maker's synced studio and shape it like a kit doc. The preset's cfg
+     IS the whole artifact — that's what a preset is. */
+  const studioPreset = async (userId: string, upId: string): Promise<{ name: string; doc: Record<string, unknown> } | { error: string; status: number }> => {
+    if (!/^[0-9a-f-]{36}$/.test(userId)) return { error: "Bad account id.", status: 400 };
+    if (!/^[a-z0-9]{1,32}$/.test(upId)) return { error: "Bad preset id.", status: 400 };
+    const res = await fetch(
+      `${supaUrl}/rest/v1/workspaces?user_id=eq.${userId}&select=ups:doc->>ui-generator-userpresets`,
+      { headers: svc },
+    );
+    if (!res.ok) return { error: "Couldn't read that studio.", status: 502 };
+    const row = ((await res.json()) as { ups: string | null }[])[0];
+    if (!row?.ups) return { error: "That studio has no personal presets any more.", status: 404 };
+    let entry: { id?: string; name?: string; cfg?: unknown } | undefined;
+    try {
+      entry = (JSON.parse(row.ups) as { id?: string; name?: string; cfg?: unknown }[]).find((u) => u?.id === upId);
+    } catch { /* malformed mirror */ }
+    if (!entry || !entry.cfg || typeof entry.name !== "string") {
+      return { error: "That preset is gone from the maker's studio — search again.", status: 404 };
+    }
+    return { name: entry.name, doc: { cfg: entry.cfg, kitName: entry.name, fromStudioPreset: true } };
+  };
+
+  /* ── studioDoc — a personal preset from a maker's synced studio ──── */
+  if (body.action === "studioDoc") {
+    const b = body as { userId?: unknown; upId?: unknown };
+    const got = await studioPreset(String(b.userId ?? ""), String(b.upId ?? ""));
+    if ("error" in got) return json({ error: got.error }, got.status);
+    return json({ name: got.name, doc: got.doc });
+  }
+
   /* ── designate — freeze the kit and put it on the slate ──────────── */
   if (body.action === "designate") {
-    const b = body as { projectId?: unknown; placement?: unknown; presetName?: unknown; publishAt?: unknown; dealNote?: unknown };
-    const pid = String(b.projectId ?? "");
+    const b = body as {
+      projectId?: unknown; studio?: { userId?: unknown; upId?: unknown };
+      placement?: unknown; presetName?: unknown; publishAt?: unknown; dealNote?: unknown;
+    };
     const placement = String(b.placement ?? "");
     const presetName = String(b.presetName ?? "").trim().slice(0, 80);
     const dealNote = String(b.dealNote ?? "").trim().slice(0, 2000) || null;
@@ -304,14 +385,28 @@ export async function POST(req: Request): Promise<Response> {
       if (isNaN(d.getTime())) return json({ error: "That release date doesn't parse." }, 400);
       publishAt = d.toISOString();
     }
-    if (!/^[0-9a-f-]{36}$/.test(pid)) return json({ error: "Bad kit id." }, 400);
     if (!["hero", "standard", "upcoming"].includes(placement)) return json({ error: "Placement must be hero, standard or upcoming." }, 400);
     if (!presetName) return json({ error: "Give the release a name." }, 400);
 
-    const pr = await fetch(`${supaUrl}/rest/v1/projects?id=eq.${pid}&select=name,user_id,doc`, { headers: svc });
-    if (!pr.ok) return json({ error: "Couldn't read that kit." }, 502);
-    const proj = ((await pr.json()) as { name: string; user_id: string; doc: Record<string, unknown> }[])[0];
-    if (!proj) return json({ error: "That kit is gone — did the maker delete it?" }, 404);
+    /* the source is either a saved kit (projects row) or a personal
+       preset living in a maker's synced studio — both freeze the same way */
+    let proj: { name: string; user_id: string; doc: Record<string, unknown> };
+    let sourceProjectId: string | null = null;
+    if (b.studio) {
+      const userId = String(b.studio.userId ?? "");
+      const got = await studioPreset(userId, String(b.studio.upId ?? ""));
+      if ("error" in got) return json({ error: got.error }, got.status);
+      proj = { name: got.name, user_id: userId, doc: got.doc };
+    } else {
+      const pid = String(b.projectId ?? "");
+      if (!/^[0-9a-f-]{36}$/.test(pid)) return json({ error: "Bad kit id." }, 400);
+      const pr = await fetch(`${supaUrl}/rest/v1/projects?id=eq.${pid}&select=name,user_id,doc`, { headers: svc });
+      if (!pr.ok) return json({ error: "Couldn't read that kit." }, 502);
+      const row = ((await pr.json()) as { name: string; user_id: string; doc: Record<string, unknown> }[])[0];
+      if (!row) return json({ error: "That kit is gone — did the maker delete it?" }, 404);
+      proj = row;
+      sourceProjectId = pid;
+    }
     if (!proj.doc || typeof proj.doc !== "object" || !proj.doc.cfg) {
       return json({ error: "That kit's saved payload has no design in it — open and re-save it first." }, 400);
     }
@@ -339,7 +434,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const desig = {
       kit_name: proj.name, preset_name: presetName, placement,
-      preset_id: presetId, source_project_id: pid, source_user_id: proj.user_id,
+      preset_id: presetId, source_project_id: sourceProjectId, source_user_id: proj.user_id,
       source_email: ownerEmail, deal_note: dealNote,
       snapshot: proj.doc, created_by: caller.id,
     };
@@ -360,7 +455,8 @@ export async function POST(req: Request): Promise<Response> {
 
     const audit = {
       at: new Date().toISOString(), admin: caller.id, adminEmail: caller.email ?? null,
-      project: pid, kit: proj.name, maker: ownerEmail, placement, presetName, presetId,
+      project: sourceProjectId, source: sourceProjectId ? "kit" : "studio-preset",
+      kit: proj.name, maker: ownerEmail, placement, presetName, presetId,
       snapshotBytes: JSON.stringify(proj.doc).length,
     };
     console.log(`[admin] designate ${JSON.stringify(audit)}`);
