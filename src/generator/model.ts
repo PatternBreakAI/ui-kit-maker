@@ -385,6 +385,9 @@ export interface IconCfg {
   size: number;               // 40..170 % of base
   strokeWidth: number;        // ×10 (5..40 → 0.5..4) for stroke libraries
   color: string | null;       // null = match text
+  /** Outline pass width, px — null/undefined follows Type → Outline width;
+      0 removes the icon border while the text keeps its own. */
+  outlineWidth?: number | null;
   opacity: number;            // 0..100
   rotation: number;           // 0..360
   gap: number;                // px between text and icon
@@ -400,7 +403,7 @@ export const DEFAULT_ICON: IconDef = {
 export function defaultIconCfg(): IconCfg {
   return {
     show: true, def: { ...DEFAULT_ICON }, placement: "right", only: false,
-    size: 100, strokeWidth: 24, color: null, opacity: 100, rotation: 0,
+    size: 100, strokeWidth: 24, color: null, outlineWidth: null, opacity: 100, rotation: 0,
     gap: 18, ox: 0, oy: 0, fx: { shadow: false, glow: false, emboss: false },
   };
 }
@@ -808,12 +811,13 @@ export type KitSize = "s" | "m" | "l";
    chosen values, the panel GENERATES its controls from it, and the i card
    generates its "what can I edit" manual from it. Proof components first
    (speedo family); the full sweep migrates everything else onto it. */
-export type SlotKind = "free" | "choice" | "value" | "locked";
+export type SlotKind = "free" | "choice" | "value" | "locked" | "color";
 export type SlotDef = {
   id: string; name: string; kind: SlotKind;
   /** choice: the curated list, first entry is the default */
   choices?: string[];
-  /** free: the specimen text shown when the slot is untouched */
+  /** free: the specimen text shown when the slot is untouched;
+      color: the factory hex the well shows before it's touched */
   def?: string;
   maxLen?: number;
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
@@ -888,6 +892,10 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   ],
   achievetoast: [
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "ACHIEVEMENT UNLOCKED", maxLen: 28 },
+    { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FACC15",
+      note: "The announcement line's ink — gold is the factory setting because unlocks read as gold." },
+    { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28",
+      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid." },
   ],
   movecounter: [
     { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },

@@ -21,6 +21,7 @@ export function LessonBody({ cid }: { cid: KitComponentId }) {
             sl.kind === "choice" ? (sl.choices ?? []).join(" or ")
             : sl.kind === "value" ? "driven by the value slider"
             : sl.kind === "free" ? "free text"
+            : sl.kind === "color" ? "a color well"
             : "fixed"}`).join(" · ")}
         </p>
       )}
