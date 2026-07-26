@@ -1133,7 +1133,13 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
    parent design live. (Full-snapshot forks froze a component forever: one
    rim tweak and the piece stopped auto-updating with the kit.) */
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends (infer U)[] ? U[] : T[K] extends object ? DeepPartial<T[K]> : T[K] };
-export type KitDesign = DeepPartial<StateDesign> & { stateDesigns?: GenConfig["stateDesigns"] };
+export type KitDesign = DeepPartial<StateDesign> & {
+  stateDesigns?: GenConfig["stateDesigns"];
+  /** Per-piece state ADJUSTMENTS (brightness/glow/lift…) — pinned the first
+   *  time a focused piece's state sliders move, so "edits save into this
+   *  piece" holds for the Global section too. Absent = follow the master. */
+  states?: GenConfig["states"];
+};
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 /* effects is a dynamic record where keys can be REMOVED — a merge can't
@@ -1147,11 +1153,12 @@ function deepMergeDesign(base: unknown, over: unknown): unknown {
 }
 
 /** Render-time merge: the fork's overridden paths sit on top of the parent
- *  design; untouched paths flow through live. Content, state-adjustments
- *  and canvas stay shared — the fork is about the look, not the words. */
+ *  design; untouched paths flow through live. Content and canvas stay
+ *  shared — the fork is about the look, not the words. State adjustments
+ *  follow the master until the piece pins its own (kd.states). */
 export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig {
   if (!kd) return cfg;
-  const out = { ...cfg, stateDesigns: kd.stateDesigns ?? cfg.stateDesigns } as GenConfig;
+  const out = { ...cfg, stateDesigns: kd.stateDesigns ?? cfg.stateDesigns, states: kd.states ?? cfg.states } as GenConfig;
   const src = cfg as unknown as Record<string, unknown>, o = out as unknown as Record<string, unknown>;
   for (const k of DESIGN_KEYS) {
     const ov = (kd as Record<string, unknown>)[k];
@@ -1209,7 +1216,13 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
     if (!isFull(kd)) { out[id] = kd; continue; }
     changed = true;
     const d = designDiff(pickDesign(cfg), kd as unknown as StateDesign);
-    if (d) out[id] = d;
+    // the diff speaks design keys only — the piece's state forks and pinned
+    // state adjustments must survive the rebuild
+    const extras: KitDesign = {
+      ...(kd.stateDesigns && Object.keys(kd.stateDesigns).length ? { stateDesigns: kd.stateDesigns } : {}),
+      ...(kd.states ? { states: kd.states } : {}),
+    };
+    if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }
   return { forks: out, changed };
 }
