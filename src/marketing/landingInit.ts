@@ -53,8 +53,10 @@ export function initLanding(deps: LandingDeps) {
          obsidian-ember · bubble-pop
          Authored full designs: prefix with "auth:" (auth:grape-jelly,
          auth:neon-versus, auth:bubble-pop). Reel entries may append a
-         label after "|", e.g. "citrus-pop|CLAIM". Chip colors and names
-         derive from each preset automatically. */
+         label after "|", e.g. "hard-candy|PLAY". Chip colors and names
+         derive from each preset automatically. Resolution and the
+         label/font adoption rules live in ONE place — playDesign, below
+         — and are documented in docs/front-door.md. */
       const HERO_SWATCHES = ["grape-jelly", "bubble-pop", "deep-ocean", "hard-candy", "forest-sprite", "citrus-pop", "hero-chisel", "glacier-tech"];
       const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "royal-vault|EQUIP"];
       /* Every face the reel/chips can ask for must be self-hosted in
@@ -263,18 +265,10 @@ export function initLanding(deps: LandingDeps) {
         b.style.setProperty("--sw-lo", mix(p.color, "#000000", .25));
         b.setAttribute("aria-label", p.name);
         b.setAttribute("aria-pressed", String(i === 0));
+        /* Authored-first, like the gallery's galCfgFor: a preset with a
+           full authored design plays that design, not the plain recipe. */
         b.addEventListener("click", () => { takeOver();
-          glitchPrep();
-          /* Authored-first, like the gallery's galCfgFor: a preset with a
-             full authored design plays that design — its own face and
-             label included — not the plain recipe under the demo's state. */
-          const auth = !!E.AUTHORED[p.pid];
-          design.cfg = auth ? authoredCfg(p.pid) : E.applyPresetFull(E.defaultConfig(), p.pid);
-          design.pid = auth ? "auth:" + p.pid : p.pid;
-          syncFromCfg();
-          apply(auth ? { color: p.color, name: p.name, label: design.cfg.content.label || design.label || "PLAY" }
-                     : { color: p.color, name: p.name });
-          glitchMaster(); });
+          playDesign({ pid: E.AUTHORED[p.pid] ? "auth:" + p.pid : p.pid, color: p.color, name: p.name }); });
         palWrap.appendChild(b);
       });
       const patWrap = $("patTiles");
@@ -362,17 +356,36 @@ export function initLanding(deps: LandingDeps) {
       Object.keys(E.AUTHORED).forEach((a) => { const t2 = E.AUTHORED[a] && E.AUTHORED[a].type; warmFont(t2 && t2.font); });
       FONT_CHIPS.forEach(warmFont);
       warmFont(E.defaultConfig().type.font);
-      const applyReelEntry = (e) => {
+      /* ── the ONE path a design takes into the demo ──
+         Reel stops, style chips, hero chips and reset all go through
+         playDesign, so the resolution and adoption rules live once:
+         · pid "auth:<id>" → the preset's full authored design;
+           "hero:<key>" → an owner-designated community design;
+           anything else → the plain recipe (applyPresetFull)
+         · a FULL design (auth/hero) adopts its own label and face —
+           its type.case governs presentation; the demo never edits it
+         · an explicit label override (reel "|LABEL") shows as caps —
+           plain reel entries should always carry one
+         · a plain recipe keeps whatever label is already on the demo */
+      const resolveCfg = (pid) => pid && pid.startsWith("hero:") && HERO_CFGS[pid] ? heroCfg(pid)
+        : pid && pid.startsWith("auth:") ? authoredCfg(pid.slice(5))
+        : E.applyPresetFull(E.defaultConfig(), pid || "grape-jelly");
+      const playDesign = ({ pid, color, name, label }) => {
         glitchPrep();
-        design.cfg = e.hero ? heroCfg(e.hero) : e.auth ? authoredCfg(e.auth) : E.applyPresetFull(E.defaultConfig(), e.pid);
-        design.pid = e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid;
+        design.cfg = resolveCfg(pid);
+        design.pid = pid;
         syncFromCfg();
-        /* Explicit "|LABEL" overrides stay caps; an authored design keeps
-           its own label verbatim — its type.case setting governs how the
-           renderer presents it (citrus-pop: "Play Now", case none). */
-        apply({ color: e.color, name: e.name, label: e.label ? e.label.toUpperCase() : (design.cfg.content.label || "PLAY") });
+        const full = !!pid && (pid.startsWith("auth:") || pid.startsWith("hero:"));
+        const patch = { label: label ? label.toUpperCase() : full ? (design.cfg.content.label || design.label || "PLAY") : design.label };
+        if (color) patch.color = color;
+        if (name) patch.name = name;
+        apply(patch);
         glitchMaster();
       };
+      const applyReelEntry = (e) => playDesign({
+        pid: e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid,
+        color: e.color, name: e.name, label: e.label,
+      });
       let attractTimer = null, reelI = 0;
       const startAttract = () => {
         userControlled = false;
@@ -410,12 +423,7 @@ export function initLanding(deps: LandingDeps) {
         }); }
       $("extrR").addEventListener("input", () => { takeOver(); design.extr = +$("extrR").value; apply({}); });
       $("resetBtn").addEventListener("click", () => { takeOver();
-        glitchPrep();
-        design.cfg = design.pid && design.pid.startsWith("hero:") && HERO_CFGS[design.pid] ? heroCfg(design.pid)
-          : design.pid && design.pid.startsWith("auth:") ? authoredCfg(design.pid.slice(5))
-          : E.applyPresetFull(E.defaultConfig(), design.pid || "grape-jelly");
-        syncFromCfg(); apply({});
-        glitchMaster(); });
+        playDesign({ pid: design.pid }); });
       document.querySelectorAll("#stateTabs button").forEach((b) => b.addEventListener("click", () => {
         document.querySelectorAll("#stateTabs button").forEach((x) => x.classList.remove("on"));
         b.classList.add("on"); railState = b.dataset.state; apply({});
@@ -1692,12 +1700,7 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                 b.setAttribute("aria-label", h.name);
                 b.setAttribute("aria-pressed", "false");
                 b.addEventListener("click", () => { takeOver();
-                  glitchPrep();
-                  design.cfg = heroCfg(key);
-                  design.pid = key;
-                  syncFromCfg();
-                  apply({ color, name: h.name });
-                  glitchMaster(); });
+                  playDesign({ pid: key, color, name: h.name }); });
                 palWrap.appendChild(b);
                 PAL.push({ name: h.name, color, pid: key }); // keeps the pressed-state zip aligned
                 REEL.push({ hero: key, color, name: h.name });
