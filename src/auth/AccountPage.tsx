@@ -5,13 +5,15 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Wand2, LogOut, KeyRound, RefreshCw, FileDown, History,
   CheckCircle2, CloudOff, CloudUpload, CreditCard, Loader2, Crown,
-  ShieldCheck, GraduationCap, Eye,
+  ShieldCheck, GraduationCap, Eye, Trash2,
 } from "lucide-react";
 import {
   cloudConfig, clearCloudOverride, signOutCloud,
   syncNow, downloadMyData, hasLocalSnapshot, restoreLocalSnapshot,
   requestPasswordReset, myBilling, myProfileTier,
+  listProjects, downloadAccountBackup, deleteMyAccount,
 } from "@/generator/cloud";
+import "@/styles/pricing.css";
 import { openBillingPortal, justUpgraded } from "@/generator/billing";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
@@ -60,6 +62,71 @@ export function AccountPage() {
     const e = await requestPasswordReset(status.email);
     setBusy(false);
     setNote(e ?? "Password reset email sent — check your inbox.");
+  };
+
+  /* ── the danger door ──────────────────────────────────────────────
+     Deletion cascades: kits, gallery cards, hearts, profile, studio —
+     everything. Normal accounts get a standard respectful flow
+     (consequences + backup offer + type-DELETE). The HOUSE account —
+     keeper of the seed wall — gets the severe ceremony, by decree. */
+  const HOUSE_EMAIL = "info@uikitmaker.com";
+  const [deleting, setDeleting] = useState(false);
+  const deleteDoor = async () => {
+    if (deleting) return;
+    const house = (status.email ?? "").toLowerCase() === HOUSE_EMAIL;
+    const { projects } = await listProjects();
+    const n = projects.length;
+    const kits = `${n} saved kit${n === 1 ? "" : "s"}`;
+
+    if (house) {
+      if (!window.confirm(
+        `⚠️ STOP — THIS IS THE HOUSE ACCOUNT ⚠️\n\n` +
+        `PatternBreak itself lives here: ${kits}, including the community wall's ` +
+        `official seed kits, their hearts, their share links, and the @patternbreak ` +
+        `profile. Deleting this account tears all of it out of the site at once.\n\n` +
+        `If you mean to RETIRE it, stop now and use Adopt kits on the admin desk ` +
+        `first — that moves every kit to another account unharmed.\n\n` +
+        `Continue toward deletion anyway?`,
+      )) return;
+      if (!window.confirm(
+        `Second warning, because this one matters.\n\n` +
+        `The moment this goes through, the Community Gallery loses its cards and ` +
+        `every "Use this kit" link out in the world goes dead. There is no undo, ` +
+        `and support cannot recover any of it — it will no longer exist.\n\n` +
+        `Still continue?`,
+      )) return;
+    } else if (!window.confirm(
+      `Delete this account?\n\n` +
+      `This permanently erases ${kits} (including any public gallery cards and ` +
+      `their hearts), your profile page, and your synced studio with its personal ` +
+      `presets.\n\nThere is no undo.`,
+    )) return;
+
+    if (window.confirm(
+      `Keep a copy first?\n\nOK downloads a full backup — every kit with its ` +
+      `complete design, your studio and profile, one JSON file you could rebuild ` +
+      `from. Cancel skips the backup.`,
+    )) {
+      const be = await downloadAccountBackup();
+      if (be) { window.alert(`Backup failed (${be}) — stopping here, nothing was deleted.`); return; }
+    }
+
+    const word = window.prompt(
+      house
+        ? `Final gate. Type DELETE (all caps) to erase the HOUSE ACCOUNT forever:`
+        : `Final step. Type DELETE (all caps) to erase this account forever:`,
+    );
+    if (word !== "DELETE") {
+      if (word !== null) window.alert("That didn't say DELETE — nothing was touched.");
+      return;
+    }
+
+    setDeleting(true);
+    const err = await deleteMyAccount();
+    setDeleting(false);
+    if (err) { window.alert(err); return; }
+    window.alert("The account and everything it owned has been erased.");
+    navigate("#/");
   };
 
   /* ── plan & billing ───────────────────────────────────────────────
@@ -314,6 +381,21 @@ export function AccountPage() {
                   Disconnect this browser's cloud project
                 </button>
               )}
+            </section>
+
+            {/* ── the danger door ── */}
+            <section className="fd-card">
+              <h2 className="fd-card__title">Delete account</h2>
+              <p className="fd-fine">
+                Deleting your account erases everything it owns — saved kits, gallery cards
+                and their hearts, your profile and studio. The door asks first, offers a full
+                backup, and cannot be reopened. A live subscription must be cancelled before
+                this door will open.
+              </p>
+              <button className="fd-ghost fd-danger" disabled={deleting} onClick={() => void deleteDoor()}>
+                {deleting ? <Loader2 size={15} strokeWidth={1.8} className="fd-spin" /> : <Trash2 size={15} strokeWidth={1.8} />}
+                {deleting ? "Erasing…" : "Delete this account…"}
+              </button>
             </section>
           </>
         )}

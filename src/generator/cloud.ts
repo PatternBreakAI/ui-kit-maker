@@ -864,6 +864,55 @@ export async function setHiddenStarters(ids: string[]): Promise<string | null> {
   return error?.message ?? null;
 }
 
+/** Everything the account owns in one file — the parachute offered
+    before deletion (and a fine backup any other day): profile, the
+    synced studio doc, and every saved kit with its full design. */
+export async function downloadAccountBackup(): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in first.";
+  const { data: prof } = await client.from("profiles")
+    .select("email, handle, display_name, plan_id, created_at").eq("id", session.user.id).maybeSingle();
+  const { data: projs, error } = await client.from("projects")
+    .select("name, doc, is_public, share_slug, created_at, updated_at")
+    .eq("user_id", session.user.id).order("created_at", { ascending: true });
+  if (error) return error.message;
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    profile: prof ?? null,
+    studio: collectDoc(),
+    kits: projs ?? [],
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ui-kit-maker-account-backup.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return null;
+}
+
+/** The door api/account.ts guards (live subscription and admin accounts
+    are refused server-side). On success the account no longer exists —
+    the schema cascades kits, hearts, profile, studio, avatar, all of it. */
+export async function deleteMyAccount(): Promise<string | null> {
+  const token = await accessToken();
+  if (!token) return "Sign in first.";
+  try {
+    const res = await fetch("/api/account", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ action: "delete" }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return data.error ?? `Deletion failed (${res.status}). Nothing was removed.`;
+  } catch {
+    return "Couldn't reach the account service — check your connection.";
+  }
+  // the user is gone server-side; clear this browser's session quietly
+  await signOutCloud().catch(() => { /* session already invalid */ });
+  return null;
+}
+
 /** Data rights: hand the user their complete saved document as JSON. */
 export function downloadMyData() {
   const blob = new Blob([JSON.stringify(collectDoc(), null, 2)], { type: "application/json" });
