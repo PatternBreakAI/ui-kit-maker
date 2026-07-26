@@ -972,6 +972,24 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
       { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
     ],
   },
+  secondary: {
+    what: "The companion action — the industry says secondary button. It is the SAME button as your primary (same silhouette, bevel, gloss, states) with exactly two things turned down: the candy face washes almost all the way toward the surface, and the label ink trades white for a tint of your Bevel color. Every screen has one action the game wants (PLAY, CLAIM) and companions that must exist without competing (Back, Not now) — the pair encodes that choice physically, so the eye lands on the primary first, every time.",
+    history: "The two-volume button pair is older than games: the Macintosh (1984) fixed the dialog convention of one emphasized default beside quieter alternatives, and games absorbed it through their settings screens and confirm dialogs. Mobile free-to-play hardened it into grammar — when every screen sells one thing, Candy Crush Saga (2012) and Clash of Clans (2012) made the wanted answer candy-bright and the polite refusal matte. A gray stock secondary next to a candy primary reads as borrowed furniture, which is why this kit cuts both buttons from the same material and only changes the volume.",
+    games: "Fortnite (2017) — a lobby built so one loud PLAY outranks a dozen quiet doors · Hades (2020) for disciplined loud/quiet pairs in shops and prompts · counter-example: dark-pattern purchase dialogs that make BOTH buttons shout (or swap their positions) to farm misclicks — players notice, and reviews say so.",
+    links: [
+      { label: "Material Design — button hierarchy, the reference write-up", url: "https://m3.material.io/components/buttons/overview" },
+      { label: "Game UI Database — thousands of real game dialogs and lobbies", url: "https://www.gameuidatabase.com/" },
+    ],
+  },
+  ghost: {
+    what: "The quietest rung of the ladder — primary speaks, secondary accompanies, ghost whispers. Same washed-face treatment as the secondary on a smaller, icon-less frame, for actions that must exist but should nearly disappear: skip, dismiss, \"maybe later\", the legal link under a big decision.",
+    history: "The name comes from the flat-design web (~2013–2014): transparent buttons with hairline borders floating on hero images, back when every startup homepage had one. Games were flattening at the same time, and the ghost settled where games whisper — the press-to-continue prompt, the skip control, the fine-print action under a paywall.",
+    games: "Destiny (2014) for whisper-quiet menu chrome around loud reward moments · Alto's Adventure (2015) for menus that nearly dissolve into the scene · counter-example: the skip button in mobile ads, ghosted specifically so you miss it — your game earns goodwill by making skip honest.",
+    links: [
+      { label: "Flat design — the era that named the ghost button", url: "https://en.wikipedia.org/wiki/Flat_design" },
+      { label: "Game UI Database — thousands of real game menu screens", url: "https://www.gameuidatabase.com/" },
+    ],
+  },
 };
 
 export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
