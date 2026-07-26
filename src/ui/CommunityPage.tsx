@@ -47,7 +47,13 @@ function idHash(s: string): number {
 }
 
 export function CardArt({ card }: { card: { id: string } }) {
+  /* two refs, one hard rule: React owns `host` (frame, spinner), the
+     engine owns `paint` (innerHTML target). Injecting into the React-
+     managed node let React try to remove a spinner the injection had
+     already destroyed — a removeChild crash that blanked the page the
+     first time a card ever loaded successfully. */
   const host = useRef<HTMLDivElement>(null);
+  const paint = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
 
   useEffect(() => {
@@ -59,7 +65,7 @@ export function CardArt({ card }: { card: { id: string } }) {
       setState("loading");
       void (async () => {
         const doc = await fetchCardDoc(card.id);
-        if (!doc || !host.current) {
+        if (!doc || !paint.current || !host.current) {
           // name the failure — a silent dash taught us nothing in the field
           console.warn("[community] card doc fetch returned nothing", { id: card.id });
           setState("failed"); return;
@@ -80,7 +86,7 @@ export function CardArt({ card }: { card: { id: string } }) {
           const heroCid = HERO_POOL[h % HERO_POOL.length];
           const hero = piece(heroCid, "l");
           const small = MINI_SETS[(h >> 4) % MINI_SETS.length].map((p) => piece(p.cid, "s", p.v));
-          host.current.innerHTML =
+          paint.current.innerHTML =
             `<div class="cg-hero">${hero}</div><div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
           /* the maker's stage rides the payload — paint it behind the art.
              Strict base64-image match only: this string enters CSS url(),
@@ -105,6 +111,8 @@ export function CardArt({ card }: { card: { id: string } }) {
 
   return (
     <div ref={host} className="cg-art" aria-hidden="true">
+      {/* display:contents so the injected hero/minis join .cg-art's flex */}
+      <div ref={paint} style={{ display: "contents" }} />
       {state !== "done" && (
         <span className="cg-art__wait">
           {state === "failed" ? "—" : <Loader2 size={16} strokeWidth={2.2} className="fd-spin" />}

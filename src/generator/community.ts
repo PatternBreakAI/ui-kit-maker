@@ -61,13 +61,24 @@ export async function listCommunity(opts?: { includeQueue?: boolean }): Promise<
   }
 
   return {
-    cards: rows.map((r) => ({
-      id: r.id, name: r.name, share_slug: r.share_slug, user_id: r.user_id,
-      updated_at: r.updated_at, listed: r.listed,
-      likes: r.likes?.[0]?.count ?? 0,
-      liked: mine.has(r.id),
-      ...(profs.get(r.user_id) ?? { handle: null, display_name: null, avatar_path: null }),
-    })),
+    /* fields copied EXPLICITLY — the profile row carries its own `id`
+       (the maker's uuid), and spreading it over the card overwrote the
+       PROJECT id with the USER id. Every doc fetch, like and curation
+       then targeted a project that doesn't exist: the whole wall dashed
+       the moment the first maker profile appeared (owner report,
+       2026-07-26). Never spread a row that carries an id. */
+    cards: rows.map((r) => {
+      const p = profs.get(r.user_id);
+      return {
+        id: r.id, name: r.name, share_slug: r.share_slug, user_id: r.user_id,
+        updated_at: r.updated_at, listed: r.listed,
+        likes: r.likes?.[0]?.count ?? 0,
+        liked: mine.has(r.id),
+        handle: p?.handle ?? null,
+        display_name: p?.display_name ?? null,
+        avatar_path: p?.avatar_path ?? null,
+      };
+    }),
     error: null,
   };
 }
