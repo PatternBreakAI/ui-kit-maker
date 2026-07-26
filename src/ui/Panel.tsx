@@ -456,6 +456,11 @@ export function Panel() {
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
   const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel"] as KitComponentId[]).includes(focus);
+  /* the icon on/off rides every text line whose component can wear a glyph
+     (owner call) — swappables plus the master-icon carriers. iconbtn is
+     icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
+  const iconTogglable = !!focus && focus !== "iconbtn" &&
+    (iconSwappable || focus === "primary" || focus === "secondary");
   const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode", "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue", "unitplate", "techcard", "friendrow", "chatbubble", "clancrest", "achievetoast", "scorebug", "endturn", "pack", "cardback"] as KitComponentId[]).includes(focus);
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
   const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(focus);
@@ -921,6 +926,10 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32}
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
+            {iconTogglable && (
+              <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
+                onChange={(e) => setKitIcon(focus, e.target.checked ? null : "none")} /> Icon at the end of the text</label>
+            )}
           </>)}
           {subEditable && (
             <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24}
@@ -1365,6 +1374,10 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32} aria-label="Label text"
               placeholder={`${KIT_COMPONENTS.find((c) => c.id === focus)?.name} text — empty for the default`}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
+            {iconTogglable && (
+              <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
+                onChange={(e) => setKitIcon(focus, e.target.checked ? null : "none")} /> Icon at the end of the text</label>
+            )}
             {subEditable && (
               <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24} aria-label="Secondary text"
                 placeholder={subFieldName[focus] ?? "Secondary text"}
