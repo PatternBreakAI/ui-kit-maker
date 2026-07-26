@@ -1589,6 +1589,19 @@ export function Panel() {
             real home (smartHelp.ts routes to it) */}
         <div data-anchor="icons">
         <div className="sublabel">Icons</div>
+        {/* the on/off lives here too (owner call): Dissect's Icon row lands
+            on this block, so the switch must be visible where you arrive.
+            Same state as the text-line checkbox — the focused piece's
+            "none" override, or the master's icon.show when nothing is
+            focused. iconbtn is icon-only, so no kill switch there. */}
+        {focus !== "iconbtn" && (
+          <label className="check"><input type="checkbox"
+            checked={focus ? kitIcons[focus] !== "none" : cfg.icon.show}
+            onChange={(e) => {
+              if (focus) setKitIcon(focus, e.target.checked ? null : "none");
+              else update((c) => { c.icon.show = e.target.checked; });
+            }} /> Icon at the end of the text{focus ? ` — ${KIT_COMPONENTS.find((c) => c.id === focus)?.name}` : ""}</label>
+        )}
         <Slider label="Size" value={cfg.icon.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
         <Slider label="Weight" value={cfg.icon.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
         <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
