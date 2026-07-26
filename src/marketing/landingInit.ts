@@ -57,6 +57,10 @@ export function initLanding(deps: LandingDeps) {
          derive from each preset automatically. */
       const HERO_SWATCHES = ["grape-jelly", "bubble-pop", "deep-ocean", "hard-candy", "forest-sprite", "citrus-pop", "hero-chisel", "glacier-tech"];
       const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "royal-vault|EQUIP"];
+      /* Every face the reel/chips can ask for must be self-hosted in
+         landing.css — scripts/check-landing-fonts.mjs fails the build
+         on a missing or orphaned face. */
+      const FONT_CHIPS = ["Russo One", "Fredoka", "Lilita One", "Bungee"];
 
       const PAL = HERO_SWATCHES.map((pid) => {
         const pr = deps.engine.presetById(pid);
@@ -360,7 +364,7 @@ export function initLanding(deps: LandingDeps) {
 
       /* FONT — the four faces shipped with this page (all from the app's roster) */
       { const fw = $("fontChips");
-        ["Russo One", "Fredoka", "Lilita One", "Bungee"].forEach((f) => {
+        FONT_CHIPS.forEach((f) => {
           const b = document.createElement("button");
           b.type = "button"; b.className = "font-chip"; b.dataset.f = f;
           b.style.fontFamily = `'${f}', sans-serif`; b.textContent = f.replace(" One", "");
@@ -1645,10 +1649,15 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           .then((data) => {
             const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 8) : [];
             const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
+            /* This page only ships the faces landing.css declares; a hero
+               cfg asking for anything else would silently render in a
+               system font, so it falls back to the default face instead. */
+            const hostedFaces = new Set([...document.fonts].map((ff) => ff.family.replace(/["']/g, "")));
             heroes.forEach((h) => {
               try {
                 if (!h || typeof h.name !== "string" || !h.name.trim() || !h.cfg || typeof h.cfg !== "object") return;
                 if (seen.has(h.name.toLowerCase())) return;
+                if (h.cfg.type && typeof h.cfg.type.font === "string" && !hostedFaces.has(h.cfg.type.font)) delete h.cfg.type.font;
                 const key = "hero:" + h.name;
                 HERO_CFGS[key] = h.cfg;
                 // dry-run through the real renderer: a cfg the engine chokes on
