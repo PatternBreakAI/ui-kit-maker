@@ -8,9 +8,19 @@
    database doesn't say is an admin. Nothing the browser claims is
    believed.
 
-   Two actions, nothing else:
+   Three actions, nothing else:
      { action: "search",  q }                          → matching profiles
      { action: "setPlan", userId, plan: pro|student|free }
+     { action: "adopt",   fromEmail, toEmail, dryRun? }
+
+   adopt moves EVERY kit from one account to another — likes, share
+   slugs and gallery listings ride along untouched because only the
+   projects.user_id column changes. It exists so an account can be
+   retired without losing its work (the house-account era ends by
+   folding its kits into the owner's profile, then deleting the empty
+   account by hand in Supabase — this desk still deletes no users).
+   dryRun resolves both accounts and counts the kits without moving
+   anything; the client shows that preview in its confirm dialog.
 
    setPlan stamps plan_status so a grant is distinguishable from a Stripe
    purchase in the data: 'comped' for grants, 'canceled' for revokes.
@@ -161,6 +171,71 @@ export async function POST(req: Request): Promise<Response> {
         ? "This account has a live Stripe subscription — the next Stripe event will overwrite this change. Cancel the subscription in Stripe if the change should stick."
         : null,
     });
+  }
+
+  /* ── adopt ───────────────────────────────────────────────────────── */
+  if (body.action === "adopt") {
+    const clean = (v: unknown) =>
+      String(v ?? "").trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "").slice(0, 120);
+    const fromEmail = clean((body as { fromEmail?: unknown }).fromEmail);
+    const toEmail = clean((body as { toEmail?: unknown }).toEmail);
+    if (!fromEmail.includes("@") || !toEmail.includes("@")) {
+      return json({ error: "Give me both emails, exactly as they appear on the accounts." }, 400);
+    }
+    if (fromEmail === toEmail) return json({ error: "Those are the same account." }, 400);
+
+    // exact-match resolution (ilike without wildcards = case-insensitive equals)
+    const byEmail = async (email: string): Promise<ProfileRow | null> => {
+      const r = await fetch(
+        `${supaUrl}/rest/v1/profiles?email=ilike.${encodeURIComponent(email)}&select=${encodeURIComponent(COLS)}&limit=2`,
+        { headers: svc },
+      );
+      if (!r.ok) return null;
+      const rows = (await r.json()) as ProfileRow[];
+      return rows.length === 1 ? rows[0] : null;
+    };
+    const from = await byEmail(fromEmail);
+    if (!from) return json({ error: `No single account matches ${fromEmail}.` }, 404);
+    const to = await byEmail(toEmail);
+    if (!to) return json({ error: `No single account matches ${toEmail}.` }, 404);
+
+    // how many kits would move — the preview the confirm dialog shows
+    const cr = await fetch(`${supaUrl}/rest/v1/projects?user_id=eq.${from.id}&select=id&limit=1`, {
+      headers: { ...svc, prefer: "count=exact" },
+    });
+    if (!cr.ok) return json({ error: "Couldn't count that account's kits." }, 502);
+    const kits = Number((cr.headers.get("content-range") ?? "/0").split("/")[1]) || 0;
+
+    if ((body as { dryRun?: unknown }).dryRun) {
+      return json({ ok: true, preview: { fromEmail: from.email, toEmail: to.email, kits } });
+    }
+    if (kits === 0) return json({ error: `${from.email} has no kits to move.` }, 400);
+
+    const up = await fetch(`${supaUrl}/rest/v1/projects?user_id=eq.${from.id}`, {
+      method: "PATCH",
+      headers: { ...svc, "content-type": "application/json", prefer: "return=representation" },
+      body: JSON.stringify({ user_id: to.id }),
+    });
+    if (!up.ok) {
+      const detail = await up.text().catch(() => "");
+      return json({ error: `Couldn't move the kits (${up.status}). ${detail.slice(0, 200)}` }, 502);
+    }
+    const moved = ((await up.json()) as unknown[]).length;
+
+    const audit = {
+      at: new Date().toISOString(),
+      admin: caller.id, adminEmail: caller.email ?? null,
+      from: from.id, fromEmail: from.email,
+      to: to.id, toEmail: to.email, moved,
+    };
+    console.log(`[admin] adopt ${JSON.stringify(audit)}`);
+    await fetch(`${supaUrl}/rest/v1/admin_audit`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ admin_id: caller.id, target_id: from.id, action: "adopt", detail: audit }),
+    }).catch(() => { /* audit table not migrated yet — the console line stands */ });
+
+    return json({ ok: true, moved, fromEmail: from.email, toEmail: to.email });
   }
 
   return json({ error: "Unknown action." }, 400);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -15,8 +15,11 @@ import logoUrl from "../../pb-logo.png";
    types the URL is bounced to the landing page; one who calls the API
    anyway gets a 403.
 
-   Deliberately minimal: search, three plan buttons, a confirm. No user
-   deletion, no impersonation, no editing anything else. */
+   Deliberately minimal: search, three plan buttons, an adopt-kits mover,
+   a confirm each. No user deletion, no impersonation, no editing anything
+   else. Adopt exists to retire an account without losing its work — the
+   kits change owner, the empty account is then deleted by hand in
+   Supabase (never from here). */
 
 type Row = {
   id: string; email: string | null; plan: string; status: string | null;
@@ -58,6 +61,10 @@ export function AdminPage() {
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [fromEmail, setFromEmail] = useState("");
+  const [toEmail, setToEmail] = useState("");
+  const [adoptBusy, setAdoptBusy] = useState(false);
+  const [adoptNote, setAdoptNote] = useState<string | null>(null);
 
   // the render gate: no cloud, signed out, or not an admin → landing page.
   // Boot passes through "signedout" before a session restores, so that
@@ -96,6 +103,27 @@ export function AdminPage() {
     if (!ok) { setNote(String(data.error ?? "Couldn't set the plan.")); return; }
     setRows((rs) => (rs ?? []).map((x) => (x.id === r.id ? { ...x, ...(data.user as Row) } : x)));
     setNote(data.warning ? String(data.warning) : `Done — ${r.email ?? r.id} is now ${plan}.`);
+  };
+
+  // preview first (dry run), confirm with real numbers, then move
+  const adopt = async () => {
+    if (adoptBusy) return;
+    setAdoptBusy(true); setAdoptNote(null);
+    const pv = await callAdmin({ action: "adopt", fromEmail, toEmail, dryRun: true });
+    if (!pv.ok) { setAdoptBusy(false); setAdoptNote(String(pv.data.error ?? "Couldn't preview that move.")); return; }
+    const p = pv.data.preview as { fromEmail: string; toEmail: string; kits: number };
+    if (p.kits === 0) { setAdoptBusy(false); setAdoptNote(`${p.fromEmail} has no kits to move.`); return; }
+    const go = window.confirm(
+      `Move ${p.kits} kit${p.kits === 1 ? "" : "s"} from ${p.fromEmail} to ${p.toEmail}?\n\n` +
+      `Likes, share links and gallery listings ride along — the cards just change their byline. ` +
+      `There is no batch undo (moving them back is another adopt).`,
+    );
+    if (!go) { setAdoptBusy(false); return; }
+    const { ok, data } = await callAdmin({ action: "adopt", fromEmail, toEmail });
+    setAdoptBusy(false);
+    if (!ok) { setAdoptNote(String(data.error ?? "Couldn't move the kits.")); return; }
+    setAdoptNote(`Done — ${String(data.moved)} kit${data.moved === 1 ? "" : "s"} now belong to ${String(data.toEmail)}.`);
+    setFromEmail("");
   };
 
   if (allowed === null) {
@@ -170,6 +198,35 @@ export function AdminPage() {
               </div>
             )
           )}
+        </section>
+
+        <section className="fd-card">
+          <h2 className="fd-card__title"><FolderInput size={17} strokeWidth={2.1} /> Adopt kits</h2>
+          <p className="fd-fine">
+            Move <b>every kit</b> from one account to another — likes, share links and gallery
+            listings ride along, only the byline changes. Made for retiring an account (the house
+            account, one day) without losing its work. The emptied account is left in place; if
+            it's truly done, delete it by hand in Supabase → Authentication afterwards.
+          </p>
+          <div className="fd-adminsearch">
+            <input
+              value={fromEmail}
+              placeholder="from — the account giving up its kits"
+              onChange={(e) => setFromEmail(e.target.value)}
+            />
+            <input
+              value={toEmail}
+              placeholder="to — the account receiving them"
+              onChange={(e) => setToEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void adopt(); }}
+            />
+            <button className="fd-primary"
+              disabled={adoptBusy || !fromEmail.includes("@") || !toEmail.includes("@")}
+              onClick={() => void adopt()}>
+              {adoptBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <FolderInput size={15} strokeWidth={2.1} />} Move
+            </button>
+          </div>
+          {adoptNote && <p className="fd-note">{adoptNote}</p>}
         </section>
       </main>
     </div>
