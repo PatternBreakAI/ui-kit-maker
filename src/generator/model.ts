@@ -385,6 +385,9 @@ export interface IconCfg {
   size: number;               // 40..170 % of base
   strokeWidth: number;        // ×10 (5..40 → 0.5..4) for stroke libraries
   color: string | null;       // null = match text
+  /** Outline pass width, px — null/undefined follows Type → Outline width;
+      0 removes the icon border while the text keeps its own. */
+  outlineWidth?: number | null;
   opacity: number;            // 0..100
   rotation: number;           // 0..360
   gap: number;                // px between text and icon
@@ -400,7 +403,7 @@ export const DEFAULT_ICON: IconDef = {
 export function defaultIconCfg(): IconCfg {
   return {
     show: true, def: { ...DEFAULT_ICON }, placement: "right", only: false,
-    size: 100, strokeWidth: 24, color: null, opacity: 100, rotation: 0,
+    size: 100, strokeWidth: 24, color: null, outlineWidth: null, opacity: 100, rotation: 0,
     gap: 18, ox: 0, oy: 0, fx: { shadow: false, glow: false, emboss: false },
   };
 }

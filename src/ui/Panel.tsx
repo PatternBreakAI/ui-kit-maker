@@ -1636,6 +1636,20 @@ export function Panel() {
         )}
         <Slider label="Size" value={cfg.icon.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
         <Slider label="Weight" value={cfg.icon.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
+        {/* the icon border rides Type → Outline width until it takes its own —
+            same inherit-with-escape-hatch contract as the color below */}
+        {T2.outline.on && (<>
+          <Slider label="Outline width" value={cfg.icon.outlineWidth ?? T2.outline.width} min={0} max={8} step={0.5} unit="px"
+            onChange={(v) => update((c) => { c.icon.outlineWidth = v; })} />
+          {cfg.icon.outlineWidth != null ? (
+            <button className="resetstate" title="Drop the icon's own width — the border follows Type → Outline again"
+              onClick={() => update((c) => { c.icon.outlineWidth = null; })}>
+              <RotateCcw size={13} strokeWidth={2} /> Follow the type outline
+            </button>
+          ) : (
+            <div className="helper">Following <b>Type → Outline</b> — move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline.</div>
+          )}
+        </>)}
         <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
         <Slider label="Rotation" value={cfg.icon.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
         <label className="check"><input type="checkbox" checked={cfg.icon.color === null}

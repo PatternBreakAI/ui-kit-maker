@@ -1552,8 +1552,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${cfg.icon.opacity < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : ""}>${
-            T2.outline.on && !disabled
-              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: cfg.icon.strokeWidth / 10 + T2.outline.width * 0.85, rotation: cfg.icon.rotation })
+            T2.outline.on && !disabled && (cfg.icon.outlineWidth ?? T2.outline.width) > 0.01
+              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: cfg.icon.strokeWidth / 10 + (cfg.icon.outlineWidth ?? T2.outline.width) * 0.85, rotation: cfg.icon.rotation })
               : ""
           }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: cfg.icon.strokeWidth / 10, rotation: cfg.icon.rotation })}</g>`
         : iconGroup(iconDef, iconX, iconY, iconSize, iconColor, {
@@ -1893,14 +1893,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
     // type treatment in every self-drawn site — same contract as built icons
+    // the icon's own outline width outranks the type's when set; 0 = no border
+    const owI = cfg.icon.outlineWidth ?? T4.outline.width;
     if (cfg.icon.color) {
-      const outlC = T4.outline.on ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + T4.outline.width * 0.8 }) : "";
+      const outlC = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8 }) : "";
       return outlC + iconGroup(defI, xI, yI, sI, cfg.icon.color, { strokeWidth: swI * iconWK });
     }
     const gidI = "ti" + UID++;
     const grad = T4.fillMode === "gradient" ? `<defs><linearGradient id="${gidI}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient></defs>` : "";
     const fillI = T4.fillMode === "gradient" ? `url(#${gidI})` : T4.fillMode === "solid" ? T4.fill : tone;
-    const outl = T4.outline.on ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + T4.outline.width * 0.8 }) : "";
+    const outl = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8 }) : "";
     return grad + outl + iconGroup(defI, xI, yI, sI, fillI, { strokeWidth: swI * iconWK });
   };
 
