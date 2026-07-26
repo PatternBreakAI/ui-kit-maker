@@ -19,7 +19,7 @@ miss cannot happen again.
    this directory is the **application ledger** — the thing you actually
    paste into the Supabase SQL editor, one file per paste.
 
-## Status (2026-07-25)
+## Status (2026-07-26)
 
 | File | What | Prod |
 |---|---|---|
@@ -27,8 +27,9 @@ miss cannot happen again.
 | 0086 student verification | table + private bucket | applied |
 | 0087 scheduled pack release | presets.publish_at + policy | applied |
 | 0088 mailing list mirror | service-role-only table | applied |
-| 0089 community foundations | handles, likes, listed, avatars | **outstanding — run me** (the old pending file carried v89 only as a NOTE, so "ran the file" never ran v89; discovered 2026-07-25 when the community seed hit `column "listed" does not exist`) |
+| 0089 community foundations | handles, likes, listed, avatars | applied 2026-07-25 (after the drift incident: the old pending file carried v89 only as a NOTE, caught by `column "listed" does not exist`) |
 | 0090 admin audit | the plan desk's paper trail | applied 2026-07-25 |
+| 0091 release desk | kit_designations: frozen snapshots + deal notes, admin-only | **outstanding — run me** (the #/admin Release desk 502s until this exists) |
 
 After running a file, update its row here in the same commit that ships
 the code depending on it. Anything earlier than v85 predates the ledger
