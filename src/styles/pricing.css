@@ -668,6 +668,34 @@
 .fd-adminrow__plan.on { opacity: .55; box-shadow: inset 0 0 0 1px var(--accent, #d946ef); }
 .fd-adminrow__plan:disabled { cursor: default; }
 
+/* ── the release desk (inside #/admin) ── */
+.fd-kitrow { text-align: left; cursor: pointer; font: inherit; color: inherit; width: 100%;
+  transition: border-color .2s ease, transform .2s ease; }
+.fd-kitrow:hover { border-color: var(--accent, #d946ef); transform: translateY(-1px); }
+.fd-kitrow.on { border-color: var(--accent, #d946ef); box-shadow: 0 0 0 1px var(--accent, #d946ef) inset; }
+.fd-desk { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 16px; align-items: start; margin-top: 14px; }
+@media (max-width: 640px) { .fd-desk { grid-template-columns: 1fr; } }
+.fd-desk .cg-art { border: 1px solid var(--line2); background-color: var(--soft); min-height: 170px; }
+[data-theme="dark"] .fd-desk .cg-art { background-color: rgba(13, 9, 25, .9); border-color: rgba(180, 140, 250, .22); }
+.fd-desk__form { display: flex; flex-direction: column; gap: 9px; }
+.fd-desk__form > input {
+  padding: 10px 13px; border-radius: 10px;
+  border: 1px solid var(--line2); background: var(--soft); color: var(--ink);
+  font: inherit; font-size: 14px;
+}
+[data-theme="dark"] .fd-desk__form > input { background: rgba(24, 17, 42, .8); border-color: rgba(180, 140, 250, .22); }
+.fd-desk__form > input:focus { outline: none; border-color: var(--accent, #d946ef); }
+.fd-desk__date { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink3); }
+.fd-desk__date input {
+  padding: 7px 10px; border-radius: 9px;
+  border: 1px solid var(--line2); background: var(--soft); color: var(--ink);
+  font: inherit; font-size: 13px;
+}
+[data-theme="dark"] .fd-desk__date input { background: rgba(24, 17, 42, .8); border-color: rgba(180, 140, 250, .22); }
+.fd-desk__acts { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 2px; }
+.fd-desk__acts .fd-ghost { width: auto; padding: 0 14px; }
+.fd-desk__go { width: auto; padding: 0 18px; }
+
 /* ── #/faq — the answer desk ─────────────────────────────────────── */
 .faq { max-width: 820px; margin: 0 auto; }
 .faq-search {

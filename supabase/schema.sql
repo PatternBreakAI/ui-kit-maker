@@ -489,3 +489,31 @@ create table if not exists public.admin_audit (
 create index if not exists admin_audit_created_idx
   on public.admin_audit (created_at desc);
 alter table public.admin_audit enable row level security;
+
+-- ── release desk (v91) — frozen kit snapshots + designations ─────────
+-- The owner's pack pipeline: find any kit by name on #/admin, preview it
+-- live, and designate it hero / standard / upcoming. The designation
+-- copies the kit's ENTIRE doc into `snapshot` at agreement time, so a
+-- profit-share deal survives the maker changing or deleting their copy.
+-- deal_note holds business terms and snapshot holds unreleased work, so
+-- reads are ADMIN-ONLY and writes come exclusively from api/admin.ts
+-- (service role). Shipping still flows through public.presets — the desk
+-- inserts the preset row (live or held by publish_at) in the same click.
+create table if not exists public.kit_designations (
+  id                uuid primary key default gen_random_uuid(),
+  kit_name          text not null,
+  preset_name       text not null,
+  placement         text not null check (placement in ('hero', 'standard', 'upcoming')),
+  preset_id         uuid references public.presets (id) on delete set null,
+  source_project_id uuid,
+  source_user_id    uuid references auth.users (id) on delete set null,
+  source_email      text,          -- denormalised: the deal contact survives account deletion
+  deal_note         text,
+  snapshot          jsonb not null,
+  created_by        uuid references auth.users (id) on delete set null,
+  created_at        timestamptz not null default now()
+);
+alter table public.kit_designations enable row level security;
+drop policy if exists "designations_admin_read" on public.kit_designations;
+create policy "designations_admin_read" on public.kit_designations for select
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
