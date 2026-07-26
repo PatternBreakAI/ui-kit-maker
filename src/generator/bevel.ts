@@ -460,8 +460,73 @@ export function shadowChain11(specs: ShadowSpec[]): string {
   )).join("");
 }
 
+/* Exact inward offset for polyRounded silhouettes. A polyRounded path
+   carries its TRUE corner vertices as the Q control points, so instead of
+   flatten → simplify → offset (whose chord tolerance leaves ~eps-sized
+   pockets at corner junctions — the visible "kinks" on crisp shells), we
+   shift each edge inward by delta along its normal and re-intersect.
+   Corner rounding shrinks by delta (the wall consumes it), floored sharp —
+   the true parallel-offset limit. Returns "" when the path isn't strict
+   polyRounded output (mid-edge Q wobbles, arcs, curves) or the inset
+   degenerates — callers fall through to the general machinery. */
+function polyRoundedInset(d: string, delta: number): string {
+  const toks = d.match(/[A-Za-z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) ?? [];
+  // strict shape: M x y Q x y x y (L x y Q x y x y)* Z — one Q per corner
+  const pts: [number, number][] = [];
+  let firstA: [number, number] | null = null;
+  let i = 0;
+  const num = () => parseFloat(toks[i++] as string);
+  if (toks[i++] !== "M") return "";
+  firstA = [num(), num()];
+  if (toks[i++] !== "Q") return "";
+  pts.push([num(), num()]); i += 2; // control = vertex; skip the exit point
+  while (i < toks.length && toks[i] !== "Z") {
+    if (toks[i++] !== "L") return "";
+    i += 2;
+    if (toks[i++] !== "Q") return "";
+    pts.push([num(), num()]); i += 2;
+  }
+  if (toks[i] !== "Z" || pts.length < 3 || pts.length > 16) return "";
+  const r0 = Math.hypot(pts[0][0] - firstA[0], pts[0][1] - firstA[1]);
+  // interior side: signed area decides which normal points inward
+  const n = pts.length;
+  let area = 0;
+  for (let j = 0; j < n; j++) area += pts[j][0] * pts[(j + 1) % n][1] - pts[(j + 1) % n][0] * pts[j][1];
+  const sgn = area > 0 ? 1 : -1;
+  const shifted: { px: number; py: number; ex: number; ey: number }[] = [];
+  for (let j = 0; j < n; j++) {
+    const a = pts[j], c = pts[(j + 1) % n];
+    const ex = c[0] - a[0], ey = c[1] - a[1];
+    const len = Math.hypot(ex, ey);
+    if (len < 1e-6) return "";
+    const nx = (sgn * -ey) / len, ny = (sgn * ex) / len;
+    shifted.push({ px: a[0] + nx * delta, py: a[1] + ny * delta, ex, ey });
+  }
+  const inset: [number, number][] = [];
+  for (let j = 0; j < n; j++) {
+    const A = shifted[(j + n - 1) % n], B = shifted[j]; // edges meeting at vertex j
+    const den = A.ex * B.ey - A.ey * B.ex;
+    if (Math.abs(den) < 1e-9) { inset.push([B.px, B.py]); continue; }
+    const t = ((B.px - A.px) * B.ey - (B.py - A.py) * B.ex) / den;
+    inset.push([A.px + A.ex * t, A.py + A.ey * t]);
+  }
+  // degenerate walls (delta past the inradius) flip the winding — bail out
+  let area2 = 0;
+  for (let j = 0; j < n; j++) area2 += inset[j][0] * inset[(j + 1) % n][1] - inset[(j + 1) % n][0] * inset[j][1];
+  if (area2 * area <= 0 || Math.abs(area2) < 4) return "";
+  // a locally collapsed edge (concave corner eating its neighbour) reverses
+  // direction — the general machinery handles those better than a miter
+  for (let j = 0; j < n; j++) {
+    const a = inset[j], c = inset[(j + 1) % n];
+    if ((c[0] - a[0]) * shifted[j].ex + (c[1] - a[1]) * shifted[j].ey <= 0) return "";
+  }
+  return polyRounded(inset, Math.max(0, r0 - delta));
+}
+
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
+    const exact = polyRoundedInset(outer, delta);
+    if (exact) return exact;
     const off = offsetPathInward(outer, delta);
     if (off) return off;
   }
