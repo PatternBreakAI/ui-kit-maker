@@ -820,6 +820,14 @@ export type SlotDef = {
   note?: string;
 };
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  cardback: [
+    { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
+      note: "The set emblem's footprint — Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
+    { id: "sparkles", name: "Corner sparkles", kind: "choice", choices: ["On", "Off"],
+      note: "The four corner glints. Off reads cleaner on busy themes and photo backdrops." },
+    { id: "frame", name: "Inner frame", kind: "choice", choices: ["On", "Off"],
+      note: "The frame line echoing the silhouette inside the wall — the classic card-back border." },
+  ],
   speedo: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
       note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },

@@ -4347,17 +4347,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const frameP = wellOf(w, h, bw + 12 * k);
       const cxC = 39 + w / 2, cyC = 30 + h * (opts.label ? 0.44 : 0.5);
       const emb = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
-      const embS = w * 0.44;
+      /* the card's own dials (KIT_SLOTS.cardback): emblem footprint,
+         corner sparkles, inner frame — first choice is the factory look */
+      const slC = opts.slots ?? {};
+      const embS = w * (slC.emblem === "Small" ? 0.32 : slC.emblem === "Large" ? 0.56 : slC.emblem === "Hero" ? 0.66 : 0.44);
+      const sparklesOn = slC.sparkles !== "Off";
+      const frameOn = slC.frame !== "Off";
       const spark = (sx: number, sy: number, r: number) =>
         `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
-      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${glow}" stop-opacity="0.18"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>
-        <path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
+      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${glow}" stop-opacity="0.18"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
+      if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       if (emb) {
         parts += `<circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(embS * 0.85).toFixed(1)}" fill="url(#${gid}g)"/>` +
           `<g style="filter: drop-shadow(0 0 ${(10 * k).toFixed(0)}px ${glow})">${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
       }
       const inX = 39 + bw + 34 * k, inY = 30 + bw + 34 * k;
-      parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
+      if (sparklesOn) parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
       if (opts.label) {
         const py = 30 + h - 76 * k;
         parts += `<path d="${roundRect(39 + w * 0.12, py, w * 0.76, 46 * k, 12 * k)}" fill="${wellFill}" opacity="0.94" stroke="${hexRgba(darken(bevel, 0.35), 0.6)}" stroke-width="1"/>` +
