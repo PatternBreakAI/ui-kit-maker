@@ -569,9 +569,12 @@ export const PRESETS: Preset[] = [
   { id: "deep-ocean", name: "Deep Ocean", shape: "explorer", bevel: { width: 13, softness: 62 },
     effects: { Bevel: "#0A5B8F", Glow: "#4DE3FF", Highlight: "#EAFBFF", Shadow: "#04263F", "Inner Fill": "#0E7FC0" },
     candy: { gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
-  { id: "grape-jelly", name: "Grape Jelly", shape: "pill", bevel: { width: 9, softness: 100 },
+  /* grape-jelly's full authored design lives in preset-grape-jelly.json
+     (PRESET_DEFAULTS) — this recipe mirrors its construction for the
+     surfaces that derive from recipes (preset tiles, homepage picker). */
+  { id: "grape-jelly", name: "Grape Jelly", shape: "pill", bevel: { width: 14, softness: 0 },
     effects: { Bevel: "#8B34D8", Glow: "#E29CFF", Highlight: "#FFFFFF", Shadow: "#4A1178", "Inner Fill": "#A855F7" },
-    candy: { gloss: { height: 54, curve: 40, opacity: 62, softness: 46 }, specular: { mode: "dual", softness: 55 }, innerGlow: { opacity: 72, size: 66 }, bloom: { opacity: 60, size: 72 }, extrusion: { depth: 12 } } },
+    candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 40, curve: 20, opacity: 89, softness: 46 }, specular: { on: true, mode: "anime", size: 52, intensity: 35, softness: 30 }, innerGlow: { opacity: 72, size: 66 }, bloom: { opacity: 60, size: 72 }, extrusion: { depth: 14, darkness: 94 } } },
   { id: "glacier-tech", name: "Glacier Tech", shape: "polybar", bevel: { width: 12, softness: 22 },
     effects: { Bevel: "#4E7E9C", Glow: "#B8F1FF", Highlight: "#F0FBFF", Shadow: "#122C40", "Inner Fill": "#7FB8D9" },
     candy: { pattern: { type: "none", scale: 100, angle: 45, opacity: 0, color: null }, texture: { amount: 26, scale: 44 }, gloss: { height: 36, curve: 10, opacity: 44, softness: 16 }, specular: { on: true, mode: "sweep", size: 18, intensity: 60 }, extrusion: { depth: 13, darkness: 76 }, innerEdge: { strength: 58, width: 3 } } },
