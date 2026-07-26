@@ -293,6 +293,7 @@ export function PricingPage() {
           redistribute the assets themselves.
         </p>
       </main>
+      <MarketingFooter />
     </div>
   );
 }
@@ -327,7 +328,6 @@ function StudioArt() {
           <path d="M6 92h188" />
         </g>
       </svg>
-      <MarketingFooter />
     </>
   );
 }
