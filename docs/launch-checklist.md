@@ -30,6 +30,23 @@ top item first. Check things off by moving them to DONE with a date.
 - Export entitlement server-side (grants, licence stamp, rate limit).
 - Legal pages current (#/terms, #/privacy).
 
+## Abuse watch (flip when metrics say so, not before)
+
+The generator runs client-side, so "a bot generating UI all day" costs
+us nothing — the watchable edges are the cloud ones:
+
+- **Sign-up spam** → Supabase Auth already rate-limits; the captcha
+  toggle (Turnstile/hCaptcha) is one dashboard switch if it appears.
+- **Storage bloat** → free tier has no cloud saves; avatars are small
+  and folder-confined. Eyeball Database/Storage size monthly.
+- **Egress spikes** (gallery scraping) → Supabase dashboard → Usage;
+  add caching the day it trends.
+- **Card-testing bots** on checkout → Stripe Radar's job; glance at
+  the Radar tab after launch week.
+
+Exports, admin API and the hero feed are already rate-limited,
+DB-gated and CDN-cached respectively — no action.
+
 ## Nice-before-launch, not blocking
 
 - Custom domain on outbound email (matches the SMTP item's DNS work).
