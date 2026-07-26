@@ -1839,6 +1839,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     return grad + outl + iconGroup(defI, xI, yI, sI, fillI, { strokeWidth: swI * iconWK });
   };
 
+  /* Emblem treatment for the showcase pieces (card back, booster pack):
+     the Icons panel's fx dials, honored at piece scale. Glow keeps each
+     piece's designed radius; emboss and shadow mirror the built icons'
+     recipe, so what the panel toggles is exactly what emblems do. */
+  const emblemFx = (glowR: number, glowTint: string): string => {
+    const ifx = cfg.icon.fx;
+    const f: string[] = [];
+    if (ifx.emboss && state !== "disabled") f.push(`drop-shadow(0 ${(-1 * k).toFixed(1)}px ${(0.4 * k).toFixed(1)}px rgba(255,255,255,0.6)) drop-shadow(0 ${(1.6 * k).toFixed(1)}px ${(1 * k).toFixed(1)}px rgba(4,8,14,0.5))`);
+    if (ifx.shadow) f.push(`drop-shadow(0 ${(2 * k).toFixed(1)}px ${(1.5 * k).toFixed(1)}px rgba(0,0,0,0.4))`);
+    if (ifx.glow && state !== "disabled") f.push(`drop-shadow(0 0 ${glowR.toFixed(0)}px ${glowTint})`);
+    return f.length ? ` style="filter: ${f.join(" ")}"` : "";
+  };
+
   /* ── dock system ────────────────────────────────────────────────
      Renders the emblem SOCKET as a full mini shell (the complete candy
      stack, silhouette-aware) and embeds it over the host bar, centered on
@@ -4359,7 +4372,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       if (emb) {
         parts += `<circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(embS * 0.85).toFixed(1)}" fill="url(#${gid}g)"/>` +
-          `<g style="filter: drop-shadow(0 0 ${(10 * k).toFixed(0)}px ${glow})">${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
+          `<g${emblemFx(10 * k, glow)}>${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
       }
       const inX = 39 + bw + 34 * k, inY = 30 + bw + 34 * k;
       if (sparklesOn) parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
@@ -4393,7 +4406,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
       if (emb) {
         parts += `<circle cx="${cxP.toFixed(1)}" cy="${cyP.toFixed(1)}" r="${(embS * 0.8).toFixed(1)}" fill="url(#${gid}g)"/>` +
-          `<g style="filter: drop-shadow(0 0 ${(9 * k).toFixed(0)}px ${glow})">${themedIcon(emb, cxP - embS / 2, cyP - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
+          `<g${emblemFx(9 * k, glow)}>${themedIcon(emb, cxP - embS / 2, cyP - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
       }
       parts += sparkP(39 + w * 0.24, 30 + h * 0.26, 6 * k) + sparkP(39 + w * 0.78, 30 + h * 0.32, 8 * k) + sparkP(39 + w * 0.3, 30 + h * 0.66, 5 * k);
       parts += `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`;
