@@ -4318,8 +4318,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <circle cx="${mX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${mR.toFixed(1)}" fill="url(#${gidA0})" stroke="#92400E" stroke-width="1.8"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px rgba(250,204,21,0.6))"` : ""}/>
         <g transform="translate(${(mX - mR * 0.62).toFixed(1)} ${(cy - mR * 0.62).toFixed(1)})"><path d="${starPath(mR * 1.24)}" fill="#92400E" opacity="0.85"/></g>
         <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/>`;
+      /* eyebrow ink + keyline answer to their color slots (KIT_SLOTS.achievetoast);
+         untouched, the stroke keeps the soft translucent factory dark */
+      const eyeC = opts.slots?.eyebrowColor ?? "#FACC15";
+      const eyeS = opts.slots?.eyebrowStroke ?? "rgba(8,12,22,0.45)";
       const parts = med +
-        `<text x="${(mX + mR + 16 * k).toFixed(1)}" y="${(cy - 15 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="#FACC15" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.45); stroke-width: 2.2px">${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
+        `<text x="${(mX + mR + 16 * k).toFixed(1)}" y="${(cy - 15 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="${eyeC}" dominant-baseline="central" style="paint-order: stroke; stroke: ${eyeS}; stroke-width: 2.2px">${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
         contentText(opts.label ?? "FIRST BLOOD", mX + mR + 16 * k, cy + 14 * k, 26 * k * typeK);
       return inject(shell.replace("<svg ", '<svg data-achievetoast="1" '), parts);
     }
