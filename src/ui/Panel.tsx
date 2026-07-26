@@ -1477,6 +1477,11 @@ export function Panel() {
           </div>
         </div>
         <label className="check"><input type="checkbox" checked={T2.italic} onChange={(e) => update((c) => { c.type.italic = e.target.checked; })} /> Italic</label>
+        {/* while a per-piece text color is pinned, these global fill controls
+            are OUT-VOTED (applyKitTextFill wins) — leaving them live-looking
+            taught the owner "color controls don't work". Asleep + explained. */}
+        {(() => { const fillPinned = !!(focus && kitTextFill[focus]); return (
+        <div style={fillPinned ? { opacity: 0.45, pointerEvents: "none" } : undefined} aria-disabled={fillPinned || undefined}>
         <div className="ctl">
           <label>Fill</label>
           <div className="segmini" role="radiogroup">
@@ -1495,6 +1500,11 @@ export function Panel() {
           </button>
         </>)}
         <Slider label="Fill opacity" value={T2.fillOpacity ?? 100} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.fillOpacity = v; })} />
+        </div>
+        ); })()}
+        {!!(focus && kitTextFill[focus]) && (
+          <div className="helper">These fill controls are asleep — <b>Own text color</b> below pins {KIT_COMPONENTS.find((c) => c.id === focus)?.name}'s text and outranks them. Untick it to hand color back to the kit.</div>
+        )}
 
         {/* per-piece text color — the escape hatch from "changing text color
             changes it everywhere". Only offered while a component is focused. */}
