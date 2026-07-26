@@ -123,7 +123,7 @@ export function initLanding(deps: LandingDeps) {
         else if (design.tfill0) { c.type.fillMode = design.tfill0.mode; c.type.fill = design.tfill0.fill; c.type.fill2 = design.tfill0.fill2; }
         c.content.label = design.label || "PLAY";
         return c; };
-      const drawMaster = (st) => { const c = engCfg(); masterSvg.innerHTML = tighten(E.renderShell(c, st || "default", 470, 128, { label: c.content.label }), 46); };
+      const drawMaster = (st) => { const c = engCfg(); masterSvg.innerHTML = E.addShine(tighten(E.renderShell(c, st || "default", 470, 128, { label: c.content.label }), 46)); };
       /* style-swap glitch: clone the outgoing render before the swap, then
          tear it away in RGB-split slices over the incoming one */
       let ghostSrc = null;
@@ -382,10 +382,24 @@ export function initLanding(deps: LandingDeps) {
         apply(patch);
         glitchMaster();
       };
-      const applyReelEntry = (e) => playDesign({
-        pid: e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid,
-        color: e.color, name: e.name, label: e.label,
-      });
+      /* pre-transition shine: one pass of the engine's sweep band across
+         the current stop, cued so it finishes just before the reel moves
+         on. Attract-mode only — takeOver cancels it. */
+      let shineTimer = null;
+      const cancelShine = () => { clearTimeout(shineTimer); masterSvg.classList.remove("is-shining"); };
+      const scheduleShine = () => {
+        if (reduceMotion) return;
+        cancelShine();
+        shineTimer = setTimeout(() => masterSvg.classList.add("is-shining"), 1700);
+      };
+      masterSvg.addEventListener("animationend", (ev) => { if (ev.animationName === "fd-hero-shine") masterSvg.classList.remove("is-shining"); });
+      const applyReelEntry = (e) => {
+        playDesign({
+          pid: e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid,
+          color: e.color, name: e.name, label: e.label,
+        });
+        scheduleShine();
+      };
       let attractTimer = null, reelI = 0;
       const startAttract = () => {
         userControlled = false;
@@ -397,6 +411,7 @@ export function initLanding(deps: LandingDeps) {
         if (userControlled) return;
         userControlled = true;
         clearInterval(attractTimer);
+        cancelShine();
         stStatus.textContent = t("yours"); stStatus.classList.add("is-user");
       };
 

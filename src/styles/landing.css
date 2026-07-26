@@ -2960,6 +2960,13 @@ html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
     @font-face { font-family: 'Shrikhand'; font-style: normal; font-weight: 400; src: url("../marketing/assets/fonts/shrikhand-latin.woff2") format('woff2'); }
 .fd-landing .master-svg svg { width: min(520px, 84%); height: auto; display: block; }
 .fd-landing .master-svg { position: relative; }
+    /* pre-transition shine: the engine's addShine band, parked off-face
+       (the kit's own rest position) and swept ONCE per reel stop when
+       landingInit sets is-shining — the editor's ambient loop stays off */
+.fd-landing .master-svg .kit-shine { transform-box: view-box; transform: translateX(175%); animation: none; mix-blend-mode: screen; opacity: .6; }
+.fd-landing .master-svg.is-shining .kit-shine { animation: fd-hero-shine .85s cubic-bezier(.33,.1,.3,1) both; }
+    @keyframes fd-hero-shine { from { transform: translateX(0); } to { transform: translateX(175%); } }
+    @media (prefers-reduced-motion: reduce) { .fd-landing .master-svg .kit-shine { opacity: 0; } }
 .fd-landing .m-ghost { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
       pointer-events: none; mix-blend-mode: screen; }
 .fd-landing .m-ghost svg { width: min(520px, 84%); height: auto; }
