@@ -2957,6 +2957,7 @@ html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
     @font-face { font-family: 'Fredoka'; font-style: normal; font-weight: 300 700; src: url("../marketing/assets/fonts/fredoka-latin.woff2") format('woff2'); }
     @font-face { font-family: 'Lilita One'; font-style: normal; font-weight: 400; src: url("../marketing/assets/fonts/lilita-one-latin.woff2") format('woff2'); }
     @font-face { font-family: 'Bungee'; font-style: normal; font-weight: 400; src: url("../marketing/assets/fonts/bungee-latin.woff2") format('woff2'); }
+    @font-face { font-family: 'Shrikhand'; font-style: normal; font-weight: 400; src: url("../marketing/assets/fonts/shrikhand-latin.woff2") format('woff2'); }
 .fd-landing .master-svg svg { width: min(520px, 84%); height: auto; display: block; }
 .fd-landing .master-svg { position: relative; }
 .fd-landing .m-ghost { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
