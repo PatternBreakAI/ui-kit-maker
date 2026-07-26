@@ -59,7 +59,9 @@ export function initLanding(deps: LandingDeps) {
       const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "royal-vault|EQUIP"];
       /* Every face the reel/chips can ask for must be self-hosted in
          landing.css — scripts/check-landing-fonts.mjs fails the build
-         on a missing or orphaned face. */
+         on a missing or orphaned face. warmFont below is the runtime
+         net for faces no build check can know (hero feed, a preset
+         authored after the last freeze). */
       const FONT_CHIPS = ["Russo One", "Fredoka", "Lilita One", "Bungee"];
 
       const PAL = HERO_SWATCHES.map((pid) => {
@@ -89,6 +91,15 @@ export function initLanding(deps: LandingDeps) {
          full GenConfigs keyed "hero:<name>", applied like authored recipes */
       const HERO_CFGS = {};
       const heroCfg = (key) => deepMergeE(E.defaultConfig(), JSON.parse(JSON.stringify(HERO_CFGS[key])));
+      /* Reads the face straight off each cfg — the next authored preset
+         needs no change here. Self-hosted faces are already declared in
+         landing.css, so those skip; anything else pulls through the
+         editor's Google-Fonts loader (E.ensureFont, idempotent). */
+      const warmFont = (name) => {
+        if (!name || typeof name !== "string") return;
+        for (const ff of document.fonts) if (ff.family.replace(/["']/g, "") === name) return;
+        try { E.ensureFont && E.ensureFont(name); } catch (_) { /* a face that won't load just falls back */ }
+      };
       /* crop the render's viewBox to its shell so buttons display LARGE */
       const tighten = (svg, pad = 34) => { const m = /data-shell="([-\d. ]+)"/.exec(svg); if (!m) return svg;
         const [sx, sy, sw, sh] = m[1].split(" ").map(Number);
@@ -299,6 +310,7 @@ export function initLanding(deps: LandingDeps) {
         root.style.setProperty("--pat", pat.css);
         root.style.setProperty("--pat-size", pat.size);
 
+        warmFont(design.font || (design.cfg && design.cfg.type && design.cfg.type.font));
         drawMaster(masterWrap.classList.contains("is-pressed") ? "pressed" : "default");
         masterLabelEl.textContent = "";
         const sbEl = $("stateBig");
@@ -340,12 +352,20 @@ export function initLanding(deps: LandingDeps) {
         const pr = E.presetById(id);
         return { pid: id, color: pr.effects["Inner Fill"] || "#A855F7", name: pr.name, label };
       });
+      /* Warm every face the lineup can ask for before the rotation
+         reaches it (hero-feed cfgs warm as they join, below). */
+      Object.keys(E.AUTHORED).forEach((a) => { const t2 = E.AUTHORED[a] && E.AUTHORED[a].type; warmFont(t2 && t2.font); });
+      FONT_CHIPS.forEach(warmFont);
+      warmFont(E.defaultConfig().type.font);
       const applyReelEntry = (e) => {
         glitchPrep();
         design.cfg = e.hero ? heroCfg(e.hero) : e.auth ? authoredCfg(e.auth) : E.applyPresetFull(E.defaultConfig(), e.pid);
         design.pid = e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid;
         syncFromCfg();
-        apply({ color: e.color, name: e.name, label: (e.label || design.cfg.content.label || "PLAY").toUpperCase() });
+        /* Explicit "|LABEL" overrides stay caps; an authored design keeps
+           its own label verbatim — its type.case setting governs how the
+           renderer presents it (citrus-pop: "Play Now", case none). */
+        apply({ color: e.color, name: e.name, label: e.label ? e.label.toUpperCase() : (design.cfg.content.label || "PLAY") });
         glitchMaster();
       };
       let attractTimer = null, reelI = 0;
@@ -1649,15 +1669,11 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           .then((data) => {
             const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 8) : [];
             const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
-            /* This page only ships the faces landing.css declares; a hero
-               cfg asking for anything else would silently render in a
-               system font, so it falls back to the default face instead. */
-            const hostedFaces = new Set([...document.fonts].map((ff) => ff.family.replace(/["']/g, "")));
             heroes.forEach((h) => {
               try {
                 if (!h || typeof h.name !== "string" || !h.name.trim() || !h.cfg || typeof h.cfg !== "object") return;
                 if (seen.has(h.name.toLowerCase())) return;
-                if (h.cfg.type && typeof h.cfg.type.font === "string" && !hostedFaces.has(h.cfg.type.font)) delete h.cfg.type.font;
+                warmFont(h.cfg.type && h.cfg.type.font);
                 const key = "hero:" + h.name;
                 HERO_CFGS[key] = h.cfg;
                 // dry-run through the real renderer: a cfg the engine chokes on
