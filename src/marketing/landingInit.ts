@@ -56,7 +56,7 @@ export function initLanding(deps: LandingDeps) {
          label after "|", e.g. "citrus-pop|CLAIM". Chip colors and names
          derive from each preset automatically. */
       const HERO_SWATCHES = ["grape-jelly", "bubble-pop", "deep-ocean", "hard-candy", "forest-sprite", "citrus-pop", "hero-chisel", "glacier-tech"];
-      const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "citrus-pop|CLAIM", "auth:bubble-pop", "royal-vault|EQUIP"];
+      const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "royal-vault|EQUIP"];
 
       const PAL = HERO_SWATCHES.map((pid) => {
         const pr = deps.engine.presetById(pid);
