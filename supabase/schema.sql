@@ -507,6 +507,7 @@ create table if not exists public.kit_designations (
   preset_id         uuid references public.presets (id) on delete set null,
   source_project_id uuid,
   source_user_id    uuid references auth.users (id) on delete set null,
+  source_up_id      text,          -- v92: studio-preset local id, so Refresh can re-freeze
   source_email      text,          -- denormalised: the deal contact survives account deletion
   deal_note         text,
   snapshot          jsonb not null,

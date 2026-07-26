@@ -29,7 +29,8 @@ miss cannot happen again.
 | 0088 mailing list mirror | service-role-only table | applied |
 | 0089 community foundations | handles, likes, listed, avatars | applied 2026-07-25 (after the drift incident: the old pending file carried v89 only as a NOTE, caught by `column "listed" does not exist`) |
 | 0090 admin audit | the plan desk's paper trail | applied 2026-07-25 |
-| 0091 release desk | kit_designations: frozen snapshots + deal notes, admin-only | **outstanding — run me** (the #/admin Release desk 502s until this exists) |
+| 0091 release desk | kit_designations: frozen snapshots + deal notes, admin-only | applied 2026-07-26 (slate live, first designation frozen) |
+| 0092 refresh source | kit_designations.source_up_id for the desk's Refresh | **outstanding — run me** (Refresh on studio-sourced designations degrades to a name match until then) |
 
 After running a file, update its row here in the same commit that ships
 the code depending on it. Anything earlier than v85 predates the ledger
