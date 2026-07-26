@@ -1477,11 +1477,21 @@ export function Panel() {
           </div>
         </div>
         <label className="check"><input type="checkbox" checked={T2.italic} onChange={(e) => update((c) => { c.type.italic = e.target.checked; })} /> Italic</label>
-        {/* while a per-piece text color is pinned, these global fill controls
-            are OUT-VOTED (applyKitTextFill wins) — leaving them live-looking
-            taught the owner "color controls don't work". Asleep + explained. */}
-        {(() => { const fillPinned = !!(focus && kitTextFill[focus]); return (
-        <div style={fillPinned ? { opacity: 0.45, pointerEvents: "none" } : undefined} aria-disabled={fillPinned || undefined}>
+        {/* while a per-piece text color is pinned, the PIN is the fill control —
+            the kit's fill machinery is out-voted (applyKitTextFill wins), so
+            showing it dead-but-dimmed buried the live well below a checkbox.
+            Swap in the pin editor right here instead. */}
+        {focus && kitTextFill[focus] ? (() => {
+          const fname = KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus;
+          return (<>
+            <Well label={`Fill — ${fname} only`} value={kitTextFill[focus]!} onChange={(v) => setKitTextFill(focus, v)} />
+            <button className="resetstate" title="Unpin the per-piece text color — this piece follows the kit's fills again"
+              onClick={() => setKitTextFill(focus, null)}>
+              <RotateCcw size={13} strokeWidth={2} /> Release — rejoin the kit's colors
+            </button>
+            <div className="helper"><b>Own text color</b> is pinned, so this well drives {fname}'s text. Release it and the kit's fill controls return here.</div>
+          </>);
+        })() : (<>
         <div className="ctl">
           <label>Fill</label>
           <div className="segmini" role="radiogroup">
@@ -1500,11 +1510,7 @@ export function Panel() {
           </button>
         </>)}
         <Slider label="Fill opacity" value={T2.fillOpacity ?? 100} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.fillOpacity = v; })} />
-        </div>
-        ); })()}
-        {!!(focus && kitTextFill[focus]) && (
-          <div className="helper">These fill controls are asleep — <b>Own text color</b> below pins {KIT_COMPONENTS.find((c) => c.id === focus)?.name}'s text and outranks them. Untick it to hand color back to the kit.</div>
-        )}
+        </>)}
 
         {/* per-piece text color — the escape hatch from "changing text color
             changes it everywhere". Only offered while a component is focused. */}
@@ -1515,10 +1521,9 @@ export function Panel() {
             <label className="check"><input type="checkbox" checked={!!kitTextFill[focus]}
               onChange={(e) => setKitTextFill(focus, e.target.checked ? (T2.fillMode !== "auto" ? T2.fill : "#FFFFFF") : null)} />
               Own text color for <b>{fname}</b></label>
-            {kitTextFill[focus] && (<>
-              <Well label="This piece only" value={kitTextFill[focus]!} onChange={(v) => setKitTextFill(focus, v)} />
-              <div className="helper">{fname} keeps this text color no matter how the global type or palette changes. Untick to rejoin the kit.</div>
-            </>)}
+            {kitTextFill[focus] && (
+              <div className="helper">Pinned — {fname} keeps its color no matter how the kit changes. The color well lives up in <b>Fill</b>; untick to rejoin the kit.</div>
+            )}
           </>);
         })()}
 
