@@ -1960,14 +1960,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const fillW = Math.max(0, knobX - bx);
       const knobY = 30 + h / 2;
       const sfx = barFx(gid, bx, by, fillW, bh, Math.min(bh / 2, fillW / 2));
-      /* negative-space canon: the mercury is a fully-rounded pill floating
-         inside the sunken well with air on every side — never bleeding into
-         the caps. The knob owns the leading edge. */
+      /* the mercury follows the silhouette (design canon, same as progress):
+         the fill clips to a silhouette-shaped region over the track, so the
+         START cap inherits the component's contour on ornate shells. The
+         knob still owns the leading edge. Stock stadium: region == pill,
+         nothing changes. */
+      const clipSl = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
       return stampTrack(inject(track,
         `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>
-         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}</defs>
-         ${fillW > 1 ? `${sfx.open}<path d="${roundRect(bx, by, fillW, bh, Math.min(bh / 2, fillW / 2))}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
-         <path d="${roundRect(bx + 2 * k, by + bh * 0.08, Math.max(0, fillW - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}` : ""}` +
+         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}<clipPath id="${gid}w"><path d="${clipSl}"/></clipPath></defs>
+         ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${roundRect(bx, by, fillW, bh, Math.min(bh / 2, fillW / 2))}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
+         <path d="${roundRect(bx + 2 * k, by + bh * 0.08, Math.max(0, fillW - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
         candyKnob(knobX, knobY, kr, knobC)), bx, trackW);
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
@@ -2137,13 +2140,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gid = "vs" + UID++;
       const wellP = wellOf(w, h, inset);
       const rC = hexMix("#FF4D5A", glow, 0.25);
-      /* negative-space canon: both fills are fully-rounded pills floating
-         inside the sunken well with air on every side */
+      /* the fills follow the silhouette (design canon, same as progress):
+         both pills clip to a silhouette-shaped region over the track, so
+         the OUTER caps inherit the component's contour — an ornate shell's
+         scalloped ends shape the mercury — while the drain edges toward
+         center keep their rounded beads. On the stock stadium the region
+         equals the pill, so nothing changes there. */
+      const clipVs = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
       const parts = `<path d="${wellP}" fill="${wellFill}" opacity="0.92"/>
         <defs>
         <linearGradient id="${gid}l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
-        <linearGradient id="${gid}r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient></defs>
-        <g data-vs="1">
+        <linearGradient id="${gid}r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>
+        <clipPath id="${gid}w"><path d="${clipVs}"/></clipPath></defs>
+        <g data-vs="1" clip-path="url(#${gid}w)">
           ${vL > 0.01 ? `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vL).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
           <rect x="${(bx + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
           ${vR > 0.01 ? `<rect x="${(bx + trackW - halfW * vR).toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vR).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
