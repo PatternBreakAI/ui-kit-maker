@@ -265,10 +265,15 @@ export function initLanding(deps: LandingDeps) {
         b.setAttribute("aria-pressed", String(i === 0));
         b.addEventListener("click", () => { takeOver();
           glitchPrep();
-          design.cfg = E.applyPresetFull(E.defaultConfig(), p.pid);
-          design.pid = p.pid;
+          /* Authored-first, like the gallery's galCfgFor: a preset with a
+             full authored design plays that design — its own face and
+             label included — not the plain recipe under the demo's state. */
+          const auth = !!E.AUTHORED[p.pid];
+          design.cfg = auth ? authoredCfg(p.pid) : E.applyPresetFull(E.defaultConfig(), p.pid);
+          design.pid = auth ? "auth:" + p.pid : p.pid;
           syncFromCfg();
-          apply({ color: p.color, name: p.name });
+          apply(auth ? { color: p.color, name: p.name, label: design.cfg.content.label || design.label || "PLAY" }
+                     : { color: p.color, name: p.name });
           glitchMaster(); });
         palWrap.appendChild(b);
       });
