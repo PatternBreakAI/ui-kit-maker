@@ -81,6 +81,10 @@ export function initLanding(deps: LandingDeps) {
         if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k]) && over[k] && typeof over[k] === "object" && !Array.isArray(over[k])) deepMergeE(base[k], over[k]);
         else base[k] = over[k]; } return base; };
       const authoredCfg = (id) => deepMergeE(E.defaultConfig(), JSON.parse(JSON.stringify(E.AUTHORED[id])));
+      /* owner-designated community heroes (fetched after first paint) —
+         full GenConfigs keyed "hero:<name>", applied like authored recipes */
+      const HERO_CFGS = {};
+      const heroCfg = (key) => deepMergeE(E.defaultConfig(), JSON.parse(JSON.stringify(HERO_CFGS[key])));
       /* crop the render's viewBox to its shell so buttons display LARGE */
       const tighten = (svg, pad = 34) => { const m = /data-shell="([-\d. ]+)"/.exec(svg); if (!m) return svg;
         const [sx, sy, sw, sh] = m[1].split(" ").map(Number);
@@ -334,8 +338,8 @@ export function initLanding(deps: LandingDeps) {
       });
       const applyReelEntry = (e) => {
         glitchPrep();
-        design.cfg = e.auth ? authoredCfg(e.auth) : E.applyPresetFull(E.defaultConfig(), e.pid);
-        design.pid = e.auth ? "auth:" + e.auth : e.pid;
+        design.cfg = e.hero ? heroCfg(e.hero) : e.auth ? authoredCfg(e.auth) : E.applyPresetFull(E.defaultConfig(), e.pid);
+        design.pid = e.hero ? e.hero : e.auth ? "auth:" + e.auth : e.pid;
         syncFromCfg();
         apply({ color: e.color, name: e.name, label: (e.label || design.cfg.content.label || "PLAY").toUpperCase() });
         glitchMaster();
@@ -378,7 +382,8 @@ export function initLanding(deps: LandingDeps) {
       $("extrR").addEventListener("input", () => { takeOver(); design.extr = +$("extrR").value; apply({}); });
       $("resetBtn").addEventListener("click", () => { takeOver();
         glitchPrep();
-        design.cfg = design.pid && design.pid.startsWith("auth:") ? authoredCfg(design.pid.slice(5))
+        design.cfg = design.pid && design.pid.startsWith("hero:") && HERO_CFGS[design.pid] ? heroCfg(design.pid)
+          : design.pid && design.pid.startsWith("auth:") ? authoredCfg(design.pid.slice(5))
           : E.applyPresetFull(E.defaultConfig(), design.pid || "grape-jelly");
         syncFromCfg(); apply({});
         glitchMaster(); });
@@ -1628,6 +1633,50 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
       document.getElementById("langSel").addEventListener("change", (e) => { langChosen = true; setLang(e.target.value); });
 
       applyReelEntry(REEL[0]);
+      /* ── community hero lineup: owner-designated kits join the carousel ──
+         GET /api/hero-lineup, fetched after first paint and appended when it
+         lands. The endpoint is fail-soft and so is this: an empty, failed, or
+         odd payload leaves the built-in lineup exactly as it is, each entry
+         applies inside its own try/catch, and names already in the lineup are
+         skipped. */
+      setTimeout(() => {
+        fetch("/api/hero-lineup")
+          .then((r) => (r.ok ? r.json() : { heroes: [] }))
+          .then((data) => {
+            const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 8) : [];
+            const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
+            heroes.forEach((h) => {
+              try {
+                if (!h || typeof h.name !== "string" || !h.name.trim() || !h.cfg || typeof h.cfg !== "object") return;
+                if (seen.has(h.name.toLowerCase())) return;
+                const key = "hero:" + h.name;
+                HERO_CFGS[key] = h.cfg;
+                // dry-run through the real renderer: a cfg the engine chokes on
+                // never joins, so the attract loop can apply entries unguarded
+                tighten(E.renderShell(heroCfg(key), "default", 470, 128, { label: "OK" }), 46);
+                const color = (h.cfg.effects && h.cfg.effects["Inner Fill"]) || "#A855F7";
+                const b = document.createElement("button");
+                b.type = "button"; b.className = "sw2";
+                b.style.setProperty("--sw-hi", mix(color, "#ffffff", .35));
+                b.style.setProperty("--sw-lo", mix(color, "#000000", .25));
+                b.setAttribute("aria-label", h.name);
+                b.setAttribute("aria-pressed", "false");
+                b.addEventListener("click", () => { takeOver();
+                  glitchPrep();
+                  design.cfg = heroCfg(key);
+                  design.pid = key;
+                  syncFromCfg();
+                  apply({ color, name: h.name });
+                  glitchMaster(); });
+                palWrap.appendChild(b);
+                PAL.push({ name: h.name, color, pid: key }); // keeps the pressed-state zip aligned
+                REEL.push({ hero: key, color, name: h.name });
+                seen.add(h.name.toLowerCase());
+              } catch (_) { /* one odd cfg stays out; the lineup stands */ }
+            });
+          })
+          .catch(() => { /* fail-soft: the built-ins stand alone */ });
+      }, 600);
       /* How-it-Works panels: fixed authored look, straight from the engine */
       try {
         const stepCfg = authoredCfg("grape-jelly");
