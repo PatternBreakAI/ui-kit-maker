@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2 } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -252,6 +252,23 @@ export function AdminPage() {
     void loadSlate();
   };
 
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const refreeze = async (d: Desig) => {
+    if (refreshingId) return;
+    if (!window.confirm(
+      `Re-freeze "${d.presetName}" from the maker's current version?\n\n` +
+      `The frozen snapshot is replaced with how the kit looks right now, and the ` +
+      `${d.placement === "hero" ? "homepage hero updates to match (give the CDN ~5 minutes)" : "shipped preset updates to match"}. ` +
+      `Nothing the maker does reaches players without this click — this IS the approval.`,
+    )) return;
+    setRefreshingId(d.id); setSlateNote(null);
+    const { ok, data } = await callAdmin({ action: "refreeze", designationId: d.id });
+    setRefreshingId(null);
+    if (!ok) { setSlateNote(String(data.error ?? "Couldn't refresh it.")); return; }
+    setSlateNote(`Re-frozen — "${String(data.name)}" now shows the maker's current version.`);
+    void loadSlate();
+  };
+
   const unDesignate = async (d: Desig) => {
     const shipped = d.placement !== "hero";
     if (!window.confirm(
@@ -487,6 +504,13 @@ export function AdminPage() {
                     </span>
                   </div>
                   <div className="fd-adminrow__acts">
+                    <button className="fd-ghost fd-adminrow__plan" disabled={refreshingId === d.id}
+                      title="Re-freeze from the maker's current version — your approval click"
+                      onClick={() => void refreeze(d)}>
+                      {refreshingId === d.id
+                        ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" />
+                        : <RefreshCw size={13} strokeWidth={2.1} />} Refresh
+                    </button>
                     <button className="fd-ghost fd-adminrow__plan" onClick={() => void unDesignate(d)}>
                       <Trash2 size={13} strokeWidth={2.1} /> Remove
                     </button>
