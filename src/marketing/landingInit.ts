@@ -1037,15 +1037,24 @@ export function initLanding(deps: LandingDeps) {
         });
       }
 
-      const toastEl = document.createElement("div");
-      toastEl.id = "toast"; document.body.appendChild(toastEl);
-      let toastTimer = null;
-      FD_ON(document, "ui-generator:cta", () => {
-        toastEl.textContent = "Design preview — on the live site this opens the real editor. The studio and kit are fully interactive.";
-        toastEl.classList.add("show");
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2800);
-      });
+      /* "Design preview" toast — static-mirror only. Its copy explains
+         that CTAs can't open the real editor, which is only true on the
+         github.io mirror; on the live SPA every CTA actually navigates
+         (wired below), so the toast is never even built there. */
+      if (/(^|\.)github\.io$/i.test(location.hostname)) {
+        const toastEl = document.createElement("div");
+        toastEl.id = "toast"; document.body.appendChild(toastEl);
+        let toastTimer = null;
+        FD_ON(document, "ui-generator:cta", () => {
+          toastEl.textContent = "Design preview — on the live site this opens the real editor. The studio and kit are fully interactive.";
+          toastEl.classList.add("show");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => { toastEl.classList.remove("show"); toastEl.textContent = ""; }, 2800);
+        });
+        /* the DOM node lives on document.body, outside the landing root —
+           it needs the same teardown the FD_ON listeners get */
+        deps.signal.addEventListener("abort", () => { clearTimeout(toastTimer); toastEl.remove(); }, { once: true });
+      }
       document.querySelectorAll("[data-cta]").forEach((el) => el.addEventListener("click", () => {
         document.dispatchEvent(new CustomEvent("ui-generator:cta", { detail: { hook: el.dataset.cta } }));
       }));
