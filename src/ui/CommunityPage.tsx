@@ -47,7 +47,7 @@ function idHash(s: string): number {
   return Math.abs(h);
 }
 
-export function CardArt({ card, href, name }: { card: { id: string }; href?: string; name?: string }) {
+export function CardArt({ card }: { card: { id: string } }) {
   /* two refs, one hard rule: React owns `host` (frame, spinner), the
      engine owns `paint` (innerHTML target). Injecting into the React-
      managed node let React try to remove a spinner the injection had
@@ -56,18 +56,11 @@ export function CardArt({ card, href, name }: { card: { id: string }; href?: str
   const host = useRef<HTMLDivElement>(null);
   const paint = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
-  /* hover brings the hero to LIFE: the static render swaps for a real
-     LiveArt instance — shine sweep on every kit, ambient motion on the
-     pieces that have it (gauges rev, timers tick). Mounted once on first
-     hover and kept, so re-hovers don't re-thrash. */
-  const heroData = useRef<{ cfg: GenConfig; cid: KitComponentId; label?: string; slots?: Record<string, string> } | null>(null);
-  const [liveHero, setLiveHero] = useState<typeof heroData.current>(null);
-  const wake = () => {
-    if (liveHero || !heroData.current || !paint.current) return;
-    const staticHero = paint.current.querySelector<HTMLElement>(".cg-hero");
-    if (staticHero) staticHero.style.display = "none"; // engine-owned node, imperative hide
-    setLiveHero(heroData.current);
-  };
+  /* the hero is ALIVE from the moment the card loads (owner call): a real
+     LiveArt instance, not a screenshot — shine sweeps, gauges rev on a
+     staggered first beat, and CLICKS interact with the piece (rev it, flip
+     it) rather than navigating. "Use this kit" is the door. */
+  const [liveHero, setLiveHero] = useState<{ cfg: GenConfig; cid: KitComponentId; label?: string; slots?: Record<string, string> } | null>(null);
 
   useEffect(() => {
     const el = host.current;
@@ -97,14 +90,13 @@ export function CardArt({ card, href, name }: { card: { id: string }; href?: str
             ), 18);
           const h = idHash(card.id);
           const heroCid = HERO_POOL[h % HERO_POOL.length];
-          const hero = piece(heroCid, "l");
-          heroData.current = {
+          setLiveHero({
             cfg: applyKitTextFill(applyKitDesign(cfg, designs[heroCid]), fills[heroCid]),
             cid: heroCid, label: labels[heroCid], slots: slots[heroCid],
-          };
+          });
           const small = MINI_SETS[(h >> 4) % MINI_SETS.length].map((p) => piece(p.cid, "s", p.v));
           paint.current.innerHTML =
-            `<div class="cg-hero">${hero}</div><div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
+            `<div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
           /* the maker's stage rides the payload — paint it behind the art.
              Strict base64-image match only: this string enters CSS url(),
              so nothing that could escape it is accepted. Public cards are
@@ -126,24 +118,8 @@ export function CardArt({ card, href, name }: { card: { id: string }; href?: str
     return () => io.disconnect();
   }, [card.id, state]);
 
-  const open = () => { if (href) window.location.href = href; };
-  /* navigation rides pointerUP, not click: the live hero re-renders its svg
-     between down and up (pressed state), detaching the click target — the
-     same reason LiveArt itself activates on pointerup. A small movement
-     guard keeps drags from opening the kit. */
-  const downAt = useRef<[number, number] | null>(null);
   return (
-    <div ref={host} className={`cg-art${href ? " cg-art--link" : ""}`}
-      onMouseEnter={wake}
-      {...(href
-        ? { role: "link", tabIndex: 0, "aria-label": `Open ${name ?? "this kit"} in the editor`, title: "Open this kit in the editor — view, then remix",
-            onPointerDown: (e: React.PointerEvent) => { downAt.current = [e.clientX, e.clientY]; },
-            onPointerUp: (e: React.PointerEvent) => {
-              const d = downAt.current; downAt.current = null;
-              if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) < 8) open();
-            },
-            onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } }
-        : { "aria-hidden": true as const })}>
+    <div ref={host} className="cg-art" aria-hidden="true">
       {liveHero && (
         <div className="cg-hero">
           <LiveArt cfg={liveHero.cfg} playing ambient shine
@@ -204,8 +180,7 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
   return (
     <article className={`cg-card${card.listed ? "" : " cg-card--queue"}`}>
       {!card.listed && <span className="cg-queuechip">IN REVIEW</span>}
-      <CardArt card={card} name={card.name}
-        href={card.share_slug ? publicProjectUrl(card.share_slug) : undefined} />
+      <CardArt card={card} />
       <div className="cg-meta">
         <div className="cg-title">
           <b>{card.name}</b>
