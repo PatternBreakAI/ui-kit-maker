@@ -82,6 +82,21 @@ for (const [face, file] of hosted) {
     errors.push(`Orphaned font "${face}" — hosted but nothing on the landing uses it.\n  Fix: remove its @font-face from src/styles/landing.css and delete src/marketing/assets/fonts/${file}.`);
 }
 
+/* Axis coverage: a face whose roster entry (model.ts GAME_FONTS) declares
+   a wdth axis can be width-dialed by presets — its @font-face must carry a
+   font-stretch range (and the woff2 behind it the wdth axis; the css2 URL
+   in the fix message serves that file). Fredoka shipped wght-only once and
+   authored width silently no-opped on the homepage — never again. */
+const modelSrc = read("src/generator/model.ts");
+for (const [face] of hosted) {
+  const entry = modelSrc.match(new RegExp(`\\{ name: "${face}"[^\\n]*`));
+  if (!entry) continue;
+  const hasWdth = /caps:\s*\{[^}]*wdth:/.test(entry[0]);
+  const rule = css.match(new RegExp(`@font-face\\s*\\{[^}]*'${face}'[^}]*\\}`));
+  if (hasWdth && rule && !/font-stretch:/.test(rule[0]))
+    errors.push(`Face "${face}" has a wdth axis in the app's roster, but its landing @font-face declares no font-stretch range — authored width will silently no-op.\n  Fix: self-host the multi-axis file (css2?family=${face.replace(/ /g, "+")}:wdth,wght@... latin subset) and add "font-stretch: <min>% <max>%;" to its @font-face.`);
+}
+
 const fontsDir = "src/marketing/assets/fonts";
 const files = readdirSync(join(root, fontsDir)).filter((f) => f.endsWith(".woff2"));
 const referenced = new Set(hosted.values());
