@@ -1948,6 +1948,13 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-bgthumb i { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--ink2); padding: 0 3px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; max-width: 100%; }
 .bd-bgthumb:hover { transform: translateY(-1px); border-color: var(--ink3); }
 .bd-bgthumb[aria-pressed="true"] { border-color: #6fd6ff; box-shadow: 0 0 0 1.5px rgba(111, 214, 255, .4); }
+.bd-vurl { display: flex; gap: 6px; margin-top: 8px; }
+.bd-vurl input { flex: 1; min-width: 0; height: 30px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 11.5px; padding: 0 9px; }
+.bd-vurl input::placeholder { color: var(--ink3); }
+.bd-vurl button { height: 30px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); color: var(--ink); font: 700 11.5px inherit; cursor: pointer; }
+.bd-vurl button:hover:not(:disabled) { border-color: var(--ink); }
+.bd-vurl button:disabled { opacity: .45; cursor: default; }
+.bd-vurl-err { color: #e07a52; }
 
 /* on-piece controls (homepage-board port): toolbar above the shell + a
    corner resize handle, both counter-scaled to stay screen-sized */
