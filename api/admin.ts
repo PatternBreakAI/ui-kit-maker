@@ -10,6 +10,7 @@
 
    The actions, nothing else:
      { action: "search",  q }                          → matching profiles
+     { action: "roster",  sort?, dir?, plan?, page? }  → the census: every account, pageable
      { action: "setPlan", userId, plan: pro|student|free }
      { action: "adopt",   fromEmail, toEmail, dryRun? }
      { action: "findKits", q }                         → kits by name, any account
@@ -128,6 +129,37 @@ export async function POST(req: Request): Promise<Response> {
     }
     const rows = (await res.json()) as ProfileRow[];
     return json({ users: rows.map(pub) });
+  }
+
+  /* ── roster ──────────────────────────────────────────────────────── */
+  if (body.action === "roster") {
+    /* the census: every account, sortable and pageable server-side.
+       Sort keys are whitelisted — nothing from the request reaches the
+       query as raw text. */
+    const b = body as { sort?: string; dir?: string; plan?: string; page?: number };
+    const SORTS: Record<string, string> = { joined: "created_at", email: "email", plan: "plan_id", status: "plan_status" };
+    const sort = SORTS[String(b.sort ?? "joined")] ?? "created_at";
+    const dir = String(b.dir ?? "desc") === "asc" ? "asc" : "desc";
+    const plan = String(b.plan ?? "");
+    const page = Math.max(0, Math.min(500, Math.floor(Number(b.page ?? 0)) || 0));
+    const SIZE = 100;
+    let url = `${supaUrl}/rest/v1/profiles?select=${encodeURIComponent(COLS)}&order=${sort}.${dir}.nullslast&limit=${SIZE}&offset=${page * SIZE}`;
+    if (plan === "free") url += "&or=(plan_id.is.null,plan_id.eq.free)";
+    else if (plan === "pro" || plan === "student") url += `&plan_id=eq.${plan}`;
+    const res = await fetch(url, { headers: { ...svc, prefer: "count=exact" } });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      return json({ error: `Roster failed (${res.status}). ${detail.slice(0, 200)}` }, 502);
+    }
+    const rows = (await res.json()) as ProfileRow[];
+    const total = Number((res.headers.get("content-range") ?? "*/0").split("/")[1] ?? 0) || rows.length;
+    // kit counts for this page's accounts — one query, tallied here
+    const kits = new Map<string, number>();
+    if (rows.length) {
+      const kr = await fetch(`${supaUrl}/rest/v1/projects?user_id=in.(${rows.map((r) => r.id).join(",")})&select=user_id`, { headers: svc });
+      if (kr.ok) for (const k of (await kr.json()) as { user_id: string }[]) kits.set(k.user_id, (kits.get(k.user_id) ?? 0) + 1);
+    }
+    return json({ users: rows.map((r) => ({ ...pub(r), kits: kits.get(r.id) ?? 0 })), total, page, pageSize: SIZE });
   }
 
   /* ── setPlan ─────────────────────────────────────────────────────── */

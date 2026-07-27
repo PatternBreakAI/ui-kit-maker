@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -137,6 +137,21 @@ export function AdminPage() {
   const [adoptBusy, setAdoptBusy] = useState(false);
   const [adoptNote, setAdoptNote] = useState<string | null>(null);
 
+  // the census — every account, sorted/filtered server-side
+  const [census, setCensus] = useState<{ users: (Row & { kits: number })[]; total: number; page: number } | null>(null);
+  const [cSort, setCSort] = useState<"joined" | "email" | "plan" | "status">("joined");
+  const [cDir, setCDir] = useState<"asc" | "desc">("desc");
+  const [cPlan, setCPlan] = useState<"" | "pro" | "student" | "free">("");
+  const [cBusy, setCBusy] = useState(false);
+  const [cErr, setCErr] = useState<string | null>(null);
+  const loadCensus = async (page: number, sort = cSort, dir = cDir, plan = cPlan) => {
+    setCBusy(true); setCErr(null);
+    const { ok, data } = await callAdmin({ action: "roster", sort, dir, plan, page });
+    setCBusy(false);
+    if (!ok) { setCErr(String(data.error ?? "Couldn't load the census.")); return; }
+    setCensus({ users: (data.users as (Row & { kits: number })[]) ?? [], total: Number(data.total ?? 0), page: Number(data.page ?? 0) });
+  };
+
   // the release desk
   const [kq, setKq] = useState("");
   const [kBusy, setKBusy] = useState(false);
@@ -171,10 +186,15 @@ export function AdminPage() {
     return () => { on = false; };
   }, [cloud.state]);
 
-  const search = async () => {
+  // the census loads itself once the desk opens
+  useEffect(() => { if (allowed) void loadCensus(0); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // qOverride: the census hands an email straight in — state hasn't
+  // flushed yet when a row click fires the search
+  const search = async (qOverride?: string) => {
     if (busy) return;
     setBusy(true); setNote(null);
-    const { ok, data } = await callAdmin({ action: "search", q });
+    const { ok, data } = await callAdmin({ action: "search", q: qOverride ?? q });
     setBusy(false);
     if (!ok) { setNote(String(data.error ?? "Search failed.")); return; }
     setRows((data.users as Row[]) ?? []);
@@ -373,6 +393,66 @@ export function AdminPage() {
                 ))}
               </div>
             )
+          )}
+        </section>
+
+        <section className="fd-card">
+          <h2 className="fd-card__title"><Users size={17} strokeWidth={2.1} /> The census</h2>
+          <p className="fd-fine">
+            Every account{census ? ` — ${census.total} in all` : ""}. Click a column to sort,
+            a plan chip to filter, a row to load that account into the plans card above.
+          </p>
+          <div className="fd-censusbar">
+            {(["", "pro", "student", "free"] as const).map((pl) => (
+              <button key={pl || "all"} className={`fd-ghost${cPlan === pl ? " on" : ""}`} disabled={cBusy}
+                onClick={() => { setCPlan(pl); void loadCensus(0, cSort, cDir, pl); }}>
+                {pl === "" ? "All" : pl[0].toUpperCase() + pl.slice(1)}
+              </button>
+            ))}
+            <button className="fd-ghost" disabled={cBusy} title="Refresh"
+              onClick={() => void loadCensus(census?.page ?? 0)}>
+              {cBusy ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" /> : <RefreshCw size={13} strokeWidth={2.2} />}
+            </button>
+          </div>
+          {cErr && <p className="fd-note">{cErr}</p>}
+          {census && (
+            <>
+              <table className="fd-census">
+                <thead>
+                  <tr>
+                    {([["email", "Email"], ["plan", "Plan"], ["status", "Status"], ["joined", "Joined"]] as const).map(([k, label]) => (
+                      <th key={k}>
+                        <button onClick={() => {
+                          const d = cSort === k && cDir === "desc" ? "asc" : "desc";
+                          setCSort(k); setCDir(d); void loadCensus(0, k, d, cPlan);
+                        }}>{label}{cSort === k ? (cDir === "desc" ? " ↓" : " ↑") : ""}</button>
+                      </th>
+                    ))}
+                    <th>Kits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {census.users.map((r) => (
+                    <tr key={r.id} tabIndex={0} title={r.email ? `Load ${r.email} in the plans card` : undefined}
+                      onClick={() => { if (r.email) { setQ(r.email); void search(r.email); window.scrollTo({ top: 0, behavior: "smooth" }); } }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && r.email) { setQ(r.email); void search(r.email); window.scrollTo({ top: 0, behavior: "smooth" }); } }}>
+                      <td>{r.email ?? "(no email on file)"}{r.isAdmin ? <em> · admin</em> : ""}</td>
+                      <td>{r.plan}{r.status === "comped" ? "" : r.hasSubscription ? <em> · stripe</em> : ""}</td>
+                      <td>{r.status ?? "—"}</td>
+                      <td>{fmtDay(r.createdAt)}</td>
+                      <td>{r.kits}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {census.total > census.users.length && (
+                <div className="fd-censusbar">
+                  <button className="fd-ghost" disabled={cBusy || census.page === 0} onClick={() => void loadCensus(census.page - 1)}>← Prev</button>
+                  <span className="fd-fine">Page {census.page + 1} of {Math.max(1, Math.ceil(census.total / 100))}</span>
+                  <button className="fd-ghost" disabled={cBusy || (census.page + 1) * 100 >= census.total} onClick={() => void loadCensus(census.page + 1)}>Next →</button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
