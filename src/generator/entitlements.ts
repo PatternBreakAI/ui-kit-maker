@@ -56,7 +56,7 @@ export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
 
 export const TIER_CAPS: Record<Tier, TierCaps> = {
   guest:   { zoomMax: 1.0, presetLimit: 4, kitComponents: 5, pngScaleMax: 1, vectorExports: false },
-  free:    { zoomMax: 1.5, presetLimit: 6, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
+  free:    { zoomMax: 1.5, presetLimit: 9, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
   student: { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
   pro:     { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
 };
