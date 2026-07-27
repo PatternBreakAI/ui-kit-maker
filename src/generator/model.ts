@@ -578,6 +578,12 @@ export const PRESETS: Preset[] = [
   { id: "deep-ocean", name: "Deep Ocean", font: "Paytone One", shape: "explorer", bevel: { width: 13, softness: 62 },
     effects: { Bevel: "#0A5B8F", Glow: "#4DE3FF", Highlight: "#EAFBFF", Shadow: "#04263F", "Inner Fill": "#0E7FC0" },
     candy: { gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
+  /* wager's full authored design lives in preset-wager.json
+     (PRESET_DEFAULTS) — this recipe mirrors its construction for the
+     surfaces that derive from recipes (preset tiles, homepage picker). */
+  { id: "wager", name: "Wager", font: "Paytone One", shape: "pill", bevel: { width: 13, softness: 100 },
+    effects: { Bevel: "#0a8f25", Glow: "#4dff61", Highlight: "#EAFBFF", Shadow: "#043e0e", "Inner Fill": "#66be0e" },
+    candy: { pattern: { type: "dots", scale: 12, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
   /* grape-jelly's full authored design lives in preset-grape-jelly.json
      (PRESET_DEFAULTS) — this recipe mirrors its construction for the
      surfaces that derive from recipes (preset tiles, homepage picker). */

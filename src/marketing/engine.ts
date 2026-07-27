@@ -12,11 +12,12 @@ import grapeJelly from "@/generator/preset-grape-jelly.json";
 import neonVersus from "@/generator/preset-neon-versus.json";
 import bubblePop from "@/generator/preset-bubble-pop.json";
 import citrusPop from "@/generator/preset-citrus-pop.json";
+import wager from "@/generator/preset-wager.json";
 import { ensureFont } from "@/generator/fonts";
 
 /* keep in step with store.PRESET_DEFAULTS — a preset missing here can't
    play its authored form on the homepage (auth:<id> reel entries) */
-const AUTHORED = { "grape-jelly": grapeJelly, "neon-versus": neonVersus, "bubble-pop": bubblePop, "citrus-pop": citrusPop } as const;
+const AUTHORED = { "grape-jelly": grapeJelly, "neon-versus": neonVersus, "bubble-pop": bubblePop, "citrus-pop": citrusPop, wager } as const;
 
 /* Mirror of store.retintText — copied so the landing never imports the
    zustand store (persistence + cloud side effects stay out of this route). */
