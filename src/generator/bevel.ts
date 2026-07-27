@@ -1843,7 +1843,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         T4.shadow.on ? (Math.abs(T4.shadow.x) + Math.abs(T4.shadow.y) + T4.shadow.blur * 1.5) * fsc4 : 0,
         8) + fs2 * 1.2;
       const rx4 = o2.anchor === "middle" ? x2 - estW4 / 2 : o2.anchor === "end" ? x2 - estW4 : x2;
-      defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="${(rx4 - spread4).toFixed(0)}" y="${(y2 - fs2 - spread4).toFixed(0)}" width="${(estW4 + spread4 * 2).toFixed(0)}" height="${(fs2 * 2 + spread4 * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
+      defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="${(rx4 - spread4).toFixed(0)}" y="${(y2 + typeOyK * k - fs2 - spread4).toFixed(0)}" width="${(estW4 + spread4 * 2).toFixed(0)}" height="${(fs2 * 2 + spread4 * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
     }
     const outline4 = T4.outline.on && state !== "disabled"
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
@@ -1853,11 +1853,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
        compensate leftward by ~half the slant overhang (≈0.07em at a 12°
        oblique). Start-anchored text keeps its left edge. */
     const italNudge = T4.italic && o2.anchor === "middle" ? -fs2 * 0.07 : 0;
-    // the horizontal nudge rides inside the helper so every self-drawn text
-    // (counters, rows, segments) shifts with the same control as built labels
+    // BOTH nudges ride inside the helper so every self-drawn text (counters,
+    // rows, segments, flip digits) shifts with the same controls as built
+    // labels — vertical used to be per-callsite and read as dead elsewhere
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${y2.toFixed(1)}" font-family="'${T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
@@ -2014,7 +2015,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const selX = zoneX + segW * sel;
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
       const t = (label: string, cx: number, op: number) =>
-        contentText(label, cx, cy + typeOyK * k, 30 * k * typeK, { anchor: "middle", opacity: op });
+        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
       return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.55)).join("")), zoneX, zoneW);
     }
@@ -4525,8 +4526,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           candyKnob(39 + 6 * k + medR, cy, medR, bevel) +
           themedIcon(icon, 39 + 6 * k + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)) +
         (noIcon
-          ? contentText(`${val}${maxTxt}`, 39 + (w - (opts.addBtn ? 46 * k : 0)) / 2, cy + 1 + typeOyK * k, fsV * typeK, { anchor: "middle", keepCase: true, opacity: dim })
-          : contentText(val, 39 + 20 * k + medR * 2, cy + 1 + typeOyK * k, fsV * typeK, { keepCase: true, opacity: dim }) +
+          ? contentText(`${val}${maxTxt}`, 39 + (w - (opts.addBtn ? 46 * k : 0)) / 2, cy + 1, fsV * typeK, { anchor: "middle", keepCase: true, opacity: dim })
+          : contentText(val, 39 + 20 * k + medR * 2, cy + 1, fsV * typeK, { keepCase: true, opacity: dim }) +
             /* the divider gets REAL air: 0.7em advance per value glyph (heavy
                italic faces overhang) plus a 0.36em gap — and no leading space
                in the <text>, since SVG collapses it and the slash would kiss
@@ -4809,7 +4810,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy5 = 30 + h5 / 2;
       const bullets = [0, 1, 2].map((i) =>
         `<rect x="${(39 + 16 * k + i * 9 * k).toFixed(1)}" y="${(cy5 - 14 * k + i * 3 * k).toFixed(1)}" width="${5 * k}" height="${(28 - i * 6) * k}" rx="${2.4 * k}" fill="${hexMix(glow, "#FFFFFF", 0.25)}" stroke="${darken(bevel, 0.45)}" stroke-width="1"/>`).join("");
-      const txt = contentText(cur, 39 + 48 * k, cy5 + 1 + typeOyK * k, 34 * k * typeK, { keepCase: true }) +
+      const txt = contentText(cur, 39 + 48 * k, cy5 + 1, 34 * k * typeK, { keepCase: true }) +
         // small-white rule: the reserve count wears the understroke
         infoText(`/ ${res}`, 39 + 48 * k + cur.length * 21 * k * typeK + 6 * k, cy5 + 4 + typeOyK * k, 18 * k * Math.max(0.8, typeK * 0.85 + 0.15), "start", 700);
       return inject(track, bullets + txt);
