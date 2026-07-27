@@ -296,6 +296,11 @@ interface GenStore {
    *  color while global Typography keeps driving everything else. */
   kitTextFill: Partial<Record<KitComponentId, string>>;
   setKitTextFill: (id: KitComponentId, color: string | null) => void;
+  /** Finished pieces — a locked component ignores every edit (design,
+   *  content, states, nudges) until unlocked. Locking full-pins the look
+   *  first so the master can't restyle it either. */
+  kitLocks: Partial<Record<KitComponentId, true>>;
+  toggleKitLock: (id: KitComponentId) => void;
   /** Per-component icon swap — "none" removes the glyph (text recenters),
    *  null restores the stock one. */
   kitIcons: Partial<Record<KitComponentId, IconDef | "none">>;
@@ -692,7 +697,7 @@ export const useGen = create<GenStore>((set, get) => ({
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
       kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals,
-      kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
+      kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       // the stage travels with the kit — only portable (data:) backdrops
       bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
     };
@@ -721,6 +726,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
       kitTextOx: (p.kitTextOx as GenStore["kitTextOx"]) ?? {},
+      kitLocks: (p.kitLocks as GenStore["kitLocks"]) ?? {},
       ...(bg ? { bgImage: bg } : {}),
     };
     if (!viewer) {
@@ -739,6 +745,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitbar", next.kitBar);
       saveJson("ui-generator-kittextoy", next.kitTextOy);
       saveJson("ui-generator-kittextox", next.kitTextOx);
+      saveJson("ui-generator-kitlocks", next.kitLocks);
       if (bg) saveJson("ui-generator-bgimage", bg);
     }
     set({ ...next, viewer, phase: "kit" });
@@ -778,13 +785,34 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitShapes: loadJson<Partial<Record<KitComponentId, Shape>>>("ui-generator-kitshapes", {}),
   setKitShape: (id, shape) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitShapes = { ...get().kitShapes, [id]: shape };
     saveJson("ui-generator-kitshapes", kitShapes);
     set({ kitShapes });
   },
   kitTextFill: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kittextfill", {}),
+  kitLocks: loadJson<Partial<Record<KitComponentId, true>>>("ui-generator-kitlocks", {}),
+  toggleKitLock: (id) => {
+    const locks = { ...get().kitLocks };
+    if (locks[id]) {
+      delete locks[id]; // unlocking keeps the pinned look — just editable again
+    } else {
+      /* locking seals WHAT'S ON SCREEN: full-pin the merged look (design,
+         state forks, state adjustments) so the master can't restyle it */
+      const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
+      const merged = clone2(applyKitDesign(get().cfg, get().kitDesigns[id]));
+      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states } };
+      saveJson("ui-generator-kitdesigns", kitDesigns);
+      set({ kitDesigns });
+      locks[id] = true;
+    }
+    markTouched();
+    saveJson("ui-generator-kitlocks", locks);
+    set({ kitLocks: locks });
+  },
   setKitTextFill: (id, color) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitTextFill = { ...get().kitTextFill };
     if (color) kitTextFill[id] = color; else delete kitTextFill[id];
@@ -795,6 +823,7 @@ export const useGen = create<GenStore>((set, get) => ({
      the component draws a glyph (kit page, board, exports). */
   kitIcons: loadJson<Partial<Record<KitComponentId, IconDef | "none">>>("ui-generator-kiticons", {}),
   setKitIcon: (id, def) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitIcons = { ...get().kitIcons };
     if (def) kitIcons[id] = def; else delete kitIcons[id];
@@ -805,6 +834,7 @@ export const useGen = create<GenStore>((set, get) => ({
      as kitLabels: local, synced with the workspace, riding kit payloads. */
   kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
   setKitSlot: (id, slotId, val) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitSlotVals = { ...get().kitSlotVals };
     const cur = { ...(kitSlotVals[id] ?? {}) };
@@ -815,6 +845,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitLabels: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitlabels", {}),
   setKitLabel: (id, label) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitLabels = { ...get().kitLabels };
     if (label !== null && label !== "") kitLabels[id] = label; else delete kitLabels[id];
@@ -823,6 +854,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitSubs: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitsubs", {}),
   setKitSub: (id, sub) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitSubs = { ...get().kitSubs };
     if (sub !== null && sub !== "") kitSubs[id] = sub; else delete kitSubs[id];
@@ -837,6 +869,7 @@ export const useGen = create<GenStore>((set, get) => ({
     return m.forks;
   })(),
   setKitDesign: (id, d) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitDesigns = { ...get().kitDesigns };
     if (d) kitDesigns[id] = d; else delete kitDesigns[id];
@@ -969,6 +1002,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitRow: { ...defaultRow(), ...loadJson<Partial<RowCfg>>("ui-generator-kitrow", {}) },
   setKitRow: (patch) => {
+    if (get().kitLocks.datarow) return;
     markTouched();
     const kitRow = { ...get().kitRow, ...patch };
     saveJson("ui-generator-kitrow", kitRow);
@@ -976,6 +1010,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitTextOy: loadJson<Partial<Record<string, number>>>("ui-generator-kittextoy", {}),
   setKitTextOy: (key, v) => {
+    if (get().kitLocks[key.split(":")[0] as KitComponentId]) return;
     markTouched();
     const kitTextOy = { ...get().kitTextOy };
     // null clears the override (back to the theme); 0 is a valid explicit value
@@ -985,6 +1020,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitTextOx: loadJson<Partial<Record<string, number>>>("ui-generator-kittextox", {}),
   setKitTextOx: (key, v) => {
+    if (get().kitLocks[key.split(":")[0] as KitComponentId]) return;
     markTouched();
     const kitTextOx = { ...get().kitTextOx };
     if (v === null) delete kitTextOx[key]; else kitTextOx[key] = v;
@@ -993,6 +1029,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitBar: loadJson<GenStore["kitBar"]>("ui-generator-kitbar", {}),
   setKitBar: (id, patch) => {
+    if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
     const kitBar = { ...get().kitBar };
     if (patch === null) delete kitBar[id];
@@ -1016,7 +1053,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ library });
   },
   kitKind: null,
-  setKitKind: (k) => set({ kitKind: k }),
+  setKitKind: (k) => { if (get().kitLocks.panel) return; set({ kitKind: k }); },
   inheritDefaults: () => {
     /* A locked focused piece keeps its state forks — and now its state
        adjustments — in the LOCK; the master's aren't the ones on screen, so
@@ -1025,6 +1062,7 @@ export const useGen = create<GenStore>((set, get) => ({
        effective states and clear its forks (empty map shields the master's);
        the master and every other piece don't move. */
     const focus0 = get().focus;
+    if (focus0 && get().kitLocks[focus0]) return; // finished pieces don't move
     const kd = focus0 ? get().kitDesigns[focus0] : undefined;
     if (focus0 && kd) {
       const eff = kd.states ?? get().cfg.states;
@@ -1047,6 +1085,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
     const cfg = clone2(get().cfg);
     const focus0 = get().focus;
+    if (focus0 && get().kitLocks[focus0]) return; // finished pieces don't move
     const kd0 = focus0 ? get().kitDesigns[focus0] : undefined;
     if (focus0 && kd0) {
       /* What the user SEES on a locked piece is master ⊕ lock — promote THAT
@@ -1090,6 +1129,10 @@ export const useGen = create<GenStore>((set, get) => ({
   },
 
   update: (fn) => {
+    // a locked focused piece swallows edits whole — the tray is visibly
+    // paused, so a silent no-op here is honest, not a dead control
+    const lf = get().focus;
+    if (lf && get().kitLocks[lf]) return;
     markTouched();
     const prev = get().cfg;
     // structuredClone is ~3-4x faster than JSON round-tripping — keeps rapid
@@ -1246,7 +1289,7 @@ export const useGen = create<GenStore>((set, get) => ({
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
   // whatever zoom the editor or board was left at
   setPhase: (p) => set(p === "kit" ? { phase: p, zoom: 1 } : { phase: p }),
-  setKitSize: (id, s) => set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })),
+  setKitSize: (id, s) => { if (get().kitLocks[id]) return; set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
   setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),
