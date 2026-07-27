@@ -546,6 +546,15 @@
 .cg-curate:hover { color: var(--ink); }
 .cg-curate--add { color: #2dd4bf; }
 .cg-curate:disabled { opacity: .5; cursor: default; }
+/* several curation buttons share a row — only the first takes the push */
+.cg-curate ~ .cg-curate { margin-left: 6px; }
+.cg-curate--danger { color: #b95550; }
+.cg-curate--danger:hover { color: #f87171; }
+.cg-queuechip--rej { color: #b95550; background: rgba(185, 85, 80, .16); }
+.cg-rejected { margin-top: 26px; }
+.cg-rejected > summary { cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 4px 0; }
+.cg-rejected > summary:hover { color: var(--ink2); }
+.cg-rejected[open] > summary { margin-bottom: 12px; }
 .cg-del:hover { color: #f87171; }
 .cg-err { color: #f87171 !important; }
 

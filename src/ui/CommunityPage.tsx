@@ -1,6 +1,6 @@
 import { MarketingFooter } from "@/marketing/chrome";
 import { useEffect, useRef, useState } from "react";
-import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff, Link2, Check } from "lucide-react";
+import { Heart, ExternalLink, Loader2, RefreshCw, Eye, EyeOff, Link2, Check, CircleSlash, RotateCcw, Trash2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
 import { t } from "@/shell/i18n";
@@ -8,7 +8,7 @@ import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud";
-import { listCommunity, setLike, curateProject, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
+import { listCommunity, setLike, curateProject, rejectProject, deleteSubmission, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
 import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
 import { LiveArt } from "./LiveArt";
@@ -160,6 +160,21 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
     if (err) window.alert(err); else onChanged();
   };
 
+  const reject = async (rejected: boolean) => {
+    setBusy(true);
+    const err = await rejectProject(card.id, rejected);
+    setBusy(false);
+    if (err) window.alert(err); else onChanged();
+  };
+
+  const nuke = async () => {
+    if (!window.confirm(`Delete "${card.name}" entirely? The maker loses this kit — its settings, share link and hearts. This is for spam; a kit you just don't want on the wall should be Rejected instead.`)) return;
+    setBusy(true);
+    const err = await deleteSubmission(card.id);
+    setBusy(false);
+    if (err) window.alert(err); else onChanged();
+  };
+
   const [copied, setCopied] = useState(false);
   const share = async () => {
     if (!card.share_slug) return;
@@ -179,7 +194,7 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
     : <span className="cg-avatar cg-avatar--mono" aria-hidden="true">{maker.replace(/^@/, "").trim().charAt(0).toUpperCase() || "?"}</span>;
   return (
     <article className={`cg-card${card.listed ? "" : " cg-card--queue"}`}>
-      {!card.listed && <span className="cg-queuechip">IN REVIEW</span>}
+      {!card.listed && <span className={`cg-queuechip${card.review === "rejected" ? " cg-queuechip--rej" : ""}`}>{card.review === "rejected" ? "REJECTED" : "IN REVIEW"}</span>}
       <CardArt card={card} />
       <div className="cg-meta">
         <div className="cg-title">
@@ -211,7 +226,20 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
           {admin && (
             card.listed
               ? <button className="cg-curate" disabled={busy} onClick={() => void curate(false)}><EyeOff size={13} strokeWidth={2.2} /> Unlist</button>
-              : <button className="cg-curate cg-curate--add" disabled={busy} onClick={() => void curate(true)}><Eye size={13} strokeWidth={2.2} /> List</button>
+              : card.review === "rejected"
+                ? <>
+                    <button className="cg-curate cg-curate--add" disabled={busy} title="Back into the curation queue"
+                      onClick={() => void reject(false)}><RotateCcw size={13} strokeWidth={2.2} /> Restore</button>
+                    <button className="cg-curate cg-curate--danger" disabled={busy} title="Delete the kit entirely — spam only"
+                      onClick={() => void nuke()}><Trash2 size={13} strokeWidth={2.2} /> Delete</button>
+                  </>
+                : <>
+                    <button className="cg-curate cg-curate--add" disabled={busy} onClick={() => void curate(true)}><Eye size={13} strokeWidth={2.2} /> List</button>
+                    <button className="cg-curate" disabled={busy} title="Pass — the maker keeps the kit and its share link; it just leaves this queue"
+                      onClick={() => void reject(true)}><CircleSlash size={13} strokeWidth={2.2} /> Reject</button>
+                    <button className="cg-curate cg-curate--danger" disabled={busy} title="Delete the kit entirely — spam only"
+                      onClick={() => void nuke()}><Trash2 size={13} strokeWidth={2.2} /> Delete</button>
+                  </>
           )}
         </div>
       </div>
@@ -246,7 +274,8 @@ export function CommunityPage() {
   }, [live]);
 
   const listed = (cards ?? []).filter((c) => c.listed);
-  const queue = (cards ?? []).filter((c) => !c.listed);
+  const queue = (cards ?? []).filter((c) => !c.listed && c.review !== "rejected");
+  const rejected = (cards ?? []).filter((c) => !c.listed && c.review === "rejected");
 
   return (
     <div className="fd-pricing">
@@ -276,6 +305,12 @@ export function CommunityPage() {
                 <div className="cg-secline">Curation queue — public kits waiting for a spot <button className="fd-review__refresh" disabled={loading} onClick={() => void refresh(admin)}><RefreshCw size={13} strokeWidth={2.2} /> Refresh</button></div>
                 <div className="cg-grid">{queue.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>
               </>
+            )}
+            {admin && rejected.length > 0 && (
+              <details className="cg-rejected">
+                <summary>Rejected — {rejected.length} · kept out of the queue; restore or delete</summary>
+                <div className="cg-grid">{rejected.map((c) => <Card key={c.id} card={c} admin={admin} onChanged={() => void refresh(admin)} />)}</div>
+              </details>
             )}
             {listed.length === 0 ? (
               <section className="fd-studentcard">
