@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Sea
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign  } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff  } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -393,9 +393,10 @@ export function Panel() {
   /* v67 · "if I can't see it, I can't edit it": with a component focused,
      every DESIGN edit (colors, effects, candy, type, shape, bevel, lighting,
      shadow, transparency) lands on THAT component's fork — the parent design
-     only changes when nothing is focused. Non-design fields (content, icon
-     rig, state adjusts, canvas) stay global by nature; they still render on
-     the focused hero, so the rule holds. */
+     only changes when nothing is focused. State adjusts and the icon rig pin
+     to the piece on first touch too. Non-design fields (content, canvas)
+     stay global by nature; they still render on the focused hero, so the
+     rule holds. */
   const update = (fn: (c: GenConfig) => void) => {
     if (!focus) { updateParent(fn); return; }
     const before = applyKitDesign(cfgMaster, kitDesigns[focus]);
@@ -435,12 +436,19 @@ export function Panel() {
     if (JSON.stringify(before.states) !== JSON.stringify(merged.states)) {
       setKitDesign(focus, mergeKitDesign(useGen.getState().kitDesigns[focus], { states: merged.states }));
     }
-    // replay only the non-design portion onto the parent — design keys AND
-    // state adjustments stay pinned to the piece
+    /* the icon RIG isolates too — "when I resize an icon, it resizes it
+       everywhere" (owner). Pin only the dials this edit moved; untouched
+       dials keep following the master rig live. */
+    if (JSON.stringify(before.icon) !== JSON.stringify(merged.icon)) {
+      const di = iconRigDiff(before.icon, merged.icon);
+      if (di) setKitDesign(focus, mergeKitDesign(useGen.getState().kitDesigns[focus], { icon: di }));
+    }
+    // replay only the non-design portion onto the parent — design keys,
+    // state adjustments AND the icon rig stay pinned to the piece
     const mClone = JSON.parse(JSON.stringify(cfgMaster)) as GenConfig;
     fn(mClone);
-    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; return JSON.stringify(p); };
-    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; fn(c); Object.assign(c, keep); c.states = keepStates; });
+    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; return JSON.stringify(p); };
+    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; });
   };
   const setPreset = (id: string) => {
     if (!focus) { setPresetParent(id); return; }
