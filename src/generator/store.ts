@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_SHAPE, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
@@ -837,7 +837,10 @@ export const useGen = create<GenStore>((set, get) => ({
      as kitLabels: local, synced with the workspace, riding kit payloads. */
   kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
   setKitSlot: (id, slotId, val) => {
-    if (get().kitLocks[id]) return; // finished pieces don't move
+    /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
+       finished piece (owner: "I need to input data into the input fields").
+       Color slots are look, so they stay frozen with the rest. */
+    if (get().kitLocks[id] && KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind === "color") return;
     markTouched();
     const kitSlotVals = { ...get().kitSlotVals };
     const cur = { ...(kitSlotVals[id] ?? {}) };
@@ -848,7 +851,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitLabels: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitlabels", {}),
   setKitLabel: (id, label) => {
-    if (get().kitLocks[id]) return; // finished pieces don't move
+    // words stay editable on a finished piece — the lock freezes the look
     markTouched();
     const kitLabels = { ...get().kitLabels };
     if (label !== null && label !== "") kitLabels[id] = label; else delete kitLabels[id];
@@ -857,7 +860,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitSubs: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitsubs", {}),
   setKitSub: (id, sub) => {
-    if (get().kitLocks[id]) return; // finished pieces don't move
+    // words stay editable on a finished piece — the lock freezes the look
     markTouched();
     const kitSubs = { ...get().kitSubs };
     if (sub !== null && sub !== "") kitSubs[id] = sub; else delete kitSubs[id];

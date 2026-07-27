@@ -656,6 +656,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 /* ── v25: play lock, help hints, board frames ─────────────────── */
 .panel.playlock .sec, .panel.playlock .btnrow { opacity: .38; pointer-events: none; filter: grayscale(.6); }
+/* a FINISHED (locked) piece freezes the look, not the words — Component
+   content stays live for data entry while every styling section pauses */
+.panel.finlock .sec[data-sec="kiticon"] { opacity: 1; pointer-events: auto; filter: none; }
 .playnote { margin: 4px 0 12px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line2); background: var(--soft); font-size: 12.5px; color: var(--ink); line-height: 1.45; }
 .helphint { flex: 1; min-width: 0; text-align: center; font-size: 13px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 12px; }
 .helphint.off { color: var(--ink3); font-size: 12px; }
