@@ -372,7 +372,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 /* ── v7: state editing, hot hero, fx chips, editable map ── */
 .statebadge { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink2); background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; }
-.resetstate { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: #fff; border-radius: 9px; height: 30px; padding: 0 11px; font-size: 12px; font-weight: 500; color: var(--ink2); cursor: pointer; align-self: flex-start; }
+/* var(--card), not #fff — these pills must flip with the theme (owner:
+   white pills on the dark panel were "too hard to see") */
+.resetstate { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: var(--card); border-radius: 9px; height: 30px; padding: 0 11px; font-size: 12px; font-weight: 500; color: var(--ink2); cursor: pointer; align-self: flex-start; }
 /* related actions sit side by side instead of stacking full-width */
 .actionrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .actionrow .resetstate { align-self: auto; }
