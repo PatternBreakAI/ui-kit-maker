@@ -740,3 +740,7 @@
 .faq-a a { color: var(--accent, #d946ef); }
 .faq-list { margin: 0 0 10px; padding-left: 20px; }
 .faq-list li { margin-bottom: 5px; }
+
+/* the card art IS the kit's door — hand cursor, and the live hover hero
+   rides the same hero slot the static render used */
+.cg-art--link { cursor: pointer; }

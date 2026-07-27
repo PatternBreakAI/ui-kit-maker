@@ -11,6 +11,7 @@ import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud"
 import { listCommunity, setLike, curateProject, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
 import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
+import { LiveArt } from "./LiveArt";
 import { renderKit } from "@/generator/bevel";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
@@ -46,7 +47,7 @@ function idHash(s: string): number {
   return Math.abs(h);
 }
 
-export function CardArt({ card }: { card: { id: string } }) {
+export function CardArt({ card, href, name }: { card: { id: string }; href?: string; name?: string }) {
   /* two refs, one hard rule: React owns `host` (frame, spinner), the
      engine owns `paint` (innerHTML target). Injecting into the React-
      managed node let React try to remove a spinner the injection had
@@ -55,6 +56,18 @@ export function CardArt({ card }: { card: { id: string } }) {
   const host = useRef<HTMLDivElement>(null);
   const paint = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  /* hover brings the hero to LIFE: the static render swaps for a real
+     LiveArt instance — shine sweep on every kit, ambient motion on the
+     pieces that have it (gauges rev, timers tick). Mounted once on first
+     hover and kept, so re-hovers don't re-thrash. */
+  const heroData = useRef<{ cfg: GenConfig; cid: KitComponentId; label?: string; slots?: Record<string, string> } | null>(null);
+  const [liveHero, setLiveHero] = useState<typeof heroData.current>(null);
+  const wake = () => {
+    if (liveHero || !heroData.current || !paint.current) return;
+    const staticHero = paint.current.querySelector<HTMLElement>(".cg-hero");
+    if (staticHero) staticHero.style.display = "none"; // engine-owned node, imperative hide
+    setLiveHero(heroData.current);
+  };
 
   useEffect(() => {
     const el = host.current;
@@ -85,6 +98,10 @@ export function CardArt({ card }: { card: { id: string } }) {
           const h = idHash(card.id);
           const heroCid = HERO_POOL[h % HERO_POOL.length];
           const hero = piece(heroCid, "l");
+          heroData.current = {
+            cfg: applyKitTextFill(applyKitDesign(cfg, designs[heroCid]), fills[heroCid]),
+            cid: heroCid, label: labels[heroCid], slots: slots[heroCid],
+          };
           const small = MINI_SETS[(h >> 4) % MINI_SETS.length].map((p) => piece(p.cid, "s", p.v));
           paint.current.innerHTML =
             `<div class="cg-hero">${hero}</div><div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
@@ -109,8 +126,30 @@ export function CardArt({ card }: { card: { id: string } }) {
     return () => io.disconnect();
   }, [card.id, state]);
 
+  const open = () => { if (href) window.location.href = href; };
+  /* navigation rides pointerUP, not click: the live hero re-renders its svg
+     between down and up (pressed state), detaching the click target — the
+     same reason LiveArt itself activates on pointerup. A small movement
+     guard keeps drags from opening the kit. */
+  const downAt = useRef<[number, number] | null>(null);
   return (
-    <div ref={host} className="cg-art" aria-hidden="true">
+    <div ref={host} className={`cg-art${href ? " cg-art--link" : ""}`}
+      onMouseEnter={wake}
+      {...(href
+        ? { role: "link", tabIndex: 0, "aria-label": `Open ${name ?? "this kit"} in the editor`, title: "Open this kit in the editor — view, then remix",
+            onPointerDown: (e: React.PointerEvent) => { downAt.current = [e.clientX, e.clientY]; },
+            onPointerUp: (e: React.PointerEvent) => {
+              const d = downAt.current; downAt.current = null;
+              if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) < 8) open();
+            },
+            onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } }
+        : { "aria-hidden": true as const })}>
+      {liveHero && (
+        <div className="cg-hero">
+          <LiveArt cfg={liveHero.cfg} playing ambient shine
+            kit={{ id: liveHero.cid, size: "l", label: liveHero.label, slots: liveHero.slots }} />
+        </div>
+      )}
       {/* display:contents so the injected hero/minis join .cg-art's flex */}
       <div ref={paint} style={{ display: "contents" }} />
       {state !== "done" && (
@@ -165,7 +204,8 @@ export function Card({ card, admin, onChanged }: { card: CommunityCard; admin: b
   return (
     <article className={`cg-card${card.listed ? "" : " cg-card--queue"}`}>
       {!card.listed && <span className="cg-queuechip">IN REVIEW</span>}
-      <CardArt card={card} />
+      <CardArt card={card} name={card.name}
+        href={card.share_slug ? publicProjectUrl(card.share_slug) : undefined} />
       <div className="cg-meta">
         <div className="cg-title">
           <b>{card.name}</b>
