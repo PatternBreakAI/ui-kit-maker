@@ -11,6 +11,7 @@ import bubblePopJson from "./preset-bubble-pop.json";
 import neonVersusJson from "./preset-neon-versus.json";
 import grapeJellyJson from "./preset-grape-jelly.json";
 import citrusPopJson from "./preset-citrus-pop.json";
+import wagerJson from "./preset-wager.json";
 
 /* Presets with fully authored default designs (Chevon's uploads). */
 export const PRESET_DEFAULTS: Record<string, Record<string, any>> = {
@@ -18,6 +19,7 @@ export const PRESET_DEFAULTS: Record<string, Record<string, any>> = {
   "neon-versus": neonVersusJson as Record<string, any>,
   "grape-jelly": grapeJellyJson as Record<string, any>,
   "citrus-pop": citrusPopJson as Record<string, any>,
+  wager: wagerJson as Record<string, any>,
 };
 
 /* Keep the text treatment's accent colors in step with the shell palette so a
