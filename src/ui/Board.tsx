@@ -204,6 +204,24 @@ const STAGE: Record<"169" | "mobile", [number, number, string]> = {
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 
+/* Paste-a-URL video backdrops: vet the link BEFORE the board takes it.
+   https only, embeds turned away by name, then a real load test — the
+   metadata handshake proves it's a direct video file, not a page. */
+const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string }> => {
+  const url = raw.trim();
+  if (!/^https:\/\//i.test(url)) return { err: "Paste a full https:// link." };
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return { err: "YouTube / Vimeo pages can't sit under the pieces — paste a direct .mp4 or .webm file link instead." };
+  const ok = await new Promise<boolean>((res) => {
+    const v = document.createElement("video");
+    v.muted = true; v.preload = "metadata";
+    const t = window.setTimeout(() => res(false), 8000);
+    v.onloadedmetadata = () => { window.clearTimeout(t); res(true); };
+    v.onerror = () => { window.clearTimeout(t); res(false); };
+    v.src = url;
+  });
+  return ok ? { url } : { err: "That link didn't play — it needs to be a direct video file (.mp4 / .webm), not a page or an embed." };
+};
+
 /* Overlay tint per mode — shared by the live stage and the PNG export so
    what ships is exactly what the artboard showed. */
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
@@ -223,6 +241,18 @@ export function BoardView({ playing }: { playing: boolean }) {
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
+  // paste-a-URL video backdrop
+  const [vidUrl, setVidUrl] = useState("");
+  const [vidBusy, setVidBusy] = useState(false);
+  const [vidErr, setVidErr] = useState<string | null>(null);
+  const applyVideoUrl = async () => {
+    setVidErr(null); setVidBusy(true);
+    const r = await checkVideoUrl(vidUrl);
+    setVidBusy(false);
+    if (r.err) { setVidErr(r.err); return; }
+    setBoardBg({ bgVideo: r.url!, bgImage: null, bgShow: true });
+    setVidUrl("");
+  };
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
@@ -312,6 +342,10 @@ export function BoardView({ playing }: { playing: boolean }) {
       await new Promise<void>((res) => {
         const v = document.createElement("video");
         v.muted = true; v.playsInline = true; v.preload = "auto";
+        /* remote loops: anonymous CORS or nothing — a tainted frame would
+           kill the WHOLE canvas export, so a host that refuses CORS makes
+           the video fail to load and the export proceeds without it */
+        v.crossOrigin = "anonymous";
         v.onloadeddata = () => {
           try {
             const s = Math.max(W / v.videoWidth, H / v.videoHeight);
@@ -679,6 +713,15 @@ export function BoardView({ playing }: { playing: boolean }) {
                 </button>
               ))}
             </div>
+            {/* bring-your-own loop: any direct https .mp4/.webm link — a plain
+                string, so it persists like the bundled scenes */}
+            <div className="bd-vurl">
+              <input value={vidUrl} placeholder="…or paste a direct video URL (.mp4)" aria-label="Video backdrop URL"
+                onChange={(e) => { setVidUrl(e.target.value); setVidErr(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && vidUrl.trim() && !vidBusy) void applyVideoUrl(); }} />
+              <button disabled={vidBusy || !vidUrl.trim()} onClick={() => void applyVideoUrl()}>{vidBusy ? "…" : "Set"}</button>
+            </div>
+            {vidErr && <div className="bd-note bd-vurl-err" role="alert">{vidErr}</div>}
             {(act.bgImage || act.bgVideo) ? (
               <>
                 {act.bgImage
@@ -697,8 +740,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">
                   {act.bgVideo
                     ? act.bgVideo.startsWith("blob:")
-                      ? "Your uploaded loop plays for this session only — bundled scenes and images stick around."
-                      : "The loop plays on the live board; a PNG export uses its first frame."
+                      ? "Your uploaded loop plays for this session only — bundled scenes, images and pasted URLs stick around."
+                      : act.bgVideo.startsWith("/")
+                        ? "The loop plays on the live board; a PNG export uses its first frame."
+                        : "A remote loop plays on the live board and persists; the PNG export can include its frame only when the host allows it (CORS)."
                     : "The image crops to the board bounds — cover fit, nothing spills."}
                 </div>
               </>
