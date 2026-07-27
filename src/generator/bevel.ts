@@ -2948,8 +2948,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const inset = bw + 10 * k;
       const x0 = 42 + inset + 16 * k, xr = 42 + w - inset - 16 * k;
       const doneN = clamp(Math.round(clamp(value ?? 0.6, 0, 1) * 3), 0, 3);
-      let inner = `<text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text>` +
-        contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK) +
+      /* data-part stamps: Dissect must identify the words — the title is the
+         piece's label (Typography), the eyebrow and objectives are text
+         slots (Component content) */
+      let inner = `<g data-part="slot-text"><text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text></g>` +
+        `<g data-part="label">${contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK)}</g>` +
         `<rect x="${x0.toFixed(1)}" y="${(33 + inset + 80 * k).toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
       const objs = [
         { lbl: (opts.slots?.obj1 ?? "Reach the vault gate").slice(0, 40) },
@@ -2968,7 +2971,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotQ = active && (state === "hover" || state === "pressed");
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
-        inner += contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, opacity: done ? 0.55 : active ? 1 : 0.75 });
+        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
