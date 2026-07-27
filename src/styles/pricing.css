@@ -555,6 +555,18 @@
 .cg-rejected > summary { cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 4px 0; }
 .cg-rejected > summary:hover { color: var(--ink2); }
 .cg-rejected[open] > summary { margin-bottom: 12px; }
+
+/* ── admin census — the whole-account table ───────────────────────── */
+.fd-censusbar { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; flex-wrap: wrap; }
+.fd-censusbar .fd-ghost.on { border-color: var(--ink, #e8e9f0); color: var(--ink, #e8e9f0); }
+.fd-census { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+.fd-census th { text-align: left; padding: 6px 10px; border-bottom: 1px solid rgba(150, 158, 180, .25); }
+.fd-census th button { border: 0; background: none; color: inherit; font: 800 11px/1 inherit; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; padding: 0; }
+.fd-census th button:hover { text-decoration: underline; }
+.fd-census td { padding: 7px 10px; border-bottom: 1px solid rgba(150, 158, 180, .12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.fd-census td em { font-style: normal; opacity: .55; font-size: 11px; }
+.fd-census tbody tr { cursor: pointer; }
+.fd-census tbody tr:hover td, .fd-census tbody tr:focus-visible td { background: rgba(150, 158, 180, .08); }
 .cg-del:hover { color: #f87171; }
 .cg-err { color: #f87171 !important; }
 
