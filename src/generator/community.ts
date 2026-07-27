@@ -16,6 +16,8 @@ import { getClient, currentSession, cloudConfig } from "./cloud";
 export type CommunityCard = {
   id: string; name: string; share_slug: string | null; user_id: string;
   updated_at: string; listed: boolean;
+  /** curation memory: null = waiting / listed, "rejected" = passed over */
+  review: string | null;
   likes: number;
   /** the visitor's own like, for the optimistic heart */
   liked: boolean;
@@ -28,15 +30,21 @@ export type CommunityCard = {
 export async function listCommunity(opts?: { includeQueue?: boolean }): Promise<{ cards: CommunityCard[]; error: string | null }> {
   const client = await getClient();
   if (!client) return { cards: [], error: "Community isn't available on this deployment." };
-  let q = client.from("projects")
-    .select("id, name, share_slug, user_id, updated_at, listed, likes(count)")
-    .eq("is_public", true)
-    .order("updated_at", { ascending: false })
-    .limit(48);
-  if (!opts?.includeQueue) q = q.eq("listed", true);
-  const { data, error } = await q;
+  const fetchRows = async (withReview: boolean) => {
+    let q = client.from("projects")
+      .select(`id, name, share_slug, user_id, updated_at, listed${withReview ? ", review" : ""}, likes(count)`)
+      .eq("is_public", true)
+      .order("updated_at", { ascending: false })
+      .limit(48);
+    if (!opts?.includeQueue) q = q.eq("listed", true);
+    return q;
+  };
+  // admins get the review column (queue vs rejected buckets); a database
+  // that predates migration 0093 falls back to the plain shape
+  let { data, error } = await fetchRows(!!opts?.includeQueue);
+  if (error && opts?.includeQueue && /review/.test(error.message)) ({ data, error } = await fetchRows(false));
   if (error) return { cards: [], error: error.message };
-  const rows = (data ?? []) as unknown as { id: string; name: string; share_slug: string | null; user_id: string; updated_at: string; listed: boolean; likes: { count: number }[] }[];
+  const rows = (data ?? []) as unknown as { id: string; name: string; share_slug: string | null; user_id: string; updated_at: string; listed: boolean; review?: string | null; likes: { count: number }[] }[];
 
   // the makers' public faces — separate query (no FK path for an embed)
   const ids = [...new Set(rows.map((r) => r.user_id))];
@@ -71,7 +79,7 @@ export async function listCommunity(opts?: { includeQueue?: boolean }): Promise<
       const p = profs.get(r.user_id);
       return {
         id: r.id, name: r.name, share_slug: r.share_slug, user_id: r.user_id,
-        updated_at: r.updated_at, listed: r.listed,
+        updated_at: r.updated_at, listed: r.listed, review: r.review ?? null,
         likes: r.likes?.[0]?.count ?? 0,
         liked: mine.has(r.id),
         handle: p?.handle ?? null,
@@ -98,14 +106,42 @@ export async function setLike(projectId: string, on: boolean): Promise<string | 
   return null;
 }
 
-/** Admin curation: put a public kit on (or off) the gallery. RLS admits
-    only admins to the `listed` column — everyone else gets an error. */
+/** Admin curation: put a public kit on (or off) the gallery. The
+    guard_curation trigger admits only admins — everyone else errors.
+    Listing clears any rejection (the invariant: listed ⇒ review null). */
 export async function curateProject(id: string, listed: boolean): Promise<string | null> {
   const client = await getClient();
   const session = currentSession();
   if (!client || !session) return "Sign in as an admin.";
-  const { error } = await client.from("projects").update({ listed }).eq("id", id);
+  let { error } = await client.from("projects").update(listed ? { listed, review: null } : { listed }).eq("id", id);
+  // pre-0093 database: no review column yet — the plain flip still works
+  if (error && /review/.test(error.message)) ({ error } = await client.from("projects").update({ listed }).eq("id", id));
   return error ? error.message : null;
+}
+
+/** Admin rejection: the kit leaves the curation queue for good but stays
+    the maker's — public, shareable, just never asked about again. */
+export async function rejectProject(id: string, rejected: boolean): Promise<string | null> {
+  const client = await getClient();
+  const session = currentSession();
+  if (!client || !session) return "Sign in as an admin.";
+  const { error } = await client.from("projects").update({ review: rejected ? "rejected" : null, listed: false }).eq("id", id);
+  if (error) return /review/.test(error.message) ? "Rejection needs migration 0093_curation_review.sql — run it in Supabase first." : error.message;
+  return null;
+}
+
+/** Admin delete — the spam exit. Removes the project outright (doc, share
+    link, likes via cascade). The UI confirms twice; this just executes. */
+export async function deleteSubmission(id: string): Promise<string | null> {
+  const client = await getClient();
+  const session = currentSession();
+  if (!client || !session) return "Sign in as an admin.";
+  const { data, error } = await client.from("projects").delete().eq("id", id).select("id");
+  if (error) return error.message;
+  // RLS swallows unauthorized deletes silently — an empty result means the
+  // admin delete policy isn't there yet
+  if (!data?.length) return "Nothing deleted — run migration 0093_curation_review.sql (admin delete policy).";
+  return null;
 }
 
 /** The signed-in user's public face, for the studio page editors. */
@@ -164,7 +200,7 @@ export async function publicProfile(handle: string): Promise<{
     profile: prof,
     cards: rs.map((r) => ({
       id: r.id, name: r.name, share_slug: r.share_slug, user_id: r.user_id,
-      updated_at: r.updated_at, listed: r.listed, likes: r.likes?.[0]?.count ?? 0, liked: mine.has(r.id),
+      updated_at: r.updated_at, listed: r.listed, review: null, likes: r.likes?.[0]?.count ?? 0, liked: mine.has(r.id),
       handle: prof.handle, display_name: prof.display_name, avatar_path: prof.avatar_path,
     })),
     error: null,
