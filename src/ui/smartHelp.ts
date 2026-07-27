@@ -40,6 +40,9 @@ export const PART_ROUTES: Record<string, PartRoute> = {
      Typography. Routing to an unmounted section is a silent dead click —
      the bug the anchor mechanism exists to prevent. */
   icon:             { label: "Icon",           hint: "Size, weight, color and effects — swap a specific piece's glyph in Component content on the Kit page", section: "typography", anchor: "icons" },
+  /* Slot-backed lines (quest objectives, eyebrows…) are typed in Component
+     content, not Typography — route to where the field actually is. */
+  "slot-text":      { label: "Editable text",  hint: "This line is a text slot — type it under Component content", section: "kiticon" },
 };
 
 /** Anything stamped but unrouted (future parts) lands on the master row. */
