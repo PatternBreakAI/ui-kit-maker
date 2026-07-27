@@ -1037,24 +1037,28 @@ export function initLanding(deps: LandingDeps) {
         });
       }
 
-      /* "Design preview" toast — static-mirror only. Its copy explains
-         that CTAs can't open the real editor, which is only true on the
-         github.io mirror; on the live SPA every CTA actually navigates
-         (wired below), so the toast is never even built there. */
+      /* The toast serves two masters: notify() hints in EVERY context
+         (board cap, PNG/Share/upload notes, export-lab ZIP note) and the
+         mirror-only "Design preview" CTA copy. The element and its
+         teardown exist unconditionally; only the CTA listener is gated. */
+      const toastEl = document.createElement("div");
+      toastEl.id = "toast"; document.body.appendChild(toastEl);
+      let toastTimer = null;
+      const notify = (m) => {
+        toastEl.textContent = m; toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toastEl.classList.remove("show"); toastEl.textContent = ""; }, 2800);
+      };
+      /* "Design preview" copy is written for the static mirror, where
+         CTAs can't open the real editor; on the live SPA every CTA
+         actually navigates (wired below), so this never binds there. */
       if (/(^|\.)github\.io$/i.test(location.hostname)) {
-        const toastEl = document.createElement("div");
-        toastEl.id = "toast"; document.body.appendChild(toastEl);
-        let toastTimer = null;
-        FD_ON(document, "ui-generator:cta", () => {
-          toastEl.textContent = "Design preview — on the live site this opens the real editor. The studio and kit are fully interactive.";
-          toastEl.classList.add("show");
-          clearTimeout(toastTimer);
-          toastTimer = setTimeout(() => { toastEl.classList.remove("show"); toastEl.textContent = ""; }, 2800);
-        });
-        /* the DOM node lives on document.body, outside the landing root —
-           it needs the same teardown the FD_ON listeners get */
-        deps.signal.addEventListener("abort", () => { clearTimeout(toastTimer); toastEl.remove(); }, { once: true });
+        FD_ON(document, "ui-generator:cta", () =>
+          notify("Design preview — on the live site this opens the real editor. The studio and kit are fully interactive."));
       }
+      /* the DOM node lives on document.body, outside the landing root —
+         it needs the same teardown the FD_ON listeners get */
+      deps.signal.addEventListener("abort", () => { clearTimeout(toastTimer); toastEl.remove(); }, { once: true });
       document.querySelectorAll("[data-cta]").forEach((el) => el.addEventListener("click", () => {
         document.dispatchEvent(new CustomEvent("ui-generator:cta", { detail: { hook: el.dataset.cta } }));
       }));
@@ -1231,10 +1235,7 @@ export function initLanding(deps: LandingDeps) {
         document.querySelectorAll(".hud-hearts i").forEach((h) => h.addEventListener("click", () => h.classList.toggle("on")));
       }
 
-      const notify = (m) => {
-        toastEl.textContent = m; toastEl.classList.add("show");
-        clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2800);
-      };
+      /* notify() lives with the toast element now — see the toast block. */
       /* ── i18n: en · zh · fr · es · it · ja ─────────────────────── */
       const L = {
 en:{l1:"Design a",l2:"UI kit in",l3:"seconds!",eyebrow:"BROWSER-BASED GAME UI TOOL",
