@@ -508,6 +508,8 @@ export function Panel() {
   const C = D.candy;
   const palette = { dark: darken(D.effects.Bevel ?? "#0E9CC9", 0.5), glow: D.effects.Glow ?? "#8FF0FF" };
   useEffect(() => { ensureFont(D.type.font); }, [D.type.font]);
+  // the list voice loads on demand too — a doc arriving with one set must render it
+  useEffect(() => { if (cfg.type.listFont) ensureFont(cfg.type.listFont); }, [cfg.type.listFont]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // focusing a kit component jumps the panel to the top so the banner is seen
   const panelRef = useRef<HTMLElement>(null);
@@ -1463,6 +1465,16 @@ export function Panel() {
           </button>
         </div>
         <div className="helper">Paste the family name exactly as it appears on fonts.google.com (e.g. “Titan One”).</div>
+        <label className="fieldbox" style={{ minWidth: 0 }}>
+          <span className="fl">List font</span>
+          <select value={cfg.type.listFont ?? ""} aria-label="List font"
+            onChange={(e) => { const v = e.target.value || null; if (v) ensureFont(v); update((c) => { c.type.listFont = v; }); }}>
+            <option value="">Match the display font</option>
+            {GAME_FONTS.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+        <div className="helper">Rows and objective lines — quest lists, menus, choice lists — speak this face; titles keep the display font. A loud display face is a headline voice, not a reading voice.</div>
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
         {focus ? (
           <>
