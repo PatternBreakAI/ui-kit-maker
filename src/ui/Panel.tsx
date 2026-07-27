@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
+import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -381,7 +381,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -579,8 +579,11 @@ export function Panel() {
   }
 
   const playLocked = canvasMode === "play";
+  // a FINISHED piece pauses the whole tray the same way play mode does —
+  // the focus banner (not a .sec) stays interactive for the unlock
+  const finLocked = !!(focus && kitLocks[focus]);
   return (
-    <aside className={`panel${playLocked ? " playlock" : ""}`} ref={panelRef}>
+    <aside className={`panel${playLocked || finLocked ? " playlock" : ""}`} ref={panelRef}>
       {playLocked && <div className="playnote">Play mode — controls are paused so you can feel the states. Switch back to Design (✎ in the canvas toolbar) to edit.</div>}
       {/* v59: every control is searchable — matching sections open, the
           rest step aside until the query clears */}
@@ -598,10 +601,24 @@ export function Panel() {
       {focus && (() => {
         const fname = KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus;
         const locked = !!kitDesigns[focus];
+        /* a LOCKED (finished) piece: the tray is paused wholesale — this
+           banner is the only live surface, and it says why */
+        if (kitLocks[focus]) return (
+          <div className="focusnote">
+            <Lock size={12} strokeWidth={2.2} /> <b>{fname}</b> is locked — finished work stays finished. Every control is paused for this piece; the rest of the kit edits as usual.
+            <button onClick={() => setFocus(null)}>Back to parent design</button>
+            <div className="lockrow">
+              <button title="Open this piece back up for editing — it keeps its current look"
+                onClick={() => toggleKitLock(focus)}>
+                <LockOpen size={12} strokeWidth={2.2} /> Unlock {fname}
+              </button>
+            </div>
+          </div>
+        );
         /* One clear rule, stated where the user is looking:
-           unlocked = edits restyle the WHOLE kit; locked = edits stay on
-           THIS piece (they stream straight into its lock — no "update
-           lock" step, what you see is what's saved). */
+           unlocked = edits restyle the WHOLE kit; pinned = edits stay on
+           THIS piece (they stream straight into its pin — no "update
+           pin" step, what you see is what's saved). */
         return (
           <div className="focusnote">
             Editing <b>{fname}</b> — every design edit stays on <b>this piece only</b> (if you can't see it, you can't edit it). Save it as a style to reuse the look elsewhere.
@@ -619,28 +636,34 @@ export function Panel() {
             {parentErr && <div className="helper parenterr" role="alert">{parentErr}</div>}
             {locked ? (
               <div className="lockrow">
-                <span className="lockstate"><Lock size={12} strokeWidth={2.2} /> Edits save into this piece automatically.</span>
+                <span className="lockstate"><Pin size={12} strokeWidth={2.2} /> Edits save into this piece automatically.</span>
                 <button title="Make the whole kit look like this piece, then follow the master again"
                   onClick={() => {
                     const merged = applyKitDesign(useGen.getState().cfg, kitDesigns[focus]);
                     setKitDesign(focus, null);
                     replaceConfig(structuredClone(merged));
                   }}>
-                  <Lock size={12} strokeWidth={2.2} /> Push this look to the whole kit
+                  <Pin size={12} strokeWidth={2.2} /> Push this look to the whole kit
                 </button>
                 <button title="Drop the overrides — this piece follows the parent design again"
                   onClick={() => setKitDesign(focus, null)}>
-                  <LockOpen size={12} strokeWidth={2.2} /> Reset — follow the parent
+                  <PinOff size={12} strokeWidth={2.2} /> Reset — follow the parent
                 </button>
               </div>
             ) : (
               <div className="lockrow">
                 <button title="From here on, edits style only this piece — the master and every other piece stay put"
                   onClick={() => setKitDesign(focus, { ...pickDesign(cfg), stateDesigns: structuredClone(cfg.stateDesigns) })}>
-                  <Lock size={12} strokeWidth={2.2} /> Style {fname} only (lock it)
+                  <Pin size={12} strokeWidth={2.2} /> Style {fname} only (pin it)
                 </button>
               </div>
             )}
+            <div className="lockrow">
+              <button title="Finished with this piece? Lock it — design, text, states and nudges all freeze until you unlock"
+                onClick={() => toggleKitLock(focus)}>
+                <Lock size={12} strokeWidth={2.2} /> Lock {fname} — finished
+              </button>
+            </div>
           </div>
         );
       })()}
