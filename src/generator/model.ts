@@ -442,6 +442,7 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Righteous", css: "Righteous", factor: 0.58, caps: { weights: [400] } },
   { name: "Russo One", css: "Russo+One", factor: 0.64, caps: { weights: [400] } },
   { name: "Black Ops One", css: "Black+Ops+One", factor: 0.7, caps: { weights: [400] } },
+  { name: "Fascinate", css: "Fascinate", factor: 0.62, caps: { weights: [400] } },
   { name: "Orbitron", css: "Orbitron:wght@400..900", factor: 0.74, caps: { wght: [400, 900, 700] } },
   { name: "Cinzel", css: "Cinzel:wght@400..900", factor: 0.62, caps: { wght: [400, 900, 700] } },
   { name: "Creepster", css: "Creepster", factor: 0.48, caps: { weights: [400] } },
@@ -589,6 +590,18 @@ export const PRESETS: Preset[] = [
   { id: "wager", name: "Wager", font: "Paytone One", shape: "pill", bevel: { width: 13, softness: 100 },
     effects: { Bevel: "#0a8f25", Glow: "#4dff61", Highlight: "#EAFBFF", Shadow: "#043e0e", "Inner Fill": "#66be0e" },
     candy: { pattern: { type: "dots", scale: 12, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
+  /* schweetheart / oopsie / nope-yep: fully authored free-set candies —
+     the complete designs live in their preset-*.json (PRESET_DEFAULTS);
+     these recipes mirror the construction for recipe-driven surfaces. */
+  { id: "schweetheart", name: "Schweetheart", font: "Fascinate", shape: "mazepill", bevel: { width: 11, softness: 88 },
+    effects: { Bevel: "#7e1541", Glow: "#c6feaf", Highlight: "#fcfdfc", Shadow: "#411025", "Inner Fill": "#e8215d" },
+    candy: { pattern: { type: "dots", scale: 100, angle: 45, opacity: 73, color: null }, gloss: { height: 48, curve: 30, opacity: 100, softness: 95 }, specular: { on: true, mode: "anime", size: 29, intensity: 93 }, innerGlow: { opacity: 76, size: 44 }, extrusion: { depth: 11, darkness: 94 }, bloom: { opacity: 55, size: 66 } } },
+  { id: "oopsie", name: "Oopsie", font: "Black Ops One", shape: "cutline", bevel: { width: 14, softness: 28 },
+    effects: { Bevel: "#7f4939", Glow: "#976f49", Highlight: "#FFE9D4", Shadow: "#26100A", "Inner Fill": "#1E1A1E" },
+    candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 34, curve: 10, opacity: 40, softness: 95 }, specular: { on: true, mode: "line", size: 55, intensity: 58 }, innerGlow: { opacity: 76, size: 44 }, extrusion: { depth: 14, darkness: 82 }, bloom: { opacity: 45, size: 60 } } },
+  { id: "nope-yep", name: "Nope Yep", font: "Russo One", shape: "chunky", bevel: { width: 11, softness: 100 },
+    effects: { Bevel: "#45C79F", Glow: "#CFFFEB", Highlight: "#FFFFFF", Shadow: "#14563F", "Inner Fill": "#7FE6C4" },
+    candy: { pattern: { type: "dots", scale: 10, angle: 14, opacity: 30, color: "#1cd440" }, gloss: { height: 32, curve: 24, opacity: 58, softness: 70 }, specular: { on: true, mode: "dual", size: 26, intensity: 68, softness: 45 }, innerGlow: { opacity: 55, size: 55 }, extrusion: { depth: 10, darkness: 68 }, bloom: { opacity: 56, size: 66 } } },
   /* grape-jelly's full authored design lives in preset-grape-jelly.json
      (PRESET_DEFAULTS) — this recipe mirrors its construction for the
      surfaces that derive from recipes (preset tiles, homepage picker). */
