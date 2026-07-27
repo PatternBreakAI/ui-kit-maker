@@ -801,10 +801,11 @@ export const useGen = create<GenStore>((set, get) => ({
       delete locks[id]; // unlocking keeps the pinned look — just editable again
     } else {
       /* locking seals WHAT'S ON SCREEN: full-pin the merged look (design,
-         state forks, state adjustments) so the master can't restyle it */
+         state forks, state adjustments, icon rig) so the master can't
+         restyle it */
       const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
       const merged = clone2(applyKitDesign(get().cfg, get().kitDesigns[id]));
-      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states } };
+      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
       locks[id] = true;
@@ -1100,7 +1101,7 @@ export const useGen = create<GenStore>((set, get) => ({
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -1178,7 +1179,7 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     if (lockedId) {
       // design fields → the piece's lock; everything shared → the master
-      cfg.content = work.content; cfg.icon = work.icon;
+      cfg.content = work.content;
       cfg.visible = work.visible; cfg.canvas = work.canvas; cfg.presetId = work.presetId;
       cfg.knob = work.knob; cfg.barFx = work.barFx;
       /* state ADJUSTMENTS isolate to the piece too — "edits save into this
@@ -1186,7 +1187,12 @@ export const useGen = create<GenStore>((set, get) => ({
          an existing pin); an untouched piece keeps following the master. */
       const kdPrev = get().kitDesigns[lockedId];
       const statesPin = !!kdPrev?.states || JSON.stringify(work.states) !== JSON.stringify(cfg.states);
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}) };
+      /* the icon RIG isolates the same way — resizing one piece's glyph must
+         not resize every glyph in the kit. An unpinned, untouched rig still
+         writes through and keeps following the master. */
+      const iconPin = !!kdPrev?.icon || JSON.stringify(work.icon) !== JSON.stringify(cfg.icon);
+      if (!iconPin) cfg.icon = work.icon;
+      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });

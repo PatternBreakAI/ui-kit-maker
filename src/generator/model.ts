@@ -1158,6 +1158,10 @@ export type KitDesign = DeepPartial<StateDesign> & {
    *  time a focused piece's state sliders move, so "edits save into this
    *  piece" holds for the Global section too. Absent = follow the master. */
   states?: GenConfig["states"];
+  /** Per-piece icon RIG (size, offsets, rotation, colors…) — pinned the
+   *  first time a focused piece's icon dials move, so resizing one glyph
+   *  can't resize every glyph in the kit. Absent = follow the master rig. */
+  icon?: DeepPartial<IconCfg>;
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -1178,6 +1182,7 @@ function deepMergeDesign(base: unknown, over: unknown): unknown {
 export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig {
   if (!kd) return cfg;
   const out = { ...cfg, stateDesigns: kd.stateDesigns ?? cfg.stateDesigns, states: kd.states ?? cfg.states } as GenConfig;
+  if (kd.icon !== undefined) out.icon = deepMergeDesign(cfg.icon, kd.icon) as IconCfg;
   const src = cfg as unknown as Record<string, unknown>, o = out as unknown as Record<string, unknown>;
   for (const k of DESIGN_KEYS) {
     const ov = (kd as Record<string, unknown>)[k];
@@ -1214,6 +1219,15 @@ export function designDiff(a: StateDesign, b: StateDesign): KitDesign | null {
   return Object.keys(out).length ? (out as KitDesign) : null;
 }
 
+/** The icon-rig paths where `b` departs from `a` — what a focused icon edit
+ *  pins. The glyph itself (`def`) pins as one value: half a glyph, with the
+ *  library from one icon and the name from another, is no glyph at all. */
+export function iconRigDiff(a: IconCfg, b: IconCfg): KitDesign["icon"] | undefined {
+  const d = deepDiff(a, b) as Record<string, unknown> | undefined;
+  if (d && "def" in d) d.def = JSON.parse(JSON.stringify(b.def));
+  return d as KitDesign["icon"] | undefined;
+}
+
 /** Fold a fresh edit diff into a component's existing override set. */
 export function mergeKitDesign(base: KitDesign | null | undefined, d: KitDesign): KitDesign {
   const out = JSON.parse(JSON.stringify(base ?? {})) as Record<string, unknown>;
@@ -1240,6 +1254,7 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
     const extras: KitDesign = {
       ...(kd.stateDesigns && Object.keys(kd.stateDesigns).length ? { stateDesigns: kd.stateDesigns } : {}),
       ...(kd.states ? { states: kd.states } : {}),
+      ...(kd.icon !== undefined ? { icon: kd.icon } : {}),
     };
     if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }
