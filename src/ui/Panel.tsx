@@ -593,7 +593,7 @@ export function Panel() {
   // the focus banner (not a .sec) stays interactive for the unlock
   const finLocked = !!(focus && kitLocks[focus]);
   return (
-    <aside className={`panel${playLocked || finLocked ? " playlock" : ""}`} ref={panelRef}>
+    <aside className={`panel${playLocked || finLocked ? " playlock" : ""}${finLocked && !playLocked ? " finlock" : ""}`} ref={panelRef}>
       {playLocked && <div className="playnote">Play mode — controls are paused so you can feel the states. Switch back to Design (✎ in the canvas toolbar) to edit.</div>}
       {/* v59: every control is searchable — matching sections open, the
           rest step aside until the query clears */}
@@ -615,7 +615,7 @@ export function Panel() {
            banner is the only live surface, and it says why */
         if (kitLocks[focus]) return (
           <div className="focusnote">
-            <Lock size={12} strokeWidth={2.2} /> <b>{fname}</b> is locked — finished work stays finished. Every control is paused for this piece; the rest of the kit edits as usual.
+            <Lock size={12} strokeWidth={2.2} /> <b>{fname}</b> is locked — the look is frozen. Its words stay yours: type away in <b>Component content</b> below. Every styling control is paused; the rest of the kit edits as usual.
             <button onClick={() => setFocus(null)}>Back to parent design</button>
             <div className="lockrow">
               <button title="Open this piece back up for editing — it keeps its current look"
@@ -669,7 +669,7 @@ export function Panel() {
               </div>
             )}
             <div className="lockrow">
-              <button title="Finished with this piece? Lock it — design, text, states and nudges all freeze until you unlock"
+              <button title="Finished with this piece? Lock it — the look freezes (design, states, nudges, glyph) until you unlock. Its words and data fields stay editable."
                 onClick={() => toggleKitLock(focus)}>
                 <Lock size={12} strokeWidth={2.2} /> Lock {fname} — finished
               </button>
@@ -938,6 +938,7 @@ export function Panel() {
         <Section id="kiticon" title={t("secKitIcon")}
           summary={<span>{kitIcons[focus] === "none" ? "no icon" : (kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"}</span>}>
           {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
+          {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked — the look is frozen, but these words and data fields are yours to edit.</div>}
           {(KIT_SLOTS[focus] ?? []).some((sl) => sl.kind === "free") && (
             <div className="slotgrid">
               {(KIT_SLOTS[focus] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
@@ -964,7 +965,7 @@ export function Panel() {
               </div>
               {slot.note && <div className="helper">{slot.note}</div>}
             </div>
-          ) : slot.kind === "color" ? (
+          ) : slot.kind === "color" && !finLocked ? (
             <div key={slot.id}>
               <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id] ?? slot.def ?? "#FFFFFF"}
                 onChange={(v) => setKitSlot(focus, slot.id, v)} />
@@ -986,7 +987,7 @@ export function Panel() {
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32}
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
-            {iconTogglable && (
+            {iconTogglable && !finLocked && (
               <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
                 onChange={(e) => setKitIcon(focus, e.target.checked ? null : "none")} /> Icon at the end of the text</label>
             )}
@@ -996,7 +997,7 @@ export function Panel() {
               placeholder={subFieldName[focus] ?? "Secondary text"} aria-label="Secondary text"
               onChange={(e) => setKitSub(focus, e.target.value)} />
           )}
-          {iconSwappable && (<>
+          {iconSwappable && !finLocked && (<>
           <div className="sublabel">Icon</div>
           <div className="helper">Swap the glyph on <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Size, color, weight & effects live under <b>Typography → Icons</b>.</div>
           <div className="actionrow">
