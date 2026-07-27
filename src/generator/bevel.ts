@@ -1506,10 +1506,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
        base ink itself is white. */
     const baseTop = T2.fillMode === "auto" ? autoLabel : P(T2.fill);
     const baseBot = T2.fillMode === "gradient" ? P(T2.fill2) : baseTop;
+    /* the halo is what makes the phrase read LIT on kits whose base ink is
+       already near-white (a fill-only lift tops out invisible there — owner:
+       "highlight this text doesn't work"). Bloom scales with intensity. */
     return `<linearGradient id="${id}thl" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">
     <stop offset="0" stop-color="${hexMix(baseTop, hexMix(hiC, "#FFFFFF", 0.89), hb)}"/>
     <stop offset="1" stop-color="${hexMix(baseBot, hexMix(glowC, "#FFFFFF", 0.41), hb)}"/>
-  </linearGradient>`; })() : ""}
+  </linearGradient>
+  <filter id="${id}thf" x="-30%" y="-80%" width="160%" height="260%" color-interpolation-filters="sRGB">
+    <feGaussianBlur stdDeviation="${(fs * 0.1 * hb).toFixed(1)}" result="thb"/>
+    <feFlood flood-color="${glowC}" flood-opacity="${(0.85 * hb).toFixed(2)}"/>
+    <feComposite in2="thb" operator="in" result="thh"/>
+    <feMerge><feMergeNode in="thh"/><feMergeNode in="thh"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>`; })() : ""}
   ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
   ${textFxDef}
@@ -1548,6 +1557,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
+      ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central">${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
