@@ -305,8 +305,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const beat = useRef(4600 + Math.random() * 2400);
   useEffect(() => {
     if (!ambient || (id !== "progress" && id !== "segbar" && id !== "vsbar" && id !== "hotbar" && id !== "ring" && !isTimer && !isGauge) || !playing) return;
+    // first beat lands FAST — hover-mounted art (gallery cards) must move
+    // while the pointer is still there, not a leisurely beat later
+    const kick = window.setTimeout(isTimer ? playTimer : playProgress, 420);
     const t = window.setInterval(isTimer ? playTimer : playProgress, beat.current);
-    return () => window.clearInterval(t);
+    return () => { window.clearTimeout(kick); window.clearInterval(t); };
   }, [ambient, id, playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Activation runs on pointerup, NOT on click. State changes swap the svg's
