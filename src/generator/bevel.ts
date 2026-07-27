@@ -5414,9 +5414,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const hovOp = Math.min(0.55, 0.1 + 0.35 * (cfg.states.hover.glow / 100));
       const selCy = my + pad + rowH / 2;
       const check = `<path d="M ${(39 + bw2 - 38 * k).toFixed(1)} ${selCy.toFixed(1)} l ${(7 * k).toFixed(1)} ${(7 * k).toFixed(1)} l ${(14 * k).toFixed(1)} ${(-16 * k).toFixed(1)}" fill="none" stroke="#FFFFFF" stroke-width="${(3.5 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`;
+      /* option rows: text slots (o1–o3, edited in Component content) — esc'd
+         because slot text can arrive from OTHER makers' docs on community
+         cards; stamped for Dissect; and they're list rows, so the list font
+         speaks here when one is set */
       const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
         `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
-         <text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${t}</text>${i === 0 ? check : ""}`).join("");
+         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
       const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component
