@@ -1,0 +1,20 @@
+# PR gate for the breaks that keep reaching main: preset registrations
+# that add a typeface the landing doesn't self-host (#146, #157 — both
+# caught by the guard only AFTER merge, because it runs as npm prebuild
+# and direct `vite build` invocations skip it). The guard is dependency-
+# free (node built-ins only), so this needs no install step and runs in
+# seconds on every PR.
+name: PR checks
+on:
+  pull_request:
+
+jobs:
+  landing-fonts:
+    name: Landing font roster
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-landing-fonts.mjs
