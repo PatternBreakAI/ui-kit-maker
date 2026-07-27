@@ -470,7 +470,7 @@ export function Panel() {
 
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
-  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel"] as KitComponentId[]).includes(focus);
+  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel", "cardback", "pack"] as KitComponentId[]).includes(focus);
   /* the icon on/off rides every text line whose component can wear a glyph
      (owner call) — swappables plus the master-icon carriers. iconbtn is
      icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
