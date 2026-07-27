@@ -188,6 +188,11 @@ export function defaultCandy(): CandyTokens {
 export type TextCase = "none" | "upper" | "lower" | "title";
 export interface TypeCfg {
   font: string;
+  /** Rows and objective lines (quest lists, menus, choice lists) can speak
+   *  a calmer face than the display font — null/absent = match `font`.
+   *  Display faces like Fascinate are unreadable at list size (owner:
+   *  "need to be able to change the list font"). */
+  listFont?: string | null;
   customFonts: string[];  // user-added Google Font family names
   size: number;        // px at master scale
   weight: number;      // clamped to the face's real capabilities at edit time
