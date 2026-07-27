@@ -451,6 +451,8 @@ export function Panel() {
     merged.effects = { ...p.effects };
     merged.bevel = { ...p.bevel };
     merged.shape = p.shape;
+    // the starter's face restyles this piece too — same voice as a master apply
+    if (p.font) { merged.type.font = p.font; merged.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? merged.type.weight); }
     applyPresetCandy(merged.candy, p);
     const d = designDiff(pickDesign(before), pickDesign(merged));
     if (d) setKitDesign(focus, mergeKitDesign(kitDesigns[focus], d));

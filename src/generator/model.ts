@@ -543,6 +543,12 @@ export function effKitSize(s: KitSize | undefined): KitSize {
 export interface Preset {
   id: string;
   name: string;
+  /** The starter's typography voice — a preset is a COMPLETE look, so
+   *  switching starters switches the face too (owner: "when I switch
+   *  presets, the fonts don't always update"). Weight only where the
+   *  face is variable; single-weight faces clamp themselves. */
+  font?: string;
+  fontWeight?: number;
   shape: Shape;
   bevel: { width: number; softness: number };
   effects: Record<EffectRole, string>;
@@ -551,58 +557,58 @@ export interface Preset {
 
 /** Each preset is a different candy *construction*, not just a palette. */
 export const PRESETS: Preset[] = [
-  { id: "retro-diner", name: "Retro Diner", shape: "kenneyRect", bevel: { width: 11, softness: 70 },
+  { id: "retro-diner", name: "Retro Diner", font: "Boogaloo", shape: "kenneyRect", bevel: { width: 11, softness: 70 },
     effects: { Bevel: "#D93A2B", Glow: "#FFD9A8", Highlight: "#FFF6E8", Shadow: "#66150C", "Inner Fill": "#F6E7C9" },
     candy: { pattern: { type: "checker", scale: 58, angle: 45, opacity: 20, color: null }, gloss: { height: 50, curve: 30, opacity: 66, softness: 40 }, specular: { on: true, mode: "line", size: 50, intensity: 55 }, extrusion: { depth: 12, darkness: 72 } } },
-  { id: "hard-candy", name: "Hard Candy", shape: "round", bevel: { width: 10, softness: 78 },
+  { id: "hard-candy", name: "Hard Candy", font: "Titan One", shape: "round", bevel: { width: 10, softness: 78 },
     effects: { Bevel: "#0E9CC9", Glow: "#8FF0FF", Highlight: "#FFFFFF", Shadow: "#0A4A62", "Inner Fill": "#2CC5F0" },
     candy: { gloss: { height: 46, curve: 26, opacity: 72 }, specular: { on: true, mode: "anime" }, extrusion: { depth: 10 } } },
-  { id: "royal-vault", name: "Royal Vault", shape: "shield", bevel: { width: 13, softness: 45 },
+  { id: "royal-vault", name: "Royal Vault", font: "Cinzel", fontWeight: 700, shape: "shield", bevel: { width: 13, softness: 45 },
     effects: { Bevel: "#6C3FC9", Glow: "#C9A5FF", Highlight: "#FFEDB8", Shadow: "#251057", "Inner Fill": "#8F5BEF" },
     candy: { pattern: { type: "stars", scale: 62, angle: 0, opacity: 24, color: null }, gloss: { height: 44, curve: 22, opacity: 60, softness: 34 }, specular: { on: true, mode: "soft", size: 34, intensity: 58, softness: 60 }, innerGlow: { opacity: 66, size: 52 }, extrusion: { depth: 14, darkness: 80 } } },
   /* citrus-pop's full authored design lives in preset-citrus-pop.json
      (PRESET_DEFAULTS) — this recipe mirrors its construction for the
      surfaces that derive from recipes (preset tiles, homepage picker). */
-  { id: "citrus-pop", name: "Citrus Pop", shape: "mazepill", bevel: { width: 11, softness: 88 },
+  { id: "citrus-pop", name: "Citrus Pop", font: "Shrikhand", shape: "mazepill", bevel: { width: 11, softness: 88 },
     effects: { Bevel: "#E8890C", Glow: "#FFD34D", Highlight: "#FFF7DB", Shadow: "#7A3B00", "Inner Fill": "#FFA726" },
     candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 48, curve: 30, opacity: 100, softness: 95 }, specular: { on: true, mode: "anime", size: 29, intensity: 93 }, extrusion: { depth: 11, darkness: 94 }, bloom: { opacity: 55, size: 66 } } },
-  { id: "comic-pop", name: "Comic Pop", shape: "notch", bevel: { width: 12, softness: 30 },
+  { id: "comic-pop", name: "Comic Pop", font: "Bangers", shape: "notch", bevel: { width: 12, softness: 30 },
     effects: { Bevel: "#1E1F26", Glow: "#FFE24A", Highlight: "#FFFFFF", Shadow: "#0B0B12", "Inner Fill": "#FFC61A" },
     candy: { pattern: { type: "halftone", scale: 70, angle: 0, opacity: 38, color: null }, gloss: { height: 40, curve: 18, opacity: 58, softness: 20 }, specular: { on: true, mode: "hard", size: 26, intensity: 88 }, extrusion: { depth: 13, darkness: 88 } } },
-  { id: "deep-ocean", name: "Deep Ocean", shape: "explorer", bevel: { width: 13, softness: 62 },
+  { id: "deep-ocean", name: "Deep Ocean", font: "Paytone One", shape: "explorer", bevel: { width: 13, softness: 62 },
     effects: { Bevel: "#0A5B8F", Glow: "#4DE3FF", Highlight: "#EAFBFF", Shadow: "#04263F", "Inner Fill": "#0E7FC0" },
     candy: { gloss: { height: 40, curve: 18, opacity: 55, softness: 30 }, specular: { on: true, mode: "dual", size: 24, intensity: 62 }, innerGlow: { opacity: 70, size: 58 }, extrusion: { depth: 13, darkness: 66 } } },
   /* grape-jelly's full authored design lives in preset-grape-jelly.json
      (PRESET_DEFAULTS) — this recipe mirrors its construction for the
      surfaces that derive from recipes (preset tiles, homepage picker). */
-  { id: "grape-jelly", name: "Grape Jelly", shape: "pill", bevel: { width: 14, softness: 0 },
+  { id: "grape-jelly", name: "Grape Jelly", font: "Fredoka", fontWeight: 670, shape: "pill", bevel: { width: 14, softness: 0 },
     effects: { Bevel: "#8B34D8", Glow: "#E29CFF", Highlight: "#FFFFFF", Shadow: "#4A1178", "Inner Fill": "#A855F7" },
     candy: { pattern: { type: "stripes", scale: 100, angle: 45, opacity: 71, color: "#1d819a" }, gloss: { height: 40, curve: 20, opacity: 89, softness: 46 }, specular: { on: true, mode: "anime", size: 52, intensity: 35, softness: 30 }, innerGlow: { opacity: 72, size: 66 }, bloom: { opacity: 60, size: 72 }, extrusion: { depth: 14, darkness: 94 } } },
-  { id: "glacier-tech", name: "Glacier Tech", shape: "polybar", bevel: { width: 12, softness: 22 },
+  { id: "glacier-tech", name: "Glacier Tech", font: "Orbitron", fontWeight: 700, shape: "polybar", bevel: { width: 12, softness: 22 },
     effects: { Bevel: "#4E7E9C", Glow: "#B8F1FF", Highlight: "#F0FBFF", Shadow: "#122C40", "Inner Fill": "#7FB8D9" },
     candy: { pattern: { type: "none", scale: 100, angle: 45, opacity: 0, color: null }, texture: { amount: 26, scale: 44 }, gloss: { height: 36, curve: 10, opacity: 44, softness: 16 }, specular: { on: true, mode: "sweep", size: 18, intensity: 60 }, extrusion: { depth: 13, darkness: 76 }, innerEdge: { strength: 58, width: 3 } } },
-  { id: "sakura-arcade", name: "Sakura Arcade", shape: "blade", bevel: { width: 9, softness: 92 },
+  { id: "sakura-arcade", name: "Sakura Arcade", font: "Chewy", shape: "blade", bevel: { width: 9, softness: 92 },
     effects: { Bevel: "#E064A8", Glow: "#FFC7E8", Highlight: "#FFFFFF", Shadow: "#7C2050", "Inner Fill": "#F58BC5" },
     candy: { gloss: { height: 52, curve: 36, opacity: 76, softness: 34 }, specular: { on: true, mode: "anime", size: 30, intensity: 88 }, bloom: { opacity: 62, size: 70 }, extrusion: { depth: 9 } } },
-  { id: "toy-box", name: "Toy Box", shape: "chunky", bevel: { width: 12, softness: 96 },
+  { id: "toy-box", name: "Toy Box", font: "Chango", shape: "chunky", bevel: { width: 12, softness: 96 },
     effects: { Bevel: "#D98200", Glow: "#FFE066", Highlight: "#FFFDF2", Shadow: "#7A3D00", "Inner Fill": "#FFB020" },
     candy: { gloss: { height: 52, curve: 38, opacity: 80, softness: 42 }, specular: { on: true, mode: "dual", size: 26, intensity: 70, softness: 40 }, extrusion: { depth: 16, darkness: 70 }, pattern: { type: "dots", scale: 46, angle: 0, opacity: 30, color: null }, bloom: { opacity: 50, size: 64 } } },
-  { id: "mint-cream", name: "Mint Cream", shape: "chunky", bevel: { width: 11, softness: 100 },
+  { id: "mint-cream", name: "Mint Cream", font: "Baloo 2", fontWeight: 700, shape: "chunky", bevel: { width: 11, softness: 100 },
     effects: { Bevel: "#45C79F", Glow: "#CFFFEB", Highlight: "#FFFFFF", Shadow: "#14563F", "Inner Fill": "#7FE6C4" },
     candy: { pattern: { type: "dots", scale: 40, angle: 0, opacity: 22, color: null }, gloss: { height: 54, curve: 38, opacity: 78, softness: 48 }, specular: { on: true, mode: "dual", size: 26, intensity: 68, softness: 45 }, bloom: { opacity: 56, size: 66 }, extrusion: { depth: 10, darkness: 68 } } },
-  { id: "neon-versus", name: "Neon Versus", shape: "fighthud", bevel: { width: 10, softness: 20 },
+  { id: "neon-versus", name: "Neon Versus", font: "Lilita One", fontWeight: 500, shape: "fighthud", bevel: { width: 10, softness: 20 },
     effects: { Bevel: "#B4126B", Glow: "#FF3EC8", Highlight: "#FFE9F7", Shadow: "#3D0430", "Inner Fill": "#1C0F2E" },
     candy: { gloss: { height: 34, curve: 12, opacity: 40, softness: 20 }, specular: { on: true, mode: "line", size: 60, intensity: 60 }, extrusion: { depth: 12, darkness: 80 }, innerGlow: { opacity: 78, size: 48 }, bloom: { opacity: 55, size: 70 }, pattern: { type: "stripes", scale: 34, angle: 65, opacity: 26, color: null } } },
-  { id: "hero-chisel", name: "Hero Chisel", shape: "chamfer", bevel: { width: 14, softness: 24 },
+  { id: "hero-chisel", name: "Hero Chisel", font: "Alfa Slab One", shape: "chamfer", bevel: { width: 14, softness: 24 },
     effects: { Bevel: "#D97706", Glow: "#FDE68A", Highlight: "#FFF7E6", Shadow: "#7C2D12", "Inner Fill": "#F59E0B" },
     candy: { gloss: { height: 38, curve: 10, opacity: 44, softness: 10 }, specular: { mode: "sweep", size: 18, intensity: 62 }, extrusion: { depth: 14, darkness: 62 }, innerEdge: { strength: 62, width: 3 }, texture: { amount: 10, scale: 50 } } },
-  { id: "forest-sprite", name: "Forest Sprite", shape: "tavern", bevel: { width: 12, softness: 70 },
+  { id: "forest-sprite", name: "Forest Sprite", font: "Concert One", shape: "tavern", bevel: { width: 12, softness: 70 },
     effects: { Bevel: "#3E8914", Glow: "#B4F461", Highlight: "#F2FFE0", Shadow: "#1C4405", "Inner Fill": "#61B520" },
     candy: { gloss: { height: 44, curve: 26, opacity: 62 }, specular: { on: true, mode: "soft", size: 30, intensity: 55 }, extrusion: { depth: 12, darkness: 64 }, texture: { amount: 12, scale: 46 } } },
-  { id: "obsidian-ember", name: "Obsidian Ember", shape: "cutline", bevel: { width: 14, softness: 28 },
+  { id: "obsidian-ember", name: "Obsidian Ember", font: "Black Ops One", shape: "cutline", bevel: { width: 14, softness: 28 },
     effects: { Bevel: "#D4491F", Glow: "#FF9A3D", Highlight: "#FFE9D4", Shadow: "#26100A", "Inner Fill": "#1E1A1E" },
     candy: { gloss: { height: 34, curve: 10, opacity: 40 }, specular: { on: true, mode: "line", size: 55, intensity: 58 }, innerGlow: { opacity: 76, size: 44 }, extrusion: { depth: 14, darkness: 82 }, innerEdge: { strength: 66, width: 3 } } },
-  { id: "bubble-pop", name: "Bubble Pop", shape: "round", bevel: { width: 8, softness: 100 },
+  { id: "bubble-pop", name: "Bubble Pop", font: "Bungee", shape: "round", bevel: { width: 8, softness: 100 },
     effects: { Bevel: "#E1408F", Glow: "#FFC1DE", Highlight: "#FFFFFF", Shadow: "#8C1D53", "Inner Fill": "#F868B1" },
     candy: { gloss: { height: 50, curve: 34, opacity: 78, softness: 30 }, specular: { mode: "anime", size: 30, intensity: 92 }, bloom: { opacity: 62, size: 68 }, extrusion: { depth: 9 } } },
 ];
