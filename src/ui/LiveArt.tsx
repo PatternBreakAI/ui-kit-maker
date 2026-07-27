@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
-import { addShine, renderBevel, renderKit } from "@/generator/bevel";
+import { addShine, renderBevel, renderKit, padSvg } from "@/generator/bevel";
 
 /** What a piece of live art is: the master button (no kit), or one kit
  *  component with optional per-instance overrides. */
@@ -47,12 +47,15 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, ambient, shine, className, style, title, onDesignClick }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, ambient, shine, className, style, title, onDesignClick, stablePad }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
   /** Display scale — 1 renders at the SVG's natural pixel size. */
   scale?: number;
+  /** Reserve the full glow pad even while glow is 0 (padSvg) — the editor
+   *  hero passes this so Design ↔ Play keep an identical box. */
+  stablePad?: boolean;
   /** Anchor the shell, not the glow pad: pulls the art up-left by the pad so
    *  top-left-positioned hosts (the board) keep their saved layouts. */
   anchorContent?: boolean;
@@ -129,9 +132,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       const raw = kit
         ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
-      return shine ? addShine(raw) : raw;
+      const out = stablePad ? padSvg(raw) : raw;
+      return shine ? addShine(out) : out;
     },
-    [cfg, kitKey, state, value, shine, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
+    [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // natural width × scale — uniform physical scale across every piece, so a

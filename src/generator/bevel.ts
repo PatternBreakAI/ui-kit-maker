@@ -1592,6 +1592,23 @@ export function glowPadOf(cfg: GenConfig): number {
   return maxGlow > 0.5 ? 90 : 0;
 }
 
+/** Editor-surface stabilizer: expand a rendered piece's viewport so its
+ *  glow pad reads as at least `min` on every side. build() pads 0 or 90
+ *  (glowPadOf) — so the FIRST tick of the Glow slider used to change the
+ *  root box and reflow the hero and state cards ("when I add a glow the
+ *  interface responds"). Reserving the full pad up front keeps the box
+ *  constant; scale stays 1:1 and the art doesn't move. Only build()
+ *  outputs carry data-shell — custom-root chrome (spinner, health
+ *  globe…) never pads, so it passes through unchanged. */
+export function padSvg(svg: string, min = 90): string {
+  if (!/data-shell="/.test(svg)) return svg;
+  const vb = /viewBox="(-?[\d.]+) /.exec(svg);
+  const extra = vb ? min + Number(vb[1]) : 0; // viewBox.x is -currentPad
+  if (extra <= 0) return svg;
+  return svg.replace(/ width="([\d.]+)" height="([\d.]+)" viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, w, h, vx, vy, vw, vh) =>
+    ` width="${+w + extra * 2}" height="${+h + extra * 2}" viewBox="${+vx - extra} ${+vy - extra} ${+vw + extra * 2} ${+vh + extra * 2}"`);
+}
+
 /** The exact outer / rim / face geometry build() derives for a shell —
  *  exported so the feasibility lab's diagnostic overlays audit the REAL
  *  inset math, not a copy of it. Mirrors build()'s derivation (bw, bwF,

@@ -6,7 +6,7 @@ import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
-import { renderBevel, renderKit } from "@/generator/bevel";
+import { renderBevel, renderKit, padSvg } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
 import type { GenStateName } from "@/generator/model";
 import { KitPage } from "./KitPage";
@@ -111,8 +111,9 @@ export function CanvasView() {
   // bar-family config for the hero: dock + segments follow the store
   const fBar = focus === "progress" || focus === "segbar" ? kitBar[focus] : undefined;
   const fDock = fBar?.dock ? { icon: resolveKitIcon(kitIcons[focus!], undefined), side: fBar.dockSide ?? "left" as const } : undefined;
+  // padSvg: the hero's box must not change when the Glow slider leaves 0
   const heroSvg = useMemo(
-    () => (focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, focus === "toggle" && displayed === "pressed" ? 0 : undefined, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, undefined, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed)),
+    () => padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, focus === "toggle" && displayed === "pressed" ? 0 : undefined, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, undefined, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed)),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, kitBar, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitDesigns]
   );
   // Fixed order, selected included — the stack never reshuffles.
@@ -201,7 +202,7 @@ export function CanvasView() {
                  drag, toggles flip, bars replay — the same LiveArt engine
                  the kit page runs, at hero scale */
               <div className="hero-slot hot" onPointerDown={(e) => e.stopPropagation()}>
-                <LiveArt playing scale={1}
+                <LiveArt playing scale={1} stablePad
                   cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus])}
                   kit={{ id: focus, size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus],
                     icon: resolveKitIcon(kitIcons[focus], undefined), textOy: fOy, textOx: fOx,
@@ -365,7 +366,7 @@ export function CanvasView() {
             <button className={`scard clickable${s === selectedState ? " sel" : ""}`} key={s}
               onClick={() => setSelectedState(s)} title={`Edit ${cap}`} aria-pressed={s === selectedState}>
               <div className="scard-title">{cap}{s === selectedState ? " · editing" : ""}</div>
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", s, v, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, s) }} />
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v, kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined }) : parentId !== "button" ? renderKit(cfg, parentId, "l", s, v, kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, s)) }} />
             </button>
           ))}
         </div>
