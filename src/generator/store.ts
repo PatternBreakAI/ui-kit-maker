@@ -242,7 +242,7 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
   addToBoard: (libId: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
   addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
@@ -415,6 +415,9 @@ export interface BoardDef {
   aspect: "169" | "mobile";
   items: BoardItem[];
   bgImage?: string | null;
+  /** A looping video backdrop (bundled /backdrops/*.mp4 path, or a
+   *  session-only blob: URL from an upload). Exclusive with bgImage. */
+  bgVideo?: string | null;
   bgShow?: boolean;
   bgOpacity?: number;
   bgBlur?: number;
@@ -467,10 +470,11 @@ type BoardsGet = () => { boards: BoardDef[]; activeBoard: string; boardPast: str
 type LooseSet = (p: any) => void;
 let histKey = "";
 let histT = 0;
+/* data-URL and bundled-path backdrops persist; blob URLs cannot survive a
+   reload, so they stay session-only */
+const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") ? u : undefined);
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
-  // data-URL backgrounds persist (one image per board); blob URLs cannot
-  // survive a reload, so they stay session-only
-  saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: b.bgImage?.startsWith("data:") ? b.bgImage : undefined })) });
+  saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
 
 /** Downscale an uploaded background to a storable data URL (≤1920px,
  *  JPEG) — small enough to persist, big enough for a 16:9 board. */
@@ -515,7 +519,11 @@ function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
     return { boards: [{ id: "ab1", name: "Board 1", aspect, items: raw as BoardItem[] }], activeBoard: "ab1" };
   }
   if (raw && typeof raw === "object" && Array.isArray((raw as { boards?: unknown }).boards) && (raw as { boards: BoardDef[] }).boards.length) {
-    const bs = (raw as { boards: BoardDef[] }).boards.map((b) => ({ ...b, bgImage: b.bgImage?.startsWith("data:") ? b.bgImage : null }));
+    const bs = (raw as { boards: BoardDef[] }).boards.map((b) => ({
+      ...b,
+      bgImage: b.bgImage && !b.bgImage.startsWith("blob:") ? b.bgImage : null,
+      bgVideo: b.bgVideo && !b.bgVideo.startsWith("blob:") ? b.bgVideo : null,
+    }));
     const act = (raw as { active?: string }).active;
     return { boards: bs, activeBoard: act && bs.some((b) => b.id === act) ? act : bs[0].id };
   }

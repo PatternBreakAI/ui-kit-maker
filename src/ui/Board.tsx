@@ -16,71 +16,137 @@ import { LiveArt } from "./LiveArt";
    then the inspector for the selected piece or the active background.
    Cmd+Z undoes (100 levels), Delete removes, Cmd+D duplicates. */
 
+/* The full 113-piece roster, grouped by genre — every component the kit
+   ships is placeable (the drawer had frozen at the pre-pack roster). */
 const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
-  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn"] },
-  { name: "Containers", ids: ["panel", "header", "tab", "dropdown"] },
-  { name: "HUD", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "flipclock", "stopwatch", "timerdigits"] },
-  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "input", "segment", "checkbox", "radio", "joystick"] },
-  { name: "Combat & spatial", ids: ["reticle", "minimap", "ammo", "lives", "bignum"] },
+  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
+  { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
+  { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
+  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick"] },
+  { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
+  { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
+  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry"] },
+  { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug"] },
+  { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
   { name: "Card battler", ids: ["cardback", "pack"] },
 ];
 
-/* Starter templates — approximate compositions for the 16:9 stage. The
-   user nudges from here; every piece stays a live kit asset. Refreshed for
-   the current roster: vsbar, hotbar, tacho, segbar, timers, big numbers. */
-const BOARD_TEMPLATES: Record<string, { kitId: KitComponentId; x: number; y: number; scale?: number }[]> = {
-  "Main menu": [
+/* Bundled backdrops — the owner's own scenes, served from public/. A path
+   URL persists (and exports); only blob: uploads stay session-only. */
+const BACKDROPS: { name: string; url: string; video?: true }[] = [
+  { name: "Valley", url: "/backdrops/valley.jpg" },
+  { name: "FPS ruins", url: "/backdrops/fps-ruins.jpg" },
+  { name: "Storm keep", url: "/backdrops/strategy-keep.jpg" },
+  { name: "Tavern", url: "/backdrops/tavern.jpg" },
+  { name: "City streets", url: "/backdrops/city-streets.jpg" },
+  { name: "Dungeon · video", url: "/backdrops/dungeon-loop.mp4", video: true },
+];
+
+/* Starter screens — approximate compositions for the 16:9 stage, most
+   with a bundled backdrop so one click reads like a real game screen.
+   The user nudges from here; every piece stays a live kit asset.
+   Re-swept for the post-pack roster: weapon wheel, killfeed, quest
+   panel, party frames, score bug, achievement toast, social pieces. */
+type Tpl = { bg?: string; items: { kitId: KitComponentId; x: number; y: number; scale?: number }[] };
+const BOARD_TEMPLATES: Record<string, Tpl> = {
+  "Main menu": { items: [
     { kitId: "header", x: 560, y: 90, scale: 1.1 },
     { kitId: "primary", x: 700, y: 390, scale: 1.1 },
     { kitId: "badge", x: 1165, y: 370, scale: 0.9 },
     { kitId: "secondary", x: 610, y: 585 },
     { kitId: "ghost", x: 760, y: 780 },
     { kitId: "resource", x: 70, y: 55 },
-    { kitId: "resource", x: 70, y: 160 },
+    { kitId: "currency", x: 70, y: 160, scale: 0.9 },
     { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
-  ],
-  "FPS HUD": [
+    { kitId: "notifydot", x: 1640, y: 48, scale: 0.9 },
+  ] },
+  "FPS HUD": { bg: "/backdrops/fps-ruins.jpg", items: [
     { kitId: "reticle", x: 870, y: 450 },
     { kitId: "lives", x: 90, y: 55, scale: 0.85 },
-    { kitId: "chip", x: 850, y: 60, scale: 0.9 },
+    { kitId: "capturemeter", x: 760, y: 50, scale: 0.9 },
     { kitId: "minimap", x: 1540, y: 55, scale: 0.9 },
+    { kitId: "killfeed", x: 1330, y: 400, scale: 0.85 },
+    { kitId: "weaponwheel", x: 700, y: 560, scale: 0.7 },
     { kitId: "progress", x: 70, y: 890 },
-    { kitId: "hotbar", x: 490, y: 895, scale: 0.85 },
+    { kitId: "hotbar", x: 430, y: 905, scale: 0.85 },
     { kitId: "ammo", x: 1500, y: 860 },
-  ],
-  "Arena HUD": [
+    { kitId: "dmgnumber", x: 1060, y: 330, scale: 0.85 },
+  ] },
+  "Arena HUD": { items: [
     { kitId: "vsbar", x: 430, y: 40, scale: 0.9 },
+    { kitId: "scorebug", x: 820, y: 170, scale: 0.85 },
     { kitId: "minimap", x: 1540, y: 130, scale: 0.9 },
-    { kitId: "badge", x: 60, y: 300, scale: 0.9 },
+    { kitId: "streakmeter", x: 60, y: 300, scale: 0.85 },
     { kitId: "joystick", x: 110, y: 600 },
     { kitId: "hotbar", x: 510, y: 890, scale: 0.9 },
+    { kitId: "respawn", x: 780, y: 470, scale: 0.9 },
     { kitId: "iconbtn", x: 1720, y: 620, scale: 0.85 },
-  ],
-  "Racing HUD": [
+  ] },
+  "RPG quest": { bg: "/backdrops/strategy-keep.jpg", items: [
+    { kitId: "nameplate", x: 60, y: 50, scale: 0.9 },
+    { kitId: "partyframe", x: 60, y: 210, scale: 0.85 },
+    { kitId: "waypoint", x: 880, y: 40, scale: 0.85 },
+    { kitId: "questpanel", x: 1290, y: 130, scale: 0.8 },
+    { kitId: "loottag", x: 620, y: 430, scale: 0.85 },
+    { kitId: "dialoguebox", x: 430, y: 700, scale: 0.9 },
+    { kitId: "xpbar", x: 560, y: 950, scale: 0.9 },
+  ] },
+  "Tavern hub": { bg: "/backdrops/tavern.jpg", items: [
+    { kitId: "header", x: 560, y: 40 },
+    { kitId: "avatarframe", x: 60, y: 44, scale: 0.85 },
+    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
+    { kitId: "primary", x: 740, y: 500 },
+    { kitId: "friendrow", x: 1280, y: 290, scale: 0.85 },
+    { kitId: "friendrow", x: 1280, y: 420, scale: 0.85 },
+    { kitId: "clancrest", x: 1340, y: 560, scale: 0.8 },
+    { kitId: "chatbubble", x: 240, y: 560, scale: 0.85 },
+    { kitId: "dialoguebox", x: 430, y: 760, scale: 0.9 },
+  ] },
+  "Card table": { bg: "/backdrops/valley.jpg", items: [
+    { kitId: "scorebug", x: 780, y: 40, scale: 0.85 },
+    { kitId: "chip", x: 90, y: 60, scale: 0.9 },
+    { kitId: "cardback", x: 540, y: 280, scale: 0.9 },
+    { kitId: "cardback", x: 810, y: 260, scale: 0.9 },
+    { kitId: "pack", x: 1180, y: 260, scale: 0.9 },
+    { kitId: "endturn", x: 1560, y: 830, scale: 0.9 },
+    { kitId: "avatarframe", x: 70, y: 820, scale: 0.85 },
+  ] },
+  "Open world": { bg: "/backdrops/city-streets.jpg", items: [
+    { kitId: "chip", x: 70, y: 50, scale: 0.9 },
+    { kitId: "waypoint", x: 850, y: 40, scale: 0.85 },
+    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
+    { kitId: "toast", x: 1200, y: 170, scale: 0.85 },
+    { kitId: "buffframe", x: 70, y: 560, scale: 0.85 },
+    { kitId: "minimap", x: 70, y: 730, scale: 0.95 },
+    { kitId: "compass", x: 620, y: 935, scale: 0.9 },
+  ] },
+  "Racing HUD": { items: [
     { kitId: "circuit", x: 60, y: 80 },
     { kitId: "leaderboard", x: 1460, y: 30, scale: 0.8 },
     { kitId: "telemetry", x: 1450, y: 330, scale: 0.85 },
     { kitId: "laptimes", x: 60, y: 620, scale: 0.9 },
     { kitId: "tacho", x: 1290, y: 620, scale: 1.05 },
-  ],
-  "Versus": [
+  ] },
+  "Versus": { items: [
     { kitId: "vsbar", x: 460, y: 60 },
     { kitId: "badge", x: 480, y: 300, scale: 0.9 },
     { kitId: "badge", x: 1260, y: 300, scale: 0.9 },
     { kitId: "bignum", x: 770, y: 420, scale: 1.1 },
     { kitId: "primary", x: 700, y: 790, scale: 1.05 },
-  ],
-  "Match-3 round": [
-    { kitId: "resource", x: 70, y: 55 },
+  ] },
+  "Match-3 round": { items: [
+    { kitId: "movecounter", x: 70, y: 55, scale: 0.85 },
     { kitId: "stopwatch", x: 1500, y: 55, scale: 0.7 },
-    { kitId: "orb", x: 1540, y: 330, scale: 0.8 },
+    { kitId: "combo", x: 1520, y: 320, scale: 0.85 },
     ...([0, 1, 2] as const).flatMap((r) => ([0, 1, 2] as const).map((c) => (
       { kitId: "slot" as KitComponentId, x: 730 + c * 160, y: 290 + r * 160, scale: 0.9 }
     ))),
+    { kitId: "booster", x: 70, y: 640, scale: 0.85 },
     { kitId: "segbar", x: 660, y: 890 },
-  ],
-  "RPG party": [
+  ] },
+  "RPG party": { items: [
     { kitId: "header", x: 560, y: 30 },
     { kitId: "datarow", x: 120, y: 350, scale: 0.9 },
     { kitId: "datarow", x: 120, y: 515, scale: 0.9 },
@@ -88,8 +154,8 @@ const BOARD_TEMPLATES: Record<string, { kitId: KitComponentId; x: number; y: num
     { kitId: "panel", x: 1220, y: 340, scale: 0.75 },
     ...[0, 1, 2, 3].map((i) => ({ kitId: "slot" as KitComponentId, x: 1220 + i * 165, y: 810, scale: 0.8 })),
     { kitId: "small", x: 70, y: 60 },
-  ],
-  "Inventory": [
+  ] },
+  "Inventory": { items: [
     { kitId: "resource", x: 70, y: 55 },
     { kitId: "chip", x: 640, y: 70, scale: 0.85 },
     { kitId: "chip", x: 870, y: 70, scale: 0.85 },
@@ -97,36 +163,38 @@ const BOARD_TEMPLATES: Record<string, { kitId: KitComponentId; x: number; y: num
     ...([0, 1, 2] as const).flatMap((r) => [0, 1, 2, 3].map((c) => (
       { kitId: "slot" as KitComponentId, x: 640 + c * 180, y: 240 + r * 180, scale: 0.9 }
     ))),
-    { kitId: "panel", x: 1410, y: 240, scale: 0.6 },
+    { kitId: "rarityframe", x: 1450, y: 240, scale: 0.8 },
     { kitId: "small", x: 1450, y: 700 },
-  ],
-  "Level select": [
+  ] },
+  "Level select": { items: [
     { kitId: "header", x: 560, y: 60 },
     { kitId: "ring", x: 60, y: 55, scale: 0.8 },
     { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
     ...[0, 1, 2, 3, 4].map((i) => ({ kitId: "slot" as KitComponentId, x: 460 + i * 210, y: 380, scale: 0.95 })),
-    { kitId: "segbar", x: 640, y: 640 },
+    { kitId: "seasontrack", x: 480, y: 640, scale: 0.85 },
     { kitId: "primary", x: 700, y: 800 },
-  ],
-  "Victory": [
+  ] },
+  "Victory": { items: [
     { kitId: "header", x: 520, y: 110, scale: 1.1 },
+    { kitId: "achievetoast", x: 1230, y: 130, scale: 0.85 },
     { kitId: "orb", x: 600, y: 450, scale: 0.9 },
     { kitId: "bignum", x: 770, y: 440 },
     { kitId: "orb", x: 1230, y: 450, scale: 0.9 },
-    { kitId: "progress", x: 660, y: 700 },
-    { kitId: "primary", x: 700, y: 760, scale: 1.05 },
-  ],
-  "Settings": [
+    { kitId: "starrating", x: 800, y: 640, scale: 0.9 },
+    { kitId: "primary", x: 700, y: 780, scale: 1.05 },
+  ] },
+  "Settings": { items: [
     { kitId: "header", x: 620, y: 30, scale: 0.9 },
-    { kitId: "slider", x: 640, y: 360 },
-    { kitId: "slider", x: 640, y: 500 },
-    { kitId: "segment", x: 640, y: 640, scale: 0.9 },
-    { kitId: "dropdown", x: 1240, y: 360, scale: 0.8 },
-    { kitId: "checkbox", x: 1310, y: 530 },
-    { kitId: "toggle", x: 700, y: 790 },
-    { kitId: "toggle", x: 1000, y: 790 },
-    { kitId: "small", x: 1330, y: 700 },
-  ],
+    { kitId: "searchfield", x: 640, y: 230, scale: 0.9 },
+    { kitId: "setrow", x: 640, y: 380, scale: 0.9 },
+    { kitId: "slider", x: 640, y: 520 },
+    { kitId: "segment", x: 640, y: 660, scale: 0.9 },
+    { kitId: "dropdown", x: 1240, y: 380, scale: 0.8 },
+    { kitId: "checkbox", x: 1310, y: 550 },
+    { kitId: "toggle", x: 700, y: 800 },
+    { kitId: "toggle", x: 1000, y: 800 },
+    { kitId: "small", x: 1330, y: 710 },
+  ] },
 };
 
 const STAGE: Record<"169" | "mobile", [number, number, string]> = {
@@ -239,6 +307,26 @@ export function BoardView({ playing }: { playing: boolean }) {
     const ctx = cv.getContext("2d")!;
     ctx.fillStyle = "#0D0F16";
     ctx.fillRect(0, 0, W, H);
+    if (bd.bgVideo && (bd.bgShow ?? true)) {
+      // a video backdrop exports its first frame — the still the mock rests on
+      await new Promise<void>((res) => {
+        const v = document.createElement("video");
+        v.muted = true; v.playsInline = true; v.preload = "auto";
+        v.onloadeddata = () => {
+          try {
+            const s = Math.max(W / v.videoWidth, H / v.videoHeight);
+            ctx.save();
+            ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
+            if (bd.bgBlur) ctx.filter = `blur(${bd.bgBlur}px)`;
+            ctx.drawImage(v, (W - v.videoWidth * s) / 2, (H - v.videoHeight * s) / 2, v.videoWidth * s, v.videoHeight * s);
+            ctx.restore();
+          } catch { /* frame unavailable — export continues without it */ }
+          res();
+        };
+        v.onerror = () => res();
+        v.src = bd.bgVideo!;
+      });
+    }
     if (bd.bgImage && (bd.bgShow ?? true)) {
       await new Promise<void>((res) => {
         const img = new Image();
@@ -317,6 +405,45 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
 
   const snapV = (v: number) => (boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
+
+  /* drag-to-place (ported from the homepage board): press an asset, drag a
+     ghost across the page, release over any board — the piece lands under
+     the cursor. A plain click still adds to the active board. */
+  const ghostRef = useRef<{ kitId: KitComponentId; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const [ghost, setGhost] = useState<{ svg: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const g = ghostRef.current;
+      if (!g) return;
+      if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 7) return;
+      g.moved = true;
+      setGhost({ svg: g.svg, x: e.clientX, y: e.clientY });
+    };
+    const up = (e: PointerEvent) => {
+      const g = ghostRef.current;
+      if (!g) return;
+      ghostRef.current = null;
+      setGhost(null);
+      suppressClick.current = g.moved;
+      if (!g.moved) return; // a plain click — the button's onClick handles it
+      const boardEl = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-board]");
+      if (!boardEl) return;
+      const st = useGen.getState();
+      const bid = boardEl.getAttribute("data-board")!;
+      const bd = st.boards.find((b2) => b2.id === bid);
+      const cvs = boardEl.querySelector(".bd-canvas");
+      if (!bd || !cvs) return;
+      const r = cvs.getBoundingClientRect();
+      const f = r.width / STAGE[bd.aspect][0];
+      const sv = (v: number) => (st.boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
+      st.setActiveBoard(bid);
+      st.addBoardItems([{ kitId: g.kitId, x: sv(Math.max(0, (e.clientX - r.left) / f - 110)), y: sv(Math.max(0, (e.clientY - r.top) / f - 55)) }]);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  }, []);
   const scrollToBoard = (id: string) => {
     frameRef.current?.querySelector(`[data-board="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -329,6 +456,7 @@ export function BoardView({ playing }: { playing: boolean }) {
         <label className="bd-search"><Search size={13} strokeWidth={2.2} />
           <input placeholder="Search assets…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
         </label>
+        <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
         <div className="bd-scroll">
           {assets.map((g) => {
             const items = g.items.filter((it) => !q || it.name.toLowerCase().includes(q.toLowerCase()));
@@ -338,8 +466,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-cat">{g.name}</div>
                 <div className="bd-grid">
                   {items.map((it) => (
-                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"}`}
-                      onClick={() => addKitToBoard(it.id)}
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.id); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.id, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.id, x: 0, y: 0 } as BoardItem).svg })}
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: it.svg }} />
@@ -369,11 +498,15 @@ export function BoardView({ playing }: { playing: boolean }) {
         </div>
       </aside>
 
-      {preview && (
+      {preview && !ghost && (
         <div className="bd-preview" aria-hidden="true">
           <div className="bd-pvart" dangerouslySetInnerHTML={{ __html: preview.svg }} />
           <div className="bd-pvname">{preview.name}</div>
         </div>
+      )}
+      {ghost && (
+        <div className="bd-ghost" aria-hidden="true" style={{ left: ghost.x, top: ghost.y }}
+          dangerouslySetInnerHTML={{ __html: ghost.svg }} />
       )}
 
       {/* ── artboards ── */}
@@ -386,11 +519,18 @@ export function BoardView({ playing }: { playing: boolean }) {
             <button className={act?.aspect === "mobile" ? "on" : ""} role="radio" aria-checked={act?.aspect === "mobile"}
               onClick={() => setBoardAspect("mobile")}><Smartphone size={13} strokeWidth={2} /> Mobile</button>
           </div>
-          <label className="bd-tpl" title="Add a full starter composition — pieces land pre-sized and pre-placed">
+          {/* the glow invites while the board is bare, then goes quiet */}
+          <label className={`bd-tpl${act && act.items.length === 0 ? " glow" : ""}`}
+            title="Add a full starter screen — pieces land pre-sized and pre-placed, backdrop included">
             <LayoutTemplate size={13} strokeWidth={2} />
-            <select value="" aria-label="Add a starter template"
-              onChange={(e) => { const t = BOARD_TEMPLATES[e.target.value]; if (t) addBoardItems(t); }}>
-              <option value="">Starter template…</option>
+            <select value="" aria-label="Add a starter screen"
+              onChange={(e) => {
+                const t = BOARD_TEMPLATES[e.target.value];
+                if (!t) return;
+                addBoardItems(t.items);
+                if (t.bg) setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
+              }}>
+              <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES).map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
@@ -428,6 +568,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                   {bd.bgImage && (bd.bgShow ?? true) && (
                     <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
                   )}
+                  {bd.bgVideo && (bd.bgShow ?? true) && (
+                    <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
+                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
+                  )}
                   {/* overlay sits between the backdrop and the pieces */}
                   {(bd.ovMode ?? "none") !== "none" && (
                     <div className="bd-ov" style={{ background: ovBackground(bd.ovMode!), opacity: (bd.ovStrength ?? 45) / 100, mixBlendMode: (bd.ovBlend ?? "normal") as React.CSSProperties["mixBlendMode"] }} />
@@ -438,7 +582,8 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
                     {bd.items.map((b) => (
-                      <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id}
+                      <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id} fit={fit}
+                        onExport={() => downloadSvg(svgOf(b).svg, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)}
                         onSelect={() => { setActiveBoard(bd.id); setBoardSel(b.id); }}
                         onDragStart={(e) => { dragRef.current = { id: b.id, dx: e.clientX, dy: e.clientY, ox: b.x, oy: b.y, fit }; setBoardSel(b.id); }}
                         onDragMove={(e) => {
@@ -448,7 +593,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
-                    {bd.items.length === 0 && <div className="bd-empty">Click an asset on the left to place it here.</div>}
+                    {bd.items.length === 0 && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                 </div>
               </section>
@@ -522,12 +667,26 @@ export function BoardView({ playing }: { playing: boolean }) {
         ) : act ? (
           <>
             <div className="bd-h" style={{ marginTop: 16 }}>Background · {act.name}</div>
-            {act.bgImage ? (
+            {/* bundled scenes — one click dresses the board (the last tile
+                is a looping mp4; a PNG export uses its first frame) */}
+            <div className="bd-bggrid" aria-label="Bundled backdrops">
+              {BACKDROPS.map((bk) => (
+                <button key={bk.url} className="bd-bgthumb" title={bk.name}
+                  aria-pressed={act.bgImage === bk.url || act.bgVideo === bk.url}
+                  onClick={() => setBoardBg(bk.video ? { bgVideo: bk.url, bgImage: null, bgShow: true } : { bgImage: bk.url, bgVideo: null, bgShow: true })}>
+                  {bk.video ? <video src={bk.url} muted preload="metadata" playsInline /> : <img src={bk.url} alt="" loading="lazy" />}
+                  <i>{bk.name}</i>
+                </button>
+              ))}
+            </div>
+            {(act.bgImage || act.bgVideo) ? (
               <>
-                <div className="bd-bgprev" style={{ backgroundImage: `url(${act.bgImage})` }} />
+                {act.bgImage
+                  ? <div className="bd-bgprev" style={{ backgroundImage: `url(${act.bgImage})` }} />
+                  : <video className="bd-bgprev" src={act.bgVideo!} autoPlay muted loop playsInline />}
                 <div className="bd-actions">
                   <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Replace</button>
-                  <button className="danger" onClick={() => setBoardBg({ bgImage: null })}><X size={13} strokeWidth={2.2} /> Clear</button>
+                  <button className="danger" onClick={() => setBoardBg({ bgImage: null, bgVideo: null })}><X size={13} strokeWidth={2.2} /> Clear</button>
                 </div>
                 <label className="bd-slider">Opacity · {act.bgOpacity ?? 100}%
                   <input type="range" min={10} max={100} value={act.bgOpacity ?? 100} onChange={(e) => setBoardBg({ bgOpacity: +e.target.value })} />
@@ -535,18 +694,28 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <label className="bd-slider">Blur · {act.bgBlur ?? 0}px
                   <input type="range" min={0} max={14} value={act.bgBlur ?? 0} onChange={(e) => setBoardBg({ bgBlur: +e.target.value })} />
                 </label>
-                <div className="bd-note">The image crops to the board bounds — cover fit, nothing spills.</div>
-              </>
-            ) : (
-              <>
-                <div className="bd-note">A plain dark ground, or your own screenshot / concept art behind the pieces — cropped to this board.</div>
-                <div className="bd-actions">
-                  <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload background</button>
+                <div className="bd-note">
+                  {act.bgVideo
+                    ? act.bgVideo.startsWith("blob:")
+                      ? "Your uploaded loop plays for this session only — bundled scenes and images stick around."
+                      : "The loop plays on the live board; a PNG export uses its first frame."
+                    : "The image crops to the board bounds — cover fit, nothing spills."}
                 </div>
               </>
+            ) : (
+              <div className="bd-actions one">
+                <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own — image or mp4</button>
+              </div>
             )}
-            <input ref={bgInput} type="file" accept="image/*" hidden
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgShow: true })); e.target.value = ""; }} />
+            <input ref={bgInput} type="file" accept="image/*,video/mp4,video/webm" hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
+                  else void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgVideo: null, bgShow: true }));
+                }
+                e.target.value = "";
+              }} />
             <div className="bd-h" style={{ marginTop: 18 }}>Overlay</div>
             <div className="bd-ovmodes" role="radiogroup" aria-label="Overlay mode">
               {(["none", "dark", "light", "vignette"] as const).map((m) => (
@@ -586,17 +755,23 @@ export function BoardView({ playing }: { playing: boolean }) {
 
 /** One piece on the stage — draggable, selectable, optionally rotated.
  *  The wrapper takes the art's MEASURED size × scale, so the selection
- *  box always hugs the piece at any scale. */
-function StagePiece({ b, playing, selected, onSelect, onDragStart, onDragMove, onDragEnd }: {
-  b: BoardItem; playing: boolean; selected: boolean;
+ *  box always hugs the piece at any scale. Selection grows the on-piece
+ *  controls (ported from the homepage board): a floating toolbar above
+ *  the shell and a corner drag handle that resizes in place. */
+function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
+  b: BoardItem; playing: boolean; selected: boolean; fit: number;
   onSelect: () => void;
   onDragStart: (e: React.PointerEvent) => void;
   onDragMove: (e: React.PointerEvent) => void;
   onDragEnd: () => void;
+  onExport: () => void;
 }) {
   const { cfg, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitRow, kitBar } = useGen();
   const sc = b.scale ?? 1;
   const artRef = useRef<HTMLDivElement>(null);
+  // corner-handle resize: screen-px delta → scale, against the piece's
+  // unscaled on-screen width captured at grab time
+  const rsz = useRef<{ x0: number; s0: number; wpx: number } | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   useEffect(() => {
     const host = artRef.current;
@@ -670,6 +845,51 @@ function StagePiece({ b, playing, selected, onSelect, onDragStart, onDragMove, o
           ? { left: dim.shell[0] * sc, top: dim.shell[1] * sc, width: dim.shell[2] * sc, height: dim.shell[3] * sc }
           : { left: 0, top: 0, width: "100%", height: "100%" }} />
       )}
+      {selected && !playing && dim && (() => {
+        const sh = dim.shell ?? [0, 0, dim.w, dim.h];
+        const stop = (e: React.PointerEvent) => e.stopPropagation();
+        return (
+          <>
+            {/* the piece's own toolbar — counter-scaled so chips stay
+                readable inside the fit-scaled stage */}
+            <div className="bd-ptoolwrap" style={{ left: sh[0] * sc, top: sh[1] * sc }}>
+              <div className="bd-ptool" style={{ transform: `scale(${1 / fit})` }} onPointerDown={stop}>
+                {b.kitId && (
+                  <button title="Open this component in the editor"
+                    onClick={() => { useGen.getState().setFocus(b.kitId!); useGen.getState().setPhase("master"); }}>
+                    <SquarePen size={12} strokeWidth={2.2} />
+                  </button>
+                )}
+                <button title="Duplicate (⌘D)" onClick={() => useGen.getState().duplicateBoardItem(b.id)}>
+                  <Copy size={12} strokeWidth={2.2} />
+                </button>
+                <button title="Export this piece as SVG" onClick={onExport}>
+                  <Download size={12} strokeWidth={2.2} />
+                </button>
+                <button className="danger" title="Remove (Delete)" onClick={() => useGen.getState().removeBoardItem(b.id)}>
+                  <X size={12} strokeWidth={2.4} />
+                </button>
+              </div>
+            </div>
+            <span className="bd-rszwrap" style={{ left: (sh[0] + sh[2]) * sc, top: (sh[1] + sh[3]) * sc }}>
+              <span className="bd-rsz2" role="slider" aria-label="Resize piece" aria-valuenow={Math.round(sc * 100)}
+                style={{ transform: `scale(${1 / fit})` }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                  rsz.current = { x0: e.clientX, s0: sc, wpx: Math.max(24, dim.w * fit) };
+                }}
+                onPointerMove={(e) => {
+                  const r = rsz.current;
+                  if (!r) return;
+                  useGen.getState().scaleBoardItem(b.id, Math.max(0.3, Math.min(2, r.s0 + (e.clientX - r.x0) / r.wpx)));
+                }}
+                onPointerUp={() => { rsz.current = null; }}
+                onPointerCancel={() => { rsz.current = null; }} />
+            </span>
+          </>
+        );
+      })()}
     </div>
   );
 }
