@@ -428,11 +428,19 @@ export function Panel() {
       const d = designDiff(pickDesign(before), pickDesign(merged));
       if (d) setKitDesign(focus, mergeKitDesign(kitDesigns[focus], d));
     }
-    // replay only the non-design portion onto the parent, design keys pinned
+    /* state ADJUSTMENTS (the Global sliders) isolate to the piece too — the
+       banner says "edits save into this piece", and the owner caught them
+       leaking to the whole kit. Pin on first touch; read back the freshest
+       lock since the design pin above may have just written it. */
+    if (JSON.stringify(before.states) !== JSON.stringify(merged.states)) {
+      setKitDesign(focus, mergeKitDesign(useGen.getState().kitDesigns[focus], { states: merged.states }));
+    }
+    // replay only the non-design portion onto the parent — design keys AND
+    // state adjustments stay pinned to the piece
     const mClone = JSON.parse(JSON.stringify(cfgMaster)) as GenConfig;
     fn(mClone);
-    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; return JSON.stringify(p); };
-    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); fn(c); Object.assign(c, keep); });
+    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; return JSON.stringify(p); };
+    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; fn(c); Object.assign(c, keep); c.states = keepStates; });
   };
   const setPreset = (id: string) => {
     if (!focus) { setPresetParent(id); return; }

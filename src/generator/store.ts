@@ -1018,24 +1018,27 @@ export const useGen = create<GenStore>((set, get) => ({
   kitKind: null,
   setKitKind: (k) => set({ kitKind: k }),
   inheritDefaults: () => {
+    /* A locked focused piece keeps its state forks — and now its state
+       adjustments — in the LOCK; the master's aren't the ones on screen, so
+       resetting only the master looked like a dead button AND leaked the
+       adjustment spread to the whole kit. Focused: mirror the piece's own
+       effective states and clear its forks (empty map shields the master's);
+       the master and every other piece don't move. */
+    const focus0 = get().focus;
+    const kd = focus0 ? get().kitDesigns[focus0] : undefined;
+    if (focus0 && kd) {
+      const eff = kd.states ?? get().cfg.states;
+      const st4 = { default: { ...eff.default }, hover: { ...eff.default }, pressed: { ...eff.default }, disabled: { ...eff.default } } as GenConfig["states"];
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...kd, stateDesigns: {}, states: st4 } };
+      saveJson("ui-generator-kitdesigns", kitDesigns);
+      set({ kitDesigns });
+      return;
+    }
     const cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
     cfg.states.hover = { ...cfg.states.default };
     cfg.states.pressed = { ...cfg.states.default };
     cfg.states.disabled = { ...cfg.states.default };
-    /* A locked focused piece keeps its state forks in the LOCK — the master's
-       map isn't the one on screen, so clearing only it looked like a dead
-       button. Clear the piece's forks and pin an empty map so the master's
-       forks can't show through either; the master (and every other piece)
-       doesn't move. Unfocused, the master's forks ARE the visible ones. */
-    const focus0 = get().focus;
-    const kd = focus0 ? get().kitDesigns[focus0] : undefined;
-    if (focus0 && kd) {
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...kd, stateDesigns: {} } };
-      saveJson("ui-generator-kitdesigns", kitDesigns);
-      set({ kitDesigns });
-    } else {
-      cfg.stateDesigns = {};
-    }
+    cfg.stateDesigns = {};
     get().replaceConfig(cfg);
   },
   makeStateDefault: () => {
@@ -1047,24 +1050,25 @@ export const useGen = create<GenStore>((set, get) => ({
     const kd0 = focus0 ? get().kitDesigns[focus0] : undefined;
     if (focus0 && kd0) {
       /* What the user SEES on a locked piece is master ⊕ lock — promote THAT
-         fork into the piece's pinned design. The master's design keys don't
-         move; only the shared state adjustments follow below. */
+         fork into the piece's pinned design, and ITS state adjustments into
+         the piece's pinned states. The master doesn't move at all. */
       const work = clone2(applyKitDesign(cfg, kd0));
       const d = work.stateDesigns?.[sel];
       if (d) {
         for (const key of DESIGN_KEYS) (work as any)[key] = (d as any)[key];
         delete work.stateDesigns![sel];
       }
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {} } };
+      work.states.default = { ...work.states[sel] };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
-      set({ kitDesigns });
-    } else {
-      const d = cfg.stateDesigns?.[sel];
-      if (d) {
-        // the state's forked design becomes the root design
-        for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
-        delete cfg.stateDesigns[sel];
-      }
+      set({ kitDesigns, selectedState: "default" });
+      return;
+    }
+    const d = cfg.stateDesigns?.[sel];
+    if (d) {
+      // the state's forked design becomes the root design
+      for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
+      delete cfg.stateDesigns[sel];
     }
     // its whole-component adjustments become the default baseline too
     cfg.states.default = { ...cfg.states[sel] };
@@ -1129,10 +1133,15 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     if (lockedId) {
       // design fields → the piece's lock; everything shared → the master
-      cfg.content = work.content; cfg.icon = work.icon; cfg.states = work.states;
+      cfg.content = work.content; cfg.icon = work.icon;
       cfg.visible = work.visible; cfg.canvas = work.canvas; cfg.presetId = work.presetId;
       cfg.knob = work.knob; cfg.barFx = work.barFx;
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {} };
+      /* state ADJUSTMENTS isolate to the piece too — "edits save into this
+         piece" must hold for the Global sliders. Pin on first touch (or keep
+         an existing pin); an untouched piece keeps following the master. */
+      const kdPrev = get().kitDesigns[lockedId];
+      const statesPin = !!kdPrev?.states || JSON.stringify(work.states) !== JSON.stringify(cfg.states);
+      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
