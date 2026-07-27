@@ -52,13 +52,14 @@ export function initLanding(deps: LandingDeps) {
          toy-box · mint-cream · neon-versus · hero-chisel · forest-sprite ·
          obsidian-ember · bubble-pop
          Authored full designs: prefix with "auth:" (auth:grape-jelly,
-         auth:neon-versus, auth:bubble-pop). Reel entries may append a
+         auth:neon-versus, auth:citrus-pop, auth:bubble-pop, auth:wager).
+         Reel entries may append a
          label after "|", e.g. "hard-candy|PLAY". Chip colors and names
          derive from each preset automatically. Resolution and the
          label/font adoption rules live in ONE place — playDesign, below
          — and are documented in docs/front-door.md. */
       const HERO_SWATCHES = ["grape-jelly", "bubble-pop", "deep-ocean", "hard-candy", "forest-sprite", "citrus-pop", "hero-chisel", "glacier-tech"];
-      const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "royal-vault|EQUIP"];
+      const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:neon-versus", "auth:citrus-pop", "auth:bubble-pop", "auth:wager"];
       /* Every face the reel/chips can ask for must be self-hosted in
          landing.css — scripts/check-landing-fonts.mjs fails the build
          on a missing or orphaned face. warmFont below is the runtime
