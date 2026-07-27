@@ -253,9 +253,11 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .scard-body svg { width: auto; height: auto; max-width: 100%; max-height: 100%; display: block; }
 
 .zoolbar {
+  /* above the Dissect layer (z 30) — the microscope toggle must stay
+     clickable while Dissect is on, or the mode can never be exited */
   position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
   background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-pop);
-  display: flex; align-items: center; padding: 7px; gap: 4px; z-index: 20;
+  display: flex; align-items: center; padding: 7px; gap: 4px; z-index: 40;
 }
 .zoolbar .zdiv { width: 1px; height: 26px; background: var(--line); margin: 0 6px; }
 .zoolbar button {

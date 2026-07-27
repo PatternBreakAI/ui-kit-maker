@@ -57,6 +57,13 @@ export function CanvasView() {
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
   }, [helpMenu]);
+  // Escape backs all the way out of Dissect (the menu's own Escape wins first)
+  useEffect(() => {
+    if (!helpOn) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && !helpMenu) setHelpOn(false); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [helpOn, helpMenu]);
   const partsAt = (cx: number, cy: number): { parts: string[]; top: Element | null } => {
     // data-part only exists on renderer layer groups, so presence IS the
     // containment check — the overlay itself never matches
