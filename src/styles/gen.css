@@ -1435,8 +1435,13 @@ button.kp-fact { cursor: pointer; }
 @media (max-width: 1180px) { .kp-progrid { grid-template-columns: 1fr; } }
 
 /* board v2 — asset drawer · device stage · inspector */
-.board2 { display: grid; grid-template-columns: 238px minmax(0, 1fr) 270px; height: 100%; min-height: 620px; }
+/* grid items default to min-height:auto — the tall boards column used to
+   inflate the grid past 100% and the whole page scrolled as one. Pinning
+   the row and zeroing min-heights makes each column its own scroller. */
+.board2 { display: grid; grid-template-columns: 238px minmax(0, 1fr) 270px; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 620px; overflow: hidden; }
 .bd-assets, .bd-side { display: flex; flex-direction: column; min-width: 0; padding: 16px 14px; background: var(--card); }
+.bd-assets, .bd-side, .bd-main { min-height: 0; }
+.bd-teach { margin: 10px 2px 0; padding: 8px 10px; border-radius: 9px; background: var(--soft); font-size: 11.5px; line-height: 1.5; font-weight: 600; color: var(--ink); }
 .bd-assets { border-right: 1px solid var(--line); }
 .bd-side { border-left: 1px solid var(--line); overflow-y: auto; overflow-x: hidden; }
 .bd-h { font-size: 13px; font-weight: 800; color: var(--ink); }
@@ -1470,7 +1475,12 @@ button.kp-fact { cursor: pointer; }
 /* the selection outline is a measured overlay — StagePiece reads the
    renderer's data-shell stamp so the dashes hug the actual shell, not the
    glow-padded canvas around it */
-.board-selbox { position: absolute; pointer-events: none; outline: 1.5px dashed rgba(120,190,255,.95); outline-offset: 5px; border-radius: 8px; }
+.board-selbox { position: absolute; pointer-events: none; border: 1.5px solid #6fd6ff; border-radius: 4px; box-sizing: content-box; padding: 6px; margin: -7.5px 0 0 -7.5px; }
+.board-selbox::before { content: ""; position: absolute; inset: -3px;
+  background-image: radial-gradient(circle, #6fd6ff 2.4px, transparent 2.6px), radial-gradient(circle, #6fd6ff 2.4px, transparent 2.6px),
+    radial-gradient(circle, #6fd6ff 2.4px, transparent 2.6px), radial-gradient(circle, #6fd6ff 2.4px, transparent 2.6px);
+  background-size: 7px 7px; background-repeat: no-repeat;
+  background-position: left top, right top, left bottom, right bottom; }
 .bd-selname { margin-top: 6px; font-size: 15px; font-weight: 800; color: var(--ink); }
 /* ── v59: overlay layer — tint + grain between backdrop and pieces ── */
 .bd-ov { position: absolute; inset: 0; pointer-events: none; }
@@ -1496,6 +1506,7 @@ button.kp-fact { cursor: pointer; }
 .bd-actions button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-actions button:hover { border-color: var(--ink); }
 .bd-actions .danger { color: #c4453d; }
+.bd-actions.one { grid-template-columns: 1fr; }
 .bd-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 11px; font-size: 11.5px; line-height: 1.5; color: var(--ink2); }
 .bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; border-radius: 10px; border: 1px solid var(--line2); background-size: cover; background-position: center; }
 
@@ -1917,6 +1928,39 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 /* board: template pulldown, hover preview viewport */
 .bd-tpl { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 650; color: var(--kp-ink2, #9aa1b5); }
 .bd-tpl select { background: transparent; border: 1px solid rgba(150,158,180,.3); border-radius: 9px; padding: 6px 10px; font: 650 12px/1 inherit; color: inherit; cursor: pointer; }
+/* an empty active board makes the starter control breathe — the one thing
+   worth noticing on a bare page */
+.bd-tpl.glow select { border-color: rgba(111, 214, 255, .8); color: var(--ink); animation: bd-tpl-glow 2.1s ease-in-out infinite; }
+@keyframes bd-tpl-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 214, 255, .0), 0 0 10px 0 rgba(111, 214, 255, .25); }
+  50% { box-shadow: 0 0 0 3px rgba(111, 214, 255, .22), 0 0 18px 2px rgba(111, 214, 255, .45); }
+}
+@media (prefers-reduced-motion: reduce) { .bd-tpl.glow select { animation: none; box-shadow: 0 0 0 2px rgba(111, 214, 255, .3); } }
+
+/* video backdrops — the loop fills the stage exactly like a cover image */
+video.bd-bg, video.bd-bgprev { width: 100%; height: 100%; object-fit: cover; display: block; }
+video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-radius: 10px; border: 1px solid var(--line2); }
+
+/* bundled backdrop picker — ported from the homepage board's thumb grid */
+.bd-bggrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 10px; }
+.bd-bgthumb { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 0; border: 1.5px solid var(--line2); border-radius: 8px; background: none; cursor: pointer; overflow: hidden; }
+.bd-bgthumb img, .bd-bgthumb video { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; }
+.bd-bgthumb i { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--ink2); padding: 0 3px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; max-width: 100%; }
+.bd-bgthumb:hover { transform: translateY(-1px); border-color: var(--ink3); }
+.bd-bgthumb[aria-pressed="true"] { border-color: #6fd6ff; box-shadow: 0 0 0 1.5px rgba(111, 214, 255, .4); }
+
+/* on-piece controls (homepage-board port): toolbar above the shell + a
+   corner resize handle, both counter-scaled to stay screen-sized */
+.bd-ptoolwrap, .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
+.bd-ptool { position: absolute; bottom: 8px; left: 0; transform-origin: bottom left; display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: rgba(10, 12, 22, .92); border: 1px solid rgba(111, 214, 255, .55); box-shadow: 0 10px 26px rgba(6, 8, 16, .5); }
+.bd-ptool button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: #9fe2ff; cursor: pointer; padding: 0; }
+.bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
+.bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
+.bd-rsz2 { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 1.5px solid #6fd6ff; border-radius: 4px; background: rgba(10, 12, 22, .92); cursor: nwse-resize; touch-action: none; }
+
+/* drag-to-place ghost riding the cursor */
+.bd-ghost { position: fixed; z-index: 90; width: 150px; transform: translate(-50%, -50%); pointer-events: none; opacity: .92; filter: drop-shadow(0 12px 26px rgba(6, 8, 16, .55)); }
+.bd-ghost svg { width: 100%; height: auto; display: block; }
 .bd-preview {
   position: fixed; left: 290px; top: 96px; z-index: 60; width: 460px;
   padding: 25px; border-radius: 18px; pointer-events: none;
