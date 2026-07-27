@@ -1686,7 +1686,12 @@ button.kp-fact { cursor: pointer; }
 .kp-tyspec .kp-art { max-width: 100%; }
 .kp-tyspec .kp-art svg { max-width: 100%; height: auto; }
 .kp-tyanno { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--kp-line); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; color: var(--kp-ink2); }
-.kp-tychars { display: flex; flex-direction: column; gap: 4px; }
+.kp-tychars { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* full-alphabet rows are wider than the column on most screens — scale to
+   fit instead of clipping the tail of the set (same rule the spec column
+   already wears) */
+.kp-tychars .kp-art { max-width: 100%; }
+.kp-tychars .kp-art svg { max-width: 100%; height: auto; }
 .kp-tyrowlab { font-size: 11.5px; font-weight: 700; color: var(--kp-ink3); margin-top: 14px; }
 .kp-tychars > .kp-tyrowlab:first-child { margin-top: 0; }
 .kp-tymap { font-size: 12.5px; color: var(--kp-ink3); margin: 4px 0 0; }
