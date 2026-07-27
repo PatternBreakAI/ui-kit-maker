@@ -1797,7 +1797,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      italic, tracking, outline, shadow and glow all follow the theme. */
   const contentText = (txt: string, x2: number, y2: number, fs2: number,
     o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string } = {}) => {
-    const T4 = cfg.type;
+    /* per-state type forks apply to self-drawn text too — editing the
+       Pressed state's fill must recolor these lines on the Pressed view,
+       exactly like built labels (owner: "change the text color") */
+    const T4 = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
     const gid4 = "ct" + UID++;
     const cased4 = o2.keepCase ? txt
       : T4.case === "upper" ? txt.toUpperCase()
@@ -2951,7 +2954,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* data-part stamps: Dissect must identify the words — the title is the
          piece's label (Typography), the eyebrow and objectives are text
          slots (Component content) */
-      let inner = `<g data-part="slot-text"><text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text></g>` +
+      let inner = `<g data-part="slot-text"><text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="${opts.slots?.eyebrowColor ?? "rgba(255,255,255,0.5)"}" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text></g>` +
         `<g data-part="label">${contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK)}</g>` +
         `<rect x="${x0.toFixed(1)}" y="${(33 + inset + 80 * k).toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
       const objs = [

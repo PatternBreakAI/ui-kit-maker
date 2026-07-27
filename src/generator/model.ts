@@ -859,6 +859,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   questpanel: [
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "SIDE QUEST", maxLen: 24,
       note: "The small caption above the quest name." },
+    { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FFFFFF",
+      note: "The caption's ink — factory is a quiet translucent white; a picked color prints solid." },
     { id: "obj1", name: "Objective 1", kind: "free", def: "Reach the vault gate", maxLen: 40 },
     { id: "obj2", name: "Objective 2", kind: "free", def: "Recover ember shards", maxLen: 40 },
     { id: "obj3", name: "Objective 3", kind: "free", def: "Return to Elder Rowan", maxLen: 40 },
