@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { Analytics } from "@vercel/analytics/react";
 // Self-hosted Inter Variable via Fontsource — weights 400–700 in one variable file.
 import "@fontsource-variable/inter";
 import "./styles/gen.css";
@@ -21,5 +22,6 @@ void startCloud();
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Shell />
+    <Analytics />
   </React.StrictMode>,
 );
