@@ -1695,6 +1695,7 @@ button.kp-fact { cursor: pointer; }
 .kp-tyuse b.avoid { color: #d4756b; }
 .kp-tyuse span { font-size: 13.5px; line-height: 1.55; color: var(--kp-ink2); }
 .kp-tysrc { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--kp-ink2); padding-top: 6px; border-top: 1px solid var(--kp-line); }
+.kp-tynote { margin-top: 10px; font-size: 12px; line-height: 1.55; color: var(--kp-ink3, var(--kp-ink2)); font-style: italic; }
 .kp-tysrc a { color: var(--kp-ink2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 .kp-tysrc a:hover { color: var(--kp-ink); }
 .kp-tysrc i { font-style: normal; color: var(--kp-ink3); }

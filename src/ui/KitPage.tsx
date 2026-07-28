@@ -1466,6 +1466,7 @@ const kitTier = useGen((s) => s.tier);
               <i>·</i>
               <span>Live text</span>
             </div>
+            <div className="kp-tynote">Some treatments show best against one ground — a pale glint fades on light surfaces, a dark emboss sinks into black. Proof the type on both the light and dark stage swatches.</div>
           </aside>
 
           <div className="kp-tyspec">
