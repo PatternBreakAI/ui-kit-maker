@@ -144,7 +144,7 @@ interface PieceOpts {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
+  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
   // an explicit size (the Primary ramp) is fixed; everything else follows the
   // per-component size the user picks with the caption's S/M/L chips
   // the documentation shows medium and large only — a stored Small reads as Medium
@@ -162,7 +162,7 @@ function usePiece(p: PieceOpts) {
       // user content overrides beat the specimen's demo text and glyph;
       // an explicit "no icon" instance stays empty
       label: kitLabels[p.id] ?? p.label, slots: kitSlotVals[p.id], segments: p.segments,
-      icon: resolveKitIcon(kitIcons[p.id], p.icon), value: p.value, baseState: p.baseState,
+      icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
@@ -323,10 +323,10 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
           onClick={(e) => {
             e.stopPropagation();
             if (!vectorOk) { if (tier2 === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
-            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv } = useGen.getState();
+            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             downloadSvg(
-              renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), p.id, size, p.baseState ?? "default", p.value, ks[p.id],
+              renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), p.id, size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
                 { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id] }),
               `kit-${variant}-${size}.svg`
             );
