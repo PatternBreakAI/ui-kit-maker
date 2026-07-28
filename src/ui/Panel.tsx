@@ -505,6 +505,9 @@ export function Panel() {
   }, [browseLib, iconSwappable]);
 
   const bigGrid = sectionFilter === "icons";
+  /* the ? beside Rarity tiers — the system explained on demand, not as a
+     permanent wall of helper text */
+  const [rarityHelp, setRarityHelp] = useState(false);
   const results = useMemo(
     () => (ICONS_ENABLED || iconSwappable ? searchLib(browseLib, iconQuery, bigGrid ? 60 : 24) : []),
     // libTick re-runs the search once an async library lands
@@ -940,10 +943,16 @@ export function Panel() {
         </div>
       </Section>
 
-      {/* ── v57/58: Component content — this piece's text and glyph ── */}
-      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus]))) && focus && (
+      {/* ── v57/58: Component content — this piece's text and glyph.
+          VALUE_DRIVEN is part of the gate: plenty of pieces (rarity frame,
+          toggle, compass, dials…) carry no text or glyph but DO carry a
+          value — without it their slider had no section to live in
+          (owner: "I clicked the component editor and nothing"). ── */}
+      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus] || VALUE_DRIVEN.has(focus)))) && focus && (
         <Section id="kiticon" title={t("secKitIcon")}
-          summary={<span>{kitIcons[focus] === "none" ? "no icon" : (kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"}</span>}>
+          summary={<span>{(iconSwappable || iconTogglable)
+            ? (kitIcons[focus] === "none" ? "no icon" : ((kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"))
+            : (VALUE_DRIVEN.has(focus) ? `value ${Math.round((kitVals[focus] ?? 0.62) * 100)}%` : null)}</span>}>
           {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
           {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked — the look is frozen, but these words and data fields are yours to edit.</div>}
           {(KIT_SLOTS[focus] ?? []).some((sl) => sl.kind === "free") && (
@@ -1164,8 +1173,20 @@ export function Panel() {
         {/* ── the rarity system: five tiers, the maker's own names and
             hues — kit-wide by design (owner: "developers will likely
             have their own logic they want to employ") ── */}
-        <div className="sublabel">Rarity tiers</div>
-        <div className="helper">The loot tag and rarity frame read their stripe, gem, aura and tier word from these five tiers — the piece's value slider picks which one shows. Rename and recolor to match your game's own logic. Kit-wide: every rarity piece follows.</div>
+        <div className="sublabel subhelp">Rarity tiers
+          <button className={`helpdot${rarityHelp ? " on" : ""}`} aria-label="How rarity works"
+            aria-expanded={rarityHelp} onClick={() => setRarityHelp((v) => !v)}>?</button>
+        </div>
+        {rarityHelp && (
+          <div className="helper">
+            <b>How rarity works:</b> the Value slider on a rarity piece (under Component content)
+            picks which tier is displayed — think of it as posing the component for preview and
+            export. These five tiers define the system itself: your ranks, your names, your colors.
+            It&apos;s one shared system across the whole kit, so your game&apos;s rarity language stays
+            consistent everywhere — in your engine, you&apos;d drive the displayed tier from your own
+            item data, using these five looks.
+          </div>
+        )}
         {RARITY_FACTORY.map((f, i) => {
           const ov = cfg.rarity?.[i];
           const setTier = (patch: Partial<{ name: string; c: string }>) => update((c) => {
