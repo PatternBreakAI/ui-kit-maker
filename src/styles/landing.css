@@ -2903,37 +2903,6 @@ html[data-theme="light"] .fd-landing .bd-call span { color: #4a3573; }
 .fd-landing .ppl-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 640px) {
 .fd-landing .ppl-grid { grid-template-columns: repeat(2, 1fr); } }
-    /* ── audience accordion (hover-capable desktops only) ──
-       The row becomes a flex accordion: the card under the pointer takes
-       ~2.6× the width and a deeper photo while its siblings compress and
-       dim — their photos flex to absorb the taller row, so the whole band
-       breathes together. The card transition list must keep the .reveal
-       opacity fade (a transition list on the same element replaces it).
-       Coarse pointers and narrow screens keep the plain grid. */
-    @media (min-width: 1201px) and (hover: hover) and (pointer: fine) {
-.fd-landing .ppl-grid { display: flex; align-items: stretch; --ppl-spring: cubic-bezier(.3, 1.28, .4, 1); }
-.fd-landing .ppl-card { flex: 1 1 0; min-width: 0;
-      transition: flex-grow .55s var(--ppl-spring), border-color .2s, filter .35s,
-        transform .16s var(--ease-out), opacity .9s var(--ease-out); }
-.fd-landing .ppl-card:hover { flex-grow: 2.6; }
-.fd-landing .ppl-grid:hover .ppl-card:not(:hover) { filter: saturate(.55) brightness(.92); }
-.fd-landing .ppl-photo { height: auto; flex: 1 0 168px; transition: flex-basis .55s var(--ppl-spring); }
-.fd-landing .ppl-card:hover .ppl-photo { flex-basis: 316px; }
-.fd-landing .ppl-photo img { transition: transform .6s var(--ease-out), filter .35s; }
-.fd-landing .ppl-card:hover .ppl-photo img { transform: scale(1.06); filter: saturate(1.12) brightness(1.05); }
-.fd-landing .ppl-ic { transition: background-color .25s, color .25s, transform .45s var(--ppl-spring); }
-.fd-landing .ppl-card:hover .ppl-ic { background: var(--ic); color: #fff; transform: scale(1.12) rotate(-8deg); }
-.fd-landing .ppl-head b { transition: letter-spacing .45s var(--ppl-spring); }
-.fd-landing .ppl-card:hover .ppl-head b { letter-spacing: .17em; }
-    }
-    /* Reduced motion: keep the hover color pops, skip the growth. */
-    @media (min-width: 1201px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) {
-.fd-landing .ppl-card:hover { flex-grow: 1; }
-.fd-landing .ppl-card:hover .ppl-photo { flex-basis: 168px; }
-.fd-landing .ppl-card:hover .ppl-photo img { transform: none; }
-.fd-landing .ppl-card, .fd-landing .ppl-photo, .fd-landing .ppl-photo img,
-.fd-landing .ppl-ic, .fd-landing .ppl-head b { transition-duration: .01s; }
-    }
 .fd-landing .af-preset { cursor: pointer; transition: border-color .14s, transform .12s; background: none; font: inherit; color: var(--muted); }
 .fd-landing .af-preset .rt { width: 100%; display: block; }
 .fd-landing .af-preset .rt svg { width: 100%; height: auto; display: block; }
