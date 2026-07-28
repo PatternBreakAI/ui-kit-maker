@@ -1977,6 +1977,12 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-ptool button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: #9fe2ff; cursor: pointer; padding: 0; }
 .bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
 .bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
+/* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
+.bd-pval { -webkit-appearance: none; appearance: none; width: 74px; height: 26px; margin: 0; padding: 0 4px; background: none; cursor: ew-resize; align-self: center; }
+.bd-pval::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
+.bd-pval::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: #9fe2ff; border: 0; }
+.bd-pval::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
+.bd-pval::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #9fe2ff; border: 0; }
 .bd-rsz2 { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 1.5px solid #6fd6ff; border-radius: 4px; background: rgba(10, 12, 22, .92); cursor: nwse-resize; touch-action: none; }
 
 /* drag-to-place ghost riding the cursor */

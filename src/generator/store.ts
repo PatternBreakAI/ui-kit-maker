@@ -258,6 +258,8 @@ interface GenStore {
   setBoardSel: (id: string | null) => void;
   moveBoardItem: (id: string, x: number, y: number) => void;
   scaleBoardItem: (id: string, scale: number) => void;
+  /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
+  setBoardItemVal: (id: string, v: number | null) => void;
   removeBoardItem: (id: string) => void;
   /** Board history — 100 levels, coalesced for continuous gestures. */
   boardPast: string[];
@@ -410,6 +412,9 @@ export interface BoardItem {
   rot?: number;
   /** kit-asset items render the CURRENT design live (no library snapshot) */
   kitId?: KitComponentId;
+  /** THIS instance's value pose (0..1) — wins over the kit-wide staged
+   *  value, so one board can show a common AND a legendary rarity frame */
+  v?: number;
 }
 /** One artboard — a named, fixed-resolution stage with its own pieces and
  *  background. Backgrounds are object URLs, so the image itself is
@@ -682,6 +687,11 @@ export const useGen = create<GenStore>((set, get) => ({
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
+  setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
+    const next = { ...b };
+    if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
+    return next;
+  }),
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
     if (get().boardSel === id) set({ boardSel: null });

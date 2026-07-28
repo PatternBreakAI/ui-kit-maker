@@ -1050,7 +1050,9 @@ const kitTier = useGen((s) => s.tier);
         return { cid, name, svg: renderKit(pieceCfg(cid), cid, effKitSize(st.kitSizes[cid]), gstate, v, st.kitShapes[cid], o) };
       };
       const entries = [
-        ...KIT_COMPONENTS.map((c2) => rk(c2.id, c2.name)),
+        /* the staged Value rides each base entry — the Component-content
+           slider's pose is part of the kit, so it exports too */
+        ...KIT_COMPONENTS.map((c2) => rk(c2.id, c2.name, {}, st.kitVals[c2.id])),
         rk("panel", "Container · Round", { kind: "circle" }),
         rk("panel", "Container · Oval", { kind: "oval" }),
         rk("panel", "Container · Strip", { kind: "strip" }),
@@ -1144,6 +1146,12 @@ const kitTier = useGen((s) => s.tier);
         rk("skillnode", "Skill node · Learned", { overlay: "learned" }),
         rk("skillnode", "Skill node · Locked", { overlay: "locked" }),
         rk("dmgnumber", "Damage · Critical", {}, 0.9),
+        /* the loot tag's FULL ladder ships — a dev skins every tier their
+           items can drop at, not just the poster child */
+        rk("loottag", "Loot tag · Common", {}, 0),
+        rk("loottag", "Loot tag · Uncommon", {}, 0.25),
+        rk("loottag", "Loot tag · Rare", {}, 0.5),
+        rk("loottag", "Loot tag · Epic", {}, 0.75),
         rk("loottag", "Loot tag · Legendary", { label: "Dawnbreaker" }, 1),
         rk("crosshair", "Crosshair · Wide", {}, 0.85),
         rk("crosshair", "Crosshair · Dot", { overlay: "dot" }),
@@ -2045,7 +2053,7 @@ const kitTier = useGen((s) => s.tier);
               }
               if (which === "all" || which === "components") KIT_COMPONENTS.forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
               if (which === "all") {
                 files.push({
