@@ -10,7 +10,7 @@ import { renderBevel, renderKit, padSvg } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
 import type { GenStateName } from "@/generator/model";
 import { KitPage } from "./KitPage";
-import { LiveArt } from "./LiveArt";
+import { LiveArt, shellHit } from "./LiveArt";
 import { BoardView } from "./Board";
 
 /* state names resolve per render so the homepage's language choice wins */
@@ -214,9 +214,21 @@ export function CanvasView() {
             <div
               className={`hero-slot${playing ? " hot" : ""}`}
               {...(playing ? {
-                onPointerEnter: (e: React.PointerEvent) => setLive(e.buttons === 1 ? "pressed" : "hover"),
+                /* the hero's hit zone is the SHELL — the reserved glow pad
+                   around it stays pointer-dead (shellHit) */
+                onPointerEnter: (e: React.PointerEvent) => {
+                  if (shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) setLive(e.buttons === 1 ? "pressed" : "hover");
+                },
+                onPointerMove: (e: React.PointerEvent) => {
+                  const inside = shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY);
+                  setLive((l) => (l === "pressed" ? l : inside ? (l ?? "hover") : null));
+                },
                 onPointerLeave: () => setLive(null),
-                onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); setLive("pressed"); },
+                onPointerDown: (e: React.PointerEvent) => {
+                  if (!shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) return;
+                  e.stopPropagation();
+                  setLive("pressed");
+                },
                 onPointerUp: () => setLive("hover"),
                 onPointerCancel: () => setLive(null),
               } : {})}

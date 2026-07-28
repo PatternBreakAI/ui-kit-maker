@@ -1670,6 +1670,7 @@ export function Panel() {
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
         </FxToggle>
+        <div className="helper">Some treatments read differently against light and dark grounds — a pale glint fades on a light canvas, a dark emboss sinks into a black one. Flip the canvas swatches in the stage toolbar to proof your type both ways.</div>
         {/* data-anchor: Dissect's "icon" deep link lands here — the parked
             standalone Icon section never mounts, so this block is the icon's
             real home (smartHelp.ts routes to it) */}

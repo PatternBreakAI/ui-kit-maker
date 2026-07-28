@@ -43,6 +43,24 @@ export interface LiveKit {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+/* The glow pad is part of the CANVAS, not the component — pointer honesty
+   demands the interactive zone hug the SHELL ("the hit area is way too
+   big", owner). data-shell (viewBox units) maps through the on-screen
+   scale; pieces without a stamp (custom chrome roots) stay whole-box.
+   The slop keeps targets kind to touch without feeling haunted. */
+export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: number, clientY: number, slop = 14): boolean {
+  if (!svgEl) return true;
+  const stamp = svgEl.getAttribute("data-shell")?.split(" ").map(Number);
+  const vb = svgEl.viewBox?.baseVal;
+  const r = svgEl.getBoundingClientRect();
+  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite) || !vb?.width || !r.width) return true;
+  const k = r.width / vb.width;
+  const x0 = r.left + (stamp[0] - vb.x) * k - slop;
+  const y0 = r.top + (stamp[1] - vb.y) * k - slop;
+  return clientX >= x0 && clientX <= x0 + stamp[2] * k + slop * 2 &&
+         clientY >= y0 && clientY <= y0 + stamp[3] * k + slop * 2;
+}
+
 /** One living piece of art. Design mode: a plain render (click = edit when the
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
@@ -377,10 +395,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       tweenVal(settled + dir / 3, 420, "inout");
     }
   };
+  // the hit test the handlers share: the shell, not the glow-padded canvas
+  const hit = (e: { clientX: number; clientY: number }) => shellHit(ref.current?.querySelector("svg"), e.clientX, e.clientY);
   const playHandlers = inert ? {} : {
-    onPointerEnter: (e: React.PointerEvent) => setLive(e.buttons === 1 ? "pressed" : "hover"),
+    onPointerEnter: (e: React.PointerEvent) => { if (hit(e)) setLive(e.buttons === 1 ? "pressed" : "hover"); },
     onPointerLeave: (e: React.PointerEvent) => { if (e.buttons !== 1) { setLive("default"); sliding.current = false; } pressedHere.current = false; },
     onPointerDown: (e: React.PointerEvent) => {
+      if (!hit(e)) return; // the pad isn't pressable
       pressedHere.current = true;
       setLive("pressed");
       if (id === "joystick") {
@@ -402,12 +423,19 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       }
     },
     onPointerMove: (e: React.PointerEvent) => {
+      /* entering through the pad and gliding onto the shell (or off it)
+         never re-fires pointerenter — track hover here, but never fight an
+         active press or drag */
+      if (!sliding.current && !pressedHere.current) {
+        const inside = hit(e);
+        setLive((l) => (inside ? (l === "default" ? "hover" : l) : (l === "hover" ? "default" : l)));
+      }
       if ((id === "slider" || id === "setrow") && sliding.current) {
         const c = trackCoord(e);
         if (c) setVal(c.u);
       }
       // the dialog's capsules arm under the pointer — left CLAIM, right LATER
-      if (id === "dialog" && !sliding.current) {
+      if (id === "dialog" && !sliding.current && hit(e)) {
         const c = trackCoord(e);
         if (c) setVal(c.u);
       }
@@ -416,7 +444,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         if (u !== null) setVal(u);
       }
       // menus track the pointer with no press — every row is rollover-able
-      if ((id === "listmenu" || id === "choicelist") && !sliding.current) {
+      if ((id === "listmenu" || id === "choicelist") && !sliding.current && hit(e)) {
         const u = vtrackCoord(e);
         if (u !== null) setVal(u);
       }
