@@ -316,6 +316,11 @@ interface GenStore {
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
   setKitLabel: (id: KitComponentId, label: string | null) => void;
+  /** Per-component STAGED VALUE (0..1) — the resting pose every "driven
+   *  by the value slider" note promises: bars fill, needles point, tiers
+   *  pick, toggles flip. null restores the piece's demo value. */
+  kitVals: Partial<Record<KitComponentId, number>>;
+  setKitVal: (id: KitComponentId, v: number | null) => void;
   /** Per-component SECONDARY text override (combo plate word, etc.) —
    *  null restores the piece's default. */
   kitSubs: Partial<Record<KitComponentId, string>>;
@@ -712,7 +717,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       // the stage travels with the kit — only portable (data:) backdrops
       bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
@@ -738,6 +743,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
       kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
+      kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
       kitSizes: (p.kitSizes as GenStore["kitSizes"]) ?? {},
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
@@ -756,6 +762,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitdesigns", next.kitDesigns);
       saveJson("ui-generator-kittextfill", next.kitTextFill);
       saveJson("ui-generator-kitlabels", next.kitLabels);
+      saveJson("ui-generator-kitvals", next.kitVals);
       saveJson("ui-generator-kitsubs", next.kitSubs);
       saveJson("ui-generator-kiticons", next.kitIcons);
       saveJson("ui-generator-kitbar", next.kitBar);
@@ -862,6 +869,15 @@ export const useGen = create<GenStore>((set, get) => ({
     if (Object.keys(cur).length) kitSlotVals[id] = cur; else delete kitSlotVals[id];
     saveJson("ui-generator-kitslots", kitSlotVals);
     set({ kitSlotVals });
+  },
+  kitVals: loadJson<Partial<Record<KitComponentId, number>>>("ui-generator-kitvals", {}),
+  setKitVal: (id, v) => {
+    // a staged value is DATA — editable on locked pieces, like the words
+    markTouched();
+    const kitVals = { ...get().kitVals };
+    if (v === null) delete kitVals[id]; else kitVals[id] = Math.max(0, Math.min(1, v));
+    saveJson("ui-generator-kitvals", kitVals);
+    set({ kitVals });
   },
   kitLabels: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitlabels", {}),
   setKitLabel: (id, label) => {

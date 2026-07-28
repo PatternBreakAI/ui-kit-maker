@@ -7,7 +7,7 @@ import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, 
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
-import { renderBevel, renderKit, shapePath, RARITY_FACTORY } from "@/generator/bevel";
+import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN } from "@/generator/bevel";
 import { hydrate, retintText } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
@@ -388,7 +388,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -958,6 +958,22 @@ export function Panel() {
               ))}
             </div>
           )}
+          {/* THE value slider — the control every "driven by the value
+              slider" note has been promising (owner: "i don't see the
+              component's value slider anywhere"). Stages the resting
+              pose; Play mode still animates on top. */}
+          {VALUE_DRIVEN.has(focus) && (<>
+            <Slider label="Value" value={Math.round((kitVals[focus] ?? 0.62) * 100)} min={0} max={100} unit="%"
+              onChange={(v) => setKitVal(focus, v / 100)} />
+            {kitVals[focus] !== undefined ? (
+              <button className="resetstate" title="Back to the piece's demo value"
+                onClick={() => setKitVal(focus, null)}>
+                <RotateCcw size={13} strokeWidth={2} /> Demo value
+              </button>
+            ) : (
+              <div className="helper">The resting pose — bars fill, needles point, rarity tiers pick, toggles flip. The kit page, the Board and exports all hold this frame.</div>
+            )}
+          </>)}
           {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" ? (
             <div key={slot.id}>
               <div className="sublabel">{slot.name}</div>

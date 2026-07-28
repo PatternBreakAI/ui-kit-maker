@@ -1686,6 +1686,23 @@ const cxOf = (w: number) => w / 2;
 /* Genre-standard rarity ramp — shared by the rarity frame and loot tag.
    These are semantic colors (like the pad-button console ring), not theme
    roles: players read rarity by hue before they read any label. */
+/** Every piece whose renderer stages a pose from `value` — bars fill,
+ *  needles point, tiers pick, toggles flip. Derived mechanically from
+ *  the renderKit switch (cases that reference `value`); keep in step
+ *  when a new value-driven piece lands. The Component-content Value
+ *  slider shows exactly for these. */
+export const VALUE_DRIVEN = new Set<KitComponentId>([
+  "segment", "checkbox", "radio", "toggle", "slider", "progress", "segbar", "input", "vsbar", "dialog",
+  "listmenu", "scrollbar", "pagedots", "steps", "loadbar", "setrow", "notifydot", "avatarframe", "currency",
+  "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "manarails", "questpanel", "choicelist",
+  "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
+  "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
+  "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
+  "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
+  "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
+  "timerdigits", "speedo", "speedo2", "tacho", "laptimes",
+]);
+
 /** Factory rarity tiers — exported so the Panel's palette editor shows
  *  the same names and hues it resets to. */
 export const RARITY_FACTORY = [
