@@ -16,6 +16,7 @@ import { PRESET_DEFAULTS } from "@/generator/store";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
+import { currentSession } from "@/generator/cloud";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else. */
@@ -122,7 +123,13 @@ export function Rail() {
         onClick={() => { window.location.hash = "#/faq"; }}>
         <HelpCircle size={22} strokeWidth={1.7} />
       </button>
-      <button title={t("railSettings")} aria-label="Settings"><Settings size={22} strokeWidth={1.7} /></button>
+      {/* the gear = your account: the page when signed in (plan, billing,
+          sign-out), the sign-in overlay when not — same door as the
+          top bar's person icon, just where thumbs expect settings */}
+      <button title={t("railSettings")} aria-label="Account and settings"
+        onClick={() => { if (currentSession()) window.location.hash = "#/account"; else openAuth("signin"); }}>
+        <Settings size={22} strokeWidth={1.7} />
+      </button>
     </nav>
   );
 }
