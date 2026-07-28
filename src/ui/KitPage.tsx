@@ -1833,7 +1833,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      <Sec n="10" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity hues are genre-standard semantics — like the pad button's console rings — while everything else follows the kit's roles.">
+      <Sec n="10" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity tiers ship with genre-standard names and hues, and they're yours to retune — rename and recolor all five under Color → Rarity tiers in the editor; everything else follows the kit's roles.">
         <div className="kp-subhead">Vitals & progression</div>
         <div className="kp-tray kp-axis">
           <Piece id="healthglobe" caption="Health globe" value={0.72} scale={0.52} />

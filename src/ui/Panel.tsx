@@ -7,7 +7,7 @@ import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, 
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
-import { renderBevel, renderKit, shapePath } from "@/generator/bevel";
+import { renderBevel, renderKit, shapePath, RARITY_FACTORY } from "@/generator/bevel";
 import { hydrate, retintText } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
@@ -1138,6 +1138,33 @@ export function Panel() {
           </button>
           <span className="helper" style={{ alignSelf: "center" }}>component-only · never the shell</span>
         </div>
+        {/* ── the rarity system: five tiers, the maker's own names and
+            hues — kit-wide by design (owner: "developers will likely
+            have their own logic they want to employ") ── */}
+        <div className="sublabel">Rarity tiers</div>
+        <div className="helper">The loot tag and rarity frame read their stripe, gem, aura and tier word from these five tiers — the piece's value slider picks which one shows. Rename and recolor to match your game's own logic. Kit-wide: every rarity piece follows.</div>
+        {RARITY_FACTORY.map((f, i) => {
+          const ov = cfg.rarity?.[i];
+          const setTier = (patch: Partial<{ name: string; c: string }>) => update((c) => {
+            const base = c.rarity ?? RARITY_FACTORY.map((t2) => ({ name: t2.name, c: t2.c }));
+            c.rarity = base.map((t2, j) => (j === i ? { ...t2, ...patch } : { ...t2 }));
+          });
+          return (
+            <div className="rarityrow" key={f.name}>
+              <span className="chipwell sm" style={{ background: ov?.c ?? f.c }}>
+                <input type="color" value={ov?.c ?? f.c} aria-label={`Tier ${i + 1} color`} onChange={(e) => setTier({ c: e.target.value })} />
+              </span>
+              <input className="tinput" value={ov?.name ?? f.name} maxLength={14} aria-label={`Tier ${i + 1} name`}
+                placeholder={f.name} onChange={(e) => setTier({ name: e.target.value })} />
+            </div>
+          );
+        })}
+        {cfg.rarity && (
+          <button className="resetstate" title="Back to the genre-standard tiers"
+            onClick={() => update((c) => { c.rarity = null; })}>
+            <RotateCcw size={13} strokeWidth={2} /> Factory tiers
+          </button>
+        )}
       </Section>
 
       {/* ── C · Structure — the object's build ────────────── */}

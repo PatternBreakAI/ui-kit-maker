@@ -1957,6 +1957,10 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-vurl button:disabled { opacity: .45; cursor: default; }
 .bd-vurl-err { color: #e07a52; }
 
+/* rarity-tier palette rows — a color well beside its tier-name field */
+.rarityrow { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.rarityrow .tinput { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; font-weight: 700; }
+
 /* on-piece controls (homepage-board port): toolbar above the shell + a
    corner resize handle, both counter-scaled to stay screen-sized */
 .bd-ptoolwrap, .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
