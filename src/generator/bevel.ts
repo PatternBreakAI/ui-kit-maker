@@ -1686,15 +1686,22 @@ const cxOf = (w: number) => w / 2;
 /* Genre-standard rarity ramp — shared by the rarity frame and loot tag.
    These are semantic colors (like the pad-button console ring), not theme
    roles: players read rarity by hue before they read any label. */
-const RARITY_TIERS = [
+/** Factory rarity tiers — exported so the Panel's palette editor shows
+ *  the same names and hues it resets to. */
+export const RARITY_FACTORY = [
   { name: "COMMON", c: "#9aa1ac" },
   { name: "UNCOMMON", c: "#22c55e" },
   { name: "RARE", c: "#3b82f6" },
   { name: "EPIC", c: "#a855f7" },
   { name: "LEGENDARY", c: "#f59e0b" },
 ] as const;
-const rarityOf = (v: number | undefined, fallback = 2) =>
-  RARITY_TIERS[v === undefined ? fallback : clamp(Math.round(v * (RARITY_TIERS.length - 1)), 0, RARITY_TIERS.length - 1)];
+/* cfg.rarity overrides per tier — names and colors are the maker's own
+   logic; anything blank falls back to the factory tier */
+const rarityOf = (cfg: GenConfig, v: number | undefined, fallback = 2) => {
+  const i = v === undefined ? fallback : clamp(Math.round(v * (RARITY_FACTORY.length - 1)), 0, RARITY_FACTORY.length - 1);
+  const ov = cfg.rarity?.[i];
+  return { name: ov?.name?.trim() || RARITY_FACTORY[i].name, c: ov?.c || RARITY_FACTORY[i].c };
+};
 
 /** Dimensional candy ball — knobs for toggles, switches and sliders. */
 function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string): string {
@@ -3103,13 +3110,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
-      const tier = rarityOf(value, 0);
+      const tier = rarityOf(cfg, value, 0);
       const hotR9 = state === "hover" || state === "pressed";
       const aura = `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${tier.c}" stroke-width="${((hotR9 ? 5.5 : 4) * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.95}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotR9 ? 10 : 6) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/>`;
       const inset = bw + 5;
       const well = `<path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/>`;
       const gem = STOCK_ICONS.gem ? iconGroup(STOCK_ICONS.gem, 39 + s / 2 - 27 * k, 30 + s / 2 - 33 * k, 54 * k, state === "disabled" ? "#A7AAB4" : lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
-      const tag = `<text x="${(39 + s / 2).toFixed(1)}" y="${(30 + s - inset - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing="0.14em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${tier.name}</text>`;
+      const tag = `<text x="${(39 + s / 2).toFixed(1)}" y="${(30 + s - inset - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing="0.14em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc(tier.name)}</text>`;
       return injectUnder(inject(shell.replace("<svg ", '<svg data-rarityframe="1" '), well + gem + tag), aura);
     }
     case "equipslot": {
@@ -3255,7 +3262,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* RPG · loot drop tag — ground-loot label: rarity stripe + gem, item
          name, tier word. value picks the tier. */
       const w = 400 * k, h = 92 * k;
-      const tier = rarityOf(value, 2);
+      const tier = rarityOf(cfg, value, 2);
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 100 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 6 * k;
       const cy = 30 + h / 2;
@@ -3266,7 +3273,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const icL = opts.icon ?? STOCK_ICONS.gem;
       const gem = icL ? iconGroup(icL, 39 + inset + 30 * k, cy - 15 * k, 30 * k, state === "disabled" ? "#A7AAB4" : cfg.icon.color ?? lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
       const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
-      const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${tier.name}</text>`;
+      const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${esc(tier.name)}</text>`;
       return inject(shell.replace("<svg ", '<svg data-loottag="1" '), stripe + gem + name + tag);
     }
     case "crosshair": {

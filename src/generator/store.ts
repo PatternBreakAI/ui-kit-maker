@@ -918,6 +918,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
     const next = clone(u.cfg) as GenConfig;
     next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
+    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
     get().replaceConfig(next);
     get().setKitName(u.name);
     set({ activeCloudPreset: null });
@@ -954,6 +955,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
     const next = clone(p.cfg) as GenConfig;
     next.canvas = get().cfg.canvas; // shared presets restyle the component, never the stage
+    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
     get().replaceConfig(next);
     get().setKitName(p.name);
     set({ activeCloudPreset: { id: p.id, name: p.name } });
@@ -1198,7 +1200,7 @@ export const useGen = create<GenStore>((set, get) => ({
       // design fields → the piece's lock; everything shared → the master
       cfg.content = work.content;
       cfg.visible = work.visible; cfg.canvas = work.canvas; cfg.presetId = work.presetId;
-      cfg.knob = work.knob; cfg.barFx = work.barFx;
+      cfg.knob = work.knob; cfg.barFx = work.barFx; cfg.rarity = work.rarity;
       /* state ADJUSTMENTS isolate to the piece too — "edits save into this
          piece" must hold for the Global sliders. Pin on first touch (or keep
          an existing pin); an untouched piece keeps following the master. */
@@ -1256,6 +1258,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (PRESET_DEFAULTS[id]) {
       const next = hydrate(structuredClone(PRESET_DEFAULTS[id]));
       next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
+      next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
       get().replaceConfig(next);
       return;
     }

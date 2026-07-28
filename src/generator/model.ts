@@ -537,6 +537,11 @@ export interface GenConfig extends StateDesign {
   /** Dragger ball on sliders, toggles and joysticks — null = derived from
    *  the Bevel role like everything else. */
   knob?: { color: string | null };
+  /** The kit's rarity system — five tiers the loot tag and rarity frame
+   *  read their stripe, aura, gem and tier word from. Editable names AND
+   *  colors (developers bring their own logic); null/absent = the
+   *  genre-standard factory tiers. Kit-wide by design, like canvas. */
+  rarity?: { name: string; c: string }[] | null;
 }
 
 /** Effective kit size for a component — Small retired (reads as Medium),
