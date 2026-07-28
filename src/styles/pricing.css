@@ -663,6 +663,26 @@
 .cg-art--stage > * { position: relative; }
 
 /* ── #/admin — the owner's plan desk (page shell comes from frontdoor.css) ── */
+/* the pulse: four headline counts, then a 14-day signup strip. The strip
+   is plain <i> bars driven by a --h custom property, so there is no chart
+   library in the bundle for four numbers and fourteen bars. */
+.fd-pulse { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 12px; }
+.fd-pulse__tile {
+  display: flex; flex-direction: column; gap: 2px; padding: 13px 14px;
+  border: 1px solid var(--line); border-radius: 13px; background: rgba(127, 127, 160, .05);
+}
+[data-theme="dark"] .fd-pulse__tile { background: rgba(24, 17, 42, .5); border-color: rgba(180, 140, 250, .18); }
+.fd-pulse__tile b { font-size: 27px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+.fd-pulse__label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
+.fd-pulse__sub { font-size: 11px; color: var(--ink3); }
+.fd-pulse__strip { display: flex; align-items: flex-end; gap: 4px; height: 46px; margin: 2px 0 10px; }
+.fd-pulse__strip i {
+  flex: 1; min-width: 0; height: max(3px, var(--h, 0%)); border-radius: 3px;
+  background: linear-gradient(180deg, #c084fc, #a855f7);
+}
+.fd-pulse__strip i.is-zero { background: var(--line); }
+@media (max-width: 720px) { .fd-pulse { grid-template-columns: repeat(2, 1fr); } }
+
 .fd-adminsearch { display: flex; gap: 10px; margin: 14px 0 4px; }
 .fd-adminsearch input {
   flex: 1; padding: 10px 13px; border-radius: 10px;
