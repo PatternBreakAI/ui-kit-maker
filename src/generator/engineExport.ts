@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize } from "./model";
-import { renderKit } from "./bevel";
+import { renderKit, rarityTiers } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
@@ -159,6 +159,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
   await addPng("iconbtn/base.png", shell("iconbtn"), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell. Icon is a separate tintable glyph." });
 
+  /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
+     The tier ladder (this kit's names and colors, custom edits included)
+     rides kit-manifest.json > rarity — the engine picks the tier from its
+     own item data and renders the tier word as live text. ── */
+  const slugR = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tier";
+  const tiersR = rarityTiers(st.cfg);
+  for (let i = 0; i < tiersR.length; i++) {
+    await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, shell("rarityframe", { overlay: "frame" }, undefined, i / (tiersR.length - 1)),
+      { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word is live engine text (see manifest > rarity).` });
+  }
+  {
+    const ltSvg = shell("loottag", { overlay: "frame" });
+    await addPng("loottag/base.9.png", ltSvg,
+      { component: "loottag", part: "base", nineSlice: sliceOf(ltSvg, "loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. Stripe = a rounded rect tinted to the tier color; item name and tier word are live engine text (colors in manifest > rarity)." });
+  }
+
   /* ── dropdown: closed shell, menu plate, and the two row overlays.
      A row's DEFAULT face needs no asset (it's live text on the plate);
      what the engine needs are the two emphasis layers — the hover bar
@@ -229,6 +245,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
         "base.9.png = full material (gloss baked); base-flat.9.png = tintable flat variant for independent effects.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
+        "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
       ],
       typography: {
         font: st.cfg.type.font,
@@ -237,6 +254,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         note: "Render all labels as live engine text in this face.",
       },
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
+      rarity: {
+        note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+        tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
+      },
       assets: manifest,
     }, null, 2),
   });

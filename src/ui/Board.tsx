@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Smartphone, SquarePen, Trash2, X } from "lucide-react";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import type { BoardDef, BoardItem } from "@/generator/store";
-import { renderBevel, renderKit, glowPadOf } from "@/generator/bevel";
+import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitTextFill, resolveKitIcon } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg } from "@/generator/exportUtils";
@@ -317,7 +317,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const svgOf = (b: BoardItem): { svg: string; cfg: GenConfig } => {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
-      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
+      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
     }
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
@@ -876,7 +876,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
       <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left" }}>
         {b.kitId ? (
           <LiveArt cfg={applyKitTextFill(cfg, kitTextFill[b.kitId])} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], value: kitVals[b.kitId],
+            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined }} />
@@ -908,6 +908,17 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                 <button title="Duplicate (⌘D)" onClick={() => useGen.getState().duplicateBoardItem(b.id)}>
                   <Copy size={12} strokeWidth={2.2} />
                 </button>
+                {b.kitId && VALUE_DRIVEN.has(b.kitId) && (
+                  /* THIS instance's pose — rarity tier, fill level, needle
+                     angle — without touching the kit-wide staged value, so a
+                     board can show every tier at once. Double-click clears. */
+                  <input type="range" min={0} max={100} className="bd-pval"
+                    title="Value — this piece only (rarity tier, fill, pose). Double-click to follow the kit again."
+                    aria-label="Instance value"
+                    value={Math.round((b.v ?? kitVals[b.kitId] ?? 0.62) * 100)}
+                    onChange={(e) => useGen.getState().setBoardItemVal(b.id, +e.target.value / 100)}
+                    onDoubleClick={() => useGen.getState().setBoardItemVal(b.id, null)} />
+                )}
                 <button title="Export this piece as SVG" onClick={onExport}>
                   <Download size={12} strokeWidth={2.2} />
                 </button>
