@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -29,6 +29,14 @@ type Row = {
   id: string; email: string | null; plan: string; status: string | null;
   renewsAt: string | null; hasStripe: boolean; hasSubscription: boolean;
   isAdmin: boolean; createdAt: string | null;
+};
+
+/* the pulse. Counts can come back null if a table isn't migrated on this
+   deployment — the tile shows a dash rather than a lying zero. */
+type Stats = {
+  signups: number | null; signups7: number | null; paying: number | null;
+  kits: number | null; kits7: number | null; exports: number | null; exports7: number | null;
+  daily: { day: string; n: number }[];
 };
 
 const PLANS = ["pro", "student", "free"] as const;
@@ -137,6 +145,16 @@ export function AdminPage() {
   const [adoptBusy, setAdoptBusy] = useState(false);
   const [adoptNote, setAdoptNote] = useState<string | null>(null);
 
+  // the pulse — four headline numbers and a 14-day signup strip
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [statsErr, setStatsErr] = useState<string | null>(null);
+  const loadStats = async () => {
+    setStatsErr(null);
+    const { ok, data } = await callAdmin({ action: "stats" });
+    if (!ok) { setStatsErr(String(data.error ?? "Couldn't load the pulse.")); return; }
+    setStats((data.stats as Stats) ?? null);
+  };
+
   // the census — every account, sorted/filtered server-side
   const [census, setCensus] = useState<{ users: (Row & { kits: number })[]; total: number; page: number } | null>(null);
   const [cSort, setCSort] = useState<"joined" | "email" | "plan" | "status">("joined");
@@ -186,8 +204,8 @@ export function AdminPage() {
     return () => { on = false; };
   }, [cloud.state]);
 
-  // the census loads itself once the desk opens
-  useEffect(() => { if (allowed) void loadCensus(0); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the census and the pulse load themselves once the desk opens
+  useEffect(() => { if (allowed) { void loadCensus(0); void loadStats(); } }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // qOverride: the census hands an email straight in — state hasn't
   // flushed yet when a row click fires the search
@@ -342,6 +360,51 @@ export function AdminPage() {
 
       <main className="fd-page__wrap">
         <h1 className="fd-page__h1"><ShieldCheck size={26} strokeWidth={2} /> Admin — plans</h1>
+
+        {/* the pulse — what happened after people arrived. Traffic itself
+            (visitors, referrers) lives in Vercel Web Analytics; this is
+            the half that needs an account to be counted. */}
+        <section className="fd-card">
+          <h2 className="fd-card__title"><Activity size={17} strokeWidth={2.1} /> The pulse</h2>
+          {statsErr && <p className="fd-note">{statsErr}</p>}
+          {!stats && !statsErr && <p className="fd-fine"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Counting…</p>}
+          {stats && (
+            <>
+              <div className="fd-pulse">
+                {([
+                  ["Signups", stats.signups, stats.signups7, "in the last 7 days"],
+                  ["Paying", stats.paying, null, "pro + student"],
+                  ["Kits saved", stats.kits, stats.kits7, "in the last 7 days"],
+                  ["Exports", stats.exports, stats.exports7, "in the last 7 days"],
+                ] as [string, number | null, number | null, string][]).map(([label, total, recent, sub]) => (
+                  <div className="fd-pulse__tile" key={label}>
+                    <b>{total === null ? "—" : total.toLocaleString()}</b>
+                    <span className="fd-pulse__label">{label}</span>
+                    <span className="fd-pulse__sub">
+                      {recent === null ? sub : `+${recent.toLocaleString()} ${sub}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stats.daily.length > 0 && (
+                <div className="fd-pulse__strip" aria-label="Signups per day, last 14 days">
+                  {stats.daily.map((d) => {
+                    const peak = Math.max(1, ...stats.daily.map((x) => x.n));
+                    return (
+                      <i key={d.day} title={`${d.day}: ${d.n} signup${d.n === 1 ? "" : "s"}`}
+                        style={{ ["--h" as string]: `${Math.round((d.n / peak) * 100)}%` }}
+                        className={d.n ? "" : "is-zero"} />
+                    );
+                  })}
+                </div>
+              )}
+              <p className="fd-fine">
+                Signups per day, last 14 days. Visitors, referrers and where they came from
+                live in Vercel Web Analytics — this desk only counts people with accounts.
+              </p>
+            </>
+          )}
+        </section>
 
         <section className="fd-card">
           <p className="fd-fine">

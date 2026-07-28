@@ -10,6 +10,7 @@
 
    The actions, nothing else:
      { action: "search",  q }                          → matching profiles
+     { action: "stats" }                               → the pulse: headline counts
      { action: "roster",  sort?, dir?, plan?, page? }  → the census: every account, pageable
      { action: "setPlan", userId, plan: pro|student|free }
      { action: "adopt",   fromEmail, toEmail, dryRun? }
@@ -129,6 +130,62 @@ export async function POST(req: Request): Promise<Response> {
     }
     const rows = (await res.json()) as ProfileRow[];
     return json({ users: rows.map(pub) });
+  }
+
+  /* ── stats ───────────────────────────────────────────────────────────
+     The pulse: the four numbers worth a glance, each with a 7-day figure
+     beside the lifetime one. Counts come from PostgREST's exact count
+     header (limit=1, prefer count=exact) — the rows themselves are never
+     shipped, so this stays cheap no matter how big the tables get.
+
+     Deliberately NOT traffic: visitors, referrers and bounce live in
+     Vercel Web Analytics, which sees people who never sign in. This desk
+     answers the other half — of the people who arrived, how many stayed,
+     built something, and shipped it. */
+  if (body.action === "stats") {
+    const since = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
+    const d7 = since(7), d14 = since(14);
+
+    /* one count, no rows: PostgREST reports the total in content-range */
+    const countOf = async (path: string): Promise<number | null> => {
+      const res = await fetch(`${supaUrl}/rest/v1/${path}${path.includes("?") ? "&" : "?"}select=id&limit=1`, {
+        headers: { ...svc, prefer: "count=exact" },
+      });
+      if (!res.ok) return null;
+      return Number((res.headers.get("content-range") ?? "*/0").split("/")[1] ?? 0) || 0;
+    };
+
+    const [signups, signups7, paying, kits, kits7, exports, exports7] = await Promise.all([
+      countOf("profiles"),
+      countOf(`profiles?created_at=gte.${d7}`),
+      countOf("profiles?plan_id=in.(pro,student)"),
+      countOf("projects"),
+      countOf(`projects?created_at=gte.${d7}`),
+      countOf("export_events"),
+      countOf(`export_events?created_at=gte.${d7}`),
+    ]);
+
+    /* 14 daily signup buckets — the only place rows are read, and only
+       the timestamp column, capped. Missing days come back as zeros so
+       the client can draw a fixed-width strip without gaps. */
+    const daily: { day: string; n: number }[] = [];
+    const sr = await fetch(
+      `${supaUrl}/rest/v1/profiles?created_at=gte.${d14}&select=created_at&order=created_at.asc&limit=5000`,
+      { headers: svc },
+    );
+    if (sr.ok) {
+      const tally = new Map<string, number>();
+      for (const r of (await sr.json()) as { created_at: string }[]) {
+        const day = String(r.created_at).slice(0, 10);
+        tally.set(day, (tally.get(day) ?? 0) + 1);
+      }
+      for (let i = 13; i >= 0; i--) {
+        const day = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+        daily.push({ day, n: tally.get(day) ?? 0 });
+      }
+    }
+
+    return json({ stats: { signups, signups7, paying, kits, kits7, exports, exports7, daily } });
   }
 
   /* ── roster ──────────────────────────────────────────────────────── */
