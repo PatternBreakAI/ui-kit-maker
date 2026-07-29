@@ -1052,11 +1052,23 @@ export function initLanding(deps: LandingDeps) {
         toastTimer = setTimeout(() => { toastEl.classList.remove("show"); toastEl.textContent = ""; }, 2800);
       };
       /* "Design preview" copy is written for the static mirror, where
-         CTAs can't open the real editor; on the live SPA every CTA
-         actually navigates (wired below), so this never binds there. */
+         CTAs can't open the real editor.
+
+         On the live SPA this event must actually route. The wiring at the
+         bottom of init only binds elements that carry [data-cta] (plus the
+         nav and hero buttons) — but the funnel's own two exits don't: the
+         candy button inside the ship-end overlay (#seOpen, a div) and the
+         push bar once the kit is exported both DISPATCH this event instead.
+         With no listener on the live host they clicked into nothing, which
+         is exactly how a visitor who finished the demo hit a dead end. */
       if (/(^|\.)github\.io$/i.test(location.hostname)) {
         FD_ON(document, "ui-generator:cta", () =>
           notify("Design preview — on the live site this opens the real editor. The studio and kit are fully interactive."));
+      } else {
+        FD_ON(document, "ui-generator:cta", (ev) => {
+          if (!ev || !ev.detail || ev.detail.hook !== "open-generator") return;
+          deps.navigate("#/app");
+        });
       }
       /* the DOM node lives on document.body, outside the landing root —
          it needs the same teardown the FD_ON listeners get */
