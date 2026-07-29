@@ -2023,6 +2023,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     return f.length ? ` style="filter: ${f.join(" ")}"` : "";
   };
 
+  /* A standalone glyph in its own WELL (loot tag gem, order-ticket dish,
+     reward-card face) honoring the WHOLE Icons panel — size, weight,
+     opacity, rotation, fx dials and the color/type treatment — exactly
+     what that panel promises ("every glyph in the kit follows this one
+     treatment"). Center-anchored so rotation pivots in place. */
+  const wellGlyph = (defI: IconDef, cxI: number, cyI: number, baseS: number, tone: string, swI = 2.2): string => {
+    const sI = baseS * clamp((cfg.icon.size ?? 100) / 100, 0.4, 2.2);
+    const op = (cfg.icon.opacity ?? 100) < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : "";
+    const rot = cfg.icon.rotation ? ` transform="rotate(${cfg.icon.rotation} ${cxI.toFixed(1)} ${cyI.toFixed(1)})"` : "";
+    return `<g${op}${rot}${emblemFx(Math.max(6, sI * 0.28), glow)}>${themedIcon(defI, cxI - sI / 2, cyI - sI / 2, sI, tone, swI)}</g>`;
+  };
+
   /* ── dock system ────────────────────────────────────────────────
      Renders the emblem SOCKET as a full mini shell (the complete candy
      stack, silhouette-aware) and embeds it over the host bar, centered on
@@ -3338,10 +3350,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy = 30 + h / 2;
       const hotL9 = state === "hover" || state === "pressed";
       const stripe = `<rect x="${(39 + inset + 12 * k).toFixed(1)}" y="${(30 + inset + 12 * k).toFixed(1)}" width="${(6 * k).toFixed(1)}" height="${(h - inset * 2 - 24 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${tier.c}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotL9 ? 7 : 4) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/>`;
-      // the gem follows the tier hue by default; a custom icon color (and a
-      // swapped glyph) from the Icon block wins — editable like built icons
-      const icL = opts.icon ?? STOCK_ICONS.gem;
-      const gem = icL ? iconGroup(icL, 39 + inset + 30 * k, cy - 15 * k, 30 * k, state === "disabled" ? "#A7AAB4" : cfg.icon.color ?? lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
+      // the gem follows the tier hue by default; the WHOLE Icons panel
+      // (size, weight, opacity, rotation, fx, color) drives it — exactly
+      // what that panel's helper promises. null = removed.
+      const icL = opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
+      const gem = icL ? wellGlyph(icL, 39 + inset + 45 * k, cy, 30 * k, lighten(tier.c, 0.15)) : "";
       const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
       const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${esc(tier.name)}</text>`;
       // overlay "frame": engine-export cut — the bare plate; stripe, item
@@ -4120,8 +4133,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const hole = `<circle cx="${(sx + sw / 2).toFixed(1)}" cy="${(sy + inset + 11 * k).toFixed(1)}" r="${(7 * k).toFixed(1)}" fill="${wellFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>`;
       const hx = sx + inset + 14 * k;
       const hy = sy + inset + 52 * k;
-      const icT = opts.icon ?? STOCK_ICONS.heart;
-      const glyph = icT ? iconGroup(icT, hx, hy - 14 * k, 28 * k, dim ? "#A7AAB4" : cfg.icon.color ?? glow, { strokeWidth: 2.2 * iconWK }) : "";
+      // null = REMOVED (the Icons checkbox) — only undefined falls back to stock
+      const icT = opts.icon !== undefined ? opts.icon : STOCK_ICONS.heart;
+      const glyph = icT ? wellGlyph(icT, hx + 14 * k, hy - 1 * k, 28 * k, glow) : "";
       const dish = contentText((opts.label ?? "PANCAKE STACK").slice(0, 16), hx + (icT ? 38 * k : 0), hy, 22 * k * typeK, {});
       // the order number rides the hanger-hole row so it never crowds the dish
       const num = infoText((opts.slots?.num ?? "#07").slice(0, 5), sx + sw - inset - 12 * k, sy + inset + 15 * k, 16 * k, "end", 800);
@@ -4257,10 +4271,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const inset = bw + 6 * k;
       const wcx = sx + sw / 2;
       const well = `<circle cx="${wcx.toFixed(1)}" cy="${(sy + sh * 0.38).toFixed(1)}" r="${(sw * 0.3).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
-      const icR = opts.icon ?? STOCK_ICONS.gem;
+      const icR = opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
       const face = mystery
         ? `<text x="${wcx.toFixed(1)}" y="${(sy + sh * 0.38).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(46 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.5)" text-anchor="middle" dominant-baseline="central">?</text>`
-        : (icR ? iconGroup(icR, wcx - sw * 0.19, sy + sh * 0.38 - sw * 0.19, sw * 0.38, dimR ? "#A7AAB4" : cfg.icon.color ?? lighten(tier.c, 0.2), { strokeWidth: 2.2 * iconWK }) : "");
+        : (icR ? wellGlyph(icR, wcx, sy + sh * 0.38, sw * 0.38, lighten(tier.c, 0.2)) : "");
       const nameR = contentText(mystery ? "???" : (opts.label ?? "SUN SHARD").slice(0, 14), wcx, sy + sh - inset - 52 * k, 20 * k * typeK, { anchor: "middle" });
       const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
         `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${dimR ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
