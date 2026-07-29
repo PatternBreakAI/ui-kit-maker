@@ -3059,8 +3059,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const plate = `<defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
         <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
         ${contentText((opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24), px0 + plateW / 2, py0 + plateH / 2 + 1, 19 * k * typeK, { anchor: "middle" })}`;
-      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true });
-      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8 });
+      // the body is READING text — it speaks the list face (owner: "list
+      // font dropdown isn't working here"); the speaker plate is a title
+      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true, list: true });
+      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8, list: true });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"
@@ -4340,7 +4342,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       let parts = infoText((opts.slots?.sender ?? "NOVA_KNIGHT").slice(0, 20), 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, "start", 800) +
         infoText((opts.slots?.time ?? "14:02").slice(0, 8), 39 + w - inset - 12 * k, 30 + inset + 16 * k, 13 * k, "end", 650);
       lines.forEach((ln, i) => {
-        if (ln) parts += contentText(ln, 39 + inset + 12 * k, 30 + inset + 30 * k + (i + 0.5) * lineH, fsM, { keepCase: true });
+        // message body = reading text → the list face, like dialogue lines
+        if (ln) parts += contentText(ln, 39 + inset + 12 * k, 30 + inset + 30 * k + (i + 0.5) * lineH, fsM, { keepCase: true, list: true });
       });
       return inject(shell.replace("<svg ", '<svg data-chatbubble="1" '), parts);
     }

@@ -1554,7 +1554,7 @@ export function Panel() {
           </select>
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
-        <div className="helper">Rows and objective lines — quest lists, menus, choice lists — speak this face; titles keep the display font. A loud display face is a headline voice, not a reading voice.</div>
+        <div className="helper">Reading text — quest lists, menus, choice lists, dialogue lines, chat messages — speaks this face; titles and plates keep the display font. A loud display face is a headline voice, not a reading voice.</div>
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
         {focus ? (
           <>
