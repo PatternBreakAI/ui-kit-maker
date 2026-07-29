@@ -62,26 +62,41 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
   });
   /* Hug the real glyphs: engines measure display faces differently and the
      renderer's char estimate leaves right-side slack — measured cropping
-     centers title art truly on any stage, in any browser. */
+     centers title art truly on any stage, in any browser. Fonts can settle
+     AFTER the first measure (Safari loads even same-origin faces lazily),
+     so the crop re-runs from the pristine box whenever a font lands —
+     a stale crop reads as the specimen being masked mid-phrase. */
   useEffect(() => {
     if (!hug) return;
-    const el = ref.current?.querySelector("svg") as SVGGraphicsElement | null;
+    const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
     if (!el) return;
-    try {
-      // measure the GLYPHS, not the paint: a text node's bbox ignores its
-      // filter shadows, so the crop centers the face — offset shadows and
-      // extrusions no longer drag the title off the stage axis
-      const t = el.querySelector("text");
-      const box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox();
-      const vb = (el as unknown as SVGSVGElement).viewBox.baseVal;
-      const padX = 24;
-      const x0 = Math.max(vb.x, box.x - padX);
-      const x1 = Math.min(vb.x + vb.width, box.x + box.width + padX);
-      if (x1 - x0 < 40 || x1 - x0 >= vb.width - 1) return;
-      el.setAttribute("viewBox", `${x0.toFixed(1)} ${vb.y} ${(x1 - x0).toFixed(1)} ${vb.height}`);
-      el.setAttribute("width", (x1 - x0).toFixed(1));
-      setW((x1 - x0) * scale);
-    } catch { /* not laid out yet */ }
+    const measure = () => {
+      try {
+        // re-measures must start from the renderer's box, not a prior crop
+        if (el.dataset.vb0 === undefined) el.dataset.vb0 = el.getAttribute("viewBox") ?? "";
+        else if (el.dataset.vb0) el.setAttribute("viewBox", el.dataset.vb0);
+        // measure the RENDERED glyphs, not the paint and not the glint
+        // clipPath copy in defs: a text bbox ignores filter shadows, so the
+        // crop centers the face — and when the true face runs wider than
+        // the renderer's estimate the window GROWS to the glyphs instead of
+        // cropping into them
+        const t = [...el.querySelectorAll("text")].find((n) => !n.closest("defs")) ?? null;
+        const box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox();
+        const vb = el.viewBox.baseVal;
+        const padX = 24;
+        const x0 = t ? box.x - padX : Math.max(vb.x, box.x - padX);
+        const x1 = t ? box.x + box.width + padX : Math.min(vb.x + vb.width, box.x + box.width + padX);
+        if (x1 - x0 < 40 || (!t && x1 - x0 >= vb.width - 1)) return;
+        el.setAttribute("viewBox", `${x0.toFixed(1)} ${vb.y} ${(x1 - x0).toFixed(1)} ${vb.height}`);
+        el.setAttribute("width", (x1 - x0).toFixed(1));
+        setW((x1 - x0) * scale);
+      } catch { /* not laid out yet */ }
+    };
+    measure();
+    const fonts = document.fonts;
+    const onDone = () => measure();
+    fonts?.addEventListener?.("loadingdone", onDone);
+    return () => fonts?.removeEventListener?.("loadingdone", onDone);
   }, [svg, scale, hug]); // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={ref} className={`kp-art${className ? " " + className : ""}`} style={{ width: w }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
