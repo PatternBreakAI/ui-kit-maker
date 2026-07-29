@@ -60,27 +60,32 @@ export const LANDING_HTML = `</head>
           <div class="hero2-actions reveal-in e4">
             <a class="cta primary" href="#generator" data-cta="open-generator">Open the generator →</a>
             <button class="cta" type="button" data-cta="sign-in">Sign in</button>
-          </div>
-          <!-- ── LAUNCH BADGE · TEMPORARY ────────────────────────────────
-               Product Hunt launch badge. Delete this whole block and the
-               ".ph-badge" rules in landing.css to remove it — nothing else
-               references either. Two images because the badge ships as a
-               flat PNG per theme; CSS shows the one matching the site's
-               current theme. The src is Product Hunt's live endpoint (it
-               redraws with the day's rank), so it is deliberately the one
-               remote image on this page. -->
-          <div class="ph-badge reveal-in e5">
-            <a href="https://www.producthunt.com/products/ui-kit-maker?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-ui-kit-maker"
-               target="_blank" rel="noopener noreferrer">
-              <img class="ph-badge__dark" width="250" height="54" decoding="async"
-                onerror="this.closest('.ph-badge').classList.add('ph-badge--fallback')"
-                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1209011&amp;theme=dark&amp;t=1785339410471"
-                alt="UI Kit Maker — Tweak one button, get a full game UI kit | Featured on Product Hunt">
-              <img class="ph-badge__light" width="250" height="54" decoding="async"
-                onerror="this.closest('.ph-badge').remove()"
-                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1209011&amp;theme=light&amp;t=1785339410471"
-                alt="UI Kit Maker — Tweak one button, get a full game UI kit | Featured on Product Hunt">
-            </a>
+            <!-- ── LAUNCH BADGE · TEMPORARY ──────────────────────────────
+                 Product Hunt launch badge, riding the CTA row. Delete this
+                 block and the ".ph-badge" rules in landing.css to remove
+                 it — nothing else references either.
+
+                 Two images because the badge is flat art per theme, and
+                 they are crossed on purpose: the LIGHT badge sits on our
+                 dark site and the DARK badge on our light one, so the card
+                 always contrasts with the page behind it. The src is
+                 Product Hunt's live endpoint (it redraws with the day's
+                 rank), so it is deliberately the one remote image here —
+                 and defended: a failed image marks itself broken, its
+                 sibling takes over, and if both fail the block hides. -->
+            <div class="ph-badge">
+              <a href="https://www.producthunt.com/products/ui-kit-maker?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-ui-kit-maker"
+                 target="_blank" rel="noopener noreferrer">
+                <img class="ph-badge__light" width="250" height="54" decoding="async"
+                  onerror="this.classList.add('is-broken')"
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1209011&amp;theme=light&amp;t=1785339410471"
+                  alt="UI Kit Maker — Tweak one button, get a full game UI kit | Featured on Product Hunt">
+                <img class="ph-badge__dark" width="250" height="54" decoding="async"
+                  onerror="this.classList.add('is-broken')"
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1209011&amp;theme=dark&amp;t=1785339410471"
+                  alt="UI Kit Maker — Tweak one button, get a full game UI kit | Featured on Product Hunt">
+              </a>
+            </div>
           </div>
           <div class="trust2 reveal-in e6">
             <div class="trust2-item">
