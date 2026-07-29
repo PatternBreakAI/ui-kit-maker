@@ -1306,6 +1306,10 @@ button.kp-fact { cursor: pointer; }
   border-radius: 6px; background: var(--soft); color: var(--ink); font-size: 12px; font-weight: 700; text-align: center; cursor: pointer;
 }
 .shapecard:hover .shapedel, .presetcard:hover .shapedel { display: block; }
+/* a retired stock silhouette is admin-only and reads as parked: dimmed, its
+   × pinned on so the state is legible without hovering */
+.shapecard.retired { opacity: .45; }
+.shapecard.retired .shapedel { display: block; background: var(--soft); }
 
 @media (max-width: 1080px) {
   .kp-hero2 { grid-template-columns: 1fr; }

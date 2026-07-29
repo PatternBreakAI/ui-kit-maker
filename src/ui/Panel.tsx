@@ -388,7 +388,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -878,14 +878,43 @@ export function Panel() {
           ))}
         </div>
         <div className="shapegrid">
-          {SILHOUETTES.filter((m) => silCat === "All" || m.category === silCat).map((m) => (
-            <button key={m.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}`} title={`${m.name} — ${m.character}`}
+          {SILHOUETTES
+            /* retired stock shapes leave the picker for everyone — but only
+               the picker. A kit already built on one keeps rendering, and an
+               admin still sees it (with the × lit) so it can be restored. */
+            .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || D.shape === m.id)
+            .filter((m) => silCat === "All" || m.category === silCat)
+            .map((m) => {
+              const retired = hiddenSilhouettes.includes(m.id);
+              const stock = m.id.startsWith("stock:");
+              return (
+            <button key={m.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
+              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}`}
               onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
+              {stock && isAdmin && (
+                <span className="shapedel" role="button"
+                  aria-label={retired ? `Restore ${m.name}` : `Retire ${m.name}`}
+                  title={retired ? "Retired — restore all below" : "Retire this silhouette for everyone"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (retired) return;
+                    if (window.confirm(`Retire "${m.name}" from the silhouette picker for everyone? Kits already using it keep working.`))
+                      void retireSilhouette(m.id).then((err) => { if (err) window.alert(err); });
+                  }}>×</span>
+              )}
             </button>
-          ))}
+              );
+            })}
         </div>
+        {isAdmin && hiddenSilhouettes.length > 0 && (
+          <button className="resetstate" onClick={() => {
+            if (window.confirm(`Restore all ${hiddenSilhouettes.length} retired silhouette${hiddenSilhouettes.length === 1 ? "" : "s"} for everyone?`)) void restoreSilhouettes().then((err) => { if (err) window.alert(err); });
+          }}>
+            <RotateCcw size={14} strokeWidth={2} /> Restore silhouettes ({hiddenSilhouettes.length})
+          </button>
+        )}
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
