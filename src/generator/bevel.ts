@@ -582,7 +582,20 @@ function polyRoundedInset(d: string, delta: number): string {
     const a = inset[j], c = inset[(j + 1) % n];
     if ((c[0] - a[0]) * shifted[j].ex + (c[1] - a[1]) * shifted[j].ey <= 0) return "";
   }
-  return polyRounded(inset, Math.max(0, r0 - delta));
+  /* Concentric rounding. The true parallel offset shrinks corner rounding
+     arithmetically (r − δ: the wall consumes it), which at heavy softness
+     puts a nearly-crisp inner inside a marshmallow outer — it reads as the
+     inner "not following the silhouette". Scale the arm by the shape's own
+     shrink factor instead — √(area ratio), the similar-shape scale — so the
+     inner echoes the outer's roundness at every softness. Clamped to half
+     the shortest inset edge: polyRounded applies the arm blindly, and
+     overlapping arms would fold the path. */
+  let shortest = Infinity;
+  for (let j = 0; j < n; j++) {
+    const a = inset[j], c = inset[(j + 1) % n];
+    shortest = Math.min(shortest, Math.hypot(c[0] - a[0], c[1] - a[1]));
+  }
+  return polyRounded(inset, Math.min(r0 * Math.sqrt(Math.abs(area2 / area)), shortest * 0.49));
 }
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
