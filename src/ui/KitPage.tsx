@@ -1452,47 +1452,58 @@ const kitTier = useGen((s) => s.tier);
       {/* ── 00 · the staging bay — new pieces wait HERE for the owner's
           release. Admin-only: for everyone else the document starts at
           Foundations and these pieces don't exist anywhere on the site. ── */}
-      {isAdmin && STAGED_KIT.size > 0 && (
-        <Sec n="00" title="The staging bay"
-          note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
-          {[...STAGED_KIT].map((sid) => {
-            const status = releases[sid];
-            const nm = pieceName(sid);
-            const act = (next: "released" | "rejected" | null, confirmMsg?: string) => {
-              if (confirmMsg && !window.confirm(confirmMsg)) return;
-              void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
-            };
-            return (
-              <div className="kp-bayrow" key={sid}>
-                <div className="kp-tray kp-axis">
-                  <Piece id={sid} caption={nm} scale={0.5} />
-                </div>
-                <div className="kp-bayside">
-                  <span className={`kp-baychip${status === "released" ? " ok" : status === "rejected" ? " rej" : ""}`}>
-                    {status === "released" ? "Released — live for everyone" : status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
-                  </span>
-                  <div className="kp-bayacts">
-                    {status !== "released" && (
-                      <button className="cg-curate cg-curate--add" onClick={() => act("released", `Release ${nm} to every maker? It appears across the app the moment you approve.`)}>
+      {isAdmin && STAGED_KIT.size > 0 && (() => {
+        // released pieces LEAVE the queue (owner call) — they live in the
+        // kit proper now; a quiet footer keeps the pull-back reversible
+        const inBay = [...STAGED_KIT].filter((sid) => releases[sid] !== "released");
+        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
+        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
+          if (confirmMsg && !window.confirm(confirmMsg)) return;
+          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+        };
+        return (
+          <Sec n="00" title="The staging bay"
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
+            {inBay.map((sid) => {
+              const status = releases[sid];
+              const nm = pieceName(sid);
+              return (
+                <div className="kp-bayrow" key={sid}>
+                  <div className="kp-tray kp-axis">
+                    <Piece id={sid} caption={nm} scale={0.5} />
+                  </div>
+                  <div className="kp-bayside">
+                    <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
+                      {status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
+                    </span>
+                    <div className="kp-bayacts">
+                      <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
                         <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
                       </button>
-                    )}
-                    {status === "released" && (
-                      <button className="cg-curate" onClick={() => act(null, `Pull ${nm} back into the bay? Makers lose it until you release again.`)}>Pull back to the bay</button>
-                    )}
-                    {status !== "rejected" && status !== "released" && (
-                      <button className="cg-curate cg-curate--danger" onClick={() => act("rejected")}>Reject</button>
-                    )}
-                    {status === "rejected" && (
-                      <button className="cg-curate" onClick={() => act(null)}>Restore to the bay</button>
-                    )}
+                      {status !== "rejected" ? (
+                        <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "rejected")}>Reject</button>
+                      ) : (
+                        <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </Sec>
-      )}
+              );
+            })}
+            {releasedStaged.length > 0 && (
+              <p className="kp-baynote">
+                Released from this bay:{" "}
+                {releasedStaged.map((sid, i) => (
+                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
+                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
+                  </span>
+                ))}
+              </p>
+            )}
+          </Sec>
+        );
+      })()}
 
       <Chapter n="01" id="foundations" label="Foundations" blurb="The color roles, material and typography every component inherits." />
 
