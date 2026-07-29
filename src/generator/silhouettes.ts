@@ -60,7 +60,7 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "trapezoid", name: "Trapezoid", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.16, content: { top: 0.14, right: 0.24, bottom: 0.14, left: 0.24 }, minWidth: 88, minHeight: 40,
     supports: BTN, character: "Top edge narrower than the base." },
-  { id: "notch", name: "Notch", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "notch", flippable: true, name: "Notch", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.28, content: { top: 0.14, right: 0.28, bottom: 0.14, left: 0.28 }, minWidth: 88, minHeight: 40,
     supports: BTN, character: "Opposing diagonal corner cuts." },
   { id: "chunky", name: "Heavy Rounded Capsule", category: "Buttons", source: "custom (Crewmate study)", license: "original", renderer: "procedural",
@@ -117,7 +117,7 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      same distortion-capped transform a user import gets. Safe-area insets
      below are MEASURED off each outline across the middle 64% of its
      width, not guessed — organic tops intrude further than a slab's do. */
-  { id: "stock:bubbleslab", name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:bubbleslab", flippable: true, name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.39, content: { top: 0.201, right: 0.34, bottom: 0.177, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Wide slab with a gentle swell top and bottom." },
   { id: "stock:teardroplozenge", flippable: true, name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
@@ -135,10 +135,10 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:wedgeblob", flippable: true, name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.168, right: 0.34, bottom: 0.125, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Round left shoulder, straight taper to the right." },
-  { id: "stock:cushionslab", name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:cushionslab", flippable: true, name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.125, right: 0.34, bottom: 0.11, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The widest, softest slab — barely-there top wave." },
-  { id: "stock:scallopblock", name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:scallopblock", flippable: true, name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.137, right: 0.34, bottom: 0.121, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Squared block with rippled, scalloped ends." },
   { id: "stock:longloaf", flippable: true, name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
@@ -147,9 +147,9 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:rollingbar", flippable: true, name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.159, right: 0.34, bottom: 0.157, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Ribbon bar — top and bottom roll in parallel." },
-  { id: "stock:peanutpill", name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:peanutpill", flippable: true, name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.37, content: { top: 0.17, right: 0.34, bottom: 0.212, left: 0.34 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Symmetric peanut with a clean centre waist." },
+    supports: [...BTN, "timer"], character: "Peanut profile with a clean centre waist." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

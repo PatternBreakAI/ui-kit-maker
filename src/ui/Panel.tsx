@@ -916,16 +916,19 @@ export function Panel() {
             })}
         </div>
         {(() => {
-          /* the mirror toggle — only where mirroring says something: the
-             registry's asymmetric marks, plus every user import */
+          /* the mirror toggle — always present so it never "vanishes";
+             disabled (with the reason) on outlines the geometry audit
+             measured as mirror-symmetric, where flipping changes nothing */
           const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
           const base = baseShape(live);
-          if (!(silhouetteMeta(base)?.flippable || base.startsWith("user:"))) return null;
+          const canFlip = !!silhouetteMeta(base)?.flippable || base.startsWith("user:");
           return (
-            <button className={`resetstate${isFlipShape(live) ? " on" : ""}`}
-              title="Mirror this silhouette left-to-right — asymmetric cuts point the other way; every surface and export follows"
-              onClick={() => { const next = flipShape(live); if (focus) setKitShape(focus, next); else update((c) => { c.shape = next; }); }}>
-              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " — mirrored" : ""}
+            <button className={`resetstate${isFlipShape(live) ? " on" : ""}`} disabled={!canFlip}
+              title={canFlip
+                ? "Mirror this silhouette left-to-right — asymmetric cuts point the other way; every surface and export follows"
+                : "This silhouette is symmetric left-to-right, so its mirror image is identical — there's nothing to flip"}
+              onClick={() => { if (!canFlip) return; const next = flipShape(live); if (focus) setKitShape(focus, next); else update((c) => { c.shape = next; }); }}>
+              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " — mirrored" : canFlip ? "" : " — shape is symmetric"}
             </button>
           );
         })()}
