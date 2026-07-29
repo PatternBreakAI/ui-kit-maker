@@ -15,8 +15,8 @@ import type { Shape } from "./model";
                   To import Kenney/OpenGameArt geometry, add the cleaned
                   SVG under docs/silhouette-sources/ and register it here.
 */
-export type SilhouetteCategory = "Buttons" | "Rails & HUD" | "Banners & Labels" | "Plaques & Frames";
-export const SILHOUETTE_CATEGORIES: SilhouetteCategory[] = ["Buttons", "Rails & HUD", "Banners & Labels", "Plaques & Frames"];
+export type SilhouetteCategory = "Buttons" | "Blobs" | "Rails & HUD" | "Banners & Labels" | "Plaques & Frames";
+export const SILHOUETTE_CATEGORIES: SilhouetteCategory[] = ["Buttons", "Blobs", "Rails & HUD", "Banners & Labels", "Plaques & Frames"];
 
 export interface SilhouetteMeta {
   id: Shape;
@@ -24,7 +24,9 @@ export interface SilhouetteMeta {
   category: SilhouetteCategory;
   source: string;
   license: string;
-  renderer: "procedural";
+  /** "procedural" = geometry computed in shapePath; "path" = authored
+   *  artwork resolved from the stock registry (stockShapes.ts). */
+  renderer: "procedural" | "path";
   capScale: number;
   content: { top: number; right: number; bottom: number; left: number };
   minWidth: number;
@@ -102,6 +104,45 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "doboBracket", name: "Bracket Label", category: "Banners & Labels", source: "custom study (after an itch.io label)", license: "original", renderer: "procedural",
     capScale: 0.36, content: { top: 0.14, right: 0.42, bottom: 0.14, left: 0.42 }, minWidth: 120, minHeight: 44,
     supports: ["button", "chip", "badge", "tab", "progress"], character: "Bar with half-round side lobes and meeting notches — measured proportions, drawn as an original study." },
+
+  /* ── Blobs — authored artwork, not procedural geometry (v92) ──────────
+     Drawn in-house to the published import spec and rendered through the
+     same distortion-capped transform a user import gets. Safe-area insets
+     below are MEASURED off each outline across the middle 64% of its
+     width, not guessed — organic tops intrude further than a slab's do. */
+  { id: "stock:bubbleslab", name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.39, content: { top: 0.201, right: 0.34, bottom: 0.177, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Wide slab with a gentle swell top and bottom." },
+  { id: "stock:teardroplozenge", name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.85, content: { top: 0.123, right: 0.34, bottom: 0.151, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Full round shoulder tapering to a soft point." },
+  { id: "stock:swellbar", name: "Swell Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.85, content: { top: 0.173, right: 0.34, bottom: 0.218, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "One long S-curve — heavy at the left, lifting right." },
+  { id: "stock:wavecapsule", name: "Wave Capsule", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.31, content: { top: 0.194, right: 0.34, bottom: 0.19, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Rounded caps under a single rolling wave." },
+  { id: "stock:cobblebar", name: "Cobble Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.85, content: { top: 0.251, right: 0.34, bottom: 0.124, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Bumpy shoulder settling into a calm right end." },
+  { id: "stock:wedgeblob", name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.85, content: { top: 0.168, right: 0.34, bottom: 0.125, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Round left shoulder, straight taper to the right." },
+  { id: "stock:cushionslab", name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.3, content: { top: 0.125, right: 0.34, bottom: 0.11, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The widest, softest slab — barely-there top wave." },
+  { id: "stock:scallopblock", name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.3, content: { top: 0.137, right: 0.34, bottom: 0.121, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Squared block with rippled, scalloped ends." },
+  { id: "stock:longloaf", name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.42, content: { top: 0.144, right: 0.34, bottom: 0.149, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Long and low with one soft rise." },
+  { id: "stock:rollingbar", name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.3, content: { top: 0.159, right: 0.34, bottom: 0.157, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Ribbon bar — top and bottom roll in parallel." },
+  { id: "stock:peanutpill", name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+    capScale: 0.37, content: { top: 0.17, right: 0.34, bottom: 0.212, left: 0.34 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Symmetric peanut with a clean centre waist." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

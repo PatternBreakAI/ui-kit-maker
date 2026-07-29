@@ -3,6 +3,7 @@ import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEF
 import { iconGroup } from "./icons";
 import { silhouetteMeta } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
+import { stockShape } from "./stockShapes";
 import rough from "roughjs";
 
 /* Rough.js draws the hand-drawn *line character* over the approved outline —
@@ -533,6 +534,20 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
   return shapePath(shape, x + delta, y + delta, w - delta * 2, h - delta * 2, softness);
 }
 
+/* Authored artwork — stock or user-imported — keeps its character: fill the
+   frame, but never distort the drawn proportions by more than ~1.4x in either
+   axis. Beyond that the silhouette scales true-to-shape and centers. */
+function fitArtwork(d: string, vb: [number, number, number, number], x: number, y: number, w: number, h: number): string {
+  const [, , vw, vh] = vb;
+  const natural = (vw || 1) / (vh || 1);
+  const stretch = (w / h) / natural;
+  const MAXS = 1.42;
+  let w2 = w, h2 = h;
+  if (stretch > MAXS) w2 = h * natural * MAXS;            // frame far wider than the art
+  else if (stretch < 1 / MAXS) h2 = (w / natural) * MAXS; // frame far taller than the art
+  return transformPath(d, vb, x + (w - w2) / 2, y + (h - h2) / 2, w2, h2);
+}
+
 export function shapePath(shape: Shape, x: number, y: number, w: number, h: number, softness: number): string {
   const imp = importedShape(shape);
   if (imp) {
@@ -542,21 +557,17 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
     if (shape.endsWith(":caps")) return transformPathCapAware(imp.path, imp.viewBox, x, y, w, h, imp.capSrc);
     return transformPath(imp.path, imp.viewBox, x, y, w, h);
   }
+  if (shape.startsWith("stock:")) {
+    const st = stockShape(shape);
+    // Stock artwork is authored the same way an import is, so it earns the
+    // same treatment: fill the frame, but never distort the drawn
+    // proportions past ~1.4x in either axis (see the user: branch below).
+    if (st) return fitArtwork(st.d, st.vb, x, y, w, h);
+  }
   if (shape.startsWith("user:")) {
     const us = userShapes().find((u) => u.id === shape);
     if (us) {
-      // Imported artwork keeps its character: fill the frame, but never
-      // distort the drawn proportions by more than ~1.4× in either axis.
-      // Beyond that, the silhouette scales true-to-shape and centers.
-      const [, , vw, vh] = us.vb;
-      const natural = (vw || 1) / (vh || 1);
-      const target = w / h;
-      const stretch = target / natural;
-      const MAXS = 1.42;
-      let w2 = w, h2 = h;
-      if (stretch > MAXS) w2 = h * natural * MAXS;        // frame far wider than the art
-      else if (stretch < 1 / MAXS) h2 = (w / natural) * MAXS; // frame far taller than the art
-      return transformPath(us.d, us.vb, x + (w - w2) / 2, y + (h - h2) / 2, w2, h2);
+      return fitArtwork(us.d, us.vb, x, y, w, h);
     }
     return roundRect(x, y, w, h, 4 + softness * 0.52); // registry miss — neutral fallback
   }

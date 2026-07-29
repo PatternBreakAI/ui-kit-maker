@@ -34,7 +34,11 @@ export type Shape =
   // v64 — Silhouette Feasibility Lab imports (importedShapes.ts). Reached
   // ONLY through the isolated lab page; never listed in the production
   // picker until the lab results are approved.
-  | `lab:${string}`;
+  | `lab:${string}`
+  // v92 — stock organic silhouettes shipped as path data (stockShapes.ts).
+  // Authored artwork, not procedural geometry; rendered through the same
+  // distortion-capped transform a user import gets.
+  | `stock:${string}`;
 /* ── user silhouettes ─────────────────────────────────────────────
    Imported flat vectors: one closed, filled outline normalized to its own
    bounding box; the renderer stretches it into each component's frame.
