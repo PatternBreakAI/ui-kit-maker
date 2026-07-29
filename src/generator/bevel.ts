@@ -1240,8 +1240,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const wallQuads = (() => {
     const R2 = (v: number) => (Math.round(v * 10) / 10).toString();
     let s = "";
-    for (const loop of flattenPath(outer, 10)) {
-      const l = simplifyDP(loop, 0.4);
+    for (const loop of flattenPath(outer, 18)) {
+      const l = simplifyDP(loop, 0.3);
       if (l.length < 3) continue;
       for (let i = 0; i < l.length; i++) {
         const a = l[i], b = l[(i + 1) % l.length];
