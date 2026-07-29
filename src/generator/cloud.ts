@@ -864,6 +864,29 @@ export async function setHiddenStarters(ids: string[]): Promise<string | null> {
   return error?.message ?? null;
 }
 
+/* Stock silhouettes ship in the bundle too, and the same curation applies:
+   an admin can retire one for every visitor without a deploy. Retiring hides
+   it from the PICKER only — a design already built on that shape keeps
+   rendering, exactly like a retired starter preset keeps working. */
+const HIDDEN_SILHOUETTES_KEY = "hidden_silhouettes";
+
+export async function listHiddenSilhouettes(): Promise<string[]> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", HIDDEN_SILHOUETTES_KEY).maybeSingle();
+  if (error || !Array.isArray(data?.value)) return [];
+  return (data.value as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
+export async function setHiddenSilhouettes(ids: string[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate silhouettes.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: HIDDEN_SILHOUETTES_KEY, value: ids, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /* The staging bay's ledger: which STAGED components the admin has released
    to everyone (or rejected). Components ship in the bundle marked staged;
    this key is what flips one public without a deploy. Same app_settings

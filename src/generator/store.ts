@@ -5,7 +5,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -361,6 +361,10 @@ interface GenStore {
   /** Starter-preset ids an admin retired for every visitor (cloud-stored). */
   hiddenStarters: string[];
   hideStarterPreset: (id: string) => Promise<string | null>;
+  /** stock silhouettes retired from the picker for everyone (admin curation) */
+  hiddenSilhouettes: string[];
+  retireSilhouette: (id: string) => Promise<string | null>;
+  restoreSilhouettes: () => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
   /** The staging bay's ledger — staged component id → released/rejected.
    *  Absent = still pending in the bay (admin-only). Cloud-stored. */
@@ -963,7 +967,7 @@ export const useGen = create<GenStore>((set, get) => ({
   isAdmin: false,
   tier: "guest" as Tier,
   loadCloudPresets: async () => {
-    const [presets, hidden, prof, releases] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases()]);
+    const [presets, hidden, prof, releases, hiddenSils] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes()]);
     const admin = prof.admin;
     // cloud-off (local/dev build) is not the funnel — it gets the free tier,
     // not guest lockdown; the live site always has cloud configured.
@@ -974,7 +978,7 @@ export const useGen = create<GenStore>((set, get) => ({
       : (prof.plan && prof.plan !== "free") ? "pro"
       : prof.plan ? "free"
       : cloudStatus().state === "off" ? "free" : "guest";
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, tier, componentReleases: releases });
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: releases });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -1032,6 +1036,18 @@ export const useGen = create<GenStore>((set, get) => ({
   restoreStarterPresets: async () => {
     const err = await setHiddenStarters([]);
     if (!err) set({ hiddenStarters: [] });
+    return err;
+  },
+  hiddenSilhouettes: [],
+  retireSilhouette: async (id) => {
+    const next = [...new Set([...get().hiddenSilhouettes, id])];
+    const err = await setHiddenSilhouettes(next);
+    if (!err) set({ hiddenSilhouettes: next });
+    return err;
+  },
+  restoreSilhouettes: async () => {
+    const err = await setHiddenSilhouettes([]);
+    if (!err) set({ hiddenSilhouettes: [] });
     return err;
   },
   componentReleases: {},
