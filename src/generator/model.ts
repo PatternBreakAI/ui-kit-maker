@@ -842,7 +842,10 @@ export type KitComponentId =
   | "energymeter"
   | "buildqueue" | "unitplate" | "techcard" | "popmeter" | "endturn"
   | "scorebug" | "friendrow" | "chatbubble" | "emotewheel" | "clancrest"
-  | "seasontrack" | "achievetoast";
+  | "seasontrack" | "achievetoast"
+  // vNext — the staging bay: pieces landing here ship STAGED (admin-only)
+  // until released from the kit page's bay
+  | "orderticket";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -946,6 +949,13 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   movecounter: [
     { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },
     { id: "readout", name: "Count", kind: "value", note: "Driven by the value slider." },
+  ],
+  orderticket: [
+    { id: "num", name: "Order number", kind: "free", def: "#07", maxLen: 5 },
+    { id: "i1", name: "Line 1", kind: "free", def: "Flour · eggs · milk", maxLen: 26 },
+    { id: "i2", name: "Line 2", kind: "free", def: "Flip until golden", maxLen: 26 },
+    { id: "i3", name: "Line 3", kind: "free", def: "Serve with syrup", maxLen: 26 },
+    { id: "timer", name: "Time left", kind: "value", note: "Driven by the value slider — 100% is a fresh ticket, 0% is overdue." },
   ],
   leaderboard: [
     { id: "title", name: "Title", kind: "free", def: "TOP 5", maxLen: 16 },
@@ -1057,7 +1067,11 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
   },
 };
 
-export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
+/* `staged: true` = in the staging bay — bundled but admin-only until the
+   owner releases it (app_settings key "component_releases"). Every public
+   surface must hide staged pieces that aren't released; the landing never
+   shows staged at all (its roster is filtered at the engine boundary). */
+export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }[] = [
   { id: "primary", name: "Primary button" },
   { id: "dialog", name: "Dialog" },
   { id: "toast", name: "Toast" },
@@ -1113,6 +1127,7 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "dailycell", name: "Daily reward" },
   { id: "combo", name: "Combo burst" },
   { id: "movecounter", name: "Move counter" },
+  { id: "orderticket", name: "Order ticket", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1173,6 +1188,12 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string }[] = [
   { id: "cardback", name: "Card back" },
   { id: "pack", name: "Card pack" },
 ];
+/** The staging bay's roster — every piece still awaiting the owner's release. */
+export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
+/** True when a piece may be SHOWN: released pieces for everyone, staged
+ *  pieces only for the admin (who tests them before release). */
+export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
+  !STAGED_KIT.has(id) || releases[id] === "released" || admin;
 
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the
@@ -1334,6 +1355,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   xpbar: "pill",
   manarails: "pill",
   questpanel: "kenneyRect",
+  orderticket: "round",
   dialoguebox: "round",
   choicelist: "kenneyRect",
   invgrid: "kenneyRect",

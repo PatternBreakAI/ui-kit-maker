@@ -5,7 +5,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, type CloudPreset } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -362,6 +362,10 @@ interface GenStore {
   hiddenStarters: string[];
   hideStarterPreset: (id: string) => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
+  /** The staging bay's ledger — staged component id → released/rejected.
+   *  Absent = still pending in the bay (admin-only). Cloud-stored. */
+  componentReleases: Record<string, ReleaseStatus>;
+  setComponentRelease: (id: KitComponentId, status: ReleaseStatus | null) => Promise<string | null>;
   /** Imported flat-vector silhouettes — see the spec in the Silhouette panel. */
   userShapes: UserShape[];
   addUserShape: (u: UserShape) => void;
@@ -959,7 +963,7 @@ export const useGen = create<GenStore>((set, get) => ({
   isAdmin: false,
   tier: "guest" as Tier,
   loadCloudPresets: async () => {
-    const [presets, hidden, prof] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier()]);
+    const [presets, hidden, prof, releases] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases()]);
     const admin = prof.admin;
     // cloud-off (local/dev build) is not the funnel — it gets the free tier,
     // not guest lockdown; the live site always has cloud configured.
@@ -970,7 +974,7 @@ export const useGen = create<GenStore>((set, get) => ({
       : (prof.plan && prof.plan !== "free") ? "pro"
       : prof.plan ? "free"
       : cloudStatus().state === "off" ? "free" : "guest";
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, tier });
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, tier, componentReleases: releases });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -1028,6 +1032,14 @@ export const useGen = create<GenStore>((set, get) => ({
   restoreStarterPresets: async () => {
     const err = await setHiddenStarters([]);
     if (!err) set({ hiddenStarters: [] });
+    return err;
+  },
+  componentReleases: {},
+  setComponentRelease: async (id, status) => {
+    const next = { ...get().componentReleases };
+    if (status === null) delete next[id]; else next[id] = status;
+    const err = await saveComponentReleases(next);
+    if (!err) set({ componentReleases: next });
     return err;
   },
   kitName: loadJson<string | null>("ui-generator-kitname", null),

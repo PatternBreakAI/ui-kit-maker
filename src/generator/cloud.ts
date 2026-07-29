@@ -864,6 +864,35 @@ export async function setHiddenStarters(ids: string[]): Promise<string | null> {
   return error?.message ?? null;
 }
 
+/* The staging bay's ledger: which STAGED components the admin has released
+   to everyone (or rejected). Components ship in the bundle marked staged;
+   this key is what flips one public without a deploy. Same app_settings
+   RLS as the starters — world-readable, admin-writable. */
+const COMPONENT_RELEASES_KEY = "component_releases";
+export type ReleaseStatus = "released" | "rejected";
+
+export async function listComponentReleases(): Promise<Record<string, ReleaseStatus>> {
+  const client = await getClient();
+  if (!client) return {};
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", COMPONENT_RELEASES_KEY).maybeSingle();
+  const v = data?.value;
+  if (error || typeof v !== "object" || v === null || Array.isArray(v)) return {};
+  const out: Record<string, ReleaseStatus> = {};
+  for (const [id, st] of Object.entries(v as Record<string, unknown>)) {
+    if (st === "released" || st === "rejected") out[id] = st;
+  }
+  return out;
+}
+
+export async function saveComponentReleases(map: Record<string, ReleaseStatus>): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to release components.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: COMPONENT_RELEASES_KEY, value: map, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /** Everything the account owns in one file — the parachute offered
     before deletion (and a fine backup any other day): profile, the
     synced studio doc, and every saved kit with its full design. */

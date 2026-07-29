@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate,
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitTextFill, resolveKitIcon } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg } from "@/generator/exportUtils";
 import { LiveArt } from "./LiveArt";
@@ -26,7 +26,7 @@ const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
-  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
+  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
@@ -236,7 +236,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     setActiveBoard, addBoard, removeBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
-    duplicateBoardItem,
+    duplicateBoardItem, componentReleases, isAdmin,
   } = useGen();
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
@@ -299,16 +299,17 @@ export function BoardView({ playing }: { playing: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // asset thumbnails render tight (glow pads collapse) and follow the style
+  // asset thumbnails render tight (glow pads collapse) and follow the style;
+  // staging-bay pieces show only to the admin until released
   const assets = useMemo(() => {
     const tc = clone(cfg);
     for (const s of Object.values(tc.states)) s.glow = 0;
     const name = (id: KitComponentId) => KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
     return ASSET_GROUPS.map((g) => ({
       name: g.name,
-      items: g.ids.map((id) => ({ id, name: name(id), svg: renderKit(applyKitTextFill(tc, kitTextFill[id]), id, "s", "default", undefined, kitShapes[id], { icon: resolveKitIcon(kitIcons[id], undefined), label: kitLabels[id] }) })),
+      items: g.ids.filter((id) => kitVisible(id, componentReleases, isAdmin)).map((id) => ({ id, name: name(id), svg: renderKit(applyKitTextFill(tc, kitTextFill[id]), id, "s", "default", undefined, kitShapes[id], { icon: resolveKitIcon(kitIcons[id], undefined), label: kitLabels[id] }) })),
     }));
-  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels]);
+  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
 
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;

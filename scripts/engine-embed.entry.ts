@@ -7,8 +7,11 @@
 export { renderBevel, renderShell, renderKit, addShine } from "../src/generator/bevel";
 export {
   defaultConfig, defaultCandy, randomizeConfig, applyPresetCandy, presetById, pickDesign,
-  PRESETS, SHAPES, PATTERN_TYPES, KIT_COMPONENTS, STATE_NAMES,
+  PRESETS, SHAPES, PATTERN_TYPES, STATE_NAMES,
 } from "../src/generator/model";
+/* marketing surfaces never see staging-bay pieces (mirrors engine.ts) */
+import { KIT_COMPONENTS as ALL_KIT_COMPONENTS } from "../src/generator/model";
+export const KIT_COMPONENTS = ALL_KIT_COMPONENTS.filter((c) => !c.staged);
 export type { GenConfig, GenStateName, Shape, PatternType, KitComponentId } from "../src/generator/model";
 
 import { darken } from "../src/generator/model";
