@@ -765,9 +765,10 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     applyPresetCandy(nc, pr);
     c = { ...c, candy: nc };
   } else {
-    // non-jump rolls change the CUT too, from the full silhouette rack —
-    // preset shapes alone leave ten of the 22 cuts unreachable
-    const rack = SILHOUETTES.filter((m) => m.id !== c.shape);
+    // non-jump rolls change the CUT too — from the BUTTON rack only (owner
+    // call): banners, plaques and HUD rails read wrong as a master button
+    // shape; preset jumps above keep their curated cuts
+    const rack = SILHOUETTES.filter((m) => m.category === "Buttons" && m.id !== c.shape);
     c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
