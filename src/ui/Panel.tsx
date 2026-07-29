@@ -872,24 +872,31 @@ export function Panel() {
           <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
         )}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
-          {["All", ...SILHOUETTE_CATEGORIES].map((cat) => (
+          {/* a category with nothing the viewer can see (all-preview, e.g.
+              Blobs pre-release) would be an empty tab — drop its chip */}
+          {["All", ...SILHOUETTE_CATEGORIES.filter((cat) =>
+            SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)),
+          )].map((cat) => (
             <button key={cat} className={silCat === cat ? "on" : ""} role="radio" aria-checked={silCat === cat}
               onClick={() => setSilCat(cat)}>{cat}</button>
           ))}
         </div>
         <div className="shapegrid">
           {SILHOUETTES
+            /* unlisted previews stay out of the public picker while they're
+               being evaluated — admins see them to test */
+            .filter((m) => !m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)
             /* retired stock shapes leave the picker for everyone — but only
                the picker. A kit already built on one keeps rendering, and an
                admin still sees it (with the × lit) so it can be restored. */
-            .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || D.shape === m.id)
+            .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)
             .filter((m) => silCat === "All" || m.category === silCat)
             .map((m) => {
               const retired = hiddenSilhouettes.includes(m.id);
               const stock = m.id.startsWith("stock:");
               return (
             <button key={m.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
-              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}`}
+              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
               onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
@@ -1136,11 +1143,15 @@ export function Panel() {
             <span style={{ color: "#c084fc" }}> purple dashes = fixed end caps (never stretch)</span>,
             <span style={{ color: "#4ade80" }}> green = content-safe area</span>. Click anywhere to close.
           </div>
-          {SILHOUETTE_CATEGORIES.map((cat) => (
+          {SILHOUETTE_CATEGORIES
+            /* unlisted previews stay unlisted here too; skip a category
+               that would render empty for this viewer */
+            .filter((cat) => SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)))
+            .map((cat) => (
           <div key={cat}>
           <div className="devo-cat">{cat}</div>
           <div className="devo-grid">
-            {SILHOUETTES.filter((m) => m.category === cat).map((m) => {
+            {SILHOUETTES.filter((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)).map((m) => {
               const W = 250, H = 92, ox = 12, oy = 14, gw = W - 24, gh = H - 28;
               const cap = Math.min(m.capScale * gh, gw * 0.45);
               return (
