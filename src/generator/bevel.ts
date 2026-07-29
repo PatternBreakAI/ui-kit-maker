@@ -1231,27 +1231,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      copies keep the silhouette continuous on soft corners. */
   const dk = C.extrusion.darkness / 100;
   const deepC = hexMix(darken(bevelC, clamp(0.24 + 0.34 * dk, 0, 0.8)), bevelC, 0.18);
-  /* the wall is the SWEPT SOLID of the outline dropped by visDepth — one
-     quad per boundary edge plus the bottom cap, all in one paint. Stacked
-     translated copies (the old approach) read fine on convex shapes but
-     expose their stair-stepped edges inside concave notches and between
-     the islands of multi-loop imports (ribbon-banner flaps). Quads cover
-     exactly the swept region, notches included, with no seams. */
-  const wallQuads = (() => {
-    const R2 = (v: number) => (Math.round(v * 10) / 10).toString();
-    let s = "";
-    for (const loop of flattenPath(outer, 18)) {
-      const l = simplifyDP(loop, 0.3);
-      if (l.length < 3) continue;
-      for (let i = 0; i < l.length; i++) {
-        const a = l[i], b = l[(i + 1) % l.length];
-        s += `M${R2(a.x)} ${R2(a.y)}L${R2(b.x)} ${R2(b.y)}L${R2(b.x)} ${R2(b.y + visDepth)}L${R2(a.x)} ${R2(a.y + visDepth)}Z`;
-      }
-    }
-    return s;
-  })();
-  const slices = `<path d="${wallQuads}" fill="url(#${id}ext)"/>
-        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}ext)" stroke="${darken(deepC, 0.35)}" stroke-width="1"/>`;
+  // enough interpolated slices that the side stays a continuous wall even at
+  // maximum depth — no scalloping between the cap and the base. (A swept-
+  // solid quad wall was tried and rolled back by owner call: with quads the
+  // sweeps of opposite-running edges overlap at deep extrusion and the fill
+  // rule hollowed the caps until winding was normalized — the stacked
+  // construction is the devil we know. Its one flaw stays: stepped copy
+  // edges show inside concave notches of multi-loop imports.)
+  const nSlices = Math.max(2, Math.ceil(visDepth / 2.5));
+  const slices = Array.from({ length: nSlices }, (_, i) => {
+    const ty = (visDepth * (i + 1)) / nSlices;
+    const last = i === nSlices - 1;
+    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ""}/>`;
+  }).join("");
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
@@ -1263,7 +1255,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         ${slices}
         <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}extv)"/>
         ${baseGlow}
-        <g clip-path="url(#${id}xc)"><path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/></g>
+        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/>
       </g>`
     : "";
 
@@ -1625,7 +1617,6 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   </radialGradient>
   ${baseGlow ? `<clipPath id="${id}ec"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>
   <radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
-  ${extrusion ? `<clipPath id="${id}xc"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>` : ""}
   ${patternDef}
   <linearGradient id="${id}rim" ${axis}>
     <stop offset="0" stop-color="${hiC}" stop-opacity="0.45"/>
