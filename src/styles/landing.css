@@ -2170,6 +2170,33 @@ html[lang="fr"] .fd-landing h1.h1b, html[lang="es"] .fd-landing h1.h1b, html[lan
 .fd-landing .micro2 { display: inline-flex; align-items: center; gap: 8px; margin-top: 17px;
       font-family: var(--mono); font-size: 12px; color: var(--faint); }
 .fd-landing .micro2 svg { width: 12px; height: 12px; color: #b98cff; }
+/* ── LAUNCH BADGE · TEMPORARY ──────────────────────────────────────────
+   Product Hunt badge in the hero. Delete this block and the .ph-badge
+   markup in landingHtml.ts to remove it; nothing else depends on either.
+   Sits between the CTAs and the trust row, nudged left so its own inner
+   padding lines its artwork up with the buttons above it. Only one of the
+   two images is ever shown — the badge is flat art per theme, so CSS
+   picks the one matching the site's theme rather than tinting it. */
+.fd-landing .ph-badge { margin: 22px 0 -6px; margin-left: -6px; }
+.fd-landing .ph-badge a { display: inline-block; border-radius: 10px; line-height: 0;
+      transition: transform .16s var(--ease-out), filter .16s; }
+.fd-landing .ph-badge a:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.fd-landing .ph-badge a:focus-visible { outline: 2px solid var(--accent, #d946ef); outline-offset: 3px; }
+/* the img type selector in the sizing rule outranks a bare class, so the
+   theme switches carry img too — otherwise both badges paint at once */
+.fd-landing .ph-badge img { display: block; width: 250px; height: 54px; }
+.fd-landing .ph-badge img.ph-badge__light { display: none; }
+[data-theme="light"] .fd-landing .ph-badge img.ph-badge__dark { display: none; }
+[data-theme="light"] .fd-landing .ph-badge img.ph-badge__light { display: block; }
+/* belt and braces for a remote asset: if the dark art 404s, fall back to
+   the light one (Product Hunt's own known-good URL); if that fails too,
+   the block removes itself. A broken-image icon never reaches the hero. */
+.fd-landing .ph-badge--fallback img.ph-badge__dark { display: none !important; }
+.fd-landing .ph-badge--fallback img.ph-badge__light { display: block !important; }
+@media (prefers-reduced-motion: reduce) {
+  .fd-landing .ph-badge a, .fd-landing .ph-badge a:hover { transition: none; transform: none; }
+}
+
 .fd-landing .trust2 { display: flex; flex-direction: column; gap: 13px; margin-top: 30px; padding-top: 20px;
       border-top: 1px solid var(--line); }
     @media (min-width: 720px) {
