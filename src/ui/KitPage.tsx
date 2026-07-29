@@ -2236,8 +2236,13 @@ const kitTier = useGen((s) => s.tier);
                   path: "9slice.json",
                   data: JSON.stringify({
                     note: "Fixed-cap insets for stretchable pieces. Values are fractions of the piece's shell height H: the caps are capScale×H px wide and must not stretch; only the center region stretches. content gives the text-safe insets.",
-                    // unlisted preview silhouettes stay out of public exports
-                    silhouettes: SILHOUETTES.filter((s) => !s.preview || st.isAdmin).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content })),
+                    // unlisted preview silhouettes stay out of public exports —
+                    // EXCEPT ones this kit actually wears: the README tells the
+                    // user to slice by this file, so their own shapes must be in it
+                    silhouettes: (() => {
+                      const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes)]);
+                      return SILHOUETTES.filter((s) => !s.preview || st.isAdmin || used.has(s.id)).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
+                    })(),
                   }, null, 2),
                 });
                 files.push({

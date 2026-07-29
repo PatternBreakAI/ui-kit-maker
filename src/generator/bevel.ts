@@ -363,7 +363,17 @@ function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, c
   const total = kept.reduce((s3, l) => s3 + Math.abs(shoelaceS(l)), 0);
   if (total < Math.abs(shoelaceS(poly)) * 0.25) return "";
   kept.sort((a2, b2) => Math.abs(shoelaceS(b2)) - Math.abs(shoelaceS(a2)));
-  return kept.map(smoothLoopPath).join(" ");
+  // the refit's cubics can bow past a sub-pixel neck the polyline check
+  // cleared — re-verify each SMOOTHED loop and keep the straight-line
+  // serialization for any loop the curves would fold (review finding)
+  return kept.map((l) => {
+    const sm = smoothLoopPath(l);
+    if (sm.includes("C")) {
+      const flat = flattenPath(sm, 8)[0];
+      if (!flat || selfIntersections(flat) > 0) return "M " + l.map((p) => `${p.x} ${p.y}`).join(" L ") + " Z";
+    }
+    return sm;
+  }).join(" ");
 }
 
 /* ── cubic refit: the cure for chorded offsets ────────────────────────────
