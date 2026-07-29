@@ -235,7 +235,15 @@ export function offsetPathInward(d: string, delta: number): string {
      collapse turns those corners into sharp vertices, which is the correct
      offset limit there: the wall consumes (r − delta ≈ 0) of rounding. */
   let dOut = "";
-  for (const k of [0.3, 0.55, 0.85]) {
+  /* rung 0 — fidelity: a sub-pixel tolerance keeps every curve sample, so
+     organic outlines offset as dense rings the cubic refit can smooth
+     through (measured: the old 4.5px cap left ~18 chord kinks >15° per
+     blob). Micro-rounded sharp shapes legitimately strand this attempt —
+     their corner candidates all land in thin wedges — and fall through to
+     the classic ladder below, whose coarser collapse is what synthesizes
+     their miter tips. */
+  dOut = offsetAttempt(ring, delta, Math.min(0.9, delta * 0.3), 1.1, delta * 0.8);
+  if (!dOut) for (const k of [0.3, 0.55, 0.85]) {
     const eps = Math.min(k === 0.3 ? 4.5 : 8, delta * k);
     /* retries also relax the pinch cull by eps: the chordified boundary sits
        inside the true curve by up to eps, so a genuinely clear point can
@@ -355,7 +363,60 @@ function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, c
   const total = kept.reduce((s3, l) => s3 + Math.abs(shoelaceS(l)), 0);
   if (total < Math.abs(shoelaceS(poly)) * 0.25) return "";
   kept.sort((a2, b2) => Math.abs(shoelaceS(b2)) - Math.abs(shoelaceS(a2)));
-  return kept.map((l) => "M " + l.map((p) => `${p.x} ${p.y}`).join(" L ") + " Z").join(" ");
+  return kept.map(smoothLoopPath).join(" ");
+}
+
+/* ── cubic refit: the cure for chorded offsets ────────────────────────────
+   The planar-map machinery necessarily works on polylines, but its output
+   vertices LIE ON the true offset curve — so interpolating cubics through
+   them recovers the smooth boundary the chords destroyed. Corner-aware:
+   a vertex turning harder than ~35° is a real corner (the offset limit of
+   a consumed rounding — hex points, banner tails, miter tips) and stays
+   sharp; an edge far longer than both neighbours is a genuine straight
+   (DP collapses collinear runs to one span) and stays a line. Everything
+   else gets a Catmull-Rom-style tangent — central difference, handles at
+   a third of the chord — which is G1 through every sample and cannot
+   overshoot further than the handle. Sharp silhouettes classify as all
+   corners and emit the exact polyline they always did. */
+function smoothLoopPath(l: Pt[]): string {
+  const n = l.length;
+  const line = () => "M " + l.map((p) => `${p.x} ${p.y}`).join(" L ") + " Z";
+  if (n < 8) return line();
+  const len: number[] = [], dir: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = l[i], b = l[(i + 1) % n];
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
+    len.push(L); dir.push({ x: (b.x - a.x) / L, y: (b.y - a.y) / L });
+  }
+  const COS35 = 0.819;
+  const corner: boolean[] = [], lineE: boolean[] = [];
+  for (let i = 0; i < n; i++) {
+    const dp = dir[(i + n - 1) % n];
+    corner.push(dp.x * dir[i].x + dp.y * dir[i].y < COS35);
+    lineE.push(len[i] > 24 && len[i] > 3 * Math.max(len[(i + n - 1) % n], len[(i + 1) % n]));
+  }
+  if (corner.every(Boolean)) return line();
+  const R = (v: number) => Math.round(v * 10) / 10;
+  let out = `M ${l[0].x} ${l[0].y}`;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    // chord-tangent (one-sided) at run boundaries: corners, and the ends of
+    // straight spans — averaging across either would bow them
+    const aCh = corner[i] || lineE[(i + n - 1) % n];
+    const bCh = corner[j] || lineE[j];
+    if (lineE[i] || (aCh && bCh)) { out += ` L ${l[j].x} ${l[j].y}`; continue; }
+    const t0 = aCh ? dir[i] : tangentAt(l, i, n);
+    const t1 = bCh ? dir[i] : tangentAt(l, j, n);
+    const k3 = len[i] / 3;
+    out += ` C ${R(l[i].x + t0.x * k3)} ${R(l[i].y + t0.y * k3)} ${R(l[j].x - t1.x * k3)} ${R(l[j].y - t1.y * k3)} ${l[j].x} ${l[j].y}`;
+  }
+  return out + " Z";
+}
+function tangentAt(l: Pt[], i: number, n: number): Pt {
+  const p = l[(i + n - 1) % n], q = l[(i + 1) % n];
+  const tx = q.x - p.x, ty = q.y - p.y;
+  const L = Math.hypot(tx, ty) || 1e-6;
+  return { x: tx / L, y: ty / L };
 }
 
 /* Split a (possibly self-intersecting) closed ring into simple loops:
