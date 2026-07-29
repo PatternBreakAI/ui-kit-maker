@@ -632,7 +632,44 @@ function fitArtwork(d: string, vb: [number, number, number, number], x: number, 
   return transformPath(d, vb, x + (w - w2) / 2, y + (h - h2) / 2, w2, h2);
 }
 
+/* ── horizontal mirror at the path level ─────────────────────────────────
+   One transform covers every shape class — procedural (arcs included),
+   stock artwork and user imports — because it rewrites the EMITTED path:
+   absolute x-coords reflect around the axis, relative dx negate, H stays
+   H, arcs flip their sweep and negate their rotation. Winding reverses,
+   which every consumer already tolerates (imports arrive either-handed). */
+const MIRROR_ARGN: Record<string, number> = { m: 2, l: 2, t: 2, c: 6, s: 4, q: 4, h: 1, v: 1, a: 7, z: 0 };
+export function mirrorPathX(d: string, cx: number): string {
+  const toks = d.match(/[a-df-zA-DF-Z]|[-+]?(?:\d*\.\d+|\d+)(?:e[-+]?\d+)?/g) ?? [];
+  let out = "", i = 0, cmd = "";
+  const flipAbs = (v: number) => 2 * cx - v;
+  while (i < toks.length) {
+    if (/[a-zA-Z]/.test(toks[i])) cmd = toks[i++];
+    const lower = cmd.toLowerCase();
+    const argn = MIRROR_ARGN[lower];
+    if (argn === undefined) return d; // unknown command — bail unmirrored
+    const rel = cmd === lower;
+    out += cmd;
+    if (argn === 0) { continue; }
+    const args = toks.slice(i, i + argn).map(Number);
+    i += argn;
+    if (lower === "h") args[0] = rel ? -args[0] : flipAbs(args[0]);
+    else if (lower === "v") { /* untouched */ }
+    else if (lower === "a") {
+      args[2] = -args[2];               // x-axis rotation mirrors
+      args[4] = args[4] ? 0 : 1;        // sweep flips
+      args[5] = rel ? -args[5] : flipAbs(args[5]);
+    } else {
+      for (let k2 = 0; k2 < argn; k2 += 2) args[k2] = rel ? -args[k2] : flipAbs(args[k2]);
+    }
+    out += " " + args.map((v) => (Math.round(v * 100) / 100)).join(" ") + " ";
+  }
+  return out;
+}
+
 export function shapePath(shape: Shape, x: number, y: number, w: number, h: number, softness: number): string {
+  // a ~flip id renders its base mirrored around the frame's center line
+  if (shape.endsWith("~flip")) return mirrorPathX(shapePath(shape.slice(0, -5) as Shape, x, y, w, h, softness), x + w / 2);
   const imp = importedShape(shape);
   if (imp) {
     // Feasibility-lab imports fill the frame exactly — the lab exists to

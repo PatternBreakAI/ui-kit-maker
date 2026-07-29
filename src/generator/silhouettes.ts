@@ -38,6 +38,8 @@ export interface SilhouetteMeta {
    *  rendering and keeps its picker card. Distinct from the runtime
    *  retire list (app_settings) — this is the pre-release gate. */
   preview?: boolean;
+  /** clearly-asymmetric outlines offer the horizontal flip toggle */
+  flippable?: boolean;
 }
 
 const BTN = ["button", "chip", "badge", "tab", "toggle", "progress", "slider", "input"];
@@ -103,7 +105,7 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "kenneyRect", name: "Crisp Panel", category: "Buttons", source: "custom study (after a CC0 pack rectangle)", license: "original", renderer: "procedural",
     capScale: 0.12, content: { top: 0.12, right: 0.16, bottom: 0.12, left: 0.16 }, minWidth: 80, minHeight: 40,
     supports: [...BTN, "timer"], character: "The pack's signature crisp rectangle — corner radius measured at 9.4% of height." },
-  { id: "kenneyTag", name: "Pointer Tag", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
+  { id: "kenneyTag", flippable: true, name: "Pointer Tag", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
     capScale: 0.31, content: { top: 0.14, right: 0.36, bottom: 0.14, left: 0.18 }, minWidth: 96, minHeight: 40,
     supports: ["button", "chip", "badge", "tab"], character: "Pointer tag — 45° shoulders and tip rounding measured proportions, drawn as an original study." },
   { id: "doboBracket", name: "Bracket Label", category: "Banners & Labels", source: "custom study (after an itch.io label)", license: "original", renderer: "procedural",
@@ -118,19 +120,19 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:bubbleslab", name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.39, content: { top: 0.201, right: 0.34, bottom: 0.177, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Wide slab with a gentle swell top and bottom." },
-  { id: "stock:teardroplozenge", name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:teardroplozenge", flippable: true, name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.123, right: 0.34, bottom: 0.151, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Full round shoulder tapering to a soft point." },
-  { id: "stock:swellbar", name: "Swell Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:swellbar", flippable: true, name: "Swell Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.173, right: 0.34, bottom: 0.218, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "One long S-curve — heavy at the left, lifting right." },
-  { id: "stock:wavecapsule", name: "Wave Capsule", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:wavecapsule", flippable: true, name: "Wave Capsule", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.31, content: { top: 0.194, right: 0.34, bottom: 0.19, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Rounded caps under a single rolling wave." },
-  { id: "stock:cobblebar", name: "Cobble Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:cobblebar", flippable: true, name: "Cobble Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.251, right: 0.34, bottom: 0.124, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Bumpy shoulder settling into a calm right end." },
-  { id: "stock:wedgeblob", name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:wedgeblob", flippable: true, name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.168, right: 0.34, bottom: 0.125, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Round left shoulder, straight taper to the right." },
   { id: "stock:cushionslab", name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
@@ -139,10 +141,10 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:scallopblock", name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.137, right: 0.34, bottom: 0.121, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Squared block with rippled, scalloped ends." },
-  { id: "stock:longloaf", name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:longloaf", flippable: true, name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.42, content: { top: 0.144, right: 0.34, bottom: 0.149, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Long and low with one soft rise." },
-  { id: "stock:rollingbar", name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:rollingbar", flippable: true, name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.159, right: 0.34, bottom: 0.157, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Ribbon bar — top and bottom roll in parallel." },
   { id: "stock:peanutpill", name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
@@ -151,5 +153,11 @@ export const SILHOUETTES: SilhouetteMeta[] = [
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
+  // a ~flip variant reads its base's meta with the horizontal insets
+  // swapped — cap zones are symmetric, text-safe areas are not
+  if (id.endsWith("~flip")) {
+    const base = SILHOUETTES.find((s) => s.id === id.slice(0, -5));
+    return base && { ...base, content: { ...base.content, left: base.content.right, right: base.content.left } };
+  }
   return SILHOUETTES.find((s) => s.id === id);
 }
