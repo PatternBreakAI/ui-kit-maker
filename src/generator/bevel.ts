@@ -1701,6 +1701,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
+  "chest", "giftbox", "rewardcard", "rewardtray",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -1738,6 +1739,48 @@ function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string
   <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${kid})" stroke="${darken(base, 0.38)}" stroke-width="1.5"/>
   ${dot ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(3, r * 0.3).toFixed(1)}" fill="${dot}"/>` : ""}
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
+}
+
+/* Rewards pack · chest tier accents — genre semantics like the pad-button
+   console ring: Wood/Iron/Gold are the small/medium/large ladder, Premium
+   and Event are the specials. The chest BODY always wears the kit's own
+   candy material; only the trim speaks tier. */
+const CHEST_TIERS: Record<string, string> = { Wood: "#B07A4A", Iron: "#9AAAB8", Gold: "#F5B23E", Premium: "#A855F7", Event: "#38BDF8" };
+
+/** The chest object — body in the KIT material, trim in the tier accent.
+ *  Shared by the chest piece and the opening panel. `open` tilts the lid
+ *  back over a darkened interior (the claimed/empty pose). */
+function chestArt(cx: number, cy: number, w: number, base: string, accent: string, o: { open?: boolean; lock?: boolean; dim?: boolean } = {}): string {
+  const id = "ch" + UID++;
+  const n = (x: number) => x.toFixed(1);
+  const h = w * 0.58, lidH = w * 0.34;
+  const bx = cx - w / 2, by = cy - h * 0.28;
+  const edge = darken(base, 0.5);
+  const trim = o.dim ? "#8B8F99" : accent;
+  const defs = `<defs>
+    <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(base, 0.22)}"/><stop offset="1" stop-color="${darken(base, 0.18)}"/></linearGradient>
+    <linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(base, 0.45)}"/><stop offset="1" stop-color="${lighten(base, 0.06)}"/></linearGradient>
+  </defs>`;
+  const lid = `<g${o.open ? ` transform="rotate(-46 ${n(bx + w * 0.04)} ${n(by - lidH * 0.1)})"` : ""}>
+    <path d="M ${n(bx)} ${n(by)} L ${n(bx)} ${n(by - lidH * 0.35)} Q ${n(bx)} ${n(by - lidH)} ${n(cx)} ${n(by - lidH)} Q ${n(bx + w)} ${n(by - lidH)} ${n(bx + w)} ${n(by - lidH * 0.35)} L ${n(bx + w)} ${n(by)} Z" fill="url(#${id}l)" stroke="${edge}" stroke-width="${n(w * 0.016)}"/>
+    <rect x="${n(cx - w * 0.09)}" y="${n(by - lidH * 0.98)}" width="${n(w * 0.18)}" height="${n(lidH * 0.98)}" fill="${trim}" opacity="0.92"/>
+    <ellipse cx="${n(cx - w * 0.22)}" cy="${n(by - lidH * 0.6)}" rx="${n(w * 0.13)}" ry="${n(lidH * 0.2)}" fill="#FFFFFF" opacity="0.4"/>
+  </g>`;
+  const interior = `<ellipse cx="${n(cx)}" cy="${n(by + h * 0.04)}" rx="${n(w * 0.47)}" ry="${n(h * 0.13)}" fill="${darken(base, 0.72)}"/>`;
+  const body = `<rect x="${n(bx)}" y="${n(by)}" width="${n(w)}" height="${n(h)}" rx="${n(w * 0.07)}" fill="url(#${id}b)" stroke="${edge}" stroke-width="${n(w * 0.016)}"/>
+    <rect x="${n(cx - w * 0.09)}" y="${n(by)}" width="${n(w * 0.18)}" height="${n(h)}" fill="${trim}" opacity="0.92"/>
+    <rect x="${n(bx + w * 0.02)}" y="${n(by + h * 0.8)}" width="${n(w * 0.96)}" height="${n(h * 0.09)}" rx="${n(h * 0.045)}" fill="${hexRgba(edge, 0.35)}"/>`;
+  const plate = `<rect x="${n(cx - w * 0.115)}" y="${n(by - w * 0.015)}" width="${n(w * 0.23)}" height="${n(w * 0.19)}" rx="${n(w * 0.045)}" fill="${trim}" stroke="${edge}" stroke-width="${n(w * 0.013)}"/>
+    <circle cx="${n(cx)}" cy="${n(by + w * 0.08)}" r="${n(w * 0.033)}" fill="${darken(trim, 0.45)}"/>`;
+  const lock = o.lock ? `<path d="M ${n(cx - w * 0.06)} ${n(by + w * 0.03)} v ${n(-w * 0.05)} a ${n(w * 0.06)} ${n(w * 0.06)} 0 0 1 ${n(w * 0.12)} 0 v ${n(w * 0.05)}" fill="none" stroke="${darken(trim, 0.42)}" stroke-width="${n(w * 0.032)}"/>
+    <rect x="${n(cx - w * 0.09)}" y="${n(by + w * 0.03)}" width="${n(w * 0.18)}" height="${n(w * 0.15)}" rx="${n(w * 0.03)}" fill="${darken(trim, 0.2)}" stroke="${edge}" stroke-width="${n(w * 0.013)}"/>
+    <circle cx="${n(cx)}" cy="${n(by + w * 0.095)}" r="${n(w * 0.024)}" fill="${darken(trim, 0.55)}"/>` : "";
+  const pool = `<ellipse cx="${n(cx)}" cy="${n(by + h + w * 0.025)}" rx="${n(w * 0.54)}" ry="${n(w * 0.055)}" fill="rgba(4,7,14,0.4)"/>`;
+  const gloss = `<ellipse cx="${n(cx - w * 0.24)}" cy="${n(by + h * 0.26)}" rx="${n(w * 0.16)}" ry="${n(h * 0.14)}" fill="#FFFFFF" opacity="0.18"/>`;
+  // open: the lid swings BEHIND the body; the interior well reads as empty
+  return defs + pool + (o.open
+    ? lid + body + interior + plate + gloss
+    : body + plate + lock + lid + gloss);
 }
 
 /* Layer content BEHIND the whole piece (halo rings, auras): lands right
@@ -4111,6 +4154,228 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <rect x="${(sx + sw / 2 - 66 * k).toFixed(1)}" y="${(sy + sh * 0.56 - 21 * k).toFixed(1)}" width="${(132 * k).toFixed(1)}" height="${(42 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="none" stroke="${stampC}" stroke-width="${(3 * k).toFixed(1)}"/>
         <text x="${(sx + sw / 2).toFixed(1)}" y="${(sy + sh * 0.56).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(23 * k).toFixed(1)}" font-weight="900" letter-spacing="0.2em" fill="${stampC}" text-anchor="middle" dominant-baseline="central">SERVED</text></g>` : "";
       return inject(shell.replace("<svg ", '<svg data-orderticket="1" '), hole + glyph + dish + num + perf + linesT + bar + secs + stamp);
+    }
+    case "chest": {
+      /* Rewards · treasure chest — the body wears the KIT material, the
+         trim wears the tier accent. EDITING CONTRACT: tier slot =
+         Wood(S)/Iron(M)/Gold(L)/Premium/Event; gate slot = Timed
+         (countdown plate) / Locked (padlock, no timer) / Plain; value =
+         unlock time left (1 just started → 0 READY: aura pulses, ticks
+         radiate); hover lifts, pressed squashes; disabled = opened and
+         empty. */
+      const W9 = 250 * k, H9 = 252 * k;
+      const tierN = String(opts.slots?.tier ?? "Gold");
+      const accent = CHEST_TIERS[tierN] ?? CHEST_TIERS.Gold;
+      const gate = String(opts.slots?.variant ?? "Timed");
+      const vC = clamp(value ?? 0.62, 0, 1);
+      const dimC = state === "disabled";
+      const ready = !dimC && gate !== "Locked" && vC <= 0.02;
+      const ladder = tierN === "Wood" ? 0.82 : tierN === "Iron" ? 0.92 : 1;
+      const cw = 158 * k * ladder;
+      const ccx = W9 / 2, ccy = 96 * k + (state === "pressed" ? 4 * k : 0);
+      let inner = "";
+      if (ready || state === "hover" || state === "pressed") {
+        inner += `<circle cx="${ccx.toFixed(1)}" cy="${(ccy + cw * 0.12).toFixed(1)}" r="${(cw * (ready ? 0.8 : 0.68)).toFixed(1)}" fill="${hexRgba(glow, ready ? 0.16 : 0.09)}">${ready ? `<animate attributeName="opacity" values="1;0.55;1" dur="1.4s" repeatCount="indefinite"/>` : ""}</circle>`;
+        if (ready) for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+          const r1 = cw * 0.72, r2 = cw * 0.86;
+          inner += `<line x1="${(ccx + Math.cos(a) * r1).toFixed(1)}" y1="${(ccy + cw * 0.12 + Math.sin(a) * r1).toFixed(1)}" x2="${(ccx + Math.cos(a) * r2).toFixed(1)}" y2="${(ccy + cw * 0.12 + Math.sin(a) * r2).toFixed(1)}" stroke="${glow}" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round" opacity="0.85"/>`;
+        }
+      }
+      inner += chestArt(ccx, ccy, cw, bevel, accent, { open: dimC, lock: gate === "Locked" && !dimC, dim: dimC });
+      // tier keepsakes: Premium wears gem studs, Event wears the star
+      if (!dimC && tierN === "Premium" && STOCK_ICONS.gem) inner += themedIcon(STOCK_ICONS.gem, ccx - cw * 0.38, ccy - cw * 0.02, cw * 0.14, lighten(accent, 0.25), 2.2) + themedIcon(STOCK_ICONS.gem, ccx + cw * 0.24, ccy - cw * 0.02, cw * 0.14, lighten(accent, 0.25), 2.2);
+      if (!dimC && tierN === "Event" && STOCK_ICONS.star) inner += themedIcon(STOCK_ICONS.star, ccx + cw * 0.26, ccy - cw * 0.46, cw * 0.18, lighten(accent, 0.3), 2.2);
+      if (gate === "Timed" && !dimC) {
+        const pw = 128 * k, ph = 34 * k, py = H9 - ph - 8 * k;
+        const mins = Math.ceil(vC * 480);
+        const label9 = ready ? "OPEN!" : `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+        inner += `<rect x="${(ccx - pw / 2).toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>` +
+          (STOCK_ICONS.clock && !ready ? themedIcon(STOCK_ICONS.clock, ccx - pw / 2 + 9 * k, py + ph / 2 - 9 * k, 18 * k, "rgba(255,255,255,0.75)", 2) : "") +
+          hudText(label9, ccx + (ready ? 0 : 9 * k), py + ph / 2 + 1, 17 * k, "middle");
+      }
+      if (dimC) inner += hudText("OPENED", ccx, H9 - 22 * k, 15 * k, "middle");
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W9.toFixed(0)}" height="${H9.toFixed(0)}" viewBox="0 0 ${W9.toFixed(0)} ${H9.toFixed(0)}" data-chest="1" role="img" aria-label="${esc(tierN)} chest"><g opacity="${dimC ? 0.55 : 1}">${inner}</g></svg>`;
+    }
+    case "giftbox": {
+      /* Rewards · gift box — candy-material box, ribbon and bow in the
+         Glow role. EDITING CONTRACT: tag slot = Plain / Daily (banner) /
+         Surprise (?) / Milestone (progress ring); value = readiness
+         (at 100% the gift glows ready; Milestone's ring FILLS with it);
+         real button; disabled = claimed (dim + check). */
+      const W9 = 210 * k, H9 = 216 * k;
+      const tag = String(opts.slots?.tag ?? "Plain");
+      const vG = clamp(value ?? 0.62, 0, 1);
+      const dimG = state === "disabled";
+      const readyG = !dimG && vG >= 0.98;
+      const gcx = W9 / 2, gcy = 118 * k + (state === "pressed" ? 4 * k : 0);
+      const bw9 = 118 * k, bh9 = 92 * k;
+      const gid = "gf" + UID++;
+      const edge = darken(bevel, 0.5);
+      let inner = "";
+      if (readyG || state === "hover" || state === "pressed") {
+        inner += `<circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${(bw9 * (readyG ? 0.95 : 0.82)).toFixed(1)}" fill="${hexRgba(glow, readyG ? 0.16 : 0.09)}">${readyG ? `<animate attributeName="opacity" values="1;0.5;1" dur="1.4s" repeatCount="indefinite"/>` : ""}</circle>`;
+      }
+      if (tag === "Milestone") {
+        const rM = bw9 * 0.92;
+        const circ = 2 * Math.PI * rM;
+        inner += `<circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${rM.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="${(6 * k).toFixed(1)}"/>` +
+          `<circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${rM.toFixed(1)}" fill="none" stroke="${glow}" stroke-width="${(6 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circ * vG).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${gcx.toFixed(1)} ${gcy.toFixed(1)})"${!dimG ? ` style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+      }
+      inner += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.16)}"/></linearGradient></defs>` +
+        `<ellipse cx="${gcx.toFixed(1)}" cy="${(gcy + bh9 / 2 + 6 * k).toFixed(1)}" rx="${(bw9 * 0.6).toFixed(1)}" ry="${(7 * k).toFixed(1)}" fill="rgba(4,7,14,0.4)"/>` +
+        `<rect x="${(gcx - bw9 / 2).toFixed(1)}" y="${(gcy - bh9 / 2 + 12 * k).toFixed(1)}" width="${bw9.toFixed(1)}" height="${(bh9 - 12 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="url(#${gid})" stroke="${edge}" stroke-width="1.6"/>` +
+        `<rect x="${(gcx - bw9 / 2 - 5 * k).toFixed(1)}" y="${(gcy - bh9 / 2 - 6 * k).toFixed(1)}" width="${(bw9 + 10 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="${lighten(bevel, 0.32)}" stroke="${edge}" stroke-width="1.6"/>` +
+        `<rect x="${(gcx - 9 * k).toFixed(1)}" y="${(gcy - bh9 / 2 - 6 * k).toFixed(1)}" width="${(18 * k).toFixed(1)}" height="${(bh9 + 12 * k).toFixed(1)}" fill="${dimG ? "#8B8F99" : glow}" opacity="0.9"/>` +
+        `<path d="M ${(gcx - 26 * k).toFixed(1)} ${(gcy - bh9 / 2 - 14 * k).toFixed(1)} q ${(8 * k).toFixed(1)} ${(-20 * k).toFixed(1)} ${(26 * k).toFixed(1)} ${(-6 * k).toFixed(1)} q ${(18 * k).toFixed(1)} ${(-14 * k).toFixed(1)} ${(26 * k).toFixed(1)} ${(6 * k).toFixed(1)} q ${(-10 * k).toFixed(1)} ${(10 * k).toFixed(1)} ${(-26 * k).toFixed(1)} ${(8 * k).toFixed(1)} q ${(-16 * k).toFixed(1)} ${(2 * k).toFixed(1)} ${(-26 * k).toFixed(1)} ${(-8 * k).toFixed(1)} Z" fill="${dimG ? "#8B8F99" : lighten(glow, 0.15)}" stroke="${edge}" stroke-width="1.4"/>` +
+        `<ellipse cx="${(gcx - bw9 * 0.26).toFixed(1)}" cy="${(gcy - bh9 * 0.1).toFixed(1)}" rx="${(bw9 * 0.14).toFixed(1)}" ry="${(bh9 * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.2"/>`;
+      if (tag === "Surprise") inner += `<text x="${gcx.toFixed(1)}" y="${(gcy + 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(34 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${hexRgba(edge, 0.8)}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">?</text>`;
+      if (tag === "Daily") {
+        const dw = 74 * k, dh = 26 * k, dy = gcy + bh9 / 2 - dh / 2 - 4 * k;
+        inner += `<rect x="${(gcx - dw / 2).toFixed(1)}" y="${dy.toFixed(1)}" width="${dw.toFixed(1)}" height="${dh.toFixed(1)}" rx="${(6 * k).toFixed(1)}" fill="${CHEST_TIERS.Gold}" stroke="${darken(CHEST_TIERS.Gold, 0.4)}" stroke-width="1.4"/>` +
+          `<text x="${gcx.toFixed(1)}" y="${(dy + dh / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" letter-spacing="0.14em" fill="#3A2A08" text-anchor="middle" dominant-baseline="central">DAILY</text>`;
+      }
+      if (dimG && STOCK_ICONS.check) inner += themedIcon(STOCK_ICONS.check, gcx + bw9 * 0.3, gcy - bh9 * 0.55, 30 * k, "#2DD4BF", 3);
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W9.toFixed(0)}" height="${H9.toFixed(0)}" viewBox="0 0 ${W9.toFixed(0)} ${H9.toFixed(0)}" data-giftbox="1" role="img" aria-label="gift box"><g opacity="${dimG ? 0.55 : 1}">${inner}</g></svg>`;
+    }
+    case "rewardcard": {
+      /* Rewards · reveal card — the card a chest deals out. Its aura walks
+         the KIT'S RARITY LADDER (Color → Rarity tiers). EDITING CONTRACT:
+         value = rarity tier; label = the reward's name; icon = the reward
+         glyph (swappable); qty slot; face slot Mystery = the pre-reveal ?
+         silhouette; real button; disabled dims. */
+      const w = 190 * k, h = 252 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const tier = rarityOf(cfg, value, 1);
+      const dimR = state === "disabled";
+      const mystery = (opts.slots?.kind ?? "Revealed") === "Mystery" || opts.overlay === "mystery";
+      const hotR = state === "hover" || state === "pressed";
+      const aura = `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${mystery ? "rgba(255,255,255,0.35)" : tier.c}" stroke-width="${((hotR ? 5 : 3.6) * k).toFixed(1)}" opacity="${dimR ? 0.3 : 0.95}"${!dimR && !mystery ? ` style="filter: drop-shadow(0 0 ${((hotR ? 9 : 5.5) * k).toFixed(1)}px ${hexRgba(tier.c, 0.7)})"` : ""}${mystery ? ` stroke-dasharray="${(7 * k).toFixed(1)} ${(6 * k).toFixed(1)}"` : ""}/>`;
+      const inset = bw + 6 * k;
+      const wcx = sx + sw / 2;
+      const well = `<circle cx="${wcx.toFixed(1)}" cy="${(sy + sh * 0.38).toFixed(1)}" r="${(sw * 0.3).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+      const icR = opts.icon ?? STOCK_ICONS.gem;
+      const face = mystery
+        ? `<text x="${wcx.toFixed(1)}" y="${(sy + sh * 0.38).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(46 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.5)" text-anchor="middle" dominant-baseline="central">?</text>`
+        : (icR ? iconGroup(icR, wcx - sw * 0.19, sy + sh * 0.38 - sw * 0.19, sw * 0.38, dimR ? "#A7AAB4" : cfg.icon.color ?? lighten(tier.c, 0.2), { strokeWidth: 2.2 * iconWK }) : "");
+      const nameR = contentText(mystery ? "???" : (opts.label ?? "SUN SHARD").slice(0, 14), wcx, sy + sh - inset - 52 * k, 20 * k * typeK, { anchor: "middle" });
+      const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
+        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${dimR ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
+      return injectUnder(inject(shell.replace("<svg ", '<svg data-rewardcard="1" '), well + face + nameR + qty), aura);
+    }
+    case "qtybadge": {
+      /* Rewards · quantity badge — the ×250 corner pill that rides any
+         slot or card. EDITING CONTRACT: label = the text; it's the master
+         material in miniature, states native. */
+      const shell = build(cfg, state, { x: 39, y: 30, h: 58 * k, fs: 22 * k * typeK, iconSize: 0, tokenH: 62 }, { iconDef: null, label: (opts.label ?? "×250").slice(0, 8), shapeOverride: sov });
+      return shell.replace("<svg ", '<svg data-qtybadge="1" ');
+    }
+    case "claimbtn": {
+      /* Rewards · claim button — the sweep-the-table action. EDITING
+         CONTRACT: mode slot = Claim all (gift glyph) / 2x by ad (play
+         badge + gold ×2 ribbon); label overrides the word; a REAL button
+         through and through. */
+      const w = 320 * k, h = 112 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 118 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ad = String(opts.slots?.mode ?? "Claim all") !== "Claim all";
+      const cyB = sy + sh / 2;
+      const dimB = state === "disabled";
+      let innerB = "";
+      if (ad) {
+        const pr = 19 * k, px = sx + 34 * k;
+        innerB += `<circle cx="${px.toFixed(1)}" cy="${cyB.toFixed(1)}" r="${pr.toFixed(1)}" fill="${hexRgba("#FFFFFF", 0.16)}" stroke="rgba(255,255,255,0.5)" stroke-width="1.6"/>` +
+          (STOCK_ICONS.play ? themedIcon(STOCK_ICONS.play, px - 9 * k, cyB - 10 * k, 20 * k, "#FFFFFF", 2.6) : "") +
+          contentText((opts.label ?? "2× REWARD").slice(0, 14), px + pr + 12 * k, cyB + 1, 24 * k * typeK, {});
+        const rw = 64 * k, rh = 26 * k;
+        innerB += `<g transform="rotate(8 ${(sx + sw - 18 * k).toFixed(1)} ${(sy + 4 * k).toFixed(1)})"><rect x="${(sx + sw - rw - 4 * k).toFixed(1)}" y="${(sy - rh * 0.45).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" rx="${(7 * k).toFixed(1)}" fill="${CHEST_TIERS.Gold}" stroke="${darken(CHEST_TIERS.Gold, 0.4)}" stroke-width="1.4"/><text x="${(sx + sw - rw / 2 - 4 * k).toFixed(1)}" y="${(sy + rh * 0.05).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="#3A2A08" text-anchor="middle" dominant-baseline="central">AD ×2</text></g>`;
+      } else {
+        const gx = sx + 30 * k;
+        innerB += (STOCK_ICONS.gift ? themedIcon(STOCK_ICONS.gift, gx, cyB - 14 * k, 28 * k, dimB ? "#A7AAB4" : glow, 2.2) : "") +
+          contentText((opts.label ?? "CLAIM ALL").slice(0, 14), gx + 40 * k, cyB + 1, 25 * k * typeK, {});
+      }
+      return inject(shell.replace("<svg ", '<svg data-claimbtn="1" '), innerB);
+    }
+    case "rewardtray": {
+      /* Rewards · reward tray — the multi-reward strip. EDITING CONTRACT:
+         value = reveal (slots flip ? → revealed left to right; 100% is
+         the full summary); title + per-slot qty slots; frame dims only
+         for disabled. */
+      const w = 560 * k, h = 158 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw] = shellM[1].split(" ").map(Number);
+      const inset = bw + 8 * k;
+      const dimT = state === "disabled";
+      const vT9 = clamp(value ?? 0.62, 0, 1);
+      const shown = Math.ceil(vT9 * 4);
+      const title = contentText((opts.slots?.title ?? "REWARDS").slice(0, 16), sx + inset + 8 * k, sy + inset + 14 * k, 19 * k * typeK, {});
+      const icons = [STOCK_ICONS.gem, STOCK_ICONS.bag, STOCK_ICONS.scroll, STOCK_ICONS.key];
+      const qtys = [(opts.slots?.q1 ?? "×120"), (opts.slots?.q2 ?? "×3"), (opts.slots?.q3 ?? "×1"), (opts.slots?.q4 ?? "×2")];
+      const cell = 84 * k, gap = 12 * k;
+      const rowY = sy + inset + 32 * k;
+      let cells = "";
+      for (let i = 0; i < 4; i++) {
+        const cx9 = sx + inset + 6 * k + i * (cell + gap);
+        const on = i < shown && !dimT;
+        cells += `<rect x="${cx9.toFixed(1)}" y="${rowY.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"${on ? ` stroke="${hexRgba(glow, 0.55)}" stroke-width="1.6"` : ""}/>`;
+        if (on) {
+          if (icons[i]) cells += themedIcon(icons[i], cx9 + cell * 0.28, rowY + cell * 0.14, cell * 0.44, hexMix(glow, "#FFFFFF", 0.3), 2);
+          cells += hudText(qtys[i].slice(0, 6), cx9 + cell / 2, rowY + cell * 0.82, 14.5 * k, "middle");
+        } else {
+          cells += `<text x="${(cx9 + cell / 2).toFixed(1)}" y="${(rowY + cell / 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.3)" text-anchor="middle" dominant-baseline="central">?</text>`;
+        }
+      }
+      // the tray's own claim capsule — decorative here; the real action is
+      // the Claim button piece
+      const pw = 108 * k, ph = 40 * k, px9 = sx + sw - inset - pw - 6 * k, py9 = rowY + cell / 2 - ph / 2;
+      const gidT9 = "rt" + UID++;
+      const all = shown >= 4 && !dimT;
+      cells += `<defs><linearGradient id="${gidT9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${darken(glow, 0.22)}"/></linearGradient></defs>` +
+        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : "rgba(255,255,255,0.1)"}" stroke="${all ? darken(glow, 0.35) : "rgba(255,255,255,0.2)"}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
+        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : "rgba(255,255,255,0.45)"}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
+      return inject(shell.replace("<svg ", '<svg data-rewardtray="1" '), title + cells);
+    }
+    case "chestpanel": {
+      /* Rewards · chest-opening panel — the ceremony stage: burst rays,
+         pedestal, the chest, TAP TO OPEN. EDITING CONTRACT: label = the
+         headline; hover feeds the rays; pressed squashes the chest;
+         disabled dims the whole rite. In an engine the chest is its own
+         sprite — this is the stage it lands on. */
+      const w = 500 * k, h = 330 * k;
+      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const dimP = state === "disabled";
+      const hotP = state === "hover" || state === "pressed";
+      const pcx = sx + sw / 2, pcy = sy + sh * 0.56;
+      const gidP = "cp" + UID++;
+      let innerP = `<clipPath id="${gidP}c"><rect x="${(sx + bw).toFixed(1)}" y="${(sy + bw).toFixed(1)}" width="${(sw - bw * 2).toFixed(1)}" height="${(sh - bw * 2).toFixed(1)}" rx="${(14 * k).toFixed(1)}"/></clipPath><g clip-path="url(#${gidP}c)">`;
+      innerP += `<rect x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" width="${sw.toFixed(1)}" height="${sh.toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.62)}"/>`;
+      let rays = "";
+      for (let i = 0; i < 12; i++) {
+        const a1 = (i / 12) * 360, spread = 11;
+        rays += `<path d="M 0 0 L ${(sw * 0.9).toFixed(1)} ${(-Math.tan((spread / 2) * Math.PI / 180) * sw * 0.9).toFixed(1)} L ${(sw * 0.9).toFixed(1)} ${(Math.tan((spread / 2) * Math.PI / 180) * sw * 0.9).toFixed(1)} Z" fill="${glow}" opacity="${dimP ? 0.04 : hotP ? 0.14 : 0.09}" transform="rotate(${a1})"/>`;
+      }
+      innerP += `<g transform="translate(${pcx.toFixed(1)} ${pcy.toFixed(1)})"><g>${dimP ? "" : `<animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="46s" repeatCount="indefinite"/>`}${rays}</g></g>`;
+      innerP += `<ellipse cx="${pcx.toFixed(1)}" cy="${(pcy + 58 * k).toFixed(1)}" rx="${(120 * k).toFixed(1)}" ry="${(16 * k).toFixed(1)}" fill="rgba(4,7,14,0.5)"/>`;
+      innerP += chestArt(pcx, pcy + (state === "pressed" ? 12 * k : 8 * k), 128 * k, bevel, CHEST_TIERS.Gold, { dim: dimP });
+      if (!dimP) for (let i = 0; i < 5; i++) {
+        const ang = (i / 5) * Math.PI * 2 + 0.6;
+        const rr9 = 96 * k + (i % 2) * 26 * k;
+        innerP += `<circle cx="${(pcx + Math.cos(ang) * rr9).toFixed(1)}" cy="${(pcy - 10 * k + Math.sin(ang) * rr9 * 0.6).toFixed(1)}" r="${((2.4 + (i % 3)) * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" opacity="0.8"><animate attributeName="opacity" values="0.8;0.2;0.8" dur="${(1.6 + i * 0.5).toFixed(1)}s" repeatCount="indefinite"/></circle>`;
+      }
+      innerP += contentText((opts.label ?? "CHEST OPENING").slice(0, 18), pcx, sy + 34 * k, 26 * k * typeK, { anchor: "middle" });
+      if (!dimP) innerP += `<g><animate attributeName="opacity" values="1;0.5;1" dur="1.8s" repeatCount="indefinite"/>${hudText("TAP TO OPEN", pcx, sy + sh - 26 * k, 16 * k, "middle")}</g>`;
+      innerP += "</g>";
+      return inject(shell.replace("<svg ", '<svg data-chestpanel="1" '), innerP);
     }
     case "pricebtn": {
       /* Casual · IAP price button — a REAL buy button: candy coin + price,

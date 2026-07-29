@@ -845,7 +845,9 @@ export type KitComponentId =
   | "seasontrack" | "achievetoast"
   // vNext — the staging bay: pieces landing here ship STAGED (admin-only)
   // until released from the kit page's bay
-  | "orderticket";
+  | "orderticket"
+  // rewards & chests pack (staged)
+  | "chest" | "giftbox" | "rewardcard" | "qtybadge" | "rewardtray" | "claimbtn" | "chestpanel";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -956,6 +958,31 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "i2", name: "Line 2", kind: "free", def: "Flip until golden", maxLen: 26 },
     { id: "i3", name: "Line 3", kind: "free", def: "Serve with syrup", maxLen: 26 },
     { id: "timer", name: "Time left", kind: "value", note: "Driven by the value slider — 100% is a fresh ticket, 0% is overdue." },
+  ],
+  chest: [
+    { id: "tier", name: "Chest tier", kind: "choice", choices: ["Wood", "Iron", "Gold", "Premium", "Event"], note: "Wood/Iron/Gold are the small/medium/large ladder; Premium and Event are the specials. The trim wears the tier; the body stays the kit's material." },
+    { id: "variant", name: "Gate", kind: "choice", choices: ["Timed", "Locked", "Plain"], note: "Timed shows the countdown plate; Locked wears the padlock (key-gated, no timer)." },
+    { id: "time", name: "Unlock", kind: "value", note: "Driven by the value slider — 100% just started, 0% is READY to open. Disabled = already opened." },
+  ],
+  giftbox: [
+    { id: "tag", name: "Tag", kind: "choice", choices: ["Plain", "Daily", "Surprise", "Milestone"], note: "Daily wears the banner, Surprise the ?, Milestone adds the progress ring." },
+    { id: "ready", name: "Readiness", kind: "value", note: "Driven by the value slider — at 100% the gift glows ready to claim. Disabled = claimed." },
+  ],
+  rewardcard: [
+    { id: "qty", name: "Quantity", kind: "free", def: "×3", maxLen: 8 },
+    { id: "kind", name: "Face", kind: "choice", choices: ["Revealed", "Mystery"], note: "Mystery hides the reward as a ? silhouette — the pre-reveal card." },
+    { id: "tierv", name: "Rarity", kind: "value", note: "Driven by the value slider — the card's aura walks the kit's rarity tiers (see Color → Rarity tiers)." },
+  ],
+  rewardtray: [
+    { id: "title", name: "Title", kind: "free", def: "REWARDS", maxLen: 16 },
+    { id: "q1", name: "Qty 1", kind: "free", def: "×120", maxLen: 6 },
+    { id: "q2", name: "Qty 2", kind: "free", def: "×3", maxLen: 6 },
+    { id: "q3", name: "Qty 3", kind: "free", def: "×1", maxLen: 6 },
+    { id: "q4", name: "Qty 4", kind: "free", def: "×2", maxLen: 6 },
+    { id: "reveal", name: "Reveal", kind: "value", note: "Driven by the value slider — slots flip from ? to revealed left to right; 100% is the full summary." },
+  ],
+  claimbtn: [
+    { id: "mode", name: "Mode", kind: "choice", choices: ["Claim all", "2x by ad"], note: "Claim-all wears the gift; the ad take wears the play badge and the ×2 ribbon." },
   ],
   leaderboard: [
     { id: "title", name: "Title", kind: "free", def: "TOP 5", maxLen: 16 },
@@ -1128,6 +1155,13 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }
   { id: "combo", name: "Combo burst" },
   { id: "movecounter", name: "Move counter" },
   { id: "orderticket", name: "Order ticket", staged: true },
+  { id: "chest", name: "Treasure chest", staged: true },
+  { id: "giftbox", name: "Gift box", staged: true },
+  { id: "rewardcard", name: "Reward card", staged: true },
+  { id: "qtybadge", name: "Quantity badge", staged: true },
+  { id: "rewardtray", name: "Reward tray", staged: true },
+  { id: "claimbtn", name: "Claim button", staged: true },
+  { id: "chestpanel", name: "Chest opening", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1356,6 +1390,11 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   manarails: "pill",
   questpanel: "kenneyRect",
   orderticket: "round",
+  rewardcard: "kenneyRect",
+  rewardtray: "kenneyRect",
+  chestpanel: "kenneyRect",
+  claimbtn: "chunky",
+  qtybadge: "pill",
   dialoguebox: "round",
   choicelist: "kenneyRect",
   invgrid: "kenneyRect",
