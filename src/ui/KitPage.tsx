@@ -140,6 +140,8 @@ interface PieceOpts {
   kind?: "circle" | "oval" | "strip"; tone?: "alt"; shape?: Shape; shine?: boolean;
   dock?: { icon?: IconDef | null; side?: "left" | "right" } | null;
   bar?: { segments?: number; gap?: number; snap?: boolean };
+  /** specimen slot poses — the user's own slot edits still ride on top */
+  slots?: Record<string, string>;
 }
 
 /** Shared plumbing for every live piece on this page. The page is always
@@ -162,7 +164,9 @@ function usePiece(p: PieceOpts) {
       id: p.id, size, shape: p.shape ?? kitShapes[p.id],
       // user content overrides beat the specimen's demo text and glyph;
       // an explicit "no icon" instance stays empty
-      label: kitLabels[p.id] ?? p.label, slots: kitSlotVals[p.id], segments: p.segments,
+      // slot POSES keep their identity (same rule as the catalog's rk()):
+      // a specimen demonstrating "Premium" stays Premium under user edits
+      label: kitLabels[p.id] ?? p.label, slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
@@ -1186,6 +1190,24 @@ const kitTier = useGen((s) => s.tier);
         // filter at the end keeps them admin-only until released
         rk("orderticket", "Order ticket · Urgent", {}, 0.1),
         rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
+        rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
+        rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
+        rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
+        rk("chest", "Chest · Premium", { slots: { tier: "Premium", variant: "Plain" } }, 0.4),
+        rk("chest", "Chest · Event", { slots: { tier: "Event", variant: "Plain" } }, 0.4),
+        rk("chest", "Chest · Timed", {}, 0.55),
+        rk("chest", "Chest · Ready", {}, 0),
+        rk("chest", "Chest · Locked", { slots: { variant: "Locked" } }, 0.5),
+        rk("chest", "Chest · Opened", {}, 0.62, "disabled"),
+        rk("giftbox", "Gift · Daily ready", { slots: { tag: "Daily" } }, 1),
+        rk("giftbox", "Gift · Surprise", { slots: { tag: "Surprise" } }, 0.4),
+        rk("giftbox", "Gift · Milestone", { slots: { tag: "Milestone" } }, 0.7),
+        rk("giftbox", "Gift · Claimed", {}, 0.4, "disabled"),
+        rk("rewardcard", "Reward · Legendary", {}, 1),
+        rk("rewardcard", "Reward · Mystery", { slots: { kind: "Mystery" } }, 0.5),
+        rk("rewardtray", "Tray · Revealing", {}, 0.5),
+        rk("rewardtray", "Tray · Summary", {}, 1),
+        rk("claimbtn", "Claim · 2× by ad", { slots: { mode: "2x by ad" } }),
         rk("dailycell", "Daily · Claimed", { label: "DAY 3", overlay: "check" }),
         rk("dailycell", "Daily · Locked", { label: "DAY 5", overlay: "locked" }),
         rk("booster", "Booster · Free", { icon: STOCK_ICONS.gem }, 0),
@@ -2042,7 +2064,74 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
       </Sec>
 
-      <Sec n="13" title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
+      {/* ── 13 · rewards & chests — the staging-bay pack: the whole Sec
+          hides until at least one resident is visible to this viewer ── */}
+      {(["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] as KitComponentId[]).some((rid) => kitVisible(rid, releases, isAdmin)) && (
+      <Sec n="13" title="Rewards & Chests" note="The economy's happy endings: chests on the small→large ladder plus Premium and Event trims, gifts, reveals, trays and claims. Chest and gift bodies wear the kit's material; tier trims, gold ribbons and ready-green are genre semantics. The reward card's aura walks the kit's rarity tiers.">
+        {kitVisible("chest", releases, isAdmin) && (<>
+          <div className="kp-subhead">The chest ladder</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="chest" caption="Small · wood" slots={{ tier: "Wood", variant: "Plain" }} value={0.4} scale={0.5} />
+            <Piece id="chest" caption="Medium · iron" slots={{ tier: "Iron", variant: "Plain" }} value={0.4} scale={0.5} />
+            <Piece id="chest" caption="Large · gold" slots={{ tier: "Gold", variant: "Plain" }} value={0.4} scale={0.5} />
+            <Piece id="chest" caption="Premium" slots={{ tier: "Premium", variant: "Plain" }} value={0.4} scale={0.5} />
+            <Piece id="chest" caption="Event" slots={{ tier: "Event", variant: "Plain" }} value={0.4} scale={0.5} />
+          </div>
+          <div className="kp-subhead">Gates & states</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="chest" caption="Timed · counting down" value={0.55} scale={0.5} />
+            <Piece id="chest" caption="Ready to open · pulses" value={0} scale={0.5} />
+            <Piece id="chest" caption="Locked · needs a key" slots={{ variant: "Locked" }} scale={0.5} />
+            <Piece id="chest" caption="Opened" baseState="disabled" scale={0.5} />
+          </div>
+        </>)}
+        {kitVisible("chestpanel", releases, isAdmin) && (<>
+          <div className="kp-subhead">The ceremony</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="chestpanel" caption="Chest-opening panel" scale={0.44} />
+          </div>
+        </>)}
+        {(kitVisible("rewardcard", releases, isAdmin) || kitVisible("qtybadge", releases, isAdmin)) && (<>
+          <div className="kp-subhead">Reveals</div>
+          <div className="kp-tray kp-axis">
+            {kitVisible("rewardcard", releases, isAdmin) && (<>
+              <Piece id="rewardcard" caption="Reward reveal · rare" value={0.5} scale={0.5} />
+              <Piece id="rewardcard" caption="Legendary" value={1} scale={0.5} />
+              <Piece id="rewardcard" caption="Mystery · pre-reveal" slots={{ kind: "Mystery" }} scale={0.5} />
+            </>)}
+            {kitVisible("qtybadge", releases, isAdmin) && <Piece id="qtybadge" caption="Quantity badge" scale={0.5} />}
+          </div>
+        </>)}
+        {(kitVisible("rewardtray", releases, isAdmin) || kitVisible("claimbtn", releases, isAdmin)) && (<>
+          <div className="kp-subhead">Trays & claims</div>
+          <div className="kp-tray kp-axis">
+            {kitVisible("rewardtray", releases, isAdmin) && (<>
+              <Piece id="rewardtray" caption="Multiple-reward tray · revealing" value={0.5} scale={0.46} />
+              <Piece id="rewardtray" caption="Reward summary · all revealed" value={1} scale={0.46} />
+            </>)}
+          </div>
+          <div className="kp-tray kp-axis">
+            {kitVisible("claimbtn", releases, isAdmin) && (<>
+              <Piece id="claimbtn" caption="Claim all" scale={0.5} />
+              <Piece id="claimbtn" caption="Double by ad" slots={{ mode: "2x by ad" }} scale={0.5} />
+            </>)}
+          </div>
+        </>)}
+        {(kitVisible("giftbox", releases, isAdmin)) && (<>
+          <div className="kp-subhead">Gifts & milestones</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="giftbox" caption="Gift box" value={0.4} scale={0.5} />
+            <Piece id="giftbox" caption="Daily gift · ready" slots={{ tag: "Daily" }} value={1} scale={0.5} />
+            <Piece id="giftbox" caption="Surprise gift" slots={{ tag: "Surprise" }} value={0.4} scale={0.5} />
+            <Piece id="giftbox" caption="Milestone · 70%" slots={{ tag: "Milestone" }} value={0.7} scale={0.5} />
+            <Piece id="giftbox" caption="Claimed" baseState="disabled" scale={0.5} />
+          </div>
+        </>)}
+        <Meta items={["Chest bodies and gift boxes are the kit's candy — they restyle with everything else", "tier trims, gold ribbons and ready-green are genre semantics", "the reward card reads the kit's rarity tiers", "timers, reveals and readiness ride the value slider", "chests, gifts, cards and claims are real buttons"]} />
+      </Sec>
+      )}
+
+      <Sec n="14" title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
         <div className="kp-subhead">Command & production</div>
         <div className="kp-tray kp-axis">
           <Piece id="buildqueue" caption="Build queue" value={0.55} scale={0.5} />
