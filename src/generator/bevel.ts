@@ -1700,7 +1700,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
-  "timerdigits", "speedo", "speedo2", "tacho", "laptimes",
+  "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -4058,6 +4058,59 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : `<text x="${ccx.toFixed(1)}" y="${numY.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
       const over = infoText((opts.slots?.caption ?? "MOVES").slice(0, 12), ccx, sy + sh - 20 * k, 15 * k, "middle", 800) + num;
       return inject(shell.replace("<svg ", '<svg data-movecounter="1" '), over);
+    }
+    case "orderticket": {
+      /* Casual · kitchen order ticket — the cooking-game order rail card:
+         punched hanger hole, order number + dish name, recipe lines in the
+         READING face, and a countdown bar. EDITING CONTRACT: value = time
+         left (1 fresh → 0 overdue; ≤25% goes alarm and pulses); label =
+         the dish name; icon = the dish glyph (swappable); the ticket is a
+         real button (hover lifts, pressed presses); disabled = SERVED
+         (dim + stamp). First resident of the staging bay. */
+      const w = 300 * k, h = 372 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const inset = bw + 8 * k;
+      const dim = state === "disabled";
+      const hole = `<circle cx="${(sx + sw / 2).toFixed(1)}" cy="${(sy + inset + 11 * k).toFixed(1)}" r="${(7 * k).toFixed(1)}" fill="${wellFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>`;
+      const hx = sx + inset + 14 * k;
+      const hy = sy + inset + 52 * k;
+      const icT = opts.icon ?? STOCK_ICONS.heart;
+      const glyph = icT ? iconGroup(icT, hx, hy - 14 * k, 28 * k, dim ? "#A7AAB4" : cfg.icon.color ?? glow, { strokeWidth: 2.2 * iconWK }) : "";
+      const dish = contentText((opts.label ?? "PANCAKE STACK").slice(0, 16), hx + (icT ? 38 * k : 0), hy, 22 * k * typeK, {});
+      // the order number rides the hanger-hole row so it never crowds the dish
+      const num = infoText((opts.slots?.num ?? "#07").slice(0, 5), sx + sw - inset - 12 * k, sy + inset + 15 * k, 16 * k, "end", 800);
+      const py = hy + 24 * k;
+      const perf = `<line x1="${(sx + inset + 8 * k).toFixed(1)}" y1="${py.toFixed(1)}" x2="${(sx + sw - inset - 8 * k).toFixed(1)}" y2="${py.toFixed(1)}" stroke="rgba(255,255,255,0.28)" stroke-width="${(1.6 * k).toFixed(1)}" stroke-dasharray="${(6 * k).toFixed(1)} ${(5 * k).toFixed(1)}"/>`;
+      const recipe = [(opts.slots?.i1 ?? "Flour · eggs · milk").slice(0, 26), (opts.slots?.i2 ?? "Flip until golden").slice(0, 26), (opts.slots?.i3 ?? "Serve with syrup").slice(0, 26)];
+      let linesT = "";
+      recipe.forEach((t, i) => {
+        const ly = py + 32 * k + i * 34 * k;
+        linesT += `<circle cx="${(hx + 5 * k).toFixed(1)}" cy="${ly.toFixed(1)}" r="${(3.2 * k).toFixed(1)}" fill="${dim ? "rgba(255,255,255,0.3)" : glow}"/>` +
+          contentText(t, hx + 18 * k, ly, 20 * k * typeK, { keepCase: true, list: true, opacity: dim ? 0.55 : 0.9 });
+      });
+      const vT = clamp(value ?? 0.62, 0, 1);
+      const ALARM = "#FF4D5A";
+      const late = vT <= 0.25 && !dim;
+      const barC = late ? ALARM : glow;
+      const bh2 = 22 * k;
+      const bx = sx + inset + 10 * k, bw2 = sw - inset * 2 - 20 * k;
+      const by = sy + sh - inset - bh2 - 12 * k;
+      const gidT = "ot" + UID++;
+      const pulseT = late ? `<animate attributeName="opacity" values="1;0.55;1" dur="0.9s" repeatCount="indefinite"/>` : "";
+      const bar = `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw2.toFixed(1)}" height="${bh2.toFixed(1)}" rx="${(bh2 / 2).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>` +
+        (vT > 0.02 ? `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.4)}"/><stop offset="1" stop-color="${darken(barC, 0.2)}"/></linearGradient></defs>
+          <rect x="${(bx + 2.5 * k).toFixed(1)}" y="${(by + 2.5 * k).toFixed(1)}" width="${((bw2 - 5 * k) * vT).toFixed(1)}" height="${(bh2 - 5 * k).toFixed(1)}" rx="${((bh2 - 5 * k) / 2).toFixed(1)}" fill="url(#${gidT})"${!dim ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(barC, 0.6)})"` : ""}>${pulseT}</rect>` : "");
+      const secs = infoText(`${Math.ceil(vT * 90)}s`, sx + sw - inset - 12 * k, by - 13 * k, 15 * k, "end", 800) +
+        infoText("TIME", bx + 2 * k, by - 13 * k, 13 * k, "start", 800);
+      // served = done — the happy teal stamp, not the alarm
+      const stampC = "#2DD4BF";
+      const stamp = dim ? `<g transform="rotate(-14 ${(sx + sw / 2).toFixed(1)} ${(sy + sh * 0.56).toFixed(1)})" opacity="0.9">
+        <rect x="${(sx + sw / 2 - 66 * k).toFixed(1)}" y="${(sy + sh * 0.56 - 21 * k).toFixed(1)}" width="${(132 * k).toFixed(1)}" height="${(42 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="none" stroke="${stampC}" stroke-width="${(3 * k).toFixed(1)}"/>
+        <text x="${(sx + sw / 2).toFixed(1)}" y="${(sy + sh * 0.56).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(23 * k).toFixed(1)}" font-weight="900" letter-spacing="0.2em" fill="${stampC}" text-anchor="middle" dominant-baseline="central">SERVED</text></g>` : "";
+      return inject(shell.replace("<svg ", '<svg data-orderticket="1" '), hole + glyph + dish + num + perf + linesT + bar + secs + stamp);
     }
     case "pricebtn": {
       /* Casual · IAP price button — a REAL buy button: candy coin + price,

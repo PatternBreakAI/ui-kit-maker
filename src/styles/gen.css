@@ -1705,6 +1705,20 @@ button.kp-fact { cursor: pointer; }
 .kp-tyuse span { font-size: 13.5px; line-height: 1.55; color: var(--kp-ink2); }
 .kp-tysrc { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--kp-ink2); padding-top: 6px; border-top: 1px solid var(--kp-line); }
 .kp-tynote { margin-top: 10px; font-size: 12px; line-height: 1.55; color: var(--kp-ink3, var(--kp-ink2)); font-style: italic; }
+
+/* ── the staging bay — admin-only release desk at the top of the kit ── */
+.kp-bayrow { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; padding: 14px 0; }
+.kp-bayrow + .kp-bayrow { border-top: 1px dashed var(--line2); }
+.kp-bayside { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+.kp-baychip {
+  align-self: flex-start; padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--soft); color: var(--ink2); border: 1px solid var(--line2);
+}
+.kp-baychip.ok { background: rgba(45, 212, 191, .14); color: #14b8a6; border-color: rgba(45, 212, 191, .4); }
+.kp-baychip.rej { background: rgba(185, 85, 80, .12); color: #b95550; border-color: rgba(185, 85, 80, .35); }
+.kp-bayacts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.kp-bayacts .cg-curate { margin-left: 0; }
 .kp-tysrc a { color: var(--kp-ink2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 .kp-tysrc a:hover { color: var(--kp-ink); }
 .kp-tysrc i { font-style: normal; color: var(--kp-ink3); }

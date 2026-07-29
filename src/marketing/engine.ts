@@ -45,7 +45,12 @@ function applyPresetFull(c: GenConfig, id: string): GenConfig {
 export const engineApi = {
   renderBevel, renderShell, renderKit, addShine,
   defaultConfig, defaultCandy, randomizeConfig, applyPresetCandy, presetById,
-  pickDesign, PRESETS, SHAPES, PATTERN_TYPES, KIT_COMPONENTS, STATE_NAMES,
+  pickDesign, PRESETS, SHAPES, PATTERN_TYPES,
+  /* the landing's roster NEVER includes staging-bay pieces — the homepage
+     can't know the release ledger, so staged stays backstage until the
+     piece graduates in code (its catch-all sheet renders everything here) */
+  KIT_COMPONENTS: KIT_COMPONENTS.filter((c) => !c.staged),
+  STATE_NAMES,
   AUTHORED, applyPresetFull, retintText,
   /* Google-Fonts-on-demand, same loader the editor uses (idempotent, one
      <link> per family). The landing must call this for every cfg it

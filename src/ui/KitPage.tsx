@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, resolveKitIcon } from "@/generator/model";
+import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -283,11 +284,21 @@ function LockedPiece({ caption }: { caption: string }) {
 function pieceName(id: KitComponentId): string {
   return KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
 }
+/* Staging bay: staged pieces render NOWHERE public until released — not
+   even as a named locked card (a caption would leak the roadmap). The
+   admin sees them everywhere, because testing is the whole point. */
+function useStagedHidden(id: KitComponentId): boolean {
+  const rel = useGen((s) => s.componentReleases);
+  const admin = useGen((s) => s.isAdmin);
+  return !kitVisible(id, rel, admin);
+}
 
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
 function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
   // gate as a wrapper so the locked and live variants keep separate hook trees
   const tier = useGen((s) => s.tier);
+  const stagedHidden = useStagedHidden(p.id);
+  if (stagedHidden) return null;
   if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={p.caption} />;
   return <PieceInner {...p} />;
 }
@@ -341,6 +352,8 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
 /** A piece inside a pattern or assembly mock — no caption rail, tighter scale. */
 function PPiece(p: PieceOpts & { ambient?: boolean }) {
   const tier = useGen((s) => s.tier);
+  const stagedHidden = useStagedHidden(p.id);
+  if (stagedHidden) return null;
   if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
   return <PPieceInner {...p} />;
 }
@@ -357,6 +370,8 @@ function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
  *  render canvas is trimmed away so pieces stack at interface rhythm. */
 function SPiece(p: PieceOpts & { ambient?: boolean }) {
   const tier = useGen((s) => s.tier);
+  const stagedHidden = useStagedHidden(p.id);
+  if (stagedHidden) return null;
   if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
   return <SPieceInner {...p} />;
 }
@@ -864,7 +879,7 @@ function patternTileUrl(cfg: GenConfig): string {
 }
 
 export function KitPage() {
-  const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, update, viewer } = useGen();
+  const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, update, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
@@ -1167,6 +1182,10 @@ const kitTier = useGen((s) => s.tier);
         rk("levelnode", "Level node · Completed", { label: "11", overlay: "stars:3" }),
         rk("levelnode", "Level node · Locked", { label: "13", overlay: "locked" }),
         rk("movecounter", "Moves · Last", {}, 0.12),
+        // staging-bay pieces list their poses here too — the visibility
+        // filter at the end keeps them admin-only until released
+        rk("orderticket", "Order ticket · Urgent", {}, 0.1),
+        rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
         rk("dailycell", "Daily · Claimed", { label: "DAY 3", overlay: "check" }),
         rk("dailycell", "Daily · Locked", { label: "DAY 5", overlay: "locked" }),
         rk("booster", "Booster · Free", { icon: STOCK_ICONS.gem }, 0),
@@ -1176,8 +1195,10 @@ const kitTier = useGen((s) => s.tier);
         rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
-      // not hand over what the page keeps locked
-      return st.tier === "guest" ? entries.filter((e) => GUEST_KIT.has(e.cid)) : entries;
+      // not hand over what the page keeps locked. Staging-bay pieces ride
+      // only for the admin (or once released) — same rule as the page.
+      const vis = entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
+      return st.tier === "guest" ? vis.filter((e) => GUEST_KIT.has(e.cid)) : vis;
     }
   };
   const downloadAllAssets = async () => {
@@ -1362,7 +1383,7 @@ const kitTier = useGen((s) => s.tier);
           )}
           <p className="kp-sub">A dimensional candy interface system for fast, playful game UI — one material, five levels, everything live.</p>
           <div className="kp-facts">
-            {([["5", "Levels"], [String(KIT_COMPONENTS.length) + "+", "Components"], ["20+", "Assemblies"], [sil, "Silhouette"]] as const).map(([v, l]) => (
+            {([["5", "Levels"], [String(KIT_COMPONENTS.filter((c) => kitVisible(c.id, releases, isAdmin)).length) + "+", "Components"], ["20+", "Assemblies"], [sil, "Silhouette"]] as const).map(([v, l]) => (
               <div className="kp-fact" key={l}><b>{v}</b><span>{l}</span></div>
             ))}
             <button className={`kp-fact kp-a11ybtn${a11yOpen ? ` a11y-${audit.level.toLowerCase()}` : ""}`} aria-expanded={a11yOpen} onClick={() => setA11yOpen((v) => !v)}>
@@ -1405,6 +1426,51 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <HeroGL />
       </header>
+
+      {/* ── 00 · the staging bay — new pieces wait HERE for the owner's
+          release. Admin-only: for everyone else the document starts at
+          Foundations and these pieces don't exist anywhere on the site. ── */}
+      {isAdmin && STAGED_KIT.size > 0 && (
+        <Sec n="00" title="The staging bay"
+          note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
+          {[...STAGED_KIT].map((sid) => {
+            const status = releases[sid];
+            const nm = pieceName(sid);
+            const act = (next: "released" | "rejected" | null, confirmMsg?: string) => {
+              if (confirmMsg && !window.confirm(confirmMsg)) return;
+              void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+            };
+            return (
+              <div className="kp-bayrow" key={sid}>
+                <div className="kp-tray kp-axis">
+                  <Piece id={sid} caption={nm} scale={0.5} />
+                </div>
+                <div className="kp-bayside">
+                  <span className={`kp-baychip${status === "released" ? " ok" : status === "rejected" ? " rej" : ""}`}>
+                    {status === "released" ? "Released — live for everyone" : status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
+                  </span>
+                  <div className="kp-bayacts">
+                    {status !== "released" && (
+                      <button className="cg-curate cg-curate--add" onClick={() => act("released", `Release ${nm} to every maker? It appears across the app the moment you approve.`)}>
+                        <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                      </button>
+                    )}
+                    {status === "released" && (
+                      <button className="cg-curate" onClick={() => act(null, `Pull ${nm} back into the bay? Makers lose it until you release again.`)}>Pull back to the bay</button>
+                    )}
+                    {status !== "rejected" && status !== "released" && (
+                      <button className="cg-curate cg-curate--danger" onClick={() => act("rejected")}>Reject</button>
+                    )}
+                    {status === "rejected" && (
+                      <button className="cg-curate" onClick={() => act(null)}>Restore to the bay</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </Sec>
+      )}
 
       <Chapter n="01" id="foundations" label="Foundations" blurb="The color roles, material and typography every component inherits." />
 
@@ -1963,6 +2029,16 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
           <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
         </div>
+        {/* staging-bay resident — the whole block (subhead included) hides
+            from the public until the owner releases the component */}
+        {kitVisible("orderticket", releases, isAdmin) && (<>
+          <div className="kp-subhead">Kitchen & orders</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="orderticket" caption="Order ticket" value={0.62} scale={0.5} />
+            <Piece id="orderticket" caption="Urgent · pulses" value={0.1} scale={0.5} />
+            <Piece id="orderticket" caption="Served" value={0.62} baseState="disabled" scale={0.5} />
+          </div>
+        </>)}
         <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
       </Sec>
 
@@ -2051,7 +2127,7 @@ const kitTier = useGen((s) => s.tier);
                   ].join("\n"),
                 });
               }
-              if (which === "all" || which === "components") KIT_COMPONENTS.forEach(({ id: cid }) => {
+              if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
                 files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
