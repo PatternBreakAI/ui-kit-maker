@@ -987,8 +987,10 @@ export function Panel() {
         </div>
         {shapeErr && <div className="helper" role="alert">{shapeErr}</div>}
         <div className="helper">
-          Import spec: a plain flat vector — one closed, <b>filled</b> path (no strokes, groups,
-          transforms or images). Draw it around a wide landscape box (about 200 × 100) with the
+          Import spec: a plain flat vector — a single <b>filled</b> path (no strokes, groups,
+          transforms or images). Separate islands are welcome — a ribbon banner's flaps
+          each get the full face treatment — as long as they live in one path element.
+          Draw it around a wide landscape box (about 200 × 100) with the
           outline touching all four edges; the generator stretches it to each component,
           so keep decorative caps inside the outer 30% of the width. Prefer bezier curves
           over arc segments — arcs can distort under stretch. Boolean-union overlapping

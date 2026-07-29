@@ -96,7 +96,10 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
     const fonts = document.fonts;
     const onDone = () => measure();
     fonts?.addEventListener?.("loadingdone", onDone);
-    return () => fonts?.removeEventListener?.("loadingdone", onDone);
+    // engines that settle fonts without firing loadingdone (or that fired it
+    // before this art mounted) still get one late re-measure
+    const late = window.setTimeout(measure, 800);
+    return () => { fonts?.removeEventListener?.("loadingdone", onDone); window.clearTimeout(late); };
   }, [svg, scale, hug]); // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={ref} className={`kp-art${className ? " " + className : ""}`} style={{ width: w }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
