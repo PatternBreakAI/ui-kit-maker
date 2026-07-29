@@ -4,6 +4,9 @@
 // gloss, specular, bloom, texture, content) is driven by explicit tokens.
 // One config drives canvas, code copy, HTML download, and exports.
 
+// safe despite silhouettes.ts importing from here: that edge is type-only
+import { SILHOUETTES } from "./silhouettes";
+
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
 
@@ -761,6 +764,11 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     const nc = JSON.parse(JSON.stringify(c.candy)) as CandyTokens;
     applyPresetCandy(nc, pr);
     c = { ...c, candy: nc };
+  } else {
+    // non-jump rolls change the CUT too, from the full silhouette rack —
+    // preset shapes alone leave ten of the 22 cuts unreachable
+    const rack = SILHOUETTES.filter((m) => m.id !== c.shape);
+    c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
   // contrast-first: complementary-family schemes dominate; shell sits well
