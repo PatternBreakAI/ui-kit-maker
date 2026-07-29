@@ -152,7 +152,10 @@ export function validateImported(s: ImportedSilhouette): ImportValidation {
 export interface Pt { x: number; y: number }
 
 /** Flatten a path into sampled polygons (one per subpath). Handles
- *  M L H V C S Q T Z, absolute and relative; curves sample at `k` steps. */
+ *  M L H V C S Q T A Z, absolute and relative; curves and arcs sample at
+ *  `k` steps — arcs go through the spec's endpoint→center conversion, so a
+ *  pill's round end flattens as a true curve, not a straight chord (the
+ *  chord shortcut hollowed out extrusion walls under rounded ends). */
 export function flattenPath(d: string, k = 12): Pt[][] {
   const toks = d.match(TOKEN_RE) ?? [];
   const polys: Pt[][] = [];
@@ -193,7 +196,40 @@ export function flattenPath(d: string, k = 12): Pt[][] {
     if (C === "S") { const c1x = lastC === "C" ? 2 * cx - pcx : cx, c1y = lastC === "C" ? 2 * cy - pcy : cy; const c = rx(num()), d2 = ry(num()), e = rx(num()), f = ry(num()); cubic(c1x, c1y, c, d2, e, f); lastC = "C"; continue; }
     if (C === "Q") { const a = rx(num()), b = ry(num()), c = rx(num()), d2 = ry(num()); quad(a, b, c, d2); lastC = "Q"; continue; }
     if (C === "T") { const c1x = lastC === "Q" ? 2 * cx - pQx : cx, c1y = lastC === "Q" ? 2 * cy - pQy : cy; const c = rx(num()), d2 = ry(num()); quad(c1x, c1y, c, d2); lastC = "Q"; continue; }
-    if (C === "A") { num(); num(); num(); num(); num(); cx = rx(num()); cy = ry(num()); emit(cx, cy); lastC = "L"; continue; }
+    if (C === "A") {
+      let arx = Math.abs(num()), ary = Math.abs(num());
+      const phi = (num() * Math.PI) / 180, fa = num() !== 0, fsw = num() !== 0;
+      const ex2 = rx(num()), ey2 = ry(num());
+      if (arx < 1e-6 || ary < 1e-6 || (ex2 === cx && ey2 === cy)) { cx = ex2; cy = ey2; emit(cx, cy); lastC = "L"; continue; }
+      // SVG spec F.6: endpoint parameterization → center, then sample
+      const cosP = Math.cos(phi), sinP = Math.sin(phi);
+      const hdx = (cx - ex2) / 2, hdy = (cy - ey2) / 2;
+      const x1p = cosP * hdx + sinP * hdy, y1p = -sinP * hdx + cosP * hdy;
+      const lam = (x1p * x1p) / (arx * arx) + (y1p * y1p) / (ary * ary);
+      if (lam > 1) { const s = Math.sqrt(lam); arx *= s; ary *= s; }
+      const den = arx * arx * y1p * y1p + ary * ary * x1p * x1p;
+      let co = den ? Math.sqrt(Math.max(0, (arx * arx * ary * ary - den) / den)) : 0;
+      if (fa === fsw) co = -co;
+      const cxp = (co * arx * y1p) / ary, cyp = (-co * ary * x1p) / arx;
+      const ccx = cosP * cxp - sinP * cyp + (cx + ex2) / 2;
+      const ccy = sinP * cxp + cosP * cyp + (cy + ey2) / 2;
+      const ang = (ux: number, uy: number, vx: number, vy: number) => {
+        const dd2 = Math.hypot(ux, uy) * Math.hypot(vx, vy) || 1e-9;
+        let a2 = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / dd2)));
+        if (ux * vy - uy * vx < 0) a2 = -a2;
+        return a2;
+      };
+      const th1 = ang(1, 0, (x1p - cxp) / arx, (y1p - cyp) / ary);
+      let dth = ang((x1p - cxp) / arx, (y1p - cyp) / ary, (-x1p - cxp) / arx, (-y1p - cyp) / ary);
+      if (!fsw && dth > 0) dth -= 2 * Math.PI;
+      else if (fsw && dth < 0) dth += 2 * Math.PI;
+      for (let t = 1; t <= k; t++) {
+        const th = th1 + (dth * t) / k;
+        emit(ccx + arx * Math.cos(th) * cosP - ary * Math.sin(th) * sinP,
+          ccy + arx * Math.cos(th) * sinP + ary * Math.sin(th) * cosP);
+      }
+      cx = ex2; cy = ey2; lastC = "L"; continue;
+    }
     i++; // unknown token — skip defensively
   }
   if (poly.length) polys.push(poly);
