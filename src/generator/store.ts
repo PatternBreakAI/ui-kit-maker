@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
@@ -1322,6 +1323,13 @@ export const useGen = create<GenStore>((set, get) => ({
         c.shape = pr.shape;
         c.bevel = { ...pr.bevel };
         applyPresetCandy(c.candy, pr);
+      } else {
+        // the other rolls used to keep the silhouette forever — and the
+        // preset jump only wears preset shapes, so ten of the 22 cuts never
+        // came up (owner: "randomize doesn't include all of the
+        // silhouettes"). Every roll changes the cut now, from the FULL rack.
+        const rack = SILHOUETTES.filter((m) => m.id !== c.shape);
+        c.shape = rack[roll(rack.length)].id;
       }
       // typography is the user's voice — a roll never touches the font
       // pattern rolls tone-on-tone so it stays harmonious; "none" is rare
