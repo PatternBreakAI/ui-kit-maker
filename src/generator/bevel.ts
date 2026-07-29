@@ -207,7 +207,32 @@ export function offsetPathInward(d: string, delta: number): string {
   const key = `${delta.toFixed(2)}|${d}`;
   const hit = OFFSET_CACHE.get(key);
   if (hit !== undefined) return hit;
-  const raw = flattenPath(d, 14)[0] ?? [];
+  /* Multi-loop silhouettes are first-class: an imported ribbon banner is a
+     center panel plus two swallowtail flaps as SEPARATE islands, and every
+     island deserves the same face/rim construction. Each solid loop offsets
+     independently; a loop the wall consumes (thinner than 2δ) drops alone.
+     A loop contained in another is a counter-hole — it passes through
+     unoffset so the face keeps the hole without the rim inverting it. */
+  const loopsIn = flattenPath(d, 14).filter((l) => l.length >= 3);
+  const outs: string[] = [];
+  let solidHits = 0;
+  for (let li2 = 0; li2 < loopsIn.length; li2++) {
+    const raw = loopsIn[li2];
+    const isHole = loopsIn.some((other, oi) => oi !== li2 && other.length >= 3 && pointInPoly(raw[0], other));
+    if (isHole) {
+      outs.push("M " + raw.map((p) => `${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}`).join(" L ") + " Z");
+      continue;
+    }
+    const one = ringOffsetInward(raw, delta);
+    if (one) { solidHits++; outs.push(one); }
+  }
+  // no solid loop survived → report failure so callers use their fallback
+  const dOut = solidHits === 0 ? "" : outs.join(" ");
+  if (OFFSET_CACHE.size > 400) OFFSET_CACHE.clear();
+  OFFSET_CACHE.set(key, dOut);
+  return dOut;
+}
+function ringOffsetInward(raw: Pt[], delta: number): string {
   // dedupe — shared corner endpoints from L/Q handoffs make zero-length edges
   const dd: Pt[] = [];
   for (const p of raw) {
@@ -215,7 +240,7 @@ export function offsetPathInward(d: string, delta: number): string {
     if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 0.25) dd.push(p);
   }
   if (dd.length > 2 && Math.hypot(dd[0].x - dd[dd.length - 1].x, dd[0].y - dd[dd.length - 1].y) < 0.25) dd.pop();
-  if (dd.length < 6) { OFFSET_CACHE.set(key, ""); return ""; }
+  if (dd.length < 6) return "";
   /* rotate the ring so it starts mid-way along the LONGEST edge — the DP
      simplifier pins its endpoints, and a start point sitting inside a
      rounded corner would leave un-collapsible seam vertices there */
@@ -253,8 +278,6 @@ export function offsetPathInward(d: string, delta: number): string {
     dOut = offsetAttempt(ring, delta, eps, Math.max(1.5, delta * k), cullT);
     if (dOut) break;
   }
-  if (OFFSET_CACHE.size > 400) OFFSET_CACHE.clear();
-  OFFSET_CACHE.set(key, dOut);
   return dOut;
 }
 function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, cullT: number): string {
@@ -558,7 +581,9 @@ function polyRoundedInset(d: string, delta: number): string {
     if (toks[i++] !== "Q") return "";
     pts.push([num(), num()]); i += 2;
   }
-  if (toks[i] !== "Z" || pts.length < 3 || pts.length > 16) return "";
+  // single loop only — a second M after the Z means islands (imported
+  // banners): silently insetting just the first loop would eat the rest
+  if (toks[i] !== "Z" || i !== toks.length - 1 || pts.length < 3 || pts.length > 16) return "";
   const r0 = Math.hypot(pts[0][0] - firstA[0], pts[0][1] - firstA[1]);
   // interior side: signed area decides which normal points inward
   const n = pts.length;
@@ -1206,14 +1231,27 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      copies keep the silhouette continuous on soft corners. */
   const dk = C.extrusion.darkness / 100;
   const deepC = hexMix(darken(bevelC, clamp(0.24 + 0.34 * dk, 0, 0.8)), bevelC, 0.18);
-  // enough interpolated slices that the side stays a continuous wall even at
-  // maximum depth — no scalloping between the cap and the base
-  const nSlices = Math.max(2, Math.ceil(visDepth / 2.5));
-  const slices = Array.from({ length: nSlices }, (_, i) => {
-    const ty = (visDepth * (i + 1)) / nSlices;
-    const last = i === nSlices - 1;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ""}/>`;
-  }).join("");
+  /* the wall is the SWEPT SOLID of the outline dropped by visDepth — one
+     quad per boundary edge plus the bottom cap, all in one paint. Stacked
+     translated copies (the old approach) read fine on convex shapes but
+     expose their stair-stepped edges inside concave notches and between
+     the islands of multi-loop imports (ribbon-banner flaps). Quads cover
+     exactly the swept region, notches included, with no seams. */
+  const wallQuads = (() => {
+    const R2 = (v: number) => (Math.round(v * 10) / 10).toString();
+    let s = "";
+    for (const loop of flattenPath(outer, 10)) {
+      const l = simplifyDP(loop, 0.4);
+      if (l.length < 3) continue;
+      for (let i = 0; i < l.length; i++) {
+        const a = l[i], b = l[(i + 1) % l.length];
+        s += `M${R2(a.x)} ${R2(a.y)}L${R2(b.x)} ${R2(b.y)}L${R2(b.x)} ${R2(b.y + visDepth)}L${R2(a.x)} ${R2(a.y + visDepth)}Z`;
+      }
+    }
+    return s;
+  })();
+  const slices = `<path d="${wallQuads}" fill="url(#${id}ext)"/>
+        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}ext)" stroke="${darken(deepC, 0.35)}" stroke-width="1"/>`;
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
@@ -1225,7 +1263,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         ${slices}
         <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}extv)"/>
         ${baseGlow}
-        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/>
+        <g clip-path="url(#${id}xc)"><path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/></g>
       </g>`
     : "";
 
@@ -1440,7 +1478,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const tfSpread = Math.max(
     T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
     T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
-    8) + fs;
+    8) + fs
+    // engines disagree on display-face advances by up to ~25% (Safari
+    // especially, with synthesized italics) — the region carries that
+    // slack so real glyphs never hit the raster boundary. Still bounded:
+    // proportional to this label, nowhere near the Safari buffer cap.
+    + textW * 0.25;
   const textFxDef = prims.length
     ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
@@ -1582,6 +1625,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   </radialGradient>
   ${baseGlow ? `<clipPath id="${id}ec"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>
   <radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
+  ${extrusion ? `<clipPath id="${id}xc"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>` : ""}
   ${patternDef}
   <linearGradient id="${id}rim" ${axis}>
     <stop offset="0" stop-color="${hiC}" stop-opacity="0.45"/>
@@ -1645,7 +1689,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0" stop-color="${hexMix(baseTop, hexMix(hiC, "#FFFFFF", 0.89), hb)}"/>
     <stop offset="1" stop-color="${hexMix(baseBot, hexMix(glowC, "#FFFFFF", 0.41), hb)}"/>
   </linearGradient>
-  <filter id="${id}thf" x="-30%" y="-80%" width="160%" height="260%" color-interpolation-filters="sRGB">
+  <filter id="${id}thf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">
     <feGaussianBlur stdDeviation="${(fs * 0.1 * hb).toFixed(1)}" result="thb"/>
     <feFlood flood-color="${glowC}" flood-opacity="${(0.85 * hb).toFixed(2)}"/>
     <feComposite in2="thb" operator="in" result="thh"/>
