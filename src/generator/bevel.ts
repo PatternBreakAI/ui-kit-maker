@@ -1747,73 +1747,90 @@ function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string
    candy material; only the trim speaks tier. */
 const CHEST_TIERS: Record<string, string> = { Wood: "#B07A4A", Iron: "#9AAAB8", Gold: "#F5B23E", Premium: "#A855F7", Event: "#38BDF8" };
 
-/** The chest object — toy-chunky, front-on: arched slatted lid, TWIN
- *  straps, framed panels, corner feet and the round lock medallion
- *  (after the owner's reference). PANELS wear the KIT material; frame,
- *  straps, feet and medallion wear the tier accent. Shared by the chest
- *  piece and the opening panel. `open` tilts the lid back over a
- *  darkened interior (the claimed/empty pose). */
+/** The chest object — the owner's construction spec, ported
+ *  coordinate-for-coordinate from the approved 256-board build: 3/4
+ *  game-icon view, barrel lid receding back-left (front arch + mid and
+ *  rear hoop crescents with lid strips between), riveted trim rails,
+ *  corner posts, chunky feet and the latch-plate + shield lock focal.
+ *  PANELS wear the KIT material; trim/hoops/latch wear the tier accent.
+ *  Flat fills + one shadow + one highlight per shape — no gradients.
+ *  `open` swings the lid group back on the rear-left hinge. */
 function chestArt(cx: number, cy: number, w: number, base: string, accent: string, o: { open?: boolean; lock?: boolean; dim?: boolean } = {}): string {
-  const id = "ch" + UID++;
-  const n = (x: number) => x.toFixed(1);
-  const h = w * 0.52, lidH = w * 0.4;
-  const bx = cx - w / 2, by = cy - h * 0.28;
-  const trim = o.dim ? "#8B8F99" : accent;
-  const edge = darken(trim, 0.45);
-  const inEdge = darken(base, 0.5);
-  const ins = w * 0.065; // frame reveal around the inset panels
-  const strapW = w * 0.15;
-  const strapX = [cx - w * 0.27 - strapW / 2, cx + w * 0.27 - strapW / 2];
-  const defs = `<defs>
-    <linearGradient id="${id}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(base, 0.16)}"/><stop offset="1" stop-color="${darken(base, 0.24)}"/></linearGradient>
-    <linearGradient id="${id}t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(trim, 0.32)}"/><stop offset="1" stop-color="${darken(trim, 0.14)}"/></linearGradient>
-    <radialGradient id="${id}m" cx="0.38" cy="0.32" r="0.95"><stop offset="0" stop-color="${lighten(trim, 0.45)}"/><stop offset="0.6" stop-color="${trim}"/><stop offset="1" stop-color="${darken(trim, 0.22)}"/></radialGradient>
-  </defs>`;
-  const strap = (x: number, y0: number, sh2: number, r: number) =>
-    `<rect x="${n(x)}" y="${n(y0)}" width="${n(strapW)}" height="${n(sh2)}" rx="${n(r)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.014)}"/>` +
-    `<rect x="${n(x + strapW * 0.18)}" y="${n(y0)}" width="${n(strapW * 0.2)}" height="${n(sh2)}" fill="#FFFFFF" opacity="0.22"/>`;
-  const planks = (x: number, y0: number, pw: number, ph2: number, rows: number) => {
-    let s = "";
-    for (let i = 1; i < rows; i++) s += `<line x1="${n(x)}" y1="${n(y0 + (ph2 / rows) * i)}" x2="${n(x + pw)}" y2="${n(y0 + (ph2 / rows) * i)}" stroke="${hexRgba(inEdge, 0.55)}" stroke-width="${n(w * 0.012)}"/>`;
-    return s;
-  };
-  /* ── the lid: accent arch frame, inset slatted panel, straps riding
-     the curve — grouped so the open pose swings it all together ── */
-  // a real barrel dome: round shoulders sweeping into a short flat crown
-  const lidArch = (x0: number, top: number, wd: number) =>
-    `M ${n(x0)} ${n(by)} L ${n(x0)} ${n(top + (by - top) * 0.62)} Q ${n(x0)} ${n(top)} ${n(x0 + wd * 0.38)} ${n(top)} L ${n(x0 + wd * 0.62)} ${n(top)} Q ${n(x0 + wd)} ${n(top)} ${n(x0 + wd)} ${n(top + (by - top) * 0.62)} L ${n(x0 + wd)} ${n(by)} Z`;
-  const lid = `<g${o.open ? ` transform="rotate(-46 ${n(bx + w * 0.04)} ${n(by - lidH * 0.1)})"` : ""}>
-    <path d="${lidArch(bx, by - lidH, w)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.016)}"/>
-    <path d="${lidArch(bx + ins, by - lidH + ins, w - ins * 2)}" fill="url(#${id}p)" stroke="${inEdge}" stroke-width="${n(w * 0.012)}"/>
-    ${planks(bx + ins, by - lidH + ins, w - ins * 2, lidH - ins, 3)}
-    ${strap(strapX[0], by - lidH - w * 0.025, lidH + w * 0.025, w * 0.055)}
-    ${strap(strapX[1], by - lidH - w * 0.025, lidH + w * 0.025, w * 0.055)}
-    <ellipse cx="${n(cx - w * 0.13)}" cy="${n(by - lidH * 0.68)}" rx="${n(w * 0.12)}" ry="${n(lidH * 0.14)}" fill="#FFFFFF" opacity="0.35"/>
-    <rect x="${n(cx - w * 0.045)}" y="${n(by - w * 0.045)}" width="${n(w * 0.09)}" height="${n(w * 0.1)}" rx="${n(w * 0.02)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.012)}"/>
+  const s = w / 166;
+  // artboard→piece map (bakes the spec build's 1.22×/0.92× proportion pass)
+  const X = (px: number) => cx + (1.22 * (px - 124) + 9.75) * s;
+  const Y = (py: number) => cy + (0.92 * (py - 132) + 11) * s;
+  const n = (v: number) => v.toFixed(1);
+  const SX = (v: number) => n(1.22 * v * s); // x-extent (widths)
+  const SY = (v: number) => n(0.92 * v * s); // y-extent (heights)
+  const gold = o.dim ? "#9AA0A8" : accent;
+  const goldDk = darken(gold, 0.18), goldHi = lighten(gold, 0.5);
+  const wood = o.dim ? "#7E848D" : lighten(base, 0.05);
+  const woodDk = darken(o.dim ? "#7E848D" : base, 0.28), woodHi = lighten(o.dim ? "#7E848D" : base, 0.45);
+  const line = darken(gold, 0.55);
+  const o4 = `stroke="${line}" stroke-width="${n(Math.max(1.2, 4.4 * s))}" stroke-linejoin="round"`;
+  const o2 = `stroke="${line}" stroke-width="${n(Math.max(0.9, 2.6 * s))}" stroke-linejoin="round"`;
+  const plank = `stroke="${line}" stroke-width="${n(Math.max(0.7, 1.6 * s))}" opacity="0.55" fill="none"`;
+  // ── lid stack: hoop → strip → hoop → strip → front arch + hoop ──
+  const lid = `<g${o.open ? ` transform="rotate(-42 ${n(X(58))} ${n(Y(96))})"` : ""}>
+    <path ${o4} d="M ${n(X(58))} ${n(Y(96))} L ${n(X(58))} ${n(Y(80))} Q ${n(X(58))} ${n(Y(34))} ${n(X(105))} ${n(Y(34))} Q ${n(X(152))} ${n(Y(34))} ${n(X(152))} ${n(Y(80))} L ${n(X(152))} ${n(Y(96))} L ${n(X(140))} ${n(Y(96))} L ${n(X(140))} ${n(Y(80))} Q ${n(X(140))} ${n(Y(46))} ${n(X(105))} ${n(Y(46))} Q ${n(X(70))} ${n(Y(46))} ${n(X(70))} ${n(Y(80))} L ${n(X(70))} ${n(Y(96))} Z" fill="${gold}"/>
+    <path d="M ${n(X(61))} ${n(Y(60))} Q ${n(X(67))} ${n(Y(42))} ${n(X(89))} ${n(Y(37))} L ${n(X(89))} ${n(Y(44))} Q ${n(X(73))} ${n(Y(48))} ${n(X(69))} ${n(Y(62))} Z" fill="${goldHi}" opacity="0.8"/>
+    <path ${o4} d="M ${n(X(71))} ${n(Y(102))} L ${n(X(71))} ${n(Y(87))} Q ${n(X(71))} ${n(Y(43))} ${n(X(118))} ${n(Y(43))} L ${n(X(105))} ${n(Y(34))} Q ${n(X(58))} ${n(Y(34))} ${n(X(58))} ${n(Y(80))} L ${n(X(58))} ${n(Y(94))} Z" fill="${wood}"/>
+    <path ${plank} d="M ${n(X(66))} ${n(Y(52))} Q ${n(X(76))} ${n(Y(40))} ${n(X(94))} ${n(Y(37))}"/>
+    <path ${o4} d="M ${n(X(71))} ${n(Y(102))} L ${n(X(71))} ${n(Y(87))} Q ${n(X(71))} ${n(Y(43))} ${n(X(118))} ${n(Y(43))} Q ${n(X(165))} ${n(Y(43))} ${n(X(165))} ${n(Y(87))} L ${n(X(165))} ${n(Y(102))} L ${n(X(153))} ${n(Y(102))} L ${n(X(153))} ${n(Y(87))} Q ${n(X(153))} ${n(Y(55))} ${n(X(118))} ${n(Y(55))} Q ${n(X(83))} ${n(Y(55))} ${n(X(83))} ${n(Y(87))} L ${n(X(83))} ${n(Y(102))} Z" fill="${gold}"/>
+    <path d="M ${n(X(74))} ${n(Y(66))} Q ${n(X(80))} ${n(Y(49))} ${n(X(101))} ${n(Y(45))} L ${n(X(101))} ${n(Y(52))} Q ${n(X(85))} ${n(Y(56))} ${n(X(81))} ${n(Y(68))} Z" fill="${goldHi}" opacity="0.8"/>
+    <path ${o4} d="M ${n(X(84))} ${n(Y(108))} L ${n(X(84))} ${n(Y(94))} Q ${n(X(84))} ${n(Y(50))} ${n(X(131))} ${n(Y(50))} L ${n(X(118))} ${n(Y(43))} Q ${n(X(71))} ${n(Y(43))} ${n(X(71))} ${n(Y(87))} L ${n(X(71))} ${n(Y(102))} Z" fill="${wood}"/>
+    <path ${plank} d="M ${n(X(79))} ${n(Y(58))} Q ${n(X(89))} ${n(Y(46))} ${n(X(107))} ${n(Y(44))}"/>
+    <path ${o4} d="M ${n(X(84))} ${n(Y(110))} L ${n(X(84))} ${n(Y(94))} Q ${n(X(84))} ${n(Y(50))} ${n(X(131))} ${n(Y(50))} Q ${n(X(178))} ${n(Y(50))} ${n(X(178))} ${n(Y(94))} L ${n(X(178))} ${n(Y(110))} Z" fill="${woodDk}"/>
+    <path d="M ${n(X(98))} ${n(Y(92))} Q ${n(X(100))} ${n(Y(66))} ${n(X(124))} ${n(Y(62))} L ${n(X(124))} ${n(Y(70))} Q ${n(X(106))} ${n(Y(74))} ${n(X(104))} ${n(Y(92))} Z" fill="${wood}" opacity="0.6"/>
+    <path ${o4} d="M ${n(X(84))} ${n(Y(110))} L ${n(X(84))} ${n(Y(94))} Q ${n(X(84))} ${n(Y(50))} ${n(X(131))} ${n(Y(50))} Q ${n(X(178))} ${n(Y(50))} ${n(X(178))} ${n(Y(94))} L ${n(X(178))} ${n(Y(110))} L ${n(X(166))} ${n(Y(110))} L ${n(X(166))} ${n(Y(96))} Q ${n(X(166))} ${n(Y(62))} ${n(X(131))} ${n(Y(62))} Q ${n(X(96))} ${n(Y(62))} ${n(X(96))} ${n(Y(96))} L ${n(X(96))} ${n(Y(110))} Z" fill="${gold}"/>
+    <path d="M ${n(X(88))} ${n(Y(74))} Q ${n(X(96))} ${n(Y(56))} ${n(X(118))} ${n(Y(52))} L ${n(X(120))} ${n(Y(58))} Q ${n(X(100))} ${n(Y(62))} ${n(X(94))} ${n(Y(78))} Z" fill="${goldHi}"/>
+    <path d="M ${n(X(166))} ${n(Y(84))} L ${n(X(172))} ${n(Y(80))} Q ${n(X(174))} ${n(Y(92))} ${n(X(174))} ${n(Y(106))} L ${n(X(166))} ${n(Y(106))} Z" fill="${goldDk}" opacity="0.8"/>
   </g>`;
-  const interior = `<ellipse cx="${n(cx)}" cy="${n(by + h * 0.05)}" rx="${n(w * 0.45)}" ry="${n(h * 0.13)}" fill="${darken(base, 0.72)}"/>`;
-  /* ── the body: accent frame, inset planked panel, straps, feet ── */
-  const body = `<rect x="${n(bx)}" y="${n(by)}" width="${n(w)}" height="${n(h)}" rx="${n(w * 0.055)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.016)}"/>
-    <rect x="${n(bx + ins)}" y="${n(by + ins * 0.7)}" width="${n(w - ins * 2)}" height="${n(h - ins * 1.7)}" rx="${n(w * 0.03)}" fill="url(#${id}p)" stroke="${inEdge}" stroke-width="${n(w * 0.012)}"/>
-    ${planks(bx + ins, by + ins * 0.7, w - ins * 2, h - ins * 1.7, 3)}
-    ${strap(strapX[0], by, h, w * 0.02)}
-    ${strap(strapX[1], by, h, w * 0.02)}
-    <rect x="${n(bx - w * 0.02)}" y="${n(by + h - w * 0.07)}" width="${n(w * 0.16)}" height="${n(w * 0.09)}" rx="${n(w * 0.03)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.014)}"/>
-    <rect x="${n(bx + w - w * 0.14)}" y="${n(by + h - w * 0.07)}" width="${n(w * 0.16)}" height="${n(w * 0.09)}" rx="${n(w * 0.03)}" fill="url(#${id}t)" stroke="${edge}" stroke-width="${n(w * 0.014)}"/>`;
-  /* the round lock medallion at the seam — keyhole when locked, the toy
-     knob otherwise */
-  const mr = w * 0.125;
-  const medallion = `<circle cx="${n(cx)}" cy="${n(by + w * 0.015)}" r="${n(mr)}" fill="url(#${id}m)" stroke="${edge}" stroke-width="${n(w * 0.015)}"/>
-    <circle cx="${n(cx)}" cy="${n(by + w * 0.015)}" r="${n(mr * 0.62)}" fill="none" stroke="${darken(trim, 0.32)}" stroke-width="${n(w * 0.012)}" opacity="0.8"/>` +
+  const interior = `<ellipse cx="${n(X(131))}" cy="${n(Y(116))}" rx="${SX(46)}" ry="${SY(9)}" fill="${darken(base, 0.72)}"/>`;
+  // ── base box, trim, posts, feet ──
+  const box = `<path ${o4} d="M ${n(X(56))} ${n(Y(112))} L ${n(X(88))} ${n(Y(122))} L ${n(X(88))} ${n(Y(184))} L ${n(X(56))} ${n(Y(174))} Z" fill="${woodDk}"/>
+    <path ${plank} d="M ${n(X(56))} ${n(Y(142))} L ${n(X(88))} ${n(Y(152))}"/>
+    <rect ${o4} x="${n(X(88))}" y="${n(Y(122))}" width="${SX(86)}" height="${SY(62)}" fill="${wood}"/>
+    <path ${plank} d="M ${n(X(88))} ${n(Y(152))} L ${n(X(174))} ${n(Y(152))}"/>
+    <rect x="${n(X(88))}" y="${n(Y(122))}" width="${SX(86)}" height="${SY(8)}" fill="${woodHi}" opacity="0.45"/>
+    <rect x="${n(X(88))}" y="${n(Y(172))}" width="${SX(86)}" height="${SY(12)}" fill="${woodDk}" opacity="0.5"/>
+    <path ${o4} d="M ${n(X(52))} ${n(Y(96))} L ${n(X(88))} ${n(Y(107))} L ${n(X(88))} ${n(Y(126))} L ${n(X(52))} ${n(Y(115))} Z" fill="${goldDk}"/>
+    <path d="M ${n(X(52))} ${n(Y(96))} L ${n(X(88))} ${n(Y(107))} L ${n(X(88))} ${n(Y(112))} L ${n(X(52))} ${n(Y(101))} Z" fill="${goldHi}" opacity="0.5"/>
+    <rect ${o4} x="${n(X(82))}" y="${n(Y(106))}" width="${SX(100)}" height="${SY(20)}" rx="${SY(4)}" fill="${gold}"/>
+    <rect x="${n(X(82))}" y="${n(Y(106))}" width="${SX(100)}" height="${SY(6)}" rx="${SY(3)}" fill="${goldHi}" opacity="0.75"/>
+    <rect x="${n(X(82))}" y="${n(Y(120))}" width="${SX(100)}" height="${SY(6)}" rx="${SY(3)}" fill="${goldDk}" opacity="0.6"/>
+    <path ${o4} d="M ${n(X(50))} ${n(Y(106))} L ${n(X(62))} ${n(Y(110))} L ${n(X(62))} ${n(Y(182))} L ${n(X(50))} ${n(Y(178))} Z" fill="${goldDk}"/>
+    <rect ${o4} x="${n(X(82))}" y="${n(Y(118))}" width="${SX(14)}" height="${SY(74)}" rx="${SX(3)}" fill="${gold}"/>
+    <rect x="${n(X(85))}" y="${n(Y(118))}" width="${SX(4)}" height="${SY(74)}" fill="${goldHi}" opacity="0.7"/>
+    <rect ${o4} x="${n(X(164))}" y="${n(Y(118))}" width="${SX(14)}" height="${SY(74)}" rx="${SX(3)}" fill="${gold}"/>
+    <rect x="${n(X(167))}" y="${n(Y(118))}" width="${SX(4)}" height="${SY(74)}" fill="${goldHi}" opacity="0.7"/>
+    <rect ${o4} x="${n(X(48))}" y="${n(Y(176))}" width="${SX(20)}" height="${SY(18)}" rx="${SX(4)}" fill="${goldDk}"/>
+    <rect ${o4} x="${n(X(78))}" y="${n(Y(188))}" width="${SX(24)}" height="${SY(18)}" rx="${SX(4)}" fill="${gold}"/>
+    <rect x="${n(X(78))}" y="${n(Y(188))}" width="${SX(24)}" height="${SY(6)}" rx="${SX(3)}" fill="${goldHi}" opacity="0.6"/>
+    <rect ${o4} x="${n(X(160))}" y="${n(Y(188))}" width="${SX(24)}" height="${SY(18)}" rx="${SX(4)}" fill="${gold}"/>
+    <rect x="${n(X(160))}" y="${n(Y(188))}" width="${SX(24)}" height="${SY(6)}" rx="${SX(3)}" fill="${goldHi}" opacity="0.6"/>`;
+  // ── latch: plate + shield lock + keyhole; padlock rides when locked ──
+  const latch = `<rect ${o4} x="${n(X(122))}" y="${n(Y(104))}" width="${SX(34)}" height="${SY(26)}" rx="${SX(6)}" fill="${gold}"/>
+    <rect x="${n(X(122))}" y="${n(Y(104))}" width="${SX(34)}" height="${SY(8)}" rx="${SX(4)}" fill="${goldHi}" opacity="0.7"/>
+    <path ${o4} d="M ${n(X(127))} ${n(Y(126))} L ${n(X(151))} ${n(Y(126))} Q ${n(X(155))} ${n(Y(152))} ${n(X(139))} ${n(Y(157))} Q ${n(X(123))} ${n(Y(152))} ${n(X(127))} ${n(Y(126))} Z" fill="${gold}"/>
+    <path d="M ${n(X(130))} ${n(Y(128))} L ${n(X(134))} ${n(Y(128))} Q ${n(X(132))} ${n(Y(148))} ${n(X(139))} ${n(Y(152))} Q ${n(X(128))} ${n(Y(148))} ${n(X(130))} ${n(Y(128))} Z" fill="${goldHi}" opacity="0.55"/>
+    <rect ${o2} x="${n(X(133))}" y="${n(Y(131))}" width="${SX(12)}" height="${SY(15)}" rx="${SX(2.5)}" fill="${goldDk}"/>` +
     (o.lock
-      ? `<circle cx="${n(cx)}" cy="${n(by - w * 0.005)}" r="${n(mr * 0.22)}" fill="${darken(trim, 0.55)}"/><path d="M ${n(cx - mr * 0.13)} ${n(by + w * 0.005)} L ${n(cx - mr * 0.22)} ${n(by + w * 0.05)} L ${n(cx + mr * 0.22)} ${n(by + w * 0.05)} L ${n(cx + mr * 0.13)} ${n(by + w * 0.005)} Z" fill="${darken(trim, 0.55)}"/>`
-      : `<circle cx="${n(cx)}" cy="${n(by + w * 0.015)}" r="${n(mr * 0.3)}" fill="${lighten(trim, 0.35)}" stroke="${darken(trim, 0.4)}" stroke-width="${n(w * 0.01)}"/><ellipse cx="${n(cx - mr * 0.12)}" cy="${n(by - w * 0.0)}" rx="${n(mr * 0.12)}" ry="${n(mr * 0.08)}" fill="#FFFFFF" opacity="0.7"/>`);
-  const pool = `<ellipse cx="${n(cx)}" cy="${n(by + h + w * 0.045)}" rx="${n(w * 0.56)}" ry="${n(w * 0.055)}" fill="rgba(4,7,14,0.4)"/>`;
-  const gloss = `<ellipse cx="${n(bx + ins + w * 0.12)}" cy="${n(by + h * 0.32)}" rx="${n(w * 0.1)}" ry="${n(h * 0.12)}" fill="#FFFFFF" opacity="0.14"/>`;
-  // open: the lid swings BEHIND the body; the interior well reads as empty
-  return defs + pool + (o.open
-    ? lid + body + interior + medallion + gloss
-    : body + lid + medallion + gloss);
+      ? `<path d="M ${n(X(133.5))} ${n(Y(136))} v ${SY(-4)} a ${SX(5.5)} ${SY(5.5)} 0 0 1 ${SX(11)} 0 v ${SY(4)}" fill="none" stroke="${darken(gold, 0.35)}" stroke-width="${n(Math.max(1.5, 4 * s))}"/>
+        <rect ${o2} x="${n(X(130))}" y="${n(Y(136))}" width="${SX(18)}" height="${SY(13)}" rx="${SX(3)}" fill="${goldDk}"/>
+        <circle cx="${n(X(139))}" cy="${n(Y(142))}" r="${SX(2.2)}" fill="${line}"/>`
+      : `<circle cx="${n(X(139))}" cy="${n(Y(136.5))}" r="${SX(2.6)}" fill="${line}"/>
+        <rect x="${n(X(137.8))}" y="${n(Y(137))}" width="${SX(2.4)}" height="${SY(6.5)}" fill="${line}"/>`) +
+    `<g fill="${goldHi}" ${o2}>
+      <circle cx="${n(X(100))}" cy="${n(Y(116))}" r="${SX(3.4)}"/>
+      <circle cx="${n(X(163))}" cy="${n(Y(116))}" r="${SX(3.4)}"/>
+      <circle cx="${n(X(128))}" cy="${n(Y(111))}" r="${SX(2.8)}"/>
+      <circle cx="${n(X(150))}" cy="${n(Y(111))}" r="${SX(2.8)}"/>
+    </g>`;
+  const pool = `<ellipse cx="${n(X(118))}" cy="${n(Y(206))}" rx="${SX(74)}" ry="${SY(7)}" fill="rgba(4,7,14,0.4)"/>`;
+  // open: the lid swings back on the rear-left hinge over the emptied box
+  return pool + (o.open ? lid + interior + box + latch : box + latch + lid);
 }
 
 /* Layer content BEHIND the whole piece (halo rings, auras): lands right
