@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff  } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -13,7 +13,7 @@ import type { LibItem } from "@/generator/store";
 import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
 import type { GenConfig  } from "@/generator/model";
 import { PRESET_DEFAULTS } from "@/generator/store";
-import { SILHOUETTES, SILHOUETTE_CATEGORIES } from "@/generator/silhouettes";
+import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession } from "@/generator/cloud";
@@ -895,7 +895,7 @@ export function Panel() {
               const retired = hiddenSilhouettes.includes(m.id);
               const stock = m.id.startsWith("stock:");
               return (
-            <button key={m.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
+            <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
               title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
               onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
@@ -915,6 +915,20 @@ export function Panel() {
               );
             })}
         </div>
+        {(() => {
+          /* the mirror toggle — only where mirroring says something: the
+             registry's asymmetric marks, plus every user import */
+          const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const base = baseShape(live);
+          if (!(silhouetteMeta(base)?.flippable || base.startsWith("user:"))) return null;
+          return (
+            <button className={`resetstate${isFlipShape(live) ? " on" : ""}`}
+              title="Mirror this silhouette left-to-right — asymmetric cuts point the other way; every surface and export follows"
+              onClick={() => { const next = flipShape(live); if (focus) setKitShape(focus, next); else update((c) => { c.shape = next; }); }}>
+              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " — mirrored" : ""}
+            </button>
+          );
+        })()}
         {isAdmin && hiddenSilhouettes.length > 0 && (
           <button className="resetstate" onClick={() => {
             if (window.confirm(`Restore all ${hiddenSilhouettes.length} retired silhouette${hiddenSilhouettes.length === 1 ? "" : "s"} for everyone?`)) void restoreSilhouettes().then((err) => { if (err) window.alert(err); });

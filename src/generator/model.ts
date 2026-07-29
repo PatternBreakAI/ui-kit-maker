@@ -38,7 +38,15 @@ export type Shape =
   // v92 — stock organic silhouettes shipped as path data (stockShapes.ts).
   // Authored artwork, not procedural geometry; rendered through the same
   // distortion-capped transform a user import gets.
-  | `stock:${string}`;
+  | `stock:${string}`
+  // horizontally-mirrored variant of any shape — the suffix IS the state
+  | `${string}~flip`;
+
+/** Flip plumbing: the mirrored variant of a shape is the same id with a
+ *  ~flip suffix, so it persists, forks and exports exactly like a shape. */
+export const isFlipShape = (s: Shape): boolean => s.endsWith("~flip");
+export const baseShape = (s: Shape): Shape => (isFlipShape(s) ? s.slice(0, -5) as Shape : s);
+export const flipShape = (s: Shape): Shape => (isFlipShape(s) ? baseShape(s) : `${s}~flip` as Shape);
 /* ── user silhouettes ─────────────────────────────────────────────
    Imported flat vectors: one closed, filled outline normalized to its own
    bounding box; the renderer stretches it into each component's frame.
