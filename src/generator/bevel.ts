@@ -1179,17 +1179,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const depthCap = 48 * K * (secondary ? 0.55 : 1);
   const maxDepth = Math.max(depth, depthCap, ...forks.map((f) => f.candy.extrusion.depth * K * (secondary ? 0.55 : 1)));
   const riseDy = Math.max(0, maxDepth - depth);
-  /* room below sized from the shadow ITSELF: its tail reaches (offset + 3σ)
-     past the body, and a flat constant loses to any soft shadow — the canvas
-     edge then guillotines the blur into a straight line "baked into the
-     shadow" (owner staging find; the filter-region fix alone just moved the
-     cut from the filter's wall to this one). Sized across state forks so
-     the footprint still never changes between states. */
-  const shadowBelow = Math.max(
-    (D.shadow.opacity ?? 0) > 0.5 ? D.shadow.distance * K + D.shadow.blur * 1.5 : 0,
-    ...forks.map((f) => ((f.shadow?.opacity ?? 0) > 0.5 ? (f.shadow?.distance ?? 0) * K + (f.shadow?.blur ?? 0) * 1.5 : 0)),
-  );
-  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + Math.max(40, Math.ceil(shadowBelow + 16));
+  // room below for the contact occlusion and extrusion base — the floor
+  // shadow (whose soft tail needed a dynamic reserve) is retired
+  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + 40;
 
   /* The state aura blurs far past the shell (σ up to 30 → ~2.5σ visible reach),
      and pointed silhouettes like the Fighting HUD carry it to the very edge of
@@ -1220,15 +1212,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const hiK = (disabled ? 0.35 : 1) * (D.lighting.highlight / 78);
   const lowK = Math.max(0.1, D.lighting.lowlight / 46);
 
-  /* 1 ── cast shadow (grounded — does not travel with the lift) ── */
+  /* 1 ── (floor shadow retired, owner call 2026-07-30: the offset blurred
+     floor copy fought the kit's top-down lighting language and its gaussian
+     tail was the source of every "straight line baked into the shadow"
+     report. Grounding now comes from the contact occlusion alone. sdx
+     survives — the contact ellipse still leans with the key light.) */
   const sd = D.shadow.distance * K;
   const sdx = -lx * sd * 0.55;
-  const sdy = visDepth + Math.max(1.5, sd * 0.7 - ly * sd * 0.3) + Math.max(0, lift);
-  const sBlur = Math.max(0.5, D.shadow.blur * 0.5);
-  const shOp = (D.shadow.opacity / 100) * (disabled ? 0.35 : 1);
-  const castShadow = shOp > 0.005
-    ? `<path d="${outer}" transform="translate(${sdx.toFixed(1)} ${sdy.toFixed(1)})" fill="${shC}" opacity="${shOp.toFixed(2)}" filter="url(#${id}sb)"/>`
-    : "";
+  const castShadow = "";
 
   /* state aura (hover glow etc.) — own color, or the Glow well.
      The glow wraps the WHOLE extruded silhouette (the composite-silhouette
@@ -1717,19 +1708,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
   ${(() => {
-    /* Blur regions sized in ABSOLUTE units from the blur itself, not
-       percentages of the shape's bbox: a soft shadow's gaussian tail runs
-       ~3σ past the silhouette, and on squat shapes (the blob set) a
-       %-margin is shorter than that — the blur gets guillotined at the
-       region edge and reads as a straight line baked into the shadow
-       (owner report, staging round). Bounded: tail + travel only. */
-    const shTail = 3 * sBlur + Math.abs(sdx) + Math.abs(sdy) + 24;
-    const shR = `filterUnits="userSpaceOnUse" x="${(x - shTail).toFixed(0)}" y="${(y - shTail).toFixed(0)}" width="${(w + shTail * 2).toFixed(0)}" height="${(h + visDepth + shTail * 2).toFixed(0)}"`;
+    /* Glow regions sized in ABSOLUTE units from the blur itself, not
+       percentages of the shape's bbox: a blur's gaussian tail runs ~3σ
+       past the silhouette, and on squat shapes (the blob set) a %-margin
+       is shorter than that — the blur gets guillotined at the region edge
+       and reads as a straight line (owner report, staging round). */
     const auraTail = (s2: number) => 3 * s2 + visDepth + 24;
     const auraR = (s2: number) => `filterUnits="userSpaceOnUse" x="${(x - auraTail(s2)).toFixed(0)}" y="${(y - auraTail(s2)).toFixed(0)}" width="${(w + auraTail(s2) * 2).toFixed(0)}" height="${(h + auraTail(s2) * 2).toFixed(0)}"`;
-    return `${castShadow ? `<filter id="${id}sb" ${shR}><feGaussianBlur stdDeviation="${sBlur.toFixed(1)}"/></filter>` : ""}
-  ${aura ? `<filter id="${id}gb" ${auraR(14)}><feGaussianBlur stdDeviation="14"/></filter>
-  <filter id="${id}gb2" ${auraR(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}`;
+    return aura ? `<filter id="${id}gb" ${auraR(14)}><feGaussianBlur stdDeviation="14"/></filter>
+  <filter id="${id}gb2" ${auraR(30)}><feGaussianBlur stdDeviation="30"/></filter>` : "";
   })()}
   ${noise ? `<filter id="${id}nz" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="${nzFreq}" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer></filter>` : ""}
 </defs>

@@ -1508,10 +1508,9 @@ export function Panel() {
 
       {/* ── G · Depth & Shadow ────────────────────────────── */}
       <Section id="depth" title={t("secDepth")}>
-        <div className="sublabel">Cast shadow</div>
-        <Slider label="Distance" value={D.shadow.distance} min={0} max={48} unit="px" onChange={(v) => update((c) => { c.shadow.distance = v; })} />
-        <Slider label="Blur" value={D.shadow.blur} min={0} max={60} unit="px" onChange={(v) => update((c) => { c.shadow.blur = v; })} />
-        <Slider label="Opacity" value={D.shadow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.shadow.opacity = v; })} />
+        {/* the floor cast shadow is retired (owner call) — grounding is the
+            contact occlusion, which suits the kit's top-down lighting */}
+        <div className="sublabel">Grounding</div>
         <Slider label="Contact" value={C.contact.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.contact.opacity = v; })} />
         <div className="sublabel">Body shading</div>
         <Slider label="Darkness" value={C.extrusion.darkness} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.extrusion.darkness = v; })} />
