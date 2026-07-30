@@ -1483,32 +1483,34 @@ const kitTier = useGen((s) => s.tier);
           <Sec n="00" title="The staging bay"
             note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
             {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
-            {inBay.map((sid) => {
-              const status = releases[sid];
-              const nm = pieceName(sid);
-              return (
-                <div className="kp-bayrow" key={sid}>
-                  <div className="kp-tray kp-axis">
-                    <Piece id={sid} caption={nm} scale={0.5} />
-                  </div>
-                  <div className="kp-bayside">
-                    <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
-                      {status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
-                    </span>
-                    <div className="kp-bayacts">
-                      <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
-                        <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
-                      </button>
-                      {status !== "rejected" ? (
-                        <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "rejected")}>Reject</button>
-                      ) : (
-                        <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
-                      )}
+            <div className="kp-baygrid">
+              {inBay.map((sid) => {
+                const status = releases[sid];
+                const nm = pieceName(sid);
+                return (
+                  <div className="kp-bayrow" key={sid}>
+                    <div className="kp-tray kp-axis">
+                      <Piece id={sid} caption={nm} scale={0.5} />
+                    </div>
+                    <div className="kp-bayside">
+                      <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
+                        {status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
+                      </span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                        </button>
+                        {status !== "rejected" ? (
+                          <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "rejected")}>Reject</button>
+                        ) : (
+                          <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
             {releasedStaged.length > 0 && (
               <p className="kp-baynote">
                 Released from this bay:{" "}

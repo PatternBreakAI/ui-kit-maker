@@ -1713,9 +1713,12 @@ button.kp-fact { cursor: pointer; }
 .kp-tynote { margin-top: 10px; font-size: 12px; line-height: 1.55; color: var(--kp-ink3, var(--kp-ink2)); font-style: italic; }
 
 /* ── the staging bay — admin-only release desk at the top of the kit ── */
-.kp-bayrow { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; padding: 14px 0; }
-.kp-bayrow + .kp-bayrow { border-top: 1px dashed var(--line2); }
-.kp-bayside { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+/* the bay reads as a GRID of candidate cards, not a docket of rows —
+   each piece is one card: art above, verdict + actions below (owner call) */
+.kp-baygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; align-items: stretch; }
+.kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--line2); border-radius: 14px; background: var(--card); }
+.kp-bayrow .kp-tray { display: flex; justify-content: center; }
+.kp-bayside { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: auto; }
 .kp-baychip {
   align-self: flex-start; padding: 4px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
@@ -1723,7 +1726,7 @@ button.kp-fact { cursor: pointer; }
 }
 .kp-baychip.ok { background: rgba(45, 212, 191, .14); color: #14b8a6; border-color: rgba(45, 212, 191, .4); }
 .kp-baychip.rej { background: rgba(185, 85, 80, .12); color: #b95550; border-color: rgba(185, 85, 80, .35); }
-.kp-bayacts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.kp-bayacts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .kp-bayacts .cg-curate { margin-left: 0; }
 .kp-baynote { font-size: 12.5px; line-height: 1.7; color: var(--ink2); }
 .kp-baynote .cg-curate { margin-left: 2px; font-size: 11.5px; }
