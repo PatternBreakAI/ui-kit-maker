@@ -2945,7 +2945,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups.</footer>
+      <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
     </div>
   );
 }
