@@ -1179,7 +1179,17 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const depthCap = 48 * K * (secondary ? 0.55 : 1);
   const maxDepth = Math.max(depth, depthCap, ...forks.map((f) => f.candy.extrusion.depth * K * (secondary ? 0.55 : 1)));
   const riseDy = Math.max(0, maxDepth - depth);
-  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + 40; // generous room so big shadows never clip
+  /* room below sized from the shadow ITSELF: its tail reaches (offset + 3σ)
+     past the body, and a flat constant loses to any soft shadow — the canvas
+     edge then guillotines the blur into a straight line "baked into the
+     shadow" (owner staging find; the filter-region fix alone just moved the
+     cut from the filter's wall to this one). Sized across state forks so
+     the footprint still never changes between states. */
+  const shadowBelow = Math.max(
+    (D.shadow.opacity ?? 0) > 0.5 ? D.shadow.distance * K + D.shadow.blur * 1.5 : 0,
+    ...forks.map((f) => ((f.shadow?.opacity ?? 0) > 0.5 ? (f.shadow?.distance ?? 0) * K + (f.shadow?.blur ?? 0) * 1.5 : 0)),
+  );
+  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + Math.max(40, Math.ceil(shadowBelow + 16));
 
   /* The state aura blurs far past the shell (σ up to 30 → ~2.5σ visible reach),
      and pointed silhouettes like the Fighting HUD carry it to the very edge of
