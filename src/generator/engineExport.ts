@@ -322,10 +322,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 const UNITY_README = `# PatternBreak kit — Unity import
 
 1. Copy the whole export (assets/, kit-manifest.json, unity/) into your project's Assets/ folder.
-2. Unity compiles Editor/PatternBreakKitImporter.cs and re-imports every PNG:
-   sprites get their nine-slice borders, pivots and point-free filtering
-   straight from kit-manifest.json. Re-run anytime via
-   Tools > PatternBreak > Reapply Kit Import Settings.
+2. Let Unity compile Editor/PatternBreakKitImporter.cs, then run
+   Tools > PatternBreak > Reapply Kit Import Settings once. Every PNG gets
+   its nine-slice borders and pivots straight from kit-manifest.json; the
+   Console reports how many sprites were configured (and warns if the
+   manifest or the assets folder is missing/renamed instead of doing
+   nothing quietly). Re-run it anytime.
 3. Open Examples/*.prefab for reference hierarchies. The example Images
    ship without a sprite on purpose (a text file cannot know the GUIDs your
    Unity assigns on import) — drag the named sprite from assets/ onto the
@@ -359,14 +361,24 @@ namespace PatternBreak {
   public static class KitImporter {
     [MenuItem("Tools/PatternBreak/Reapply Kit Import Settings")]
     public static void Apply() {
-      foreach (var guid in AssetDatabase.FindAssets("kit-manifest t:TextAsset")) {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("PatternBreak: kit-manifest.json is not in this project, so no borders were applied. Copy it from the export into the folder that holds assets/ (side by side), then run this again.");
+        return;
+      }
+      foreach (var guid in manifests) {
         var mPath = AssetDatabase.GUIDToAssetPath(guid);
         var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
         var manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath));
+        if (manifest == null || manifest.assets == null || manifest.assets.Length == 0) {
+          Debug.LogWarning("PatternBreak: " + mPath + " has no asset list — is it the kit-manifest.json from the export zip?");
+          continue;
+        }
+        int applied = 0, missing = 0;
         foreach (var a in manifest.assets) {
           var p = root + "/" + a.file;
           var ti = AssetImporter.GetAtPath(p) as TextureImporter;
-          if (ti == null) continue;
+          if (ti == null) { missing++; continue; }
           ti.textureType = TextureImporterType.Sprite;
           ti.spriteImportMode = SpriteImportMode.Single;
           ti.mipmapEnabled = false;
@@ -379,8 +391,11 @@ namespace PatternBreak {
           if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0)
             ti.spriteBorder = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
           ti.SaveAndReimport();
+          applied++;
         }
-        Debug.Log("PatternBreak kit import settings applied: " + manifest.assets.Length + " assets under " + root);
+        if (missing > 0)
+          Debug.LogWarning("PatternBreak: " + missing + " sprites listed in " + mPath + " were not found under " + root + "/assets — keep the export's assets folder next to kit-manifest.json and named exactly 'assets'.");
+        Debug.Log("PatternBreak kit import settings applied: " + applied + " sprites under " + root);
       }
     }
   }
