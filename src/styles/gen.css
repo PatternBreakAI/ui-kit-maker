@@ -933,8 +933,11 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 /* v63: export split-button — primary repeats the last format, the chevron
    lists everything with descriptions; no format is more than one click deep */
 .kp-export { position: relative; display: flex; gap: 2px; margin-top: 10px; max-width: 420px; }
-.kp-export .kp-exportmain { flex: 1; margin: 0; justify-content: flex-start; }
+.kp-export .kp-exportmain { flex: 1; margin: 0; justify-content: flex-start; position: relative; overflow: hidden; }
 .kp-export .kp-exportarrow { width: 42px; flex: none; margin: 0; display: grid; place-items: center; padding: 0; }
+/* v77: live export progress — a thin fill along the button's bottom edge,
+   driven per rendered asset so a long kit never reads as stuck */
+.kp-exportprog { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; opacity: 0.85; border-radius: 0 2px 2px 0; transition: width 0.15s ease-out; pointer-events: none; }
 .kp-exportmenu { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--kp-card, #fff); border: 1px solid var(--kp-line); border-radius: 12px; box-shadow: 0 16px 44px rgba(5, 8, 16, 0.35); backdrop-filter: blur(14px); }
 .kp-exportmenu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; border-radius: 8px; background: none; padding: 9px 11px; font: inherit; text-align: left; color: var(--kp-ink); cursor: pointer; }
 .kp-exportmenu button:hover { background: color-mix(in srgb, var(--kp-ink) 8%, transparent); }

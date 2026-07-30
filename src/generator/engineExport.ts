@@ -45,7 +45,7 @@ const svgWrap = (w: number, h: number, inner: string) =>
 /** `licence` is issued by /api/export and rides inside the ZIP — it names
     the account the kit belongs to, so a redistributed bundle is traceable
     back to its source. Reached through guardedExport, never directly. */
-export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string): Promise<void> {
+export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
 
@@ -90,10 +90,25 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     };
   };
 
-  const addPng = async (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH">) => {
-    const { bytes, w, h } = await svgToPngBytes(svg, PNG_SCALE);
-    files.push({ path: `assets/${path}`, data: bytes });
-    manifest.push({ file: `assets/${path}`, nativeW: w, nativeH: h, ...meta });
+  /* Two-phase build so progress is REAL: sections enqueue their renders
+     (cheap synchronous SVG strings), then one raster loop turns them into
+     PNGs with an exact done/total — rasterization is where the time goes,
+     and a long silent "Working…" reads as a hang (owner report). */
+  const pngQueue: { path: string; svg: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH"> }[] = [];
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH">): Promise<void> => {
+    pngQueue.push({ path, svg, meta });
+    return Promise.resolve();
+  };
+  const rasterQueue = async () => {
+    const total = pngQueue.length + (catalog ? 1 : 0);
+    for (let qi = 0; qi < pngQueue.length; qi++) {
+      const q = pngQueue[qi];
+      onProgress?.(qi, total, q.path);
+      const { bytes, w, h } = await svgToPngBytes(q.svg, PNG_SCALE);
+      files.push({ path: `assets/${q.path}`, data: bytes });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, ...q.meta });
+    }
+    onProgress?.(pngQueue.length, total, catalog ? "catalog" : "zip");
   };
 
   /* ── nine-sliced frames & surfaces — full material and flat variants ── */
@@ -232,6 +247,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng(`icons/${name}.png`, svg, { component: "icons", part: name, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "White glyph — tint in-engine; never bake into components." });
   }
 
+  /* ── rasterise everything queued above, reporting progress ────── */
+  await rasterQueue();
+
   /* ── manifest ─────────────────────────────────────────────────── */
   const fdef = fontByName(st.cfg.type.font);
   files.push({
@@ -290,6 +308,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const cat = await catalog().catch(() => null);
     if (cat) files.push({ path: "atlas/catalog.png", data: cat });
     files.push({ path: "atlas/README.md", data: "The packed sheet is a VISUAL CATALOG for humans.\nDo not slice it for engine use — build from /assets and kit-manifest.json instead.\n" });
+    onProgress?.(pngQueue.length + 1, pngQueue.length + 1, "zip");
   }
 
   /* paperwork — the recipe by hand, the machine file, the font terms */
