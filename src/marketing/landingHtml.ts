@@ -577,7 +577,8 @@ export const LANDING_HTML = `</head>
             <span><strong>UI Kit Maker</strong> by PatternBreak</span>
           </div>
           <p class="footer-tag" id="fpTag">Game-ready UI kits from one master component — drawn by a deterministic engine, never scraped.</p>
-          <p class="footer-copy" id="fpCopy">© 2026 PatternBreak. All rights reserved. · <span title="Which build this page is running">build ${__BUILD_STAMP__}</span></p>
+          <p class="footer-copy" id="fpCopy">© 2026 PatternBreak. All rights reserved.</p>
+          <p class="footer-copy" title="Which build this page is running">build ${__BUILD_STAMP__}</p>
         </div>
         <nav class="footer-col" aria-labelledby="fpProdH">
           <h4 id="fpProdH">PRODUCT</h4>
