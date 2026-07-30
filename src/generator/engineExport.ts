@@ -326,9 +326,10 @@ const UNITY_README = `# PatternBreak kit — Unity import
    sprites get their nine-slice borders, pivots and point-free filtering
    straight from kit-manifest.json. Re-run anytime via
    Tools > PatternBreak > Reapply Kit Import Settings.
-3. Open Examples/*.prefab for reference hierarchies. Sprite references
-   resolve when the assets folder sits at Assets/patternbreak (or re-link
-   the Image components — structure and settings are the point).
+3. Open Examples/*.prefab for reference hierarchies. The example Images
+   ship without a sprite on purpose (a text file cannot know the GUIDs your
+   Unity assigns on import) — drag the named sprite from assets/ onto the
+   Image; the type/slicing settings are already in place.
 4. Labels are TextMeshPro / UI.Text in the kit's display face (see
    kit-manifest.json > typography). Never bake copy into textures.
 
@@ -386,20 +387,23 @@ namespace PatternBreak {
 }
 `;
 
-/* Script references are the CANONICAL UnityEngine.UI identities — Image is
-   {fileID: -765806418} and Button {fileID: 4781926}, both under the engine
-   assembly guid f70555f144d8491a825f0804e09c671c — the same lines Unity
-   itself serializes, verified against Unity-authored prefabs in the wild.
-   Every component also carries its m_GameObject back-reference and Images
-   get their CanvasRenderer, or Unity reports missing scripts and "broken
-   GameObject reference" on import (owner report, Unity 6). */
+/* Script references are the com.unity.ugui PACKAGE sources — every C# script
+   in a package is {fileID: 11500000} under its .cs meta guid: Image.cs is
+   fe87c0e1cc204ed48ad3b37840f39efc, Button.cs 4e29b1a8efbd4b44bb3f3716e73f07ff.
+   The older engine-DLL identities (guid f70555f144d8491a825f0804e09c671c)
+   come up "Missing (Mono Script)" in Unity 6 (owner report) — the DLL is
+   gone, UI moved to the package in 2019.2. Sprites are deliberately
+   {fileID: 0}: a text prefab cannot know the guid the user's Unity assigns
+   the PNG at import, and any placeholder text there is a per-line console
+   error ("Could not extract GUID"). Field lists mirror Unity-serialized
+   prefabs verbatim so nothing else deserializes to a surprise default. */
 const UNITY_BUTTON_PREFAB = `%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 # PatternBreak example — PrimaryButton
-# Root: RectTransform + CanvasRenderer + Image (sliced: button-primary/base.9.png) + Button
-# Add a TextMeshProUGUI child for the label (live text, kit display face).
-# The sprite reference resolves after import; if your paths differ, re-link
-# the Image's sprite — the structure and sliced setup are the contract.
+# Root: RectTransform + CanvasRenderer + Image (Sliced) + Button.
+# The Image ships with NO sprite on purpose — drag assets/button-primary/base.9.png
+# onto it (Image Type is already Sliced; the importer gives the sprite its
+# borders). Add a TextMeshProUGUI child for the label (live text, kit face).
 --- !u!1 &100000
 GameObject:
   m_ObjectHideFlags: 0
@@ -415,16 +419,24 @@ GameObject:
   m_Layer: 5
   m_Name: PrimaryButton
   m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!224 &400000
 RectTransform:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
@@ -433,34 +445,80 @@ RectTransform:
 --- !u!222 &22200000
 CanvasRenderer:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_CullTransparentMesh: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: -765806418, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name:
   m_EditorClassIdentifier:
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
-  m_Sprite: {fileID: 21300000, guid: REPLACE_WITH_button-primary-base9_GUID, type: 3}
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
 --- !u!114 &11400002
 MonoBehaviour:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 4781926, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
   m_Name:
   m_EditorClassIdentifier:
+  m_Navigation:
+    m_Mode: 3
+    m_WrapAround: 0
+    m_SelectOnUp: {fileID: 0}
+    m_SelectOnDown: {fileID: 0}
+    m_SelectOnLeft: {fileID: 0}
+    m_SelectOnRight: {fileID: 0}
+  m_Transition: 1
+  m_Colors:
+    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
+    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
+    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
+    m_ColorMultiplier: 1
+    m_FadeDuration: 0.1
+  m_SpriteState:
+    m_HighlightedSprite: {fileID: 0}
+    m_PressedSprite: {fileID: 0}
+    m_SelectedSprite: {fileID: 0}
+    m_DisabledSprite: {fileID: 0}
+  m_AnimationTriggers:
+    m_NormalTrigger: Normal
+    m_HighlightedTrigger: Highlighted
+    m_PressedTrigger: Pressed
+    m_SelectedTrigger: Selected
+    m_DisabledTrigger: Disabled
   m_Interactable: 1
   m_TargetGraphic: {fileID: 11400000}
   m_OnClick:
@@ -471,8 +529,9 @@ MonoBehaviour:
 const UNITY_PROGRESS_PREFAB = `%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 # PatternBreak example — ProgressBar
-# Root: RectTransform + CanvasRenderer + Image (sliced: progress/track.9.png)
-# Add a Fill child (Image sliced: progress/fill.9.png, Image.type=Filled
+# Root: RectTransform + CanvasRenderer + Image (Sliced).
+# The Image ships with NO sprite on purpose — drag assets/progress/track.9.png
+# onto it. Add a Fill child (Image, sprite progress/fill.9.png, type Filled
 # Horizontal, or width driven by code — the value is LIVE, never baked).
 --- !u!1 &100000
 GameObject:
@@ -488,16 +547,24 @@ GameObject:
   m_Layer: 5
   m_Name: ProgressBar
   m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!224 &400000
 RectTransform:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
@@ -506,24 +573,40 @@ RectTransform:
 --- !u!222 &22200000
 CanvasRenderer:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_CullTransparentMesh: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 100000}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: -765806418, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name:
   m_EditorClassIdentifier:
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
-  m_Sprite: {fileID: 21300000, guid: REPLACE_WITH_progress-track9_GUID, type: 3}
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
 `;
 
