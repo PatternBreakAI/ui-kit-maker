@@ -630,7 +630,22 @@ function polyRoundedInset(d: string, delta: number): string {
     const a = inset[j], c = inset[(j + 1) % n];
     shortest = Math.min(shortest, Math.hypot(c[0] - a[0], c[1] - a[1]));
   }
-  return polyRounded(inset, Math.min(r0 * Math.sqrt(Math.abs(area2 / area)), shortest * 0.49));
+  const out = polyRounded(inset, Math.min(r0 * Math.sqrt(Math.abs(area2 / area)), shortest * 0.49));
+  /* The clamp above is GLOBAL: one short inset edge anywhere starves the
+     arm at every corner, and an arm below the parallel radius (r0 − δ)
+     leaves a near-sharp inner corner poking OUTSIDE the outer's arc —
+     verified live on notch/shield/crest/polybar/explorer at small frames,
+     high softness, rim-scale deltas (Front Door fleet find, 2026-07-30;
+     worst escape 2.7px). Geometry is cheaper to measure than to bound:
+     a candidate that escapes the outer is invalid here and falls through
+     to the general offset machinery, which stays inside by construction. */
+  const outerPoly = flattenPath(d, 10)[0];
+  if (outerPoly && outerPoly.length > 2) {
+    for (const pt of flattenPath(out, 10)[0] ?? []) {
+      if (!pointInPoly(pt, outerPoly) && distToBoundary(pt, outerPoly) > 0.4) return "";
+    }
+  }
+  return out;
 }
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
@@ -1164,7 +1179,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const depthCap = 48 * K * (secondary ? 0.55 : 1);
   const maxDepth = Math.max(depth, depthCap, ...forks.map((f) => f.candy.extrusion.depth * K * (secondary ? 0.55 : 1)));
   const riseDy = Math.max(0, maxDepth - depth);
-  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + 40; // generous room so big shadows never clip
+  /* room below sized from the drop shadow ITSELF at FOUR sigma: at 3σ a
+     strong shadow's remaining ~0.3% intensity still drew a faint straight
+     edge on light stages (owner caught it on build 797bb15); at 4σ the
+     residual is ~0.01% — beneath any display's quantization. Sized across
+     state forks so the footprint never changes between states. */
+  const shadowBelow = Math.max(
+    (D.shadow.opacity ?? 0) > 0.5 ? D.shadow.distance * K + D.shadow.blur * 2 : 0,
+    ...forks.map((f) => ((f.shadow?.opacity ?? 0) > 0.5 ? (f.shadow?.distance ?? 0) * K + (f.shadow?.blur ?? 0) * 2 : 0)),
+  );
+  const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + Math.max(40, Math.ceil(shadowBelow + 16));
 
   /* The state aura blurs far past the shell (σ up to 30 → ~2.5σ visible reach),
      and pointed silhouettes like the Fighting HUD carry it to the very edge of
@@ -1195,7 +1219,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const hiK = (disabled ? 0.35 : 1) * (D.lighting.highlight / 78);
   const lowK = Math.max(0.1, D.lighting.lowlight / 46);
 
-  /* 1 ── cast shadow (grounded — does not travel with the lift) ── */
+  /* 1 ── cast shadow (grounded — does not travel with the lift). The
+     CONTACT floor ellipse is the retired layer (owner call, 2026-07-30
+     round two: "the one that looks like a drop shadow should remain") —
+     this soft drop is the grounding the kit keeps. */
   const sd = D.shadow.distance * K;
   const sdx = -lx * sd * 0.55;
   const sdy = visDepth + Math.max(1.5, sd * 0.7 - ly * sd * 0.3) + Math.max(0, lift);
@@ -1259,12 +1286,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       </g>`
     : "";
 
-  /* contact shadow — grounded occlusion right where the body meets the
-     surface; fades as the button lifts, tightens when pressed */
-  const contactOp = (C.contact.opacity / 100) * (disabled ? 0.4 : 1) * clamp(1 - Math.max(0, -lift) / 10, 0.25, 1);
-  const contact = contactOp > 0.01
-    ? `<ellipse cx="${(x + w / 2 + sdx * 0.35).toFixed(1)}" cy="${(y + h + visDepth + Math.max(0, lift) + 1.5).toFixed(1)}" rx="${(w * 0.47).toFixed(1)}" ry="${(5.5 * K + visDepth * 0.22).toFixed(1)}" fill="url(#${id}ct)" opacity="${contactOp.toFixed(2)}"/>`
-    : "";
+  /* (contact floor ellipse retired — owner call: the flat pancake under
+     the base read as a fake "floor" and fought the kit's lighting; the
+     cast drop shadow above is the one true grounding) */
+  const contact = "";
 
   /* face box (for screen-space layers) — follows the actual face inset */
   const fx0 = x + bwF, fy0 = y + bwF, fw = w - bwF * 2, fh = h - bwF * 2;
@@ -1611,10 +1636,6 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0.5" stop-color="${darken(deepC, 0.55)}" stop-opacity="0"/>
     <stop offset="1" stop-color="${darken(deepC, 0.55)}" stop-opacity="0.38"/>
   </linearGradient>
-  <radialGradient id="${id}ct">
-    <stop offset="0" stop-color="${shC}" stop-opacity="1"/>
-    <stop offset="1" stop-color="${shC}" stop-opacity="0"/>
-  </radialGradient>
   ${baseGlow ? `<clipPath id="${id}ec"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>
   <radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
   ${patternDef}
@@ -1691,9 +1712,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${textFxDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
-  ${castShadow ? `<filter id="${id}sb" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="${sBlur.toFixed(1)}"/></filter>` : ""}
-  ${aura ? `<filter id="${id}gb" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="14"/></filter>
-  <filter id="${id}gb2" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="30"/></filter>` : ""}
+  ${(() => {
+    /* Blur regions sized in ABSOLUTE units from the blur itself, not
+       percentages of the shape's bbox: a %-margin loses to a soft blur on
+       squat shapes and the tail gets guillotined into a straight line
+       (owner reports, staging rounds). FOUR sigma of room — the residual
+       past 4σ is ~0.01%, invisible on any stage. */
+    const shTail = 4 * sBlur + Math.abs(sdx) + Math.abs(sdy) + 24;
+    const shR = `filterUnits="userSpaceOnUse" x="${(x - shTail).toFixed(0)}" y="${(y - shTail).toFixed(0)}" width="${(w + shTail * 2).toFixed(0)}" height="${(h + visDepth + shTail * 2).toFixed(0)}"`;
+    const auraTail = (s2: number) => 4 * s2 + visDepth + 24;
+    const auraR = (s2: number) => `filterUnits="userSpaceOnUse" x="${(x - auraTail(s2)).toFixed(0)}" y="${(y - auraTail(s2)).toFixed(0)}" width="${(w + auraTail(s2) * 2).toFixed(0)}" height="${(h + auraTail(s2) * 2).toFixed(0)}"`;
+    return `${castShadow ? `<filter id="${id}sb" ${shR}><feGaussianBlur stdDeviation="${sBlur.toFixed(1)}"/></filter>` : ""}
+  ${aura ? `<filter id="${id}gb" ${auraR(14)}><feGaussianBlur stdDeviation="14"/></filter>
+  <filter id="${id}gb2" ${auraR(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}`;
+  })()}
   ${noise ? `<filter id="${id}nz" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="${nzFreq}" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer></filter>` : ""}
 </defs>
 <g opacity="${(adj.opacity / 100).toFixed(2)}" transform="translate(0 ${riseDy.toFixed(1)})">

@@ -7,6 +7,14 @@ import { fileURLToPath, URL } from "node:url";
 export default defineConfig({
   plugins: [react()],
   base: "./",
+  // Build stamp — surfaces in the kit-page footer so any environment
+  // (production, Vercel preview, local dev) can be identified at a glance.
+  // Vercel injects the commit sha at build time; local builds say "local".
+  define: {
+    __BUILD_STAMP__: JSON.stringify(
+      `${(process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) || "local"} · ${new Date().toISOString().slice(0, 10)}`,
+    ),
+  },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
