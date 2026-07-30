@@ -50,13 +50,18 @@ export function makeZip(files: { path: string; data: string | Uint8Array }[]): B
     for (const p of parts) { out.set(p, o); o += p.length; }
     return out;
   };
+  // real export time in DOS format — zeroed fields decode as Nov 30 1979,
+  // which reads as a broken download in every file manager (owner report)
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = (Math.max(0, now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
   for (const f of files) {
     const name = enc.encode(f.path);
     const data = typeof f.data === "string" ? enc.encode(f.data) : f.data;
     const crc = crc32(data);
-    const local = cat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+    const local = cat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
       u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name, data);
-    central.push(cat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+    central.push(cat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
       u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0),
       u32(0), u32(offset), name));
     chunks.push(local);

@@ -367,54 +367,145 @@ namespace PatternBreak {
 }
 `;
 
+/* Script references are the CANONICAL UnityEngine.UI identities — Image is
+   {fileID: -765806418} and Button {fileID: 4781926}, both under the engine
+   assembly guid f70555f144d8491a825f0804e09c671c — the same lines Unity
+   itself serializes, verified against Unity-authored prefabs in the wild.
+   Every component also carries its m_GameObject back-reference and Images
+   get their CanvasRenderer, or Unity reports missing scripts and "broken
+   GameObject reference" on import (owner report, Unity 6). */
 const UNITY_BUTTON_PREFAB = `%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 # PatternBreak example — PrimaryButton
-# Hierarchy: Button (Image sliced: button-primary/base.9.png)
-#   └─ Label (TextMeshProUGUI, live text, kit display face)
-#   └─ Icon (Image, icons/*.png, tinted; optional)
-# Sprite references resolve after import; if your paths differ, re-link the
-# two Image components — the structure and sliced setup are the contract.
+# Root: RectTransform + CanvasRenderer + Image (sliced: button-primary/base.9.png) + Button
+# Add a TextMeshProUGUI child for the label (live text, kit display face).
+# The sprite reference resolves after import; if your paths differ, re-link
+# the Image's sprite — the structure and sliced setup are the contract.
 --- !u!1 &100000
 GameObject:
-  m_Name: PrimaryButton
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
   m_Component:
   - component: {fileID: 400000}
   - component: {fileID: 22200000}
   - component: {fileID: 11400000}
+  - component: {fileID: 11400002}
+  m_Layer: 5
+  m_Name: PrimaryButton
+  m_TagString: Untagged
+  m_IsActive: 1
 --- !u!224 &400000
 RectTransform:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 400, y: 136}
---- !u!114 &22200000
-MonoBehaviour:
-  m_Script: {fileID: 1660335818, guid: f70555f144d8491a825f0804e09c671c, type: 3} # UnityEngine.UI.Image
-  m_Sprite: {fileID: 21300000, guid: REPLACE_WITH_button-primary-base9_GUID, type: 3}
-  m_Type: 1 # Sliced
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &22200000
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_CullTransparentMesh: 1
 --- !u!114 &11400000
 MonoBehaviour:
-  m_Script: {fileID: 1392445389, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3} # UnityEngine.UI.Button
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -765806418, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_Sprite: {fileID: 21300000, guid: REPLACE_WITH_button-primary-base9_GUID, type: 3}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_PixelsPerUnitMultiplier: 1
+--- !u!114 &11400002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 4781926, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_Interactable: 1
+  m_TargetGraphic: {fileID: 11400000}
+  m_OnClick:
+    m_PersistentCalls:
+      m_Calls: []
 `;
 
 const UNITY_PROGRESS_PREFAB = `%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 # PatternBreak example — ProgressBar
-# Hierarchy: ProgressBar (Image sliced: progress/track.9.png)
-#   └─ Fill (Image sliced: progress/fill.9.png, Image.type=Filled Horizontal
-#            or width driven by code — the value is LIVE, never baked)
+# Root: RectTransform + CanvasRenderer + Image (sliced: progress/track.9.png)
+# Add a Fill child (Image sliced: progress/fill.9.png, Image.type=Filled
+# Horizontal, or width driven by code — the value is LIVE, never baked).
 --- !u!1 &100000
 GameObject:
-  m_Name: ProgressBar
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
   m_Component:
   - component: {fileID: 400000}
   - component: {fileID: 22200000}
+  - component: {fileID: 11400000}
+  m_Layer: 5
+  m_Name: ProgressBar
+  m_TagString: Untagged
+  m_IsActive: 1
 --- !u!224 &400000
 RectTransform:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 440, y: 44}
---- !u!114 &22200000
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &22200000
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_CullTransparentMesh: 1
+--- !u!114 &11400000
 MonoBehaviour:
-  m_Script: {fileID: 1660335818, guid: f70555f144d8491a825f0804e09c671c, type: 3} # UnityEngine.UI.Image
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -765806418, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
   m_Sprite: {fileID: 21300000, guid: REPLACE_WITH_progress-track9_GUID, type: 3}
-  m_Type: 1 # Sliced
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_PixelsPerUnitMultiplier: 1
 `;
 
 const UNREAL_README = `# PatternBreak kit — Unreal import
