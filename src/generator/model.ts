@@ -478,7 +478,10 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Alfa Slab One", css: "Alfa+Slab+One", factor: 0.62, caps: { weights: [400] } },
   { name: "Bowlby One SC", css: "Bowlby+One+SC", factor: 0.66, caps: { weights: [400] } },
   { name: "Modak", css: "Modak", factor: 0.6, caps: { weights: [400] } },
-  { name: "Chango", css: "Chango", factor: 0.62, caps: { weights: [400] } },
+  // measured 2026-07-30: Chango caps average 0.93em — the old 0.62 guess
+  // cropped labels everywhere until real measurement landed; the factor
+  // now only covers the pre-load frames
+  { name: "Chango", css: "Chango", factor: 0.93, caps: { weights: [400] } },
   { name: "Boogaloo", css: "Boogaloo", factor: 0.5, caps: { weights: [400] } },
   { name: "Staatliches", css: "Staatliches", factor: 0.5, caps: { weights: [400] } },
   { name: "Grandstander", css: "Grandstander:ital,wght@0,100..900;1,100..900", factor: 0.58, caps: { wght: [100, 900, 700], italic: true } },

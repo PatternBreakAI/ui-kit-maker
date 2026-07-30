@@ -1408,3 +1408,14 @@ export const useGen = create<GenStore>((set, get) => ({
 
 // kick off the site-default fetch once the store exists
 fetchSiteDefault();
+
+/* Fonts land AFTER first paint, and the renderer sizes canvases from real
+   glyph measurements when the face is loaded (see measureLabel in bevel).
+   A fresh cfg identity invalidates every render memo, so the whole app
+   re-renders measured the moment a face arrives — without touching undo
+   history or persistence. */
+if (typeof document !== "undefined" && document.fonts?.addEventListener) {
+  document.fonts.addEventListener("loadingdone", () => {
+    useGen.setState((st) => ({ cfg: { ...st.cfg } }));
+  });
+}

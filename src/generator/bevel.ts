@@ -6,6 +6,36 @@ import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } f
 import { stockShape } from "./stockShapes";
 import rough from "roughjs";
 
+/* ── real glyph advances beat any per-face estimate ──────────────────────
+   Char-count × factor guesses lose badly on extreme display faces (Chango
+   runs ~0.93em/cap against a 0.62 registry factor — 50% wide), and every
+   layout decision downstream (canvas width, shell width, centering, filter
+   regions) inherits the error as cropped labels. Canvas measureText is
+   synchronous, so the renderer measures the EXACT label with the loaded
+   font. Returns em units, or null while the face hasn't loaded — callers
+   fall back to the registry factor, and the store re-renders everything
+   the moment fonts land (loadingdone), so estimates only ever paint for
+   the first frames. Memoized: renders re-measure identical labels often. */
+let _measureCtx: CanvasRenderingContext2D | null | undefined;
+const _measureCache = new Map<string, number>();
+export function measureLabel(label: string, font: string, weight: number, italic: boolean): number | null {
+  try {
+    if (typeof document === "undefined" || !label) return null;
+    const spec = `${italic ? "italic " : ""}${weight || 400} 100px "${font}"`;
+    if (!document.fonts?.check?.(spec)) return null;
+    const key = `${spec}|${label}`;
+    const hit = _measureCache.get(key);
+    if (hit !== undefined) return hit;
+    if (_measureCtx === undefined) _measureCtx = document.createElement("canvas").getContext("2d");
+    if (!_measureCtx) return null;
+    _measureCtx.font = spec;
+    const em = _measureCtx.measureText(label).width / 100;
+    if (_measureCache.size > 800) _measureCache.clear();
+    _measureCache.set(key, em);
+    return em;
+  } catch { return null; }
+}
+
 /* Rough.js draws the hand-drawn *line character* over the approved outline —
    it never designs the silhouette. Fixed seed keeps every render, state card,
    copied code and download byte-identical. Results are memoized per path. */
@@ -1124,7 +1154,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const italicPad = T2.italic ? fs * 0.3 : 0; // slanted glyphs overhang their advance
   // left-anchored specimens carry extra right slack — the whole estimate
   // error lands on the ragged right edge instead of splitting across both
-  const textW = (showText ? label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06) : 0) + italicPad;
+  const mW = showText ? measureLabel(label, T2.font, T2.weight, !!T2.italic) : null;
+  const textW = (showText ? (mW !== null
+    ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
+    : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
   const contentW = textW + (iconDef ? iconSize : 0) + gap;
 
   /* text-safe area — the silhouette's authored content insets keep labels out
@@ -1152,7 +1185,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const wdX = capsX?.wdth && Tx.width !== undefined ? clamp(Tx.width, capsX.wdth[0], capsX.wdth[1]) / 100 : 1;
     const wkX = 1 + Math.max(0, Tx.weight - 700) * 0.0004;
     const itX = Tx.italic ? fsx * 0.3 : 0;
-    const twX = (showText ? casedX.length * fsx * fontByName(Tx.font).factor * wdX * (1 + Tx.spacing / 100) * wkX * (opts.anchorLeft ? 1.13 : 1.06) : 0) + itX;
+    const mX = showText ? measureLabel(casedX, Tx.font, Tx.weight, !!Tx.italic) : null;
+    const twX = (showText ? (mX !== null
+      ? (mX + casedX.length * Tx.spacing / 100) * fsx * wdX * wkX * (opts.anchorLeft ? 1.04 : 1.02)
+      : casedX.length * fsx * fontByName(Tx.font).factor * wdX * (1 + Tx.spacing / 100) * wkX * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + itX;
     const cwX = twX + (iconDef ? iconSize : 0) + gap;
     const metX = silhouetteMeta(shx) ?? importedShape(shx);
     const erX = shx === "pill" ? h * 0.16 : 0;
@@ -1857,6 +1893,14 @@ export interface SpecimenOpts {
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
+  /* type specimens are TYPE showcases — the shell is invisible, but content
+     still clips to the component face, and stock silhouettes (blobs) stop
+     stretching at ~1.4x their drawn proportions and center instead. A wide
+     display face on a blob kit then pours past the invisible blob's ends
+     and the face-clip eats the glyphs (owner: "blob shapes are cropping
+     the text"). Specimens ride the neutral rounded shape, which stretches
+     to any canvas — the typography, not the silhouette, is the subject. */
+  c.shape = "round";
   c.transparency = { frame: 0, interior: 0, content: 100 };
   c.shadow.opacity = 0;
   c.candy.contact.opacity = 0;
@@ -2571,7 +2615,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const met5 = silhouetteMeta((sov ?? "banner") as Shape);
       const T5 = cfg.type;
       const fs5 = 46 * k * (T5.size / 52);
-      const tw5 = lbl5.length * fs5 * fontByName(T5.font).factor * (1 + T5.spacing / 100) * 1.18 + (T5.italic ? fs5 * 0.35 : 0);
+      const m5 = measureLabel(lbl5, T5.font, T5.weight, !!T5.italic);
+      const tw5 = (m5 !== null
+        ? (m5 + lbl5.length * T5.spacing / 100) * fs5 * 1.06
+        : lbl5.length * fs5 * fontByName(T5.font).factor * (1 + T5.spacing / 100) * 1.18) + (T5.italic ? fs5 * 0.35 : 0);
       const inset5 = met5 ? Math.max(met5.content.left, met5.capScale) * h5 + Math.max(12, fs5 * 0.3) : 90 * k;
       const w5 = Math.min(2600 * k, Math.max(430 * k, tw5 + inset5 * 2));
       /* v67: reverted to the classic construction — the label rides the face
