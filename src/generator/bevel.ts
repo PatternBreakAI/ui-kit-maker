@@ -630,7 +630,22 @@ function polyRoundedInset(d: string, delta: number): string {
     const a = inset[j], c = inset[(j + 1) % n];
     shortest = Math.min(shortest, Math.hypot(c[0] - a[0], c[1] - a[1]));
   }
-  return polyRounded(inset, Math.min(r0 * Math.sqrt(Math.abs(area2 / area)), shortest * 0.49));
+  const out = polyRounded(inset, Math.min(r0 * Math.sqrt(Math.abs(area2 / area)), shortest * 0.49));
+  /* The clamp above is GLOBAL: one short inset edge anywhere starves the
+     arm at every corner, and an arm below the parallel radius (r0 − δ)
+     leaves a near-sharp inner corner poking OUTSIDE the outer's arc —
+     verified live on notch/shield/crest/polybar/explorer at small frames,
+     high softness, rim-scale deltas (Front Door fleet find, 2026-07-30;
+     worst escape 2.7px). Geometry is cheaper to measure than to bound:
+     a candidate that escapes the outer is invalid here and falls through
+     to the general offset machinery, which stays inside by construction. */
+  const outerPoly = flattenPath(d, 10)[0];
+  if (outerPoly && outerPoly.length > 2) {
+    for (const pt of flattenPath(out, 10)[0] ?? []) {
+      if (!pointInPoly(pt, outerPoly) && distToBoundary(pt, outerPoly) > 0.4) return "";
+    }
+  }
+  return out;
 }
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
