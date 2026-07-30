@@ -223,7 +223,7 @@ function usePiece(p: PieceOpts) {
  *  (engine zip by default); the chevron lists every format with a one-line
  *  description. One click for the common case, nothing buried. */
 function ExportMenu({ actions }: {
-  actions: { id: string; name: string; desc: string; busy?: boolean; locked?: boolean; run: () => void }[];
+  actions: { id: string; name: string; desc: string; busy?: boolean; locked?: boolean; prog?: { done: number; total: number; label: string } | null; run: () => void }[];
 }) {
   const [open, setOpen] = useState(false);
   const [last, setLast] = useState(() => { try { return localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return "engine"; } });
@@ -244,7 +244,17 @@ function ExportMenu({ actions }: {
   return (
     <div className="kp-export" ref={ref}>
       <button className="kp-dlall kp-exportmain" disabled={primary.busy} onClick={() => fire(primary)} title={primary.desc}>
-        <Download size={14} strokeWidth={2.2} /> {primary.busy ? "Working…" : `Export — ${primary.name}`}
+        <Download size={14} strokeWidth={2.2} />{" "}
+        {primary.busy
+          ? (primary.prog
+            ? (primary.prog.label === "catalog" ? "Packing the visual catalog…"
+              : primary.prog.label === "zip" ? "Zipping…"
+              : `Rendering ${Math.min(primary.prog.done + 1, primary.prog.total)} of ${primary.prog.total}…`)
+            : "Working…")
+          : `Export — ${primary.name}`}
+        {primary.busy && primary.prog && (
+          <span className="kp-exportprog" style={{ width: `${Math.round((primary.prog.done / Math.max(1, primary.prog.total)) * 100)}%` }} />
+        )}
       </button>
       <button className="kp-dlall kp-exportarrow" aria-haspopup="menu" aria-expanded={open} title="All export formats"
         onClick={() => setOpen((v) => !v)}>
@@ -972,6 +982,7 @@ export function KitPage() {
   /* the packed sheet is a VISUAL CATALOG; engines get atomic assets */
   const [sheetBusy, setSheetBusy] = useState(false);
   const [engineBusy, setEngineBusy] = useState(false);
+  const [engineProg, setEngineProg] = useState<{ done: number; total: number; label: string } | null>(null);
   const downloadEngineKit = async () => {
     if (engineBusy) return;
     setEngineBusy(true);
@@ -984,10 +995,12 @@ export function KitPage() {
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name },
           () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null),
           grant.licence,
+          (done, total, label) => setEngineProg({ done, total, label }),
         );
       });
     } finally {
       setEngineBusy(false);
+      setEngineProg(null);
     }
   };
   /* every catalog entry — components, variants, states — as individual
@@ -1062,7 +1075,7 @@ const kitTier = useGen((s) => s.tier);
   const mayEngine = canExport(kitTier, "engine");
   const maySvg = canExport(kitTier, "svg");
   const exportActions = [
-    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !mayEngine, run: () => void downloadEngineKit() },
+    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];
