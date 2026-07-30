@@ -1706,9 +1706,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${textFxDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
-  ${castShadow ? `<filter id="${id}sb" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="${sBlur.toFixed(1)}"/></filter>` : ""}
-  ${aura ? `<filter id="${id}gb" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="14"/></filter>
-  <filter id="${id}gb2" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="30"/></filter>` : ""}
+  ${(() => {
+    /* Blur regions sized in ABSOLUTE units from the blur itself, not
+       percentages of the shape's bbox: a soft shadow's gaussian tail runs
+       ~3σ past the silhouette, and on squat shapes (the blob set) a
+       %-margin is shorter than that — the blur gets guillotined at the
+       region edge and reads as a straight line baked into the shadow
+       (owner report, staging round). Bounded: tail + travel only. */
+    const shTail = 3 * sBlur + Math.abs(sdx) + Math.abs(sdy) + 24;
+    const shR = `filterUnits="userSpaceOnUse" x="${(x - shTail).toFixed(0)}" y="${(y - shTail).toFixed(0)}" width="${(w + shTail * 2).toFixed(0)}" height="${(h + visDepth + shTail * 2).toFixed(0)}"`;
+    const auraTail = (s2: number) => 3 * s2 + visDepth + 24;
+    const auraR = (s2: number) => `filterUnits="userSpaceOnUse" x="${(x - auraTail(s2)).toFixed(0)}" y="${(y - auraTail(s2)).toFixed(0)}" width="${(w + auraTail(s2) * 2).toFixed(0)}" height="${(h + auraTail(s2) * 2).toFixed(0)}"`;
+    return `${castShadow ? `<filter id="${id}sb" ${shR}><feGaussianBlur stdDeviation="${sBlur.toFixed(1)}"/></filter>` : ""}
+  ${aura ? `<filter id="${id}gb" ${auraR(14)}><feGaussianBlur stdDeviation="14"/></filter>
+  <filter id="${id}gb2" ${auraR(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}`;
+  })()}
   ${noise ? `<filter id="${id}nz" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="${nzFreq}" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer></filter>` : ""}
 </defs>
 <g opacity="${(adj.opacity / 100).toFixed(2)}" transform="translate(0 ${riseDy.toFixed(1)})">
