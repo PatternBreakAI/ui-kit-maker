@@ -28,6 +28,50 @@ const CHAPTERS: [string, string, string][] = [
   ["resources", "05", "Resources"],
 ];
 
+/* Chapter tabs own the scroll-spy: the active-chapter state used to live on
+   KitPage itself, so every chapter crossing while scrolling re-rendered the
+   entire page — hundreds of pieces — to repaint one highlighted tab. */
+function ChapterTabs() {
+  const setPhase = useGen((s) => s.setPhase);
+  const [activeChap, setActiveChap] = useState("foundations");
+  useEffect(() => {
+    const scroller = document.querySelector(".canvas");
+    if (!scroller) return;
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      const marks = [...document.querySelectorAll<HTMLElement>("[data-chap]")];
+      let current = "foundations";
+      for (const m of marks) if (m.getBoundingClientRect().top < 280) current = m.dataset.chap ?? current;
+      setActiveChap((prev) => (prev === current ? prev : current));
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(read); };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    read();
+    return () => { scroller.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, []);
+  return (
+    <nav className="kp-tabsbar" aria-label="Kit chapters">
+      {CHAPTERS.map(([id, num, name]) => (
+        <button key={id} className={activeChap === id ? "on" : ""}
+          onClick={() => {
+            setActiveChap(id);
+            const el = document.getElementById(`chap-${id}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+            // one glow pulse on arrival — "you are here"
+            el?.classList.remove("kp-glowonce"); void el?.offsetWidth; el?.classList.add("kp-glowonce");
+            window.setTimeout(() => el?.classList.remove("kp-glowonce"), 1800);
+          }}>
+          <span className="kp-tabnum">{num}</span> {name}
+        </button>
+      ))}
+      <button className="kp-tabedit" onClick={() => setPhase("master")} title="Back to the component editor">
+        <PenTool size={13} strokeWidth={2} /> Editor
+      </button>
+    </nav>
+  );
+}
+
 const PIECE_SCALE = 0.62;
 const PATTERN_SCALE = 0.31;
 
@@ -969,8 +1013,6 @@ export function KitPage() {
     try { localStorage.setItem("ui-generator-hiddenlayouts", JSON.stringify(next)); } catch { /* ignore */ }
     return next;
   });
-  const [activeChap, setActiveChap] = useState("foundations");
-
   /* Paid artifacts ask the server first (see exportGate): the client caps
      still decide how the buttons LOOK, but the file itself is only ever
      produced against a grant issued from plan_id in the database. */
@@ -1265,23 +1307,6 @@ const kitTier = useGen((s) => s.tier);
       setSheetBusy(false);
     }
   };
-  useEffect(() => {
-    const scroller = document.querySelector(".canvas");
-    if (!scroller) return;
-    let raf = 0;
-    const read = () => {
-      raf = 0;
-      const marks = [...document.querySelectorAll<HTMLElement>("[data-chap]")];
-      let current = "foundations";
-      for (const m of marks) if (m.getBoundingClientRect().top < 280) current = m.dataset.chap ?? current;
-      setActiveChap((prev) => (prev === current ? prev : current));
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(read); };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    read();
-    return () => { scroller.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
-  }, []);
-
   // main-menu title — the game's name (preset), not the master button label
   const menuArt = useMemo(() => renderTypeSpecimen(cfg, (preset?.name ?? "CANDY").toUpperCase()), [cfg, preset]);
   const loadingArt = useMemo(() => renderTypeSpecimen(cfg, "LOADING"), [cfg]);
@@ -1395,24 +1420,7 @@ const kitTier = useGen((s) => s.tier);
   return (
     <div className={`kitpage${dark ? " dark" : ""}`} style={{ "--kp-pattile": patternTileUrl(cfg) } as React.CSSProperties}>
       {/* ── sticky chapter navigation — persistent orientation ── */}
-      <nav className="kp-tabsbar" aria-label="Kit chapters">
-        {CHAPTERS.map(([id, num, name]) => (
-          <button key={id} className={activeChap === id ? "on" : ""}
-            onClick={() => {
-              setActiveChap(id);
-              const el = document.getElementById(`chap-${id}`);
-              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              // one glow pulse on arrival — "you are here"
-              el?.classList.remove("kp-glowonce"); void el?.offsetWidth; el?.classList.add("kp-glowonce");
-              window.setTimeout(() => el?.classList.remove("kp-glowonce"), 1800);
-            }}>
-            <span className="kp-tabnum">{num}</span> {name}
-          </button>
-        ))}
-        <button className="kp-tabedit" onClick={() => setPhase("master")} title="Back to the component editor">
-          <PenTool size={13} strokeWidth={2} /> Editor
-        </button>
-      </nav>
+      <ChapterTabs />
 
       {/* ── hero — the system, stated once ── */}
       <header className="kp-hero kp-hero2">
