@@ -10,7 +10,7 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize } from "./model";
 import { renderKit, rarityTiers } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -72,21 +72,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     c.candy.specular.on = false;
     c.candy.pattern.type = "none";
   };
+  /* nine-slice renders drop the bloom halo too: it reaches past the shell,
+     and a sliced sprite must hug its geometry — glows are engine-composed
+     (fx/glow.png, states recipe), same contract as shadows */
+  const slim = (c: GenConfig) => {
+    c.candy.bloom.opacity = 0;
+  };
 
-  /* nine-slice margins in PNG pixels: swallow the transparent glow pad and
-     the fixed canvas inset, then the silhouette's own cap zone */
-  const sliceOf = (svg: string, id: KitComponentId, shellH: number) => {
-    const pad = Math.max(0, -+(/viewBox="(-?[\d.]+)/.exec(svg)?.[1] ?? 0));
+  /* nine-slice margins in PNG pixels: the silhouette's own cap zone plus the
+     crop margin — nothing else. Sliced sprites are exported TIGHT (see
+     svgToPngBytesTight); the old padded-canvas borders (pad + inset + cap)
+     summed past the component's own footprint on effect-heavy kits, and
+     Unity draws a sliced image whose borders outgrow the rect as four caps
+     of transparent padding with a zero-size center — an invisible button
+     (owner report, Unity 6.5). */
+  const sliceOf = (id: KitComponentId, shellH: number) => {
     const shape = st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape;
     const met = silhouetteMeta(shape);
     const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22);
     const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8));
-    const xIn = 39, yIn = 30;
     return {
-      left: Math.round((pad + xIn + capX) * PNG_SCALE),
-      right: Math.round((pad + xIn + capX) * PNG_SCALE),
-      top: Math.round((pad + yIn + capY) * PNG_SCALE),
-      bottom: Math.round((pad + yIn + capY) * PNG_SCALE),
+      left: Math.round((capX + 10) * PNG_SCALE),
+      right: Math.round((capX + 10) * PNG_SCALE),
+      top: Math.round((capY + 10) * PNG_SCALE),
+      bottom: Math.round((capY + 10) * PNG_SCALE),
     };
   };
 
@@ -94,9 +103,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH"> }[] = [];
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH">): Promise<void> => {
-    pngQueue.push({ path, svg, meta });
+  const pngQueue: { path: string; svg: string; crop: boolean; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH"> }[] = [];
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH">, crop = false): Promise<void> => {
+    // own copy of the slice — call sites share one object across variants,
+    // and the post-crop clamp adjusts it per asset
+    pngQueue.push({ path, svg, crop, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   const rasterQueue = async () => {
@@ -104,7 +115,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (let qi = 0; qi < pngQueue.length; qi++) {
       const q = pngQueue[qi];
       onProgress?.(qi, total, q.path);
-      const { bytes, w, h } = await svgToPngBytes(q.svg, PNG_SCALE);
+      const { bytes, w, h } = q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE);
+      // Last line of defence: whatever the cap math says, borders must leave
+      // a real center strip or engines render nothing. Scale down to fit.
+      const s = q.meta.nineSlice;
+      if (s) {
+        const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
+        if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
+        if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
+      }
       files.push({ path: `assets/${q.path}`, data: bytes });
       manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, ...q.meta });
     }
@@ -125,13 +144,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
   for (const n of NINE) {
-    const fullSvg = shell(n.id, n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {});
-    const slice = sliceOf(fullSvg, n.id, n.h);
+    const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
+    const fullSvg = shell(n.id, rowOpts, slim);
+    const slice = sliceOf(n.id, n.h);
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage });
-    const flatSvg = shell(n.id, n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {}, flat);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage }, true);
+    const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
-      { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." });
+      { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
   }
 
   /* ── controls: separated track / fill / thumb ─────────────────── */
@@ -185,9 +205,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word is live engine text (see manifest > rarity).` });
   }
   {
-    const ltSvg = shell("loottag", { overlay: "frame" });
+    const ltSvg = shell("loottag", { overlay: "frame" }, slim);
     await addPng("loottag/base.9.png", ltSvg,
-      { component: "loottag", part: "base", nineSlice: sliceOf(ltSvg, "loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. Stripe = a rounded rect tinted to the tier color; item name and tier word are live engine text (colors in manifest > rarity)." });
+      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. Stripe = a rounded rect tinted to the tier color; item name and tier word are live engine text (colors in manifest > rarity)." }, true);
   }
 
   /* ── dropdown: closed shell, menu plate, and the two row overlays.
@@ -197,9 +217,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      Hover recipe made into an asset: the hover state's aura color at the
      hover glow dial's strength. */
   {
-    const ddSvg = shell("dropdown");
+    const ddSvg = shell("dropdown", {}, slim);
     await addPng("dropdown/base.9.png", ddSvg,
-      { component: "dropdown", part: "base", nineSlice: sliceOf(ddSvg, "dropdown", 110), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell. The value text and chevron are live engine content." });
+      { component: "dropdown", part: "base", nineSlice: sliceOf("dropdown", 110), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell. The value text and chevron are live engine content." }, true);
     await addPng("dropdown/menu.9.png",
       svgWrap(440, 260, `<path d="${rr(1, 1, 438, 258, 14)}" fill="${darken(innerC, 0.55)}" stroke="${darken(bevelC, 0.5)}" stroke-width="1.5"/>`),
       { component: "dropdown", part: "menu", nineSlice: { left: 28, right: 28, top: 28, bottom: 28 }, pivot: { x: 0.5, y: 0 }, tintable: false, usage: "Open-menu plate. Stretch vertically to the option count; option rows are live engine text." });
@@ -222,14 +242,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("speedo2/segment.png", shell("speedo2", { part: "segment" }, undefined, 1), { component: "speedo2", part: "segment", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "One lit segment — instance and rotate per step; tint along the palette for the sweep gradient." });
   await addPng("circuit/track.png", shell("circuit", { part: "track" }), { component: "circuit", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Circuit ribbon with start/finish tick. Position markers and the venue label are live engine sprites/text." });
   {
-    const lbSvg = shell("leaderboard", { part: "base" });
-    await addPng("leaderboard/base.9.png", lbSvg, { component: "leaderboard", part: "base", nineSlice: sliceOf(lbSvg, "leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel. Heading, rows and the highlighted player row are live engine content." });
+    const lbSvg = shell("leaderboard", { part: "base" }, slim);
+    await addPng("leaderboard/base.9.png", lbSvg, { component: "leaderboard", part: "base", nineSlice: sliceOf("leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel. Heading, rows and the highlighted player row are live engine content." }, true);
   }
   {
-    const lpSvg = shell("laptimes", { part: "base" });
-    await addPng("laptimes/base.9.png", lpSvg, { component: "laptimes", part: "base", nineSlice: sliceOf(lpSvg, "laptimes", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Lap-comparison panel. Traces, legend and delta are live engine content." });
-    const tmSvg = shell("telemetry", { part: "base" });
-    await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf(tmSvg, "telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Throttle/brake/speed traces are live engine content." });
+    const lpSvg = shell("laptimes", { part: "base" }, slim);
+    await addPng("laptimes/base.9.png", lpSvg, { component: "laptimes", part: "base", nineSlice: sliceOf("laptimes", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Lap-comparison panel. Traces, legend and delta are live engine content." }, true);
+    const tmSvg = shell("telemetry", { part: "base" }, slim);
+    await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Throttle/brake/speed traces are live engine content." }, true);
   }
   await addPng("startlights/base.png", shell("startlights", { part: "base" }), { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown." });
 
@@ -261,6 +281,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
+        "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/drop-shadow.png, fx/glow.png, the states recipe).",
         "base.9.png = full material (gloss baked); base-flat.9.png = tintable flat variant for independent effects.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",

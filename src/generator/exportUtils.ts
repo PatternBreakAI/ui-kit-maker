@@ -97,6 +97,45 @@ export function svgToPngBytes(svg: string, scale = 2): Promise<{ bytes: Uint8Arr
   });
 }
 
+/** Rasterize an SVG string to PNG bytes cropped to the art's alpha bounding
+ *  box (+margin). Nine-slice sprites must hug their geometry: transparent
+ *  canvas padding inside a sliced sprite becomes stretched dead air in every
+ *  engine, and borders wide enough to span the pad can exceed the component's
+ *  own size — Unity then draws caps of pure padding and no center at all. */
+export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+  const full = await svgToPngBytes(svg, scale);
+  const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  for (let yy = 0; yy < cv.height; yy++) {
+    for (let xx = 0; xx < cv.width; xx++) {
+      if (px[(yy * cv.width + xx) * 4 + 3] > 8) {
+        if (xx < x0) x0 = xx;
+        if (xx > x1) x1 = xx;
+        if (yy < y0) y0 = yy;
+        if (yy > y1) y1 = yy;
+      }
+    }
+  }
+  if (x1 < 0) return full; // nothing opaque — keep the full canvas
+  x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin);
+  x1 = Math.min(cv.width - 1, x1 + margin); y1 = Math.min(cv.height - 1, y1 + margin);
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+  const out = document.createElement("canvas");
+  out.width = cw; out.height = ch;
+  out.getContext("2d")!.drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);
+  return new Promise((resolve, reject) => {
+    out.toBlob(async (b) => {
+      if (!b) { reject(new Error("crop raster failed")); return; }
+      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch });
+    }, "image/png");
+  });
+}
+
 /** Rasterize an SVG string to a transparent PNG at the given scale. */
 export function downloadPng(svg: string, name: string, scale = 2): Promise<void> {
   return new Promise((resolve, reject) => {
