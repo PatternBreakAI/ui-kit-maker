@@ -323,17 +323,31 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
+  // Ambient pieces only breathe while actually on screen. Every animation
+  // frame re-renders the piece and regenerates its full SVG — dozens of
+  // offscreen demos beating at once turned the whole kit page into a
+  // permanent ~10 commits/sec churn, idle or scrolling ("insane amount of
+  // re-rendering", outside profiling report).
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setInView(true); return; }
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { rootMargin: "120px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   // ambient progress: bars, rings, timers and gauges quietly replay on their own beat
   const beat = useRef(4600 + Math.random() * 2400);
   useEffect(() => {
-    if (!ambient || (id !== "progress" && id !== "segbar" && id !== "vsbar" && id !== "hotbar" && id !== "ring" && !isTimer && !isGauge) || !playing) return;
+    if (!ambient || (id !== "progress" && id !== "segbar" && id !== "vsbar" && id !== "hotbar" && id !== "ring" && !isTimer && !isGauge) || !playing || !inView) return;
     // first beat lands FAST — gallery cards must move as they appear, not a
     // leisurely beat later. Staggered so a wall of cards wakes as a wave,
     // not a drill team.
     const kick = window.setTimeout(isTimer ? playTimer : playProgress, 350 + Math.random() * 900);
     const t = window.setInterval(isTimer ? playTimer : playProgress, beat.current);
-    return () => { window.clearTimeout(kick); window.clearInterval(t); };
-  }, [ambient, id, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { window.clearTimeout(kick); window.clearInterval(t); cancelAnimationFrame(raf.current); };
+  }, [ambient, id, playing, inView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Activation runs on pointerup, NOT on click. State changes swap the svg's
      innerHTML between pointerdown and pointerup, which detaches the browser's
