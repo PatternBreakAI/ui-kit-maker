@@ -343,12 +343,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 const UNITY_README = `# PatternBreak kit — Unity import
 
 1. Copy the whole export (assets/, kit-manifest.json, unity/) into your project's Assets/ folder.
-2. Let Unity compile Editor/PatternBreakKitImporter.cs, then run
-   Tools > PatternBreak > Reapply Kit Import Settings once. Every PNG gets
-   its nine-slice borders and pivots straight from kit-manifest.json; the
-   Console reports how many sprites were configured (and warns if the
-   manifest or the assets folder is missing/renamed instead of doing
-   nothing quietly). Re-run it anytime.
+2. That's it — when kit-manifest.json lands, the importer runs by itself:
+   every PNG gets its nine-slice borders and pivots automatically, and the
+   Console reports how many sprites were configured. If you ever need to
+   re-run it (or something looks unsliced), use
+   Tools > PatternBreak > Reapply Kit Import Settings — it warns with the
+   exact fix if the manifest or the assets folder is missing or renamed.
 3. Open Examples/*.prefab for reference hierarchies. The example Images
    ship without a sprite on purpose (a text file cannot know the GUIDs your
    Unity assigns on import) — drag the named sprite from assets/ onto the
@@ -369,6 +369,11 @@ manifest meanwhile — nothing about the assets depends on it.
 
 const UNITY_IMPORTER = `// PatternBreak kit importer — applies nine-slice borders and pivots from
 // kit-manifest.json to every exported sprite. Editor-only.
+//
+// Fully automatic: when kit-manifest.json lands in the project a full pass
+// runs, and any later reimport of a kit texture re-applies its settings
+// in-flight. The menu item remains as a manual fallback.
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -380,6 +385,21 @@ namespace PatternBreak {
   [System.Serializable] class PBManifest { public PBAsset[] assets; }
 
   public static class KitImporter {
+    // shared by the menu pass and the per-texture postprocessor
+    public static void Configure(TextureImporter ti, PBAsset a) {
+      ti.textureType = TextureImporterType.Sprite;
+      ti.spriteImportMode = SpriteImportMode.Single;
+      ti.mipmapEnabled = false;
+      ti.alphaIsTransparency = true;
+      var settings = new TextureImporterSettings();
+      ti.ReadTextureSettings(settings);
+      settings.spriteAlignment = (int)SpriteAlignment.Custom;
+      settings.spritePivot = new Vector2(a.pivot.x, a.pivot.y);
+      ti.SetTextureSettings(settings);
+      if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0)
+        ti.spriteBorder = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
+    }
+
     [MenuItem("Tools/PatternBreak/Reapply Kit Import Settings")]
     public static void Apply() {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
@@ -400,23 +420,49 @@ namespace PatternBreak {
           var p = root + "/" + a.file;
           var ti = AssetImporter.GetAtPath(p) as TextureImporter;
           if (ti == null) { missing++; continue; }
-          ti.textureType = TextureImporterType.Sprite;
-          ti.spriteImportMode = SpriteImportMode.Single;
-          ti.mipmapEnabled = false;
-          ti.alphaIsTransparency = true;
-          var settings = new TextureImporterSettings();
-          ti.ReadTextureSettings(settings);
-          settings.spriteAlignment = (int)SpriteAlignment.Custom;
-          settings.spritePivot = new Vector2(a.pivot.x, a.pivot.y);
-          ti.SetTextureSettings(settings);
-          if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0)
-            ti.spriteBorder = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
+          Configure(ti, a);
           ti.SaveAndReimport();
           applied++;
         }
         if (missing > 0)
           Debug.LogWarning("PatternBreak: " + missing + " sprites listed in " + mPath + " were not found under " + root + "/assets — keep the export's assets folder next to kit-manifest.json and named exactly 'assets'.");
         Debug.Log("PatternBreak kit import settings applied: " + applied + " sprites under " + root);
+      }
+    }
+  }
+
+  /* Applies manifest settings to kit textures AS THEY IMPORT — covers
+     reimports and asset refreshes without anyone running the menu. */
+  class KitTexturePostprocessor : AssetPostprocessor {
+    static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
+    void OnPreprocessTexture() {
+      var path = assetPath.Replace("\\\\", "/");
+      var i = path.LastIndexOf("/assets/");
+      if (i < 0) return;
+      var root = path.Substring(0, i);
+      var mPath = root + "/kit-manifest.json";
+      PBManifest manifest;
+      if (!cache.TryGetValue(mPath, out manifest)) {
+        manifest = File.Exists(mPath) ? JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)) : null;
+        cache[mPath] = manifest;
+      }
+      if (manifest == null || manifest.assets == null) return;
+      var rel = path.Substring(root.Length + 1);
+      foreach (var a in manifest.assets) {
+        if (a.file != rel) continue;
+        KitImporter.Configure((TextureImporter)assetImporter, a);
+        return;
+      }
+    }
+    /* The manifest arriving (or changing) triggers a full pass — on a fresh
+       drop the textures may import before the manifest, so the pass at the
+       end of the batch is what makes the first import land configured. */
+    static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom) {
+      foreach (var p in imported) {
+        if (!p.EndsWith("kit-manifest.json")) continue;
+        cache.Clear();
+        EditorApplication.delayCall += KitImporter.Apply;
+        return;
       }
     }
   }
