@@ -78,6 +78,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const slim = (c: GenConfig) => {
     c.candy.bloom.opacity = 0;
   };
+  /* Designed state renders — unlike shell(), state forks are KEPT: the
+     hover/pressed/disabled looks are the kit's own recipes, baked so the
+     engine can Sprite-Swap them. Outer effects still engine-composed. */
+  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}) => {
+    const c = clone(pieceCfg(id));
+    c.shadow.opacity = 0;
+    c.candy.contact.opacity = 0;
+    for (const s of Object.values(c.states)) s.glow = 0;
+    slim(c);
+    return renderKit(c, id, effKitSize(st.kitSizes[id]), state, undefined, st.kitShapes[id], { label: "", icon: null, ...opts });
+  };
 
   /* nine-slice margins in PNG pixels: the silhouette's own cap zone plus the
      crop margin — nothing else. Sliced sprites are exported TIGHT (see
@@ -152,6 +163,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
+    /* interactive pieces ship their DESIGNED states for engine Sprite Swap —
+       generic color-tint transitions never match the kit's own recipes */
+    if (["primary", "secondary", "small", "chip", "tab", "slot", "datarow"].includes(n.id)) {
+      const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
+      for (const stName of ["hover", "pressed", "disabled"] as const) {
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts),
+          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice as base. Glow and lift stay engine-composed (fx/glow.png, a small translate).` }, true);
+      }
+    }
   }
 
   /* ── controls: separated track / fill / thumb ─────────────────── */
@@ -285,6 +305,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         "base.9.png = full material (gloss baked); base-flat.9.png = tintable flat variant for independent effects.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
+        "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
       ],
       typography: {
         font: st.cfg.type.font,
@@ -357,8 +378,21 @@ const UNITY_README = `# PatternBreak kit — Unity import
    kit-manifest.json > typography). Never bake copy into textures.
 
 Sliced Image setup: Image Type = Sliced, and the borders arrive from the importer.
+Scale: the art ships at 2x resolution; the importer sets each sprite's
+Pixels Per Unit to 200 so pieces land at DESIGN size (a primary button is
+~400x136 units) and frame thickness stays right at any rect size. If a
+piece looks chunky/scrunched, its sprite predates the importer — re-run
+Tools > PatternBreak > Reapply Kit Import Settings.
 Progress bar: track Image (sliced) + fill Image (sliced, Fill or scissored by a mask).
 Slider: track + fill Images, thumb on the handle rect.
+
+States: interactive pieces ship their DESIGNED states — base-hover.9,
+base-pressed.9, base-disabled.9 next to base.9. On the Button set
+Transition = Sprite Swap and assign Highlighted = base-hover,
+Pressed = base-pressed, Selected = base-hover, Disabled = base-disabled
+(Source Image stays base.9). Color Tint also works as a quick generic
+approximation. Hover glow and press lift are engine-side: tint
+fx/glow.png behind the piece / nudge the RectTransform a few px.
 
 No importer required: everything the script does is plain data you can set by
 hand. Each sprite's border (L/R/T/B px) and pivot sit in kit-manifest.json —
@@ -395,6 +429,11 @@ namespace PatternBreak {
       ti.ReadTextureSettings(settings);
       settings.spriteAlignment = (int)SpriteAlignment.Custom;
       settings.spritePivot = new Vector2(a.pivot.x, a.pivot.y);
+      // art ships at 2x resolution (pngScale in the manifest): declaring it
+      // here makes every piece land at DESIGN size — caps stay the designed
+      // thickness at any rect, instead of drawing double-thick and
+      // scrunching on small buttons (owner report)
+      settings.spritePixelsPerUnit = 200f;
       ti.SetTextureSettings(settings);
       if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0)
         ti.spriteBorder = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
