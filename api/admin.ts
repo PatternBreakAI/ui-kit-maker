@@ -464,7 +464,13 @@ export async function POST(req: Request): Promise<Response> {
     const b = body as {
       projectId?: unknown; studio?: { userId?: unknown; upId?: unknown };
       placement?: unknown; presetName?: unknown; publishAt?: unknown; dealNote?: unknown;
+      thumb?: unknown;
     };
+    /* card art, drawn by the desk in the browser (no SVG engine out here).
+       Shape- and size-checked: it goes straight into a card's innerHTML, so
+       only an <svg …> document of sane size is allowed through. */
+    const rawThumb = typeof b.thumb === "string" ? b.thumb.trim() : "";
+    const thumb = rawThumb.startsWith("<svg") && rawThumb.length <= 400_000 ? rawThumb : null;
     const placement = String(b.placement ?? "");
     const presetName = String(b.presetName ?? "").trim().slice(0, 80);
     const dealNote = String(b.dealNote ?? "").trim().slice(0, 2000) || null;
@@ -515,7 +521,7 @@ export async function POST(req: Request): Promise<Response> {
       const ins = await fetch(`${supaUrl}/rest/v1/presets`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json", prefer: "return=representation" },
-        body: JSON.stringify({ name: presetName, cfg: proj.doc.cfg, thumb: null, created_by: caller.id, publish_at: publish }),
+        body: JSON.stringify({ name: presetName, cfg: proj.doc.cfg, thumb, created_by: caller.id, publish_at: publish }),
       });
       if (!ins.ok) {
         const detail = await ins.text().catch(() => "");

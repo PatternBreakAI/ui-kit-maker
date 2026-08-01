@@ -7,7 +7,7 @@ import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
-import { renderKit } from "@/generator/bevel";
+import { renderBevel, renderKit } from "@/generator/bevel";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
 
@@ -278,8 +278,23 @@ export function AdminPage() {
             : `Park "${name}" as upcoming, no date yet?\n\nInvisible to players until you schedule it. Snapshot and deal note are stored now.`;
     if (!window.confirm(msg)) return;
     setRelBusy(true); setDeskNote(null);
+    /* the desk draws the card art itself: the publish lands server-side, and
+       a server can't run the SVG engine, so a shipped preset used to arrive
+       with no thumbnail at all (owner: "the thumbnail isn't appearing").
+       Same recipe the editor's own Publish uses — label PLAY, no icon, no
+       state glow — so shipped and self-published packs look alike. */
+    let thumb: string | null = null;
+    try {
+      const raw = (doc as { cfg?: Record<string, unknown> } | null)?.cfg;
+      if (raw) {
+        const tc = hydrate(JSON.parse(JSON.stringify(raw)) as Record<string, unknown>);
+        for (const st of Object.values(tc.states)) st.glow = 0;
+        tc.content.label = "PLAY"; tc.icon.show = false;
+        thumb = renderBevel(tc, "default");
+      }
+    } catch { /* no thumb rather than a failed release — the tray self-heals from cfg anyway */ }
     const { ok, data } = await callAdmin({
-      action: "designate", placement,
+      action: "designate", placement, thumb,
       ...(sel.kind === "project" ? { projectId: sel.projectId } : { studio: { userId: sel.userId, upId: sel.upId } }),
       presetName: name, dealNote: relNote, publishAt: placement === "upcoming" && relDate ? relDate : null,
     });
