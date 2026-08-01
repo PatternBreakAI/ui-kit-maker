@@ -2553,19 +2553,32 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const lit = Math.round(v * n);
         for (let i = 0; i < n; i++) {
           const cx0 = bx + i * (cellW + gap);
-          // every cell is the SAME rounded rect, floating in the well's
-          // negative space — end cells no longer bleed into the caps
           const on = i < lit;
-          const body = `<rect x="${cx0.toFixed(1)}" y="${by.toFixed(1)}" width="${cellW.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min((2 + cfg.bevel.softness * 0.16) * k, cellW * 0.3, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
-          if (on) litCells += body + `<rect x="${cx0.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          /* the END cells run past the pad INTO the caps and take their
+             contour from the well clip — the mercury follows the
+             silhouette instead of floating as loose rects at the ends
+             ("the mercury in these segments don't follow the silhouette",
+             owner). Middle cells stay the same rounded units. */
+          const isFirst = i === 0, isLast = i === n - 1;
+          const xC = isFirst ? 39 + inset - 1 : cx0;
+          const wC = cellW + (isFirst ? cx0 - (39 + inset - 1) : 0) + (isLast ? gapPad + 1 : 0);
+          const body = `<rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min((2 + cfg.bevel.softness * 0.16) * k, cellW * 0.3, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
+          if (on) litCells += body + `<rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
           else offCells += body;
         }
       } else {
         const fw2 = trackW * v;
         if (fw2 > 1) {
-          // full pill rounding — a squarer radius fought the well's cap curve
-          litCells += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${fw2.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid})" opacity="${dim}"/>
-            <rect x="${(bx + 3 * k).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, fw2 - 6 * k).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          /* the fill's LEFT end runs into the cap and takes the silhouette
+             from the well clip; only the travelling head keeps its own
+             rounding. At full, the head marries the right cap the same way. */
+          const xF = 39 + inset - 1;
+          const headX = bx + fw2;
+          const full = v > 0.995;
+          const r5 = full ? 0 : Math.min(bh / 2, fw2 * 0.5);
+          const endX = full ? 39 + w - inset + 1 : headX;
+          litCells += `<path d="M ${xF.toFixed(1)} ${by.toFixed(1)} H ${(endX - r5).toFixed(1)} Q ${endX.toFixed(1)} ${by.toFixed(1)} ${endX.toFixed(1)} ${(by + Math.min(r5, bh / 2)).toFixed(1)} V ${(by + bh - Math.min(r5, bh / 2)).toFixed(1)} Q ${endX.toFixed(1)} ${(by + bh).toFixed(1)} ${(endX - r5).toFixed(1)} ${(by + bh).toFixed(1)} H ${xF.toFixed(1)} Z" fill="url(#${gid})" opacity="${dim}"/>
+            <rect x="${(xF + 3 * k).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, endX - xF - 6 * k).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
         }
         // the gap notches carve the fill into segments
         for (let i = 1; i < n; i++) {
