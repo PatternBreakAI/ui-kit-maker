@@ -2182,8 +2182,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const k = SIZE_K[size];
   const bw = cfg.bevel.off ? 0 : cfg.bevel.width;
   // content text on kit pieces (counters, rows, segments) follows the global
-  // type Size and vertical nudge exactly like built labels do
-  const typeK = clamp(cfg.type.size / 52, 0.5, 2.2);
+  // type Size and vertical nudge exactly like built labels do — INCLUDING a
+  // state's own size fork: spacing/fill already read the state's type via
+  // contentText, but the size scale read only Default's, so editing Size on
+  // Pressed did nothing ("I can edit spacing but not size?", owner)
+  const typeKT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+  const typeK = clamp(typeKT.size / 52, 0.5, 2.2);
   // icon stroke weight rides the type controls — 1.0 at the default 24
   const iconWK = clamp((cfg.icon.strokeWidth ?? 24) / 24, 0.35, 1.8);
   const typeOyK = (opts.textOy ?? cfg.type.oy ?? 0);
