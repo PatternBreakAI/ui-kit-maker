@@ -33,6 +33,12 @@ const CHAPTERS: [string, string, string][] = [
    entire page — hundreds of pieces — to repaint one highlighted tab. */
 function ChapterTabs() {
   const setPhase = useGen((s) => s.setPhase);
+  const kitSizes = useGen((s) => s.kitSizes);
+  const setKitSizeAll = useGen((s) => s.setKitSizeAll);
+  // size is a KIT decision now — one switch up here instead of chips on
+  // every cell. Mixed sizes (older saves) read as M until the next click
+  // normalizes the kit.
+  const sizeAll: KitSize = Object.values(kitSizes).some((v) => effKitSize(v) === "m") ? "m" : "l";
   const [activeChap, setActiveChap] = useState("foundations");
   useEffect(() => {
     const scroller = document.querySelector(".canvas");
@@ -65,6 +71,14 @@ function ChapterTabs() {
           <span className="kp-tabnum">{num}</span> {name}
         </button>
       ))}
+      <span className="kp-tabsizes" role="group" aria-label="Kit size">
+        <span className="kp-tabsizelab">Size</span>
+        {(["m", "l"] as const).map((s) => (
+          <button key={s} className={sizeAll === s ? "on" : ""}
+            title={s === "m" ? "Medium — the whole kit" : "Large — the whole kit"}
+            onClick={() => setKitSizeAll(s)}>{s.toUpperCase()}</button>
+        ))}
+      </span>
       <button className="kp-tabedit" onClick={() => setPhase("master")} title="Back to the component editor">
         <PenTool size={13} strokeWidth={2} /> Editor
       </button>
@@ -209,9 +223,9 @@ interface PieceOpts {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitSize, setKitKind } = useGen();
+  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
   // an explicit size (the Primary ramp) is fixed; everything else follows the
-  // per-component size the user picks with the caption's S/M/L chips
+  // kit-wide size from the floating nav's M/L switch
   // the documentation shows medium and large only — a stored Small reads as Medium
   const size = p.size ?? effKitSize(kitSizes[p.id]);
   return {
@@ -219,8 +233,7 @@ function usePiece(p: PieceOpts) {
     // and a per-piece text color rides on top of either
     cfg: applyKitTextFill(applyKitDesign(cfg, kitDesigns[p.id]), kitTextFill[p.id]),
     locked: !!kitDesigns[p.id],
-    size, setKitSize,
-    sizable: p.size === undefined,
+    size,
     name: KIT_COMPONENTS.find((c) => c.id === p.id)?.name ?? p.id,
     kit: {
       id: p.id, size, shape: p.shape ?? kitShapes[p.id],
@@ -372,16 +385,18 @@ function useStagedHidden(id: KitComponentId): boolean {
 }
 
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
-function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
+function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolean }) {
   // gate as a wrapper so the locked and live variants keep separate hook trees
   const tier = useGen((s) => s.tier);
   const stagedHidden = useStagedHidden(p.id);
-  if (stagedHidden) return null;
+  // the bay is the ONE place a staged piece renders — its cards opt out of
+  // the gate that keeps staged pieces off every public surface
+  if (stagedHidden && !p.bay) return null;
   if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={p.caption} />;
   return <PieceInner {...p} />;
 }
 function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
-  const { cfg, locked, size, setKitSize, sizable, name, kit, onEdit } = usePiece(p);
+  const { cfg, locked, size, name, kit, onEdit } = usePiece(p);
   const tier2 = useGen((s) => s.tier);
   const vectorOk = canExport(tier2, "svg");
   const shineOn = useGen((s) => s.shine);
@@ -398,16 +413,8 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
         <span>{p.caption}</span>
         <button className="kp-edit" title={`Edit ${name} in the editor`} aria-label={`Edit ${name}`}
           onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-          <SquarePen size={12} strokeWidth={2.2} />
+          <SquarePen size={13} strokeWidth={2.2} /> Edit
         </button>
-        {sizable && (
-          <span className="kp-sizes">
-            {(["m", "l"] as const).map((s) => (
-              <button key={s} className={size === s ? "on" : ""} title={`Size ${s.toUpperCase()}`}
-                onClick={(e) => { e.stopPropagation(); setKitSize(p.id, s); }}>{s.toUpperCase()}</button>
-            ))}
-          </span>
-        )}
         <button className="kp-dl" title={vectorOk ? `Export ${p.caption} SVG` : `SVG export is a Pro format. ${UPGRADE_LINES[tier2]}`} aria-label={`Export ${p.caption} SVG`}
           onClick={(e) => {
             e.stopPropagation();
@@ -958,6 +965,10 @@ function patternTileUrl(cfg: GenConfig): string {
 
 export function KitPage() {
   const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, update, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
+  // the staging bay opens by hand only — it must never pop up mid-demo
+  // (owner: "when I'm showing off the site, I don't want that stuff to
+  // immediately pop up"), so collapsed is the default every load
+  const [bayOpen, setBayOpen] = useState(false);
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
@@ -1182,7 +1193,7 @@ const kitTier = useGen((s) => s.tier);
         rk("progress", "Progress · Full", {}, 1),
         rk("emblembar", "Emblem bar", {}, 0.55),
         rk("segbar", "Segmented · 3 of 5", {}, 0.62),
-        rk("segbar", "Segmented · Smooth", { bar: { segments: 8, snap: false } }, 0.55),
+        rk("segbar", "Segmented · 8", { bar: { segments: 8 } }, 0.55),
         rk("vsbar", "VS health bar", {}, 0.72),
         rk("hotbar", "Hotbar · slot 3", {}, 0.25),
         rk("dialog", "Dialog"),
@@ -1502,9 +1513,17 @@ const kitTier = useGen((s) => s.tier);
           if (confirmMsg && !window.confirm(confirmMsg)) return;
           void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
         };
+        if (!bayOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
+            </button>
+          </section>
+        );
         return (
           <Sec n="00" title="The staging bay"
             note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
             {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
             <div className="kp-baygrid">
               {inBay.map((sid) => {
@@ -1513,7 +1532,7 @@ const kitTier = useGen((s) => s.tier);
                 return (
                   <div className="kp-bayrow" key={sid}>
                     <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} />
+                      <Piece id={sid} caption={nm} scale={0.5} bay />
                     </div>
                     <div className="kp-bayside">
                       <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
@@ -1762,7 +1781,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray">
           <Piece id="segbar" caption="Segmented · snaps to cells" value={0.62} ambient />
-          <Piece id="segbar" caption="Segmented · 8 · smooth" value={0.55} bar={{ segments: 8, snap: false }} ambient />
+          <Piece id="segbar" caption="Segmented · 8" value={0.55} bar={{ segments: 8 }} ambient />
         </div>
         <div className="kp-subhead">Genre essentials</div>
         <p className="kp-note">Every genre speaks this kit: the fighting VS bar drains toward its candy medallion, the sandbox hotbar carries the material into slot form. Action &amp; shooters lean on the reticle, ammo and mini-map; RPGs on progress, data rows, slots and the reward track; strategy on resources and panels; racing has its own chapter; timers and meters cover survival, sims and sports.</p>

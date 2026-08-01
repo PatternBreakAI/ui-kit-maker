@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -92,6 +92,19 @@ function mergeCandy(base: CandyTokens, saved?: Record<string, any>): CandyTokens
   return out as CandyTokens;
 }
 
+/* One preview build eagerly snapshotted the master icon into every state
+   fork, silently freezing it — master icon edits stopped flowing to any
+   state the user had touched ("some states aren't updating in real time").
+   A pin that still equals the master is pure freeze with no intent behind
+   it: drop it so the state follows again. A pin that has since diverged is
+   indistinguishable from a deliberate per-state icon, so it stands. */
+export function healStateIconPins(cfg: GenConfig): GenConfig {
+  for (const sd of Object.values(cfg.stateDesigns ?? {})) {
+    if (sd?.icon && JSON.stringify(sd.icon) === JSON.stringify(cfg.icon)) delete sd.icon;
+  }
+  return cfg;
+}
+
 export function hydrate(parsed: Record<string, any>): GenConfig {
   const d = defaultConfig();
   const cfg = {
@@ -103,10 +116,12 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   } as GenConfig;
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
-  // state forks saved before newer candy tokens existed get them merged in
+  // state forks saved before newer candy/icon tokens existed get them merged in
   for (const sd of Object.values(cfg.stateDesigns)) {
     if (sd?.candy) sd.candy = mergeCandy(d.candy, sd.candy);
+    if (sd?.icon) sd.icon = { ...d.icon, ...sd.icon };
   }
+  healStateIconPins(cfg);
   if ((cfg.shape as string) === "shard") cfg.shape = "sharp";
   // retired silhouettes map to their closest living relatives
   const RETIRED: Record<string, GenConfig["shape"]> = { chamfer: "sharp", kart: "polybar", deepchamfer: "cutline", doboMarquee: "crest", doboRibbon: "banner" };
@@ -284,7 +299,7 @@ interface GenStore {
       project) persists every field so the kit survives reload and flows into
       the cloud workspace; `viewer:true` (a share / public link) is in-memory
       read-only, exactly like a shared kit. */
-  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean }) => void;
+  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit" }) => void;
   /** Global shine sweep over every kit piece. */
   shine: boolean;
   setShine: (v: boolean) => void;
@@ -393,6 +408,10 @@ interface GenStore {
   setSelectedState: (s: GenStateName) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
   setKitSize: (id: KitComponentId, s: KitSize) => void;
+  /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
+   *  size chips were noise; size is a kit decision). Locked pieces keep
+   *  their own snapshot size. */
+  setKitSizeAll: (s: KitSize) => void;
   setZoom: (z: number) => void;
   setPanMode: (v: boolean) => void;
   setGridStyle: (v: GridStyle) => void;
@@ -552,10 +571,51 @@ function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
 let saveTimer: number | undefined;
 
 /* Undo history — module-level so pushing snapshots never re-renders. Rapid
-   slider drags coalesce into one step (350ms window). */
-const past: GenConfig[] = [];
-const future: GenConfig[] = [];
+   slider drags coalesce into one step (350ms window).
+
+   One undo step is the whole DOCUMENT: the master cfg plus every per-piece
+   map. History that tracked cfg alone couldn't undo focused-piece edits,
+   icon swaps, labels, silhouettes or bar settings (owner: "cmd+z doesn't
+   seem to be working for a few things"). The maps update immutably, so
+   holding references is a faithful snapshot. kitLocks stay OUT: locking is
+   workflow, not a design edit, and undo must never silently unlock a
+   finished piece. */
+type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow">;
+const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow"] as const;
+const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
+const past: HistSnap[] = [];
+const future: HistSnap[] = [];
 let lastPush = 0;
+/* map setters call this before mutating — same coalescing window update()
+   uses, so a drag that fans out over update()+setKitDesign in one gesture
+   still lands as ONE undo step */
+function pushHistory(s: GenStore) {
+  const now = Date.now();
+  if (now - lastPush > 350) {
+    past.push(snapOf(s));
+    if (past.length > 60) past.shift();
+    lastPush = now;
+  }
+  future.length = 0;
+}
+/* undo/redo restore = what the setters persist — each map to its own key,
+   so a reload after an undo doesn't resurrect the undone edit. kitSizes is
+   session-only by design and stays unpersisted. */
+function persistSnap(s: HistSnap) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(s.cfg)); } catch { /* ignore */ }
+  saveJson("ui-generator-kitdesigns", s.kitDesigns);
+  saveJson("ui-generator-kitshapes", s.kitShapes);
+  saveJson("ui-generator-kiticons", s.kitIcons);
+  saveJson("ui-generator-kitlabels", s.kitLabels);
+  saveJson("ui-generator-kitsubs", s.kitSubs);
+  saveJson("ui-generator-kittextfill", s.kitTextFill);
+  saveJson("ui-generator-kittextoy", s.kitTextOy);
+  saveJson("ui-generator-kittextox", s.kitTextOx);
+  saveJson("ui-generator-kitbar", s.kitBar);
+  saveJson("ui-generator-kitslots", s.kitSlotVals);
+  saveJson("ui-generator-kitvals", s.kitVals);
+  saveJson("ui-generator-kitrow", s.kitRow);
+}
 
 function loadPanelW(): number {
   const v = Number(localStorage.getItem("ui-generator-panelw"));
@@ -746,7 +806,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     const viewer = opts?.viewer ?? true;
     set({ activeCloudPreset: null }); // a loaded kit isn't a shared preset — no Overwrite target
-    const cfg = (p.cfg as GenConfig) ?? st.cfg;
+    const cfg = healStateIconPins((p.cfg as GenConfig) ?? st.cfg);
     /* the travelling stage: strict base64 image data URLs only — this string
        ends up in CSS url(), so nothing that could break out of it gets in.
        A payload without one keeps the local backdrop (it's workspace). */
@@ -789,8 +849,13 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kittextox", next.kitTextOx);
       saveJson("ui-generator-kitlocks", next.kitLocks);
       if (bg) saveJson("ui-generator-bgimage", bg);
+      /* the opened project is now the local truth — any cloud pull still in
+         flight must NOT stomp it (owner: "I saw it for a second but then
+         the [old] version took over") */
+      noteLocalDocReplaced();
     }
-    set({ ...next, viewer, phase: "kit" });
+    // a settings import stays in the editor; project opens land on the kit
+    set({ ...next, viewer, phase: opts?.phase ?? "kit" });
   },
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
   shine: loadJson<boolean>("ui-generator-shine", false),
@@ -829,6 +894,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitShape: (id, shape) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
+    pushHistory(get());
     const kitShapes = { ...get().kitShapes, [id]: shape };
     saveJson("ui-generator-kitshapes", kitShapes);
     set({ kitShapes });
@@ -857,6 +923,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitTextFill: (id, color) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
+    pushHistory(get());
     const kitTextFill = { ...get().kitTextFill };
     if (color) kitTextFill[id] = color; else delete kitTextFill[id];
     saveJson("ui-generator-kittextfill", kitTextFill);
@@ -868,6 +935,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitIcon: (id, def) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
+    pushHistory(get());
     const kitIcons = { ...get().kitIcons };
     if (def) kitIcons[id] = def; else delete kitIcons[id];
     saveJson("ui-generator-kiticons", kitIcons);
@@ -882,6 +950,7 @@ export const useGen = create<GenStore>((set, get) => ({
        Color slots are look, so they stay frozen with the rest. */
     if (get().kitLocks[id] && KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind === "color") return;
     markTouched();
+    pushHistory(get());
     const kitSlotVals = { ...get().kitSlotVals };
     const cur = { ...(kitSlotVals[id] ?? {}) };
     if (val !== null && val !== "") cur[slotId] = val; else delete cur[slotId];
@@ -893,6 +962,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitVal: (id, v) => {
     // a staged value is DATA — editable on locked pieces, like the words
     markTouched();
+    pushHistory(get());
     const kitVals = { ...get().kitVals };
     if (v === null) delete kitVals[id]; else kitVals[id] = Math.max(0, Math.min(1, v));
     saveJson("ui-generator-kitvals", kitVals);
@@ -902,6 +972,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitLabel: (id, label) => {
     // words stay editable on a finished piece — the lock freezes the look
     markTouched();
+    pushHistory(get());
     const kitLabels = { ...get().kitLabels };
     if (label !== null && label !== "") kitLabels[id] = label; else delete kitLabels[id];
     saveJson("ui-generator-kitlabels", kitLabels);
@@ -911,6 +982,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitSub: (id, sub) => {
     // words stay editable on a finished piece — the lock freezes the look
     markTouched();
+    pushHistory(get());
     const kitSubs = { ...get().kitSubs };
     if (sub !== null && sub !== "") kitSubs[id] = sub; else delete kitSubs[id];
     saveJson("ui-generator-kitsubs", kitSubs);
@@ -926,6 +998,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitDesign: (id, d) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
+    pushHistory(get());
     const kitDesigns = { ...get().kitDesigns };
     if (d) kitDesigns[id] = d; else delete kitDesigns[id];
     saveJson("ui-generator-kitdesigns", kitDesigns);
@@ -1081,6 +1154,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitRow: (patch) => {
     if (get().kitLocks.datarow) return;
     markTouched();
+    pushHistory(get());
     const kitRow = { ...get().kitRow, ...patch };
     saveJson("ui-generator-kitrow", kitRow);
     set({ kitRow });
@@ -1089,6 +1163,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitTextOy: (key, v) => {
     if (get().kitLocks[key.split(":")[0] as KitComponentId]) return;
     markTouched();
+    pushHistory(get());
     const kitTextOy = { ...get().kitTextOy };
     // null clears the override (back to the theme); 0 is a valid explicit value
     if (v === null) delete kitTextOy[key]; else kitTextOy[key] = v;
@@ -1099,6 +1174,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitTextOx: (key, v) => {
     if (get().kitLocks[key.split(":")[0] as KitComponentId]) return;
     markTouched();
+    pushHistory(get());
     const kitTextOx = { ...get().kitTextOx };
     if (v === null) delete kitTextOx[key]; else kitTextOx[key] = v;
     saveJson("ui-generator-kittextox", kitTextOx);
@@ -1108,6 +1184,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitBar: (id, patch) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
+    pushHistory(get());
     const kitBar = { ...get().kitBar };
     if (patch === null) delete kitBar[id];
     else kitBar[id] = { ...kitBar[id], ...patch };
@@ -1193,7 +1270,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   replaceConfig: (next) => {
     markTouched();
-    past.push(get().cfg);
+    past.push(snapOf(get()));
     if (past.length > 60) past.shift();
     future.length = 0;
     lastPush = 0;
@@ -1212,6 +1289,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (lf && get().kitLocks[lf]) return;
     markTouched();
     const prev = get().cfg;
+    const snap0 = snapOf(get()); // the pre-edit document — maps included
     // structuredClone is ~3-4x faster than JSON round-tripping — keeps rapid
     // slider drags responsive
     const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -1232,21 +1310,39 @@ export const useGen = create<GenStore>((set, get) => ({
       if (!work.knob) work.knob = { color: null };
       if (!work.stateDesigns[sel]) work.stateDesigns[sel] = pickDesign(work);
       const d = work.stateDesigns[sel]!;
+      /* the icon forks LAZILY: the state edits a working copy, and only an
+         actual icon change pins it to this state — otherwise the state
+         keeps following the master's icon (a fork born from a non-icon
+         edit froze the icon and master edits stopped showing, owner) */
+      const baseIcon = d.icon ?? work.icon;
+      const tIcon = JSON.parse(JSON.stringify(baseIcon)) as GenConfig["icon"];
       const t = Object.assign({}, work, {
         effects: d.effects, face: d.face, bevel: d.bevel, candy: d.candy,
         lighting: d.lighting, shadow: d.shadow, transparency: d.transparency, type: d.type,
+        icon: tIcon,
       }) as GenConfig;
       Object.defineProperty(t, "shape", { get: () => d.shape, set: (v) => { d.shape = v; }, enumerable: true, configurable: true });
       fn(t);
       d.effects = t.effects; d.face = t.face; d.bevel = t.bevel; d.candy = t.candy;
       d.lighting = t.lighting; d.shadow = t.shadow; d.transparency = t.transparency; d.type = t.type;
+      if (JSON.stringify(t.icon) !== JSON.stringify(baseIcon)) d.icon = t.icon;
       // the typeface is one decision for the whole component — weight, colors
       // and effects stay state-specific
       if (d.type.font !== work.type.font) {
         work.type.font = d.type.font;
         for (const other of Object.values(work.stateDesigns)) { if (other?.type) other.type.font = d.type.font; }
       }
-      work.content = t.content; work.icon = t.icon; work.states = t.states; work.visible = t.visible;
+      /* the GLYPH is one decision for the whole component too (like the
+         typeface) — color, effects, weight and pose stay state-specific
+         ("I want to be able to change this per state", owner) */
+      const gi = d.icon;
+      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || gi.show !== work.icon.show || gi.placement !== work.icon.placement || gi.only !== work.icon.only)) {
+        work.icon.def = gi.def; work.icon.show = gi.show; work.icon.placement = gi.placement; work.icon.only = gi.only;
+        for (const other of Object.values(work.stateDesigns)) {
+          if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
+        }
+      }
+      work.content = t.content; work.states = t.states; work.visible = t.visible;
       work.canvas = t.canvas; work.presetId = t.presetId;
     } else {
       fn(work);
@@ -1273,7 +1369,7 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     const now = Date.now();
     if (now - lastPush > 350) {
-      past.push(prev);
+      past.push(snap0);
       if (past.length > 60) past.shift();
       lastPush = now;
     }
@@ -1288,18 +1384,18 @@ export const useGen = create<GenStore>((set, get) => ({
   undo: () => {
     const p = past.pop();
     if (!p) return;
-    future.push(get().cfg);
+    future.push(snapOf(get()));
     lastPush = 0;
-    set({ cfg: p });
-    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch { /* ignore */ }
+    set({ ...p });
+    persistSnap(p);
   },
   redo: () => {
     const f = future.pop();
     if (!f) return;
-    past.push(get().cfg);
+    past.push(snapOf(get()));
     lastPush = 0;
-    set({ cfg: f });
-    try { localStorage.setItem(LS_KEY, JSON.stringify(f)); } catch { /* ignore */ }
+    set({ ...f });
+    persistSnap(f);
   },
   setPanelW: (w) => {
     const v = Math.max(300, Math.min(560, Math.round(w)));
@@ -1380,7 +1476,15 @@ export const useGen = create<GenStore>((set, get) => ({
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
   // whatever zoom the editor or board was left at
   setPhase: (p) => set(p === "kit" ? { phase: p, zoom: 1 } : { phase: p }),
-  setKitSize: (id, s) => { if (get().kitLocks[id]) return; set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
+  setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
+  setKitSizeAll: (s) => {
+    pushHistory(get());
+    set((st) => {
+      const sizes = { ...st.kitSizes };
+      for (const c of KIT_COMPONENTS) { if (!st.kitLocks[c.id]) sizes[c.id] = s; }
+      return { kitSizes: sizes };
+    });
+  },
   setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),

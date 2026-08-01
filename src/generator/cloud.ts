@@ -169,6 +169,13 @@ let pushedSig = "";
 let lastSeenServerAt = 0;     // server updated_at at our last pull/push
 let started = false;
 let hookInstalled = false;
+/* invariant 6: a wholesale local replace (opening a project, loading a
+   share) always beats an in-flight pull. Each replace bumps the
+   generation; a pull only applies if the generation it started under is
+   still current — otherwise the user's explicit choice would be stomped
+   by an older working doc arriving late ("I saw it for a second but then
+   the [old] version took over", owner). */
+let docGen = 0;
 
 const email = () => session?.user.email ?? undefined;
 
@@ -255,6 +262,19 @@ async function doPush(): Promise<void> {
 function schedulePush(ms = 1200) {
   if (pushT) clearTimeout(pushT);
   pushT = setTimeout(() => { pushT = null; void doPush(); }, ms);
+}
+
+/** A wholesale local replace (opening a project, loading a share into the
+    editor) — the user's explicit choice becomes the local truth. Bumps the
+    doc generation so any in-flight pull aborts instead of stomping it, and
+    pushes the new doc when the session is settled. */
+export function noteLocalDocReplaced() {
+  docGen++;
+  stampEdit();
+  if (session && reconciled) {
+    setStatus({ state: "syncing", email: email() });
+    schedulePush();
+  }
 }
 
 /** Force a push right now (Sync now button, tab going hidden). */
@@ -359,6 +379,7 @@ export function restoreLocalSnapshot(): boolean {
 
 async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
   session = s;
+  const gen0 = docGen;
   setStatus({ state: "syncing", email: email() });
   await recordPendingConsent(client);
 
@@ -404,6 +425,12 @@ async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
     await doPush();
   };
   const finishPullServer = (doc: Record<string, string>) => {
+    if (docGen !== gen0) {
+      // the user replaced the doc while this pull was in flight (opened a
+      // project) — their choice is the new local truth; re-decide against it
+      void reconcile(client, s);
+      return;
+    }
     snapshotLocalOnce(localDoc);
     const ok = applyDoc(doc);
     if (!ok) {

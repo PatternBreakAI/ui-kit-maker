@@ -1059,6 +1059,7 @@ function designFor(cfg: GenConfig, state: GenStateName): StateDesign {
     shape: d.shape ?? cfg.shape, effects: d.effects ?? cfg.effects, face: d.face ?? cfg.face,
     bevel: d.bevel ?? cfg.bevel, candy: d.candy ?? cfg.candy, lighting: d.lighting ?? cfg.lighting,
     shadow: d.shadow ?? cfg.shadow, transparency: d.transparency ?? cfg.transparency, type: d.type ?? cfg.type,
+    icon: d.icon ?? cfg.icon,
   };
 }
 
@@ -1102,6 +1103,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   };
   const secondary = !!opts.secondary;
   const D = designFor(cfg, state);
+  /* per-state icon rig — color/effects/weight/pose fork with the state,
+     the glyph itself is component-wide (store.update enforces that) */
+  const IC = D.icon ?? cfg.icon;
   const shape = opts.shapeOverride ?? D.shape;
   // Imported (feasibility-lab) silhouettes carry their own safe-area and
   // inset metadata — generic fields, looked up once and applied like any
@@ -1138,11 +1142,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // Config-driven icons are parked behind ICONS_ENABLED; explicit kit icons
   // (opts.iconDef) still render so the icon-button component keeps working.
   const iconDef = opts.iconDef === null ? null
-    : opts.iconDef ?? (ICONS_ENABLED && cfg.icon.show ? (cfg.icon.def ?? DEFAULT_ICON) : null);
-  const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && cfg.icon.only && !!iconDef);
+    : opts.iconDef ?? (ICONS_ENABLED && IC.show ? (IC.def ?? DEFAULT_ICON) : null);
+  const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && IC.only && !!iconDef);
   const showText = !iconOnly && label.length > 0;
-  const iconSize = baseIcon * (cfg.icon.size / 100);
-  const gap = showText && iconDef ? cfg.icon.gap * K : 0;
+  const iconSize = baseIcon * (IC.size / 100);
+  const gap = showText && iconDef ? IC.gap * K : 0;
   const spacingEm = T2.spacing / 100;
   const weightK = 1 + Math.max(0, T2.weight - 700) * 0.0004;
   // width (`wdth`) axis — honored only for faces that really expose it; the
@@ -1215,15 +1219,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const depthCap = 48 * K * (secondary ? 0.55 : 1);
   const maxDepth = Math.max(depth, depthCap, ...forks.map((f) => f.candy.extrusion.depth * K * (secondary ? 0.55 : 1)));
   const riseDy = Math.max(0, maxDepth - depth);
-  /* room below sized from the drop shadow ITSELF at FOUR sigma: at 3σ a
-     strong shadow's remaining ~0.3% intensity still drew a faint straight
-     edge on light stages (owner caught it on build 797bb15); at 4σ the
-     residual is ~0.01% — beneath any display's quantization. Sized across
-     state forks so the footprint never changes between states. */
-  const shadowBelow = Math.max(
-    (D.shadow.opacity ?? 0) > 0.5 ? D.shadow.distance * K + D.shadow.blur * 2 : 0,
-    ...forks.map((f) => ((f.shadow?.opacity ?? 0) > 0.5 ? (f.shadow?.distance ?? 0) * K + (f.shadow?.blur ?? 0) * 2 : 0)),
-  );
+  /* room below for the drop shadow — at FOUR sigma: at 3σ a strong
+     shadow's remaining ~0.3% intensity still drew a faint straight edge on
+     light stages (owner caught it on build 797bb15). And like the depth
+     cap above and the glow pad below, the reserve is the SLIDERS' FULL
+     TRAVEL (Distance 48, Blur 60 — the Panel's maxima) whenever any
+     state's shadow is on at all: dragging Distance or Blur must never
+     resize the canvas — the piece stays planted and the blur is what
+     moves (owner: "when I add blur the component shouldn't move"). */
+  const shadowOn = (D.shadow.opacity ?? 0) > 0.5 || forks.some((f) => (f.shadow?.opacity ?? 0) > 0.5);
+  const shadowBelow = shadowOn ? 48 * K + 60 * 2 : 0;
   const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + Math.max(40, Math.ceil(shadowBelow + 16));
 
   /* The state aura blurs far past the shell (σ up to 30 → ~2.5σ visible reach),
@@ -1558,19 +1563,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : (synW > 0.05 ? ` stroke="${tFill}" stroke-width="${synW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"` : "");
   const outlineUnder = T2.outline.on && synW > 0.05;
 
-  const iFx = cfg.icon.fx;
+  const iFx = IC.fx;
   const iFilters: string[] = [];
   if (iFx.emboss && !disabled) iFilters.push(`drop-shadow(0 -1px 0.4px rgba(255,255,255,0.6)) drop-shadow(0 1.6px 1px rgba(4,8,14,0.5))`);
   if (iFx.shadow) iFilters.push(`drop-shadow(0 2px 1.5px rgba(0,0,0,0.4))`);
   if (iFx.glow && !disabled) iFilters.push(`drop-shadow(0 0 5px ${glowC}) drop-shadow(0 0 12px ${hexRgba(glowC, 0.6)})`);
   const iconFilter = iFilters.length ? iFilters.join(" ") : undefined;
-  // explicit kit icons (icon button) inherit the typography COLOR treatment
-  // (fill/gradient/outline) unless a custom color is set. Effects, opacity
-  // and rotation are always the icon's own controls — never the type's —
-  // so what the Icons panel shows is exactly what icons do.
-  const inheritTypo = !cfg.icon.color && opts.iconDef !== undefined && !!iconDef && !showText;
+  // explicit kit icons inherit the typography COLOR treatment
+  // (fill/gradient/outline) unless a custom color is set — INCLUDING icons
+  // that sit beside a label: the chip's star must dress like its own text
+  // ("the other icons pick up the outline, not sure this one won't", owner).
+  // Effects, opacity and rotation are always the icon's own controls.
+  const inheritTypo = !IC.color && opts.iconDef !== undefined && !!iconDef;
   const iconColor = disabled ? "#A7AAB4"
-    : cfg.icon.color ? P(cfg.icon.color)
+    : IC.color ? P(IC.color)
     : inheritTypo ? (T2.fillMode === "auto" ? autoLabel : P(T2.fill))
     : (T2.fillMode === "solid" ? P(T2.fill) : autoLabel);
 
@@ -1579,7 +1585,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      outer silhouette, so asymmetric caps (pointer tags) balance correctly */
   const cx = x + w / 2, cy = y + h / 2;
   const startX = (x + padL + (x + w - padR)) / 2 - contentW / 2;
-  const placeLeft = opts.iconDef === undefined && cfg.icon.placement === "left" && !iconOnly;
+  const placeLeft = opts.iconDef === undefined && IC.placement === "left" && !iconOnly;
   const italicShift = T2.italic ? italicPad * 0.35 : 0; // rebalance the lean
   const textX = (placeLeft ? startX + (iconDef ? iconSize + gap : 0) + textW / 2 : startX + textW / 2) - italicShift;
   const tAnchor = opts.anchorLeft ? "start" : "middle";
@@ -1587,10 +1593,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // glints and highlight slab all travel with the glyphs as one unit
   const textOx = opts.textOx ?? T2.ox ?? 0;
   const tTextX = (opts.anchorLeft ? x + padL - italicShift : textX) + textOx * K;
-  const iconX = (iconOnly ? cx - iconSize / 2 : placeLeft ? startX : startX + textW + gap) + cfg.icon.ox * K + (iconOnly ? textOx * K : 0);
+  const iconX = (iconOnly ? cx - iconSize / 2 : placeLeft ? startX : startX + textW + gap) + IC.ox * K + (iconOnly ? textOx * K : 0);
   // icon-only pieces (awarded badges, icon buttons): the vertical nudge is
   // the icon's nudge — there is no text for it to move
-  const iconY = cy - iconSize / 2 + cfg.icon.oy * K + (iconOnly ? (opts.textOy ?? T2.oy ?? 0) * K : 0);
+  const iconY = cy - iconSize / 2 + IC.oy * K + (iconOnly ? (opts.textOy ?? T2.oy ?? 0) * K : 0);
   const textOy = opts.textOy ?? T2.oy ?? 0;
 
   const T = D.transparency;
@@ -1796,15 +1802,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
-        ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${cfg.icon.opacity < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : ""}>${
-            T2.outline.on && !disabled && (cfg.icon.outlineWidth ?? T2.outline.width) > 0.01
-              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: cfg.icon.strokeWidth / 10 + (cfg.icon.outlineWidth ?? T2.outline.width) * 0.85, rotation: cfg.icon.rotation })
+        ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
+            T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
+              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation })
               : ""
-          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: cfg.icon.strokeWidth / 10, rotation: cfg.icon.rotation })}</g>`
+          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: IC.strokeWidth / 10, rotation: IC.rotation })}</g>`
         : iconGroup(iconDef, iconX, iconY, iconSize, iconColor, {
-            strokeWidth: cfg.icon.strokeWidth / 10,
-            opacity: (cfg.icon.opacity / 100),
-            rotation: cfg.icon.rotation,
+            strokeWidth: IC.strokeWidth / 10,
+            opacity: (IC.opacity / 100),
+            rotation: IC.rotation,
             filter: iconFilter,
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
@@ -2478,11 +2484,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          knob still owns the leading edge. Stock stadium: region == pill,
          nothing changes. */
       const clipSl = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+      /* the fill's START end is SQUARE and runs 2px past the clip so the
+         silhouette region shapes it (a self-rounded end pulled inside the
+         contour and left a dead sliver at the cap — "the mercury doesn't
+         follow the shape silhouette", owner). The knob edge keeps its bead. */
+      const rSl = Math.min(bh / 2, Math.max(2, fillW / 2));
+      const slFill = `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(bx + fillW - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${by.toFixed(1)} ${(bx + fillW).toFixed(1)} ${(by + rSl).toFixed(1)} V ${(by + bh - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${(by + bh).toFixed(1)} ${(bx + fillW - rSl).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
       return stampTrack(inject(track,
         `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>
          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}<clipPath id="${gid}w"><path d="${clipSl}"/></clipPath></defs>
-         ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${roundRect(bx, by, fillW, bh, Math.min(bh / 2, fillW / 2))}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
-         <path d="${roundRect(bx + 2 * k, by + bh * 0.08, Math.max(0, fillW - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
+         ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${slFill}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
+         <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fillW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
         candyKnob(knobX, knobY, kr, knobC)), bx, trackW);
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
@@ -2537,14 +2549,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const trackW = w - inset * 2 - gapPad * 2;
       const n = clamp(Math.round(opts.bar?.segments ?? 5), 2, 12);
       const gap = clamp(opts.bar?.gap ?? 6, 2, 14) * k;
-      const snap = opts.bar?.snap ?? true;
+      /* smooth mode is PARKED (owner: "the segmented bar should only
+         increase in segments for now") — the branch below stays for its
+         return; every render snaps to whole cells regardless of config */
+      const snap = true;
       const v = clamp(value ?? 0.62, 0, 1);
       const cellW = (trackW - gap * (n - 1)) / n;
       const gid = "sg" + UID++;
-      // cells clip to the well silhouette so the first and last inherit the
-      // theme's corners while middle cells stay squared
+      /* cells clip to the MERCURY contour — the silhouette drawn at the
+         cell zone, inset from the well by the universal gap (progress's
+         construction). Clipping to the well itself went flush and ate the
+         gap; the end cells extend into the caps and this contour shapes
+         them ("they need that universal gap and follow the shape's
+         silhouette", owner). */
       const wellP = wellOf(w, h, inset);
-      const clip = `<clipPath id="${gid}c"><path d="${wellP}"/></clipPath>`;
+      const mercSil = shapePath(sov ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+      const clip = `<clipPath id="${gid}c"><path d="${mercSil}"/></clipPath>`;
       // cells shade top-to-bottom (candy lighting), never along the bar
       const grad = `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
       const dim = state === "disabled" ? 0.35 : 0.95;
@@ -2681,10 +2701,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <linearGradient id="${gid}r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>
         <clipPath id="${gid}w"><path d="${clipVs}"/></clipPath></defs>
         <g data-vs="1" clip-path="url(#${gid}w)">
-          ${vL > 0.01 ? `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vL).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
-          ${vR > 0.01 ? `<rect x="${(bx + trackW - halfW * vR).toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vR).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx + trackW - halfW * vR + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vR - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
+          ${vL > 0.01 ? (() => {
+            /* outer end SQUARE past the clip — the silhouette region shapes
+               it with the universal gap; the drain edge keeps its bead */
+            const fxL = bx + halfW * vL, rL = Math.min(bh / 2, Math.max(2, (halfW * vL) / 2));
+            return `<path d="M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fxL - rL).toFixed(1)} Q ${fxL.toFixed(1)} ${by.toFixed(1)} ${fxL.toFixed(1)} ${(by + rL).toFixed(1)} V ${(by + bh - rL).toFixed(1)} Q ${fxL.toFixed(1)} ${(by + bh).toFixed(1)} ${(fxL - rL).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(bx - 2).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          })() : ""}
+          ${vR > 0.01 ? (() => {
+            const x0R = bx + trackW - halfW * vR, rR = Math.min(bh / 2, Math.max(2, (halfW * vR) / 2));
+            return `<path d="M ${(bx + trackW + 2).toFixed(1)} ${by.toFixed(1)} H ${(x0R + rR).toFixed(1)} Q ${x0R.toFixed(1)} ${by.toFixed(1)} ${x0R.toFixed(1)} ${(by + rR).toFixed(1)} V ${(by + bh - rR).toFixed(1)} Q ${x0R.toFixed(1)} ${(by + bh).toFixed(1)} ${(x0R + rR).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx + trackW + 2).toFixed(1)} Z" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(x0R + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vR + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          })() : ""}
         </g>` +
         candyKnob(cxV, 30 + h / 2, h * 0.46, knobC) +
         `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;

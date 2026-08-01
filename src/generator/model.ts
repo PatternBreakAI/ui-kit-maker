@@ -530,11 +530,19 @@ export interface StateDesign {
   shadow: { distance: number; blur: number; opacity: number };
   transparency: { frame: number; interior: number; content: number };
   type: TypeCfg;
+  /** Per-state icon rig (color, effects, weight…) — the GLYPH itself stays
+      one decision for the whole component, like the typeface. Absent on
+      older forks = mirror the master's icon. */
+  icon?: IconCfg;
 }
 
 export const DESIGN_KEYS = ["shape", "effects", "face", "bevel", "candy", "lighting", "shadow", "transparency", "type"] as const;
 
-export function pickDesign(src: StateDesign): StateDesign {
+export function pickDesign(src: StateDesign & { icon?: IconCfg }): StateDesign {
+  // the icon is NOT snapshotted here: a state's icon keeps following the
+  // master until the user explicitly edits icon fields in that state —
+  // otherwise any state tweak would silently freeze its icon and later
+  // master icon edits would "not update in real time" (owner report)
   return JSON.parse(JSON.stringify({
     shape: src.shape, effects: src.effects, face: src.face, bevel: src.bevel, candy: src.candy,
     lighting: src.lighting, shadow: src.shadow, transparency: src.transparency, type: src.type,
@@ -1341,8 +1349,20 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
   const out: Partial<Record<KitComponentId, KitDesign>> = {};
   let changed = false;
   const isFull = (kd: KitDesign) => DESIGN_KEYS.every((k) => (kd as Record<string, unknown>)[k] !== undefined);
+  /* one build eagerly snapshotted the icon into every state fork — inside
+     per-piece forks too. A pinned state icon that still equals the piece's
+     own rig is pure freeze with no intent behind it: drop it so the state
+     follows the rig again (same heal as healStateIconPins on the master). */
+  const healPieceStateIcons = (kd: KitDesign) => {
+    if (!kd.stateDesigns) return;
+    const rig = kd.icon !== undefined ? deepMergeDesign(cfg.icon, kd.icon) : cfg.icon;
+    for (const sd of Object.values(kd.stateDesigns)) {
+      if (sd?.icon && JSON.stringify(sd.icon) === JSON.stringify(rig)) { delete sd.icon; changed = true; }
+    }
+  };
   for (const [id, kd] of Object.entries(forks) as [KitComponentId, KitDesign][]) {
     if (!kd) continue;
+    healPieceStateIcons(kd);
     if (!isFull(kd)) { out[id] = kd; continue; }
     changed = true;
     const d = designDiff(pickDesign(cfg), kd as unknown as StateDesign);
