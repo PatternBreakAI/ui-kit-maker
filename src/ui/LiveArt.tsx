@@ -124,7 +124,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // scrollbar thumb drags, menu rows and the dialog's capsules track the
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
     : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" || id === "emotewheel" ? (playing && !disabled ? val : kit?.value)
-    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" ? (playing && !disabled ? pval : kit?.value)
+    : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" || id === "compass" ? (playing && !disabled ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -323,6 +323,29 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
+  /* Compass demo playback — the needle swings off its heading and settles
+     back the way a real compass does: a damped wobble, never a refill. */
+  const playCompass = () => {
+    cancelAnimationFrame(raf.current);
+    const rest = clamp01(kit?.value ?? 0.08);
+    const wrap = (x: number) => ((x % 1) + 1) % 1;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPval(rest);
+      return;
+    }
+    const amp = 0.06 + Math.random() * 0.09;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const u = (t - t0) / 2800;
+      if (u >= 1) { setPval(rest); return; }
+      const e = Math.exp(-3.1 * u);
+      setPval(wrap(rest + dir * amp * Math.sin(u * Math.PI * 3.2) * e));
+      raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+  };
+
   // Ambient pieces only breathe while actually on screen. Every animation
   // frame re-renders the piece and regenerates its full SVG — dozens of
   // offscreen demos beating at once turned the whole kit page into a
@@ -340,12 +363,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // ambient progress: bars, rings, timers and gauges quietly replay on their own beat
   const beat = useRef(4600 + Math.random() * 2400);
   useEffect(() => {
-    if (!ambient || (id !== "progress" && id !== "segbar" && id !== "vsbar" && id !== "hotbar" && id !== "ring" && !isTimer && !isGauge) || !playing || !inView) return;
+    if (!ambient || (id !== "progress" && id !== "segbar" && id !== "vsbar" && id !== "hotbar" && id !== "ring" && id !== "compass" && !isTimer && !isGauge) || !playing || !inView) return;
     // first beat lands FAST — gallery cards must move as they appear, not a
     // leisurely beat later. Staggered so a wall of cards wakes as a wave,
     // not a drill team.
-    const kick = window.setTimeout(isTimer ? playTimer : playProgress, 350 + Math.random() * 900);
-    const t = window.setInterval(isTimer ? playTimer : playProgress, beat.current);
+    const play = isTimer ? playTimer : id === "compass" ? playCompass : playProgress;
+    const kick = window.setTimeout(play, 350 + Math.random() * 900);
+    const t = window.setInterval(play, beat.current);
     return () => { window.clearTimeout(kick); window.clearInterval(t); cancelAnimationFrame(raf.current); };
   }, [ambient, id, playing, inView]); // eslint-disable-line react-hooks/exhaustive-deps
 
