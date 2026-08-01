@@ -2195,7 +2195,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      themselves (counters, segments, rows): fill mode incl. gradients, case,
      italic, tracking, outline, shadow and glow all follow the theme. */
   const contentText = (txt: string, x2: number, y2: number, fs2: number,
-    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean } = {}) => {
+    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -2207,7 +2207,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       : T4.case === "title" ? txt.replace(/\b\w/g, (m2) => m2.toUpperCase())
       : txt;
     let defs4 = "", fill4 = o2.autoInk ?? "#FFFFFF";
-    if (T4.fillMode === "solid") fill4 = T4.fill;
+    // an explicit per-part ink (a color slot) beats the type fill — the
+    // effects (outline, shadow, glow) still ride the type treatment
+    if (o2.ink) fill4 = o2.ink;
+    else if (T4.fillMode === "solid") fill4 = T4.fill;
     else if (T4.fillMode === "gradient") {
       defs4 += `<linearGradient id="${gid4}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient>`;
       fill4 = `url(#${gid4}g)`;
@@ -3453,8 +3456,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ${contentText((opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24), px0 + plateW / 2, py0 + plateH / 2 + 1, 19 * k * typeK, { anchor: "middle" })}`;
       // the body is READING text — it speaks the list face (owner: "list
       // font dropdown isn't working here"); the speaker plate is a title
-      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true, list: true });
-      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8, list: true });
+      // the body's own ink (a color slot) — the speaker plate keeps the
+      // kit's type color, which reads on the DARK plate but can fail on
+      // the light face (owner: "different dialog text color here")
+      const bodyInk = opts.slots?.bodyColor;
+      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true, list: true, ink: bodyInk });
+      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"

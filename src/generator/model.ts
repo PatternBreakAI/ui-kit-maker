@@ -940,6 +940,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   dialoguebox: [
     { id: "speaker", name: "Speaker", kind: "free", def: "ELDER ROWAN", maxLen: 24 },
     { id: "line2", name: "Second line", kind: "free", def: "Take the ember pass at first light.", maxLen: 60 },
+    { id: "bodyColor", name: "Body text color", kind: "color", def: "#1A2418",
+      note: "The reading lines' own ink — the speaker plate keeps the kit's type color, so the body can go dark for the light face without touching the title." },
   ],
   chatbubble: [
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
