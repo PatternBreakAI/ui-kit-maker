@@ -1236,21 +1236,35 @@ export const useGen = create<GenStore>((set, get) => ({
       if (!work.knob) work.knob = { color: null };
       if (!work.stateDesigns[sel]) work.stateDesigns[sel] = pickDesign(work);
       const d = work.stateDesigns[sel]!;
+      // older forks predate the per-state icon — mirror the master on first touch
+      if (!d.icon) d.icon = JSON.parse(JSON.stringify(work.icon)) as GenConfig["icon"];
       const t = Object.assign({}, work, {
         effects: d.effects, face: d.face, bevel: d.bevel, candy: d.candy,
         lighting: d.lighting, shadow: d.shadow, transparency: d.transparency, type: d.type,
+        icon: d.icon,
       }) as GenConfig;
       Object.defineProperty(t, "shape", { get: () => d.shape, set: (v) => { d.shape = v; }, enumerable: true, configurable: true });
       fn(t);
       d.effects = t.effects; d.face = t.face; d.bevel = t.bevel; d.candy = t.candy;
       d.lighting = t.lighting; d.shadow = t.shadow; d.transparency = t.transparency; d.type = t.type;
+      d.icon = t.icon;
       // the typeface is one decision for the whole component — weight, colors
       // and effects stay state-specific
       if (d.type.font !== work.type.font) {
         work.type.font = d.type.font;
         for (const other of Object.values(work.stateDesigns)) { if (other?.type) other.type.font = d.type.font; }
       }
-      work.content = t.content; work.icon = t.icon; work.states = t.states; work.visible = t.visible;
+      /* the GLYPH is one decision for the whole component too (like the
+         typeface) — color, effects, weight and pose stay state-specific
+         ("I want to be able to change this per state", owner) */
+      const gi = d.icon;
+      if (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || gi.show !== work.icon.show || gi.placement !== work.icon.placement || gi.only !== work.icon.only) {
+        work.icon.def = gi.def; work.icon.show = gi.show; work.icon.placement = gi.placement; work.icon.only = gi.only;
+        for (const other of Object.values(work.stateDesigns)) {
+          if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
+        }
+      }
+      work.content = t.content; work.states = t.states; work.visible = t.visible;
       work.canvas = t.canvas; work.presetId = t.presetId;
     } else {
       fn(work);

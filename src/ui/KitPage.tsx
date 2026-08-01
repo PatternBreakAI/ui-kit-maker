@@ -1182,7 +1182,7 @@ const kitTier = useGen((s) => s.tier);
         rk("progress", "Progress · Full", {}, 1),
         rk("emblembar", "Emblem bar", {}, 0.55),
         rk("segbar", "Segmented · 3 of 5", {}, 0.62),
-        rk("segbar", "Segmented · Smooth", { bar: { segments: 8, snap: false } }, 0.55),
+        rk("segbar", "Segmented · 8", { bar: { segments: 8 } }, 0.55),
         rk("vsbar", "VS health bar", {}, 0.72),
         rk("hotbar", "Hotbar · slot 3", {}, 0.25),
         rk("dialog", "Dialog"),
@@ -1762,7 +1762,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray">
           <Piece id="segbar" caption="Segmented · snaps to cells" value={0.62} ambient />
-          <Piece id="segbar" caption="Segmented · 8 · smooth" value={0.55} bar={{ segments: 8, snap: false }} ambient />
+          <Piece id="segbar" caption="Segmented · 8" value={0.55} bar={{ segments: 8 }} ambient />
         </div>
         <div className="kp-subhead">Genre essentials</div>
         <p className="kp-note">Every genre speaks this kit: the fighting VS bar drains toward its candy medallion, the sandbox hotbar carries the material into slot form. Action &amp; shooters lean on the reticle, ammo and mini-map; RPGs on progress, data rows, slots and the reward track; strategy on resources and panels; racing has its own chapter; timers and meters cover survival, sims and sports.</p>

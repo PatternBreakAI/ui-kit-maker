@@ -1148,9 +1148,9 @@ export function Panel() {
             <div className="sublabel">Segments</div>
             <Slider label="Segments" value={kitBar.segbar?.segments ?? 5} min={2} max={12} unit="" onChange={(v) => setKitBar("segbar", { segments: v })} />
             <Slider label="Gap" value={kitBar.segbar?.gap ?? 6} min={2} max={14} unit="px" onChange={(v) => setKitBar("segbar", { gap: v })} />
-            <label className="check"><input type="checkbox" checked={kitBar.segbar?.snap ?? true}
-              onChange={(e) => setKitBar("segbar", { snap: e.target.checked })} /> Snap to whole cells</label>
-            <div className="helper">Snapped cells light one by one — stamina pips. Off, a single fill slides under the notches — boss-phase style.</div>
+            {/* smooth mode is parked (owner call) — cells light one by one;
+                the renderer snaps regardless, so the toggle would lie */}
+            <div className="helper">Cells light one by one — stamina pips.</div>
           </>)}
         </Section>
       )}

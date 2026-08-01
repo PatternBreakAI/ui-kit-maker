@@ -530,14 +530,19 @@ export interface StateDesign {
   shadow: { distance: number; blur: number; opacity: number };
   transparency: { frame: number; interior: number; content: number };
   type: TypeCfg;
+  /** Per-state icon rig (color, effects, weight…) — the GLYPH itself stays
+      one decision for the whole component, like the typeface. Absent on
+      older forks = mirror the master's icon. */
+  icon?: IconCfg;
 }
 
 export const DESIGN_KEYS = ["shape", "effects", "face", "bevel", "candy", "lighting", "shadow", "transparency", "type"] as const;
 
-export function pickDesign(src: StateDesign): StateDesign {
+export function pickDesign(src: StateDesign & { icon?: IconCfg }): StateDesign {
   return JSON.parse(JSON.stringify({
     shape: src.shape, effects: src.effects, face: src.face, bevel: src.bevel, candy: src.candy,
     lighting: src.lighting, shadow: src.shadow, transparency: src.transparency, type: src.type,
+    ...(src.icon ? { icon: src.icon } : {}),
   })) as StateDesign;
 }
 

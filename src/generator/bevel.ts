@@ -1059,6 +1059,7 @@ function designFor(cfg: GenConfig, state: GenStateName): StateDesign {
     shape: d.shape ?? cfg.shape, effects: d.effects ?? cfg.effects, face: d.face ?? cfg.face,
     bevel: d.bevel ?? cfg.bevel, candy: d.candy ?? cfg.candy, lighting: d.lighting ?? cfg.lighting,
     shadow: d.shadow ?? cfg.shadow, transparency: d.transparency ?? cfg.transparency, type: d.type ?? cfg.type,
+    icon: d.icon ?? cfg.icon,
   };
 }
 
@@ -1102,6 +1103,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   };
   const secondary = !!opts.secondary;
   const D = designFor(cfg, state);
+  /* per-state icon rig — color/effects/weight/pose fork with the state,
+     the glyph itself is component-wide (store.update enforces that) */
+  const IC = D.icon ?? cfg.icon;
   const shape = opts.shapeOverride ?? D.shape;
   // Imported (feasibility-lab) silhouettes carry their own safe-area and
   // inset metadata — generic fields, looked up once and applied like any
@@ -1138,11 +1142,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // Config-driven icons are parked behind ICONS_ENABLED; explicit kit icons
   // (opts.iconDef) still render so the icon-button component keeps working.
   const iconDef = opts.iconDef === null ? null
-    : opts.iconDef ?? (ICONS_ENABLED && cfg.icon.show ? (cfg.icon.def ?? DEFAULT_ICON) : null);
-  const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && cfg.icon.only && !!iconDef);
+    : opts.iconDef ?? (ICONS_ENABLED && IC.show ? (IC.def ?? DEFAULT_ICON) : null);
+  const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && IC.only && !!iconDef);
   const showText = !iconOnly && label.length > 0;
-  const iconSize = baseIcon * (cfg.icon.size / 100);
-  const gap = showText && iconDef ? cfg.icon.gap * K : 0;
+  const iconSize = baseIcon * (IC.size / 100);
+  const gap = showText && iconDef ? IC.gap * K : 0;
   const spacingEm = T2.spacing / 100;
   const weightK = 1 + Math.max(0, T2.weight - 700) * 0.0004;
   // width (`wdth`) axis — honored only for faces that really expose it; the
@@ -1559,7 +1563,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : (synW > 0.05 ? ` stroke="${tFill}" stroke-width="${synW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"` : "");
   const outlineUnder = T2.outline.on && synW > 0.05;
 
-  const iFx = cfg.icon.fx;
+  const iFx = IC.fx;
   const iFilters: string[] = [];
   if (iFx.emboss && !disabled) iFilters.push(`drop-shadow(0 -1px 0.4px rgba(255,255,255,0.6)) drop-shadow(0 1.6px 1px rgba(4,8,14,0.5))`);
   if (iFx.shadow) iFilters.push(`drop-shadow(0 2px 1.5px rgba(0,0,0,0.4))`);
@@ -1570,9 +1574,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // that sit beside a label: the chip's star must dress like its own text
   // ("the other icons pick up the outline, not sure this one won't", owner).
   // Effects, opacity and rotation are always the icon's own controls.
-  const inheritTypo = !cfg.icon.color && opts.iconDef !== undefined && !!iconDef;
+  const inheritTypo = !IC.color && opts.iconDef !== undefined && !!iconDef;
   const iconColor = disabled ? "#A7AAB4"
-    : cfg.icon.color ? P(cfg.icon.color)
+    : IC.color ? P(IC.color)
     : inheritTypo ? (T2.fillMode === "auto" ? autoLabel : P(T2.fill))
     : (T2.fillMode === "solid" ? P(T2.fill) : autoLabel);
 
@@ -1581,7 +1585,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      outer silhouette, so asymmetric caps (pointer tags) balance correctly */
   const cx = x + w / 2, cy = y + h / 2;
   const startX = (x + padL + (x + w - padR)) / 2 - contentW / 2;
-  const placeLeft = opts.iconDef === undefined && cfg.icon.placement === "left" && !iconOnly;
+  const placeLeft = opts.iconDef === undefined && IC.placement === "left" && !iconOnly;
   const italicShift = T2.italic ? italicPad * 0.35 : 0; // rebalance the lean
   const textX = (placeLeft ? startX + (iconDef ? iconSize + gap : 0) + textW / 2 : startX + textW / 2) - italicShift;
   const tAnchor = opts.anchorLeft ? "start" : "middle";
@@ -1589,10 +1593,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // glints and highlight slab all travel with the glyphs as one unit
   const textOx = opts.textOx ?? T2.ox ?? 0;
   const tTextX = (opts.anchorLeft ? x + padL - italicShift : textX) + textOx * K;
-  const iconX = (iconOnly ? cx - iconSize / 2 : placeLeft ? startX : startX + textW + gap) + cfg.icon.ox * K + (iconOnly ? textOx * K : 0);
+  const iconX = (iconOnly ? cx - iconSize / 2 : placeLeft ? startX : startX + textW + gap) + IC.ox * K + (iconOnly ? textOx * K : 0);
   // icon-only pieces (awarded badges, icon buttons): the vertical nudge is
   // the icon's nudge — there is no text for it to move
-  const iconY = cy - iconSize / 2 + cfg.icon.oy * K + (iconOnly ? (opts.textOy ?? T2.oy ?? 0) * K : 0);
+  const iconY = cy - iconSize / 2 + IC.oy * K + (iconOnly ? (opts.textOy ?? T2.oy ?? 0) * K : 0);
   const textOy = opts.textOy ?? T2.oy ?? 0;
 
   const T = D.transparency;
@@ -1798,15 +1802,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
-        ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${cfg.icon.opacity < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : ""}>${
-            T2.outline.on && !disabled && (cfg.icon.outlineWidth ?? T2.outline.width) > 0.01
-              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: cfg.icon.strokeWidth / 10 + (cfg.icon.outlineWidth ?? T2.outline.width) * 0.85, rotation: cfg.icon.rotation })
+        ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
+            T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
+              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation })
               : ""
-          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: cfg.icon.strokeWidth / 10, rotation: cfg.icon.rotation })}</g>`
+          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: IC.strokeWidth / 10, rotation: IC.rotation })}</g>`
         : iconGroup(iconDef, iconX, iconY, iconSize, iconColor, {
-            strokeWidth: cfg.icon.strokeWidth / 10,
-            opacity: (cfg.icon.opacity / 100),
-            rotation: cfg.icon.rotation,
+            strokeWidth: IC.strokeWidth / 10,
+            opacity: (IC.opacity / 100),
+            rotation: IC.rotation,
             filter: iconFilter,
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
@@ -2545,7 +2549,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const trackW = w - inset * 2 - gapPad * 2;
       const n = clamp(Math.round(opts.bar?.segments ?? 5), 2, 12);
       const gap = clamp(opts.bar?.gap ?? 6, 2, 14) * k;
-      const snap = opts.bar?.snap ?? true;
+      /* smooth mode is PARKED (owner: "the segmented bar should only
+         increase in segments for now") — the branch below stays for its
+         return; every render snaps to whole cells regardless of config */
+      const snap = true;
       const v = clamp(value ?? 0.62, 0, 1);
       const cellW = (trackW - gap * (n - 1)) / n;
       const gid = "sg" + UID++;
