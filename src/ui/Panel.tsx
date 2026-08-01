@@ -1881,6 +1881,10 @@ export function Panel() {
         </>)}
         <Slider label="Opacity" value={IC.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
         <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
+        {/* the glyph's own position, in the glyph's own house — no more
+            detouring through the type nudges to move an icon (owner) */}
+        <Slider label="Nudge X" value={IC.ox} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+        <Slider label="Nudge Y" value={IC.oy} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
