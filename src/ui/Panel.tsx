@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -400,6 +400,8 @@ export function Panel() {
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
   const [parentErr, setParentErr] = useState<string | null>(null);
+  // the admin publishing desk inside Looks — folded away by default
+  const [adminLooksOpen, setAdminLooksOpen] = useState(false);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */
@@ -647,72 +649,84 @@ export function Panel() {
           </button>
         )}
       </div>
-      {focus && (() => {
-        const fname = KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus;
-        const locked = !!kitDesigns[focus];
-        /* a LOCKED (finished) piece: the tray is paused wholesale — this
-           banner is the only live surface, and it says why */
-        if (kitLocks[focus]) return (
-          <div className="focusnote">
-            <Lock size={12} strokeWidth={2.2} /> <b>{fname}</b> is locked — the look is frozen. Its words stay yours: type away in <b>Component content</b> below. Every styling control is paused; the rest of the kit edits as usual.
-            <button onClick={() => setFocus(null)}>Back to parent design</button>
-            <div className="lockrow">
-              <button title="Open this piece back up for editing — it keeps its current look"
-                onClick={() => toggleKitLock(focus)}>
-                <LockOpen size={12} strokeWidth={2.2} /> Unlock {fname}
-              </button>
-            </div>
-          </div>
-        );
-        /* One clear rule, stated where the user is looking:
-           unlocked = edits restyle the WHOLE kit; pinned = edits stay on
-           THIS piece (they stream straight into its pin — no "update
-           pin" step, what you see is what's saved). */
+      {/* ── the SCOPE BAR: where edits land, answered before you edit.
+           One picker replaces the scattered banner chrome ("Back to parent
+           design", "Style X only (pin it)"...). Every verb survives — it
+           just lives in one quiet row now. Group joins the segments in the
+           next phase of the type round. ── */}
+      {(() => {
+        const fname = focus ? (KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus) : null;
+        const pinned = !!(focus && kitDesigns[focus]);
+        const frozen = !!(focus && kitLocks[focus]);
         return (
-          <div className="focusnote">
-            Editing <b>{fname}</b> — every design edit stays on <b>this piece only</b> (if you can't see it, you can't edit it). Save it as a style to reuse the look elsewhere.
-            <button onClick={() => setFocus(null)}>Back to parent design</button>
-            <div className="lockrow">
-              <button title="Make this component the parent design — the base every unfocused edit styles"
-                onClick={() => {
-                  if (PARENT_ELIGIBLE.includes(focus)) { setParent(focus); setParentErr(null); }
-                  else setParentErr(`${fname} can't be the parent design — a parent must carry the complete recipe (silhouette shell, face, typography label and all four states) so the rest of the kit can inherit from it.`);
-                }}>
-                <Star size={12} strokeWidth={2.2} /> Make parent design
+          <div className="scopebar" role="group" aria-label="Where edits land">
+            <div className="scopeseg" role="radiogroup" aria-label="Styling scope">
+              <button className={!focus ? "on" : ""} role="radio" aria-checked={!focus}
+                title="Style the whole kit — edits flow to every piece that follows the kit design"
+                onClick={() => setFocus(null)}>Whole kit</button>
+              <button className={focus ? "on" : ""} role="radio" aria-checked={!!focus} disabled={!focus}
+                title={focus ? `Design edits stay on ${fname} only` : "Click Edit on any piece — then edits stay on that piece"}>
+                {focus ? `This piece · ${fname}` : "This piece"}
               </button>
-              {parentId === focus && <span className="lockstate">This is the parent design.</span>}
             </div>
-            {parentErr && <div className="helper parenterr" role="alert">{parentErr}</div>}
-            {locked ? (
-              <div className="lockrow">
-                <span className="lockstate"><Pin size={12} strokeWidth={2.2} /> Edits save into this piece automatically.</span>
-                <button title="Make the whole kit look like this piece, then follow the master again"
-                  onClick={() => {
-                    const merged = applyKitDesign(useGen.getState().cfg, kitDesigns[focus]);
-                    setKitDesign(focus, null);
-                    replaceConfig(structuredClone(merged));
-                  }}>
-                  <Pin size={12} strokeWidth={2.2} /> Push this look to the whole kit
-                </button>
-                <button title="Drop the overrides — this piece follows the parent design again"
-                  onClick={() => setKitDesign(focus, null)}>
-                  <PinOff size={12} strokeWidth={2.2} /> Reset — follow the parent
-                </button>
-              </div>
-            ) : (
-              <div className="lockrow">
-                <button title="From here on, edits style only this piece — the master and every other piece stay put"
-                  onClick={() => setKitDesign(focus, { ...pickDesign(cfg), stateDesigns: structuredClone(cfg.stateDesigns) })}>
-                  <Pin size={12} strokeWidth={2.2} /> Style {fname} only (pin it)
-                </button>
-              </div>
+            {!focus && (
+              <div className="scopehint">Styling the <b>whole kit</b> — edits flow to every piece. Click <b>Edit</b> on a piece to style it alone.</div>
             )}
-            <div className="lockrow">
-              <button title="Finished with this piece? Lock it — the look freezes (design, states, nudges, glyph) until you unlock. Its words and data fields stay editable."
-                onClick={() => toggleKitLock(focus)}>
-                <Lock size={12} strokeWidth={2.2} /> Lock {fname} — finished
-              </button>
-            </div>
+            {focus && frozen && (
+              <>
+                <div className="scopehint"><Lock size={11} strokeWidth={2.4} /> <b>{fname}</b> is locked — the look is frozen. Its words and data stay yours in <b>Component content</b>.</div>
+                <div className="scopeverbs">
+                  <button title="Open this piece back up for editing — it keeps its current look"
+                    onClick={() => toggleKitLock(focus)}>
+                    <LockOpen size={12} strokeWidth={2.2} /> Unlock
+                  </button>
+                </div>
+              </>
+            )}
+            {focus && !frozen && (
+              <>
+                <div className="scopehint">
+                  Design edits stay on <b>{fname}</b> — the rest of the kit stays put. Words and shared data still flow where they should.
+                  {parentId === focus && <> · <b>This is the parent design.</b></>}
+                </div>
+                <div className="scopeverbs">
+                  {pinned && (
+                    <>
+                      <button title="Make the whole kit look like this piece, then follow the kit design again"
+                        onClick={() => {
+                          const merged = applyKitDesign(useGen.getState().cfg, kitDesigns[focus]);
+                          setKitDesign(focus, null);
+                          replaceConfig(structuredClone(merged));
+                        }}>
+                        <Pin size={12} strokeWidth={2.2} /> Push look to whole kit
+                      </button>
+                      <button title="Drop this piece's own styling — it follows the kit design again"
+                        onClick={() => setKitDesign(focus, null)}>
+                        <PinOff size={12} strokeWidth={2.2} /> Follow the kit again
+                      </button>
+                    </>
+                  )}
+                  {!pinned && (
+                    <button title="Pin the whole current look to this piece in one go — edits already stay here either way"
+                      onClick={() => setKitDesign(focus, { ...pickDesign(cfg), stateDesigns: structuredClone(cfg.stateDesigns) })}>
+                      <Pin size={12} strokeWidth={2.2} /> Pin the whole look
+                    </button>
+                  )}
+                  <button title="Make this piece the parent design — the base every whole-kit edit styles"
+                    onClick={() => {
+                      if (PARENT_ELIGIBLE.includes(focus)) { setParent(focus); setParentErr(null); }
+                      else setParentErr(`${fname} can't be the parent design — a parent must carry the complete recipe (silhouette shell, face, typography label and all four states) so the rest of the kit can inherit from it.`);
+                    }}>
+                    <Star size={12} strokeWidth={2.2} /> Make parent
+                  </button>
+                  <button title="Finished with this piece? The look freezes (design, states, nudges, glyph) until you unlock. Words and data stay editable."
+                    onClick={() => toggleKitLock(focus)}>
+                    <Lock size={12} strokeWidth={2.2} /> Lock — finished
+                  </button>
+                </div>
+                {parentErr && <div className="helper parenterr" role="alert">{parentErr}</div>}
+              </>
+            )}
           </div>
         );
       })()}
@@ -755,8 +769,11 @@ export function Panel() {
         )}
       </Section>
 
-      {/* ── A · Style (the candy construction) ────────────── */}
-      <Section id="shape" title={t("secPresets")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
+      {/* ── A · Looks — every saved look in ONE place: starters & packs,
+           your kits, your styles, and (collapsed) the admin publishing desk.
+           The scattered "Publish current…" buttons live here now, behind
+           one quiet admin row (owner: "we need to consolidate"). ── */}
+      <Section id="shape" title={t("secLooks")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
         <div className="presetgrid">
           {userPresets.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
@@ -854,38 +871,48 @@ export function Panel() {
           </div>
           <div className="helper">A style is the whole material recipe — colors, surface, lighting, type, state designs. Applying one restyles every component; silhouettes stay put.</div>
         </>)}
-        {isAdmin && (<>
-          <div className="sublabel">Shared library — admin</div>
-          <div className="actionrow">
-            {/* Dated publishing is what makes "a new pack every month" keep
-                itself: load the whole backlog in one sitting, each with its
-                drop date, instead of remembering to publish one a month. */}
-            <NameAction icon={<Globe size={14} strokeWidth={2} />} label="Publish current…"
-              title="Publish the current style as a preset pack — set a date to hold it until then"
-              placeholder="Pack name — Pro members see it"
-              withDate
-              onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
-            <button className="resetstate" title="Review student & educator applications — approvals unlock the education price"
-              onClick={() => { window.location.hash = "#/review"; }}>
-              <GraduationCap size={14} strokeWidth={2} /> Review applications
+        {isAdmin && (
+          <div className="adminlooks">
+            {/* the publishing desk folds away: it's operator UI, and it used
+                to read as product UI ("all these little flat buttons
+                'Publish Current' around is confusing" — owner) */}
+            <button className="adminlooks-toggle" aria-expanded={adminLooksOpen}
+              onClick={() => setAdminLooksOpen(!adminLooksOpen)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Admin · preset publishing {adminLooksOpen ? "▴" : "▾"}
             </button>
-            {activeCloudPreset && (
-              <button className="resetstate" onClick={() => {
-                if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
-              }}>
-                <Upload size={14} strokeWidth={2} /> Overwrite “{activeCloudPreset.name}”
-              </button>
-            )}
-            {hiddenStarters.length > 0 && (
-              <button className="resetstate" onClick={() => {
-                if (window.confirm(`Restore all ${hiddenStarters.length} removed starter preset${hiddenStarters.length === 1 ? "" : "s"} for everyone?`)) void restoreStarterPresets().then((err) => { if (err) window.alert(err); });
-              }}>
-                <RotateCcw size={14} strokeWidth={2} /> Restore starters ({hiddenStarters.length})
-              </button>
-            )}
+            {adminLooksOpen && (<>
+              <div className="actionrow">
+                {/* Dated publishing is what makes "a new pack every month"
+                    keep itself: load the whole backlog in one sitting, each
+                    with its drop date. */}
+                <NameAction icon={<Globe size={14} strokeWidth={2} />} label="Publish current…"
+                  title="Publish the current style as a preset pack — set a date to hold it until then"
+                  placeholder="Pack name — Pro members see it"
+                  withDate
+                  onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
+                <button className="resetstate" title="Review student & educator applications — approvals unlock the education price"
+                  onClick={() => { window.location.hash = "#/review"; }}>
+                  <GraduationCap size={14} strokeWidth={2} /> Review applications
+                </button>
+                {activeCloudPreset && (
+                  <button className="resetstate" onClick={() => {
+                    if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
+                  }}>
+                    <Upload size={14} strokeWidth={2} /> Overwrite “{activeCloudPreset.name}”
+                  </button>
+                )}
+                {hiddenStarters.length > 0 && (
+                  <button className="resetstate" onClick={() => {
+                    if (window.confirm(`Restore all ${hiddenStarters.length} removed starter preset${hiddenStarters.length === 1 ? "" : "s"} for everyone?`)) void restoreStarterPresets().then((err) => { if (err) window.alert(err); });
+                  }}>
+                    <RotateCcw size={14} strokeWidth={2} /> Restore starters ({hiddenStarters.length})
+                  </button>
+                )}
+              </div>
+              <div className="helper">Shared presets show for every visitor. Apply one, tweak it, then Overwrite to save the changes back into it.</div>
+            </>)}
           </div>
-          <div className="helper">Shared presets show for every visitor. Apply one, tweak it, then Overwrite to save the changes back into it.</div>
-        </>)}
+        )}
       </Section>
 
       {/* ── A2 · Silhouette — pure geometry, material stays ── */}
