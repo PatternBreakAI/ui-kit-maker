@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -408,6 +408,10 @@ interface GenStore {
   setSelectedState: (s: GenStateName) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
   setKitSize: (id: KitComponentId, s: KitSize) => void;
+  /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
+   *  size chips were noise; size is a kit decision). Locked pieces keep
+   *  their own snapshot size. */
+  setKitSizeAll: (s: KitSize) => void;
   setZoom: (z: number) => void;
   setPanMode: (v: boolean) => void;
   setGridStyle: (v: GridStyle) => void;
@@ -1418,6 +1422,11 @@ export const useGen = create<GenStore>((set, get) => ({
   // whatever zoom the editor or board was left at
   setPhase: (p) => set(p === "kit" ? { phase: p, zoom: 1 } : { phase: p }),
   setKitSize: (id, s) => { if (get().kitLocks[id]) return; set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
+  setKitSizeAll: (s) => set((st) => {
+    const sizes = { ...st.kitSizes };
+    for (const c of KIT_COMPONENTS) { if (!st.kitLocks[c.id]) sizes[c.id] = s; }
+    return { kitSizes: sizes };
+  }),
   setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),

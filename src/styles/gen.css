@@ -745,14 +745,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-live svg { width: 100%; height: auto; display: block; }
 .kp-live:focus-visible { outline: 2px solid var(--kp-ink3); outline-offset: 4px; border-radius: 12px; }
 .kp-cap { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--kp-ink3); }
-.kp-dl { display: grid; place-items: center; border: 0; background: none; padding: 3px; border-radius: 6px; color: var(--kp-ink3); cursor: pointer; opacity: 0; transition: opacity .15s; }
+.kp-dl { display: grid; place-items: center; border: 0; background: none; padding: 4px; border-radius: 6px; color: var(--kp-ink3); cursor: pointer; opacity: 0; transition: opacity .15s; }
 .kp-piece:hover .kp-dl { opacity: 1; }
 .kp-dl:hover { color: var(--kp-ink); background: var(--kp-card); }
-.kp-sizes { display: inline-flex; border: 1px solid var(--kp-line); border-radius: 7px; overflow: hidden; opacity: 0; transition: opacity .15s; }
-.kp-piece:hover .kp-sizes { opacity: 1; }
-.kp-sizes button { border: 0; background: none; width: 22px; height: 18px; font-size: 9.5px; font-weight: 700; color: var(--kp-ink3); cursor: pointer; }
-.kp-sizes button + button { border-left: 1px solid var(--kp-line); }
-.kp-sizes button.on { background: var(--kp-card); color: var(--kp-ink); }
 .kitpage.playing .kp-cap { opacity: .55; }
 
 .kp-patterns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
@@ -791,9 +786,11 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   font-size: 12px; font-weight: 600; cursor: pointer;
 }
 .lockrow button:hover { background: var(--soft); }
-.kp-edit { display: grid; place-items: center; border: 0; background: none; padding: 3px; border-radius: 6px; color: var(--kp-ink3); cursor: pointer; opacity: 0; transition: opacity .15s; }
+/* the primary per-card action: a labelled pill, always readable — the
+   owner found the bare 12px glyph hard to spot and hard to hit */
+.kp-edit { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 5px 10px; border-radius: 7px; color: var(--kp-ink); cursor: pointer; font: inherit; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .85; transition: opacity .15s, background .15s, color .15s; }
 .kp-piece:hover .kp-edit { opacity: 1; }
-.kp-edit:hover { color: var(--kp-ink); background: var(--kp-card); }
+.kp-edit:hover { color: var(--kp-card); background: var(--kp-ink); }
 .kp-lockic { color: var(--kp-ink2); flex: none; }
 .kp-link { font-size: 12px; font-weight: 600; color: var(--kp-ink); text-decoration: none; border: 1px solid var(--kp-line); border-radius: 999px; padding: 6px 12px; background: var(--kp-card); }
 .kp-link:hover { border-color: var(--kp-ink3); }
@@ -1021,8 +1018,8 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-links a { font-size: 12px; font-weight: 600; color: var(--kp-ink2); text-decoration: none; border-bottom: 1px solid var(--kp-line); padding-bottom: 1px; }
 .kp-links a:hover { color: var(--kp-ink); border-color: var(--kp-ink3); }
 
-/* pills that remain (sizes, chapters, splash choices) — optically centered */
-.kp-sizes button, .kp-chapnav button { line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+/* pills that remain (chapters, splash choices) — optically centered */
+.kp-chapnav button { line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 .kp-chapnav button { height: 30px; padding: 0 14px; }
 
 /* slot family + ring family — strict grids, no drifting */
@@ -1181,6 +1178,10 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kitpage.dark .kp-tabsbar button.on { color: #101018; }
 .kp-tabnum { font-size: 10.5px; font-weight: 700; opacity: .55; margin-right: 2px; font-variant-numeric: tabular-nums; }
 .kp-tabedit { display: inline-flex; align-items: center; gap: 6px; border-left: 1px solid var(--kp-line) !important; border-radius: 0 999px 999px 0 !important; }
+/* kit-wide size switch — size is a kit decision, not a per-cell dial */
+.kp-tabsizes { display: inline-flex; align-items: center; gap: 2px; padding-left: 8px; border-left: 1px solid var(--kp-line); }
+.kp-tabsizelab { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--kp-ink3); margin-right: 3px; }
+.kp-tabsizes button { padding: 6px 10px; font-size: 11px; font-weight: 700; }
 
 /* hero — one statement, one inspectable composition */
 .kp-hero2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(480px, 1.15fr); gap: 30px; align-items: center; padding: 34px 0 6px; }
@@ -1263,8 +1264,9 @@ button.kp-fact { cursor: pointer; }
 .kp-piece { position: relative; }
 .kp-cap { justify-content: center; text-align: center; }
 .kp-piece .kp-edit { position: absolute; top: 2px; right: 2px; z-index: 3; background: var(--kp-card); border: 1px solid var(--kp-line); border-radius: 7px; }
-.kp-piece .kp-dl { position: absolute; top: 2px; right: 27px; z-index: 3; background: var(--kp-card); border: 1px solid var(--kp-line); border-radius: 7px; }
-.kp-piece .kp-sizes { position: absolute; top: 2px; left: 2px; z-index: 3; background: var(--kp-card); }
+.kp-piece .kp-edit:hover { background: var(--kp-ink); border-color: var(--kp-ink); color: var(--kp-card); }
+/* download rides underneath the edit pill, quiet until the card is hovered */
+.kp-piece .kp-dl { position: absolute; top: 33px; right: 2px; z-index: 3; background: var(--kp-card); border: 1px solid var(--kp-line); border-radius: 7px; }
 
 /* color & material — exploded layers beside functional color roles */
 .kp-mat { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr); gap: 28px; margin-top: 14px; align-items: start; }
