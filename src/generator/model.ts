@@ -1254,6 +1254,17 @@ export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
   !STAGED_KIT.has(id) || releases[id] === "released" || admin;
 
+/** How much label a piece can carry. Reading-line pieces (dialogue lines,
+ *  toasts, messages) hold sentences; identity labels stay tight. The old
+ *  blanket 32 cut the dialogue box's own 40-char default off mid-word
+ *  (owner: "text entry field cuts off too early"). Caps are sized to what
+ *  each piece renders without spilling its face — not to a round number. */
+export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
+  dialoguebox: 48, dialog: 48, tooltip: 48, toast: 40, chatbubble: 40,
+  killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
+};
+export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
+
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the
    parent design live. (Full-snapshot forks froze a component forever: one

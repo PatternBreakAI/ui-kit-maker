@@ -5250,7 +5250,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           `<g${emblemFx(9 * k, glow)}>${themedIcon(emb, cxP - embS / 2, cyP - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g></g>`;
       }
       parts += sparkP(39 + w * 0.24, 30 + h * 0.26, 6 * k) + sparkP(39 + w * 0.78, 30 + h * 0.32, 8 * k) + sparkP(39 + w * 0.3, 30 + h * 0.66, 5 * k);
-      parts += `<g data-part="label"><text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text></g>`;
+      /* count line: glow-tinted foil ink by factory — but an explicit type
+         fork or per-piece text color re-themes it (opts.themedText), same
+         contract as every instrument readout (owner: "it's not obeying
+         the text controls") */
+      parts += `<g data-part="label">${opts.themedText
+        ? contentText(opts.label ?? "12 CARDS", cxP, 30 + h * 0.72, 19 * k * typeK, { anchor: "middle", keepCase: true, track: 2, autoInk: hexMix(glow, "#FFFFFF", 0.4) })
+        : `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`}</g>`;
       parts += crimp(30 - 2 * k) + crimp(30 + h - 32 * k);
       return inject(track.replace("<svg ", '<svg data-pack="1" '), parts);
     }

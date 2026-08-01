@@ -423,7 +423,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             downloadSvg(
               renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), p.id, size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
-                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id] }),
+                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
               `kit-${variant}-${size}.svg`
             );
           }}>
@@ -1140,7 +1140,8 @@ const kitTier = useGen((s) => s.tier);
       const rk = (cid: KitComponentId, name: string, extra: Parameters<typeof renderKit>[6] = {}, v?: number, gstate: GenStateName = "default") => {
         const o = {
           expand: true, textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`],
-          row: cid === "datarow" ? st.kitRow : undefined, ...extra,
+          row: cid === "datarow" ? st.kitRow : undefined,
+          themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], ...extra,
         };
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
@@ -2262,16 +2263,16 @@ const kitTier = useGen((s) => s.tier);
               if (which === "all" || which === "layers") layerCards.forEach((lc) => files.push({ path: `build-parts/material-layers/${slug(lc.name)}.svg`, data: lc.svg }));
               if (which === "all" || which === "type") recipe.forEach((r) => files.push({ path: `build-parts/typography-recipe/${slug(r.name)}.svg`, data: r.svg }));
               if (which === "all" || which === "controls") (["slider", "toggle", "progress", "badge", "ring", "slot", "resource", "datarow"] as KitComponentId[]).forEach((cid) =>
-                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
+                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
               if (which === "all" || which === "assemblies") {
                 // containers + the pieces every assembly is composed from,
                 // plus a recipe sheet describing the compositions
                 (["s", "m", "l"] as const).forEach((sz) =>
-                  files.push({ path: `assemblies/containers/panel-${sz}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", sz, "default", undefined, st.kitShapes.panel, { expand: true }) }));
+                  files.push({ path: `assemblies/containers/panel-${sz}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", sz, "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel }) }));
                 (["circle", "oval", "strip"] as const).forEach((kind) =>
-                  files.push({ path: `assemblies/containers/panel-${kind}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", "m", "default", undefined, st.kitShapes.panel, { expand: true, kind }) }));
+                  files.push({ path: `assemblies/containers/panel-${kind}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", "m", "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel, kind }) }));
                 ([["header", "banner"], ["tab", "section-tab"], ["datarow", "list-row"], ["resource", "hud-counter"], ["slot", "item-slot"], ["ring", "progress-ring"], ["chip", "stat-chip"], ["badge", "medallion"]] as [KitComponentId, string][]).forEach(([cid, nm]) =>
-                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
+                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
                 files.push({
                   path: "assemblies/RECIPES.md",
                   data: [
@@ -2291,7 +2292,7 @@ const kitTier = useGen((s) => s.tier);
               }
               if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
               if (which === "all") {
                 files.push({

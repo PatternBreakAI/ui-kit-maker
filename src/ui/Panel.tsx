@@ -3,7 +3,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutG
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf } from "@/generator/model";
 import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -1127,7 +1127,7 @@ export function Panel() {
           ) : null)}
           {labelEditable && (<>
             <div className="sublabel">Text</div>
-            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32}
+            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(focus)}
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
             {iconTogglable && !finLocked && (
@@ -1630,7 +1630,7 @@ export function Panel() {
             master's specimen text only shows when nothing is focused */}
         {focus && labelEditable ? (
           <>
-            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={32} aria-label="Label text"
+            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(focus)} aria-label="Label text"
               placeholder={`${KIT_COMPONENTS.find((c) => c.id === focus)?.name} text — empty for the default`}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
             {iconTogglable && (
