@@ -895,6 +895,13 @@ export type SlotDef = {
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
 };
+/* The emote wheel's pickable set — display names that resolve to
+   STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
+   unset state: each sector keeps its own factory glyph, so the panel never
+   claims every sector is a heart. Curated to glyphs that read as emotes at
+   wheel-sector size. */
+const EMOTE_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
     { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
@@ -946,6 +953,20 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   chatbubble: [
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
     { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
+  ],
+  emotewheel: [
+    /* the wheel was barely editable ("this component isn't very editable",
+       owner) — count and every sector emote are the wheel's real content */
+    { id: "sectors", name: "Sectors", kind: "choice", choices: ["4", "6", "8"],
+      note: "How many emotes the wheel offers. Selection still rides the Value slider and play-mode clicks; sector slots past the count are ignored." },
+    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: EMOTE_CHOICES },
   ],
   friendrow: [
     { id: "status", name: "Status line", kind: "free", def: "In Match · Ranked", maxLen: 32,

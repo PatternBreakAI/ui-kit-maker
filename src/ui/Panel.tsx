@@ -1094,7 +1094,18 @@ export function Panel() {
               <div className="helper">The resting pose — bars fill, needles point, rarity tiers pick, toggles flip. The kit page, the Board and exports all hold this frame.</div>
             )}
           </>)}
-          {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" ? (
+          {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
+            /* many options wear a dropdown — a 12-way radio row per slot
+               would be a wall of chips (the emote wheel has eight slots) */
+            <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }}>
+              <span className="fl">{slot.name}</span>
+              <select value={kitSlotVals[focus]?.[slot.id] ?? slot.choices![0]} aria-label={slot.name}
+                onChange={(e) => setKitSlot(focus, slot.id, e.target.value === slot.choices![0] ? null : e.target.value)}>
+                {slot.choices!.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+            </label>
+          ) : slot.kind === "choice" ? (
             <div key={slot.id}>
               <div className="sublabel">{slot.name}</div>
               <div className="segmini" role="radiogroup" aria-label={slot.name}>
