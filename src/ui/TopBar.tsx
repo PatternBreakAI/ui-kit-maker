@@ -71,7 +71,16 @@ export function TopBar() {
       try {
         const parsed = JSON.parse(String(reader.result));
         if (!parsed || typeof parsed !== "object" || !parsed.presetId || !parsed.candy) return;
-        replaceConfig(hydrate(parsed));
+        // full-document files carry the workspace (piece forks, shapes,
+        // icon swaps, nudges) — route those through the same door a project
+        // open uses, so migration, healing and persistence all apply
+        const ws = parsed.__workspace as Record<string, unknown> | undefined;
+        delete parsed.__workspace;
+        if (ws && typeof ws === "object") {
+          useGen.getState().loadKitPayload({ cfg: hydrate(parsed), ...ws }, { viewer: false, phase: "master" });
+        } else {
+          replaceConfig(hydrate(parsed));
+        }
       } catch { /* not a settings file — ignore */ }
     };
     reader.readAsText(file);
@@ -181,7 +190,17 @@ export function TopBar() {
               ) : (
                 <button className="lockedmi" title={`The game kit is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportGameKit"))}</button>
               )}
-              <button onClick={() => { downloadSettings(cfg); setMenuOpen(false); }}>
+              <button onClick={() => {
+                const st = useGen.getState();
+                downloadSettings(cfg, {
+                  kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
+                  kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs,
+                  kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+                  kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
+                  kitLocks: st.kitLocks, kitSizes: st.kitSizes,
+                });
+                setMenuOpen(false);
+              }}>
                 <FileJson size={15} strokeWidth={1.8} /> {t("exportSettings")}
               </button>
               <button onClick={() => { fileRef.current?.click(); }}>

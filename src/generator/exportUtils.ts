@@ -345,8 +345,13 @@ export function downloadHtml(cfg: GenConfig, name: string) {
 
 /** Full settings as a portable JSON file — re-importable, and shareable as a
  *  new default. */
-export function downloadSettings(cfg: GenConfig) {
-  download("ui-generator-settings.json", new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" }));
+export function downloadSettings(cfg: GenConfig, workspace?: Record<string, unknown>) {
+  /* the settings file is the COMPLETE document now: the master cfg at the
+     top level (so older builds still import it), plus the workspace — piece
+     forks, shapes, icon swaps, labels, nudges — under __workspace. Without
+     it, a "settings" file silently dropped every focused-piece edit. */
+  const doc = workspace ? { ...cfg, __workspace: workspace } : cfg;
+  download("ui-generator-settings.json", new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }));
 }
 
 /** Game-engine kit: one sprite sheet PNG @2x (states stacked vertically) plus

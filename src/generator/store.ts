@@ -299,7 +299,7 @@ interface GenStore {
       project) persists every field so the kit survives reload and flows into
       the cloud workspace; `viewer:true` (a share / public link) is in-memory
       read-only, exactly like a shared kit. */
-  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean }) => void;
+  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit" }) => void;
   /** Global shine sweep over every kit piece. */
   shine: boolean;
   setShine: (v: boolean) => void;
@@ -813,7 +813,8 @@ export const useGen = create<GenStore>((set, get) => ({
          the [old] version took over") */
       noteLocalDocReplaced();
     }
-    set({ ...next, viewer, phase: "kit" });
+    // a settings import stays in the editor; project opens land on the kit
+    set({ ...next, viewer, phase: opts?.phase ?? "kit" });
   },
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
   shine: loadJson<boolean>("ui-generator-shine", false),
