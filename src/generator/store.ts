@@ -92,6 +92,19 @@ function mergeCandy(base: CandyTokens, saved?: Record<string, any>): CandyTokens
   return out as CandyTokens;
 }
 
+/* One preview build eagerly snapshotted the master icon into every state
+   fork, silently freezing it — master icon edits stopped flowing to any
+   state the user had touched ("some states aren't updating in real time").
+   A pin that still equals the master is pure freeze with no intent behind
+   it: drop it so the state follows again. A pin that has since diverged is
+   indistinguishable from a deliberate per-state icon, so it stands. */
+export function healStateIconPins(cfg: GenConfig): GenConfig {
+  for (const sd of Object.values(cfg.stateDesigns ?? {})) {
+    if (sd?.icon && JSON.stringify(sd.icon) === JSON.stringify(cfg.icon)) delete sd.icon;
+  }
+  return cfg;
+}
+
 export function hydrate(parsed: Record<string, any>): GenConfig {
   const d = defaultConfig();
   const cfg = {
@@ -103,10 +116,12 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   } as GenConfig;
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
-  // state forks saved before newer candy tokens existed get them merged in
+  // state forks saved before newer candy/icon tokens existed get them merged in
   for (const sd of Object.values(cfg.stateDesigns)) {
     if (sd?.candy) sd.candy = mergeCandy(d.candy, sd.candy);
+    if (sd?.icon) sd.icon = { ...d.icon, ...sd.icon };
   }
+  healStateIconPins(cfg);
   if ((cfg.shape as string) === "shard") cfg.shape = "sharp";
   // retired silhouettes map to their closest living relatives
   const RETIRED: Record<string, GenConfig["shape"]> = { chamfer: "sharp", kart: "polybar", deepchamfer: "cutline", doboMarquee: "crest", doboRibbon: "banner" };
@@ -746,7 +761,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     const viewer = opts?.viewer ?? true;
     set({ activeCloudPreset: null }); // a loaded kit isn't a shared preset — no Overwrite target
-    const cfg = (p.cfg as GenConfig) ?? st.cfg;
+    const cfg = healStateIconPins((p.cfg as GenConfig) ?? st.cfg);
     /* the travelling stage: strict base64 image data URLs only — this string
        ends up in CSS url(), so nothing that could break out of it gets in.
        A payload without one keeps the local backdrop (it's workspace). */
@@ -1236,18 +1251,22 @@ export const useGen = create<GenStore>((set, get) => ({
       if (!work.knob) work.knob = { color: null };
       if (!work.stateDesigns[sel]) work.stateDesigns[sel] = pickDesign(work);
       const d = work.stateDesigns[sel]!;
-      // older forks predate the per-state icon — mirror the master on first touch
-      if (!d.icon) d.icon = JSON.parse(JSON.stringify(work.icon)) as GenConfig["icon"];
+      /* the icon forks LAZILY: the state edits a working copy, and only an
+         actual icon change pins it to this state — otherwise the state
+         keeps following the master's icon (a fork born from a non-icon
+         edit froze the icon and master edits stopped showing, owner) */
+      const baseIcon = d.icon ?? work.icon;
+      const tIcon = JSON.parse(JSON.stringify(baseIcon)) as GenConfig["icon"];
       const t = Object.assign({}, work, {
         effects: d.effects, face: d.face, bevel: d.bevel, candy: d.candy,
         lighting: d.lighting, shadow: d.shadow, transparency: d.transparency, type: d.type,
-        icon: d.icon,
+        icon: tIcon,
       }) as GenConfig;
       Object.defineProperty(t, "shape", { get: () => d.shape, set: (v) => { d.shape = v; }, enumerable: true, configurable: true });
       fn(t);
       d.effects = t.effects; d.face = t.face; d.bevel = t.bevel; d.candy = t.candy;
       d.lighting = t.lighting; d.shadow = t.shadow; d.transparency = t.transparency; d.type = t.type;
-      d.icon = t.icon;
+      if (JSON.stringify(t.icon) !== JSON.stringify(baseIcon)) d.icon = t.icon;
       // the typeface is one decision for the whole component — weight, colors
       // and effects stay state-specific
       if (d.type.font !== work.type.font) {
@@ -1258,7 +1277,7 @@ export const useGen = create<GenStore>((set, get) => ({
          typeface) — color, effects, weight and pose stay state-specific
          ("I want to be able to change this per state", owner) */
       const gi = d.icon;
-      if (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || gi.show !== work.icon.show || gi.placement !== work.icon.placement || gi.only !== work.icon.only) {
+      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || gi.show !== work.icon.show || gi.placement !== work.icon.placement || gi.only !== work.icon.only)) {
         work.icon.def = gi.def; work.icon.show = gi.show; work.icon.placement = gi.placement; work.icon.only = gi.only;
         for (const other of Object.values(work.stateDesigns)) {
           if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
