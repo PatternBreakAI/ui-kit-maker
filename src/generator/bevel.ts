@@ -1092,6 +1092,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   /** Anchor text at its left edge (type specimens) — estimate error then
    *  lands on the ragged right instead of staggering every line. */
   anchorLeft?: boolean;
+  /** Pinned-design chrome (dialog frames, HUD panels, tracks): the design
+   *  RECIPE stays Default's — the piece's hot element carries hover — but
+   *  the GLOBAL state adjustments (brightness, saturation, glow, lift,
+   *  opacity) apply from the true state, so the state sliders are never
+   *  dead on these pieces (owner: "glow isn't working here"). */
+  pinDesign?: boolean;
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -1102,7 +1108,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     return bright(sat ? saturate(c, sat / 100) : c, adj.brightness);
   };
   const secondary = !!opts.secondary;
-  const D = designFor(cfg, state);
+  const D = designFor(cfg, opts.pinDesign && state !== "disabled" ? "default" : state);
   /* per-state icon rig — color/effects/weight/pose fork with the state,
      the glyph itself is component-wide (store.update enforces that) */
   const IC = D.icon ?? cfg.icon;
@@ -1279,7 +1285,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      base union together BEFORE the group-level blur, so an extruded piece
      glows around its full 3D mass instead of a face-shaped halo floating
      mid-depth. Flat pieces reduce to the single copy they always had. */
-  const auraC = disabled ? "#B9BEC6" : C.aura.color ? P(C.aura.color) : glowC;
+  /* the aura is an ADJUSTMENT-layer visual: even on pinned-design chrome
+     its color rides the TRUE state's candy, so a custom hover glow color
+     still shows on a pinned frame */
+  const CA = opts.pinDesign && state !== "disabled" ? designFor(cfg, state).candy : C;
+  const auraC = disabled ? "#B9BEC6" : CA.aura.color ? P(CA.aura.color) : glowC;
   const glowOp = (adj.glow / 100) * (secondary ? 0.4 : 1) * (disabled ? 0 : 1);
   const auraSweep = (() => {
     const n = Math.max(1, Math.ceil(visDepth / 6));
@@ -2182,8 +2192,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const k = SIZE_K[size];
   const bw = cfg.bevel.off ? 0 : cfg.bevel.width;
   // content text on kit pieces (counters, rows, segments) follows the global
-  // type Size and vertical nudge exactly like built labels do
-  const typeK = clamp(cfg.type.size / 52, 0.5, 2.2);
+  // type Size and vertical nudge exactly like built labels do — INCLUDING a
+  // state's own size fork: spacing/fill already read the state's type via
+  // contentText, but the size scale read only Default's, so editing Size on
+  // Pressed did nothing ("I can edit spacing but not size?", owner)
+  const typeKT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+  const typeK = clamp(typeKT.size / 52, 0.5, 2.2);
   // icon stroke weight rides the type controls — 1.0 at the default 24
   const iconWK = clamp((cfg.icon.strokeWidth ?? 24) / 24, 0.35, 1.8);
   const typeOyK = (opts.textOy ?? cfg.type.oy ?? 0);
@@ -2195,7 +2209,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      themselves (counters, segments, rows): fill mode incl. gradients, case,
      italic, tracking, outline, shadow and glow all follow the theme. */
   const contentText = (txt: string, x2: number, y2: number, fs2: number,
-    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string } = {}) => {
+    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -2219,8 +2233,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const prims4: ShadowSpec[] = [];
     const fd4 = (dx3: string, dy3: string, dev: number, col: string, op3: string): ShadowSpec =>
       [dx3, dy3, dev.toFixed(1), col, op3];
-    if (T4.shadow.on) prims4.push(fd4((T4.shadow.x * fsc4).toFixed(1), (T4.shadow.y * fsc4).toFixed(1), T4.shadow.blur * fsc4 * 0.5, T4.shadow.color, (T4.shadow.opacity / 100).toFixed(2)));
-    if (T4.glow.on && state !== "disabled") {
+    /* plain = a MUTED voice: unselected options keep the kit's ink but drop
+       the dress (outline, shadow, glow) — a heavy type treatment punches
+       through mere opacity and unselected reads as selected (owner: "the
+       non selected options aren't grayed out enough") */
+    if (!o2.plain && T4.shadow.on) prims4.push(fd4((T4.shadow.x * fsc4).toFixed(1), (T4.shadow.y * fsc4).toFixed(1), T4.shadow.blur * fsc4 * 0.5, T4.shadow.color, (T4.shadow.opacity / 100).toFixed(2)));
+    if (!o2.plain && T4.glow.on && state !== "disabled") {
       prims4.push(fd4("0", "0", T4.glow.size * 0.3, T4.glow.color, (T4.glow.opacity / 100).toFixed(2)));
       prims4.push(fd4("0", "0", T4.glow.size * 0.8, T4.glow.color, ((T4.glow.opacity / 100) * 0.6).toFixed(2)));
     }
@@ -2237,7 +2255,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const rx4 = o2.anchor === "middle" ? x2 - estW4 / 2 : o2.anchor === "end" ? x2 - estW4 : x2;
       defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="${(rx4 - spread4).toFixed(0)}" y="${(y2 + typeOyK * k - fs2 - spread4).toFixed(0)}" width="${(estW4 + spread4 * 2).toFixed(0)}" height="${(fs2 * 2 + spread4 * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
     }
-    const outline4 = T4.outline.on && state !== "disabled"
+    const outline4 = T4.outline.on && state !== "disabled" && !o2.plain
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
       : "";
     /* italic optical centering: slanted glyphs overhang to the right, so a
@@ -2344,8 +2362,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      its glow never clip — in the live app, on the Board or in a PNG. */
   const applyDock = (host: string, dock: NonNullable<KitOpts["dock"]>, shellX: number, shellW: number, cy: number, D: number): string => {
     const dIcon = dock.icon === null ? null : (dock.icon ?? STOCK_ICONS.clock ?? null);
-    const piece = build(cfg, state === "disabled" ? "disabled" : "default",
-      { x: 33, y: 27, h: D, fs: 0, iconSize: D * 0.5 }, { iconDef: dIcon, label: "", fixedW: D, shapeOverride: sov });
+    const piece = build(cfg, state,
+      { x: 33, y: 27, h: D, fs: 0, iconSize: D * 0.5 }, { pinDesign: true, iconDef: dIcon, label: "", fixedW: D, shapeOverride: sov });
     const pvb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(piece);
     const psh = /data-shell="([-\d. ]+)"/.exec(piece);
     const pw = /width="([\d.]+)"/.exec(piece);
@@ -2418,17 +2436,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const sel = clamp(Math.round(value ?? 1), 0, 2);
       const selX = zoneX + segW * sel;
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
-      const t = (label: string, cx: number, op: number) =>
-        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op });
+      // selected keeps the full type flavor; unselected go QUIET AND PLAIN —
+      // dimming alone loses to outlined/shadowed type treatments
+      const t = (label: string, cx: number, op: number, plain = false) =>
+        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op, plain });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
-      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.55)).join("")), zoneX, zoneW);
+      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.45, i !== sel)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
       // stateful: a dead (dim) check sits in the well until clicked alive.
       // rendered on the resting state only — checks never grow on hover.
       const lit = (value ?? 1) > 0.5;
       const ch = 118 * k;
-      const track = build(cfg, state === "disabled" ? "disabled" : "default", { x: 33, y: 27, h: ch, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: ch, shapeOverride: sov });
+      const track = build(cfg, state, { x: 33, y: 27, h: ch, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", fixedW: ch, shapeOverride: sov });
       const inset3 = bw + 4;
       const wellP = shapePath(sov ?? cfg.shape, 33 + inset3, 27 + inset3, ch - inset3 * 2, ch - inset3 * 2, Math.max(0, cfg.bevel.softness - 10));
       const ck = lit
@@ -2441,7 +2461,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // lights solid when selected — resting state only, marks never grow
       const lit2 = (value ?? 1) > 0.5;
       const ch2 = 118 * k;
-      const track2 = build(cfg, state === "disabled" ? "disabled" : "default", { x: 33, y: 27, h: ch2, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: ch2, shapeOverride: sov });
+      const track2 = build(cfg, state, { x: 33, y: 27, h: ch2, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", fixedW: ch2, shapeOverride: sov });
       const insetR = bw + 4;
       const wellR = shapePath(sov ?? cfg.shape, 33 + insetR, 27 + insetR, ch2 - insetR * 2, ch2 - insetR * 2, Math.max(0, cfg.bevel.softness - 10));
       const rcx = 33 + ch2 / 2, rcy = 27 + ch2 / 2, rr = ch2 * 0.17;
@@ -2731,7 +2751,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          secondary (LATER). Hover lights the armed capsule, pressed depresses
          it; the frame itself only ever dims for disabled. */
       const armedSecondary = (value ?? 0) >= 0.5;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const title = contentText(opts.label ?? "QUEST COMPLETE", 42 + w / 2, 33 + inset + 34 * k, 38 * k * typeK, { anchor: "middle" });
       const wellY = 33 + inset + 68 * k;
@@ -2833,7 +2853,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const h = rowH * n9 + 44 * k;
       /* editing contract: hover/pressed restyle the ACTIVE ROW (fill, ring,
          glyph glow); the frame only dims for disabled. */
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 8 * k;
       // floor mapping: value sweeps LINEARLY across the rows, so a pointer
       // riding the stamped vertical track highlights the row under it
@@ -2868,7 +2888,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const w = 66 * k, h = 380 * k;
       /* editing contract: hover/pressed restyle the THUMB; the rail only
          dims for disabled. */
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 5 * k;
       const tx0 = 39 + w / 2;
       const trackW = Math.max(10 * k, w - inset * 2 - 18 * k);
@@ -2999,7 +3019,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          EDITING CONTRACT: value drives the knob (draggable in play mode);
          the row itself has no hover state — the slider is the interaction. */
       const w = 640 * k, h = 100 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 6 * k;
       const cy = 30 + h / 2;
       const vS0 = clamp(value ?? 0.7, 0, 1);
@@ -3400,7 +3420,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          editing contract: hover/pressed strengthen the ACTIVE objective's
          marker; the frame only dims for disabled. */
       const w = 520 * k, h = 384 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const x0 = 42 + inset + 16 * k, xr = 42 + w - inset - 16 * k;
       const doneN = clamp(Math.round(clamp(value ?? 0.6, 0, 1) * 3), 0, 3);
@@ -3446,7 +3466,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          editing contract: hover/pressed target the CONTINUE ARROW; the
          frame only dims for disabled. */
       const w = 760 * k, h = 230 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const plateW = 232 * k, plateH = 46 * k;
       const px0 = 42 + inset + 12 * k, py0 = 33 - plateH * 0.42;
@@ -3476,7 +3496,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          choice; the frame only dims for disabled. */
       const w = 560 * k, rowH = 78 * k, nCh = 3;
       const h = rowH * nCh + 56 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       // floor mapping — same pointer-track contract as the list menu
       const sel = clamp(Math.floor(clamp(value ?? 0, 0, 1) * nCh), 0, nCh - 1);
@@ -3505,7 +3525,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cell = (w - insetI * 2 - 12 * k - (cols - 1) * gap) / cols;
       const headH = 52 * k;
       const h = insetI * 2 + headH + rowsI * cell + (rowsI - 1) * gap + 14 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const gx0 = 42 + insetI + 6 * k, gy0 = 33 + insetI + headH;
       const items: (keyof typeof STOCK_ICONS | null)[] = ["sword", "shield", "flask", "gem", "scroll", "key", "helmet", "boots", "zap", null, null, null];
       const counts: Record<number, string> = { 2: "5", 3: "14" };
@@ -3935,7 +3955,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          seconds default to AUTO ink (themedText re-themes); bar follows
          Glow, blending to the semantic ready-green. */
       const w = 340 * k, h = 168 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 8 * k;
       const cxR9 = 39 + w / 2;
       const vR9 = clamp(value ?? 0.6, 0, 1);
@@ -4459,7 +4479,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the seconds follow the AUTO-ink instrument contract (themedText
          re-themes). */
       const s = 150 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h: s, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: s, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h: s, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: s, shapeOverride: sov });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
@@ -4683,7 +4703,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the full summary); title + per-slot qty slots; frame dims only
          for disabled. */
       const w = 560 * k, h = 158 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw] = shellM[1].split(" ").map(Number);
@@ -4725,7 +4745,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          disabled dims the whole rite. In an engine the chest is its own
          sprite — this is the stage it lands on. */
       const w = 500 * k, h = 330 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
@@ -4953,7 +4973,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the team names; value = match clock; the well keeps everything
          legible on any face. */
       const w = 640 * k, h = 96 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 104 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 104 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 5 * k;
       const cy = 30 + h / 2;
       const TA = "#38BDF8", TB = "#FF4D5A";
@@ -5051,8 +5071,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cE = dE / 2 + padE9, rE = dE / 2;
       const hubR = dE * 0.16;
       const gidE9 = "ew" + UID++;
-      const emotes = [STOCK_ICONS.heart, STOCK_ICONS.star, STOCK_ICONS.zap, STOCK_ICONS.check, STOCK_ICONS.gem, STOCK_ICONS.warning];
-      const nE9 = emotes.length;
+      /* sector count + every sector's emote are SLOTS now ("this component
+         isn't very editable", owner). A named pick resolves against the
+         stock set; unset sectors keep the factory cycle. */
+      const stockCycle = [STOCK_ICONS.heart, STOCK_ICONS.star, STOCK_ICONS.zap, STOCK_ICONS.check, STOCK_ICONS.gem, STOCK_ICONS.warning, STOCK_ICONS.trophy, STOCK_ICONS.sword];
+      const nE9 = clamp(parseInt(opts.slots?.sectors ?? "6", 10) || 6, 4, 8);
+      const emotes = Array.from({ length: nE9 }, (_, i) => {
+        const pick = opts.slots?.[`emote${i + 1}`];
+        return (pick && STOCK_ICONS[pick.toLowerCase()]) || stockCycle[i % stockCycle.length];
+      });
       const selE9 = clamp(Math.floor(((clamp(value ?? 0, 0, 0.999)) % 1) * nE9), 0, nE9 - 1);
       const hotE9 = state === "hover" || state === "pressed";
       let sect = "";
@@ -5106,7 +5133,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          progress along the segment; premium tiles carry the gold semantic;
          the frame only dims for disabled. */
       const w = 640 * k, h = 210 * k;
-      const shell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const vS1 = clamp(value ?? 0.5, 0, 1);
       const GOLD = "#FACC15";
@@ -5250,7 +5277,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           `<g${emblemFx(9 * k, glow)}>${themedIcon(emb, cxP - embS / 2, cyP - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g></g>`;
       }
       parts += sparkP(39 + w * 0.24, 30 + h * 0.26, 6 * k) + sparkP(39 + w * 0.78, 30 + h * 0.32, 8 * k) + sparkP(39 + w * 0.3, 30 + h * 0.66, 5 * k);
-      parts += `<g data-part="label"><text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text></g>`;
+      /* count line: glow-tinted foil ink by factory — but an explicit type
+         fork or per-piece text color re-themes it (opts.themedText), same
+         contract as every instrument readout (owner: "it's not obeying
+         the text controls") */
+      parts += `<g data-part="label">${opts.themedText
+        ? contentText(opts.label ?? "12 CARDS", cxP, 30 + h * 0.72, 19 * k * typeK, { anchor: "middle", keepCase: true, track: 2, autoInk: hexMix(glow, "#FFFFFF", 0.4) })
+        : `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`}</g>`;
       parts += crimp(30 - 2 * k) + crimp(30 + h - 32 * k);
       return inject(track.replace("<svg ", '<svg data-pack="1" '), parts);
     }
@@ -5643,7 +5676,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const tiles = segs.map((sg, i) => {
         const x = pad3 + i * (tw + gap2);
         const midY = pad3 + th / 2;
-        const shellSvg2 = themedTiles ? build(cfg, state === "disabled" ? "disabled" : "default", { x: 33, y: 27, h: th, fs: 0, iconSize: 0 }, { iconDef: null, label: "", shapeOverride: sov, fixedW: tw }) : "";
+        const shellSvg2 = themedTiles ? build(cfg, state, { x: 33, y: 27, h: th, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", shapeOverride: sov, fixedW: tw }) : "";
         const shm = themedTiles ? /data-shell="([-\d. ]+)"/.exec(shellSvg2) : null;
         const [tsx, tsy] = shm ? shm[1].split(" ").map(Number) : [33, 27];
         const tileInner = themedTiles ? shellSvg2.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "") : "";
@@ -5710,7 +5743,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // container exception: shapes that don't read as a square watch housing
       // fall back to the neutral circular body (curated `supports: "timer"`)
       const swMeta = silhouetteMeta(sov ?? cfg.shape);
-      const swShell = build(cfg, state === "disabled" ? "disabled" : "default", { x: 33, y: 27, h: d2, fs: 0, iconSize: 0 }, { iconDef: null, label: "", shapeOverride: swMeta && swMeta.supports.includes("timer") ? sov : "round", fixedW: d2 });
+      const swShell = build(cfg, state, { x: 33, y: 27, h: d2, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", shapeOverride: swMeta && swMeta.supports.includes("timer") ? sov : "round", fixedW: d2 });
       const swSh = /data-shell="([-\d. ]+)"/.exec(swShell);
       const [ssx, ssy, ssw, ssh] = swSh ? swSh[1].split(" ").map(Number) : [33, 27, d2, d2];
       const swInner = swShell.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");

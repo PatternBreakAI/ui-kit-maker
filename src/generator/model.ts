@@ -895,6 +895,13 @@ export type SlotDef = {
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
 };
+/* The emote wheel's pickable set — display names that resolve to
+   STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
+   unset state: each sector keeps its own factory glyph, so the panel never
+   claims every sector is a heart. Curated to glyphs that read as emotes at
+   wheel-sector size. */
+const EMOTE_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
     { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
@@ -946,6 +953,20 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   chatbubble: [
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
     { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
+  ],
+  emotewheel: [
+    /* the wheel was barely editable ("this component isn't very editable",
+       owner) — count and every sector emote are the wheel's real content */
+    { id: "sectors", name: "Sectors", kind: "choice", choices: ["4", "6", "8"],
+      note: "How many emotes the wheel offers. Selection still rides the Value slider and play-mode clicks; sector slots past the count are ignored." },
+    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: EMOTE_CHOICES },
   ],
   friendrow: [
     { id: "status", name: "Status line", kind: "free", def: "In Match · Ranked", maxLen: 32,
@@ -1253,6 +1274,17 @@ export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c
  *  pieces only for the admin (who tests them before release). */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
   !STAGED_KIT.has(id) || releases[id] === "released" || admin;
+
+/** How much label a piece can carry. Reading-line pieces (dialogue lines,
+ *  toasts, messages) hold sentences; identity labels stay tight. The old
+ *  blanket 32 cut the dialogue box's own 40-char default off mid-word
+ *  (owner: "text entry field cuts off too early"). Caps are sized to what
+ *  each piece renders without spilling its face — not to a round number. */
+export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
+  dialoguebox: 48, dialog: 48, tooltip: 48, toast: 40, chatbubble: 40,
+  killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
+};
+export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the

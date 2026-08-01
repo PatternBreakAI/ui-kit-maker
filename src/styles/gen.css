@@ -554,20 +554,38 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-pop);
 }
 
-/* ── v17: focus banner + edit cue ─────────────────────────────── */
-.focusnote {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+/* ── the scope bar — where edits land, stated before you edit
+   (replaces the v17 focus banner + its scattered verb buttons) ── */
+.scopebar {
   margin: 0 0 14px; padding: 10px 12px; border-radius: 11px;
   border: 1px solid var(--line2); background: var(--soft); color: var(--ink);
-  font-size: 12.5px; line-height: 1.45;
 }
-.focusnote b { font-weight: 700; }
-.focusnote button {
-  margin-left: auto; height: 28px; padding: 0 12px; border-radius: 9px;
-  border: 1px solid var(--line2); background: var(--card); color: var(--ink);
-  font-size: 12px; font-weight: 600; cursor: pointer;
+.scopeseg { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line2); border-radius: 10px; padding: 3px; }
+.scopeseg button {
+  flex: 1; min-width: 0; height: 30px; border: 0; border-radius: 8px; background: none;
+  color: var(--ink2); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 10px;
 }
-.focusnote button:hover { background: var(--soft); }
+.scopeseg button.on { background: var(--ink); color: var(--card); }
+.scopeseg button:disabled { opacity: .45; cursor: default; }
+.scopehint { margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--ink2); }
+.scopehint b { font-weight: 700; color: var(--ink); }
+.scopehint svg { vertical-align: -1px; margin-right: 2px; }
+.scopeverbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.scopeverbs button {
+  height: 26px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line2);
+  background: var(--card); color: var(--ink); font-size: 11.5px; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+}
+.scopeverbs button:hover { background: var(--soft); }
+/* the admin publishing desk inside Looks — one quiet folded row */
+.adminlooks { margin-top: 12px; border-top: 1px dashed var(--line2); padding-top: 10px; }
+.adminlooks-toggle {
+  display: inline-flex; align-items: center; gap: 6px; border: 0; background: none;
+  color: var(--ink2); font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+  cursor: pointer; padding: 2px 0;
+}
+.adminlooks-toggle:hover { color: var(--ink); }
 
 /* ── v18: library-save feedback ───────────────────────────────── */
 .randbtn.okflash { border-color: #2FA36B; color: #1E7A4E; background: rgba(47,163,107,0.1); }
@@ -778,7 +796,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .gp-label { position: relative; z-index: 1; }
 
 /* ── v28: alive kit, locks, floating toolbar ──────────────────── */
-.lockrow { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 8px; margin-top: 4px; border-top: 1px dashed var(--line2); }
+.lockrow { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 8px; margin-top: 4px; border-top: 1px dashed var(--line2); } /* retired with the focus banner — kept one release for muscle memory in forks */
 .lockrow .lockstate { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--ink2); flex-basis: 100%; }
 .lockrow button {
   margin-left: 0; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
