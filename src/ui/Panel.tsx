@@ -130,6 +130,13 @@ export function Rail() {
         onClick={() => { if (currentSession()) window.location.hash = "#/account"; else openAuth("signin"); }}>
         <Settings size={22} strokeWidth={1.7} />
       </button>
+      {/* which build the EDITOR is running — the kit page and homepage
+          already carry the stamp, but the editor is where the owner lives
+          when judging a deploy ("i've never seen the version number on the
+          actual app"). Sha only; the full stamp rides the tooltip. */}
+      <span className="rail-build" title={`Build ${__BUILD_STAMP__}`} aria-label={`Build ${__BUILD_STAMP__}`}>
+        {__BUILD_STAMP__.split(" ")[0]}
+      </span>
     </nav>
   );
 }

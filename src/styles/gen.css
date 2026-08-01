@@ -151,6 +151,8 @@ button { font-family: inherit; color: inherit; }
 .rail button.rail-dest.on { background: #17181c; color: #fff; box-shadow: 0 6px 16px rgba(15,17,26,.25); }
 [data-theme="dark"] .rail button.rail-dest.on { background: #e9eaef; color: #17181c; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
 .rail-div { width: 30px; height: 1px; background: var(--line); margin: 3px 0 5px; flex: none; }
+/* the editor's build stamp — quiet wayfinding under the gear, never a control */
+.rail-build { font-size: 8.5px; letter-spacing: 0.04em; color: var(--muted, #9aa0ae); opacity: 0.75; user-select: all; cursor: default; padding-bottom: 2px; }
 
 /* panel */
 /* The inspector column is the single scroll container. The scrollbar lane is
