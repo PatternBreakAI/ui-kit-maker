@@ -2199,7 +2199,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      themselves (counters, segments, rows): fill mode incl. gradients, case,
      italic, tracking, outline, shadow and glow all follow the theme. */
   const contentText = (txt: string, x2: number, y2: number, fs2: number,
-    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string } = {}) => {
+    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -2223,8 +2223,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const prims4: ShadowSpec[] = [];
     const fd4 = (dx3: string, dy3: string, dev: number, col: string, op3: string): ShadowSpec =>
       [dx3, dy3, dev.toFixed(1), col, op3];
-    if (T4.shadow.on) prims4.push(fd4((T4.shadow.x * fsc4).toFixed(1), (T4.shadow.y * fsc4).toFixed(1), T4.shadow.blur * fsc4 * 0.5, T4.shadow.color, (T4.shadow.opacity / 100).toFixed(2)));
-    if (T4.glow.on && state !== "disabled") {
+    /* plain = a MUTED voice: unselected options keep the kit's ink but drop
+       the dress (outline, shadow, glow) — a heavy type treatment punches
+       through mere opacity and unselected reads as selected (owner: "the
+       non selected options aren't grayed out enough") */
+    if (!o2.plain && T4.shadow.on) prims4.push(fd4((T4.shadow.x * fsc4).toFixed(1), (T4.shadow.y * fsc4).toFixed(1), T4.shadow.blur * fsc4 * 0.5, T4.shadow.color, (T4.shadow.opacity / 100).toFixed(2)));
+    if (!o2.plain && T4.glow.on && state !== "disabled") {
       prims4.push(fd4("0", "0", T4.glow.size * 0.3, T4.glow.color, (T4.glow.opacity / 100).toFixed(2)));
       prims4.push(fd4("0", "0", T4.glow.size * 0.8, T4.glow.color, ((T4.glow.opacity / 100) * 0.6).toFixed(2)));
     }
@@ -2241,7 +2245,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const rx4 = o2.anchor === "middle" ? x2 - estW4 / 2 : o2.anchor === "end" ? x2 - estW4 : x2;
       defs4 += `<filter id="${gid4}f" filterUnits="userSpaceOnUse" x="${(rx4 - spread4).toFixed(0)}" y="${(y2 + typeOyK * k - fs2 - spread4).toFixed(0)}" width="${(estW4 + spread4 * 2).toFixed(0)}" height="${(fs2 * 2 + spread4 * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims4)}</filter>`;
     }
-    const outline4 = T4.outline.on && state !== "disabled"
+    const outline4 = T4.outline.on && state !== "disabled" && !o2.plain
       ? ` stroke="${T4.outline.color}" stroke-width="${(T4.outline.width * (fs2 / 52)).toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`
       : "";
     /* italic optical centering: slanted glyphs overhang to the right, so a
@@ -2422,10 +2426,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const sel = clamp(Math.round(value ?? 1), 0, 2);
       const selX = zoneX + segW * sel;
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
-      const t = (label: string, cx: number, op: number) =>
-        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op });
+      // selected keeps the full type flavor; unselected go QUIET AND PLAIN —
+      // dimming alone loses to outlined/shadowed type treatments
+      const t = (label: string, cx: number, op: number, plain = false) =>
+        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op, plain });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
-      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.55)).join("")), zoneX, zoneW);
+      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.45, i !== sel)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
       // stateful: a dead (dim) check sits in the well until clicked alive.
