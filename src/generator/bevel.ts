@@ -1215,15 +1215,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const depthCap = 48 * K * (secondary ? 0.55 : 1);
   const maxDepth = Math.max(depth, depthCap, ...forks.map((f) => f.candy.extrusion.depth * K * (secondary ? 0.55 : 1)));
   const riseDy = Math.max(0, maxDepth - depth);
-  /* room below sized from the drop shadow ITSELF at FOUR sigma: at 3σ a
-     strong shadow's remaining ~0.3% intensity still drew a faint straight
-     edge on light stages (owner caught it on build 797bb15); at 4σ the
-     residual is ~0.01% — beneath any display's quantization. Sized across
-     state forks so the footprint never changes between states. */
-  const shadowBelow = Math.max(
-    (D.shadow.opacity ?? 0) > 0.5 ? D.shadow.distance * K + D.shadow.blur * 2 : 0,
-    ...forks.map((f) => ((f.shadow?.opacity ?? 0) > 0.5 ? (f.shadow?.distance ?? 0) * K + (f.shadow?.blur ?? 0) * 2 : 0)),
-  );
+  /* room below for the drop shadow — at FOUR sigma: at 3σ a strong
+     shadow's remaining ~0.3% intensity still drew a faint straight edge on
+     light stages (owner caught it on build 797bb15). And like the depth
+     cap above and the glow pad below, the reserve is the SLIDERS' FULL
+     TRAVEL (Distance 48, Blur 60 — the Panel's maxima) whenever any
+     state's shadow is on at all: dragging Distance or Blur must never
+     resize the canvas — the piece stays planted and the blur is what
+     moves (owner: "when I add blur the component shouldn't move"). */
+  const shadowOn = (D.shadow.opacity ?? 0) > 0.5 || forks.some((f) => (f.shadow?.opacity ?? 0) > 0.5);
+  const shadowBelow = shadowOn ? 48 * K + 60 * 2 : 0;
   const vw = x * 2 + w, vh = y * 2 + h + Math.ceil(maxDepth) + Math.max(40, Math.ceil(shadowBelow + 16));
 
   /* The state aura blurs far past the shell (σ up to 30 → ~2.5σ visible reach),
