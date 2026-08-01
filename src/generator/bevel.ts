@@ -2480,11 +2480,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          knob still owns the leading edge. Stock stadium: region == pill,
          nothing changes. */
       const clipSl = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+      /* the fill's START end is SQUARE and runs 2px past the clip so the
+         silhouette region shapes it (a self-rounded end pulled inside the
+         contour and left a dead sliver at the cap — "the mercury doesn't
+         follow the shape silhouette", owner). The knob edge keeps its bead. */
+      const rSl = Math.min(bh / 2, Math.max(2, fillW / 2));
+      const slFill = `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(bx + fillW - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${by.toFixed(1)} ${(bx + fillW).toFixed(1)} ${(by + rSl).toFixed(1)} V ${(by + bh - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${(by + bh).toFixed(1)} ${(bx + fillW - rSl).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
       return stampTrack(inject(track,
         `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>
          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}<clipPath id="${gid}w"><path d="${clipSl}"/></clipPath></defs>
-         ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${roundRect(bx, by, fillW, bh, Math.min(bh / 2, fillW / 2))}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
-         <path d="${roundRect(bx + 2 * k, by + bh * 0.08, Math.max(0, fillW - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
+         ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${slFill}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
+         <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fillW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
         candyKnob(knobX, knobY, kr, knobC)), bx, trackW);
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
@@ -2543,10 +2549,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const v = clamp(value ?? 0.62, 0, 1);
       const cellW = (trackW - gap * (n - 1)) / n;
       const gid = "sg" + UID++;
-      // cells clip to the well silhouette so the first and last inherit the
-      // theme's corners while middle cells stay squared
+      /* cells clip to the MERCURY contour — the silhouette drawn at the
+         cell zone, inset from the well by the universal gap (progress's
+         construction). Clipping to the well itself went flush and ate the
+         gap; the end cells extend into the caps and this contour shapes
+         them ("they need that universal gap and follow the shape's
+         silhouette", owner). */
       const wellP = wellOf(w, h, inset);
-      const clip = `<clipPath id="${gid}c"><path d="${wellP}"/></clipPath>`;
+      const mercSil = shapePath(sov ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+      const clip = `<clipPath id="${gid}c"><path d="${mercSil}"/></clipPath>`;
       // cells shade top-to-bottom (candy lighting), never along the bar
       const grad = `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
       const dim = state === "disabled" ? 0.35 : 0.95;
@@ -2683,10 +2694,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <linearGradient id="${gid}r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>
         <clipPath id="${gid}w"><path d="${clipVs}"/></clipPath></defs>
         <g data-vs="1" clip-path="url(#${gid}w)">
-          ${vL > 0.01 ? `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vL).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
-          ${vR > 0.01 ? `<rect x="${(bx + trackW - halfW * vR).toFixed(1)}" y="${by.toFixed(1)}" width="${(halfW * vR).toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
-          <rect x="${(bx + trackW - halfW * vR + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vR - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>` : ""}
+          ${vL > 0.01 ? (() => {
+            /* outer end SQUARE past the clip — the silhouette region shapes
+               it with the universal gap; the drain edge keeps its bead */
+            const fxL = bx + halfW * vL, rL = Math.min(bh / 2, Math.max(2, (halfW * vL) / 2));
+            return `<path d="M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fxL - rL).toFixed(1)} Q ${fxL.toFixed(1)} ${by.toFixed(1)} ${fxL.toFixed(1)} ${(by + rL).toFixed(1)} V ${(by + bh - rL).toFixed(1)} Q ${fxL.toFixed(1)} ${(by + bh).toFixed(1)} ${(fxL - rL).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z" fill="url(#${gid}l)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(bx - 2).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vL + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          })() : ""}
+          ${vR > 0.01 ? (() => {
+            const x0R = bx + trackW - halfW * vR, rR = Math.min(bh / 2, Math.max(2, (halfW * vR) / 2));
+            return `<path d="M ${(bx + trackW + 2).toFixed(1)} ${by.toFixed(1)} H ${(x0R + rR).toFixed(1)} Q ${x0R.toFixed(1)} ${by.toFixed(1)} ${x0R.toFixed(1)} ${(by + rR).toFixed(1)} V ${(by + bh - rR).toFixed(1)} Q ${x0R.toFixed(1)} ${(by + bh).toFixed(1)} ${(x0R + rR).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx + trackW + 2).toFixed(1)} Z" fill="url(#${gid}r)" opacity="${state === "disabled" ? 0.35 : 0.95}"/>
+          <rect x="${(x0R + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW * vR + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          })() : ""}
         </g>` +
         candyKnob(cxV, 30 + h / 2, h * 0.46, knobC) +
         `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;
