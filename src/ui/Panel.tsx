@@ -402,6 +402,25 @@ export function Panel() {
   const [parentErr, setParentErr] = useState<string | null>(null);
   // the admin publishing desk inside Looks — folded away by default
   const [adminLooksOpen, setAdminLooksOpen] = useState(false);
+  /* Shared presets published from the RELEASE DESK carry no stored
+     thumbnail — that publish happens on the server, which can't run the SVG
+     engine (api/admin.ts sends thumb: null), so the card came up blank
+     (owner: "the thumbnail isn't appearing"). The recipe is right there in
+     cfg, so draw the art here instead. Memoized per list — this heals every
+     past publish with no re-publish and no database work. */
+  const cloudArt = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const p of cloudPresets) {
+      if (p.thumb) continue;
+      try {
+        const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
+        for (const st of Object.values(tc.states)) st.glow = 0;
+        tc.content.label = "PLAY"; tc.icon.show = false;
+        out[p.id] = renderBevel(tc, "default");
+      } catch { /* a cfg we can't read just stays blank rather than crashing the tray */ }
+    }
+    return out;
+  }, [cloudPresets]);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */
@@ -791,14 +810,14 @@ export function Panel() {
             <button key={p.id} className="presetcard shared lockedp"
               title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? "" }} />
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? cloudArt[p.id] ?? "" }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
             </button>
           ) : (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
               title={heldUntil(p.publish_at) ? `${p.name} — held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} — preset pack`}
               onClick={() => applyCloudPreset(p.id)}>
-              {p.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb }} /> : <span className="presetart" />}
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? cloudArt[p.id] ?? "" }} />
               <span className="presetname">{p.name}</span>
               {/* Only an admin ever reaches this branch with a held pack —
                   the read policy hides unreleased rows from everyone else. */}
