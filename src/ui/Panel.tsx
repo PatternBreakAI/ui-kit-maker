@@ -424,14 +424,32 @@ export function Panel() {
       if (!merged.stateDesigns) merged.stateDesigns = {};
       if (!merged.stateDesigns[selectedState]) merged.stateDesigns[selectedState] = pickDesign(merged);
       const sd = merged.stateDesigns[selectedState]!;
+      /* the icon forks LAZILY here too — same contract as the store's update:
+         the state edits a working copy, and only an actual icon change pins
+         it to THIS state. The old path let the edit land on merged.icon,
+         which the rig-pin below stamped onto the whole PIECE — a hover
+         recolor painted every state (owner: "still changing every state"). */
+      const baseIcon = sd.icon ?? merged.icon;
+      const tIcon = JSON.parse(JSON.stringify(baseIcon)) as GenConfig["icon"];
       const t = Object.assign({}, merged, {
         effects: sd.effects, face: sd.face, bevel: sd.bevel, candy: sd.candy,
         lighting: sd.lighting, shadow: sd.shadow, transparency: sd.transparency, type: sd.type,
+        icon: tIcon,
       }) as GenConfig;
       Object.defineProperty(t, "shape", { get: () => sd.shape, set: (v) => { sd.shape = v; }, enumerable: true, configurable: true });
       fn(t);
       sd.effects = t.effects; sd.face = t.face; sd.bevel = t.bevel; sd.candy = t.candy;
       sd.lighting = t.lighting; sd.shadow = t.shadow; sd.transparency = t.transparency; sd.type = t.type;
+      if (JSON.stringify(t.icon) !== JSON.stringify(baseIcon)) sd.icon = t.icon;
+      // the GLYPH stays one decision for the piece (like the typeface) —
+      // color, effects, weight and pose are what fork per state
+      const gi = sd.icon;
+      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(merged.icon.def ?? null) || gi.show !== merged.icon.show || gi.placement !== merged.icon.placement || gi.only !== merged.icon.only)) {
+        merged.icon.def = gi.def; merged.icon.show = gi.show; merged.icon.placement = gi.placement; merged.icon.only = gi.only;
+        for (const other of Object.values(merged.stateDesigns)) {
+          if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
+        }
+      }
       if (JSON.stringify(before.stateDesigns ?? {}) !== JSON.stringify(merged.stateDesigns)) {
         // the piece's state forks pin wholesale — that's their storage grain
         setKitDesign(focus, { ...(kitDesigns[focus] ?? {}), stateDesigns: merged.stateDesigns });
@@ -524,6 +542,10 @@ export function Panel() {
   // Controls read from — and update() writes to — the selected state's own
   // design. Untouched states mirror Default live until first edited.
   const D = selectedState !== "default" ? (cfg.stateDesigns?.[selectedState] ?? cfg) : cfg;
+  // the icon rig the controls read: the selected state's pinned rig, else the
+  // piece/master rig — the same place update() sends the write, so the
+  // swatch always shows what the hero shows
+  const IC = (selectedState !== "default" ? cfg.stateDesigns?.[selectedState]?.icon : undefined) ?? cfg.icon;
   const presentRoles = EFFECT_ROLES.filter((r) => D.effects[r] !== undefined);
   const missingRoles = EFFECT_ROLES.filter((r) => D.effects[r] === undefined);
   const mapStops = presentRoles.map((r) => D.effects[r]!) as string[];
@@ -1093,7 +1115,18 @@ export function Panel() {
           )}
           {iconSwappable && !finLocked && (<>
           <div className="sublabel">Icon</div>
-          <div className="helper">Swap the glyph on <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Size, color, weight & effects live under <b>Typography → Icons</b>.</div>
+          <div className="helper">Swap the glyph on <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Color is right below; size, weight & effects live under <b>Typography → Icons</b>.</div>
+          {/* the color, where a human looks for it (owner) — same state and
+              routing as the Typography → Icons swatch, just surfaced here */}
+          <label className="check"><input type="checkbox" checked={IC.color === null}
+            onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
+          {IC.color !== null && (
+            <Well label={selectedState !== "default" ? `Color — ${STATE_LABEL[selectedState]} only` : "Icon color"}
+              value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />
+          )}
+          {selectedState !== "default" && (
+            <div className="helper">You're editing <b>{STATE_LABEL[selectedState]}</b> — this color pins to that state only. Pick Default in Global to set the resting color.</div>
+          )}
           <div className="actionrow">
             <button className={`resetstate${kitIcons[focus] === "none" ? " on" : ""}`} onClick={() => setKitIcon(focus, kitIcons[focus] === "none" ? null : "none")}>
               <Trash2 size={13} strokeWidth={2} /> {kitIcons[focus] === "none" ? "Icon removed — bring it back" : "Remove the icon"}
@@ -1827,14 +1860,17 @@ export function Panel() {
               else update((c) => { c.icon.show = e.target.checked; });
             }} /> Icon at the end of the text{focus ? ` — ${KIT_COMPONENTS.find((c) => c.id === focus)?.name}` : ""}</label>
         )}
-        <Slider label="Size" value={cfg.icon.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
-        <Slider label="Weight" value={cfg.icon.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
+        {selectedState !== "default" && (
+          <div className="helper">Editing <b>{STATE_LABEL[selectedState]}</b> — these dials pin to this state; the other states keep following the main icon.</div>
+        )}
+        <Slider label="Size" value={IC.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
+        <Slider label="Weight" value={IC.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
         {/* the icon border rides Type → Outline width until it takes its own —
             same inherit-with-escape-hatch contract as the color below */}
         {T2.outline.on && (<>
-          <Slider label="Outline width" value={cfg.icon.outlineWidth ?? T2.outline.width} min={0} max={8} step={0.5} unit="px"
+          <Slider label="Outline width" value={IC.outlineWidth ?? T2.outline.width} min={0} max={8} step={0.5} unit="px"
             onChange={(v) => update((c) => { c.icon.outlineWidth = v; })} />
-          {cfg.icon.outlineWidth != null ? (
+          {IC.outlineWidth != null ? (
             <button className="resetstate" title="Drop the icon's own width — the border follows Type → Outline again"
               onClick={() => update((c) => { c.icon.outlineWidth = null; })}>
               <RotateCcw size={13} strokeWidth={2} /> Follow the type outline
@@ -1843,15 +1879,15 @@ export function Panel() {
             <div className="helper">Following <b>Type → Outline</b> — move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline.</div>
           )}
         </>)}
-        <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
-        <Slider label="Rotation" value={cfg.icon.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
-        <label className="check"><input type="checkbox" checked={cfg.icon.color === null}
+        <Slider label="Opacity" value={IC.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
+        <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
+        <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
-        {cfg.icon.color !== null && <Well label="Custom color" value={cfg.icon.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
+        {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
         <div className="sublabel">Icon effects</div>
         <div className="fxrow">
           {(["shadow", "glow", "emboss"] as const).map((f) => (
-            <button key={f} className={`fxchip${cfg.icon.fx[f] ? " on" : ""}`} aria-pressed={cfg.icon.fx[f]}
+            <button key={f} className={`fxchip${IC.fx[f] ? " on" : ""}`} aria-pressed={IC.fx[f]}
               onClick={() => update((c) => { c.icon.fx[f] = !c.icon.fx[f]; })}>
               {f[0].toUpperCase() + f.slice(1)}
             </button>

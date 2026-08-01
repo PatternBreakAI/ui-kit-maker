@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck } from "lucide-react";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
@@ -24,7 +24,7 @@ function Logo() {
    The account button opens the shell's AuthOverlay; the old inline
    AccountMenu popover is retired. */
 export function TopBar() {
-  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier } = useGen();
+  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier, isAdmin } = useGen();
   const tcaps = capsOf(tier);
   /* Per-artifact, not one blanket "vectors yes/no" — student buys the
      learning formats and stops short of the shipping ones, so the game kit
@@ -119,6 +119,16 @@ export function TopBar() {
           title={theme === "dark" ? "Light mode" : "Dark mode"}>
           {theme === "dark" ? <Sun size={17} strokeWidth={1.9} /> : <Moon size={17} strokeWidth={1.9} />}
         </button>
+
+        {/* one click to the desks for admin accounts — no more typing #/admin
+            by hand (owner). Renders on the client flag only; every desk
+            re-verifies is_admin server-side. */}
+        {isAdmin && (
+          <button className="acct" onClick={() => navigate("#/admin")}
+            aria-label="Admin desk" title="Admin desk — only admin accounts see this">
+            <ShieldCheck size={17} strokeWidth={1.9} />
+          </button>
+        )}
 
         <button className={`acct${cloud.state === "synced" ? " on" : ""}`} onClick={() => openAuth("signin")}
           aria-label={t("account")} title={cloud.email ? `${t("account")} — ${cloud.email}` : t("account")}>

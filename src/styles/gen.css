@@ -1722,6 +1722,10 @@ button.kp-fact { cursor: pointer; }
 /* ── the staging bay — admin-only release desk at the top of the kit ── */
 /* the bay reads as a GRID of candidate cards, not a docket of rows —
    each piece is one card: art above, verdict + actions below (owner call) */
+/* collapsed bay: one quiet row — never louder than the document around it */
+.kp-baycollapsed { margin-top: 30px; }
+.kp-baytoggle { display: inline-flex; align-items: center; gap: 7px; border: 1px dashed var(--kp-line); background: none; border-radius: 999px; padding: 7px 15px; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; color: var(--kp-ink3); cursor: pointer; }
+.kp-baytoggle:hover { color: var(--kp-ink); border-color: var(--kp-ink3); }
 .kp-baygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; align-items: stretch; }
 .kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--line2); border-radius: 14px; background: var(--card); }
 .kp-bayrow .kp-tray { display: flex; justify-content: center; }

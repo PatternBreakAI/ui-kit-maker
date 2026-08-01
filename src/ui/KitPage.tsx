@@ -385,11 +385,13 @@ function useStagedHidden(id: KitComponentId): boolean {
 }
 
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
-function Piece(p: PieceOpts & { caption: string; ambient?: boolean }) {
+function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolean }) {
   // gate as a wrapper so the locked and live variants keep separate hook trees
   const tier = useGen((s) => s.tier);
   const stagedHidden = useStagedHidden(p.id);
-  if (stagedHidden) return null;
+  // the bay is the ONE place a staged piece renders — its cards opt out of
+  // the gate that keeps staged pieces off every public surface
+  if (stagedHidden && !p.bay) return null;
   if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={p.caption} />;
   return <PieceInner {...p} />;
 }
@@ -963,6 +965,10 @@ function patternTileUrl(cfg: GenConfig): string {
 
 export function KitPage() {
   const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, update, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
+  // the staging bay opens by hand only — it must never pop up mid-demo
+  // (owner: "when I'm showing off the site, I don't want that stuff to
+  // immediately pop up"), so collapsed is the default every load
+  const [bayOpen, setBayOpen] = useState(false);
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
@@ -1507,9 +1513,17 @@ const kitTier = useGen((s) => s.tier);
           if (confirmMsg && !window.confirm(confirmMsg)) return;
           void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
         };
+        if (!bayOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
+            </button>
+          </section>
+        );
         return (
           <Sec n="00" title="The staging bay"
             note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
             {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
             <div className="kp-baygrid">
               {inBay.map((sid) => {
@@ -1518,7 +1532,7 @@ const kitTier = useGen((s) => s.tier);
                 return (
                   <div className="kp-bayrow" key={sid}>
                     <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} />
+                      <Piece id={sid} caption={nm} scale={0.5} bay />
                     </div>
                     <div className="kp-bayside">
                       <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
