@@ -2250,8 +2250,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      no outline: the color group's darkest role (Shadow) on light faces,
      near-white on dark faces. Not themed; theme voice is contentText. */
   const infoInk = cfg.face.mode === "dark" ? "rgba(255,255,255,0.88)" : darken(effect(cfg.effects, "Shadow"), 0.15);
-  const infoText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800) =>
-    `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="${infoInk}" text-anchor="${anchor2}" dominant-baseline="central">${esc(txt)}</text>`;
+  const infoText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800, ink2?: string) =>
+    `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="${ink2 ?? infoInk}" text-anchor="${anchor2}" dominant-baseline="central">${esc(txt)}</text>`;
   /* HUD text for SPATIAL pieces and always-dark grounds (live footage,
      instrument wells): white with the tight dark understroke. */
   const hudText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800) =>
@@ -2553,19 +2553,32 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const lit = Math.round(v * n);
         for (let i = 0; i < n; i++) {
           const cx0 = bx + i * (cellW + gap);
-          // every cell is the SAME rounded rect, floating in the well's
-          // negative space — end cells no longer bleed into the caps
           const on = i < lit;
-          const body = `<rect x="${cx0.toFixed(1)}" y="${by.toFixed(1)}" width="${cellW.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min((2 + cfg.bevel.softness * 0.16) * k, cellW * 0.3, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
-          if (on) litCells += body + `<rect x="${cx0.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          /* the END cells run past the pad INTO the caps and take their
+             contour from the well clip — the mercury follows the
+             silhouette instead of floating as loose rects at the ends
+             ("the mercury in these segments don't follow the silhouette",
+             owner). Middle cells stay the same rounded units. */
+          const isFirst = i === 0, isLast = i === n - 1;
+          const xC = isFirst ? 39 + inset - 1 : cx0;
+          const wC = cellW + (isFirst ? cx0 - (39 + inset - 1) : 0) + (isLast ? gapPad + 1 : 0);
+          const body = `<rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min((2 + cfg.bevel.softness * 0.16) * k, cellW * 0.3, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
+          if (on) litCells += body + `<rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
           else offCells += body;
         }
       } else {
         const fw2 = trackW * v;
         if (fw2 > 1) {
-          // full pill rounding — a squarer radius fought the well's cap curve
-          litCells += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${fw2.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}" fill="url(#${gid})" opacity="${dim}"/>
-            <rect x="${(bx + 3 * k).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, fw2 - 6 * k).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          /* the fill's LEFT end runs into the cap and takes the silhouette
+             from the well clip; only the travelling head keeps its own
+             rounding. At full, the head marries the right cap the same way. */
+          const xF = 39 + inset - 1;
+          const headX = bx + fw2;
+          const full = v > 0.995;
+          const r5 = full ? 0 : Math.min(bh / 2, fw2 * 0.5);
+          const endX = full ? 39 + w - inset + 1 : headX;
+          litCells += `<path d="M ${xF.toFixed(1)} ${by.toFixed(1)} H ${(endX - r5).toFixed(1)} Q ${endX.toFixed(1)} ${by.toFixed(1)} ${endX.toFixed(1)} ${(by + Math.min(r5, bh / 2)).toFixed(1)} V ${(by + bh - Math.min(r5, bh / 2)).toFixed(1)} Q ${endX.toFixed(1)} ${(by + bh).toFixed(1)} ${(endX - r5).toFixed(1)} ${(by + bh).toFixed(1)} H ${xF.toFixed(1)} Z" fill="url(#${gid})" opacity="${dim}"/>
+            <rect x="${(xF + 3 * k).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, endX - xF - 6 * k).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
         }
         // the gap notches carve the fill into segments
         for (let i = 1; i < n; i++) {
@@ -3618,7 +3631,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const crit = vD > 0.7;
       const amt = opts.label ?? Math.round(120 + vD * 1800).toLocaleString("en-US");
       const fsD = (52 + vD * 36) * k * typeK;
-      const WD = 400 * k, HD = 210 * k;
+      /* the canvas grows WITH the type: fsD rides the master type size
+         (typeK), and a fixed 400x210 box guillotined big numbers at the
+         top ("this crit number is cut off", owner). Sized from the real
+         glyph run when the face is loaded, plus room for the -6° tilt,
+         the CRIT! word and the spark burst. */
+      const mD = measureLabel(amt, cfg.type.font, cfg.type.weight, !!cfg.type.italic);
+      const amtW = (mD !== null ? mD : amt.length * 0.62) * fsD;
+      const WD = Math.max(400 * k, amtW + fsD * 2.4);
+      const HD = Math.max(210 * k, fsD * 2 + amtW * 0.11 + 34 * k);
       const cxD = WD / 2, cyD = HD * 0.56;
       const dim = state === "disabled" ? 0.45 : 1;
       let sparks = "";
@@ -4348,9 +4369,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vC0 = clamp(value ?? 0.4, 0, 1);
       const mult = opts.label ?? `×${2 + Math.round(vC0 * 8)}`;
       const plateWord = opts.sub ?? (opts.overlay && !/^(locked|stars:\d)/.test(opts.overlay) ? opts.overlay : "COMBO!");
-      const WC = 380 * k, HC = 288 * k;
-      const cxC0 = WC / 2, cyC0 = HC * 0.44;
       const fsC = (66 + vC0 * 44) * k * typeK;
+      /* canvas rides the type: fsC scales with the master size (typeK) and
+         the old fixed 380x288 box clipped big celebration numerals (owner).
+         Sized from the measured numeral, the burst reach and the plate;
+         at default type the legacy box and centering hold exactly. */
+      const mC9 = measureLabel(mult, cfg.type.font, 900, true);
+      const multW = (mC9 !== null ? mC9 : mult.length * 0.62) * fsC;
+      const burstR9 = fsC * 0.82 + (31 + vC0 * 36) * 1.45 * k + 12 * k;
+      const upNeed = Math.max(fsC * 0.78, burstR9 * 0.78) + 14 * k;
+      const downNeed = fsC * 0.72 + 53 * k + Math.max(0, multW * 0.035) + 18 * k;
+      const WC = Math.max(380 * k, Math.max(multW + fsC * 0.7, burstR9 * 2 + 16 * k));
+      const HC = Math.max(288 * k, upNeed + downNeed);
+      const cxC0 = WC / 2, cyC0 = Math.min(Math.max(HC * 0.44, upNeed), HC - downNeed);
       const gidC9 = "cb" + UID++;
       const liteC = hexMix(glow, "#FFFFFF", 0.8), armorC = darken(bevel, 0.62);
       // the burst — needles + sparks on golden-angle spokes, scaled by value
@@ -5115,7 +5146,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const ic = icons[i];
         if (i < icons.length && ic) cells += themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
         if (i === 0 || i === 3) cells += `<text x="${(cx0 + cell - 8 * k).toFixed(1)}" y="${(yh + cell - 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.85)" text-anchor="end">64</text>`;
-        cells += infoText(String(i + 1), cx0 + 7 * k, yh + 17 * k, 13 * k, "start", 700);
+        // slot indices sit on the dark cell wells, not the face — the adaptive
+        // face ink picks the Shadow role there ("tied to the shadow", owner).
+        // The text control's color is what a user expects to steer these.
+        cells += infoText(String(i + 1), cx0 + 7 * k, yh + 17 * k, 13 * k, "start", 700, cfg.type.fill);
       }
       return inject(track.replace("<svg ", '<svg data-hotbar="1" '), cells);
     }

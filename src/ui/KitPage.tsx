@@ -361,12 +361,14 @@ function pieceName(id: KitComponentId): string {
   return KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
 }
 /* Staging bay: staged pieces render NOWHERE public until released — not
-   even as a named locked card (a caption would leak the roadmap). The
-   admin sees them everywhere, because testing is the whole point. */
+   even as a named locked card (a caption would leak the roadmap). And the
+   kit BODY shows them to nobody, admin included: an unreleased piece
+   surfacing in the real chapters reads as a leak ("confusing and scary",
+   owner). Admins test staged pieces inside the bay, which renders its own
+   cards — release is the one gate that lets a piece join the body. */
 function useStagedHidden(id: KitComponentId): boolean {
   const rel = useGen((s) => s.componentReleases);
-  const admin = useGen((s) => s.isAdmin);
-  return !kitVisible(id, rel, admin);
+  return !kitVisible(id, rel, false);
 }
 
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
@@ -1444,7 +1446,7 @@ const kitTier = useGen((s) => s.tier);
           )}
           <p className="kp-sub">A dimensional candy interface system for fast, playful game UI — one material, five levels, everything live.</p>
           <div className="kp-facts">
-            {([["5", "Levels"], [String(KIT_COMPONENTS.filter((c) => kitVisible(c.id, releases, isAdmin)).length) + "+", "Components"], ["20+", "Assemblies"], [sil, "Silhouette"]] as const).map(([v, l]) => (
+            {([["5", "Levels"], [String(KIT_COMPONENTS.filter((c) => kitVisible(c.id, releases, false)).length) + "+", "Components"], ["20+", "Assemblies"], [sil, "Silhouette"]] as const).map(([v, l]) => (
               <div className="kp-fact" key={l}><b>{v}</b><span>{l}</span></div>
             ))}
             <button className={`kp-fact kp-a11ybtn${a11yOpen ? ` a11y-${audit.level.toLowerCase()}` : ""}`} aria-expanded={a11yOpen} onClick={() => setA11yOpen((v) => !v)}>
@@ -2000,7 +2002,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="invgrid" caption="Inventory grid" value={0.42} scale={0.46} />
           <Piece id="partyframe" caption="Party frame" value={0.78} scale={0.5} />
           <Piece id="partyframe" caption="Party · hurt" value={0.24} scale={0.5} />
-          <Piece id="compass" caption="Compass ribbon" value={0.08} scale={0.48} />
+          <Piece id="compass" caption="Compass ribbon · swings live" value={0.08} scale={0.48} ambient />
         </div>
         <div className="kp-subhead">Rarity — one frame, five tiers</div>
         <div className="kp-tray">
@@ -2105,7 +2107,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         {/* staging-bay resident — the whole block (subhead included) hides
             from the public until the owner releases the component */}
-        {kitVisible("orderticket", releases, isAdmin) && (<>
+        {kitVisible("orderticket", releases, false) && (<>
           <div className="kp-subhead">Kitchen & orders</div>
           <div className="kp-tray kp-axis">
             <Piece id="orderticket" caption="Order ticket" value={0.62} scale={0.5} />
@@ -2118,9 +2120,9 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 13 · rewards & chests — the staging-bay pack: the whole Sec
           hides until at least one resident is visible to this viewer ── */}
-      {(["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] as KitComponentId[]).some((rid) => kitVisible(rid, releases, isAdmin)) && (
+      {(["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] as KitComponentId[]).some((rid) => kitVisible(rid, releases, false)) && (
       <Sec n="13" title="Rewards & Chests" note="The economy's happy endings: chests on the small→large ladder plus Premium and Event trims, gifts, reveals, trays and claims. Chest and gift bodies wear the kit's material; tier trims, gold ribbons and ready-green are genre semantics. The reward card's aura walks the kit's rarity tiers.">
-        {kitVisible("chest", releases, isAdmin) && (<>
+        {kitVisible("chest", releases, false) && (<>
           <div className="kp-subhead">The chest ladder</div>
           <div className="kp-tray kp-axis">
             <Piece id="chest" caption="Small · wood" slots={{ tier: "Wood", variant: "Plain" }} value={0.4} scale={0.5} />
@@ -2137,39 +2139,39 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="chest" caption="Opened" baseState="disabled" scale={0.5} />
           </div>
         </>)}
-        {kitVisible("chestpanel", releases, isAdmin) && (<>
+        {kitVisible("chestpanel", releases, false) && (<>
           <div className="kp-subhead">The ceremony</div>
           <div className="kp-tray kp-axis">
             <Piece id="chestpanel" caption="Chest-opening panel" scale={0.44} />
           </div>
         </>)}
-        {(kitVisible("rewardcard", releases, isAdmin) || kitVisible("qtybadge", releases, isAdmin)) && (<>
+        {(kitVisible("rewardcard", releases, false) || kitVisible("qtybadge", releases, false)) && (<>
           <div className="kp-subhead">Reveals</div>
           <div className="kp-tray kp-axis">
-            {kitVisible("rewardcard", releases, isAdmin) && (<>
+            {kitVisible("rewardcard", releases, false) && (<>
               <Piece id="rewardcard" caption="Reward reveal · rare" value={0.5} scale={0.5} />
               <Piece id="rewardcard" caption="Legendary" value={1} scale={0.5} />
               <Piece id="rewardcard" caption="Mystery · pre-reveal" slots={{ kind: "Mystery" }} scale={0.5} />
             </>)}
-            {kitVisible("qtybadge", releases, isAdmin) && <Piece id="qtybadge" caption="Quantity badge" scale={0.5} />}
+            {kitVisible("qtybadge", releases, false) && <Piece id="qtybadge" caption="Quantity badge" scale={0.5} />}
           </div>
         </>)}
-        {(kitVisible("rewardtray", releases, isAdmin) || kitVisible("claimbtn", releases, isAdmin)) && (<>
+        {(kitVisible("rewardtray", releases, false) || kitVisible("claimbtn", releases, false)) && (<>
           <div className="kp-subhead">Trays & claims</div>
           <div className="kp-tray kp-axis">
-            {kitVisible("rewardtray", releases, isAdmin) && (<>
+            {kitVisible("rewardtray", releases, false) && (<>
               <Piece id="rewardtray" caption="Multiple-reward tray · revealing" value={0.5} scale={0.46} />
               <Piece id="rewardtray" caption="Reward summary · all revealed" value={1} scale={0.46} />
             </>)}
           </div>
           <div className="kp-tray kp-axis">
-            {kitVisible("claimbtn", releases, isAdmin) && (<>
+            {kitVisible("claimbtn", releases, false) && (<>
               <Piece id="claimbtn" caption="Claim all" scale={0.5} />
               <Piece id="claimbtn" caption="Double by ad" slots={{ mode: "2x by ad" }} scale={0.5} />
             </>)}
           </div>
         </>)}
-        {(kitVisible("giftbox", releases, isAdmin)) && (<>
+        {(kitVisible("giftbox", releases, false)) && (<>
           <div className="kp-subhead">Gifts & milestones</div>
           <div className="kp-tray kp-axis">
             <Piece id="giftbox" caption="Gift box" value={0.4} scale={0.5} />
