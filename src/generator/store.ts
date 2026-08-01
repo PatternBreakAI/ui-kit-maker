@@ -5,7 +5,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -789,6 +789,10 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kittextox", next.kitTextOx);
       saveJson("ui-generator-kitlocks", next.kitLocks);
       if (bg) saveJson("ui-generator-bgimage", bg);
+      /* the opened project is now the local truth — any cloud pull still in
+         flight must NOT stomp it (owner: "I saw it for a second but then
+         the [old] version took over") */
+      noteLocalDocReplaced();
     }
     set({ ...next, viewer, phase: "kit" });
   },

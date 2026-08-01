@@ -1564,11 +1564,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   if (iFx.shadow) iFilters.push(`drop-shadow(0 2px 1.5px rgba(0,0,0,0.4))`);
   if (iFx.glow && !disabled) iFilters.push(`drop-shadow(0 0 5px ${glowC}) drop-shadow(0 0 12px ${hexRgba(glowC, 0.6)})`);
   const iconFilter = iFilters.length ? iFilters.join(" ") : undefined;
-  // explicit kit icons (icon button) inherit the typography COLOR treatment
-  // (fill/gradient/outline) unless a custom color is set. Effects, opacity
-  // and rotation are always the icon's own controls — never the type's —
-  // so what the Icons panel shows is exactly what icons do.
-  const inheritTypo = !cfg.icon.color && opts.iconDef !== undefined && !!iconDef && !showText;
+  // explicit kit icons inherit the typography COLOR treatment
+  // (fill/gradient/outline) unless a custom color is set — INCLUDING icons
+  // that sit beside a label: the chip's star must dress like its own text
+  // ("the other icons pick up the outline, not sure this one won't", owner).
+  // Effects, opacity and rotation are always the icon's own controls.
+  const inheritTypo = !cfg.icon.color && opts.iconDef !== undefined && !!iconDef;
   const iconColor = disabled ? "#A7AAB4"
     : cfg.icon.color ? P(cfg.icon.color)
     : inheritTypo ? (T2.fillMode === "auto" ? autoLabel : P(T2.fill))
