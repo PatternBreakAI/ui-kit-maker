@@ -174,6 +174,9 @@ export async function POST(req: Request): Promise<Response> {
     reference: nonce,
     issuedAt: whenISO,
     licensedTo: user.email ?? user.id,
+    // the payload scope is a SERVER decision from plan_id — the builder
+    // keys off this, so a client-side tier flip cannot widen the payload
+    scope: plan === "free" ? "free" : "full",
     licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce, plan),
   });
 }

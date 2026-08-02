@@ -73,6 +73,10 @@ export interface ExportGrant {
   licensedTo: string;
   /** LICENCE.txt — every paid artifact carries it. */
   licence: string;
+  /** Server-decided payload scope for the engine kit — read from plan_id
+      in the database, never from anything the client says. A tampered
+      client flipping its tier flag still builds only what this grants. */
+  scope?: "free" | "full";
 }
 
 export interface GrantRefusal {

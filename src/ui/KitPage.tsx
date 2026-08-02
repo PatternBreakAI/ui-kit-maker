@@ -1067,7 +1067,11 @@ export function KitPage() {
           st.setUnitySlug(uslug);
         }
         const kitVersion = st.bumpUnityKitVer();
-        const scope = st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const;
+        /* the payload scope is the SERVER's call, read from plan_id and
+           returned in the grant — a client-side tier flip cannot widen it.
+           The tier fallback only covers cloud-off local builds, where the
+           whole paid layer is inert anyway. */
+        const scope = grant.scope ?? (st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const);
         const fdef2 = fontByName(st.cfg.type.font);
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name, slug: uslug, kitVersion, scope },
