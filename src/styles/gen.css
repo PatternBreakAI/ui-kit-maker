@@ -2409,8 +2409,13 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .kp-stampsheet p { font-size: 12px; color: var(--ink2); line-height: 1.45; margin: 0; }
 .kp-stampsheet textarea {
   resize: vertical; min-height: 96px; padding: 8px 10px; border-radius: 9px;
-  border: 1px solid var(--line2); background: var(--panel, #fff); color: var(--ink);
-  font: 600 13px/1.5 inherit; letter-spacing: .02em;
+  border: 1px solid var(--line2);
+  /* phrase entry is DATA — explicit ink on an explicit field, immune to the
+     kit page's theme vars (owner: "the page styling is making it difficult
+     for the Type Stamper to read") */
+  background: #ffffff; color: #1c1e26; caret-color: #1c1e26;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px; font-weight: 600; line-height: 1.5; letter-spacing: .02em;
 }
 .kp-stampsheet-row { display: flex; gap: 8px; }
 .kp-stampgo {

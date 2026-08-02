@@ -1564,6 +1564,7 @@ const kitTier = useGen((s) => s.tier);
               <b>Type Stamps</b>
               <p>One phrase per line (up to 24). Each bakes as a crisp 4× PNG in your kit's full display treatment — for hero text: titles, banners, victory moments. Extract the zip into your Unity project's Assets/ and they land beside the kit, ready as sprites.</p>
               <textarea value={stampText} onChange={(e) => setStampText(e.target.value)} rows={6} maxLength={1200}
+                spellCheck={false} autoCorrect="off" autoCapitalize="off"
                 placeholder={"SWEET VICTORY\nLEVEL UP!\nGAME OVER"} aria-label="Stamp phrases, one per line" />
               <div className="kp-stampsheet-row">
                 <button className="kp-stampgo" disabled={stampBusy} onClick={() => void runStamps()}>{stampBusy ? "Baking…" : "Bake stamps"}</button>

@@ -618,12 +618,23 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+// TextMeshPro ships inside uGUI from 2023.2 — guaranteed to compile.
+// Older editors keep legacy Text labels + the recipe JSON (TMP there is a
+// separate package we cannot assume, and a missing namespace would kill
+// this whole assembly).
+using TMPro;
+#endif
 
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
-  [Serializable] class PBTypography { public string font; public string fontFile; }
+  [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
+  [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
+  [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
+  [Serializable] class PBStyle { public int weight; public bool italic; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
@@ -738,6 +749,14 @@ namespace PatternBreak {
           if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
             orphans.Add(o);
 
+#if UNITY_2023_2_OR_NEWER
+      /* the styled TMP face generates on EVERY import when missing — not
+         only alongside prefabs — so projects that already generated their
+         prefabs before this feature still receive KitFace SDF */
+      if (manifest.typography != null && !string.IsNullOrEmpty(manifest.typography.fontFile))
+        EnsureTmpFace(root, manifest, AssetDatabase.LoadAssetAtPath<Font>(root + "/" + manifest.typography.fontFile));
+#endif
+
       /* ── I5: examples appear once, fully wired, then are yours ── */
       bool prefabsReady = (prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs");
       bool prefabsNew = false;
@@ -823,7 +842,97 @@ namespace PatternBreak {
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width / pngScale, sp.rect.height / pngScale);
       return go;
     }
-    static void AddLabel(GameObject parent, string text, Font kitFont) {
+#if UNITY_2023_2_OR_NEWER
+    /* ── the styled face, AUTOMATED (owner: "we really need the styling
+       to be automated"): a dynamic SDF font asset is generated from the
+       shipped TTF once per kit, its material wears the kit's outline and
+       glow straight from the manifest recipe, and prefab labels use it
+       with the kit's fill (gradient included). Idempotent: the asset is
+       created only when missing, so re-imports never churn it and user
+       tweaks to the material survive. ── */
+    static TMP_FontAsset EnsureTmpFace(string root, PBManifest m, Font ttf) {
+      var path = root + "/fonts/KitFace SDF.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+      if (existing != null) return existing;
+      if (ttf == null || !AssetDatabase.IsValidFolder(root + "/fonts")) return null;
+      TMP_FontAsset fa = null;
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitFace SDF";
+      AssetDatabase.CreateAsset(fa, path);
+      if (fa.material != null) {
+        fa.material.name = "KitFace SDF Material";
+        AssetDatabase.AddObjectToAsset(fa.material, fa);
+        ApplyStyle(fa.material, m);
+      }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) {
+        fa.atlasTextures[0].name = "KitFace SDF Atlas";
+        AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa);
+      }
+      AssetDatabase.SaveAssets();
+      Debug.Log("UI Kit Maker: generated the styled TextMeshPro face at " + path + " — outline and glow follow the kit's own type recipe.");
+      return fa;
+    }
+    static void ApplyStyle(Material mat, PBManifest m) {
+      var s = m != null && m.typography != null ? m.typography.style : null;
+      if (mat == null || s == null) return;
+      Color c;
+      if (s.outline != null && !string.IsNullOrEmpty(s.outline.color) && ColorUtility.TryParseHtmlString(s.outline.color, out c)) {
+        mat.SetColor("_OutlineColor", c);
+        mat.SetFloat("_OutlineWidth", Mathf.Clamp(s.outline.width / 30f, 0.05f, 0.35f));
+      }
+      // one underlay slot: the glow wins, the shadow is the fallback voice
+      if (s.glow != null && !string.IsNullOrEmpty(s.glow.color) && ColorUtility.TryParseHtmlString(s.glow.color, out c)) {
+        c.a = Mathf.Clamp01(s.glow.opacity / 100f);
+        mat.EnableKeyword("UNDERLAY_ON");
+        mat.SetColor("_UnderlayColor", c);
+        mat.SetFloat("_UnderlayOffsetX", 0f);
+        mat.SetFloat("_UnderlayOffsetY", 0f);
+        mat.SetFloat("_UnderlayDilate", 0.35f);
+        mat.SetFloat("_UnderlaySoftness", Mathf.Clamp(s.glow.size / 30f, 0.1f, 1f));
+      } else if (s.shadow != null && !string.IsNullOrEmpty(s.shadow.color) && ColorUtility.TryParseHtmlString(s.shadow.color, out c)) {
+        c.a = Mathf.Clamp01(s.shadow.opacity / 100f);
+        mat.EnableKeyword("UNDERLAY_ON");
+        mat.SetColor("_UnderlayColor", c);
+        mat.SetFloat("_UnderlayOffsetX", Mathf.Clamp(s.shadow.x / 50f, -1f, 1f));
+        mat.SetFloat("_UnderlayOffsetY", Mathf.Clamp(0f - s.shadow.y / 50f, -1f, 1f));
+        mat.SetFloat("_UnderlaySoftness", Mathf.Clamp(s.shadow.blur / 30f, 0f, 1f));
+      }
+    }
+    static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
+      var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
+      go.transform.SetParent(parent.transform, false);
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      var t = go.AddComponent<TextMeshProUGUI>();
+      t.text = text;
+      t.alignment = TextAlignmentOptions.Center;
+      t.fontSize = 40;
+      t.raycastTarget = false;
+      if (face != null) t.font = face;
+      Color top = Color.white, bot = Color.white;
+      bool grad = false;
+      if (s != null) {
+        if (s.fillMode == "gradient" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top) && ColorUtility.TryParseHtmlString(s.fill2 != null ? s.fill2 : "", out bot)) grad = true;
+        else if (s.fillMode == "solid" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top)) { }
+        else top = Color.white; // "auto" resolves against each face; white is the safe stage ink
+        var style = s.italic ? FontStyles.Italic : FontStyles.Normal;
+        if (s.weight >= 700) style = style | FontStyles.Bold;
+        t.fontStyle = style;
+      }
+      if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
+      else t.color = top;
+    }
+#endif
+    static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m) {
+#if UNITY_2023_2_OR_NEWER
+      var face = EnsureTmpFace(root, m, kitFont);
+      if (face != null) {
+        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null);
+        return;
+      }
+#endif
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
@@ -855,7 +964,7 @@ namespace PatternBreak {
       }
       return sb.Length > 0 ? sb.ToString() : "Piece";
     }
-    static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont) {
+    static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
       if (baseSp == null) return false;
@@ -880,7 +989,7 @@ namespace PatternBreak {
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
       }
-      if (label != null) AddLabel(go, label, kitFont);
+      if (label != null) AddLabel(go, label, kitFont, root, m);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -937,7 +1046,7 @@ namespace PatternBreak {
         if (skip.Contains(a.component)) continue;
         skip.Add(a.component); // one per family
         var label = labeled.Contains(a.component) ? DefaultLabel(a.component) : null;
-        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont)) any = true;
+        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont, m)) any = true;
       }
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
