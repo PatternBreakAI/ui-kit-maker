@@ -895,12 +895,12 @@ export type SlotDef = {
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
 };
-/* The emote wheel's pickable set — display names that resolve to
+/* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
-   unset state: each sector keeps its own factory glyph, so the panel never
-   claims every sector is a heart. Curated to glyphs that read as emotes at
+   unset state: each slot keeps its own factory glyph, so the panel never
+   claims every sector is a heart. Curated to glyphs that read at
    wheel-sector size. */
-const EMOTE_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+const GLYPH_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
@@ -954,19 +954,34 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
     { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
   ],
+  spinwheel: [
+    /* the fortune wheel was a fixed picture — count, jackpot and glyphs are
+       its real content, and the face now wears the kit's own pattern,
+       lighting and icon size (owner: "make this wheel editable… more in
+       line with the kit design") */
+    { id: "wedges", name: "Wedges", kind: "choice", choices: ["8", "6", "10", "12"],
+      note: "How many prizes the wheel offers. The jackpot wedges stay opposite each other whatever the count." },
+    { id: "jackpot", name: "Jackpot color", kind: "color", def: "#FACC15",
+      note: "The winning wedge's ink — gold by factory. The other wedges are mixed from your Color map." },
+    { id: "glyph1", name: "Glyph 1", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph2", name: "Glyph 2", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph3", name: "Glyph 3", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph4", name: "Glyph 4", kind: "choice", choices: GLYPH_CHOICES,
+      note: "Four glyphs cycle around the wheel. Their size and weight follow Typography → Icons like every other glyph in the kit." },
+  ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",
        owner) — count and every sector emote are the wheel's real content */
     { id: "sectors", name: "Sectors", kind: "choice", choices: ["4", "6", "8"],
       note: "How many emotes the wheel offers. Selection still rides the Value slider and play-mode clicks; sector slots past the count are ignored." },
-    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: GLYPH_CHOICES },
   ],
   friendrow: [
     { id: "status", name: "Status line", kind: "free", def: "In Match · Ranked", maxLen: 32,
@@ -1196,7 +1211,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }
   { id: "pathconnector", name: "Path connector" },
   { id: "heartmeter", name: "Heart meter" },
   { id: "booster", name: "Booster button" },
-  { id: "spinwheel", name: "Spin wheel" },
+  /* back in the bay while its editing controls are built out — it shipped
+     before it spoke the kit's design language (owner, 2026-08-02) */
+  { id: "spinwheel", name: "Spin wheel", staged: true },
   { id: "dailycell", name: "Daily reward" },
   { id: "combo", name: "Combo burst" },
   { id: "movecounter", name: "Move counter" },
