@@ -599,12 +599,15 @@ Google Fonts link — download the TTF, drop it in the project, and swap
 it onto the prefab labels (the export couldn't fetch it automatically
 this time). The styled-text recipe lives in typography > style.`}
 
-How the type treatment travels: fill and gradient, outline, glow, drop
-shadow, and emboss (lit from the kit's own light angle) translate 1:1
-onto live text. The letterform pattern travels as a close approximation —
-it flows across the word like the app, with its angle in 45° steps.
-Glints and per-letter gloss are painting no text engine can replay;
-they're exactly what Type Stamps are for.
+How the type treatment travels: fill and gradient, outline (outside the
+letterform, like the app), glow, drop shadow, and emboss (lit from the
+kit's own light angle) translate 1:1 onto live text. The letterform
+pattern, glints and per-letter gloss stay OFF live labels on purpose —
+a shared text material can't carry them correctly for every label a
+game might type. They're exactly what Type Stamps are for; the pattern
+also ships as a seamless tile (fonts/face-pattern.png, tiling density
+in the manifest's pattern.reps) if you want it in the face material's
+Face Texture slot for a specific label.
 
 For pixel-perfect HERO text — titles, banners, victory moments — use
 **Type Stamps** on uikitmaker.com: type your phrases, download, extract
@@ -1069,21 +1072,13 @@ namespace PatternBreak {
         mat.SetFloat("_LightAngle", (s.lightAngle + 90f) * Mathf.Deg2Rad);
         mat.SetFloat("_SpecularPower", 1.5f);
       }
-      /* the kit's pattern INSIDE the letterforms: the shipped seamless tile
-         rides the face-texture slot (white ground = untouched fill; the
-         pattern strokes multiply through) */
-      if (s.pattern != null && !string.IsNullOrEmpty(s.pattern.file)) {
-        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + s.pattern.file);
-        if (tex != null) {
-          mat.SetTexture("_FaceTex", tex);
-          // the export computes the density (cells across a short label's line,
-          // matched to the app's cell = fontSize * 0.3 * scale) and pre-bakes the
-          // kit's angle into the tile — labels map the texture across the whole
-          // line, so equal X/Y reps keep the cells square (see AddTmpLabel)
-          var reps = Mathf.Clamp(s.pattern.reps > 0.01f ? s.pattern.reps : 3.3f, 1f, 32f);
-          mat.SetTextureScale("_FaceTex", new Vector2(reps, reps));
-        }
-      }
+      /* the letterform pattern deliberately does NOT ride the face material
+         (owner call): one shared material can't tile correctly for every
+         label length a developer might type, and a treatment that only works
+         for short labels breaks the "it just works" promise. The seamless
+         tile still ships (fonts/face-pattern.png, density in the manifest's
+         pattern.reps) for anyone who wants it in the Face Texture slot by
+         hand — and Type Stamps carry the pattern pixel-perfect. */
     }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
@@ -1097,14 +1092,6 @@ namespace PatternBreak {
       t.fontSize = 40;
       t.raycastTarget = false;
       if (face != null) t.font = face;
-      if (s != null && s.pattern != null && !string.IsNullOrEmpty(s.pattern.file)) {
-        // one continuous pattern field across the word, like the app — the
-        // default per-character mapping restarts (and stretches) the tile on
-        // every glyph; MatchAspect derives the vertical span from the line so
-        // the cells stay square whatever the label says
-        t.horizontalMapping = TextureMappingOptions.Line;
-        t.verticalMapping = TextureMappingOptions.MatchAspect;
-      }
       Color top = Color.white, bot = Color.white;
       bool grad = false;
       if (s != null) {

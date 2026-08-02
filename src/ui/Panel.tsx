@@ -1927,7 +1927,7 @@ export function Panel() {
           <Slider label="Scale" value={T2.stripes?.scale ?? 100} min={25} max={300} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45, opacity: 30 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, scale: v }; })} />
           <Slider label="Opacity" value={T2.stripes?.opacity ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: v }; })} />
           <div className="helper">Any face pattern, inside the letterforms — tone-on-tone from the shell color.</div>
-          <div className="helper">Unity export: travels onto live text — the pattern flows the whole word, with the angle landing in 45° steps. Pixel-perfect version: bake a Type Stamp from the kit page.</div>
+          <div className="helper">Unity export: stays off live labels (one shared text material can't tile right for every label length) — Type Stamps carry it pixel-perfect, and the seamless tile ships in fonts/ for devs who want it anyway.</div>
         </FxToggle>
         <FxToggle label="Highlight glints" on={T2.glints?.on ?? false}
           onToggle={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: v, opacity: c.type.glints?.opacity ?? 55 }; })}>
