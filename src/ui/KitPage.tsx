@@ -9,6 +9,7 @@ import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes } from "@/generator/exportUtils";
 import { downloadEngineExport } from "@/generator/engineExport";
+import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt } from "./LiveArt";
@@ -1065,6 +1066,14 @@ export function KitPage() {
         if (!uslug) {
           uslug = sanitizeUnitySlug(name) ?? "ui-kit";
           st.setUnitySlug(uslug);
+          /* the mint must land in the CLOUD DOC too, or a later reopen of a
+             project saved before this export resurrects a slug-less copy
+             and re-mints under whatever the kit is named by then — a new
+             Unity folder, everything placed orphaned (I1 audit). Best
+             effort: same-browser continuity is already covered by the
+             workspace sync. */
+          const pid = useGen.getState().openProjectId;
+          if (pid) void updateProjectDoc(pid, useGen.getState().kitPayload());
         }
         const kitVersion = st.bumpUnityKitVer();
         /* the payload scope is the SERVER's call, read from plan_id and

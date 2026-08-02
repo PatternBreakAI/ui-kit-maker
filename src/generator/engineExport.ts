@@ -414,7 +414,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      export over the same spot is the whole update. .meta files (Unity's
      identity records) live beside each file and are never in the zip, so
      GUIDs survive every overwrite and placed UI restyles in place. ── */
-  const rooted = files.map((f) => ({ ...f, path: `UIKitMaker/${safeSlug}/${f.path}` }));
+  /* the importer ships OUTSIDE the slug folder — one shared copy at
+     UIKitMaker/Editor/ serving every kit. Per-slug copies would compile
+     duplicate PatternBreak types into Assembly-CSharp-Editor the moment a
+     user installs a second kit (CS0101 — the whole editor assembly dies).
+     Its content is kit-independent, so every kit's zip overwrites the same
+     file byte-for-byte, and Apply() already walks ALL manifests. */
+  const rooted = files.map((f) => ({
+    ...f,
+    path: f.path === "Editor/PatternBreakKitImporter.cs"
+      ? `UIKitMaker/${f.path}`
+      : `UIKitMaker/${safeSlug}/${f.path}`,
+  }));
   download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
 }
 
@@ -526,8 +537,11 @@ namespace PatternBreak {
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
-       value says whether a reimport is needed at all ── */
-    public static bool Configure(TextureImporter ti, PBAsset a) {
+       value says whether a reimport is needed at all. INTERNAL, not
+       public: PBAsset is assembly-internal, and a public signature over
+       an internal type is CS0051 — the whole editor assembly would fail
+       to compile and the importer would never run. ── */
+    internal static bool Configure(TextureImporter ti, PBAsset a) {
       bool changed = false;
       if (ti.textureType != TextureImporterType.Sprite) { ti.textureType = TextureImporterType.Sprite; changed = true; }
       if (ti.spriteImportMode != SpriteImportMode.Single) { ti.spriteImportMode = SpriteImportMode.Single; changed = true; }
@@ -752,15 +766,21 @@ namespace PatternBreak {
     }
     static bool GeneratePrefabs(string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
+      bool createdHere = false;
       if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
         var created = AssetDatabase.CreateFolder(root, "Prefabs");
         if (string.IsNullOrEmpty(created)) return false;
+        createdHere = true;
       }
       var dir = root + "/Prefabs";
       bool any = false;
       if (ButtonPrefab(dir, root, "button-primary", "PrimaryButton", "PLAY", pngScale)) any = true;
       if (ButtonPrefab(dir, root, "chip", "Chip", "NEW", pngScale)) any = true;
       if (ProgressPrefab(dir, root, pngScale)) any = true;
+      // an EMPTY folder must not latch generation off forever — if nothing
+      // landed (sprites missing on a manual run), clean up so the next
+      // pass gets its first-import chance
+      if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
       return any;
     }
   }
@@ -777,7 +797,11 @@ namespace PatternBreak {
       var mPath = root + "/kit-manifest.json";
       PBManifest manifest;
       if (!cache.TryGetValue(mPath, out manifest)) {
-        manifest = File.Exists(mPath) ? JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)) : null;
+        // guarded like ImportKit's parse: a half-extracted or malformed
+        // manifest must degrade to "no settings yet" (the delayCall pass
+        // self-heals), not one red error per kit texture
+        try { manifest = File.Exists(mPath) ? JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)) : null; }
+        catch (Exception) { manifest = null; }
         cache[mPath] = manifest;
       }
       if (manifest == null || manifest.assets == null) return;

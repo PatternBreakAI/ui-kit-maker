@@ -104,7 +104,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     const { doc, error } = await loadProjectDoc(p.id);
     setBusy(false);
     if (error || !doc) { setNote(error ?? "Couldn't load that project."); return; }
-    useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false });
+    useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false, projectId: p.id });
     onClose();
     onOpened?.();
   };
