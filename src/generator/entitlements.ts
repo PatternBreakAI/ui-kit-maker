@@ -46,10 +46,17 @@ export type TierCaps = {
 };
 
 /** Which artifacts each tier may take. Enforced server-side. Student and
-    pro are identical here; they differ in LICENCE_GRANT, not in this map. */
+    pro are identical here; they differ in LICENCE_GRANT, not in this map.
+
+    FREE GETS THE ENGINE KIT — scoped, not locked (Unity bridge spec,
+    owner-ruled): the Smart Zip is the funnel's proof, so a signed-in free
+    account downloads a STARTER payload (master button + chip + progress —
+    states, nine-slice and the overwrite restyle all demonstrated) while
+    the paid tiers get every component. The scoping happens in the payload
+    builder; this map only opens the door. */
 export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
   guest: [],
-  free: [],
+  free: ["engine"],
   student: ["svg", "html", "sheet", "gamekit", "engine"],
   pro: ["svg", "html", "sheet", "gamekit", "engine"],
 };

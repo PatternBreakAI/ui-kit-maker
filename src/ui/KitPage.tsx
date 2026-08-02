@@ -1058,10 +1058,20 @@ export function KitPage() {
       await guardedExport("engine", gateHandlers, async (grant) => {
         const st = useGen.getState();
         const name = st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`;
+        /* I1: the slug is the kit's PERMANENT Unity address — minted from
+           the name on the very first export and never re-minted, so later
+           renames don't move files in anyone's project */
+        let uslug = st.unitySlug;
+        if (!uslug) {
+          uslug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ui-kit";
+          st.setUnitySlug(uslug);
+        }
+        const kitVersion = st.bumpUnityKitVer();
+        const scope = st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const;
         const fdef2 = fontByName(st.cfg.type.font);
         await downloadEngineExport(
-          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name },
-          () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null),
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name, slug: uslug, kitVersion, scope },
+          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
         );
@@ -1143,7 +1153,12 @@ const kitTier = useGen((s) => s.tier);
   const mayEngine = canExport(kitTier, "engine");
   const maySvg = canExport(kitTier, "svg");
   const exportActions = [
-    { id: "engine", name: "Engine kit (ZIP)", desc: "Atomic content-free PNGs, nine-slice manifest, Unity importer, Unreal recipes.", busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
+    { id: "engine",
+      name: kitTier === "free" ? "Unity starter kit (ZIP)" : "Engine kit (ZIP)",
+      desc: kitTier === "free"
+        ? "Three wired pieces — button, chip, progress. Drop into Assets/, prefabs appear; re-download later and everything restyles in place. The full kit lands in the same folder when you upgrade."
+        : "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, in-place restyle on re-import. Unreal recipes included.",
+      busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
   ];

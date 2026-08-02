@@ -34,6 +34,10 @@ const KINDS = new Set(["engine", "gamekit", "html", "svg", "sheet"]);
    it, and that difference is carried by the licence block below rather than
    by withholding formats. See entitlements.ts for the reasoning. */
 const ALLOWED: Record<string, Set<string>> = {
+  /* Free gets exactly one artifact: the STARTER engine kit (Unity bridge
+     spec, owner-ruled) — the payload builder scopes it to three pieces;
+     this door only decides that the kind may be issued at all. */
+  free: new Set(["engine"]),
   student: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
   pro: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
 };
@@ -42,6 +46,13 @@ const ALLOWED: Record<string, Set<string>> = {
    src/generator/entitlements.ts and Terms §5.6 — change all three
    together or the file will disagree with the page that sold it. */
 const GRANT: Record<string, string> = {
+  free: `  This is the free STARTER kit — three pieces, yours to use in any
+  project, commercial included, no attribution required. It exists so
+  you can prove the workflow end to end before paying for anything.
+
+  The full kit — every component, every state — is one upgrade away at
+  uikitmaker.com/#/pricing. It lands in the exact same Unity folder, so
+  everything you've already placed just restyles.`,
   student: `  Coursework, portfolio, personal projects and non-commercial
   releases — on any number of them, with no attribution required.
 
@@ -68,8 +79,8 @@ function licenceText(email: string, uid: string, kind: string, whenISO: string, 
   return `UI Kit Maker — export licence
 ============================
 
-Artifact      : ${kind}
-Plan          : ${plan === "student" ? "Student / Educator (education licence)" : "Pro (commercial licence)"}
+Artifact      : ${kind}${plan === "free" ? " (starter)" : ""}
+Plan          : ${plan === "free" ? "Free (starter kit)" : plan === "student" ? "Student / Educator (education licence)" : "Pro (commercial licence)"}
 Licensed to   : ${email}
 Account       : ${uid}
 Issued        : ${whenISO}
@@ -127,11 +138,11 @@ export async function POST(req: Request): Promise<Response> {
     : (profile.plan_id && profile.plan_id !== "free") ? "pro"
     : "free";
 
-  if (plan === "free") {
-    return json({ error: "Vector and kit exports are part of Pro.", reason: "upgrade" }, 403);
-  }
   if (!ALLOWED[plan]?.has(kind)) {
-    return json({ error: "That export isn't part of your plan.", reason: "upgrade" }, 403);
+    return json({
+      error: plan === "free" ? "Vector and full-kit exports are part of Pro." : "That export isn't part of your plan.",
+      reason: "upgrade",
+    }, 403);
   }
 
   // quiet rate limit — invisible to anyone exporting by hand

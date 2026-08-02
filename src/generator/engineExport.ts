@@ -19,6 +19,9 @@ const PNG_SCALE = 2;
 interface AssetMeta {
   file: string; component: string; part: string;
   nativeW: number; nativeH: number;
+  /** Content hash — the importer's receipt compares these across sends to
+      report new / restyled / unchanged without touching file bytes (I2). */
+  sha256: string;
   nineSlice: { left: number; right: number; top: number; bottom: number } | null;
   pivot: { x: number; y: number };
   tintable: boolean;
@@ -32,7 +35,25 @@ export interface EngineExportState {
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitSizes: Partial<Record<KitComponentId, "s" | "m" | "l">>;
   kitName: string;
+  /** I1 — the kit's PERMANENT address inside the user's Unity project
+      (Assets/UIKitMaker/<slug>/). Minted at first export, survives display
+      renames; changing it would orphan everything a user has placed. */
+  slug: string;
+  /** Monotonic per-export counter for the manifest + import receipts. */
+  kitVersion: number;
+  /** Free tier ships a STARTER payload (master button + chip + progress —
+      states, nine-slice and the overwrite restyle all demonstrated); paid
+      tiers ship every component. Same folder, same paths: upgrading later
+      lands the full kit over the starter without moving anything. */
+  scope: "free" | "full";
 }
+
+const sha256Hex = async (data: Uint8Array): Promise<string> => {
+  // copy into a plain ArrayBuffer — subtle.digest's type rejects views that
+  // could be backed by a SharedArrayBuffer
+  const d = await crypto.subtle.digest("SHA-256", data.slice().buffer as ArrayBuffer);
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+};
 
 /* minimal local geometry helpers (mirror the renderer's recipes) */
 const rr = (x: number, y: number, w: number, h: number, r: number) => {
@@ -114,8 +135,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; crop: boolean; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH"> }[] = [];
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH">, crop = false): Promise<void> => {
+  const pngQueue: { path: string; svg: string; crop: boolean; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
     pngQueue.push({ path, svg, crop, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
@@ -136,10 +157,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), ...q.meta });
     }
     onProgress?.(pngQueue.length, total, catalog ? "catalog" : "zip");
   };
+
+  /* ── tier scope: the free STARTER is three pieces that together demo
+     states, nine-slice stretch and the overwrite restyle (spec §1) —
+     master button + chip here, progress track/fill below. Everything else
+     renders only for the paid full kit. Paths are IDENTICAL in both
+     scopes, so an upgrade lands the full kit over the starter in place. */
+  const full = st.scope === "full";
+  const FREE_NINE = new Set<KitComponentId>(["primary", "chip"]);
+  // rarity ladder — rendered as frames only in the full kit, but declared
+  // here because the manifest's rarity block (full-gated) also reads it
+  const tiersR = rarityTiers(st.cfg);
 
   /* ── nine-sliced frames & surfaces — full material and flat variants ── */
   const NINE: { id: KitComponentId; family: string; h: number; usage: string }[] = [
@@ -155,6 +187,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
   for (const n of NINE) {
+    if (!full && !FREE_NINE.has(n.id)) continue;
     const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
     const fullSvg = shell(n.id, rowOpts, slim);
     const slice = sliceOf(n.id, n.h);
@@ -196,6 +229,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 
   await addPng("progress/track.9.png", trackSvg(440, 44), { component: "progress", part: "track", nineSlice: barSlice(44), pivot: { x: 0, y: 0.5 }, tintable: true, usage: "Progress track. Stretch horizontally; fill goes above it." });
   await addPng("progress/fill.9.png", fillSvg(440, 36), { component: "progress", part: "fill", nineSlice: barSlice(36), pivot: { x: 0, y: 0.5 }, tintable: false, usage: "Progress fill. Engine drives width/scissor from the live value." });
+  if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
   // the icon-button base: same silhouette, drop any art in the well.
@@ -219,7 +253,6 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      rides kit-manifest.json > rarity — the engine picks the tier from its
      own item data and renders the tier word as live text. ── */
   const slugR = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tier";
-  const tiersR = rarityTiers(st.cfg);
   for (let i = 0; i < tiersR.length; i++) {
     await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, shell("rarityframe", { overlay: "frame" }, undefined, i / (tiersR.length - 1)),
       { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word is live engine text (see manifest > rarity).` });
@@ -272,6 +305,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Throttle/brake/speed traces are live engine content." }, true);
   }
   await addPng("startlights/base.png", shell("startlights", { part: "base" }), { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown." });
+  } // full scope
 
   /* ── shared FX blobs — engines compose their own shadows/glows ── */
   const blob = (color: string, opacity: number) =>
@@ -280,7 +314,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("fx/glow.png", blob("#FFFFFF", 0.85), { component: "fx", part: "glow", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Radial glow blob — tint to the Glow role for auras and pulses." });
 
   /* ── tintable white icon set (engine swaps freely) ────────────── */
-  for (const [name, def] of Object.entries(STOCK_ICONS)) {
+  if (full) for (const [name, def] of Object.entries(STOCK_ICONS)) {
     const stroke = def.mode === "stroke";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="${def.viewBox}">` +
       `<g fill="${stroke ? "none" : "#FFFFFF"}" stroke="${stroke ? "#FFFFFF" : "none"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${def.inner}</g></svg>`;
@@ -296,6 +330,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     path: "kit-manifest.json",
     data: JSON.stringify({
       kit: st.kitName,
+      /* I1 — the slug is this kit's permanent identity in the user's
+         project; the importer files everything under it and re-exports
+         land on the same paths, so placed UI restyles instead of breaking */
+      slug: st.slug,
+      kitVersion: st.kitVersion,
+      generatorVersion: typeof __BUILD_STAMP__ === "string" ? __BUILD_STAMP__ : "dev",
+      tier: st.scope,
       exported: new Date().toISOString(),
       pngScale: PNG_SCALE,
       rules: [
@@ -314,39 +355,45 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         note: "Render all labels as live engine text in this face.",
       },
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
-      rarity: {
-        note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
-        tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
-      },
+      ...(full ? {
+        rarity: {
+          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+          tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
+        },
+      } : {}),
       assets: manifest,
     }, null, 2),
   });
 
-  /* ── Unity: importer applies borders/pivots straight from the manifest ── */
-  files.push({ path: "unity/README.md", data: UNITY_README });
-  files.push({ path: "unity/Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
-  files.push({ path: "unity/Examples/PrimaryButton.prefab", data: UNITY_BUTTON_PREFAB });
-  files.push({ path: "unity/Examples/ProgressBar.prefab", data: UNITY_PROGRESS_PREFAB });
+  /* ── Unity: the importer IS the product's second half. It applies
+     borders/pivots idempotently, keeps the I1–I5 overwrite contract, and
+     GENERATES wired example prefabs on first import (a text prefab cannot
+     carry sprite GUIDs, so the old drag-the-sprite examples are gone —
+     the importer builds real ones with real references instead). ── */
+  files.push({ path: "UNITY-README.md", data: unityReadme(st) });
+  files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
 
-  /* ── Unreal: UMG recipes with this kit's real margins ─────────── */
-  const m = (fam: string) => manifest.find((a) => a.component === fam && a.part === "base")?.nineSlice;
-  const bm = m("button-primary"); const pm = m("panel");
-  files.push({ path: "unreal/README.md", data: UNREAL_README });
-  files.push({
-    path: "unreal/UMG_Recipes.md",
-    data: UNREAL_RECIPES
-      .replace("__BTN_MARGIN__", bm ? `${bm.left}, ${bm.top}, ${bm.right}, ${bm.bottom}` : "48, 40, 48, 40")
-      .replace("__PANEL_MARGIN__", pm ? `${pm.left}, ${pm.top}, ${pm.right}, ${pm.bottom}` : "64, 64, 64, 64")
-      .replace(/__FONT__/g, st.cfg.type.font),
-  });
-  files.push({
-    path: "unreal/SliceMargins.csv",
-    data: "Name,Left,Top,Right,Bottom\n" + manifest.filter((a) => a.nineSlice)
-      .map((a) => `${a.component}/${a.part},${a.nineSlice!.left},${a.nineSlice!.top},${a.nineSlice!.right},${a.nineSlice!.bottom}`).join("\n"),
-  });
+  /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
+  if (full) {
+    const m = (fam: string) => manifest.find((a) => a.component === fam && a.part === "base")?.nineSlice;
+    const bm = m("button-primary"); const pm = m("panel");
+    files.push({ path: "unreal/README.md", data: UNREAL_README });
+    files.push({
+      path: "unreal/UMG_Recipes.md",
+      data: UNREAL_RECIPES
+        .replace("__BTN_MARGIN__", bm ? `${bm.left}, ${bm.top}, ${bm.right}, ${bm.bottom}` : "48, 40, 48, 40")
+        .replace("__PANEL_MARGIN__", pm ? `${pm.left}, ${pm.top}, ${pm.right}, ${pm.bottom}` : "64, 64, 64, 64")
+        .replace(/__FONT__/g, st.cfg.type.font),
+    });
+    files.push({
+      path: "unreal/SliceMargins.csv",
+      data: "Name,Left,Top,Right,Bottom\n" + manifest.filter((a) => a.nineSlice)
+        .map((a) => `${a.component}/${a.part},${a.nineSlice!.left},${a.nineSlice!.top},${a.nineSlice!.right},${a.nineSlice!.bottom}`).join("\n"),
+    });
+  }
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
-  if (catalog) {
+  if (full && catalog) {
     const cat = await catalog().catch(() => null);
     if (cat) files.push({ path: "atlas/catalog.png", data: cat });
     files.push({ path: "atlas/README.md", data: "The packed sheet is a VISUAL CATALOG for humans.\nDo not slice it for engine use — build from /assets and kit-manifest.json instead.\n" });
@@ -357,116 +404,360 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) + "\n" + fontNotesMarkdown(kitFontFamilies(st.cfg)) });
   files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
   if (licence) files.push({ path: "LICENCE.txt", data: licence });
-  download(`${st.kitName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-engine-kit.zip`, makeZip(files));
+
+  /* ── I1: everything lives under UIKitMaker/<slug>/ INSIDE the zip, so
+     "extract into Assets/" is the whole install — and extracting a later
+     export over the same spot is the whole update. .meta files (Unity's
+     identity records) live beside each file and are never in the zip, so
+     GUIDs survive every overwrite and placed UI restyles in place. ── */
+  const rooted = files.map((f) => ({ ...f, path: `UIKitMaker/${st.slug}/${f.path}` }));
+  download(`${st.slug}-engine-kit.zip`, makeZip(rooted));
+}
+
+/* The 3-step story, tuned per scope — ease of use is the product. */
+function unityReadme(st: EngineExportState): string {
+  const root = `Assets/UIKitMaker/${st.slug}`;
+  return `# ${st.kitName} — Unity, in 3 steps
+
+1. Unzip this download.
+2. Drag the **UIKitMaker** folder into your Unity project's **Assets/**
+   folder (or extract it straight there).
+3. That's it. Unity imports everything by itself: every sprite arrives
+   nine-sliced with the right pivots and pixels-per-unit, and ready-made
+   prefabs appear in **${root}/Prefabs** — drag one into your Canvas and
+   press Play. The Console prints a one-line receipt of what happened.
+
+## Restyling everything you've placed (the one rule)
+
+When you change the kit on uikitmaker.com, download again and extract
+over the SAME spot. Same folder in, same files over — every button, bar
+and chip you already placed in your scenes restyles in place. Unity
+tracks each sprite through a .meta file that lives beside it in your
+project; the zip never contains .meta files, so overwriting a PNG keeps
+its identity and nothing you built ever breaks.
+
+The importer keeps four promises on every re-import:
+- **Nothing is deleted without you.** Pieces removed from the kit stay on
+  disk and are listed in the Console; Tools > PatternBreak > Review
+  Orphaned Kit Files removes them only when you say so.
+- **Unchanged files cost nothing.** The receipt (kit.lock.json) carries a
+  hash per sprite, so a re-import reports exactly what's new, what
+  restyled and what stayed put — and settings are only re-applied when
+  they actually differ.
+- **Your prefabs are yours.** The examples in Prefabs/ are generated once,
+  on first import, fully wired (sliced sprites, hover/pressed/disabled
+  states on the Button, a label). After that the importer never touches
+  them — and because your re-exports keep the same sprite files, prefabs
+  you've customized restyle automatically anyway.
+- **Everything is inspectable.** kit-manifest.json holds every border,
+  pivot and hash in plain JSON; kit.lock.json is the last import's
+  receipt. No hidden state.
+
+## Labels and fonts
+
+Labels are LIVE TEXT, never pixels. The generated prefabs use Unity's
+built-in font so they work in any project; the kit's real face is named
+in kit-manifest.json > typography (with its Google Fonts link) — install
+it and swap it on the Text, or use TextMeshPro with the same family.
+
+## States
+
+Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
+base-disabled next to base). The generated Button prefabs arrive with
+Sprite Swap already wired. Hover glow and press lift are engine-side:
+tint fx/glow.png behind a piece, nudge the RectTransform a few px.
+${st.scope === "free" ? `
+## This is the free starter kit
+
+Three pieces — the master button, a chip and the progress bar — with the
+complete import pipeline: nine-slice, states, wired prefabs and in-place
+restyling all work exactly as they do in the full kit. Upgrading at
+uikitmaker.com/#/pricing and re-exporting lands EVERY component in this
+same folder — everything you've already placed stays put.
+` : ""}
+## If something looks unsliced
+
+Tools > PatternBreak > Reapply Kit Import Settings re-runs the pass and
+says exactly what it fixed. Everything the importer does is plain data
+you could set by hand from kit-manifest.json — the script only saves you
+the typing.
+`;
 }
 
 /* eslint-disable no-useless-escape */
-const UNITY_README = `# PatternBreak kit — Unity import
-
-1. Copy the whole export (assets/, kit-manifest.json, unity/) into your project's Assets/ folder.
-2. That's it — when kit-manifest.json lands, the importer runs by itself:
-   every PNG gets its nine-slice borders and pivots automatically, and the
-   Console reports how many sprites were configured. If you ever need to
-   re-run it (or something looks unsliced), use
-   Tools > PatternBreak > Reapply Kit Import Settings — it warns with the
-   exact fix if the manifest or the assets folder is missing or renamed.
-3. Open Examples/*.prefab for reference hierarchies. The example Images
-   ship without a sprite on purpose (a text file cannot know the GUIDs your
-   Unity assigns on import) — drag the named sprite from assets/ onto the
-   Image; the type/slicing settings are already in place.
-4. Labels are TextMeshPro / UI.Text in the kit's display face (see
-   kit-manifest.json > typography). Never bake copy into textures.
-
-Sliced Image setup: Image Type = Sliced, and the borders arrive from the importer.
-Scale: the art ships at 2x resolution; the importer sets each sprite's
-Pixels Per Unit to 200 so pieces land at DESIGN size (a primary button is
-~400x136 units) and frame thickness stays right at any rect size. If a
-piece looks chunky/scrunched, its sprite predates the importer — re-run
-Tools > PatternBreak > Reapply Kit Import Settings.
-Progress bar: track Image (sliced) + fill Image (sliced, Fill or scissored by a mask).
-Slider: track + fill Images, thumb on the handle rect.
-
-States: interactive pieces ship their DESIGNED states — base-hover.9,
-base-pressed.9, base-disabled.9 next to base.9. On the Button set
-Transition = Sprite Swap and assign Highlighted = base-hover,
-Pressed = base-pressed, Selected = base-hover, Disabled = base-disabled
-(Source Image stays base.9). Color Tint also works as a quick generic
-approximation. Hover glow and press lift are engine-side: tint
-fx/glow.png behind the piece / nudge the RectTransform a few px.
-
-No importer required: everything the script does is plain data you can set by
-hand. Each sprite's border (L/R/T/B px) and pivot sit in kit-manifest.json —
-open the Sprite Editor, type the four numbers, done. The script only saves you
-the typing. If it misbehaves in your Unity version, tell us and work from the
-manifest meanwhile — nothing about the assets depends on it.
-`;
-
-const UNITY_IMPORTER = `// PatternBreak kit importer — applies nine-slice borders and pivots from
-// kit-manifest.json to every exported sprite. Editor-only.
+const UNITY_IMPORTER = `// UI Kit Maker / PatternBreak — kit importer. Editor-only; nothing here
+// ships into your game build.
 //
-// Fully automatic: when kit-manifest.json lands in the project a full pass
-// runs, and any later reimport of a kit texture re-applies its settings
-// in-flight. The menu item remains as a manual fallback.
+// THE OVERWRITE CONTRACT this file keeps (extract a newer export over the
+// same folder and everything you placed restyles in place):
+//  I1  stable addresses — the kit lives at Assets/UIKitMaker/<slug>/ with
+//      deterministic sprite paths; re-exports land on the same paths.
+//  I2  write over, never delete-and-recreate — newer exports replace bytes
+//      in place; .meta files (and so GUIDs) survive, scenes keep pointing
+//      at the same assets. The manifest carries a sha256 per sprite so the
+//      receipt reports new / restyled / unchanged exactly.
+//  I3  nothing disappears silently — pieces removed from the kit stay on
+//      disk, are listed loudly, and are deleted only from the explicit
+//      Tools > PatternBreak > Review Orphaned Kit Files action.
+//  I4  idempotent settings — import settings are applied only when they
+//      differ, so repeat imports don't churn the asset database.
+//  I5  prefabs generate once — wired examples are created on FIRST import
+//      only and never regenerated over files you may have edited.
+// Each pass writes kit.lock.json — the receipt behind the report, orphan
+// detection and support.
+using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PatternBreak {
-  [System.Serializable] class PBSlice { public int left, right, top, bottom; }
-  [System.Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
-  [System.Serializable] class PBAsset { public string file; public PBSlice nineSlice; public PBPivot pivot; }
-  [System.Serializable] class PBManifest { public PBAsset[] assets; }
+  [Serializable] class PBSlice { public int left, right, top, bottom; }
+  [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
+  [Serializable] class PBAsset { public string file; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBAsset[] assets; }
+  [Serializable] class PBLockEntry { public string file; public string sha256; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
   public static class KitImporter {
-    // shared by the menu pass and the per-texture postprocessor
-    public static void Configure(TextureImporter ti, PBAsset a) {
-      ti.textureType = TextureImporterType.Sprite;
-      ti.spriteImportMode = SpriteImportMode.Single;
-      ti.mipmapEnabled = false;
-      ti.alphaIsTransparency = true;
+    /* ── I4: every setting is compared before it is written; the return
+       value says whether a reimport is needed at all ── */
+    public static bool Configure(TextureImporter ti, PBAsset a) {
+      bool changed = false;
+      if (ti.textureType != TextureImporterType.Sprite) { ti.textureType = TextureImporterType.Sprite; changed = true; }
+      if (ti.spriteImportMode != SpriteImportMode.Single) { ti.spriteImportMode = SpriteImportMode.Single; changed = true; }
+      if (ti.mipmapEnabled) { ti.mipmapEnabled = false; changed = true; }
+      if (!ti.alphaIsTransparency) { ti.alphaIsTransparency = true; changed = true; }
       var settings = new TextureImporterSettings();
       ti.ReadTextureSettings(settings);
-      settings.spriteAlignment = (int)SpriteAlignment.Custom;
-      settings.spritePivot = new Vector2(a.pivot.x, a.pivot.y);
-      // art ships at 2x resolution (pngScale in the manifest): declaring it
-      // here makes every piece land at DESIGN size — caps stay the designed
-      // thickness at any rect, instead of drawing double-thick and
-      // scrunching on small buttons (owner report)
-      settings.spritePixelsPerUnit = 200f;
-      ti.SetTextureSettings(settings);
-      if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0)
-        ti.spriteBorder = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
+      var pivot = new Vector2(a.pivot != null ? a.pivot.x : 0.5f, a.pivot != null ? a.pivot.y : 0.5f);
+      // art ships at 2x resolution: PPU 200 lands every piece at DESIGN
+      // size, so caps keep their designed thickness at any rect size
+      if (settings.spriteAlignment != (int)SpriteAlignment.Custom || settings.spritePivot != pivot || settings.spritePixelsPerUnit != 200f) {
+        settings.spriteAlignment = (int)SpriteAlignment.Custom;
+        settings.spritePivot = pivot;
+        settings.spritePixelsPerUnit = 200f;
+        ti.SetTextureSettings(settings);
+        changed = true;
+      }
+      if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0) {
+        var border = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
+        if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
+      }
+      return changed;
     }
 
     [MenuItem("Tools/PatternBreak/Reapply Kit Import Settings")]
     public static void Apply() {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
       if (manifests.Length == 0) {
-        Debug.LogWarning("PatternBreak: kit-manifest.json is not in this project, so no borders were applied. Copy it from the export into the folder that holds assets/ (side by side), then run this again.");
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project. Drop the whole UIKitMaker folder from the export zip into Assets/ and the import runs by itself.");
         return;
       }
+      foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
+    }
+
+    static void ImportKit(string mPath) {
+      var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+      PBManifest manifest = null;
+      try { manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+      if (manifest == null || manifest.assets == null || manifest.assets.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: " + mPath + " has no asset list — is it the kit-manifest.json from the export zip?");
+        return;
+      }
+
+      // the previous receipt, if any — its absence means FIRST import
+      var lockPath = root + "/kit.lock.json";
+      PBLock prev = null;
+      if (File.Exists(lockPath)) {
+        try { prev = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { prev = null; }
+      }
+      var prevHash = new Dictionary<string, string>();
+      if (prev != null && prev.files != null)
+        foreach (var f in prev.files) if (f != null && !string.IsNullOrEmpty(f.file)) prevHash[f.file] = f.sha256;
+
+      int applied = 0, already = 0, missing = 0, fresh = 0, restyled = 0, same = 0;
+      try {
+        AssetDatabase.StartAssetEditing();
+        foreach (var a in manifest.assets) {
+          var ti = AssetImporter.GetAtPath(root + "/" + a.file) as TextureImporter;
+          if (ti == null) { missing++; continue; }
+          if (Configure(ti, a)) { ti.SaveAndReimport(); applied++; } else { already++; }
+          string was;
+          if (prev == null || !prevHash.TryGetValue(a.file, out was)) fresh++;
+          else if (was != a.sha256) restyled++;
+          else same++;
+        }
+      } finally {
+        AssetDatabase.StopAssetEditing();
+      }
+
+      /* ── I3: anything the last receipt knew that this manifest dropped
+         stays on disk and gets named — deletion is a human's click ── */
+      var inManifest = new HashSet<string>();
+      foreach (var a in manifest.assets) inManifest.Add(a.file);
+      var orphans = new List<string>();
+      if (prev != null && prev.files != null)
+        foreach (var f in prev.files)
+          if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file))
+            orphans.Add(f.file);
+      if (prev != null && prev.orphans != null)
+        foreach (var o in prev.orphans)
+          if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
+            orphans.Add(o);
+
+      /* ── I5: examples appear once, fully wired, then are yours ── */
+      bool prefabsReady = (prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs");
+      bool prefabsNew = false;
+      if (!prefabsReady) { prefabsNew = GeneratePrefabs(root, manifest); prefabsReady = prefabsNew; }
+
+      // ── the receipt ──
+      var receipt = new PBLock();
+      receipt.slug = manifest.slug;
+      receipt.kitVersion = manifest.kitVersion;
+      receipt.imported = DateTime.UtcNow.ToString("o");
+      receipt.prefabsGenerated = prefabsReady;
+      var entries = new List<PBLockEntry>();
+      foreach (var a in manifest.assets) { var e = new PBLockEntry(); e.file = a.file; e.sha256 = a.sha256; entries.Add(e); }
+      receipt.files = entries.ToArray();
+      receipt.orphans = orphans.ToArray();
+      File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
+
+      var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
+      var line = "UI Kit Maker — '" + kitName + "'" + (manifest.kitVersion > 0 ? " v" + manifest.kitVersion : "")
+        + (prev == null ? " imported: " : " updated: ") + manifest.assets.Length + " sprites ("
+        + (prev == null ? fresh + " new" : fresh + " new, " + restyled + " restyled, " + same + " unchanged")
+        + "; settings: " + applied + " applied, " + already + " already right)."
+        + (prefabsNew ? " Wired prefabs are ready in " + root + "/Prefabs — drag one into your Canvas." : "");
+      if (orphans.Count > 0)
+        Debug.LogWarning(line + "\\n" + orphans.Count + " piece(s) are no longer part of this kit but STAY on disk (nothing is deleted without you): "
+          + string.Join(", ", orphans.ToArray())
+          + "\\nRemove them via Tools > PatternBreak > Review Orphaned Kit Files.");
+      else
+        Debug.Log(line);
+      if (missing > 0)
+        Debug.LogWarning("UI Kit Maker: " + missing + " sprites named in " + mPath + " were not found on disk — keep the export's assets folder next to kit-manifest.json, named exactly 'assets'.");
+    }
+
+    /* ── I3's explicit hand: review and remove, never automatic ── */
+    [MenuItem("Tools/PatternBreak/Review Orphaned Kit Files")]
+    public static void ReviewOrphans() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      var all = new List<string>();
       foreach (var guid in manifests) {
         var mPath = AssetDatabase.GUIDToAssetPath(guid);
         var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-        var manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath));
-        if (manifest == null || manifest.assets == null || manifest.assets.Length == 0) {
-          Debug.LogWarning("PatternBreak: " + mPath + " has no asset list — is it the kit-manifest.json from the export zip?");
-          continue;
-        }
-        int applied = 0, missing = 0;
-        foreach (var a in manifest.assets) {
-          var p = root + "/" + a.file;
-          var ti = AssetImporter.GetAtPath(p) as TextureImporter;
-          if (ti == null) { missing++; continue; }
-          Configure(ti, a);
-          ti.SaveAndReimport();
-          applied++;
-        }
-        if (missing > 0)
-          Debug.LogWarning("PatternBreak: " + missing + " sprites listed in " + mPath + " were not found under " + root + "/assets — keep the export's assets folder next to kit-manifest.json and named exactly 'assets'.");
-        Debug.Log("PatternBreak kit import settings applied: " + applied + " sprites under " + root);
+        var lockPath = root + "/kit.lock.json";
+        if (!File.Exists(lockPath)) continue;
+        PBLock rec = null;
+        try { rec = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { continue; }
+        if (rec == null || rec.orphans == null) continue;
+        foreach (var o in rec.orphans)
+          if (!string.IsNullOrEmpty(o) && File.Exists(root + "/" + o)) all.Add(root + "/" + o);
       }
+      if (all.Count == 0) {
+        EditorUtility.DisplayDialog("UI Kit Maker", "No orphaned kit files — every sprite on disk is part of the current kit.", "Nice");
+        return;
+      }
+      var listing = string.Join("\\n", all.ToArray());
+      if (EditorUtility.DisplayDialog("UI Kit Maker — orphaned kit files",
+        "These " + all.Count + " file(s) were part of an earlier version of the kit and are no longer in it. They are safe to remove IF nothing in your scenes still uses them.\\n\\n" + listing,
+        "Remove them", "Keep everything")) {
+        foreach (var p in all) AssetDatabase.DeleteAsset(p);
+        Debug.Log("UI Kit Maker: removed " + all.Count + " orphaned file(s).");
+      }
+    }
+
+    /* ── generated examples — REAL sprite references (a text prefab can
+       never carry the GUIDs your Unity mints at import; building them
+       here, after import, is what makes them arrive wired) ── */
+    static Sprite S(string path) { return AssetDatabase.LoadAssetAtPath<Sprite>(path); }
+    static Font BuiltinFont() {
+      try { var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); if (f != null) return f; } catch (Exception) { }
+      try { return Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch (Exception) { }
+      return null;
+    }
+    static GameObject ImageObject(string n, Sprite sp, int pngScale) {
+      var go = new GameObject(n, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      var img = go.GetComponent<Image>();
+      img.sprite = sp;
+      img.type = Image.Type.Sliced;
+      if (sp != null && pngScale > 0)
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width / pngScale, sp.rect.height / pngScale);
+      return go;
+    }
+    static void AddLabel(GameObject parent, string text) {
+      var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+      go.transform.SetParent(parent.transform, false);
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      var t = go.GetComponent<Text>();
+      t.text = text;
+      t.alignment = TextAnchor.MiddleCenter;
+      t.fontSize = 40;
+      t.color = Color.white;
+      t.raycastTarget = false;
+      var f = BuiltinFont();
+      if (f != null) t.font = f;
+      // the kit's REAL face is named in kit-manifest.json > typography —
+      // install it (or its TMP asset) and swap it here
+    }
+    static bool ButtonPrefab(string dir, string root, string family, string goName, string label, int pngScale) {
+      var baseSp = S(root + "/assets/" + family + "/base.9.png");
+      if (baseSp == null) return false;
+      var go = ImageObject(goName, baseSp, pngScale);
+      var btn = go.AddComponent<Button>();
+      var hover = S(root + "/assets/" + family + "/base-hover.9.png");
+      var pressed = S(root + "/assets/" + family + "/base-pressed.9.png");
+      var disabled = S(root + "/assets/" + family + "/base-disabled.9.png");
+      if (hover != null || pressed != null || disabled != null) {
+        btn.transition = Selectable.Transition.SpriteSwap;
+        var ss = new SpriteState();
+        ss.highlightedSprite = hover;
+        ss.selectedSprite = hover;
+        ss.pressedSprite = pressed;
+        ss.disabledSprite = disabled;
+        btn.spriteState = ss;
+      }
+      AddLabel(go, label);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool ProgressPrefab(string dir, string root, int pngScale) {
+      var track = S(root + "/assets/progress/track.9.png");
+      if (track == null) return false;
+      var go = ImageObject("ProgressBar", track, pngScale);
+      var fill = S(root + "/assets/progress/fill.9.png");
+      if (fill != null) {
+        var f = ImageObject("Fill", fill, pngScale);
+        f.transform.SetParent(go.transform, false);
+        var rt = f.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 0.5f);
+        rt.anchorMax = new Vector2(0f, 0.5f);
+        rt.pivot = new Vector2(0f, 0.5f);
+        rt.anchoredPosition = new Vector2(2f, 0f);
+        // staged at 65% — drive Fill's width from your live value
+        rt.sizeDelta = new Vector2((track.rect.width / pngScale) * 0.65f, fill.rect.height / pngScale);
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool GeneratePrefabs(string root, PBManifest m) {
+      var pngScale = m.pngScale > 0 ? m.pngScale : 2;
+      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
+        var created = AssetDatabase.CreateFolder(root, "Prefabs");
+        if (string.IsNullOrEmpty(created)) return false;
+      }
+      var dir = root + "/Prefabs";
+      bool any = false;
+      if (ButtonPrefab(dir, root, "button-primary", "PrimaryButton", "PLAY", pngScale)) any = true;
+      if (ButtonPrefab(dir, root, "chip", "Chip", "NEW", pngScale)) any = true;
+      if (ProgressPrefab(dir, root, pngScale)) any = true;
+      return any;
     }
   }
 
@@ -495,7 +786,9 @@ namespace PatternBreak {
     }
     /* The manifest arriving (or changing) triggers a full pass — on a fresh
        drop the textures may import before the manifest, so the pass at the
-       end of the batch is what makes the first import land configured. */
+       end of the batch is what makes the first import land configured.
+       kit.lock.json is written by the pass itself and deliberately does
+       NOT retrigger it. */
     static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom) {
       foreach (var p in imported) {
         if (!p.EndsWith("kit-manifest.json")) continue;
@@ -506,229 +799,6 @@ namespace PatternBreak {
     }
   }
 }
-`;
-
-/* Script references are the com.unity.ugui PACKAGE sources — every C# script
-   in a package is {fileID: 11500000} under its .cs meta guid: Image.cs is
-   fe87c0e1cc204ed48ad3b37840f39efc, Button.cs 4e29b1a8efbd4b44bb3f3716e73f07ff.
-   The older engine-DLL identities (guid f70555f144d8491a825f0804e09c671c)
-   come up "Missing (Mono Script)" in Unity 6 (owner report) — the DLL is
-   gone, UI moved to the package in 2019.2. Sprites are deliberately
-   {fileID: 0}: a text prefab cannot know the guid the user's Unity assigns
-   the PNG at import, and any placeholder text there is a per-line console
-   error ("Could not extract GUID"). Field lists mirror Unity-serialized
-   prefabs verbatim so nothing else deserializes to a surprise default. */
-const UNITY_BUTTON_PREFAB = `%YAML 1.1
-%TAG !u! tag:unity3d.com,2011:
-# PatternBreak example — PrimaryButton
-# Root: RectTransform + CanvasRenderer + Image (Sliced) + Button.
-# The Image ships with NO sprite on purpose — drag assets/button-primary/base.9.png
-# onto it (Image Type is already Sliced; the importer gives the sprite its
-# borders). Add a TextMeshProUGUI child for the label (live text, kit face).
---- !u!1 &100000
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 400000}
-  - component: {fileID: 22200000}
-  - component: {fileID: 11400000}
-  - component: {fileID: 11400002}
-  m_Layer: 5
-  m_Name: PrimaryButton
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &400000
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 400, y: 136}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &22200000
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_CullTransparentMesh: 1
---- !u!114 &11400000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 1
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
---- !u!114 &11400002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  m_Navigation:
-    m_Mode: 3
-    m_WrapAround: 0
-    m_SelectOnUp: {fileID: 0}
-    m_SelectOnDown: {fileID: 0}
-    m_SelectOnLeft: {fileID: 0}
-    m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
-  m_Colors:
-    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
-    m_ColorMultiplier: 1
-    m_FadeDuration: 0.1
-  m_SpriteState:
-    m_HighlightedSprite: {fileID: 0}
-    m_PressedSprite: {fileID: 0}
-    m_SelectedSprite: {fileID: 0}
-    m_DisabledSprite: {fileID: 0}
-  m_AnimationTriggers:
-    m_NormalTrigger: Normal
-    m_HighlightedTrigger: Highlighted
-    m_PressedTrigger: Pressed
-    m_SelectedTrigger: Selected
-    m_DisabledTrigger: Disabled
-  m_Interactable: 1
-  m_TargetGraphic: {fileID: 11400000}
-  m_OnClick:
-    m_PersistentCalls:
-      m_Calls: []
-`;
-
-const UNITY_PROGRESS_PREFAB = `%YAML 1.1
-%TAG !u! tag:unity3d.com,2011:
-# PatternBreak example — ProgressBar
-# Root: RectTransform + CanvasRenderer + Image (Sliced).
-# The Image ships with NO sprite on purpose — drag assets/progress/track.9.png
-# onto it. Add a Fill child (Image, sprite progress/fill.9.png, type Filled
-# Horizontal, or width driven by code — the value is LIVE, never baked).
---- !u!1 &100000
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 400000}
-  - component: {fileID: 22200000}
-  - component: {fileID: 11400000}
-  m_Layer: 5
-  m_Name: ProgressBar
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &400000
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 440, y: 44}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &22200000
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_CullTransparentMesh: 1
---- !u!114 &11400000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 1
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 `;
 
 const UNREAL_README = `# PatternBreak kit — Unreal import
