@@ -1000,6 +1000,13 @@ namespace PatternBreak {
     static void ApplyStyle(Material mat, PBManifest m, string root) {
       var s = m != null && m.typography != null ? m.typography.style : null;
       if (mat == null || s == null) return;
+      /* CreateFontAsset hands back a material on the MOBILE distance-field
+         shader, which has no glow, bevel or face-texture sections — every
+         deep-style write below would land on deaf ears. The full shader
+         ships with TMP Essential Resources (already in: TmpReady gates us). */
+      var full = Shader.Find("TextMeshPro/Distance Field");
+      if (full != null) { if (mat.shader != full) mat.shader = full; }
+      else Debug.LogWarning("UI Kit Maker: the TextMeshPro/Distance Field shader isn't in this project, so glow, emboss and the face pattern stay off (fill, outline and shadow still apply). Re-importing TMP Essential Resources restores it.");
       Color c;
       if (s.outline != null && !string.IsNullOrEmpty(s.outline.color) && ColorUtility.TryParseHtmlString(s.outline.color, out c)) {
         mat.SetColor("_OutlineColor", c);
@@ -1039,7 +1046,9 @@ namespace PatternBreak {
         var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + s.pattern.file);
         if (tex != null) {
           mat.SetTexture("_FaceTex", tex);
-          var reps = Mathf.Clamp(8f / Mathf.Max(0.25f, s.pattern.scale / 100f), 1f, 32f);
+          // the app draws ~3.3 pattern cells per em (cell = fontSize * 0.3 * scale);
+          // the face texture maps per character, so match that density per glyph
+          var reps = Mathf.Clamp(3.3f / Mathf.Max(0.25f, s.pattern.scale / 100f), 1f, 16f);
           mat.SetTextureScale("_FaceTex", new Vector2(reps, reps));
         }
       }
