@@ -105,8 +105,18 @@ export function healStateIconPins(cfg: GenConfig): GenConfig {
   return cfg;
 }
 
+/** Where a look's per-piece kit layer rides inside a stored config.
+ *  Declared here because hydrate() runs at module load (the bundled site
+ *  default) — anything it touches must already exist. */
+export const WORKSPACE_KEY = "__workspace";
+
 export function hydrate(parsed: Record<string, any>): GenConfig {
   const d = defaultConfig();
+  // a look's kit layer rides inside the stored config — it is applied
+  // separately and must never settle onto the live config
+  if (parsed && typeof parsed === "object" && WORKSPACE_KEY in parsed) {
+    parsed = { ...parsed }; delete parsed[WORKSPACE_KEY];
+  }
   const cfg = {
     ...d, ...parsed,
     candy: mergeCandy(d.candy, parsed.candy),
@@ -580,6 +590,71 @@ let saveTimer: number | undefined;
    holding references is a faithful snapshot. kitLocks stay OUT: locking is
    workflow, not a design edit, and undo must never silently unlock a
    finished piece. */
+/* ── the kit layer ────────────────────────────────────────────────
+   Everything a LOOK carries beyond the master config: silhouette
+   overrides, per-piece forks, icon swaps, words, poses, nudges, sizes.
+   Owner: "I want ALL changes I make to any look to port over" — so a
+   preset or a shipped pack travels with this attached, under
+   cfg.__workspace (no schema change, and it rides along wherever a cfg
+   goes: personal presets, the studio, the release desk).
+   kitLocks stays OUT on purpose: a lock is workflow ("I'm finished with
+   this piece"), not part of the look — and a locked piece's DESIGN still
+   ports, because locking pins it into kitDesigns. */
+const KIT_STORE_KEY: Record<string, string> = {
+  kitDesigns: "ui-generator-kitdesigns",
+  kitShapes: "ui-generator-kitshapes",
+  kitIcons: "ui-generator-kiticons",
+  kitLabels: "ui-generator-kitlabels",
+  kitSubs: "ui-generator-kitsubs",
+  kitTextFill: "ui-generator-kittextfill",
+  kitTextOy: "ui-generator-kittextoy",
+  kitTextOx: "ui-generator-kittextox",
+  kitBar: "ui-generator-kitbar",
+  kitSlotVals: "ui-generator-kitslots",
+  kitVals: "ui-generator-kitvals",
+  kitRow: "ui-generator-kitrow",
+};
+/** Record-shaped keys — a look that carries none of one means "none",
+ *  so they reset rather than blending with whatever the user had. */
+const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes"] as const;
+
+/** The kit layer as it stands right now — what a publish attaches. */
+export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of [...WS_MAPS, "kitRow"]) {
+    const v = s[k];
+    if (v && typeof v === "object" && Object.keys(v as object).length) out[k] = JSON.parse(JSON.stringify(v));
+  }
+  return out;
+}
+/** Split a stored config into the master config and its kit layer. */
+export function splitWorkspace(raw: unknown): { cfg: Record<string, unknown>; ws: Record<string, unknown> | null } {
+  const c = JSON.parse(JSON.stringify(raw ?? {})) as Record<string, unknown>;
+  const ws = c[WORKSPACE_KEY];
+  delete c[WORKSPACE_KEY];
+  return { cfg: c, ws: ws && typeof ws === "object" ? (ws as Record<string, unknown>) : null };
+}
+/** Land a look's kit layer: the whole per-piece layer is replaced, so the
+ *  look arrives as it was designed rather than blended with what was here.
+ *  A look saved before packs carried a kit layer (ws null) leaves the
+ *  user's own per-piece work alone. One Cmd+Z puts everything back —
+ *  undo snapshots the whole document. */
+function applyWorkspace(ws: Record<string, unknown> | null): void {
+  if (!ws) return;
+  const patch: Record<string, unknown> = {};
+  for (const k of WS_MAPS) {
+    const v = ws[k];
+    patch[k] = v && typeof v === "object" ? v : {};
+    const sk = KIT_STORE_KEY[k];
+    if (sk) saveJson(sk, patch[k]);
+  }
+  if (ws.kitRow && typeof ws.kitRow === "object") {
+    patch.kitRow = ws.kitRow;
+    saveJson(KIT_STORE_KEY.kitRow, ws.kitRow);
+  }
+  useGen.setState(patch as Partial<GenStore>);
+}
+
 type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow">;
 const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
@@ -603,18 +678,8 @@ function pushHistory(s: GenStore) {
    session-only by design and stays unpersisted. */
 function persistSnap(s: HistSnap) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s.cfg)); } catch { /* ignore */ }
-  saveJson("ui-generator-kitdesigns", s.kitDesigns);
-  saveJson("ui-generator-kitshapes", s.kitShapes);
-  saveJson("ui-generator-kiticons", s.kitIcons);
-  saveJson("ui-generator-kitlabels", s.kitLabels);
-  saveJson("ui-generator-kitsubs", s.kitSubs);
-  saveJson("ui-generator-kittextfill", s.kitTextFill);
-  saveJson("ui-generator-kittextoy", s.kitTextOy);
-  saveJson("ui-generator-kittextox", s.kitTextOx);
-  saveJson("ui-generator-kitbar", s.kitBar);
-  saveJson("ui-generator-kitslots", s.kitSlotVals);
-  saveJson("ui-generator-kitvals", s.kitVals);
-  saveJson("ui-generator-kitrow", s.kitRow);
+  const rec = s as unknown as Record<string, unknown>;
+  for (const [k, storeKey] of Object.entries(KIT_STORE_KEY)) saveJson(storeKey, rec[k]);
 }
 
 function loadPanelW(): number {
@@ -1013,21 +1078,25 @@ export const useGen = create<GenStore>((set, get) => ({
     for (const st of Object.values(tc.states)) st.glow = 0;
     tc.content.label = "PLAY"; tc.icon.show = false;
     const thumb = renderBevel(tc, "default");
+    // your own presets carry the whole kit too — the per-piece layer rides
+    // inside the stored config, so it survives the sync and the studio
+    const stored = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) } as unknown as GenConfig;
     const existing = get().userPresets.find((u) => u.name === name);
     const userPresets = existing
-      ? get().userPresets.map((u) => (u.name === name ? { ...u, cfg, thumb } : u))
-      : [{ id: "up" + Date.now().toString(36), name, cfg, thumb }, ...get().userPresets];
+      ? get().userPresets.map((u) => (u.name === name ? { ...u, cfg: stored, thumb } : u))
+      : [{ id: "up" + Date.now().toString(36), name, cfg: stored, thumb }, ...get().userPresets];
     saveJson("ui-generator-userpresets", userPresets);
     set({ userPresets });
   },
   applyUserPreset: (id) => {
     const u = get().userPresets.find((x) => x.id === id);
     if (!u) return;
-    const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
-    const next = clone(u.cfg) as GenConfig;
+    const { cfg: raw, ws } = splitWorkspace(u.cfg);
+    const next = raw as unknown as GenConfig;
     next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
     next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
     get().replaceConfig(next);
+    applyWorkspace(ws);             // …and every per-piece change it was saved with
     get().setKitName(u.name);
     set({ activeCloudPreset: null });
   },
@@ -1060,17 +1129,20 @@ export const useGen = create<GenStore>((set, get) => ({
   applyCloudPreset: (id) => {
     const p = get().cloudPresets.find((x) => x.id === id);
     if (!p) return;
-    const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
-    const next = clone(p.cfg) as GenConfig;
+    const { cfg: raw, ws } = splitWorkspace(p.cfg);
+    const next = raw as unknown as GenConfig;
     next.canvas = get().cfg.canvas; // shared presets restyle the component, never the stage
     next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
     get().replaceConfig(next);
+    applyWorkspace(ws);             // …and every per-piece change it shipped with
     get().setKitName(p.name);
     set({ activeCloudPreset: { id: p.id, name: p.name } });
   },
   publishPreset: async (name, publishAt = null) => {
     const { cfg, thumb } = presetSnapshot(get().cfg);
-    const { preset, error } = await publishCloudPreset(name, cfg, thumb, publishAt);
+    // a pack ships the WHOLE kit: master look + every per-piece change
+    const payload = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) };
+    const { preset, error } = await publishCloudPreset(name, payload, thumb, publishAt);
     if (error) return error;
     // the fresh publish becomes the Overwrite target — tweak-and-save flows on
     if (preset) set({ activeCloudPreset: { id: preset.id, name: preset.name } });
@@ -1094,7 +1166,9 @@ export const useGen = create<GenStore>((set, get) => ({
     const target = get().activeCloudPreset;
     if (!target) return "Apply a shared preset first — then Overwrite saves your tweaks back into it.";
     const { cfg, thumb } = presetSnapshot(get().cfg);
-    const err = await updateCloudPreset(target.id, cfg, thumb);
+    // Overwrite ships the whole kit back, same as a fresh publish
+    const payload = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) };
+    const err = await updateCloudPreset(target.id, payload, thumb);
     if (err) return err;
     await get().loadCloudPresets();
     return null;
