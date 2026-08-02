@@ -4339,8 +4339,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const dS = ({ s: 300, m: 380, l: 460 } as Record<KitSize, number>)[size] * k;
       const padS = 40;
       const cS = dS / 2 + padS, rS = dS / 2;
-      const rimWs = Math.max(12, dS * 0.055);
+      /* the wheel is BUILT, not drawn: its ring is the kit's wall, its
+         edge the kit's rim, and it stands on a real extruded body
+         (owner: "keep pushing the dimensionality with the wall specs") */
+      const swWall = cfg.bevel.off ? 0 : cfg.bevel.width * k;
+      const rimWs = cfg.bevel.off ? Math.max(4, 3 * k) : Math.max(9 * k, swWall * 1.15);
       const wedgeR = rS - rimWs;
+      const swDepth = Math.max(0, cfg.candy.extrusion.depth * k);
+      /* the canvas reserves the depth slider's FULL travel, so dragging
+         Extrusion never resizes the piece — the same anti-reflow contract
+         the shell, its shadow and its glow already keep */
+      const swDepthCap = 48 * k;
+      const swRise = Math.max(0, swDepthCap - swDepth);
       const gidSW = "sw" + UID++;
       // at rest a GOLD wedge sits centered under the pointer (the mock);
       // LiveArt's throw lands on wedge centers too (+0.5/8 offsets)
@@ -4395,6 +4405,24 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const swPatUse = swPatOn
         ? `<circle cx="${cS}" cy="${cS}" r="${wedgeR.toFixed(1)}" fill="url(#${gidSW}pt)" opacity="${(PTs.opacity / 100).toFixed(2)}"/>`
         : "";
+      /* the extruded body — the same stacked-slice construction the shell
+         uses, so the wheel reads as one solid turned from the kit's
+         material rather than a flat disc with a glow */
+      const swDk = (cfg.candy.extrusion.darkness ?? 76) / 100;
+      const swDeep = hexMix(darken(bevel, clamp(0.24 + 0.34 * swDk, 0, 0.8)), bevel, 0.18);
+      const swBody = swDepth > 0.3 ? (() => {
+        const nS = Math.max(2, Math.ceil(swDepth / 2.5));
+        let s9 = "";
+        for (let i = 0; i < nS; i++) {
+          const ty = (swDepth * (i + 1)) / nS;
+          const last = i === nS - 1;
+          s9 += `<circle cx="${cS}" cy="${(cS + ty).toFixed(1)}" r="${rS.toFixed(1)}" fill="url(#${gidSW}ex)"${last ? ` stroke="${darken(swDeep, 0.35)}" stroke-width="1"` : ""}/>`;
+        }
+        // vertical shade toward the ground, then the bounce-light lip
+        s9 += `<circle cx="${cS}" cy="${(cS + swDepth).toFixed(1)}" r="${rS.toFixed(1)}" fill="url(#${gidSW}exv)"/>`;
+        s9 += `<circle cx="${cS}" cy="${(cS + swDepth - 0.8).toFixed(1)}" r="${rS.toFixed(1)}" fill="none" stroke="${lighten(swDeep, 0.38)}" stroke-width="1.2" opacity="0.45"/>`;
+        return s9;
+      })() : "";
       // rim bulbs at wedge boundaries — all lit, glowing the theme's Glow
       let bulbs = "";
       for (let i = 0; i < nWg; i++) {
@@ -4402,11 +4430,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const bx9 = cS + (rS - rimWs / 2) * Math.cos(aB), by9 = cS + (rS - rimWs / 2) * Math.sin(aB);
         bulbs += `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${(rimWs * 0.3).toFixed(1)}" fill="#FFFFFF"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.9)})"` : ""}/>`;
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dS + padS * 2).toFixed(0)}" height="${(dS + padS * 2).toFixed(0)}" viewBox="0 0 ${(dS + padS * 2).toFixed(0)} ${(dS + padS * 2).toFixed(0)}" data-spinwheel="1" role="img" aria-label="spin wheel">
-<defs><linearGradient id="${gidSW}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, glow, 0.45), 0.4)}"/><stop offset="0.5" stop-color="${hexMix(bevel, glow, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient><linearGradient id="${gidSW}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(knobC, 0.35)}"/><stop offset="1" stop-color="${darken(knobC, 0.12)}"/></linearGradient>${swPatDef}</defs>
-<g opacity="${state === "disabled" ? 0.45 : 1}">
+      const swH = dS + padS * 2 + Math.ceil(swDepthCap);
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dS + padS * 2).toFixed(0)}" height="${swH.toFixed(0)}" viewBox="0 0 ${(dS + padS * 2).toFixed(0)} ${swH.toFixed(0)}" data-spinwheel="1" role="img" aria-label="spin wheel">
+<defs><linearGradient id="${gidSW}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, glow, 0.45), 0.4)}"/><stop offset="0.5" stop-color="${hexMix(bevel, glow, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient><linearGradient id="${gidSW}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(knobC, 0.35)}"/><stop offset="1" stop-color="${darken(knobC, 0.12)}"/></linearGradient>
+  <linearGradient id="${gidSW}ex" x1="${swLx >= 0 ? 1 : 0}" y1="0.5" x2="${swLx >= 0 ? 0 : 1}" y2="0.5"><stop offset="0" stop-color="${lighten(swDeep, clamp(0.06 + 0.26 * Math.abs(swLx), 0, 0.5))}"/><stop offset="0.55" stop-color="${swDeep}"/><stop offset="1" stop-color="${darken(swDeep, clamp(0.05 + 0.2 * Math.abs(swLx), 0, 0.5))}"/></linearGradient>
+  <linearGradient id="${gidSW}exv" x1="0" y1="0" x2="0" y2="1"><stop offset="0.5" stop-color="${darken(swDeep, 0.55)}" stop-opacity="0"/><stop offset="1" stop-color="${darken(swDeep, 0.55)}" stop-opacity="0.38"/></linearGradient>
+  <radialGradient id="${gidSW}ie"><stop offset="0.82" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="1"/></radialGradient>${swPatDef}</defs>
+<g opacity="${state === "disabled" ? 0.45 : 1}" transform="translate(0 ${swRise.toFixed(1)})">
+  ${swBody}
   <g transform="rotate(${rot.toFixed(2)} ${cS} ${cS})">${wedges}${swPatUse}</g>
-  <circle cx="${cS}" cy="${cS}" r="${(rS - rimWs / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}r)" stroke-width="${rimWs.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimWs * 0.7).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>
+  ${cfg.candy.innerEdge.strength > 1 && cfg.candy.innerEdge.width > 0.1
+    ? `<circle cx="${cS}" cy="${cS}" r="${(wedgeR - cfg.candy.innerEdge.width * k / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}ie)" stroke-width="${(cfg.candy.innerEdge.width * k).toFixed(1)}" opacity="${clamp(cfg.candy.innerEdge.strength / 100, 0, 1).toFixed(2)}"/>` : ""}
+  ${rimWs > 0.2 ? `<circle cx="${cS}" cy="${cS}" r="${(rS - rimWs / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}r)" stroke-width="${rimWs.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimWs * 0.7).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>` : ""}
+  ${cfg.candy.rim.width > 0.2 ? `<circle cx="${cS}" cy="${cS}" r="${(rS - cfg.candy.rim.width * k / 2).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="${(cfg.candy.rim.width * k).toFixed(1)}" opacity="${((cfg.candy.rim.brightness / 100) * (state === "disabled" ? 0.5 : 1)).toFixed(2)}"/>` : ""}
   ${bulbs}
   <circle cx="${cS}" cy="${cS}" r="${(dS * 0.15).toFixed(1)}" fill="url(#${gidSW}r)" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/>
   ${candyKnob(cS, cS, dS * 0.115, knobC)}
