@@ -4339,31 +4339,90 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const dS = ({ s: 300, m: 380, l: 460 } as Record<KitSize, number>)[size] * k;
       const padS = 40;
       const cS = dS / 2 + padS, rS = dS / 2;
-      const rimWs = Math.max(12, dS * 0.055);
+      /* the wheel is BUILT, not drawn: its ring is the kit's wall, its
+         edge the kit's rim, and it stands on a real extruded body
+         (owner: "keep pushing the dimensionality with the wall specs") */
+      const swWall = cfg.bevel.off ? 0 : cfg.bevel.width * k;
+      const rimWs = cfg.bevel.off ? Math.max(4, 3 * k) : Math.max(9 * k, swWall * 1.15);
       const wedgeR = rS - rimWs;
+      const swDepth = Math.max(0, cfg.candy.extrusion.depth * k);
+      /* the canvas reserves the depth slider's FULL travel, so dragging
+         Extrusion never resizes the piece — the same anti-reflow contract
+         the shell, its shadow and its glow already keep */
+      const swDepthCap = 48 * k;
+      const swRise = Math.max(0, swDepthCap - swDepth);
       const gidSW = "sw" + UID++;
       // at rest a GOLD wedge sits centered under the pointer (the mock);
       // LiveArt's throw lands on wedge centers too (+0.5/8 offsets)
       const vSW = ((clamp(value ?? 0.0625, -8, 8) % 1) + 1) % 1;
       const rot = vSW * 360;
-      const nWg = 8;
-      const GOLD9 = "#FACC15";
-      // paired jackpot wedges opposite each other; pale/deep blues between
+      /* count, jackpot ink and the glyph cycle are the wheel's content —
+         all editable. The count stays even so the jackpot pair sits
+         opposite; the cycle repeats every 4 wedges as the mock does. */
+      const nWg = clamp(parseInt(opts.slots?.wedges ?? "8", 10) || 8, 6, 12) & ~1;
+      const GOLD9 = opts.slots?.jackpot ?? "#FACC15";
+      // paired jackpot wedges opposite each other; theme tints between
       const tintOf = (i: number) => (i % 4 === 3 ? GOLD9 : i % 4 === 1 ? hexMix(bevel, glow, 0.55) : lighten(bevel, 0.5));
-      const glyphs = [STOCK_ICONS.star, STOCK_ICONS.gem, STOCK_ICONS.zap, STOCK_ICONS.gift];
+      const stockGlyphs = [STOCK_ICONS.star, STOCK_ICONS.gem, STOCK_ICONS.zap, STOCK_ICONS.gift];
+      const glyphs = stockGlyphs.map((g9, gi) => {
+        const pick = opts.slots?.[`glyph${gi + 1}`];
+        return (pick && STOCK_ICONS[pick.toLowerCase()]) || g9;
+      });
+      /* the wheel speaks the kit's language: the face pattern is woven into
+         the wedges, the glyphs ride the icon Size rig, and the gloss arc
+         follows the master light instead of a baked-in highlight */
+      const swA = ((cfg.lighting.angle % 360) + 360) % 360;
+      const swRad = (swA * Math.PI) / 180;
+      const swLx = Math.cos(swRad), swLy = -Math.sin(swRad); // +l points toward the light
+      const swIconK = clamp((cfg.icon.size ?? 100) / 100, 0.4, 1.7);
+      const PTs = cfg.candy.pattern;
+      const swPatOn = !!PTs && PTs.type !== "none" && PTs.opacity > 1;
+      const swPatDef = swPatOn ? (() => {
+        const ps9 = Math.max(8, 8 + (PTs.scale / 100) * 26);
+        const pc9 = PTs.color ? PTs.color : darken(bevel, 0.2);
+        return `<pattern id="${gidSW}pt" width="${ps9.toFixed(1)}" height="${ps9.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${PTs.angle ?? 0})">${textPatternCell(PTs.type, ps9, pc9)}</pattern>`;
+      })() : "";
       let wedges = "";
       for (let i = 0; i < nWg; i++) {
         const a0 = (i / nWg) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / nWg) * Math.PI * 2 - Math.PI / 2;
         const tint = tintOf(i);
         wedges += `<path d="M ${cS} ${cS} L ${(cS + wedgeR * Math.cos(a0)).toFixed(1)} ${(cS + wedgeR * Math.sin(a0)).toFixed(1)} A ${wedgeR.toFixed(1)} ${wedgeR.toFixed(1)} 0 0 1 ${(cS + wedgeR * Math.cos(a1)).toFixed(1)} ${(cS + wedgeR * Math.sin(a1)).toFixed(1)} Z" fill="${tint}" stroke="${darken(bevel, 0.5)}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round"/>`;
-        // per-wedge gloss — a light arc riding the outer edge
+        /* per-wedge gloss — brightest where the wedge faces the master
+           light, fading away from it, so spinning the Lighting angle
+           sweeps the highlight around the wheel like it does the shell */
         const gA = 0.07;
-        wedges += `<path d="M ${(cS + (wedgeR - 5 * k) * Math.cos(a0 + gA)).toFixed(1)} ${(cS + (wedgeR - 5 * k) * Math.sin(a0 + gA)).toFixed(1)} A ${(wedgeR - 5 * k).toFixed(1)} ${(wedgeR - 5 * k).toFixed(1)} 0 0 1 ${(cS + (wedgeR - 5 * k) * Math.cos(a1 - gA)).toFixed(1)} ${(cS + (wedgeR - 5 * k) * Math.sin(a1 - gA)).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round"/>`;
-        const am = (a0 + a1) / 2;
+        const amG = (a0 + a1) / 2;
+        const facing = Math.cos(amG) * swLx + Math.sin(amG) * -swLy; // 1 = into the light
+        const glossOp = 0.1 + 0.28 * Math.max(0, facing);
+        wedges += `<path d="M ${(cS + (wedgeR - 5 * k) * Math.cos(a0 + gA)).toFixed(1)} ${(cS + (wedgeR - 5 * k) * Math.sin(a0 + gA)).toFixed(1)} A ${(wedgeR - 5 * k).toFixed(1)} ${(wedgeR - 5 * k).toFixed(1)} 0 0 1 ${(cS + (wedgeR - 5 * k) * Math.cos(a1 - gA)).toFixed(1)} ${(cS + (wedgeR - 5 * k) * Math.sin(a1 - gA)).toFixed(1)}" fill="none" stroke="rgba(255,255,255,${glossOp.toFixed(2)})" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round"/>`;
+        const am = amG;
         const gx = cS + wedgeR * 0.64 * Math.cos(am), gy = cS + wedgeR * 0.64 * Math.sin(am);
         const gly = glyphs[i % 4];
-        if (gly) wedges += `<g transform="rotate(${((am + Math.PI / 2) * 180 / Math.PI).toFixed(1)} ${gx.toFixed(1)} ${gy.toFixed(1)})">${iconGroup(gly, gx - 16 * k, gy - 16 * k, 32 * k, darken(tint, 0.55), { strokeWidth: 2.2 * iconWK })}</g>`;
+        const gSz = 32 * k * swIconK;
+        if (gly) wedges += `<g transform="rotate(${((am + Math.PI / 2) * 180 / Math.PI).toFixed(1)} ${gx.toFixed(1)} ${gy.toFixed(1)})">${iconGroup(gly, gx - gSz / 2, gy - gSz / 2, gSz, darken(tint, 0.55), { strokeWidth: 2.2 * iconWK })}</g>`;
       }
+      // the kit's face pattern, woven across the wedge disc under the glyphs
+      const swPatUse = swPatOn
+        ? `<circle cx="${cS}" cy="${cS}" r="${wedgeR.toFixed(1)}" fill="url(#${gidSW}pt)" opacity="${(PTs.opacity / 100).toFixed(2)}"/>`
+        : "";
+      /* the extruded body — the same stacked-slice construction the shell
+         uses, so the wheel reads as one solid turned from the kit's
+         material rather than a flat disc with a glow */
+      const swDk = (cfg.candy.extrusion.darkness ?? 76) / 100;
+      const swDeep = hexMix(darken(bevel, clamp(0.24 + 0.34 * swDk, 0, 0.8)), bevel, 0.18);
+      const swBody = swDepth > 0.3 ? (() => {
+        const nS = Math.max(2, Math.ceil(swDepth / 2.5));
+        let s9 = "";
+        for (let i = 0; i < nS; i++) {
+          const ty = (swDepth * (i + 1)) / nS;
+          const last = i === nS - 1;
+          s9 += `<circle cx="${cS}" cy="${(cS + ty).toFixed(1)}" r="${rS.toFixed(1)}" fill="url(#${gidSW}ex)"${last ? ` stroke="${darken(swDeep, 0.35)}" stroke-width="1"` : ""}/>`;
+        }
+        // vertical shade toward the ground, then the bounce-light lip
+        s9 += `<circle cx="${cS}" cy="${(cS + swDepth).toFixed(1)}" r="${rS.toFixed(1)}" fill="url(#${gidSW}exv)"/>`;
+        s9 += `<circle cx="${cS}" cy="${(cS + swDepth - 0.8).toFixed(1)}" r="${rS.toFixed(1)}" fill="none" stroke="${lighten(swDeep, 0.38)}" stroke-width="1.2" opacity="0.45"/>`;
+        return s9;
+      })() : "";
       // rim bulbs at wedge boundaries — all lit, glowing the theme's Glow
       let bulbs = "";
       for (let i = 0; i < nWg; i++) {
@@ -4371,11 +4430,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const bx9 = cS + (rS - rimWs / 2) * Math.cos(aB), by9 = cS + (rS - rimWs / 2) * Math.sin(aB);
         bulbs += `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${(rimWs * 0.3).toFixed(1)}" fill="#FFFFFF"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.9)})"` : ""}/>`;
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dS + padS * 2).toFixed(0)}" height="${(dS + padS * 2).toFixed(0)}" viewBox="0 0 ${(dS + padS * 2).toFixed(0)} ${(dS + padS * 2).toFixed(0)}" data-spinwheel="1" role="img" aria-label="spin wheel">
-<defs><linearGradient id="${gidSW}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, glow, 0.45), 0.4)}"/><stop offset="0.5" stop-color="${hexMix(bevel, glow, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient><linearGradient id="${gidSW}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(knobC, 0.35)}"/><stop offset="1" stop-color="${darken(knobC, 0.12)}"/></linearGradient></defs>
-<g opacity="${state === "disabled" ? 0.45 : 1}">
-  <g transform="rotate(${rot.toFixed(2)} ${cS} ${cS})">${wedges}</g>
-  <circle cx="${cS}" cy="${cS}" r="${(rS - rimWs / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}r)" stroke-width="${rimWs.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimWs * 0.7).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>
+      const swH = dS + padS * 2 + Math.ceil(swDepthCap);
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dS + padS * 2).toFixed(0)}" height="${swH.toFixed(0)}" viewBox="0 0 ${(dS + padS * 2).toFixed(0)} ${swH.toFixed(0)}" data-spinwheel="1" role="img" aria-label="spin wheel">
+<defs><linearGradient id="${gidSW}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, glow, 0.45), 0.4)}"/><stop offset="0.5" stop-color="${hexMix(bevel, glow, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient><linearGradient id="${gidSW}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(knobC, 0.35)}"/><stop offset="1" stop-color="${darken(knobC, 0.12)}"/></linearGradient>
+  <linearGradient id="${gidSW}ex" x1="${swLx >= 0 ? 1 : 0}" y1="0.5" x2="${swLx >= 0 ? 0 : 1}" y2="0.5"><stop offset="0" stop-color="${lighten(swDeep, clamp(0.06 + 0.26 * Math.abs(swLx), 0, 0.5))}"/><stop offset="0.55" stop-color="${swDeep}"/><stop offset="1" stop-color="${darken(swDeep, clamp(0.05 + 0.2 * Math.abs(swLx), 0, 0.5))}"/></linearGradient>
+  <linearGradient id="${gidSW}exv" x1="0" y1="0" x2="0" y2="1"><stop offset="0.5" stop-color="${darken(swDeep, 0.55)}" stop-opacity="0"/><stop offset="1" stop-color="${darken(swDeep, 0.55)}" stop-opacity="0.38"/></linearGradient>
+  <radialGradient id="${gidSW}ie"><stop offset="0.82" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="1"/></radialGradient>${swPatDef}</defs>
+<g opacity="${state === "disabled" ? 0.45 : 1}" transform="translate(0 ${swRise.toFixed(1)})">
+  ${swBody}
+  <g transform="rotate(${rot.toFixed(2)} ${cS} ${cS})">${wedges}${swPatUse}</g>
+  ${cfg.candy.innerEdge.strength > 1 && cfg.candy.innerEdge.width > 0.1
+    ? `<circle cx="${cS}" cy="${cS}" r="${(wedgeR - cfg.candy.innerEdge.width * k / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}ie)" stroke-width="${(cfg.candy.innerEdge.width * k).toFixed(1)}" opacity="${clamp(cfg.candy.innerEdge.strength / 100, 0, 1).toFixed(2)}"/>` : ""}
+  ${rimWs > 0.2 ? `<circle cx="${cS}" cy="${cS}" r="${(rS - rimWs / 2).toFixed(1)}" fill="none" stroke="url(#${gidSW}r)" stroke-width="${rimWs.toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(rimWs * 0.7).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>` : ""}
+  ${cfg.candy.rim.width > 0.2 ? `<circle cx="${cS}" cy="${cS}" r="${(rS - cfg.candy.rim.width * k / 2).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="${(cfg.candy.rim.width * k).toFixed(1)}" opacity="${((cfg.candy.rim.brightness / 100) * (state === "disabled" ? 0.5 : 1)).toFixed(2)}"/>` : ""}
   ${bulbs}
   <circle cx="${cS}" cy="${cS}" r="${(dS * 0.15).toFixed(1)}" fill="url(#${gidSW}r)" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/>
   ${candyKnob(cS, cS, dS * 0.115, knobC)}

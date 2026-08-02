@@ -3,8 +3,8 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutG
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf } from "@/generator/model";
-import type { GenStateName, BlendMode, PatternType, KitComponentId  } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf } from "@/generator/model";
+import type { GenStateName, BlendMode, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN } from "@/generator/bevel";
@@ -395,7 +395,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -436,6 +436,17 @@ export function Panel() {
     if (!focus) { updateParent(fn); return; }
     const before = applyKitDesign(cfgMaster, kitDesigns[focus]);
     const merged = JSON.parse(JSON.stringify(before)) as GenConfig;
+    /* WHERE this edit lands: the focused piece alone, or every member of
+       its family when the scope bar says Group (owner: "I need that group
+       setting"). Locked pieces are skipped — a lock means finished. The
+       edit is authored once on the focused piece and then pinned to each
+       target, so the family moves together without the maker repeating
+       themselves on five HUD dials. */
+    const grp = scope === "group" ? groupOf(focus) : null;
+    const targets: KitComponentId[] = grp ? grp.members.filter((m) => !kitLocks[m]) : [focus];
+    const pinAll = (patch: KitDesign) => {
+      for (const t of targets) setKitDesign(t, mergeKitDesign(useGen.getState().kitDesigns[t], patch));
+    };
     if (selectedState !== "default") {
       /* Editing a non-default state of a focused piece: route the design edit
          into that state's fork — the same routing the store's update does —
@@ -472,29 +483,29 @@ export function Panel() {
         }
       }
       if (JSON.stringify(before.stateDesigns ?? {}) !== JSON.stringify(merged.stateDesigns)) {
-        // the piece's state forks pin wholesale — that's their storage grain
-        setKitDesign(focus, { ...(kitDesigns[focus] ?? {}), stateDesigns: merged.stateDesigns });
+        // state forks pin wholesale — that's their storage grain
+        for (const t of targets) setKitDesign(t, { ...(useGen.getState().kitDesigns[t] ?? {}), stateDesigns: merged.stateDesigns });
       }
     } else {
       fn(merged);
       // v70: pin only the paths this edit changed — the rest keeps following
       // the parent design live, so the kit stays auto-updating
       const d = designDiff(pickDesign(before), pickDesign(merged));
-      if (d) setKitDesign(focus, mergeKitDesign(kitDesigns[focus], d));
+      if (d) pinAll(d);
     }
     /* state ADJUSTMENTS (the Global sliders) isolate to the piece too — the
        banner says "edits save into this piece", and the owner caught them
        leaking to the whole kit. Pin on first touch; read back the freshest
        lock since the design pin above may have just written it. */
     if (JSON.stringify(before.states) !== JSON.stringify(merged.states)) {
-      setKitDesign(focus, mergeKitDesign(useGen.getState().kitDesigns[focus], { states: merged.states }));
+      pinAll({ states: merged.states });
     }
     /* the icon RIG isolates too — "when I resize an icon, it resizes it
        everywhere" (owner). Pin only the dials this edit moved; untouched
        dials keep following the master rig live. */
     if (JSON.stringify(before.icon) !== JSON.stringify(merged.icon)) {
       const di = iconRigDiff(before.icon, merged.icon);
-      if (di) setKitDesign(focus, mergeKitDesign(useGen.getState().kitDesigns[focus], { icon: di }));
+      if (di) pinAll({ icon: di });
     }
     // replay only the non-design portion onto the parent — design keys,
     // state adjustments AND the icon rig stay pinned to the piece
@@ -671,8 +682,8 @@ export function Panel() {
       {/* ── the SCOPE BAR: where edits land, answered before you edit.
            One picker replaces the scattered banner chrome ("Back to parent
            design", "Style X only (pin it)"...). Every verb survives — it
-           just lives in one quiet row now. Group joins the segments in the
-           next phase of the type round. ── */}
+           just lives in one quiet row now. Three scopes: the whole kit, the
+           focused piece's FAMILY, or the piece alone. ── */}
       {(() => {
         const fname = focus ? (KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus) : null;
         const pinned = !!(focus && kitDesigns[focus]);
@@ -683,8 +694,20 @@ export function Panel() {
               <button className={!focus ? "on" : ""} role="radio" aria-checked={!focus}
                 title="Style the whole kit — edits flow to every piece that follows the kit design"
                 onClick={() => setFocus(null)}>Whole kit</button>
-              <button className={focus ? "on" : ""} role="radio" aria-checked={!!focus} disabled={!focus}
-                title={focus ? `Design edits stay on ${fname} only` : "Click Edit on any piece — then edits stay on that piece"}>
+              {(() => {
+                const grp = groupOf(focus);
+                return grp ? (
+                  <button className={focus && scope === "group" ? "on" : ""} role="radio" aria-checked={scope === "group"}
+                    title={`Style all ${grp.members.length} pieces in ${grp.name} together — locked pieces stay put`}
+                    onClick={() => setScope("group")}>Group · {grp.name}</button>
+                ) : (
+                  <button className="" role="radio" aria-checked={false} disabled
+                    title={focus ? `${fname} isn't part of a family — it styles alone` : "Click Edit on a piece that belongs to a family"}>Group</button>
+                );
+              })()}
+              <button className={focus && scope === "piece" ? "on" : ""} role="radio" aria-checked={!!focus && scope === "piece"} disabled={!focus}
+                title={focus ? `Design edits stay on ${fname} only` : "Click Edit on any piece — then edits stay on that piece"}
+                onClick={() => setScope("piece")}>
                 {focus ? `This piece · ${fname}` : "This piece"}
               </button>
             </div>
@@ -705,7 +728,9 @@ export function Panel() {
             {focus && !frozen && (
               <>
                 <div className="scopehint">
-                  Design edits stay on <b>{fname}</b> — the rest of the kit stays put. Words and shared data still flow where they should.
+                  {scope === "group" && groupOf(focus)
+                    ? <>Design edits restyle all <b>{groupOf(focus)!.members.length} pieces</b> in <b>{groupOf(focus)!.name}</b> at once — locked pieces stay put, and the rest of the kit doesn&apos;t move.</>
+                    : <>Design edits stay on <b>{fname}</b> — the rest of the kit stays put. Words and shared data still flow where they should.</>}
                   {parentId === focus && <> · <b>This is the parent design.</b></>}
                 </div>
                 <div className="scopeverbs">

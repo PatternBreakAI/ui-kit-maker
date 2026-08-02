@@ -895,12 +895,12 @@ export type SlotDef = {
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
 };
-/* The emote wheel's pickable set — display names that resolve to
+/* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
-   unset state: each sector keeps its own factory glyph, so the panel never
-   claims every sector is a heart. Curated to glyphs that read as emotes at
+   unset state: each slot keeps its own factory glyph, so the panel never
+   claims every sector is a heart. Curated to glyphs that read at
    wheel-sector size. */
-const EMOTE_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+const GLYPH_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
@@ -954,19 +954,34 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
     { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
   ],
+  spinwheel: [
+    /* the fortune wheel was a fixed picture — count, jackpot and glyphs are
+       its real content, and the face now wears the kit's own pattern,
+       lighting and icon size (owner: "make this wheel editable… more in
+       line with the kit design") */
+    { id: "wedges", name: "Wedges", kind: "choice", choices: ["8", "6", "10", "12"],
+      note: "How many prizes the wheel offers. The jackpot wedges stay opposite each other whatever the count." },
+    { id: "jackpot", name: "Jackpot color", kind: "color", def: "#FACC15",
+      note: "The winning wedge's ink — gold by factory. The other wedges are mixed from your Color map." },
+    { id: "glyph1", name: "Glyph 1", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph2", name: "Glyph 2", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph3", name: "Glyph 3", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "glyph4", name: "Glyph 4", kind: "choice", choices: GLYPH_CHOICES,
+      note: "Four glyphs cycle around the wheel. Their size and weight follow Typography → Icons like every other glyph in the kit." },
+  ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",
        owner) — count and every sector emote are the wheel's real content */
     { id: "sectors", name: "Sectors", kind: "choice", choices: ["4", "6", "8"],
       note: "How many emotes the wheel offers. Selection still rides the Value slider and play-mode clicks; sector slots past the count are ignored." },
-    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: EMOTE_CHOICES },
-    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: EMOTE_CHOICES },
+    { id: "emote1", name: "Sector 1 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote2", name: "Sector 2 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote3", name: "Sector 3 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote4", name: "Sector 4 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote5", name: "Sector 5 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote6", name: "Sector 6 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote7", name: "Sector 7 emote", kind: "choice", choices: GLYPH_CHOICES },
+    { id: "emote8", name: "Sector 8 emote", kind: "choice", choices: GLYPH_CHOICES },
   ],
   friendrow: [
     { id: "status", name: "Status line", kind: "free", def: "In Match · Ranked", maxLen: 32,
@@ -1196,7 +1211,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }
   { id: "pathconnector", name: "Path connector" },
   { id: "heartmeter", name: "Heart meter" },
   { id: "booster", name: "Booster button" },
-  { id: "spinwheel", name: "Spin wheel" },
+  /* back in the bay while its editing controls are built out — it shipped
+     before it spoke the kit's design language (owner, 2026-08-02) */
+  { id: "spinwheel", name: "Spin wheel", staged: true },
   { id: "dailycell", name: "Daily reward" },
   { id: "combo", name: "Combo burst" },
   { id: "movecounter", name: "Move counter" },
@@ -1270,6 +1287,31 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
+
+/* ── GROUPS — the middle scope between one piece and the whole kit ──
+   Families that read as a set on screen, so a maker restyles the set in
+   one move ("If I change the text on one racing hud, I'd like it to
+   change on all the racing huds" — owner). Membership mirrors the kit
+   page's own sections, so what looks like a family IS the family. A
+   piece belongs to at most one group; anything unlisted simply has no
+   group and its scope picker offers Kit and Piece only. */
+export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }[] = [
+  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
+  { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
+  { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
+  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
+  { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
+  { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
+  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
+  { id: "shooter", name: "Shooter & action", members: ["ammo", "killfeed", "dmgnumber", "respawn", "waypoint", "weaponwheel", "equipselector", "buffframe", "hotbar", "crosshair"] },
+  { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
+  { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },
+  { id: "social", name: "Strategy & social", members: ["friendrow", "chatbubble", "clancrest", "emotewheel", "unitplate", "buildqueue", "techcard", "scorebug", "leaderboard", "achievetoast"] },
+];
+const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
+for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
+/** The group a piece belongs to, or null when it stands alone. */
+export const groupOf = (id: KitComponentId | null | undefined) => (id ? GROUP_OF.get(id) ?? null : null);
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
