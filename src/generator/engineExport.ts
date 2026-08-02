@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers, textPatternCell } from "./bevel";
+import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
@@ -405,6 +405,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     patternReps = Math.min(32, Math.max(1, 7.33 / scaleF / (diag ? Math.SQRT2 : 1)));
   }
 
+  /* ── the BAKED ALPHABET FACE (owner-promoted): every glyph rendered by
+     the app's own type engine — pattern, glints, gloss, the whole
+     treatment — packed into a color font atlas. The importer assembles a
+     TextMeshPro font asset from it, so Unity types hero text with the
+     app's exact pixels. The SDF face stays the length-proof workhorse;
+     this is the showpiece for display text. ── */
+  let bakedFace: { file: string; metrics: string; pointSize: number } | null = null;
+  try {
+    const baked = await bakeAlphabetFace(base);
+    if (baked) {
+      files.push({ path: "fonts/kitface-baked.png", data: baked.png });
+      files.push({ path: "fonts/kitface-baked.json", data: new TextEncoder().encode(baked.metrics) });
+      bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize };
+    }
+  } catch (e) {
+    console.warn("engine export: alphabet face bake failed — kit ships without it", e);
+  }
+
   /* ── manifest ─────────────────────────────────────────────────── */
   const fdef = fontByName(st.cfg.type.font);
   files.push({
@@ -458,6 +476,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lightAngle: base.lighting.angle,
           pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100, angle: patternAngle, reps: Math.round(patternReps * 100) / 100 } : null,
         },
+        /* the baked color font — atlas + metrics the importer assembles
+           into "KitFace Baked": app-exact glyphs for hero/display text */
+        bakedFace,
         note: "Render all labels as live engine text in this face.",
       },
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
@@ -476,7 +497,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      GENERATES wired example prefabs on first import (a text prefab cannot
      carry sprite GUIDs, so the old drag-the-sprite examples are gone —
      the importer builds real ones with real references instead). ── */
-  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile) });
+  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
@@ -531,8 +552,121 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
 }
 
+/* ── the alphabet bake ──────────────────────────────────────────────
+   Self-calibrating: an ink-only "H" (all fx stripped) pins where the pen
+   and baseline sit in specimen coordinates; canvas measureText supplies
+   the font-true advances; then every glyph renders with the FULL
+   treatment and its art box is placed relative to that pen. No guessing
+   about effect bleed — the calibration render IS the reference. */
+const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()";
+const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
+
+async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } | null> {
+  const full = await svgToPngBytes(svg, scale);
+  const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  for (let yy = 0; yy < cv.height; yy++)
+    for (let xx = 0; xx < cv.width; xx++)
+      if (px[(yy * cv.width + xx) * 4 + 3] > 8) {
+        if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
+        if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+      }
+  if (x1 < 0) return null; // nothing opaque (space)
+  return { cv, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; metrics: string; pointSize: number } | null> {
+  const family = base.type.font;
+  const weight = base.type.weight;
+  const italicPfx = base.type.italic ? "italic " : "";
+  const fontStr = `${italicPfx}${weight} 52px "${family}"`;
+  try { await document.fonts.load(fontStr); } catch { /* measure with what's there */ }
+  const mcv = document.createElement("canvas");
+  const mx = mcv.getContext("2d")!;
+  mx.font = fontStr;
+  const fmRef = mx.measureText("Hg");
+  const ascent = (fmRef.fontBoundingBoxAscent ?? 41) * BAKE_S;
+  const descent = (fmRef.fontBoundingBoxDescent ?? 11) * BAKE_S;
+
+  // calibration: ink-only H → pen x and baseline y in raster coordinates
+  const strip = (c: GenConfig) => {
+    c.type.size = 52;
+    c.type.outline.on = false; c.type.shadow.on = false;
+    c.type.glow.on = false; c.type.emboss.on = false;
+    c.type.stripes = undefined; c.type.glints = undefined;
+  };
+  const calBox = await rasterInk(renderTypeSpecimen(base, "H", { keepCase: true, highlight: "", mutate: strip }), BAKE_S);
+  if (!calBox) return null;
+  const hMet = mx.measureText("H");
+  const penX = calBox.x0 + (hMet.actualBoundingBoxLeft ?? 0) * BAKE_S;
+  const baseY = calBox.y0 + (hMet.actualBoundingBoxAscent ?? ascent / BAKE_S) * BAKE_S;
+
+  type Baked = { u: number; adv: number; bx: number; by: number; w: number; h: number; cv?: HTMLCanvasElement; sx?: number; sy?: number; x?: number; y?: number };
+  const glyphs: Baked[] = [];
+  const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
+  for (const ch of BAKE_GLYPHS + " ") {
+    const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
+    if (ch === " ") { glyphs.push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 }); continue; }
+    const box = await rasterInk(
+      renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: (c) => { c.type.size = 52; } }),
+      BAKE_S,
+    );
+    if (!box) continue; // a face without this glyph — skip, TMP falls back
+    glyphs.push({
+      u: ch.codePointAt(0)!, adv,
+      bx: box.x0 - penX, by: baseY - box.y0,
+      w: box.w, h: box.h, cv: box.cv, sx: box.x0, sy: box.y0,
+    });
+  }
+  if (glyphs.length < 10) return null; // face never loaded — don't ship garbage
+
+  // shelf-pack into a 2048-wide atlas, tallest first for tight rows
+  const PAD = 2;
+  const order = glyphs.filter((g) => g.w > 0).sort((a, b) => b.h - a.h);
+  const AW = 2048;
+  let cx = PAD, cy = PAD, rowH = 0;
+  for (const g of order) {
+    if (cx + g.w + PAD > AW) { cx = PAD; cy += rowH + PAD; rowH = 0; }
+    g.x = cx; g.y = cy;
+    cx += g.w + PAD;
+    if (g.h > rowH) rowH = g.h;
+  }
+  const AH = cy + rowH + PAD;
+  if (AH > 4096) return null; // absurd treatment size — bail rather than truncate
+  const atlas = document.createElement("canvas");
+  atlas.width = AW; atlas.height = AH;
+  const ax = atlas.getContext("2d")!;
+  for (const g of order) ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
+  const png: Uint8Array = await new Promise((resolve, reject) => {
+    atlas.toBlob(async (b) => {
+      if (!b) { reject(new Error("atlas raster failed")); return; }
+      resolve(new Uint8Array(await b.arrayBuffer()));
+    }, "image/png");
+  });
+
+  const pointSize = 52 * BAKE_S;
+  const metrics = JSON.stringify({
+    pointSize,
+    ascent: Math.round(ascent),
+    descent: Math.round(descent),
+    lineHeight: Math.round((ascent + descent) * 1.06),
+    atlasW: AW, atlasH: AH,
+    glyphs: glyphs.map((g) => ({
+      u: g.u, x: g.x ?? 0, y: g.y ?? 0, w: g.w, h: g.h,
+      bx: Math.round(g.bx * 10) / 10, by: Math.round(g.by * 10) / 10,
+      adv: Math.round(g.adv * 10) / 10,
+    })),
+  });
+  return { png, metrics, pointSize };
+}
+
 /* The 3-step story, tuned per scope — ease of use is the product. */
-function unityReadme(st: EngineExportState, fontShipped: boolean): string {
+function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   return `# ${st.kitName} — Unity, in 3 steps
 
@@ -599,7 +733,20 @@ Google Fonts link — download the TTF, drop it in the project, and swap
 it onto the prefab labels (the export couldn't fetch it automatically
 this time). The styled-text recipe lives in typography > style.`}
 
-How the type treatment travels: fill and gradient, outline (outside the
+${bakedShipped ? `### KitFace Baked — hero text in the app's exact pixels
+
+Beside the SDF face, the kit ships a BAKED color font: A–z, 0–9 and
+punctuation, every glyph rendered by the app's own engine with the FULL
+treatment — pattern, glints and gloss included — assembled on import as
+**fonts/KitFace Baked.asset**. For titles, buttons and victory text:
+set a label's Font Asset to *KitFace Baked* and keep the label color
+WHITE (the glyphs carry their own color). It's raster art — crisp at
+and below its baked size, softening far beyond, like any bitmap game
+font; the SDF face stays the size-proof workhorse for everything else.
+Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
+the font in place, so placed labels restyle with the kit.
+
+` : ""}How the type treatment travels: fill and gradient, outline (outside the
 letterform, like the app), glow, drop shadow, and emboss (lit from the
 kit's own light angle) translate 1:1 onto live text. The letterform
 pattern, glints and per-letter gloss stay OFF live labels on purpose —
@@ -694,6 +841,7 @@ const UNITY_IMPORTER = `// UI Kit Maker / PatternBreak — kit importer. Editor-
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -715,7 +863,10 @@ namespace PatternBreak {
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
   [Serializable] class PBStyle { public int weight; public bool italic; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; }
+  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; }
+  [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBBakedRef bakedFace; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
@@ -856,6 +1007,8 @@ namespace PatternBreak {
       bool sdfWasThere = File.Exists(root + "/fonts/KitFace SDF.asset");
       if (kitTtf != null && !TmpReady()) tmpPending = RequestEssentials();
       if (kitTtf != null && !tmpPending) EnsureTmpFace(root, manifest, kitTtf);
+      // the baked COLOR face needs no TTF — only TMP itself and the atlas
+      if (!tmpPending) EnsureBakedFace(root, manifest, false);
       // the face arriving AFTER the prefabs did (first-ever TMP install
       // ordering) leaves plain labels behind — say so, with the one-click cure
       if (!sdfWasThere && File.Exists(root + "/fonts/KitFace SDF.asset")
@@ -952,6 +1105,8 @@ namespace PatternBreak {
           EditorUtility.SetDirty(face.material);
           AssetDatabase.SaveAssets();
         }
+        // the baked face rebuilds IN PLACE too (same GUID — placed labels keep it)
+        EnsureBakedFace(root, manifest, true);
 #endif
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
@@ -1208,6 +1363,105 @@ namespace PatternBreak {
          pattern.reps) for anyone who wants it in the Face Texture slot by
          hand — and Type Stamps carry the pattern pixel-perfect. */
     }
+    /* ── the BAKED alphabet face: a color font assembled from the atlas the
+       app rendered — every glyph the app's exact pixels, pattern, glints
+       and gloss included. TMP's internals drift across editor versions,
+       so every write is reflection-tolerant and every exit speaks. ── */
+    static bool SetField(object target, string name, object value) {
+      var f = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+      if (f == null) return false;
+      try {
+        if (f.FieldType.IsEnum) value = Enum.ToObject(f.FieldType, Convert.ToInt32(value));
+        else if (f.FieldType == typeof(int)) value = Convert.ToInt32(value);
+        else if (f.FieldType == typeof(float)) value = Convert.ToSingle(value);
+        f.SetValue(target, value);
+        return true;
+      } catch (Exception) { return false; }
+    }
+    static void EnsureBakedFace(string root, PBManifest m, bool refresh) {
+      if (m == null || m.typography == null || m.typography.bakedFace == null || string.IsNullOrEmpty(m.typography.bakedFace.file)) return;
+      var assetPath = root + "/fonts/KitFace Baked.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
+      if (existing != null && !refresh) return; // yours after first assembly; Regenerate refreshes
+      var jsonPath = root + "/" + m.typography.bakedFace.metrics;
+      var texPath = root + "/" + m.typography.bakedFace.file;
+      if (!File.Exists(jsonPath)) return;
+      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+      if (tex == null) return; // atlas not imported yet — the next pass retries
+      PBBakedFace face = null;
+      try { face = JsonUtility.FromJson<PBBakedFace>(File.ReadAllText(jsonPath)); } catch (Exception) { }
+      if (face == null || face.glyphs == null || face.glyphs.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: " + jsonPath + " unreadable — the baked face is skipped (labels keep the SDF face).");
+        return;
+      }
+      try {
+        var shader = Shader.Find("TextMeshPro/Bitmap Custom Atlas"); // samples the atlas in full COLOR
+        if (shader == null) shader = Shader.Find("TextMeshPro/Bitmap"); // alpha-only fallback: silhouettes, but working text
+        if (shader == null) { Debug.LogWarning("UI Kit Maker: no TextMeshPro Bitmap shader in this project — baked face skipped."); return; }
+        var fa = existing != null ? existing : ScriptableObject.CreateInstance<TMP_FontAsset>();
+        fa.name = "KitFace Baked";
+        object fi = new UnityEngine.TextCore.FaceInfo();
+        SetField(fi, "m_FamilyName", (string.IsNullOrEmpty(m.typography.font) ? "Kit" : m.typography.font) + " Baked");
+        SetField(fi, "m_StyleName", "Baked");
+        SetField(fi, "m_PointSize", face.pointSize);
+        SetField(fi, "m_Scale", 1f);
+        SetField(fi, "m_LineHeight", face.lineHeight);
+        SetField(fi, "m_AscentLine", face.ascent);
+        SetField(fi, "m_CapLine", face.ascent * 0.7f);
+        SetField(fi, "m_MeanLine", face.ascent * 0.5f);
+        SetField(fi, "m_Baseline", 0f);
+        SetField(fi, "m_DescentLine", 0f - face.descent);
+        SetField(fi, "m_TabWidth", face.pointSize * 2f);
+        if (!SetField(fa, "m_FaceInfo", fi)) {
+          Debug.LogWarning("UI Kit Maker: this TMP version hides FaceInfo — baked face skipped (labels keep the SDF face).");
+          return;
+        }
+        if (fa.glyphTable == null) SetField(fa, "m_GlyphTable", new List<UnityEngine.TextCore.Glyph>());
+        if (fa.characterTable == null) SetField(fa, "m_CharacterTable", new List<TMP_Character>());
+        if (fa.glyphTable == null || fa.characterTable == null) {
+          Debug.LogWarning("UI Kit Maker: this TMP version hides the glyph tables — baked face skipped.");
+          return;
+        }
+        fa.glyphTable.Clear();
+        fa.characterTable.Clear();
+        uint gi = 1;
+        foreach (var g in face.glyphs) {
+          // the JSON is top-origin (canvas); TextCore rects are bottom-origin
+          var rect = new UnityEngine.TextCore.GlyphRect(g.x, face.atlasH - g.y - g.h, g.w, g.h);
+          var met = new UnityEngine.TextCore.GlyphMetrics(g.w, g.h, g.bx, g.by, g.adv);
+          var glyph = new UnityEngine.TextCore.Glyph(gi, met, rect, 1f, 0);
+          fa.glyphTable.Add(glyph);
+          object ch = null;
+          try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, glyph); }
+          catch (Exception) { try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, fa, glyph); } catch (Exception) { } }
+          if (ch != null) fa.characterTable.Add((TMP_Character)ch);
+          gi++;
+        }
+        SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
+        SetField(fa, "m_AtlasWidth", face.atlasW);
+        SetField(fa, "m_AtlasHeight", face.atlasH);
+        SetField(fa, "m_AtlasPadding", 2);
+        SetField(fa, "m_AtlasPopulationMode", 0); // Static — the app owns the atlas
+        var mat = fa.material != null ? fa.material : new Material(shader);
+        if (fa.material == null) mat.name = "KitFace Baked Material";
+        mat.SetTexture("_MainTex", tex);
+        if (!SetField(fa, "m_Material", mat)) {
+          Debug.LogWarning("UI Kit Maker: couldn't attach the baked face material on this TMP version — baked face skipped.");
+          return;
+        }
+        if (existing == null) {
+          AssetDatabase.CreateAsset(fa, assetPath);
+          AssetDatabase.AddObjectToAsset(mat, fa);
+        }
+        fa.ReadFontAssetDefinition();
+        EditorUtility.SetDirty(fa);
+        AssetDatabase.SaveAssets();
+        Debug.Log("UI Kit Maker: baked alphabet face assembled at " + assetPath + " — " + fa.characterTable.Count
+          + " glyphs of the app's exact pixels (pattern, glints and gloss included). Put it on any TMP label for hero text: Font Asset = KitFace Baked, label color WHITE. Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics.");
+      } catch (Exception e) {
+        Debug.LogWarning("UI Kit Maker: the baked face couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
+      }
+    }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
       go.transform.SetParent(parent.transform, false);
@@ -1371,6 +1625,18 @@ namespace PatternBreak {
     static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
     void OnPreprocessTexture() {
       var path = assetPath.Replace("\\\\", "/");
+      /* the baked-face atlas is a TEXTURE with exact glyph rects — sprite
+         packing, compression or NPOT rounding would all corrupt it */
+      if (path.Contains("UIKitMaker/") && path.EndsWith("/fonts/kitface-baked.png")) {
+        var bti = (TextureImporter)assetImporter;
+        bti.textureType = TextureImporterType.Default;
+        bti.mipmapEnabled = false;
+        bti.alphaIsTransparency = true;
+        bti.textureCompression = TextureImporterCompression.Uncompressed;
+        bti.maxTextureSize = 4096;
+        bti.npotScale = TextureImporterNPOTScale.None;
+        return;
+      }
       /* Type Stamps — baked styled phrases exported at 4x — land under the
          kit's stamps/ folder and arrive as ready sprites at design size */
       if (path.Contains("UIKitMaker/") && path.Contains("/stamps/")) {
