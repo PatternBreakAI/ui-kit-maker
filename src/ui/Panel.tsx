@@ -1927,6 +1927,7 @@ export function Panel() {
           <Slider label="Scale" value={T2.stripes?.scale ?? 100} min={25} max={300} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45, opacity: 30 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, scale: v }; })} />
           <Slider label="Opacity" value={T2.stripes?.opacity ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: v }; })} />
           <div className="helper">Any face pattern, inside the letterforms — tone-on-tone from the shell color.</div>
+          <div className="helper">Unity export: travels onto live text — the pattern flows the whole word, with the angle landing in 45° steps. Pixel-perfect version: bake a Type Stamp from the kit page.</div>
         </FxToggle>
         <FxToggle label="Highlight glints" on={T2.glints?.on ?? false}
           onToggle={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: v, opacity: c.type.glints?.opacity ?? 55 }; })}>
@@ -1934,6 +1935,7 @@ export function Panel() {
           <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: c.type.glints?.oy, ox: v }; })} />
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
+          <div className="helper">Unity export: glints are per-letter painting no live-text engine can replay — they ship baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
         </FxToggle>
         <div className="helper">Some treatments read differently against light and dark grounds — a pale glint fades on a light canvas, a dark emboss sinks into a black one. Flip the canvas swatches in the stage toolbar to proof your type both ways.</div>
         {/* data-anchor: Dissect's "icon" deep link lands here — the parked

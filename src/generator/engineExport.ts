@@ -373,19 +373,36 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (fam === st.cfg.type.font) primaryFontFile = `fonts/${got.file}`;
   }
 
-  /* ── the letterform pattern, as a LIVE-TEXT tile: one seamless cell on
-     an opaque white ground (TMP's face texture MULTIPLIES the face color,
-     so white = untouched fill, pattern strokes darken through) — the
-     importer feeds it to the SDF shader's Face Texture slot ── */
+  /* ── the letterform pattern, as a LIVE-TEXT tile: the app's own rotated
+     <pattern> rasterized onto an opaque white ground (TMP's face texture
+     MULTIPLIES the face color, so white = untouched fill, pattern strokes
+     darken through) — the importer feeds it to the SDF shader's Face
+     Texture slot. The kit's angle is snapped to the nearest 45°: those are
+     the only rotations where a square window tiles seamlessly (diagonals
+     wrap over cell·√2 — lattice vectors v1−v2 and v1+v2 land back on the
+     axes). The window is sized so the wrap is exact, then the cell is
+     re-derived from it. ── */
   let patternFile: string | null = null;
+  let patternAngle = 0;
+  let patternReps = 0;
   if (base.type.stripes?.on) {
-    const pcell = 64 * Math.max(0.25, Math.min(4, (base.type.stripes.scale ?? 100) / 100));
-    const tile = `<svg xmlns="http://www.w3.org/2000/svg" width="${pcell}" height="${pcell}" viewBox="0 0 ${pcell} ${pcell}">` +
-      `<rect width="${pcell}" height="${pcell}" fill="#FFFFFF"/>` +
-      `<g opacity="${Math.max(0, Math.min(1, (base.type.stripes.opacity ?? 30) / 100)).toFixed(2)}">${textPatternCell(base.type.stripes.style ?? "stripes", pcell, darken(bevelC, 0.25))}</g></svg>`;
+    const scaleF = Math.max(0.25, Math.min(4, (base.type.stripes.scale ?? 100) / 100));
+    patternAngle = ((Math.round((base.type.stripes.angle ?? 45) / 45) * 45) % 180 + 180) % 180;
+    const diag = patternAngle % 90 === 45;
+    const W = Math.max(8, Math.round(64 * scaleF * (diag ? Math.SQRT2 : 1)));
+    const pcell = diag ? W / Math.SQRT2 : W;
+    const tile = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${W}" viewBox="0 0 ${W} ${W}">` +
+      `<rect width="${W}" height="${W}" fill="#FFFFFF"/>` +
+      `<defs><pattern id="pbt" width="${pcell.toFixed(4)}" height="${pcell.toFixed(4)}" patternUnits="userSpaceOnUse"${patternAngle ? ` patternTransform="rotate(${patternAngle})"` : ""}>${textPatternCell(base.type.stripes.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern></defs>` +
+      `<rect width="${W}" height="${W}" fill="url(#pbt)" opacity="${Math.max(0, Math.min(1, (base.type.stripes.opacity ?? 30) / 100)).toFixed(2)}"/></svg>`;
     const tileBytes = (await svgToPngBytes(tile, 2)).bytes;
     files.push({ path: "fonts/face-pattern.png", data: tileBytes });
     patternFile = "fonts/face-pattern.png";
+    /* the density the importer should tile at: the app draws cells of
+       fontSize·0.3·scale, i.e. 3.33/scale cells per em; prefab labels map
+       the texture across the whole line (~2.2em for the shipped PLAY-length
+       words), and a diagonal window holds √2 cells per axis */
+    patternReps = Math.min(32, Math.max(1, 7.33 / scaleF / (diag ? Math.SQRT2 : 1)));
   }
 
   /* ── manifest ─────────────────────────────────────────────────── */
@@ -439,7 +456,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
              them as bevel lighting and a face texture */
           emboss: base.type.emboss.on ? { strength: base.type.emboss.strength, distance: base.type.emboss.distance, softness: base.type.emboss.softness } : null,
           lightAngle: base.lighting.angle,
-          pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100 } : null,
+          pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100, angle: patternAngle, reps: Math.round(patternReps * 100) / 100 } : null,
         },
         note: "Render all labels as live engine text in this face.",
       },
@@ -572,15 +589,22 @@ The importer keeps four promises on every re-import:
 
 Labels are LIVE TEXT, never pixels. ${fontShipped
     ? `Your kit's face ships in **fonts/** with its open-font license
-beside it, and the generated prefab labels already use it — nothing to
-install. For TextMeshPro, run Window > TextMeshPro > Font Asset Creator
-on the shipped TTF; the styled-text recipe (fills, outline, glow) is in
-kit-manifest.json > typography > style, ready to become a TMP material
-preset.`
+beside it. On Unity 2023.2+ the importer builds **KitFace SDF** from it
+automatically and styles the material with the kit's own type recipe;
+prefab labels arrive already wearing it. On older editors labels use the
+shipped TTF, and the recipe in kit-manifest.json > typography > style is
+ready to become a TMP material preset by hand.`
     : `The kit's face is named in kit-manifest.json > typography with its
 Google Fonts link — download the TTF, drop it in the project, and swap
 it onto the prefab labels (the export couldn't fetch it automatically
 this time). The styled-text recipe lives in typography > style.`}
+
+How the type treatment travels: fill and gradient, outline, glow, drop
+shadow, and emboss (lit from the kit's own light angle) translate 1:1
+onto live text. The letterform pattern travels as a close approximation —
+it flows across the word like the app, with its angle in 45° steps.
+Glints and per-letter gloss are painting no text engine can replay;
+they're exactly what Type Stamps are for.
 
 For pixel-perfect HERO text — titles, banners, victory moments — use
 **Type Stamps** on uikitmaker.com: type your phrases, download, extract
@@ -654,7 +678,7 @@ namespace PatternBreak {
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
-  [Serializable] class PBStylePattern { public string file; public string style; public float scale; }
+  [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
   [Serializable] class PBStyle { public int weight; public bool italic; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
@@ -1010,7 +1034,13 @@ namespace PatternBreak {
       Color c;
       if (s.outline != null && !string.IsNullOrEmpty(s.outline.color) && ColorUtility.TryParseHtmlString(s.outline.color, out c)) {
         mat.SetColor("_OutlineColor", c);
-        mat.SetFloat("_OutlineWidth", Mathf.Clamp(s.outline.width / 30f, 0.05f, 0.35f));
+        // the app paints the stroke BEHIND the fill (paint-order stroke): the
+        // visible band sits OUTSIDE and never eats the character. TMP's outline
+        // straddles the edge, so dilate the face by the same amount — the band
+        // lands fully outside and the letterform keeps its designed weight.
+        float ow = Mathf.Clamp(s.outline.width / 60f, 0.025f, 0.3f);
+        mat.SetFloat("_OutlineWidth", ow);
+        mat.SetFloat("_FaceDilate", ow);
       }
       /* the full Distance Field shader carries a REAL glow section, so the
          glow and the drop shadow (underlay) can both speak at once */
@@ -1046,9 +1076,11 @@ namespace PatternBreak {
         var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + s.pattern.file);
         if (tex != null) {
           mat.SetTexture("_FaceTex", tex);
-          // the app draws ~3.3 pattern cells per em (cell = fontSize * 0.3 * scale);
-          // the face texture maps per character, so match that density per glyph
-          var reps = Mathf.Clamp(3.3f / Mathf.Max(0.25f, s.pattern.scale / 100f), 1f, 16f);
+          // the export computes the density (cells across a short label's line,
+          // matched to the app's cell = fontSize * 0.3 * scale) and pre-bakes the
+          // kit's angle into the tile — labels map the texture across the whole
+          // line, so equal X/Y reps keep the cells square (see AddTmpLabel)
+          var reps = Mathf.Clamp(s.pattern.reps > 0.01f ? s.pattern.reps : 3.3f, 1f, 32f);
           mat.SetTextureScale("_FaceTex", new Vector2(reps, reps));
         }
       }
@@ -1065,6 +1097,14 @@ namespace PatternBreak {
       t.fontSize = 40;
       t.raycastTarget = false;
       if (face != null) t.font = face;
+      if (s != null && s.pattern != null && !string.IsNullOrEmpty(s.pattern.file)) {
+        // one continuous pattern field across the word, like the app — the
+        // default per-character mapping restarts (and stretches) the tile on
+        // every glyph; MatchAspect derives the vertical span from the line so
+        // the cells stay square whatever the label says
+        t.horizontalMapping = TextureMappingOptions.Line;
+        t.verticalMapping = TextureMappingOptions.MatchAspect;
+      }
       Color top = Color.white, bot = Color.white;
       bool grad = false;
       if (s != null) {
