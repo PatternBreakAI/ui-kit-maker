@@ -765,8 +765,14 @@ namespace PatternBreak {
          prefabs before this feature still receive KitFace SDF. If TMP's
          essentials are absent, they auto-import and BOTH the face and the
          prefabs wait one pass, so labels never lock in unstyled. */
+      bool sdfWasThere = File.Exists(root + "/fonts/KitFace SDF.asset");
       if (kitTtf != null && !TmpReady()) tmpPending = RequestEssentials();
       if (kitTtf != null && !tmpPending) EnsureTmpFace(root, manifest, kitTtf);
+      // the face arriving AFTER the prefabs did (first-ever TMP install
+      // ordering) leaves plain labels behind — say so, with the one-click cure
+      if (!sdfWasThere && File.Exists(root + "/fonts/KitFace SDF.asset")
+          && ((prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs")))
+        Debug.Log("UI Kit Maker: the styled face arrived after your prefabs were generated — run Tools > PatternBreak > Regenerate Example Prefabs to upgrade their labels (your own prefabs are untouched).");
 #endif
 
       /* ── I5: examples appear once, fully wired, then are yours ── */
@@ -818,6 +824,34 @@ namespace PatternBreak {
         Debug.Log(line);
       if (missing > 0)
         Debug.LogWarning("UI Kit Maker: " + missing + " sprites named in " + mPath + " were not found on disk — keep the export's assets folder next to kit-manifest.json, named exactly 'assets'.");
+    }
+
+    /* ── the I5 escape hatch, explicit and confirmed: rebuild the GENERATED
+       examples with the current sprites and the styled face. Needed when
+       the face arrives after the prefabs did (first-ever TMP install
+       ordering — owner: "maybe the text baked before the install
+       finished"). SaveAsPrefabAsset overwrites in place, so prefab GUIDs
+       survive and placed instances restyle; prefabs the user created or
+       renamed are never touched. ── */
+    [MenuItem("Tools/PatternBreak/Regenerate Example Prefabs")]
+    public static void RegeneratePrefabs() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
+        return;
+      }
+      if (!EditorUtility.DisplayDialog("UI Kit Maker — regenerate example prefabs",
+        "Rebuilds the GENERATED examples in each kit's Prefabs folder (PrimaryButton, Chip, ProgressBar and friends) from the current sprites and the styled face. Same-named generated prefabs are replaced in place — placed instances restyle. Prefabs you created or renamed are not touched.",
+        "Regenerate", "Cancel")) return;
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest manifest = null;
+        try { manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+        if (manifest == null || manifest.assets == null) continue;
+        GeneratePrefabs(root, manifest);
+        Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
+      }
     }
 
     /* ── I3's explicit hand: review and remove, never automatic ── */
