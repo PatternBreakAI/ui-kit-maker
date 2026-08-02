@@ -637,12 +637,21 @@ For pixel-perfect HERO text — titles, banners, victory moments — use
 into Assets/ — they land in ${root}/stamps as ready sprites in the full
 styled treatment, and re-exports overwrite in place like everything else.
 
-## States
+## States — and the press-Play Playground
 
 Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
 base-disabled next to base). The generated Button prefabs arrive with
-Sprite Swap already wired. Hover glow and press lift are engine-side:
-tint fx/glow.png behind a piece, nudge the RectTransform a few px.
+Sprite Swap already wired — nothing to reconnect. Hover glow and press
+lift are engine-side: tint fx/glow.png behind a piece, nudge the
+RectTransform a few px.
+
+Want to feel the states without wiring anything? Open
+**${root}/Playground.unity** (generated on first import) and press Play —
+it carries a camera, a raycasting canvas, exactly one EventSystem with
+the input module your project actually uses, and the examples placed.
+If buttons ever ignore the mouse in your OWN scene, the usual suspects
+are a duplicate EventSystem (keep exactly one) or an EventSystem whose
+input module doesn't match the project's Active Input Handling.
 ${st.scope === "free" ? `
 ## This is the free starter kit
 
@@ -866,6 +875,12 @@ namespace PatternBreak {
         var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(root + "/Prefabs");
         if (folder != null) EditorGUIUtility.PingObject(folder);
       }
+      // press-Play-ready: a scene with camera, canvas, ONE correct EventSystem
+      // and the examples placed — built once after this pass settles, then
+      // yours (Tools > PatternBreak > Rebuild Kit Playground Scene refreshes).
+      // Scenes can't be created mid-import, hence the delayCall.
+      if (!File.Exists(root + "/Playground.unity"))
+        EditorApplication.delayCall += () => BuildPlayground(root);
 
       // ── the receipt ──
       var receipt = new PBLock();
@@ -940,6 +955,89 @@ namespace PatternBreak {
 #endif
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
+      }
+    }
+
+    /* ── press Play, nothing to wire: a ready scene with the examples
+       placed, a camera, a raycasting canvas and exactly ONE EventSystem
+       carrying the input module this project actually uses (the classic
+       Play-mode dead-button causes are a duplicate EventSystem or the
+       wrong module for the project's input setting). Generated once on
+       first import, then it's yours; the menu below rebuilds it. ── */
+    static void BuildPlayground(string root) {
+      var scenePath = root + "/Playground.unity";
+      if (File.Exists(scenePath)) return; // yours after first generation
+      var guids = AssetDatabase.FindAssets("t:Prefab", new string[] { root + "/Prefabs" });
+      if (guids.Length == 0) return; // prefabs not in yet — the next pass retries
+      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      try {
+        var camGo = new GameObject("Camera", typeof(Camera));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
+        var cam = camGo.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.09f, 0.10f, 0.15f);
+        camGo.tag = "MainCamera";
+
+        var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(canvasGo, scene);
+        canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        var scaler = canvasGo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+
+        var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
+#if ENABLE_LEGACY_INPUT_MANAGER
+        esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#elif ENABLE_INPUT_SYSTEM
+        esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#endif
+
+        var prefabs = new List<GameObject>();
+        foreach (var g in guids) {
+          var p = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(g));
+          if (p != null) prefabs.Add(p);
+        }
+        prefabs.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        float colX = 90f, y = -90f, colMaxW = 0f; int placed = 0;
+        foreach (var prefab in prefabs) {
+          var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+          inst.transform.SetParent(canvasGo.transform, false);
+          var rt = inst.GetComponent<RectTransform>();
+          if (rt == null) continue;
+          float w = Mathf.Max(80f, rt.sizeDelta.x), h = Mathf.Max(40f, rt.sizeDelta.y);
+          if (y - h < -1020f && y < -91f) { colX += colMaxW + 70f; y = -90f; colMaxW = 0f; }
+          rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
+          rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
+          y -= h + 44f;
+          if (w > colMaxW) colMaxW = w;
+          placed++;
+        }
+        UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath);
+        Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
+      } finally {
+        UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+      }
+    }
+
+    [MenuItem("Tools/PatternBreak/Rebuild Kit Playground Scene")]
+    public static void RebuildPlayground() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
+        return;
+      }
+      if (!EditorUtility.DisplayDialog("UI Kit Maker — rebuild the Playground scene",
+        "Replaces each kit's Playground.unity with a fresh scene containing the current example prefabs. Changes you made inside the old Playground are lost; every other scene is untouched.",
+        "Rebuild", "Cancel")) return;
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        var scenePath = root + "/Playground.unity";
+        if (File.Exists(scenePath)) AssetDatabase.DeleteAsset(scenePath);
+        BuildPlayground(root);
       }
     }
 
