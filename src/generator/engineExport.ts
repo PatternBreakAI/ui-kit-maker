@@ -605,7 +605,7 @@ namespace PatternBreak {
         var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
-          var root = Path.GetDirectoryName(mPath).Replace("\\", "/");
+          var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
           if (!File.Exists(root + "/kit.lock.json")) ImportKit(mPath);
         }
       };
@@ -786,7 +786,7 @@ namespace PatternBreak {
       img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
       if (pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
-      var famDir = Path.GetDirectoryName(basePath).Replace("\\", "/");
+      var famDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
       var hover = S(famDir + "/base-hover.9.png");
       var pressed = S(famDir + "/base-pressed.9.png");
       var disabled = S(famDir + "/base-disabled.9.png");
