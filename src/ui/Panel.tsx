@@ -473,13 +473,19 @@ export function Panel() {
       sd.effects = t.effects; sd.face = t.face; sd.bevel = t.bevel; sd.candy = t.candy;
       sd.lighting = t.lighting; sd.shadow = t.shadow; sd.transparency = t.transparency; sd.type = t.type;
       if (JSON.stringify(t.icon) !== JSON.stringify(baseIcon)) sd.icon = t.icon;
-      // the GLYPH stays one decision for the piece (like the typeface) —
-      // color, effects, weight and pose are what fork per state
+      /* the GLYPH and its POSITION stay one decision for the piece (like
+         the typeface) — colour, effects and weight fork per state. Same
+         rule as the master path: a glyph that moves between states reads
+         as jitter, and states carrying different content still need one
+         placement (owner, on the badge: "I need nudge to be
+         state-independent"). */
       const gi = sd.icon;
-      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(merged.icon.def ?? null) || gi.show !== merged.icon.show || gi.placement !== merged.icon.placement || gi.only !== merged.icon.only)) {
-        merged.icon.def = gi.def; merged.icon.show = gi.show; merged.icon.placement = gi.placement; merged.icon.only = gi.only;
+      const glyphKeys = ["show", "placement", "only", "ox", "oy"] as const;
+      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(merged.icon.def ?? null) || glyphKeys.some((k) => gi[k] !== merged.icon[k]))) {
+        merged.icon.def = gi.def;
+        for (const k of glyphKeys) (merged.icon[k] as unknown) = gi[k];
         for (const other of Object.values(merged.stateDesigns)) {
-          if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
+          if (other?.icon) { other.icon.def = gi.def; for (const k of glyphKeys) (other.icon[k] as unknown) = gi[k]; }
         }
       }
       if (JSON.stringify(before.stateDesigns ?? {}) !== JSON.stringify(merged.stateDesigns)) {
@@ -1738,6 +1744,12 @@ export function Panel() {
         </label>
         <div className="helper">Reading text — quest lists, menus, choice lists, dialogue lines, chat messages — speaks this face; titles and plates keep the display font. A loud display face is a headline voice, not a reading voice.</div>
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
+        {/* stacked labels only — the gap between lines, % of factory leading
+            (owner: "leading controls for the type, at least here"). Shown
+            exactly where it acts; widen the list as more stacks adopt it. */}
+        {focus === "endturn" && (
+          <Slider label="Leading" value={T2.leading ?? 100} min={60} max={220} unit="%" onChange={(v) => update((c) => { c.type.leading = v; })} />
+        )}
         {focus ? (
           <>
             <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-20} max={20} unit="px"

@@ -234,6 +234,9 @@ export interface TypeCfg {
   case: TextCase;
   oy?: number;         // vertical nudge px — visually center against the shell
   ox?: number;         // horizontal nudge px — same scale, sideways
+  /** Line gap for stacked labels (End turn's two-word stack), % of the
+   *  factory leading — 100 = factory, scales with the face size. */
+  leading?: number;
   /** First matching phrase inside the label renders as a brighter, illuminated
    *  portion of the same material — same font, metrics, outline, everything. */
   highlight?: string;
@@ -970,6 +973,16 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   chatbubble: [
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
     { id: "time", name: "Timestamp", kind: "free", def: "14:02", maxLen: 8 },
+  ],
+  ammo: [
+    /* both counts are the piece's real content — the prototyper stages the
+       exact frame (owner: "couldn't find the value slider for this") */
+    { id: "mag", name: "Magazine", kind: "free", def: "24", maxLen: 4,
+      note: "The live round count — the big number." },
+    { id: "reserve", name: "Reserve", kind: "free", def: "90", maxLen: 4,
+      note: "The backup count after the slash. Clear it for a bare magazine readout." },
+    { id: "gap", name: "Reserve gap", kind: "choice", choices: ["Factory", "Snug", "Roomy", "Wide"],
+      note: "Air between the count and the slash — wide display faces read better with more." },
   ],
   spinwheel: [
     /* the fortune wheel was a fixed picture — count, jackpot and glyphs are

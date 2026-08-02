@@ -5112,9 +5112,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circT * vT0).toFixed(1)} ${circT.toFixed(1)}" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`
         : "";
       const words = (opts.label ?? "END TURN").split(" ");
+      /* stacked lines: the gap scales with the face and the Leading dial —
+         the old fixed 32k gap crowded big display type (owner). 0.73em
+         reproduces the factory look exactly at the default type size. */
+      const fsW = 30 * k * typeK;
+      const lead = fsW * 0.73 * ((cfg.type.leading ?? 100) / 100);
       const text = words.length > 1
-        ? contentText(words[0], ccx, ccy - 14 * k, 30 * k * typeK, { anchor: "middle" }) +
-          contentText(words.slice(1).join(" "), ccx, ccy + 18 * k, 30 * k * typeK, { anchor: "middle" })
+        ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
+          contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
         : contentText(words[0], ccx, ccy + 1, 32 * k * typeK, { anchor: "middle" });
       return inject(shell.replace("<svg ", '<svg data-endturn="1" '), arc + text);
     }
@@ -5482,15 +5487,36 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          never collide no matter how big the display face gets (universal
          no-overlap law). 128k stands as the floor so default kits don't move. */
       const sizeK2 = clamp(cfg.type.size / 52, 0.5, 2.2);
-      const fsT = 26 * k * sizeK2 * ((R2.titleSize ?? 100) / 100);
+      let fsT = 26 * k * sizeK2 * ((R2.titleSize ?? 100) / 100);
       const fsS = 17 * k * Math.max(0.75, sizeK2 * 0.85 + 0.15) * ((R2.subSize ?? 100) / 100);
       const inset = bw + 6;
       const showAvatar = R2.avatar ?? true;
       const showBar = R2.progress ?? true;
       const showAction = R2.action ?? true;
-      const lineAdv = Math.max(24 * k, fsT * 0.55 + fsS * 0.78 + 4 * k);
       const subOn = R2.subOn !== false;
-      const needH = inset + 16 * k + (subOn ? lineAdv + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
+      const title = opts.label ?? R2.title ?? "Shadow Knight";
+      /* the title FITS its lane, it doesn't get guillotined: measure at the
+         requested size, then shrink until the line lands inside the space
+         between avatar and action (owner: "SHADOW KNIGHT is getting
+         cut-off"). Provisional geometry uses the unclamped size, so the fit
+         is computed against the TIGHTEST possible lane — never too loose. */
+      {
+        const lineAdv0 = Math.max(24 * k, fsT * 0.55 + fsS * 0.78 + 4 * k);
+        const base0 = inset + Math.max(16 * k, fsT * 0.6);
+        const needH0 = base0 + (subOn ? lineAdv0 + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
+        const h0 = Math.max(128 * k, needH0);
+        const tx0 = showAvatar ? 39 + inset + 6 + (h0 - inset * 2 - 8) + 16 * k : 39 + inset + 12 * k;
+        const availW = w - (tx0 - 39) - (showAction ? 74 * k : 22 * k);
+        const mT = measureLabel(title, font, cfg.type.weight, !!cfg.type.italic);
+        const perEm = ((mT ?? title.length * fontByName(font).factor * 1.12)
+          + title.length * (R2.titleTrack ?? 0) / 100) * 1.06;
+        if (perEm > 0) fsT = clamp((availW - 4 * k) / perEm, 12 * k, fsT);
+      }
+      /* the first-line baseline scales with the face: a fixed 16k offset let
+         big display caps crest above the shell (the pale sliver over the row) */
+      const titleBase = inset + Math.max(16 * k, fsT * 0.6);
+      const lineAdv = Math.max(24 * k, fsT * 0.55 + fsS * 0.78 + 4 * k);
+      const needH = titleBase + (subOn ? lineAdv + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
       const h = Math.max(128 * k, needH);
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 128 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const slotS = h - inset * 2 - 8;
@@ -5498,7 +5524,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const icon = opts.icon ?? STOCK_ICONS.user;
       const tx = showAvatar ? sx + slotS + 16 * k : 39 + inset + 12 * k;
       const dim = state === "disabled" ? 0.45 : 1;
-      const title = opts.label ?? R2.title ?? "Shadow Knight";
       const sub = opts.sub ?? R2.sub ?? "Level 12 · Warrior";
 
       const barY = 30 + h - inset - 16 * k;
@@ -5506,17 +5531,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const fillW2 = barW * clamp(value ?? (R2.value !== undefined ? R2.value / 100 : 0.4), 0, 1);
       const gid2 = "dr" + UID++;
       const ov = opts.overlay ?? "";
-      // safe text bounds — long labels clip inside the row, never break layout
-      const clipW = w - (tx - 39) - (showAction ? 74 * k : 22 * k);
+      /* safe text bounds — a runaway label clips inside the row, never breaks
+         layout. The box starts at the avatar's edge, NOT the pen origin: a
+         display face's outline and bevel overhang the first glyph's origin,
+         and a clip at exactly tx shaved the S flat (owner: "even when I
+         reduce the text size the left side is cut-off"). */
+      const clipL = showAvatar ? sx + slotS + 2 : 39 + inset + 2;
+      const clipR = 39 + w - (showAction ? 74 * k : 22 * k);
       const parts =
-        `<defs><clipPath id="${gid2}c"><rect x="${tx.toFixed(1)}" y="${30 + 2}" width="${clipW.toFixed(1)}" height="${h - 4}"/></clipPath>
+        `<defs><clipPath id="${gid2}c"><rect x="${clipL.toFixed(1)}" y="${30 + 2}" width="${(clipR - clipL).toFixed(1)}" height="${h - 4}"/></clipPath>
          <linearGradient id="${gid2}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>` +
         (showAvatar
           ? `<path d="${roundRect(sx, sy2, slotS, slotS, 10 * k)}" fill="${wellFill}" opacity="0.92"/>` +
             (opts.icon === null ? "" : themedIcon(icon, sx + slotS * 0.2, sy2 + slotS * 0.2, slotS * 0.6, glow, 2))
           : "") +
         `<g clip-path="url(#${gid2}c)">` +
-        contentText(title, tx, 30 + inset + 16 * k + ((R2.titleDy ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k, fsT, { keepCase: true, track: R2.titleTrack ?? 0, opacity: dim }) +
+        contentText(title, tx, 30 + titleBase + ((R2.titleDy ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k, fsT, { keepCase: true, track: R2.titleTrack ?? 0, opacity: dim }) +
         /* auto-leading from BOTH line heights: the title's lower half (with
            its depth treatment) plus the subtitle's cap height — big display
            type can never crash into line two (universal no-overlap law) */
@@ -5524,7 +5554,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           /* auto ink, no outline: the sub line takes the color group's
              DARKEST role (Shadow) on light faces, near-white on dark —
              legible without a stroke */
-          `<text x="${tx.toFixed(1)}" y="${(30 + inset + 16 * k + lineAdv + ((R2.subDy ?? 0) + (R2.lineGap ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsS.toFixed(1)}" font-weight="650" letter-spacing="${((R2.subTrack ?? 0) / 100).toFixed(3)}em" fill="${R2.subColor ?? (cfg.face.mode === "dark" ? "rgba(255,255,255,0.82)" : darken(effect(cfg.effects, "Shadow"), 0.15))}">${esc(sub)}</text>`) +
+          `<text x="${tx.toFixed(1)}" y="${(30 + titleBase + lineAdv + ((R2.subDy ?? 0) + (R2.lineGap ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsS.toFixed(1)}" font-weight="650" letter-spacing="${((R2.subTrack ?? 0) / 100).toFixed(3)}em" fill="${R2.subColor ?? (cfg.face.mode === "dark" ? "rgba(255,255,255,0.82)" : darken(effect(cfg.effects, "Shadow"), 0.15))}">${esc(sub)}</text>`) +
         `</g>` +
         (showBar
           /* the mercury sits in a sunken container pill with negative space
@@ -5715,19 +5745,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${d3}" height="${d3}" viewBox="0 0 ${d3} ${d3}" role="img" aria-label="reticle${locked ? ", locked on" : ""}" style="filter: drop-shadow(0 0 ${locked ? 9 : 5}px ${hexRgba(lockC, locked ? 0.75 : 0.5)})">${parts3.join("")}</svg>`;
     }
     case "minimap": {
-      /* mini-map — kinds: round compass, square radar. Well + markers. */
+      /* mini-map — kinds: round compass, square radar. Well + markers.
+         The silhouette is NOT hard-bound (owner: "these two maps shouldn't
+         be bound by shape"): a user override wins, then each kind's
+         canonical form — pill (a circle at square aspect) for the compass,
+         rounded square for the radar. The well mirrors the pill family as
+         a dial; any other silhouette gets the neutral inset square. */
       const round2 = opts.kind !== ("square" as never) && opts.overlay !== "square";
       const d4 = ({ s: 180, m: 230, l: 290 } as const)[size];
-      const track = build(cfg, state, { x: 33, y: 27, h: d4, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d4, shapeOverride: round2 ? "pill" : "round" });
+      const shape4 = sov ?? (round2 ? "pill" : "round");
+      const circleWell = shape4 === "pill";
+      const track = build(cfg, state, { x: 33, y: 27, h: d4, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d4, shapeOverride: shape4 });
       const inset4 = bw + 5;
       const cx4 = 33 + d4 / 2, cy4 = 27 + d4 / 2;
       const innerR = d4 / 2 - inset4;
-      const wellP2 = round2
+      const wellP2 = circleWell
         ? `M ${cx4 - innerR} ${cy4} a ${innerR} ${innerR} 0 1 0 ${innerR * 2} 0 a ${innerR} ${innerR} 0 1 0 ${-innerR * 2} 0`
         : roundRect(33 + inset4, 27 + inset4, d4 - inset4 * 2, d4 - inset4 * 2, 12);
       const mp: string[] = [`<path d="${wellP2}" fill="${wellFill}" opacity="0.94"/>`];
       mp.push(`<path d="M ${cx4 - innerR} ${cy4} H ${cx4 + innerR} M ${cx4} ${cy4 - innerR} V ${cy4 + innerR}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`);
-      if (!round2) mp.push(`<path d="M ${33 + inset4} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${33 + inset4} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
+      if (!round2 && !circleWell) mp.push(`<path d="M ${33 + inset4} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${33 + inset4} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
       // blips + player arrow
       mp.push(`<circle cx="${cx4 - innerR * 0.42}" cy="${cy4 - innerR * 0.3}" r="5" fill="${glow}"/>`);
       mp.push(`<circle cx="${cx4 + innerR * 0.36}" cy="${cy4 + innerR * 0.4}" r="5" fill="${hexMix(glow, "#FFFFFF", 0.4)}"/>`);
@@ -5737,17 +5774,33 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(track, mp.join(""));
     }
     case "ammo": {
-      /* ammo counter — magazine / reserve with round pictos, HUD strip. */
+      /* ammo counter — magazine / reserve with round pictos, HUD strip.
+         Both counts are CONTENT (slots), and the reserve's advance is
+         MEASURED, not estimated — wide display faces overran the length
+         guess and crowded the slash (owner: "couldn't figure out how to
+         control the /90 … wanted to nudge it to the right"). */
       const h5 = 96 * k;
-      const cur = opts.label ?? "24", res = opts.max ?? "90";
-      const w5 = 132 * k + (cur.length + res.length) * 20 * k * clamp(cfg.type.size / 52, 0.5, 2.2);
+      const cur = (opts.slots?.mag ?? opts.label ?? "24").slice(0, 4);
+      const res = (opts.slots?.reserve ?? opts.max ?? "90").slice(0, 4);
+      const showRes = res.trim().length > 0;
+      const fsC = 34 * k * typeK;
+      const fsR = 18 * k * Math.max(0.8, typeK * 0.85 + 0.15);
+      const mC = measureLabel(cur, font, cfg.type.weight, !!cfg.type.italic);
+      const curW = (mC !== null ? mC * 1.06 : cur.length * fontByName(font).factor * 1.18) * fsC;
+      const gap6 = (({ Snug: 4, Roomy: 16, Wide: 28 } as Record<string, number>)[opts.slots?.gap ?? ""] ?? 8) * k;
+      const resW = showRes ? (res.length + 2) * fsR * 0.62 : 0;
+      // the classic width stands as the FLOOR so default kits don't move;
+      // measured content only ever grows the strip
+      const w5 = Math.max(
+        132 * k + (cur.length + res.length) * 20 * k * clamp(cfg.type.size / 52, 0.5, 2.2),
+        48 * k + curW + (showRes ? gap6 + resW : 0) + 24 * k);
       const track = build(cfg, state, { x: 39, y: 30, h: h5, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w5, shapeOverride: sov });
       const cy5 = 30 + h5 / 2;
       const bullets = [0, 1, 2].map((i) =>
         `<rect x="${(39 + 16 * k + i * 9 * k).toFixed(1)}" y="${(cy5 - 14 * k + i * 3 * k).toFixed(1)}" width="${5 * k}" height="${(28 - i * 6) * k}" rx="${2.4 * k}" fill="${hexMix(glow, "#FFFFFF", 0.25)}" stroke="${darken(bevel, 0.45)}" stroke-width="1"/>`).join("");
-      const txt = contentText(cur, 39 + 48 * k, cy5 + 1, 34 * k * typeK, { keepCase: true }) +
+      const txt = contentText(cur, 39 + 48 * k, cy5 + 1, fsC, { keepCase: true }) +
         // small-white rule: the reserve count wears the understroke
-        infoText(`/ ${res}`, 39 + 48 * k + cur.length * 21 * k * typeK + 6 * k, cy5 + 4 + typeOyK * k, 18 * k * Math.max(0.8, typeK * 0.85 + 0.15), "start", 700);
+        (showRes ? infoText(`/ ${res}`, 39 + 48 * k + curW + gap6, cy5 + 4 + typeOyK * k, fsR, "start", 700) : "");
       return inject(track, bullets + txt);
     }
     case "lives": {

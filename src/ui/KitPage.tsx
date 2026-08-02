@@ -405,7 +405,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   const shine = shineOn || !!p.shine;
   const shineVars = useShineVars(shine);
   return (
-    <figure className="kp-piece" style={shineVars}>
+    <figure className="kp-piece" style={shineVars} data-kp={p.id}>
       <LiveArt cfg={cfg} playing scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} />
       <figcaption className="kp-cap">
@@ -964,11 +964,24 @@ function patternTileUrl(cfg: GenConfig): string {
 }
 
 export function KitPage() {
-  const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, update, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
+  const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load
   const [bayOpen, setBayOpen] = useState(false);
+  /* coming back from the editor lands on the piece you were editing, not
+     the top of the page (owner: "when I come back to the kit, I'd like to
+     come back to THAT spot"). focus IS the last-edited piece; a beat for
+     the cells to mount, then jump — instant, no smooth crawl down a long
+     page. */
+  const focusRet = useGen((s) => s.focus);
+  useEffect(() => {
+    if (!focusRet) return;
+    const t = window.setTimeout(() => {
+      document.querySelector(`[data-kp="${focusRet}"]`)?.scrollIntoView({ block: "center" });
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
@@ -1655,7 +1668,7 @@ const kitTier = useGen((s) => s.tier);
                 </label>
                 <label className="kp-tyslide">Highlight intensity
                   <span className="kp-tyfield"><input type="range" min={0} max={100} value={T.highlightBoost ?? 70} aria-label="Highlight intensity"
-                    onChange={(e) => update((c) => { c.type.highlightBoost = +e.target.value; })} /><i>{T.highlightBoost ?? 70}%</i></span>
+                    onChange={(e) => updateMaster((c) => { c.type.highlightBoost = +e.target.value; })} /><i>{T.highlightBoost ?? 70}%</i></span>
                 </label>
                 <label className="kp-tytog">Treatment
                   <button className={`kp-tyswitch${treatOn ? " on" : ""}`} role="switch" aria-checked={treatOn} aria-label="Treatment on or off"
