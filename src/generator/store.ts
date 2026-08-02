@@ -415,6 +415,12 @@ interface GenStore {
   refreshLibraryItem: (id: string) => void;
 
   update: (fn: (c: GenConfig) => void) => void;
+  /** Master-grain edit that IGNORES the focused piece. The Kit page's
+      foundations controls (typography specimen etc.) always mean the master
+      document — update() would route design fields into a focused piece's
+      look instead (owner: "the switch works … but the slider doesn't" —
+      those drags were landing in the Data row's fork). */
+  updateMaster: (fn: (c: GenConfig) => void) => void;
   undo: () => void;
   redo: () => void;
   setPanelW: (w: number) => void;
@@ -1468,6 +1474,26 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
     }
+    const now = Date.now();
+    if (now - lastPush > 350) {
+      past.push(snap0);
+      if (past.length > 60) past.shift();
+      lastPush = now;
+    }
+    future.length = 0;
+    set({ cfg, saveStatus: "saving" });
+    if (saveTimer) window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      set({ saveStatus: "saved" });
+    }, 600);
+  },
+  updateMaster: (fn) => {
+    markTouched();
+    const snap0 = snapOf(get());
+    const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
+    const cfg = clone2(get().cfg);
+    fn(cfg);
     const now = Date.now();
     if (now - lastPush > 350) {
       past.push(snap0);

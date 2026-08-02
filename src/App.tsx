@@ -7,6 +7,8 @@ import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 import { ensureFont } from "./generator/fonts";
 import { registerCustomFont } from "./generator/model";
+import { TutorTip } from "./ui/TutorTip";
+import { startTutor } from "./tutor/tutor";
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
    reload when the signed-in identity changes (so admin controls appear). */
@@ -101,14 +103,18 @@ function useCrashBanner() {
 }
 
 export function App() {
-  const { panelW, setPanelW, undo, redo, theme, phase } = useGen();
+  const { panelW, setPanelW, undo, redo, theme, phase, canvasMode } = useGen();
   useSharedKit();
   useCloudPresets();
   useDocumentFonts();
+  useEffect(() => { startTutor(); }, []);
   const dragFrom = useRef<{ x: number; w: number } | null>(null);
   // The Kit is a reading surface — the inspector column steps aside entirely
   // and the guideline sheet becomes the hero. The rail still navigates.
-  const slim = phase !== "master"; // kit reads, board assembles — both full-width
+  // Play mode steps it aside too: playing is for feeling the component, not
+  // reading sliders (owner: "when you hit the play button it should
+  // automatically turn off the inspector") — the Design pencil brings it back.
+  const slim = phase !== "master" || canvasMode === "play";
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
 
@@ -147,6 +153,7 @@ export function App() {
       )}
       <TopBar />
       <LootModal />
+      <TutorTip />
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}

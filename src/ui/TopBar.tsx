@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
+import { useTutor } from "@/tutor/tutor";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
@@ -25,6 +26,7 @@ function Logo() {
    AccountMenu popover is retired. */
 export function TopBar() {
   const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier, isAdmin } = useGen();
+  const { on: tutorOn, setOn: setTutorOn } = useTutor();
   const tcaps = capsOf(tier);
   /* Per-artifact, not one blanket "vectors yes/no" — student buys the
      learning formats and stops short of the shipping ones, so the game kit
@@ -136,6 +138,16 @@ export function TopBar() {
           <button className="acct" onClick={() => navigate("#/admin")}
             aria-label="Admin desk" title="Admin desk — only admin accounts see this">
             <ShieldCheck size={17} strokeWidth={1.9} />
+          </button>
+        )}
+
+        {/* The Tutor's cap — contextual tips, ADMIN PREVIEW until the owner
+            releases it (standing gate: renders on isAdmin AND the engine
+            re-checks isAdmin at fire time, so a merge can't leak it). */}
+        {isAdmin && (
+          <button className={`acct${tutorOn ? " on" : ""}`} onClick={() => setTutorOn(!tutorOn)}
+            aria-label="Tutor tips" title={tutorOn ? "Tutor is watching — contextual tips are live (admin preview)" : "Tutor — turn on contextual tips (admin preview)"}>
+            <GraduationCap size={17} strokeWidth={1.9} />
           </button>
         )}
 
