@@ -127,7 +127,9 @@ export const SPECULAR_MODES: { id: SpecularMode; name: string }[] = [
 export type BlendMode = "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
 export const BLEND_MODES: BlendMode[] = ["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"];
 
-export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone";
+export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone"
+  | "houndstooth" | "plaid" | "diamonds" | "chevron" | "waves" | "scales"
+  | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -135,6 +137,21 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "stars", name: "Stars" },
   { id: "checker", name: "Checker" },
   { id: "halftone", name: "Halftone — comic fade" },
+  /* the second wave — textile classics and geometry that suit candy and
+     game HUDs alike. Every cell tiles seamlessly in a square, so Scale
+     and Angle stay honest at any size (owner: "houndstooth? let's get
+     creative and add some options"). */
+  { id: "houndstooth", name: "Houndstooth" },
+  { id: "plaid", name: "Plaid" },
+  { id: "diamonds", name: "Diamonds — harlequin" },
+  { id: "chevron", name: "Chevron" },
+  { id: "waves", name: "Waves" },
+  { id: "scales", name: "Scales" },
+  { id: "triangles", name: "Triangles" },
+  { id: "twill", name: "Twill weave" },
+  { id: "crosshatch", name: "Crosshatch" },
+  { id: "grid", name: "Grid" },
+  { id: "sprinkles", name: "Sprinkles" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row

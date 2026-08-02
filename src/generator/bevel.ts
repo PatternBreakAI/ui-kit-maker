@@ -1073,13 +1073,96 @@ interface Geom {
 
 /** One pattern cell for text fills — mirrors the face pattern language at
  *  letterform scale. `ps` is the cell size in viewBox units. */
-function textPatternCell(style: string, ps: number, color: string): string {
-  const h = (ps / 2).toFixed(1);
-  if (style === "dots") return `<circle cx="${h}" cy="${h}" r="${(ps * 0.22).toFixed(1)}" fill="${color}"/>`;
+/* ── pattern cells ────────────────────────────────────────────────
+   ONE tile per style, drawn to tile seamlessly inside a square cell so
+   Scale and Angle behave at any size. Anything drawn outside the cell is
+   clipped by the pattern, so wrap-around motifs are drawn explicitly on
+   both sides of the seam rather than trusting overflow. This is the only
+   place a pattern is defined — the face, the letterforms and the wheels
+   all read from here. */
+export function textPatternCell(style: string, ps: number, color: string): string {
+  const p = ps, h = p / 2, q = p / 4, u = p / 8;
+  const n = (v: number) => v.toFixed(1);
+  const line = (d: string, w: number, cap = "round") =>
+    `<path d="${d}" fill="none" stroke="${color}" stroke-width="${n(w)}" stroke-linecap="${cap}"/>`;
+
+  if (style === "dots") return `<circle cx="${n(h)}" cy="${n(h)}" r="${n(p * 0.22)}" fill="${color}"/>`;
   if (style === "stars") return `<path d="${starPath(ps)}" fill="${color}"/>`;
-  if (style === "checker") return `<rect width="${h}" height="${h}" fill="${color}"/><rect x="${h}" y="${h}" width="${h}" height="${h}" fill="${color}"/>`;
-  if (style === "halftone") return `<circle cx="${h}" cy="${h}" r="${(ps * 0.3).toFixed(1)}" fill="${color}"/><circle cx="0" cy="0" r="${(ps * 0.16).toFixed(1)}" fill="${color}"/><circle cx="${ps.toFixed(1)}" cy="${ps.toFixed(1)}" r="${(ps * 0.16).toFixed(1)}" fill="${color}"/>`;
-  return `<rect width="${(ps / 2).toFixed(1)}" height="${ps.toFixed(1)}" fill="${color}"/>`; // stripes
+  if (style === "checker") return `<rect width="${n(h)}" height="${n(h)}" fill="${color}"/><rect x="${n(h)}" y="${n(h)}" width="${n(h)}" height="${n(h)}" fill="${color}"/>`;
+  if (style === "halftone") return `<circle cx="${n(h)}" cy="${n(h)}" r="${n(p * 0.3)}" fill="${color}"/><circle cx="0" cy="0" r="${n(p * 0.16)}" fill="${color}"/><circle cx="${n(p)}" cy="${n(p)}" r="${n(p * 0.16)}" fill="${color}"/>`;
+
+  /* Houndstooth — real dogtooth: a 2-unit block on each diagonal plus the
+     sheared arms that make the tooth. Arms that leave the tile are drawn
+     again on the opposite edge, because pattern tiles clip rather than
+     overflow — without those the weave breaks at every seam. (Chosen from
+     four candidate geometries by rendering them; the obvious
+     checkerboard-plus-triangles reads as half-square quilting, not
+     houndstooth.) */
+  if (style === "houndstooth") {
+    const arm = (ax: number, ay: number) => `<path d="M${n(ax)} ${n(ay)} l${n(q)} ${n(-q)} h${n(q)} l${n(-q)} ${n(q)} Z" fill="${color}"/>`;
+    return [
+      `<path d="M0 0 h${n(h)} v${n(h)} h${n(-h)} Z" fill="${color}"/>`,
+      `<path d="M${n(h)} ${n(h)} h${n(h)} v${n(h)} h${n(-h)} Z" fill="${color}"/>`,
+      arm(h, h), arm(0, p), arm(h, 0), arm(0, h),
+      `<path d="M${n(h)} 0 l${n(q)} ${n(-q)} h${n(q)} l${n(-q)} ${n(q)} Z" fill="${color}"/>`,
+    ].join("");
+  }
+
+  /* Twill — the diagonal weave: sheared bands marching across the tile,
+     with the band that runs off each edge repeated on the other side */
+  if (style === "twill") return [
+    `<path d="M0 0 L${n(h)} 0 L${n(h + q)} ${n(h)} L${n(q)} ${n(h)} Z" fill="${color}"/>`,
+    `<path d="M${n(h)} ${n(h)} L${n(p)} ${n(h)} L${n(p + q)} ${n(p)} L${n(h + q)} ${n(p)} Z" fill="${color}"/>`,
+    `<path d="M${n(-h)} ${n(h)} L0 ${n(h)} L${n(q)} ${n(p)} L${n(-q)} ${n(p)} Z" fill="${color}"/>`,
+  ].join("");
+
+  /* Plaid — two bands crossing, the overlap reading darker by stacking */
+  if (style === "plaid") return [
+    `<rect y="${n(q)}" width="${n(p)}" height="${n(q * 0.8)}" fill="${color}" opacity="0.55"/>`,
+    `<rect x="${n(q)}" width="${n(q * 0.8)}" height="${n(p)}" fill="${color}" opacity="0.55"/>`,
+    line(`M0 ${n(p * 0.85)} H${n(p)}`, p * 0.06),
+    line(`M${n(p * 0.85)} 0 V${n(p)}`, p * 0.06),
+  ].join("");
+
+  // Harlequin diamonds — corners meet at the edge midpoints, so it tiles
+  if (style === "diamonds") return `<path d="M${n(h)} 0 L${n(p)} ${n(h)} L${n(h)} ${n(p)} L0 ${n(h)} Z" fill="${color}"/>`;
+
+  // Chevron — two rows, endpoints pinned to the edges so peaks meet
+  if (style === "chevron") return [
+    line(`M0 ${n(h)} L${n(h)} 0 L${n(p)} ${n(h)}`, p * 0.16, "butt"),
+    line(`M0 ${n(p)} L${n(h)} ${n(h)} L${n(p)} ${n(p)}`, p * 0.16, "butt"),
+  ].join("");
+
+  // Waves — one full period across the cell, level at both edges
+  if (style === "waves") return line(`M0 ${n(h)} Q ${n(q)} ${n(h - q)} ${n(h)} ${n(h)} T ${n(p)} ${n(h)}`, p * 0.11, "butt");
+
+  /* Scales — the fish-scale/bubble arc, drawn in two staggered rows with
+     the side halves repeated so the offset row closes across the seam */
+  if (style === "scales") return [
+    `<path d="M0 ${n(h)} A ${n(h)} ${n(h)} 0 0 1 ${n(p)} ${n(h)}" fill="none" stroke="${color}" stroke-width="${n(p * 0.09)}"/>`,
+    `<path d="M${n(-h)} ${n(p)} A ${n(h)} ${n(h)} 0 0 1 ${n(h)} ${n(p)}" fill="none" stroke="${color}" stroke-width="${n(p * 0.09)}"/>`,
+    `<path d="M${n(h)} ${n(p)} A ${n(h)} ${n(h)} 0 0 1 ${n(p + h)} ${n(p)}" fill="none" stroke="${color}" stroke-width="${n(p * 0.09)}"/>`,
+  ].join("");
+
+  // Triangles — up in this tile, the gaps read as the down row
+  if (style === "triangles") return `<path d="M0 ${n(p)} L${n(h)} 0 L${n(p)} ${n(p)} Z" fill="${color}"/>`;
+
+
+  // Crosshatch — both diagonals corner to corner, so the mesh is unbroken
+  if (style === "crosshatch") return line(`M0 0 L${n(p)} ${n(p)} M0 ${n(p)} L${n(p)} 0`, p * 0.07, "butt");
+
+  // Grid — the tile's top and left edge; neighbours complete every cell
+  if (style === "grid") return line(`M0 0 H${n(p)} M0 0 V${n(p)}`, p * 0.07, "butt");
+
+  /* Sprinkles — scattered candy dashes at mixed angles. Discrete by
+     nature, so they only need to sit inside the tile. */
+  if (style === "sprinkles") {
+    const dash = (x: number, y: number, deg: number) =>
+      `<rect x="${n(x)}" y="${n(y)}" width="${n(p * 0.26)}" height="${n(p * 0.085)}" rx="${n(p * 0.042)}" fill="${color}" transform="rotate(${deg} ${n(x)} ${n(y)})"/>`;
+    return dash(u, q, 24) + dash(h + u, u, -38) + dash(q, h + u, -12) + dash(h + q, h + q, 52);
+  }
+
+  return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
 
 /** Core builder — the candy stack. Width grows with the content. */
@@ -1362,14 +1445,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   if (patOp > 0.005) {
     const rot = ` patternTransform="rotate(${PT.angle})"`;
     const cell = `id="${id}pt" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
-    if (PT.type === "stripes") patternDef = `<pattern ${cell}${rot}><rect width="${(ps / 2).toFixed(1)}" height="${ps.toFixed(1)}" fill="${patC}"/></pattern>`;
-    else if (PT.type === "dots") patternDef = `<pattern ${cell}${rot}><circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps * 0.22).toFixed(1)}" fill="${patC}"/></pattern>`;
-    else if (PT.type === "stars") patternDef = `<pattern ${cell}${rot}><path d="${starPath(ps)}" fill="${patC}"/></pattern>`;
-    else if (PT.type === "checker") patternDef = `<pattern ${cell}${rot}><rect width="${(ps / 2).toFixed(1)}" height="${(ps / 2).toFixed(1)}" fill="${patC}"/><rect x="${(ps / 2).toFixed(1)}" y="${(ps / 2).toFixed(1)}" width="${(ps / 2).toFixed(1)}" height="${(ps / 2).toFixed(1)}" fill="${patC}"/></pattern>`;
-    else if (PT.type === "halftone") {
+    /* one source of truth for every pattern cell — the face reads the same
+       tiles the letterforms and the wheels do, so a style added once shows
+       up everywhere it can be worn */
+    if (PT.type === "halftone") {
       patternDef = `<pattern ${cell}${rot}><circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps * 0.3).toFixed(1)}" fill="${patC}"/></pattern>
       <linearGradient id="${id}pmg" ${axis}><stop offset="0" stop-color="#fff"/><stop offset=".85" stop-color="#000"/></linearGradient>
       <mask id="${id}pm"><rect x="${fx0 - 20}" y="${fy0 - 20}" width="${fw + 40}" height="${fh + 40}" fill="url(#${id}pmg)"/></mask>`;
+    } else {
+      patternDef = `<pattern ${cell}${rot}>${textPatternCell(PT.type, ps, patC)}</pattern>`;
     }
     if (patternDef) {
       const maskAttr = PT.type === "halftone" ? ` mask="url(#${id}pm)"` : "";
