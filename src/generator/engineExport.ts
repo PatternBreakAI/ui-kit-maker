@@ -439,8 +439,20 @@ function unityReadme(st: EngineExportState): string {
    folder (or extract it straight there).
 3. That's it. Unity imports everything by itself: every sprite arrives
    nine-sliced with the right pivots and pixels-per-unit, and ready-made
-   prefabs appear in **${root}/Prefabs** — drag one into your Canvas and
-   press Play. The Console prints a one-line receipt of what happened.
+   prefabs are BUILT FOR YOU in **${root}/Prefabs** — drag one into your
+   Canvas and press Play. The Console prints a one-line receipt of what
+   happened.
+
+## Where are the prefabs? (they're not in this zip — on purpose)
+
+A prefab file can only reference sprites through the identity (GUID) that
+YOUR Unity assigns each PNG at import. A prefab shipped inside a zip
+would therefore arrive with every sprite slot empty — the old
+drag-it-yourself experience. So the importer builds them INSIDE your
+project instead, seconds after the drop, already wired: sliced sprites,
+the kit's hover/pressed/disabled states on the Button, a label. Look in
+**${root}/Prefabs** once the Console receipt appears. They're generated
+once and never touched again — edit them freely.
 
 ## Restyling everything you've placed (the one rule)
 
