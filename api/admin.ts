@@ -515,13 +515,31 @@ export async function POST(req: Request): Promise<Response> {
        invisible to non-admins by the presets read policy — no date given
        means parked far out until the owner schedules it); hero is intent
        only, nothing enters the public presets table. */
+    /* a shipped pack carries the WHOLE kit, not just the master look
+       (owner: "I want ALL changes I make to any look to port over").
+       A saved project keeps its per-piece layer beside the config; a
+       studio preset already carries its own inside it. Locks are workflow,
+       not look — they stay behind. */
+    const KIT_LAYER = ["kitShapes", "kitDesigns", "kitTextFill", "kitLabels", "kitSubs",
+      "kitIcons", "kitSlotVals", "kitVals", "kitBar", "kitTextOy", "kitTextOx", "kitSizes", "kitRow"];
+    const srcCfg = (proj.doc.cfg ?? {}) as Record<string, unknown>;
+    let presetCfg: Record<string, unknown> = srcCfg;
+    if (!srcCfg.__workspace) {
+      const layer: Record<string, unknown> = {};
+      for (const k of KIT_LAYER) {
+        const v = (proj.doc as Record<string, unknown>)[k];
+        if (v && typeof v === "object" && Object.keys(v as object).length) layer[k] = v;
+      }
+      if (Object.keys(layer).length) presetCfg = { ...srcCfg, __workspace: layer };
+    }
+
     let presetId: string | null = null;
     if (placement === "standard" || placement === "upcoming") {
       const publish = placement === "standard" ? null : (publishAt ?? "2099-01-01T00:00:00Z");
       const ins = await fetch(`${supaUrl}/rest/v1/presets`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json", prefer: "return=representation" },
-        body: JSON.stringify({ name: presetName, cfg: proj.doc.cfg, thumb, created_by: caller.id, publish_at: publish }),
+        body: JSON.stringify({ name: presetName, cfg: presetCfg, thumb, created_by: caller.id, publish_at: publish }),
       });
       if (!ins.ok) {
         const detail = await ins.text().catch(() => "");
