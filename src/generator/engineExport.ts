@@ -450,9 +450,12 @@ YOUR Unity assigns each PNG at import. A prefab shipped inside a zip
 would therefore arrive with every sprite slot empty — the old
 drag-it-yourself experience. So the importer builds them INSIDE your
 project instead, seconds after the drop, already wired: sliced sprites,
-the kit's hover/pressed/disabled states on the Button, a label. Look in
-**${root}/Prefabs** once the Console receipt appears. They're generated
-once and never touched again — edit them freely.
+the kit's hover/pressed/disabled states on the Button, a label. ${st.scope === "free"
+    ? "The starter generates three (PrimaryButton, Chip, ProgressBar); the full kit generates one per component."
+    : "Every component family gets one — buttons, panels, rows, slots, badges and more."}
+The Project window highlights **${root}/Prefabs** when they land, right
+after the Console receipt. They're generated once and never touched
+again — edit them freely.
 
 ## Restyling everything you've placed (the one rule)
 
@@ -542,7 +545,7 @@ using UnityEngine.UI;
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
-  [Serializable] class PBAsset { public string file; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
@@ -586,6 +589,26 @@ namespace PatternBreak {
         return;
       }
       foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
+    }
+
+    /* ── the FIRST-DROP gap, closed. On a fresh drop the whole batch —
+       manifest included — can finish importing before this script even
+       compiles, so the postprocessor's "manifest arrived" trigger fires
+       into an assembly that doesn't contain it yet, and the domain reload
+       that follows wipes any pending delayCall (owner repro: empty
+       Console, no prefabs). Every domain reload therefore sweeps for
+       kits that have a manifest but no receipt and imports them. Cheap
+       and idempotent: once the receipt exists, the sweep does nothing. */
+    [InitializeOnLoadMethod]
+    static void FirstImportSweep() {
+      EditorApplication.delayCall += () => {
+        var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+        foreach (var guid in manifests) {
+          var mPath = AssetDatabase.GUIDToAssetPath(guid);
+          var root = Path.GetDirectoryName(mPath).Replace("\\", "/");
+          if (!File.Exists(root + "/kit.lock.json")) ImportKit(mPath);
+        }
+      };
     }
 
     static void ImportKit(string mPath) {
@@ -641,6 +664,11 @@ namespace PatternBreak {
       bool prefabsReady = (prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs");
       bool prefabsNew = false;
       if (!prefabsReady) { prefabsNew = GeneratePrefabs(root, manifest); prefabsReady = prefabsNew; }
+      if (prefabsNew) {
+        // walk the user to the goods: highlight the fresh Prefabs folder
+        var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(root + "/Prefabs");
+        if (folder != null) EditorGUIUtility.PingObject(folder);
+      }
 
       // ── the receipt ──
       var receipt = new PBLock();
@@ -734,15 +762,36 @@ namespace PatternBreak {
       // the kit's REAL face is named in kit-manifest.json > typography —
       // install it (or its TMP asset) and swap it here
     }
-    static bool ButtonPrefab(string dir, string root, string family, string goName, string label, int pngScale) {
-      var baseSp = S(root + "/assets/" + family + "/base.9.png");
+    /* one prefab per component family (owner: "a ton of prefabs") — any
+       family shipping a base sprite gets one; state variants wire a
+       Button with the kit's own hover/pressed/disabled recipes. */
+    static string NiceName(string family) {
+      var sb = new System.Text.StringBuilder();
+      bool up = true;
+      foreach (var ch in family) {
+        if (ch == '-') { up = true; continue; }
+        sb.Append(up ? char.ToUpperInvariant(ch) : ch);
+        up = false;
+      }
+      return sb.Length > 0 ? sb.ToString() : "Piece";
+    }
+    static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale) {
+      var basePath = root + "/" + baseAsset.file;
+      var baseSp = S(basePath);
       if (baseSp == null) return false;
-      var go = ImageObject(goName, baseSp, pngScale);
-      var btn = go.AddComponent<Button>();
-      var hover = S(root + "/assets/" + family + "/base-hover.9.png");
-      var pressed = S(root + "/assets/" + family + "/base-pressed.9.png");
-      var disabled = S(root + "/assets/" + family + "/base-disabled.9.png");
+      var go = new GameObject(goName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      var img = go.GetComponent<Image>();
+      img.sprite = baseSp;
+      bool sliced = baseAsset.nineSlice != null && (baseAsset.nineSlice.left + baseAsset.nineSlice.right + baseAsset.nineSlice.top + baseAsset.nineSlice.bottom) > 0;
+      img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
+      if (pngScale > 0)
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
+      var famDir = Path.GetDirectoryName(basePath).Replace("\\", "/");
+      var hover = S(famDir + "/base-hover.9.png");
+      var pressed = S(famDir + "/base-pressed.9.png");
+      var disabled = S(famDir + "/base-disabled.9.png");
       if (hover != null || pressed != null || disabled != null) {
+        var btn = go.AddComponent<Button>();
         btn.transition = Selectable.Transition.SpriteSwap;
         var ss = new SpriteState();
         ss.highlightedSprite = hover;
@@ -751,10 +800,15 @@ namespace PatternBreak {
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
       }
-      AddLabel(go, label);
+      if (label != null) AddLabel(go, label);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    static string DefaultLabel(string family) {
+      if (family == "chip") return "NEW";
+      if (family == "tab") return "TAB";
+      return "PLAY";
     }
     static bool ProgressPrefab(string dir, string root, int pngScale) {
       var track = S(root + "/assets/progress/track.9.png");
@@ -786,9 +840,18 @@ namespace PatternBreak {
       }
       var dir = root + "/Prefabs";
       bool any = false;
-      if (ButtonPrefab(dir, root, "button-primary", "PrimaryButton", "PLAY", pngScale)) any = true;
-      if (ButtonPrefab(dir, root, "chip", "Chip", "NEW", pngScale)) any = true;
       if (ProgressPrefab(dir, root, pngScale)) any = true;
+      /* every family with a "base" sprite becomes a prefab; the composed
+         controls and pure parts opt out (they're layers, not pieces) */
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights" };
+      foreach (var a in m.assets) {
+        if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
+        if (skip.Contains(a.component)) continue;
+        skip.Add(a.component); // one per family
+        var label = labeled.Contains(a.component) ? DefaultLabel(a.component) : null;
+        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale)) any = true;
+      }
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
