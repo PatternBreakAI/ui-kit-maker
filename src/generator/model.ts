@@ -1287,6 +1287,31 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
+
+/* ── GROUPS — the middle scope between one piece and the whole kit ──
+   Families that read as a set on screen, so a maker restyles the set in
+   one move ("If I change the text on one racing hud, I'd like it to
+   change on all the racing huds" — owner). Membership mirrors the kit
+   page's own sections, so what looks like a family IS the family. A
+   piece belongs to at most one group; anything unlisted simply has no
+   group and its scope picker offers Kit and Piece only. */
+export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }[] = [
+  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
+  { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
+  { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
+  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
+  { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
+  { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
+  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
+  { id: "shooter", name: "Shooter & action", members: ["ammo", "killfeed", "dmgnumber", "respawn", "waypoint", "weaponwheel", "equipselector", "buffframe", "hotbar", "crosshair"] },
+  { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
+  { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },
+  { id: "social", name: "Strategy & social", members: ["friendrow", "chatbubble", "clancrest", "emotewheel", "unitplate", "buildqueue", "techcard", "scorebug", "leaderboard", "achievetoast"] },
+];
+const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
+for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
+/** The group a piece belongs to, or null when it stands alone. */
+export const groupOf = (id: KitComponentId | null | undefined) => (id ? GROUP_OF.get(id) ?? null : null);
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>

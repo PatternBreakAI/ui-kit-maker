@@ -294,6 +294,11 @@ interface GenStore {
   redoBoard: () => void;
   focus: KitComponentId | null;
   setFocus: (f: KitComponentId | null) => void;
+  /** Where design edits land while a piece is focused: on the piece alone,
+   *  or across its whole family. Session state — a scope is a stance, not
+   *  part of the kit, and it always opens on the safest one. */
+  scope: "piece" | "group";
+  setScope: (s: "piece" | "group") => void;
   /** v67: the parent design — the component every unfocused edit styles.
    *  Defaults to the plain button; reassignable to any parent-eligible
    *  component (one that carries the complete recipe). */
@@ -853,7 +858,11 @@ export const useGen = create<GenStore>((set, get) => ({
   focus: null,
   // choosing a piece to edit lifts any rail focus filter — the user asked
   // for THIS component, so every relevant section must be reachable
-  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null }),
+  // focusing a piece always lands on the narrow scope: a group edit is a
+  // deliberate choice, never something you inherit from the last piece
+  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null, scope: "piece" }),
+  scope: "piece",
+  setScope: (s) => set({ scope: s }),
   parentId: loadJson<KitComponentId | "button">("ui-generator-parent", "button"),
   setParent: (id) => { saveJson("ui-generator-parent", id); set({ parentId: id }); },
   viewer: false,
