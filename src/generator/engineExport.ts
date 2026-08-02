@@ -55,6 +55,38 @@ const sha256Hex = async (data: Uint8Array): Promise<string> => {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
+/* ── the kit's faces ship WITH the kit (spec-blessed: OFL/Apache/UFL faces
+   travel with their license file, or not at all) — so generated prefab
+   labels speak the right font with zero user steps. TTFs come from the
+   google/fonts repo at export time; ANY failure degrades to the manifest's
+   Google Fonts link and never blocks the export. */
+async function fetchKitFont(family: string): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
+  const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!slug) return null;
+  for (const dir of ["ofl", "apache", "ufl"]) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/google/fonts/contents/${dir}/${slug}`);
+      if (!res.ok) continue;
+      const listing = (await res.json()) as { name: string; type: string; download_url: string | null }[];
+      if (!Array.isArray(listing)) continue;
+      const ttfs = listing.filter((f) => f.type === "file" && /\.ttf$/i.test(f.name) && f.download_url);
+      // prefer the static Regular; variable faces ([wght]) are the usual fallback
+      const pick = ttfs.find((f) => /-Regular\.ttf$/i.test(f.name)) ?? ttfs.find((f) => f.name.includes("[")) ?? ttfs[0];
+      const lic = listing.find((f) => f.type === "file" && /^(OFL\.txt|LICEN[CS]E\.txt|UFL\.txt)$/i.test(f.name) && f.download_url);
+      if (!pick?.download_url || !lic?.download_url) continue; // no license file, no binary
+      const [fontRes, licRes] = await Promise.all([fetch(pick.download_url), fetch(lic.download_url)]);
+      if (!fontRes.ok || !licRes.ok) continue;
+      return {
+        file: pick.name,
+        bytes: new Uint8Array(await fontRes.arrayBuffer()),
+        licenceName: lic.name,
+        licenceText: await licRes.text(),
+      };
+    } catch { /* try the next collection */ }
+  }
+  return null;
+}
+
 /* minimal local geometry helpers (mirror the renderer's recipes) */
 const rr = (x: number, y: number, w: number, h: number, r: number) => {
   const rc = Math.min(r, h / 2, w / 2);
@@ -328,6 +360,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* ── rasterise everything queued above, reporting progress ────── */
   await rasterQueue();
 
+  /* ── fonts: ship the kit's faces with their licenses ──────────── */
+  onProgress?.(pngQueue.length, pngQueue.length + 1, "fonts");
+  const famList = [...new Set([st.cfg.type.font, ...(st.cfg.type.listFont ? [st.cfg.type.listFont] : [])])].slice(0, 4);
+  let primaryFontFile: string | null = null;
+  for (const fam of famList) {
+    const got = await fetchKitFont(fam).catch(() => null);
+    if (!got) continue;
+    const famSlug = fam.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    files.push({ path: `fonts/${got.file}`, data: got.bytes });
+    files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
+    if (fam === st.cfg.type.font) primaryFontFile = `fonts/${got.file}`;
+  }
+
   /* ── manifest ─────────────────────────────────────────────────── */
   const fdef = fontByName(st.cfg.type.font);
   files.push({
@@ -356,6 +401,26 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         font: st.cfg.type.font,
         source: `https://fonts.google.com/specimen/${encodeURIComponent(st.cfg.type.font).replace(/%20/g, "+")}`,
         googleFontsQuery: fdef?.css ?? null,
+        /* the shipped TTF (with its license beside it) — the importer wires
+           generated prefab labels to it; null = fetch failed at export
+           time, fall back to the source link above */
+        fontFile: primaryFontFile,
+        /* the styled-text recipe — enough numbers to rebuild the kit's
+           display treatment as a TextMeshPro material preset: face fill
+           (or vertex gradient), outline, and glow/underlay */
+        style: {
+          weight: base.type.weight,
+          italic: base.type.italic,
+          spacingEmPct: base.type.spacing,
+          case: base.type.case,
+          fillMode: base.type.fillMode,
+          fill: base.type.fill,
+          fill2: base.type.fillMode === "gradient" ? base.type.fill2 : null,
+          fillOpacity: base.type.fillOpacity ?? 100,
+          outline: base.type.outline.on ? { color: base.type.outline.color, color2: base.type.outline.color2, width: base.type.outline.width } : null,
+          glow: base.type.glow.on ? { color: base.type.glow.color, size: base.type.glow.size, opacity: base.type.glow.opacity } : null,
+          shadow: base.type.shadow.on ? { color: base.type.shadow.color, x: base.type.shadow.x, y: base.type.shadow.y, blur: base.type.shadow.blur, opacity: base.type.shadow.opacity } : null,
+        },
         note: "Render all labels as live engine text in this face.",
       },
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
@@ -374,7 +439,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      GENERATES wired example prefabs on first import (a text prefab cannot
      carry sprite GUIDs, so the old drag-the-sprite examples are gone —
      the importer builds real ones with real references instead). ── */
-  files.push({ path: "UNITY-README.md", data: unityReadme(st) });
+  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
@@ -430,7 +495,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 }
 
 /* The 3-step story, tuned per scope — ease of use is the product. */
-function unityReadme(st: EngineExportState): string {
+function unityReadme(st: EngineExportState, fontShipped: boolean): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   return `# ${st.kitName} — Unity, in 3 steps
 
@@ -485,10 +550,22 @@ The importer keeps four promises on every re-import:
 
 ## Labels and fonts
 
-Labels are LIVE TEXT, never pixels. The generated prefabs use Unity's
-built-in font so they work in any project; the kit's real face is named
-in kit-manifest.json > typography (with its Google Fonts link) — install
-it and swap it on the Text, or use TextMeshPro with the same family.
+Labels are LIVE TEXT, never pixels. ${fontShipped
+    ? `Your kit's face ships in **fonts/** with its open-font license
+beside it, and the generated prefab labels already use it — nothing to
+install. For TextMeshPro, run Window > TextMeshPro > Font Asset Creator
+on the shipped TTF; the styled-text recipe (fills, outline, glow) is in
+kit-manifest.json > typography > style, ready to become a TMP material
+preset.`
+    : `The kit's face is named in kit-manifest.json > typography with its
+Google Fonts link — download the TTF, drop it in the project, and swap
+it onto the prefab labels (the export couldn't fetch it automatically
+this time). The styled-text recipe lives in typography > style.`}
+
+For pixel-perfect HERO text — titles, banners, victory moments — use
+**Type Stamps** on uikitmaker.com: type your phrases, download, extract
+into Assets/ — they land in ${root}/stamps as ready sprites in the full
+styled treatment, and re-exports overwrite in place like everything else.
 
 ## States
 
@@ -546,7 +623,8 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBAsset[] assets; }
+  [Serializable] class PBTypography { public string font; public string fontFile; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -745,7 +823,7 @@ namespace PatternBreak {
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width / pngScale, sp.rect.height / pngScale);
       return go;
     }
-    static void AddLabel(GameObject parent, string text) {
+    static void AddLabel(GameObject parent, string text, Font kitFont) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
@@ -757,10 +835,12 @@ namespace PatternBreak {
       t.fontSize = 40;
       t.color = Color.white;
       t.raycastTarget = false;
-      var f = BuiltinFont();
+      // the kit's own face ships in fonts/ (license beside it) and wires
+      // here automatically; the built-in face only covers a fetch-less
+      // zip. For styled DYNAMIC text, build a TMP material preset from
+      // kit-manifest.json > typography > style.
+      var f = kitFont != null ? kitFont : BuiltinFont();
       if (f != null) t.font = f;
-      // the kit's REAL face is named in kit-manifest.json > typography —
-      // install it (or its TMP asset) and swap it here
     }
     /* one prefab per component family (owner: "a ton of prefabs") — any
        family shipping a base sprite gets one; state variants wire a
@@ -775,7 +855,7 @@ namespace PatternBreak {
       }
       return sb.Length > 0 ? sb.ToString() : "Piece";
     }
-    static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale) {
+    static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
       if (baseSp == null) return false;
@@ -800,7 +880,7 @@ namespace PatternBreak {
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
       }
-      if (label != null) AddLabel(go, label);
+      if (label != null) AddLabel(go, label, kitFont);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -840,6 +920,10 @@ namespace PatternBreak {
       }
       var dir = root + "/Prefabs";
       bool any = false;
+      // the kit's own face, shipped in fonts/ with its license — labels wire to it
+      Font kitFont = null;
+      if (m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
+        kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
       if (ProgressPrefab(dir, root, pngScale)) any = true;
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
@@ -853,7 +937,7 @@ namespace PatternBreak {
         if (skip.Contains(a.component)) continue;
         skip.Add(a.component); // one per family
         var label = labeled.Contains(a.component) ? DefaultLabel(a.component) : null;
-        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale)) any = true;
+        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont)) any = true;
       }
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
@@ -869,6 +953,20 @@ namespace PatternBreak {
     static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
     void OnPreprocessTexture() {
       var path = assetPath.Replace("\\\\", "/");
+      /* Type Stamps — baked styled phrases exported at 4x — land under the
+         kit's stamps/ folder and arrive as ready sprites at design size */
+      if (path.Contains("UIKitMaker/") && path.Contains("/stamps/")) {
+        var sti = (TextureImporter)assetImporter;
+        sti.textureType = TextureImporterType.Sprite;
+        sti.spriteImportMode = SpriteImportMode.Single;
+        sti.mipmapEnabled = false;
+        sti.alphaIsTransparency = true;
+        var sset = new TextureImporterSettings();
+        sti.ReadTextureSettings(sset);
+        sset.spritePixelsPerUnit = 400f; // stamps ship at 4x
+        sti.SetTextureSettings(sset);
+        return;
+      }
       var i = path.LastIndexOf("/assets/");
       if (i < 0) return;
       var root = path.Substring(0, i);

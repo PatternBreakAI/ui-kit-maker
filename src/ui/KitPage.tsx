@@ -7,7 +7,7 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape }
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
-import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes } from "@/generator/exportUtils";
+import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight } from "@/generator/exportUtils";
 import { downloadEngineExport } from "@/generator/engineExport";
 import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
@@ -1161,6 +1161,48 @@ export function KitPage() {
     }
   };
 const kitTier = useGen((s) => s.tier);
+  /* ── Type Stamps: baked styled phrases for hero text. The app IS the
+     phrase factory — type lines, get crisp 4x PNGs of the kit's full
+     display treatment, rooted in the SAME Unity folder as the engine kit
+     so re-exports overwrite in place. Live UI text stays live; stamps
+     cover the moments real games bake anyway. ── */
+  const [stampsOpen, setStampsOpen] = useState(false);
+  const [stampText, setStampText] = useState("");
+  const [stampBusy, setStampBusy] = useState(false);
+  const openStamps = () => {
+    if (!stampText) {
+      const st = useGen.getState();
+      setStampText([st.kitName?.toUpperCase() ?? "MY GAME", "SWEET VICTORY", "LEVEL UP!"].join("\n"));
+    }
+    setStampsOpen(true);
+  };
+  const runStamps = async () => {
+    const phrases = [...new Set(stampText.split("\n").map((s) => s.trim()).filter(Boolean))].slice(0, 24);
+    if (!phrases.length || stampBusy) return;
+    setStampBusy(true);
+    try {
+      await guardedExport("engine", gateHandlers, async (grant) => {
+        const st = useGen.getState();
+        let uslug = st.unitySlug;
+        if (!uslug) { uslug = sanitizeUnitySlug(st.kitName) ?? "ui-kit"; st.setUnitySlug(uslug); }
+        const files: { path: string; data: string | Uint8Array }[] = [];
+        for (const p of phrases) {
+          const pslug = p.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "stamp";
+          const { bytes } = await svgToPngBytesTight(renderTypeSpecimen(st.cfg, p.slice(0, 40)), 4);
+          files.push({ path: `UIKitMaker/${uslug}/stamps/${pslug}@4x.png`, data: bytes });
+        }
+        files.push({
+          path: `UIKitMaker/${uslug}/stamps/README.md`,
+          data: "# Type Stamps\n\nYour phrases in the kit's full display treatment, baked at 4x —\nfor HERO text: titles, banners, victory moments. They import as ready\nsprites at design size.\n\nRunning UI text stays LIVE text (see the kit's UNITY-README); stamps\nare for the moments real games bake anyway. Need another phrase or a\nrestyle? Type it on uikitmaker.com, download again, extract over the\nsame spot — same overwrite rules as the kit.\n",
+        });
+        files.push({ path: `UIKitMaker/${uslug}/stamps/LICENCE.txt`, data: grant.licence });
+        downloadZip(`${uslug}-type-stamps.zip`, files);
+      });
+    } finally {
+      setStampBusy(false);
+      setStampsOpen(false);
+    }
+  };
   /* Per artifact, not one blanket flag: student buys the SVG pack and stops
      at the engine kit, which is the shipping format. */
   const mayEngine = canExport(kitTier, "engine");
@@ -1174,6 +1216,7 @@ const kitTier = useGen((s) => s.tier);
       busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
+    { id: "stamps", name: "Type stamps (PNG)", desc: "Your phrases in the kit's full display treatment, baked crisp at 4x — hero titles, banners, victory text. Lands in the same Unity folder as the kit.", busy: stampBusy, locked: !mayEngine, run: openStamps },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
     {
@@ -1516,6 +1559,18 @@ const kitTier = useGen((s) => s.tier);
             </button>
           </div>
           {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+          {stampsOpen && (
+            <div className="kp-stampsheet" role="dialog" aria-label="Type stamps">
+              <b>Type Stamps</b>
+              <p>One phrase per line (up to 24). Each bakes as a crisp 4× PNG in your kit's full display treatment — for hero text: titles, banners, victory moments. Extract the zip into your Unity project's Assets/ and they land beside the kit, ready as sprites.</p>
+              <textarea value={stampText} onChange={(e) => setStampText(e.target.value)} rows={6} maxLength={1200}
+                placeholder={"SWEET VICTORY\nLEVEL UP!\nGAME OVER"} aria-label="Stamp phrases, one per line" />
+              <div className="kp-stampsheet-row">
+                <button className="kp-stampgo" disabled={stampBusy} onClick={() => void runStamps()}>{stampBusy ? "Baking…" : "Bake stamps"}</button>
+                <button className="kp-stampx" onClick={() => setStampsOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
           <div className="kp-roleline" aria-hidden="true">
             {roles.map((r) => <span className="kp-roledot" key={r}><i style={{ background: cfg.effects[r] }} />{r}</span>)}
           </div>
