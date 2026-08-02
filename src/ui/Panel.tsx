@@ -1744,6 +1744,12 @@ export function Panel() {
         </label>
         <div className="helper">Reading text — quest lists, menus, choice lists, dialogue lines, chat messages — speaks this face; titles and plates keep the display font. A loud display face is a headline voice, not a reading voice.</div>
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
+        {/* stacked labels only — the gap between lines, % of factory leading
+            (owner: "leading controls for the type, at least here"). Shown
+            exactly where it acts; widen the list as more stacks adopt it. */}
+        {focus === "endturn" && (
+          <Slider label="Leading" value={T2.leading ?? 100} min={60} max={220} unit="%" onChange={(v) => update((c) => { c.type.leading = v; })} />
+        )}
         {focus ? (
           <>
             <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-20} max={20} unit="px"

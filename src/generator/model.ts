@@ -234,6 +234,9 @@ export interface TypeCfg {
   case: TextCase;
   oy?: number;         // vertical nudge px — visually center against the shell
   ox?: number;         // horizontal nudge px — same scale, sideways
+  /** Line gap for stacked labels (End turn's two-word stack), % of the
+   *  factory leading — 100 = factory, scales with the face size. */
+  leading?: number;
   /** First matching phrase inside the label renders as a brighter, illuminated
    *  portion of the same material — same font, metrics, outline, everything. */
   highlight?: string;

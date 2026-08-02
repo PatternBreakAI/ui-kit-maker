@@ -5112,9 +5112,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circT * vT0).toFixed(1)} ${circT.toFixed(1)}" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`
         : "";
       const words = (opts.label ?? "END TURN").split(" ");
+      /* stacked lines: the gap scales with the face and the Leading dial —
+         the old fixed 32k gap crowded big display type (owner). 0.73em
+         reproduces the factory look exactly at the default type size. */
+      const fsW = 30 * k * typeK;
+      const lead = fsW * 0.73 * ((cfg.type.leading ?? 100) / 100);
       const text = words.length > 1
-        ? contentText(words[0], ccx, ccy - 14 * k, 30 * k * typeK, { anchor: "middle" }) +
-          contentText(words.slice(1).join(" "), ccx, ccy + 18 * k, 30 * k * typeK, { anchor: "middle" })
+        ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
+          contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
         : contentText(words[0], ccx, ccy + 1, 32 * k * typeK, { anchor: "middle" });
       return inject(shell.replace("<svg ", '<svg data-endturn="1" '), arc + text);
     }

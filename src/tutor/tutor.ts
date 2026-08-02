@@ -43,8 +43,10 @@ const WIRED: Array<Tip & { detect: (s: Gen, p: Gen) => boolean }> = [
       const textNudged = s.kitTextOy !== p.kitTextOy || s.kitTextOx !== p.kitTextOx
         || s.cfg.type.oy !== p.cfg.type.oy || s.cfg.type.ox !== p.cfg.type.ox;
       if (!textNudged || s.phase !== "master") return false;
-      const f = s.focus;
-      return !!(f ? (s.kitDesigns[f]?.icon?.show ?? s.cfg.icon.show) : s.cfg.icon.show);
+      /* DOM truth, not rig guess: many pieces (End turn, rows…) never draw
+         a glyph no matter what the icon rig says — the tip is only honest
+         when an icon is actually on the canvas (hero or a state card). */
+      return !!document.querySelector('.canvas-wrap [data-part="icon"]');
     },
   },
 ];
@@ -75,6 +77,15 @@ const seenLife = ((): Record<string, number> => {
 const seenSession: Record<string, number> = {};
 let lastShown = 0;
 
+/* Arming the Tutor answers IMMEDIATELY — a silent toggle reads as broken
+   (owner: "the tutor button didn't seem to be working"). The welcome toast
+   is feedback, not a tip: it skips the caps and shows on every arm. */
+const WELCOME: Tip = {
+  id: "welcome",
+  headline: "The Tutor is on",
+  body: "Quick tips will flash here when a control has a better path — as you work, not before. Admin preview: visitors never see this.",
+};
+
 interface TutorState {
   /** The cap toggle — persisted, but the engine still requires isAdmin. */
   on: boolean;
@@ -88,7 +99,7 @@ export const useTutor = create<TutorState>((set) => ({
   active: null,
   setOn: (v) => {
     try { localStorage.setItem("ui-tutor-on", v ? "1" : "0"); } catch { /* ignore */ }
-    set({ on: v, ...(v ? {} : { active: null }) });
+    set({ on: v, active: v ? WELCOME : null });
   },
   dismiss: () => set({ active: null }),
 }));
