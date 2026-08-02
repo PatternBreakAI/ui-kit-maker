@@ -7,7 +7,7 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize } from "./model";
+import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight } from "./exportUtils";
@@ -169,6 +169,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      scopes, so an upgrade lands the full kit over the starter in place. */
   const full = st.scope === "full";
   const FREE_NINE = new Set<KitComponentId>(["primary", "chip"]);
+  /* the slug becomes a zip path segment in end users' projects — re-apply
+     the canonical shape at USE time so nothing traversal-shaped can ride
+     in from a poisoned project doc or share link, wherever it was minted */
+  const safeSlug = sanitizeUnitySlug(st.slug) ?? "ui-kit";
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -333,7 +337,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
-      slug: st.slug,
+      slug: safeSlug,
       kitVersion: st.kitVersion,
       generatorVersion: typeof __BUILD_STAMP__ === "string" ? __BUILD_STAMP__ : "dev",
       tier: st.scope,
@@ -410,13 +414,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      export over the same spot is the whole update. .meta files (Unity's
      identity records) live beside each file and are never in the zip, so
      GUIDs survive every overwrite and placed UI restyles in place. ── */
-  const rooted = files.map((f) => ({ ...f, path: `UIKitMaker/${st.slug}/${f.path}` }));
-  download(`${st.slug}-engine-kit.zip`, makeZip(rooted));
+  const rooted = files.map((f) => ({ ...f, path: `UIKitMaker/${safeSlug}/${f.path}` }));
+  download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
 }
 
 /* The 3-step story, tuned per scope — ease of use is the product. */
 function unityReadme(st: EngineExportState): string {
-  const root = `Assets/UIKitMaker/${st.slug}`;
+  const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   return `# ${st.kitName} — Unity, in 3 steps
 
 1. Unzip this download.

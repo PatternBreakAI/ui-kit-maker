@@ -520,6 +520,16 @@ export function registerCustomFont(name: string) {
 }
 export function customFontNames(): string[] { return [...customFontRegistry.keys()]; }
 
+/** Canonical Unity-slug shape: lowercase, [a-z0-9-] only, never empty.
+    Used at MINT time and re-applied at every USE (export paths) and LOAD
+    (project docs, share links) — a slug is a zip path segment in end
+    users' Unity projects, so nothing traversal-shaped may ever pass. */
+export function sanitizeUnitySlug(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return s || null;
+}
+
 export function fontByName(name: string) {
   const custom = customFontRegistry.get(name);
   if (custom) return { name, ...custom };

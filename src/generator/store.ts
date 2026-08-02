@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -929,8 +929,10 @@ export const useGen = create<GenStore>((set, get) => ({
       kitLocks: (p.kitLocks as GenStore["kitLocks"]) ?? {},
       /* the Unity slug is the PROJECT's identity in the user's Unity
          assets — it must ride project open/save, or a re-export after a
-         reload would mint a new slug and orphan everything placed */
-      unitySlug: (typeof p.unitySlug === "string" ? p.unitySlug : null),
+         reload would mint a new slug and orphan everything placed.
+         Sanitized on the way in: payloads arrive from share links and
+         cloud docs, and the slug becomes a zip path segment. */
+      unitySlug: sanitizeUnitySlug(p.unitySlug),
       unityKitVer: (typeof p.unityKitVer === "number" ? p.unityKitVer : 0),
       ...(bg ? { bgImage: bg } : {}),
     };

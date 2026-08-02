@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon } from "@/generator/model";
+import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -1063,7 +1063,7 @@ export function KitPage() {
            renames don't move files in anyone's project */
         let uslug = st.unitySlug;
         if (!uslug) {
-          uslug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ui-kit";
+          uslug = sanitizeUnitySlug(name) ?? "ui-kit";
           st.setUnitySlug(uslug);
         }
         const kitVersion = st.bumpUnityKitVer();
