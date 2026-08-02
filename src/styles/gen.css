@@ -2391,7 +2391,10 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   animation: ttInTop .22s ease;
 }
 @keyframes ttInTop { from { opacity: 0; transform: translateY(-8px); } }
-/* the cap shows its state plainly: lighter chip in dark mode, darker in
-   light mode; back to the quiet default when off */
-.top .tutorbtn.on { background: rgba(0, 0, 0, .16); }
-[data-theme="dark"] .top .tutorbtn.on { background: rgba(255, 255, 255, .22); }
+/* top-nav buttons wear STATES generally, not per-button overrides (owner):
+   a pressed dip, and an on-chip — lighter against the dark bar, darker
+   against the light one. Any toggle up there (cloud, cap, future) reads
+   the same way; off returns to the quiet default. */
+.acct:active { transform: translateY(1px); }
+.acct.on { background: rgba(0, 0, 0, .14); color: var(--ink); }
+[data-theme="dark"] .acct.on { background: rgba(255, 255, 255, .22); color: var(--ink); }
