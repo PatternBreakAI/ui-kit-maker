@@ -844,7 +844,10 @@ namespace PatternBreak {
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
       var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab" };
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights" };
+      /* the data-heavy panels (lap times, leaderboard, telemetry) read as
+         empty shells without their live content — their sprites still ship,
+         but they don't make useful drag-in prefabs (owner) */
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry" };
       foreach (var a in m.assets) {
         if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
         if (skip.Contains(a.component)) continue;
