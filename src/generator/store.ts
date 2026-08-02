@@ -1268,8 +1268,18 @@ export const useGen = create<GenStore>((set, get) => ({
     get().replaceConfig(cfg);
     set({ selectedState: "default" });
   },
-  replaceConfig: (next) => {
+  replaceConfig: (nextRaw) => {
     markTouched();
+    /* Every wholesale look-swap lands here (shared presets, your presets,
+       styles, starters, imports), so this is where a stored config gets
+       made whole again: custom font families re-registered (without it
+       fontByName falls back to the stock face and the look arrives in the
+       wrong type), newer candy/icon tokens merged into state forks (older
+       forks otherwise render half-updated), retired silhouettes remapped,
+       frozen icon pins healed. Idempotent, so paths that already hydrated
+       lose nothing by passing through. Owner: applying a shared preset left
+       "fonts, certain states" behind. */
+    const next = hydrate(nextRaw as unknown as Record<string, unknown>);
     past.push(snapOf(get()));
     if (past.length > 60) past.shift();
     future.length = 0;
