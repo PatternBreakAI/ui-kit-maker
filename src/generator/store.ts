@@ -1425,14 +1425,22 @@ export const useGen = create<GenStore>((set, get) => ({
         work.type.font = d.type.font;
         for (const other of Object.values(work.stateDesigns)) { if (other?.type) other.type.font = d.type.font; }
       }
-      /* the GLYPH is one decision for the whole component too (like the
-         typeface) — color, effects, weight and pose stay state-specific
-         ("I want to be able to change this per state", owner) */
+      /* the GLYPH is one decision for the whole component (like the
+         typeface) — colour, effects and weight stay state-specific
+         ("I want to be able to change this per state", owner).
+         Its POSITION joins that list: a glyph that jumps between states
+         reads as jitter, not design, and pieces whose states carry
+         different content (the badge's count vs its star) need one
+         placement that holds across all of them (owner: "I need nudge to
+         be state-independent"). Press-down movement is already the job of
+         the Lift slider, which moves the whole piece. */
       const gi = d.icon;
-      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || gi.show !== work.icon.show || gi.placement !== work.icon.placement || gi.only !== work.icon.only)) {
-        work.icon.def = gi.def; work.icon.show = gi.show; work.icon.placement = gi.placement; work.icon.only = gi.only;
+      const glyphKeys = ["show", "placement", "only", "ox", "oy"] as const;
+      if (gi && (JSON.stringify(gi.def ?? null) !== JSON.stringify(work.icon.def ?? null) || glyphKeys.some((k) => gi[k] !== work.icon[k]))) {
+        work.icon.def = gi.def;
+        for (const k of glyphKeys) (work.icon[k] as unknown) = gi[k];
         for (const other of Object.values(work.stateDesigns)) {
-          if (other?.icon) { other.icon.def = gi.def; other.icon.show = gi.show; other.icon.placement = gi.placement; other.icon.only = gi.only; }
+          if (other?.icon) { other.icon.def = gi.def; for (const k of glyphKeys) (other.icon[k] as unknown) = gi[k]; }
         }
       }
       work.content = t.content; work.states = t.states; work.visible = t.visible;
