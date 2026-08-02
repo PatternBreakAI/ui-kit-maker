@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
-import { useTutor } from "@/tutor/tutor";
+import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
 import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
@@ -142,10 +142,12 @@ export function TopBar() {
         )}
 
         {/* The Tutor's cap — contextual tips, ADMIN PREVIEW until the owner
-            releases it (standing gate: renders on isAdmin AND the engine
-            re-checks isAdmin at fire time, so a merge can't leak it). */}
-        {isAdmin && (
-          <button className={`acct${tutorOn ? " on" : ""}`} onClick={() => setTutorOn(!tutorOn)}
+            releases it (renders on isAdmin AND the engine re-checks isAdmin
+            at fire time). TUTOR_SURFACED additionally holds it off the live
+            domain entirely — owner blessed everything EXCEPT this. */}
+        {isAdmin && TUTOR_SURFACED && (
+          <button className={`acct tutorbtn${tutorOn ? " on" : ""}`} onClick={() => setTutorOn(!tutorOn)}
+            aria-pressed={tutorOn}
             aria-label="Tutor tips" title={tutorOn ? "Tutor is watching — contextual tips are live (admin preview)" : "Tutor — turn on contextual tips (admin preview)"}>
             <GraduationCap size={17} strokeWidth={1.9} />
           </button>

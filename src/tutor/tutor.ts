@@ -24,7 +24,19 @@ export interface Tip {
   headline: string;
   body: string;
   cta?: { label: string; go: () => void };
+  /** "cap" pins the toast up by the graduate-cap button (arm/disarm
+      feedback); absent = over the canvas (contextual tips). */
+  anchor?: "cap";
+  /** Auto-dismiss ms — feedback toasts are quicker than coaching ones. */
+  ttl?: number;
 }
+
+/* HOLD FROM LIVE (owner bless 2026-08-02: "all changes except the tutor
+   button for now"): the Tutor surfaces only off the production domain —
+   previews and local keep iterating while live ships the rest. Delete
+   this gate when the owner blesses the Tutor itself. */
+export const TUTOR_SURFACED =
+  typeof location === "undefined" || !/(^|\.)uikitmaker\.com$/i.test(location.hostname);
 
 type Gen = ReturnType<typeof useGen.getState>;
 
@@ -78,12 +90,19 @@ const seenSession: Record<string, number> = {};
 let lastShown = 0;
 
 /* Arming the Tutor answers IMMEDIATELY — a silent toggle reads as broken
-   (owner: "the tutor button didn't seem to be working"). The welcome toast
-   is feedback, not a tip: it skips the caps and shows on every arm. */
+   (owner: "the tutor button didn't seem to be working"). Both feedback
+   toasts pin by the cap button, skip the caps, and show on every flip. */
 const WELCOME: Tip = {
   id: "welcome",
   headline: "The Tutor is on",
-  body: "Quick tips will flash here when a control has a better path — as you work, not before. Admin preview: visitors never see this.",
+  body: "Quick tips will appear as you work when a control has a better path. Admin preview: visitors never see this.",
+  anchor: "cap", ttl: 5000,
+};
+const DISARMED: Tip = {
+  id: "tutor-off",
+  headline: "The Tutor is off",
+  body: "No more tips until you turn it back on.",
+  anchor: "cap", ttl: 4000,
 };
 
 interface TutorState {
@@ -99,7 +118,7 @@ export const useTutor = create<TutorState>((set) => ({
   active: null,
   setOn: (v) => {
     try { localStorage.setItem("ui-tutor-on", v ? "1" : "0"); } catch { /* ignore */ }
-    set({ on: v, active: v ? WELCOME : null });
+    set({ on: v, active: v ? WELCOME : DISARMED });
   },
   dismiss: () => set({ active: null }),
 }));
@@ -127,7 +146,7 @@ export function startTutor(): void {
   if (started) return;
   started = true;
   useGen.subscribe((s, p) => {
-    if (!useTutor.getState().on || !s.isAdmin) return;
+    if (!TUTOR_SURFACED || !useTutor.getState().on || !s.isAdmin) return;
     if (useTutor.getState().active) return;
     for (const tip of WIRED) {
       if (eligible(tip.id) && tip.detect(s, p)) { show(tip); return; }

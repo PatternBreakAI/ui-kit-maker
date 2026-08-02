@@ -8,12 +8,12 @@ export function TutorTip() {
   const { active, dismiss } = useTutor();
   useEffect(() => {
     if (!active) return;
-    const t = window.setTimeout(dismiss, 9000);
+    const t = window.setTimeout(dismiss, active.ttl ?? 9000);
     return () => window.clearTimeout(t);
   }, [active, dismiss]);
   if (!active) return null;
   return (
-    <div className="tutortip" role="status">
+    <div className={`tutortip${active.anchor === "cap" ? " tt-anchored" : ""}`} role="status">
       <GraduationCap size={16} strokeWidth={2} className="tt-cap" />
       <div className="tt-copy">
         <b>{active.headline}</b>

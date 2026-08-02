@@ -2384,3 +2384,14 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   border: 0; background: none; color: var(--ink3); cursor: pointer; border-radius: 7px;
 }
 .tutortip .tt-x:hover { color: var(--ink); background: var(--soft); }
+
+/* arm/disarm feedback pins up by the cap button instead of the canvas */
+.tutortip.tt-anchored {
+  left: auto; right: 150px; bottom: auto; top: 62px; transform: none;
+  animation: ttInTop .22s ease;
+}
+@keyframes ttInTop { from { opacity: 0; transform: translateY(-8px); } }
+/* the cap shows its state plainly: lighter chip in dark mode, darker in
+   light mode; back to the quiet default when off */
+.top .tutorbtn.on { background: rgba(0, 0, 0, .16); }
+[data-theme="dark"] .top .tutorbtn.on { background: rgba(255, 255, 255, .22); }
