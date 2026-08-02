@@ -608,6 +608,29 @@ game might type. They're exactly what Type Stamps are for; the pattern
 also ships as a seamless tile (fonts/face-pattern.png, tiling density
 in the manifest's pattern.reps) if you want it in the face material's
 Face Texture slot for a specific label.
+${st.cfg.type.stripes?.on ? `
+### The letterform pattern on ONE label, by hand
+
+The kit ships everything needed; it just doesn't apply it for you,
+because the right tiling depends on how long each label is.
+
+1. Select the label (e.g. Prefabs > ButtonPrimary > Label).
+2. In the Inspector, open the context menu on the material header
+   ("KitFace SDF Material") and choose **Create Material Preset** —
+   this label gets its own copy; every other label keeps the shared face.
+3. In the preset's **Face** section, drag \`fonts/face-pattern.png\`
+   into **Texture**, and set **Tiling** X and Y to the \`reps\` number
+   from kit-manifest.json > typography > style > pattern.
+4. On the text component, set **Horizontal Mapping** to Line and
+   **Vertical Mapping** to Match Aspect — the pattern flows across the
+   word with square cells, like the app.
+5. Label longer than a word or two? Raise Tiling until the cells match
+   the rest of your kit (bigger number = smaller cells).
+
+The tile is seamless and pre-rotated to the kit's pattern angle
+(snapped to 45°). It multiplies the face color: the white ground leaves
+your fill untouched; the pattern strokes tint through.
+` : ""}
 
 For pixel-perfect HERO text — titles, banners, victory moments — use
 **Type Stamps** on uikitmaker.com: type your phrases, download, extract
@@ -700,6 +723,13 @@ namespace PatternBreak {
       if (ti.spriteImportMode != SpriteImportMode.Single) { ti.spriteImportMode = SpriteImportMode.Single; changed = true; }
       if (ti.mipmapEnabled) { ti.mipmapEnabled = false; changed = true; }
       if (!ti.alphaIsTransparency) { ti.alphaIsTransparency = true; changed = true; }
+      // these sprites ARE the app's pixels — Unity's default block compression
+      // mottles the smooth gradients, so the kit imports lossless; re-compress
+      // per platform at ship time if you need the memory back
+      if (ti.textureCompression != TextureImporterCompression.Uncompressed) { ti.textureCompression = TextureImporterCompression.Uncompressed; changed = true; }
+      // and nothing gets silently downscaled: big panels at 2x can pass the
+      // 2048 default ceiling, which would quietly soften them
+      if (ti.maxTextureSize < 4096) { ti.maxTextureSize = 4096; changed = true; }
       var settings = new TextureImporterSettings();
       ti.ReadTextureSettings(settings);
       var pivot = new Vector2(a.pivot != null ? a.pivot.x : 0.5f, a.pivot != null ? a.pivot.y : 0.5f);
@@ -1251,6 +1281,8 @@ namespace PatternBreak {
         sti.spriteImportMode = SpriteImportMode.Single;
         sti.mipmapEnabled = false;
         sti.alphaIsTransparency = true;
+        sti.textureCompression = TextureImporterCompression.Uncompressed; // hero text: never blocky
+        sti.maxTextureSize = 4096;
         var sset = new TextureImporterSettings();
         sti.ReadTextureSettings(sset);
         sset.spritePixelsPerUnit = 400f; // stamps ship at 4x
