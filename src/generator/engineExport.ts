@@ -749,18 +749,33 @@ namespace PatternBreak {
           if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
             orphans.Add(o);
 
+      /* ── the styled face + the FONT STORY, told out loud ── */
+      bool tmpPending = false;
+      Font kitTtf = null;
+      if (manifest.typography == null || string.IsNullOrEmpty(manifest.typography.fontFile)) {
+        Debug.Log("UI Kit Maker: this export shipped no font file (the fetch failed in the browser at export time) — labels use Unity's built-in face. Re-export from uikitmaker.com to retry.");
+      } else {
+        kitTtf = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + manifest.typography.fontFile);
+        if (kitTtf == null)
+          Debug.LogWarning("UI Kit Maker: the kit names " + manifest.typography.fontFile + " but it isn't in the project — was the fonts folder extracted with the rest?");
+      }
 #if UNITY_2023_2_OR_NEWER
       /* the styled TMP face generates on EVERY import when missing — not
          only alongside prefabs — so projects that already generated their
-         prefabs before this feature still receive KitFace SDF */
-      if (manifest.typography != null && !string.IsNullOrEmpty(manifest.typography.fontFile))
-        EnsureTmpFace(root, manifest, AssetDatabase.LoadAssetAtPath<Font>(root + "/" + manifest.typography.fontFile));
+         prefabs before this feature still receive KitFace SDF. If TMP's
+         essentials are absent, they auto-import and BOTH the face and the
+         prefabs wait one pass, so labels never lock in unstyled. */
+      if (kitTtf != null && !TmpReady()) tmpPending = RequestEssentials();
+      if (kitTtf != null && !tmpPending) EnsureTmpFace(root, manifest, kitTtf);
 #endif
 
       /* ── I5: examples appear once, fully wired, then are yours ── */
       bool prefabsReady = (prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs");
       bool prefabsNew = false;
-      if (!prefabsReady) { prefabsNew = GeneratePrefabs(root, manifest); prefabsReady = prefabsNew; }
+      if (!prefabsReady && !tmpPending) { prefabsNew = GeneratePrefabs(root, manifest); prefabsReady = prefabsNew; }
+#if UNITY_2023_2_OR_NEWER
+      if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
+#endif
       if (prefabsNew) {
         // walk the user to the goods: highlight the fresh Prefabs folder
         var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(root + "/Prefabs");
@@ -780,11 +795,21 @@ namespace PatternBreak {
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
+      // the receipt tells the LABEL story too — no more guessing which face won
+      string faceNote = "";
+#if UNITY_2023_2_OR_NEWER
+      if (File.Exists(root + "/fonts/KitFace SDF.asset")) faceNote = " Labels: KitFace SDF (styled).";
+      else if (tmpPending) faceNote = " Styled face: finishing right after the TMP essentials import.";
+      else if (kitTtf != null) faceNote = " Labels: shipped TTF.";
+#else
+      if (kitTtf != null) faceNote = " Labels: shipped TTF.";
+#endif
       var line = "UI Kit Maker — '" + kitName + "'" + (manifest.kitVersion > 0 ? " v" + manifest.kitVersion : "")
         + (prev == null ? " imported: " : " updated: ") + manifest.assets.Length + " sprites ("
         + (prev == null ? fresh + " new" : fresh + " new, " + restyled + " restyled, " + same + " unchanged")
         + "; settings: " + applied + " applied, " + already + " already right)."
-        + (prefabsNew ? " Wired prefabs are ready in " + root + "/Prefabs — drag one into your Canvas." : "");
+        + (prefabsNew ? " Wired prefabs are ready in " + root + "/Prefabs — drag one into your Canvas." : "")
+        + faceNote;
       if (orphans.Count > 0)
         Debug.LogWarning(line + "\\n" + orphans.Count + " piece(s) are no longer part of this kit but STAY on disk (nothing is deleted without you): "
           + string.Join(", ", orphans.ToArray())
@@ -849,15 +874,48 @@ namespace PatternBreak {
        glow straight from the manifest recipe, and prefab labels use it
        with the kit's fill (gradient included). Idempotent: the asset is
        created only when missing, so re-imports never churn it and user
-       tweaks to the material survive. ── */
+       tweaks to the material survive.
+       EVERY exit path SPEAKS — a silent fallback here cost a debugging
+       round (owner: "I don't see anything in the console"). ── */
+    static bool essentialsRequested;
+    static bool TmpReady() {
+      try { return TMP_Settings.instance != null; } catch (Exception) { return false; }
+    }
+    /* TMP's Essential Resources (its shaders) only auto-offer when a human
+       creates a TMP object from the menu — code-created text needs them
+       imported by hand. We do it FOR the user, once. */
+    static bool RequestEssentials() {
+      if (essentialsRequested) return false;
+      string[] candidates = {
+        "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage",
+        "Packages/com.unity.textmeshpro/Package Resources/TMP Essential Resources.unitypackage",
+      };
+      foreach (var p in candidates) {
+        if (File.Exists(p)) {
+          essentialsRequested = true;
+          AssetDatabase.ImportPackage(p, false);
+          Debug.Log("UI Kit Maker: importing TextMeshPro Essential Resources (one-time — needed for the styled face). The kit finishes its styled-text setup right after.");
+          return true;
+        }
+      }
+      Debug.LogWarning("UI Kit Maker: TextMeshPro Essential Resources are missing and couldn't be auto-imported. Run Window > TextMeshPro > Import TMP Essential Resources, then Tools > PatternBreak > Reapply Kit Import Settings. Labels use the shipped TTF meanwhile.");
+      return false;
+    }
     static TMP_FontAsset EnsureTmpFace(string root, PBManifest m, Font ttf) {
       var path = root + "/fonts/KitFace SDF.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
       if (existing != null) return existing;
-      if (ttf == null || !AssetDatabase.IsValidFolder(root + "/fonts")) return null;
+      if (ttf == null) return null; // the import pass logs the font story
       TMP_FontAsset fa = null;
-      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
-      if (fa == null) return null;
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf); }
+      catch (Exception e) {
+        Debug.LogWarning("UI Kit Maker: couldn't build the SDF face from " + ttf.name + " (" + e.Message + ") — labels use the shipped TTF instead.");
+        return null;
+      }
+      if (fa == null) {
+        Debug.LogWarning("UI Kit Maker: TextMeshPro returned no font asset for " + ttf.name + " — labels use the shipped TTF instead. If TMP Essential Resources just imported, run Tools > PatternBreak > Reapply Kit Import Settings.");
+        return null;
+      }
       fa.name = "KitFace SDF";
       AssetDatabase.CreateAsset(fa, path);
       if (fa.material != null) {
