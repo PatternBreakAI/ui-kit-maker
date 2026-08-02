@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers } from "./bevel";
+import { renderKit, rarityTiers, textPatternCell } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
@@ -373,6 +373,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (fam === st.cfg.type.font) primaryFontFile = `fonts/${got.file}`;
   }
 
+  /* ── the letterform pattern, as a LIVE-TEXT tile: one seamless cell on
+     an opaque white ground (TMP's face texture MULTIPLIES the face color,
+     so white = untouched fill, pattern strokes darken through) — the
+     importer feeds it to the SDF shader's Face Texture slot ── */
+  let patternFile: string | null = null;
+  if (base.type.stripes?.on) {
+    const pcell = 64 * Math.max(0.25, Math.min(4, (base.type.stripes.scale ?? 100) / 100));
+    const tile = `<svg xmlns="http://www.w3.org/2000/svg" width="${pcell}" height="${pcell}" viewBox="0 0 ${pcell} ${pcell}">` +
+      `<rect width="${pcell}" height="${pcell}" fill="#FFFFFF"/>` +
+      `<g opacity="${Math.max(0, Math.min(1, (base.type.stripes.opacity ?? 30) / 100)).toFixed(2)}">${textPatternCell(base.type.stripes.style ?? "stripes", pcell, darken(bevelC, 0.25))}</g></svg>`;
+    const tileBytes = (await svgToPngBytes(tile, 2)).bytes;
+    files.push({ path: "fonts/face-pattern.png", data: tileBytes });
+    patternFile = "fonts/face-pattern.png";
+  }
+
   /* ── manifest ─────────────────────────────────────────────────── */
   const fdef = fontByName(st.cfg.type.font);
   files.push({
@@ -420,6 +435,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           outline: base.type.outline.on ? { color: base.type.outline.color, color2: base.type.outline.color2, width: base.type.outline.width } : null,
           glow: base.type.glow.on ? { color: base.type.glow.color, size: base.type.glow.size, opacity: base.type.glow.opacity } : null,
           shadow: base.type.shadow.on ? { color: base.type.shadow.color, x: base.type.shadow.x, y: base.type.shadow.y, blur: base.type.shadow.blur, opacity: base.type.shadow.opacity } : null,
+          /* the deeper layers — TMP's full Distance Field shader carries
+             them as bevel lighting and a face texture */
+          emboss: base.type.emboss.on ? { strength: base.type.emboss.strength, distance: base.type.emboss.distance, softness: base.type.emboss.softness } : null,
+          lightAngle: base.lighting.angle,
+          pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100 } : null,
         },
         note: "Render all labels as live engine text in this face.",
       },
@@ -633,7 +653,9 @@ namespace PatternBreak {
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
-  [Serializable] class PBStyle { public int weight; public bool italic; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; }
+  [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
+  [Serializable] class PBStylePattern { public string file; public string style; public float scale; }
+  [Serializable] class PBStyle { public int weight; public bool italic; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
@@ -849,6 +871,16 @@ namespace PatternBreak {
         PBManifest manifest = null;
         try { manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (manifest == null || manifest.assets == null) continue;
+#if UNITY_2023_2_OR_NEWER
+        /* regenerating means "give me the kit's CURRENT look" — refresh the
+           styled face's material from the manifest recipe too */
+        var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        if (face != null && face.material != null) {
+          ApplyStyle(face.material, manifest, root);
+          EditorUtility.SetDirty(face.material);
+          AssetDatabase.SaveAssets();
+        }
+#endif
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
       }
@@ -955,7 +987,7 @@ namespace PatternBreak {
       if (fa.material != null) {
         fa.material.name = "KitFace SDF Material";
         AssetDatabase.AddObjectToAsset(fa.material, fa);
-        ApplyStyle(fa.material, m);
+        ApplyStyle(fa.material, m, root);
       }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) {
         fa.atlasTextures[0].name = "KitFace SDF Atlas";
@@ -965,7 +997,7 @@ namespace PatternBreak {
       Debug.Log("UI Kit Maker: generated the styled TextMeshPro face at " + path + " — outline and glow follow the kit's own type recipe.");
       return fa;
     }
-    static void ApplyStyle(Material mat, PBManifest m) {
+    static void ApplyStyle(Material mat, PBManifest m, string root) {
       var s = m != null && m.typography != null ? m.typography.style : null;
       if (mat == null || s == null) return;
       Color c;
@@ -973,22 +1005,43 @@ namespace PatternBreak {
         mat.SetColor("_OutlineColor", c);
         mat.SetFloat("_OutlineWidth", Mathf.Clamp(s.outline.width / 30f, 0.05f, 0.35f));
       }
-      // one underlay slot: the glow wins, the shadow is the fallback voice
+      /* the full Distance Field shader carries a REAL glow section, so the
+         glow and the drop shadow (underlay) can both speak at once */
       if (s.glow != null && !string.IsNullOrEmpty(s.glow.color) && ColorUtility.TryParseHtmlString(s.glow.color, out c)) {
         c.a = Mathf.Clamp01(s.glow.opacity / 100f);
-        mat.EnableKeyword("UNDERLAY_ON");
-        mat.SetColor("_UnderlayColor", c);
-        mat.SetFloat("_UnderlayOffsetX", 0f);
-        mat.SetFloat("_UnderlayOffsetY", 0f);
-        mat.SetFloat("_UnderlayDilate", 0.35f);
-        mat.SetFloat("_UnderlaySoftness", Mathf.Clamp(s.glow.size / 30f, 0.1f, 1f));
-      } else if (s.shadow != null && !string.IsNullOrEmpty(s.shadow.color) && ColorUtility.TryParseHtmlString(s.shadow.color, out c)) {
+        mat.EnableKeyword("GLOW_ON");
+        mat.SetColor("_GlowColor", c);
+        mat.SetFloat("_GlowOuter", Mathf.Clamp(s.glow.size / 24f, 0.05f, 1f));
+        mat.SetFloat("_GlowPower", 0.75f);
+      }
+      if (s.shadow != null && !string.IsNullOrEmpty(s.shadow.color) && ColorUtility.TryParseHtmlString(s.shadow.color, out c)) {
         c.a = Mathf.Clamp01(s.shadow.opacity / 100f);
         mat.EnableKeyword("UNDERLAY_ON");
         mat.SetColor("_UnderlayColor", c);
         mat.SetFloat("_UnderlayOffsetX", Mathf.Clamp(s.shadow.x / 50f, -1f, 1f));
         mat.SetFloat("_UnderlayOffsetY", Mathf.Clamp(0f - s.shadow.y / 50f, -1f, 1f));
         mat.SetFloat("_UnderlaySoftness", Mathf.Clamp(s.shadow.blur / 30f, 0f, 1f));
+      }
+      /* emboss → the shader's bevel + lighting, lit from the kit's angle */
+      if (s.emboss != null && Mathf.Abs(s.emboss.strength) > 0.01f) {
+        mat.EnableKeyword("BEVEL_ON");
+        mat.SetFloat("_Bevel", Mathf.Clamp(Mathf.Abs(s.emboss.strength) / 100f, 0.1f, 1f));
+        mat.SetFloat("_BevelWidth", 0.25f);
+        mat.SetFloat("_BevelRoundness", 0.35f);
+        if (s.emboss.strength < 0f) mat.SetFloat("_BevelOffset", -0.25f);
+        mat.SetFloat("_LightAngle", (s.lightAngle + 90f) * Mathf.Deg2Rad);
+        mat.SetFloat("_SpecularPower", 1.5f);
+      }
+      /* the kit's pattern INSIDE the letterforms: the shipped seamless tile
+         rides the face-texture slot (white ground = untouched fill; the
+         pattern strokes multiply through) */
+      if (s.pattern != null && !string.IsNullOrEmpty(s.pattern.file)) {
+        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + s.pattern.file);
+        if (tex != null) {
+          mat.SetTexture("_FaceTex", tex);
+          var reps = Mathf.Clamp(8f / Mathf.Max(0.25f, s.pattern.scale / 100f), 1f, 32f);
+          mat.SetTextureScale("_FaceTex", new Vector2(reps, reps));
+        }
       }
     }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
