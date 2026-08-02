@@ -5,6 +5,8 @@ import { CanvasView } from "./ui/CanvasView";
 import { useGen } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
+import { ensureFont } from "./generator/fonts";
+import { registerCustomFont } from "./generator/model";
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
    reload when the signed-in identity changes (so admin controls appear). */
@@ -59,6 +61,31 @@ function useSharedKit() {
   }, []);
 }
 
+/* Fonts load where the DOCUMENT lives, not where the type controls live.
+   The Panel's ensureFont effects only run while the Panel is mounted — but a
+   project open lands straight on the Kit page (Panel unmounted), so its fonts
+   never got a stylesheet until the user visited the Editor (owner: "loaded up
+   Miami Nice on preview and it didn't render the font"). Watch the whole
+   document here — master face, list face, state forks, per-piece forks — and
+   ensure each one. ensureFont is idempotent, so re-runs are free. */
+function useDocumentFonts() {
+  const cfg = useGen((s) => s.cfg);
+  const kitDesigns = useGen((s) => s.kitDesigns);
+  useEffect(() => {
+    // custom families must be in the registry before fontByName can resolve them
+    (cfg.type.customFonts ?? []).forEach(registerCustomFont);
+    const wanted = new Set<string>([cfg.type.font]);
+    if (cfg.type.listFont) wanted.add(cfg.type.listFont);
+    for (const sd of Object.values(cfg.stateDesigns ?? {})) if (sd?.type?.font) wanted.add(sd.type.font);
+    for (const kd of Object.values(kitDesigns)) {
+      if (kd?.type?.font) wanted.add(kd.type.font);
+      if (kd?.type?.listFont) wanted.add(kd.type.listFont);
+      for (const sd of Object.values(kd?.stateDesigns ?? {})) if (sd?.type?.font) wanted.add(sd.type.font);
+    }
+    wanted.forEach(ensureFont);
+  }, [cfg, kitDesigns]);
+}
+
 /* When something inside a handler throws, React can leave the UI looking fine
    while every click silently dies — the "app craps out" report. Surface it. */
 function useCrashBanner() {
@@ -77,6 +104,7 @@ export function App() {
   const { panelW, setPanelW, undo, redo, theme, phase } = useGen();
   useSharedKit();
   useCloudPresets();
+  useDocumentFonts();
   const dragFrom = useRef<{ x: number; w: number } | null>(null);
   // The Kit is a reading surface — the inspector column steps aside entirely
   // and the guideline sheet becomes the hero. The rail still navigates.
