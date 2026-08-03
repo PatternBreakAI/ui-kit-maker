@@ -113,7 +113,7 @@ export function StudioPage() {
     const { doc, error } = await loadProjectDoc(p.id);
     setBusyId(null);
     if (error || !doc) { setWorkNote(error ?? "Couldn't load that kit."); return; }
-    useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false });
+    useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false, projectId: p.id });
     navigate("#/app");
   };
 

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -310,11 +310,25 @@ interface GenStore {
   /** The curated, portable kit snapshot — the single payload contract behind
       both share links and named cloud projects (v76). */
   kitPayload: () => Record<string, unknown>;
+  /** Unity bridge identity (spec I1): minted at the FIRST engine export and
+      never changed after — display-name renames must not move files in the
+      user's Unity project, or every placed sprite loses its GUID. */
+  unitySlug: string | null;
+  setUnitySlug: (s: string) => void;
+  /** Monotonic kit version stamped into each engine export's manifest —
+      the importer's receipt (kit.lock.json) reports "v3 → v4" from it. */
+  unityKitVer: number;
+  bumpUnityKitVer: () => number;
   /** Load a kit payload into the store. `viewer:false` (opening your own
       project) persists every field so the kit survives reload and flows into
       the cloud workspace; `viewer:true` (a share / public link) is in-memory
       read-only, exactly like a shared kit. */
-  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit" }) => void;
+  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit"; projectId?: string }) => void;
+  /** The cloud project doc the kit on screen came from (session-only) —
+      lets the first Unity-slug mint write itself back to that doc, so a
+      later reopen can't resurrect a slug-less copy and re-mint under a
+      renamed kit (the I1 staleness vector). */
+  openProjectId: string | null;
   /** Global shine sweep over every kit piece. */
   shine: boolean;
   setShine: (v: boolean) => void;
@@ -872,12 +886,22 @@ export const useGen = create<GenStore>((set, get) => ({
   parentId: loadJson<KitComponentId | "button">("ui-generator-parent", "button"),
   setParent: (id) => { saveJson("ui-generator-parent", id); set({ parentId: id }); },
   viewer: false,
+  unitySlug: loadJson<string | null>("ui-generator-unityslug", null),
+  setUnitySlug: (s) => { saveJson("ui-generator-unityslug", s); set({ unitySlug: s }); },
+  unityKitVer: loadJson<number>("ui-generator-unitykitver", 0),
+  bumpUnityKitVer: () => {
+    const n = get().unityKitVer + 1;
+    saveJson("ui-generator-unitykitver", n);
+    set({ unityKitVer: n });
+    return n;
+  },
   kitPayload: () => {
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
       kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
+      unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
       bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
     };
@@ -908,6 +932,13 @@ export const useGen = create<GenStore>((set, get) => ({
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
       kitTextOx: (p.kitTextOx as GenStore["kitTextOx"]) ?? {},
       kitLocks: (p.kitLocks as GenStore["kitLocks"]) ?? {},
+      /* the Unity slug is the PROJECT's identity in the user's Unity
+         assets — it must ride project open/save, or a re-export after a
+         reload would mint a new slug and orphan everything placed.
+         Sanitized on the way in: payloads arrive from share links and
+         cloud docs, and the slug becomes a zip path segment. */
+      unitySlug: sanitizeUnitySlug(p.unitySlug),
+      unityKitVer: (typeof p.unityKitVer === "number" ? p.unityKitVer : 0),
       ...(bg ? { bgImage: bg } : {}),
     };
     if (!viewer) {
@@ -928,6 +959,8 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kittextoy", next.kitTextOy);
       saveJson("ui-generator-kittextox", next.kitTextOx);
       saveJson("ui-generator-kitlocks", next.kitLocks);
+      saveJson("ui-generator-unityslug", next.unitySlug);
+      saveJson("ui-generator-unitykitver", next.unityKitVer);
       if (bg) saveJson("ui-generator-bgimage", bg);
       /* the opened project is now the local truth — any cloud pull still in
          flight must NOT stomp it (owner: "I saw it for a second but then
@@ -935,8 +968,9 @@ export const useGen = create<GenStore>((set, get) => ({
       noteLocalDocReplaced();
     }
     // a settings import stays in the editor; project opens land on the kit
-    set({ ...next, viewer, phase: opts?.phase ?? "kit" });
+    set({ ...next, viewer, phase: opts?.phase ?? "kit", openProjectId: viewer ? null : (opts?.projectId ?? null) });
   },
+  openProjectId: null,
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
   shine: loadJson<boolean>("ui-generator-shine", false),
   setShine: (v) => { saveJson("ui-generator-shine", v); set({ shine: v }); },

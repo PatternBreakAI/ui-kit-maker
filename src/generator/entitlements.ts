@@ -46,10 +46,17 @@ export type TierCaps = {
 };
 
 /** Which artifacts each tier may take. Enforced server-side. Student and
-    pro are identical here; they differ in LICENCE_GRANT, not in this map. */
+    pro are identical here; they differ in LICENCE_GRANT, not in this map.
+
+    FREE GETS THE ENGINE KIT — scoped, not locked (Unity bridge spec,
+    owner-ruled): the Smart Zip is the funnel's proof, so a signed-in free
+    account downloads a STARTER payload (master button + chip + progress —
+    states, nine-slice and the overwrite restyle all demonstrated) while
+    the paid tiers get every component. The scoping happens in the payload
+    builder; this map only opens the door. */
 export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
   guest: [],
-  free: [],
+  free: ["engine"],
   student: ["svg", "html", "sheet", "gamekit", "engine"],
   pro: ["svg", "html", "sheet", "gamekit", "engine"],
 };
@@ -65,7 +72,15 @@ export const TIER_CAPS: Record<Tier, TierCaps> = {
     is the difference between the two paid tiers. Mirrored verbatim in the
     licence block /api/export stamps into every download; keep the two in
     step, and keep both in step with Terms §5.6. */
-export const LICENCE_GRANT: Record<"student" | "pro", string> = {
+export const LICENCE_GRANT: Record<"free" | "student" | "pro", string> = {
+  /* The starter's three pieces are deliberately commercial-OK: the free
+     taste exists to prove the Unity round-trip, and a use restriction on
+     three sprites would only blunt the wow. The STUDENT line staying
+     non-commercial is not a contradiction — education pricing buys the
+     WHOLE tool for coursework; the starter is a demo of a sliver. */
+  free:
+    "The starter kit's three pieces, in any project, commercial included, " +
+    "no attribution required. The full kit is the paid unlock.",
   student:
     "Coursework, portfolio, personal projects and non-commercial releases. " +
     "Selling a product built with these assets, or shipping them in anything " +

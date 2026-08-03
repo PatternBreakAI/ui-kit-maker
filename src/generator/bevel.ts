@@ -1181,6 +1181,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  opacity) apply from the true state, so the state sliders are never
    *  dead on these pieces (owner: "glow isn't working here"). */
   pinDesign?: boolean;
+  /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
+   *  inside each glyph are what make glints read per-letter; a bandScale
+   *  wide enough pushes the caps outside the glyph so adjacent baked
+   *  letters' stripes fuse into one continuous streak. glintStars replaces
+   *  the stock trio: null = no stars, or explicit {f: x-fraction of the
+   *  text, dy: y-offset in em, s: size in em, r: rotation} per star —
+   *  the bake seeds these per glyph so stars scatter across a word. */
+  glintBand?: number;
+  glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
+  /** Replace the stock two-rect slab with an explicit band FIELD — each
+   *  {dy: center offset in em, h: height in em, o: opacity}. Fixed (not
+   *  seeded) offsets keep every baked glyph's bands at the same heights,
+   *  so adjacent letters' bands align into streaks crossing the word
+   *  (owner reference: the MIAMI glint field). */
+  glintBands?: { dy: number; h: number; o: number }[];
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -1735,7 +1750,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const gy = cy + 1 + textOy * K;
     const tx0 = opts.anchorLeft ? tTextX : tTextX - textW / 2;
     const gcx = tx0 + textW / 2;
-    const bandW = textW * 1.18, bandH = fs * 0.28;
+    const bandW = textW * 1.18 * (opts.glintBand ?? 1), bandH = fs * 0.28;
     // user nudge — % of the letter height, applied to slab and stars alike
     const gdx = clamp(GL2!.ox ?? 0, -100, 100) / 100 * fs;
     const gdy = clamp(GL2!.oy ?? 0, -100, 100) / 100 * fs;
@@ -1746,13 +1761,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
     glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
     glintsLayer = `<g clip-path="url(#${id}tgc)" opacity="${gOp.toFixed(2)}">
-        <rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
-        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        ${opts.glintBands
+          ? opts.glintBands.map((b) => {
+              const by = bcy + b.dy * fs, bh = b.h * fs;
+              return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${b.o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
+            }).join("\n        ")
+          : `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`}
       </g>
       <g opacity="${Math.min(1, gOp * 1.15).toFixed(2)}">
-        ${star4(tx0 + textW * 0.16 + lx * fs * 0.06 + gdx, gy - fs * 0.24 + ly * fs * 0.06 + gdy, fs * 0.16, 0)}
-        ${star4(tx0 + textW * 0.52 + lx * fs * 0.06 + gdx, gy + fs * 0.16 + ly * fs * 0.06 + gdy, fs * 0.09, 18)}
-        ${star4(tx0 + textW * 0.85 + lx * fs * 0.06 + gdx, gy - fs * 0.1 + ly * fs * 0.06 + gdy, fs * 0.125, -14)}
+        ${(opts.glintStars === undefined
+          ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
+          : opts.glintStars ?? []
+        ).map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
       </g>`;
   }
 
@@ -1990,6 +2011,10 @@ export interface SpecimenOpts {
   /** Mutate the cloned type treatment before rendering — the Build Parts
    *  typography recipe uses this to switch layers on and off. */
   mutate?: (c: GenConfig) => void;
+  /** Glint bake knobs — see build()'s glintBand/glintStars/glintBands. */
+  glintBand?: number;
+  glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
+  glintBands?: { dy: number; h: number; o: number }[];
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2012,7 +2037,7 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
@@ -2232,6 +2257,11 @@ export interface KitOpts {
   /** Joystick deflection, each axis −1..1. */
   stick?: [number, number];
   label?: string; segments?: string[]; icon?: IconDef | null; expand?: boolean; textOy?: number; textOx?: number;
+  /** false = render the input as a BARE surface with no "Type something…"
+   *  specimen baked in. Available as a knob; the engine export ships the
+   *  specimen (owner call: the affordance is necessary — it's how the
+   *  piece reads as an input). */
+  placeholder?: boolean;
   /** Docked emblem socket — a silhouette-aware mini shell riding a bar's
    *  end, hosting any glyph (timer, coin, avatar placeholder). The dock
    *  system is one mechanism shared by every bar-family component. */
@@ -2495,7 +2525,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "iconbtn":
-      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon ?? cfg.icon.def ?? DEFAULT_ICON, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      /* explicit null = removed (resolveKitIcon's "none", and the engine
+         export's bare shell — the glyph ships separately in icons/) */
+      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "chip":
       return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "badge":
@@ -2535,9 +2567,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const track = build(cfg, state, { x: 33, y: 27, h: ch, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", fixedW: ch, shapeOverride: sov });
       const inset3 = bw + 4;
       const wellP = shapePath(sov ?? cfg.shape, 33 + inset3, 27 + inset3, ch - inset3 * 2, ch - inset3 * 2, Math.max(0, cfg.bevel.softness - 10));
-      const ck = lit
-        ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, glow, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${glow})` })
-        : iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, "rgba(255,255,255,0.22)", { strokeWidth: 3 * iconWK });
+      // explicit null = no mark at all (engine export ships the bare box;
+      // the check is a separate tintable glyph the engine toggles)
+      const ck = opts.icon === null ? ""
+        : lit
+          ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, glow, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${glow})` })
+          : iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, "rgba(255,255,255,0.22)", { strokeWidth: 3 * iconWK });
       return inject(track, `<path d="${wellP}" fill="${wellFill}" opacity="0.9"/>` + ck);
     }
     case "radio": {
@@ -2549,9 +2584,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const insetR = bw + 4;
       const wellR = shapePath(sov ?? cfg.shape, 33 + insetR, 27 + insetR, ch2 - insetR * 2, ch2 - insetR * 2, Math.max(0, cfg.bevel.softness - 10));
       const rcx = 33 + ch2 / 2, rcy = 27 + ch2 / 2, rr = ch2 * 0.17;
-      const pip = lit2
-        ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 6px ${glow})"/>`
-        : `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${(2.5 * iconWK).toFixed(2)}"/>`;
+      // explicit null = no pip (engine export ships the bare well; the dot
+      // is a separate tintable glyph the engine toggles)
+      const pip = opts.icon === null ? ""
+        : lit2
+          ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 6px ${glow})"/>`
+          : `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${(2.5 * iconWK).toFixed(2)}"/>`;
       return inject(track2, `<path d="${wellR}" fill="${wellFill}" opacity="0.9"/>` + pip);
     }
     case "toggle": {
@@ -2735,6 +2773,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // a real value carries the full type treatment; the placeholder stays quiet
       const ph = opts.label
         ? contentText(opts.label, 39 + inset + 20 * k, tyIn, 32 * k * typeK, { keepCase: true })
+        : opts.placeholder === false ? ""
         : `<text x="${39 + inset + 20 * k}" y="${tyIn.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${30 * k}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.55)" dominant-baseline="central">${esc("Type something…")}</text>`;
       const caret = state === "hover"
         ? `<rect x="${(39 + inset + 20 * k + (opts.label ? Math.min(opts.label.length, maxChars) * charW : 0)).toFixed(1)}" y="${(tyIn - 17 * k * typeK).toFixed(1)}" width="${(2.5 * k).toFixed(1)}" height="${(34 * k * typeK).toFixed(1)}" fill="${hexMix(glow, "#FFFFFF", 0.4)}"><animate attributeName="opacity" values="1;0;1" dur="1.1s" repeatCount="indefinite"/></rect>`
@@ -6377,7 +6416,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
     }
     case "dropdown": {
-      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: 30 * k }, { label: opts.label ?? "Select option", iconDef: STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      /* explicit icon null = chevron removed (resolveKitIcon's "none",
+         honored like every other piece). An explicitly EMPTY label (the
+         engine export's value-free shell) holds the input's standard
+         width — an empty label plus the chevron otherwise reads as
+         icon-only and collapses the shell to a circle. */
+      const bare = opts.icon === null;
+      if (opts.label === "" && !bare) {
+        /* the export's value-free shell: the chevron rides the RIGHT CAP —
+           build() would center a label-less icon, parking it in the
+           nine-slice stretch zone where any width change shears it. The
+           export widens the sprite's right border to shield the glyph. */
+        const w2 = 560 * k, h2 = 110 * k;
+        const track2 = build(cfg, state, { x: 39, y: 30, h: h2, fs: 32 * k, iconSize: 0 }, { label: "", iconDef: null, shapeOverride: sov, fixedW: w2 });
+        return inject(track2, iconGroup(STOCK_ICONS.chevron, 39 + w2 - 56 * k, 30 + h2 / 2 - 13 * k, 26 * k, glow, { strokeWidth: 2.6 * iconWK }));
+      }
+      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: bare ? 0 : 30 * k }, { label: opts.label ?? "Select option", iconDef: bare ? null : STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: opts.label === "" ? 560 * k : undefined });
       if (state !== "pressed") return btn;
       // pressed = open: the menu drops beneath, drawn from the same palette.
       // The viewBox origin is -glowPad, so the content width is the total

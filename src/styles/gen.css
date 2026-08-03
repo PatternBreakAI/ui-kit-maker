@@ -2398,3 +2398,30 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .acct:active { transform: translateY(1px); }
 .acct.on { background: rgba(0, 0, 0, .14); color: var(--ink); }
 [data-theme="dark"] .acct.on { background: rgba(255, 255, 255, .22); color: var(--ink); }
+
+/* ── Type Stamps sheet — the phrase factory's little order form ───── */
+.kp-stampsheet {
+  margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--line2);
+  border-radius: 13px; background: var(--soft); max-width: 460px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.kp-stampsheet b { font-size: 13px; }
+.kp-stampsheet p { font-size: 12px; color: var(--ink2); line-height: 1.45; margin: 0; }
+.kp-stampsheet textarea {
+  resize: vertical; min-height: 96px; padding: 8px 10px; border-radius: 9px;
+  border: 1px solid var(--line2);
+  /* phrase entry is DATA — explicit ink on an explicit field, immune to the
+     kit page's theme vars (owner: "the page styling is making it difficult
+     for the Type Stamper to read") */
+  background: #ffffff; color: #1c1e26; caret-color: #1c1e26;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px; font-weight: 600; line-height: 1.5; letter-spacing: .02em;
+}
+.kp-stampsheet-row { display: flex; gap: 8px; }
+.kp-stampgo {
+  border: 0; border-radius: 9px; padding: 8px 14px; cursor: pointer;
+  background: var(--accent, #8b5cf6); color: #fff; font-weight: 700; font-size: 12.5px;
+}
+.kp-stampgo:disabled { opacity: .6; cursor: default; }
+.kp-stampx { border: 1px solid var(--line2); background: none; color: var(--ink2); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 12.5px; }
+.kp-stampx:hover { color: var(--ink); }
