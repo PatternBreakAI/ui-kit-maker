@@ -1576,6 +1576,8 @@ namespace PatternBreak {
         var style = s.italic ? FontStyles.Italic : FontStyles.Normal;
         if (s.weight >= 700) style = style | FontStyles.Bold;
         t.fontStyle = style;
+        // the kit's tracking: both sides speak hundredths of an em
+        t.characterSpacing = s.spacingEmPct;
       }
       if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
       else t.color = top;
