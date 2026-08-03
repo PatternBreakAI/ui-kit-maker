@@ -1574,6 +1574,13 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setPreset: (id) => {
     set({ activeCloudPreset: null }); // a starter takes over — Overwrite retargets on next apply
+    /* a preset apply REBRANDS the kit — user and cloud presets already
+       setKitName to their own name; starters were the one kind that left
+       the old name behind (owner field report: a restyled kit kept
+       exporting as the previous kit). Clearing the name hands the title
+       and the export identity to the starter ("The Toxic Kit" →
+       the-toxic-kit) until the maker names it. */
+    get().setKitName(null);
     // Bubble Pop ships as a fully authored look (Chevon's bubblepopdefault) —
     // picking it loads that complete design rather than re-mixing tokens
     if (PRESET_DEFAULTS[id]) {
