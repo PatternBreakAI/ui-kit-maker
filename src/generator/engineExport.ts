@@ -739,8 +739,10 @@ Beside the SDF face, the kit ships a BAKED color font: A–z, 0–9 and
 punctuation, every glyph rendered by the app's own engine with the FULL
 treatment — pattern, glints and gloss included — assembled on import as
 **fonts/KitFace Baked.asset**. For titles, buttons and victory text:
-set a label's Font Asset to *KitFace Baked* and keep the label color
-WHITE (the glyphs carry their own color). It's raster art — crisp at
+set a label's Font Asset to *KitFace Baked*, keep the label color WHITE,
+and leave **Color Gradient OFF** — these glyphs come pre-painted, and a
+gradient on top tints them muddy. (The opposite of KitFace SDF, where
+Color Gradient IS the paint.) It's raster art — crisp at
 and below its baked size, softening far beyond, like any bitmap game
 font; the SDF face stays the size-proof workhorse for everything else.
 Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
