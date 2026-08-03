@@ -1127,6 +1127,13 @@ namespace PatternBreak {
       var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
         UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
       try {
+        /* field case: the user deleted the kit folder while the old
+           Playground was still OPEN — its file is gone but the editor
+           holds the scene, and saving to a path an open scene claims is
+           refused. Our new scene is already loaded, so the stale one is
+           safely closable; close it before claiming the path. */
+        var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
         var camGo = new GameObject("Camera", typeof(Camera));
         UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
         var cam = camGo.GetComponent<Camera>();
@@ -1170,8 +1177,10 @@ namespace PatternBreak {
           if (w > colMaxW) colMaxW = w;
           placed++;
         }
-        UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath);
-        Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
+          Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
+        else
+          Debug.LogWarning("UI Kit Maker: couldn't save the Playground at " + scenePath + " — go File > New Scene, then Tools > PatternBreak > Rebuild Kit Playground Scene.");
       } finally {
         UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
       }
