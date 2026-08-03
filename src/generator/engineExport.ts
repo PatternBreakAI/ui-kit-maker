@@ -421,11 +421,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      this is the showpiece for display text. ── */
   let bakedFace: { file: string; metrics: string; pointSize: number; layers: string | null } | null = null;
   try {
-    /* no font bytes = the rasterizer would bake SYSTEM glyphs in kit dress
+    /* Pro-only (owner call): the baked faces are the type showpiece — the
+       starter keeps the SDF face + gradient preset and upsells the rest.
+       No font bytes = the rasterizer would bake SYSTEM glyphs in kit dress
        (review catch: an offline export shipped that silently) — skip the
-       bake instead; the SDF face still styles labels from the recipe */
-    if (!primaryFontBytes) console.warn("engine export: kit font unavailable — the baked alphabet face is skipped this export");
-    const baked = primaryFontBytes ? await bakeAlphabetFace(base) : null;
+       bake then too; the SDF face still styles labels from the recipe */
+    if (full && !primaryFontBytes) console.warn("engine export: kit font unavailable — the baked alphabet face is skipped this export");
+    const baked = full && primaryFontBytes ? await bakeAlphabetFace(base) : null;
     if (baked) {
       files.push({ path: "fonts/kitface-baked.png", data: baked.png });
       files.push({ path: "fonts/kitface-baked.json", data: new TextEncoder().encode(baked.metrics) });
@@ -900,7 +902,9 @@ Three pieces — the master button, a chip and the progress bar — with the
 complete import pipeline: nine-slice, states, wired prefabs and in-place
 restyling all work exactly as they do in the full kit. Upgrading at
 uikitmaker.com/#/pricing and re-exporting lands EVERY component in this
-same folder — everything you've already placed stays put.
+same folder — plus the baked hero fonts (your kit's type as app-exact,
+typeable glyphs, with the layered HeroLabel treatment) — and everything
+you've already placed stays put.
 ` : ""}
 ## If something looks unsliced
 
