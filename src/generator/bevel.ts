@@ -2257,6 +2257,12 @@ export interface KitOpts {
   /** Joystick deflection, each axis −1..1. */
   stick?: [number, number];
   label?: string; segments?: string[]; icon?: IconDef | null; expand?: boolean; textOy?: number; textOx?: number;
+  /** false = render the input as a BARE surface with no specimen
+   *  placeholder baked in — the engine export's contract is that every
+   *  replaceable text is live engine content (owner: strip static text
+   *  so Unity users lean on the dynamic type system). In-app renders
+   *  omit this and keep the quiet "Type something…" specimen. */
+  placeholder?: boolean;
   /** Docked emblem socket — a silhouette-aware mini shell riding a bar's
    *  end, hosting any glyph (timer, coin, avatar placeholder). The dock
    *  system is one mechanism shared by every bar-family component. */
@@ -2520,7 +2526,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "iconbtn":
-      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon ?? cfg.icon.def ?? DEFAULT_ICON, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      /* explicit null = removed (resolveKitIcon's "none", and the engine
+         export's bare shell — the glyph ships separately in icons/) */
+      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "chip":
       return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "badge":
@@ -2560,9 +2568,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const track = build(cfg, state, { x: 33, y: 27, h: ch, fs: 0, iconSize: 0 }, { pinDesign: true, iconDef: null, label: "", fixedW: ch, shapeOverride: sov });
       const inset3 = bw + 4;
       const wellP = shapePath(sov ?? cfg.shape, 33 + inset3, 27 + inset3, ch - inset3 * 2, ch - inset3 * 2, Math.max(0, cfg.bevel.softness - 10));
-      const ck = lit
-        ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, glow, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${glow})` })
-        : iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, "rgba(255,255,255,0.22)", { strokeWidth: 3 * iconWK });
+      // explicit null = no mark at all (engine export ships the bare box;
+      // the check is a separate tintable glyph the engine toggles)
+      const ck = opts.icon === null ? ""
+        : lit
+          ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, glow, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${glow})` })
+          : iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, "rgba(255,255,255,0.22)", { strokeWidth: 3 * iconWK });
       return inject(track, `<path d="${wellP}" fill="${wellFill}" opacity="0.9"/>` + ck);
     }
     case "radio": {
@@ -2574,9 +2585,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const insetR = bw + 4;
       const wellR = shapePath(sov ?? cfg.shape, 33 + insetR, 27 + insetR, ch2 - insetR * 2, ch2 - insetR * 2, Math.max(0, cfg.bevel.softness - 10));
       const rcx = 33 + ch2 / 2, rcy = 27 + ch2 / 2, rr = ch2 * 0.17;
-      const pip = lit2
-        ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 6px ${glow})"/>`
-        : `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${(2.5 * iconWK).toFixed(2)}"/>`;
+      // explicit null = no pip (engine export ships the bare well; the dot
+      // is a separate tintable glyph the engine toggles)
+      const pip = opts.icon === null ? ""
+        : lit2
+          ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 6px ${glow})"/>`
+          : `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${(2.5 * iconWK).toFixed(2)}"/>`;
       return inject(track2, `<path d="${wellR}" fill="${wellFill}" opacity="0.9"/>` + pip);
     }
     case "toggle": {
@@ -2760,6 +2774,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // a real value carries the full type treatment; the placeholder stays quiet
       const ph = opts.label
         ? contentText(opts.label, 39 + inset + 20 * k, tyIn, 32 * k * typeK, { keepCase: true })
+        : opts.placeholder === false ? ""
         : `<text x="${39 + inset + 20 * k}" y="${tyIn.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${30 * k}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.55)" dominant-baseline="central">${esc("Type something…")}</text>`;
       const caret = state === "hover"
         ? `<rect x="${(39 + inset + 20 * k + (opts.label ? Math.min(opts.label.length, maxChars) * charW : 0)).toFixed(1)}" y="${(tyIn - 17 * k * typeK).toFixed(1)}" width="${(2.5 * k).toFixed(1)}" height="${(34 * k * typeK).toFixed(1)}" fill="${hexMix(glow, "#FFFFFF", 0.4)}"><animate attributeName="opacity" values="1;0;1" dur="1.1s" repeatCount="indefinite"/></rect>`
@@ -6402,7 +6417,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
     }
     case "dropdown": {
-      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: 30 * k }, { label: opts.label ?? "Select option", iconDef: STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      /* explicit icon null = the engine export's bare closed shell: no
+         chevron baked (it ships as icons/chevron.png, the value text is
+         live engine content) — and since the empty label would let the
+         shell collapse to icon-only width, the bare render holds the
+         input's standard width instead. */
+      const bare = opts.icon === null;
+      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: bare ? 0 : 30 * k }, { label: opts.label ?? "Select option", iconDef: bare ? null : STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: bare && !opts.label ? 560 * k : undefined });
       if (state !== "pressed") return btn;
       // pressed = open: the menu drops beneath, drawn from the same palette.
       // The viewBox origin is -glowPad, so the content width is the total
