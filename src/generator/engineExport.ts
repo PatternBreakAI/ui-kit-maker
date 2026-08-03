@@ -555,14 +555,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            applies them in sync with the Button's Sprite Swap. */
         stateStyles: (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = base.stateDesigns[sn];
-          /* designFor's contract: forks are PARTIAL and .type exists only
-             when the user explicitly forked the text for that state —
-             absent means "mirror the master live" (no ink change) */
-          if (!f || !f.type) return [];
+          if (!f) return [];
+          /* ink entry only when the fork EXPLICITLY changes the text ink
+             (designFor: absent .type mirrors the master live) */
           const t = f.type, b = base.type;
-          if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
-          if (t.fillMode === b.fillMode && t.fill === b.fill && (t.fillMode !== "gradient" || t.fill2 === b.fill2)) return [];
-          return [{ state: sn, fillMode: t.fillMode, fill: t.fill, fill2: t.fillMode === "gradient" ? t.fill2 : null }];
+          const inkOk = !!t && (t.fillMode === "solid" || t.fillMode === "gradient")
+            && !(t.fillMode === b.fillMode && t.fill === b.fill && (t.fillMode !== "gradient" || t.fill2 === b.fill2));
+          /* the label RIDES THE FACE: a state that forks its extrusion depth
+             sinks/lifts the face top by the delta and the app's label moves
+             with it — the owner's Miami pressed state (23 -> 9) is exactly
+             this, no ink change at all ("type is not following face") */
+          const dy = f.candy ? Math.round((base.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10 : 0;
+          if (!inkOk && !dy) return [];
+          return [{ state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
         }),
         /* the baked color font — atlas + metrics the importer assembles
            into "KitFace Baked": app-exact glyphs for hero/display text */
@@ -581,13 +586,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const pc = pieceCfg(pid);
         return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = pc.stateDesigns[sn];
-          // partial forks (designFor): no .type = the state mirrors the
-          // master's text live — nothing to emit
-          if (!f || !f.type) return [];
+          if (!f) return [];
           const t = f.type, b2 = pc.type;
-          if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
-          if (t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2)) return [];
-          return [{ family: fam, state: sn, fillMode: t.fillMode, fill: t.fill, fill2: t.fillMode === "gradient" ? t.fill2 : null }];
+          const inkOk = !!t && (t.fillMode === "solid" || t.fillMode === "gradient")
+            && !(t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2));
+          const dy = f.candy ? Math.round((pc.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10 : 0;
+          if (!inkOk && !dy) return [];
+          return [{ family: fam, state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
         });
       }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
@@ -941,11 +946,22 @@ namespace PatternBreak {
   {
 #if UNITY_2023_2_OR_NEWER
     public TextMeshProUGUI label;
+    /* ink: only driven when the kit forks its text COLORS for a state
+       (inkOn flags) — baked-face labels keep their painted pixels and use
+       the shifts alone */
+    public bool inkOn;
     public bool restGradient; public Color restTop = Color.white; public Color restBottom = Color.white;
     public bool hoverOn; public bool hoverGradient; public Color hoverTop = Color.white; public Color hoverBottom = Color.white;
     public bool pressedOn; public bool pressedGradient; public Color pressedTop = Color.white; public Color pressedBottom = Color.white;
-    bool over, down;
-    void OnEnable() { over = false; down = false; ApplyCurrent(); }
+    /* the label RIDES THE FACE: a state that sinks or lifts the face
+       moves the label by the same delta (design px, positive = down) */
+    public float hoverShift; public float pressedShift;
+    bool over, down; Vector2 basePos; bool basePosSet;
+    void OnEnable() {
+      over = false; down = false;
+      if (label != null && !basePosSet) { basePos = label.rectTransform.anchoredPosition; basePosSet = true; }
+      ApplyCurrent();
+    }
     void OnDisable() { over = false; down = false; }
     public void OnPointerEnter(PointerEventData e) { over = true; ApplyCurrent(); }
     public void OnPointerExit(PointerEventData e) { over = false; ApplyCurrent(); }
@@ -953,6 +969,11 @@ namespace PatternBreak {
     public void OnPointerUp(PointerEventData e) { down = false; ApplyCurrent(); }
     void ApplyCurrent() {
       if (label == null) return;
+      if (basePosSet) {
+        float shift = down ? pressedShift : over ? hoverShift : 0f;
+        label.rectTransform.anchoredPosition = basePos + new Vector2(0f, -shift);
+      }
+      if (!inkOn) return;
       if (down && pressedOn) Ink(pressedTop, pressedBottom, pressedGradient);
       else if (over && hoverOn) Ink(hoverTop, hoverBottom, hoverGradient);
       else Ink(restTop, restBottom, restGradient);
@@ -1218,11 +1239,11 @@ namespace PatternBreak {
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
-  [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; }
+  [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
-  [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; }
+  [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
@@ -1844,6 +1865,13 @@ namespace PatternBreak {
       else Debug.LogWarning("UI Kit Maker: the TextMeshPro/Distance Field shader isn't in this project, so glow, emboss and the face pattern stay off (fill, outline and shadow still apply). Re-importing TMP Essential Resources restores it.");
       Color c;
       if (s.outline != null && !string.IsNullOrEmpty(s.outline.color) && ColorUtility.TryParseHtmlString(s.outline.color, out c)) {
+        /* a GRADIENT stroke (color -> color2) has no TMP equivalent — the
+           single color used to be the top one, which erased the kit's
+           signature bottom hue entirely (Miami: the cyan vanished). The
+           midpoint mix at least carries both voices. The EXACT stroke
+           lives on the baked faces. */
+        Color c2;
+        if (!string.IsNullOrEmpty(s.outline.color2) && ColorUtility.TryParseHtmlString(s.outline.color2, out c2)) c = Color.Lerp(c, c2, 0.5f);
         mat.SetColor("_OutlineColor", c);
         // the app paints the stroke BEHIND the fill (paint-order stroke): the
         // visible band sits OUTSIDE and never eats the character. TMP's outline
@@ -2116,6 +2144,42 @@ namespace PatternBreak {
       if (m.labelStates != null) foreach (var ls in m.labelStates) if (ls.family == family) return true;
       return false;
     }
+    /* ink COLOR forks need the SDF face (its vertex color is dynamic);
+       shift-only entries work on any face. This gate decides whether a
+       family's label may wear the EXACT baked face instead. */
+    static bool HasInkColorFork(PBManifest m, string family) {
+      if (m == null) return false;
+      if (m.typography != null && m.typography.stateStyles != null)
+        foreach (var e in m.typography.stateStyles) if (!string.IsNullOrEmpty(e.fillMode)) return true;
+      if (m.labelStates != null)
+        foreach (var e in m.labelStates) if (e.family == family && !string.IsNullOrEmpty(e.fillMode)) return true;
+      return false;
+    }
+    /* the label face ladder (owner, on seeing Miami's cyan stroke and
+       chevron letter-pattern missing from button labels: "type coming from
+       the kit on buttons is not working"): the BAKED face carries the
+       app's exact pixels — stroke gradients, letter patterns, glints —
+       so any family that doesn't need dynamic ink colors wears it. The
+       styled SDF stays the fallback (free tier, offline bakes, ink forks). */
+    static TMP_FontAsset BakedLabelFace(PBManifest m, string root, string family) {
+      if (HasInkColorFork(m, family)) return null;
+      return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
+    }
+    static void AddBakedLabel(GameObject parent, string text, TMP_FontAsset face) {
+      var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
+      go.transform.SetParent(parent.transform, false);
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      var t = go.AddComponent<TextMeshProUGUI>();
+      t.text = text;
+      t.alignment = TextAlignmentOptions.Center;
+      t.fontSize = 40;
+      t.raycastTarget = false;
+      t.font = face;
+      // baked glyphs carry the full treatment — white shows them verbatim
+      t.color = Color.white;
+    }
     static bool WireLabelStates(GameObject go, TextMeshProUGUI label, PBManifest m, string family) {
       if (m == null || m.typography == null || label == null) return false;
       var ty = m.typography;
@@ -2145,13 +2209,18 @@ namespace PatternBreak {
       Color top, bot; bool grad;
       TargetInk(ty.style, out top, out bot, out grad);
       ink.restTop = top; ink.restBottom = bot; ink.restGradient = grad;
-      ink.hoverOn = false; ink.pressedOn = false;
+      ink.inkOn = false; ink.hoverOn = false; ink.pressedOn = false;
+      ink.hoverShift = 0f; ink.pressedShift = 0f;
       foreach (var fork in states) {
-        var forkStyle = new PBStyle();
-        forkStyle.fillMode = fork.fillMode; forkStyle.fill = fork.fill; forkStyle.fill2 = fork.fill2;
-        TargetInk(forkStyle, out top, out bot, out grad);
-        if (fork.state == "hover") { ink.hoverOn = true; ink.hoverTop = top; ink.hoverBottom = bot; ink.hoverGradient = grad; }
-        else if (fork.state == "pressed") { ink.pressedOn = true; ink.pressedTop = top; ink.pressedBottom = bot; ink.pressedGradient = grad; }
+        // an entry may carry ink colors, a face-riding shift, or both
+        bool hasInk = !string.IsNullOrEmpty(fork.fillMode);
+        if (hasInk) {
+          var forkStyle = new PBStyle();
+          forkStyle.fillMode = fork.fillMode; forkStyle.fill = fork.fill; forkStyle.fill2 = fork.fill2;
+          TargetInk(forkStyle, out top, out bot, out grad);
+        }
+        if (fork.state == "hover") { ink.hoverShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.hoverOn = true; ink.hoverTop = top; ink.hoverBottom = bot; ink.hoverGradient = grad; } }
+        else if (fork.state == "pressed") { ink.pressedShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.pressedOn = true; ink.pressedTop = top; ink.pressedBottom = bot; ink.pressedGradient = grad; } }
       }
       return true;
     }
@@ -2239,10 +2308,19 @@ namespace PatternBreak {
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
       }
-      if (label != null) AddLabel(go, label, kitFont, root, m);
+      if (label != null) {
 #if UNITY_2023_2_OR_NEWER
-      // the kit's designed state ink follows the face swap (only wired
-      // when the kit forks its text ink)
+        // exact pixels first: the baked face when the kit ships it and the
+        // family needs no dynamic ink; the styled SDF otherwise
+        var bakedLabelFace = BakedLabelFace(m, root, baseAsset.component);
+        if (bakedLabelFace != null) AddBakedLabel(go, label, bakedLabelFace);
+        else
+#endif
+        AddLabel(go, label, kitFont, root, m);
+      }
+#if UNITY_2023_2_OR_NEWER
+      // the kit's designed state ink/shift follows the face swap (only
+      // wired when the kit forks its states)
       var tmpLabel = FindOurLabel(go);
       if (tmpLabel != null) WireLabelStates(go, tmpLabel, m, baseAsset.component);
 #endif
@@ -2362,11 +2440,17 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
         if (kitStyle != null) {
           var probe = FindOurLabel(asset);
-          wantDress = probe != null && !LabelCurrent(probe, kitStyle, face);
-          // state ink component missing while the kit forks its text ink —
-          // wire it (re-dress refreshes its colors whenever the dress runs)
-          if (!wantDress && probe != null && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
-            wantDress = true;
+          if (probe != null) {
+            // the family's target face: EXACT baked when eligible, SDF else
+            var wantBaked = BakedLabelFace(m, root, famName);
+            wantDress = wantBaked != null
+              ? (probe.font != wantBaked || probe.enableVertexGradient || probe.color != Color.white)
+              : !LabelCurrent(probe, kitStyle, face);
+            // state ink/shift component missing while the kit forks states —
+            // wire it (re-dress refreshes its values whenever the dress runs)
+            if (!wantDress && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
+              wantDress = true;
+          }
         }
 #endif
         if (!wantWiring && !wantDress) continue;
@@ -2392,8 +2476,15 @@ namespace PatternBreak {
           if (wantDress) {
             var label = FindOurLabel(contents);
             if (label != null) {
-              if (face != null) label.font = face;
-              StyleLabel(label, kitStyle);
+              var wantBaked = BakedLabelFace(m, root, famName);
+              if (wantBaked != null) {
+                label.font = wantBaked;
+                label.enableVertexGradient = false;
+                label.color = Color.white; // baked glyphs are pre-painted
+              } else {
+                if (face != null) label.font = face;
+                StyleLabel(label, kitStyle);
+              }
               WireLabelStates(contents, label, m, famName);
               redressed++; changed = true;
             }
