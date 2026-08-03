@@ -609,11 +609,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30]] as const).map(([pid, fam, fs]) => {
         const pc = pieceCfg(pid);
         const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
-        /* x0.70 fit factor: the app WIDENS its shell to the word, a Unity
+        /* x0.74 fit factor: the app WIDENS its shell to the word, a Unity
            rect is fixed — the raw app size crowds it. Owner-calibrated in
-           two field passes ("too big" at 1.0, "tune down a touch" at
-           0.78); per-font taste stays a per-label Inspector edit. */
-        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.7 * 10) / 10 };
+           three field passes ("too big" at 1.0/0.78, "too much vertical
+           space" at 0.70 — the middle ground); per-font taste stays a
+           per-label Inspector edit. */
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10 };
       }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
