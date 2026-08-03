@@ -1191,7 +1191,29 @@ namespace PatternBreak {
       };
     }
 
+    /* Play-mode drops half-import: scene creation is forbidden (the
+       Playground builder throws InvalidOperationException), TMP essentials
+       can't come in cleanly, and prefabs generated in that window are born
+       with naked labels (owner field repro on a fresh machine: every layer
+       logging "no Font Asset assigned"). Sprites and their import settings
+       are handled by the texture postprocessor regardless, so the rest of
+       the kit build simply WAITS for edit mode and runs then. */
+    static bool playWaitArmed;
+    static void ResumeAfterPlay(PlayModeStateChange change) {
+      if (change != PlayModeStateChange.EnteredEditMode) return;
+      EditorApplication.playModeStateChanged -= ResumeAfterPlay;
+      playWaitArmed = false;
+      EditorApplication.delayCall += Apply;
+    }
     static void ImportKit(string mPath) {
+      if (EditorApplication.isPlayingOrWillChangePlaymode) {
+        if (!playWaitArmed) {
+          playWaitArmed = true;
+          EditorApplication.playModeStateChanged += ResumeAfterPlay;
+          Debug.Log("UI Kit Maker: the editor is in Play mode — sprites are in, and the kit's fonts, prefabs and Playground will finish building the moment Play stops.");
+        }
+        return;
+      }
       var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
       PBManifest manifest = null;
       try { manifest = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
@@ -2116,12 +2138,21 @@ namespace PatternBreak {
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       var kitStyle = m != null && m.typography != null ? m.typography.style : null;
 #endif
+      int healed = 0;
       foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
         var path = AssetDatabase.GUIDToAssetPath(g);
         var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (asset == null) continue;
         var rootImg = asset.GetComponent<Image>();
-        if (rootImg == null || rootImg.sprite == null) continue;
+        if (rootImg == null || rootImg.sprite == null) {
+#if UNITY_2023_2_OR_NEWER
+          // the HeroLabel prefab (no root Image): a Play-mode or
+          // essentials-race import can leave its layers with NO font —
+          // re-attach each layer's own baked face, words untouched
+          if (rootImg == null && asset.GetComponent<HeroLabel>() != null) HealHeroLabel(root, path, asset, ref healed);
+#endif
+          continue;
+        }
         var spritePath = AssetDatabase.GetAssetPath(rootImg.sprite).Replace("\\\\", "/");
         if (!spritePath.StartsWith(root + "/assets/")) continue; // not this kit's sprite — not ours to touch
         var famDir = Path.GetDirectoryName(spritePath).Replace("\\\\", "/");
@@ -2172,7 +2203,28 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: wired hover/press/disabled states onto " + wired + " example prefab(s) from an earlier kit version — press Play and mouse over them. Copies already placed in scenes (the Playground included) picked the wiring up automatically.");
       if (redressed > 0)
         Debug.Log("UI Kit Maker: re-dressed the label on " + redressed + " example prefab(s) to the kit's current type style (words untouched) — the old dress was frozen at generation time.");
+      if (healed > 0)
+        Debug.Log("UI Kit Maker: re-attached " + healed + " missing or stale layer face(s) on the HeroLabel prefab — an interrupted import can leave them naked; placed copies healed with it.");
     }
+#if UNITY_2023_2_OR_NEWER
+    static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
+      bool broken = false;
+      foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        var wantFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked " + lt.gameObject.name + ".asset");
+        if (wantFace != null && lt.font != wantFace) { broken = true; break; }
+      }
+      if (!broken) return;
+      var contents = PrefabUtility.LoadPrefabContents(path);
+      try {
+        int n = 0;
+        foreach (var lt in contents.GetComponentsInChildren<TextMeshProUGUI>(true)) {
+          var wantFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked " + lt.gameObject.name + ".asset");
+          if (wantFace != null && lt.font != wantFace) { lt.font = wantFace; n++; }
+        }
+        if (n > 0) { PrefabUtility.SaveAsPrefabAsset(contents, path); healed += n; }
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+#endif
 #if UNITY_2023_2_OR_NEWER
     /* ── HeroLabel: the app's paint order as a prefab. Two stacked texts —
        the Stroke face behind (every outline/shadow/glow merges into one
