@@ -702,6 +702,13 @@ tracks each sprite through a .meta file that lives beside it in your
 project; the zip never contains .meta files, so overwriting a PNG keeps
 its identity and nothing you built ever breaks.
 
+**On macOS you can't actually "extract over"** — Finder never merges
+folders, so a re-drop lands as "UIKitMaker 1". That's fine: drop it into
+Assets anyway. The importer notices, moves every file home into
+Assets/UIKitMaker (your .meta files and identities untouched), removes
+the duplicate folder, and re-imports. Drop updates anywhere; the kit
+finds its way.
+
 The importer keeps four promises on every re-import:
 - **Nothing is deleted without you.** Pieces removed from the kit stay on
   disk and are listed in the Console; Tools > PatternBreak > Review
@@ -1766,6 +1773,55 @@ namespace PatternBreak {
        kit.lock.json is written by the pass itself and deliberately does
        NOT retrigger it. */
     static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom) {
+      /* ── the update valet. macOS never merges folders: a re-drop lands as
+         "UIKitMaker 1" (Finder AND Unity both suffix on collision) — a
+         forked kit, plus a second copy of this very script that would kill
+         the editor assembly (CS0101). Any kit manifest arriving under a
+         non-canonical UIKitMaker root gets its files copied HOME (byte
+         overwrite; the .meta files at home are untouched, so every GUID
+         survives) and the duplicate tree removed before its script copy
+         compiles. ── */
+      bool valeted = false;
+      foreach (var p in imported) {
+        var norm = p.Replace("\\\\", "/");
+        if (!norm.EndsWith("/kit-manifest.json")) continue;
+        var parts = norm.Split('/');
+        if (parts.Length < 3 || parts[0] != "Assets") continue;
+        var top = parts[1];
+        if (top == "UIKitMaker" || !top.StartsWith("UIKitMaker")) continue;
+        var dupTop = "Assets/" + top;
+        int relocated = 0;
+        try {
+          foreach (var f in Directory.GetFiles(dupTop, "*", SearchOption.AllDirectories)) {
+            var fp = f.Replace("\\\\", "/");
+            if (fp.EndsWith(".meta")) continue;
+            var rel = fp.Substring(dupTop.Length + 1);
+            var dst = "Assets/UIKitMaker/" + rel;
+            var dir = Path.GetDirectoryName(dst);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            File.Copy(fp, dst, true);
+            relocated++;
+          }
+        } catch (Exception e) {
+          Debug.LogWarning("UI Kit Maker: couldn't relocate '" + dupTop + "' automatically (" + e.Message + ") — move its contents into Assets/UIKitMaker by hand, then delete it.");
+          continue;
+        }
+        /* the valet may have just replaced this importer itself — the domain
+           reload that follows wipes any queued pass, so clear the receipts
+           and let the post-reload sweep re-import every kit fresh */
+        try {
+          if (Directory.Exists("Assets/UIKitMaker"))
+            foreach (var lockP in Directory.GetFiles("Assets/UIKitMaker", "kit.lock.json", SearchOption.AllDirectories)) File.Delete(lockP);
+        } catch (Exception) { }
+        AssetDatabase.DeleteAsset(dupTop);
+        valeted = true;
+        Debug.Log("UI Kit Maker: that drop landed as '" + top + "' (macOS never merges folders) — " + relocated + " files were moved home into Assets/UIKitMaker and the duplicate folder was removed. Drop updates anywhere; the kit finds its way.");
+      }
+      if (valeted) {
+        cache.Clear();
+        EditorApplication.delayCall += () => { AssetDatabase.Refresh(); KitImporter.Apply(); };
+        return;
+      }
       foreach (var p in imported) {
         if (!p.EndsWith("kit-manifest.json")) continue;
         cache.Clear();
