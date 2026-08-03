@@ -1449,6 +1449,11 @@ namespace PatternBreak {
          rebuild, so placed labels keep their face. */
       if (!tmpPending) EnsureBakedFace(root, manifest, true);
       if (!tmpPending) EnsureGradientPreset(root, manifest);
+      /* a full-tier zip born while the browser couldn't fetch the kit font
+         ships WITHOUT the baked hero fonts — silently, unless we say so
+         (field repro: every hero/button word vanished on the next drop) */
+      if (string.Equals(manifest.tier, "full") && (manifest.typography == null || manifest.typography.bakedFace == null))
+        Debug.LogWarning("UI Kit Maker: this export shipped WITHOUT the baked hero fonts — the kit's font couldn't be fetched in the browser during export. Labels fall back to the styled SDF face. Re-export from uikitmaker.com (check the connection there) to restore the exact type.");
       /* new text objects are BORN in the kit's face (owner: the custom font
          "should kinda just be there") — set TMP's project-wide default, but
          only while it's still the stock Liberation face; a deliberate user
@@ -2479,7 +2484,16 @@ namespace PatternBreak {
             bool stacked = probeRoot.GetComponent<HeroLabel>() != null;
             bool layersShip = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
               && AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset") != null;
-            if (wantBaked != null && layersShip) wantDress = !stacked;
+            if (wantBaked != null && layersShip) {
+              wantDress = !stacked;
+              // a stack whose layer fonts went NULL (deleted/broken face
+              // assets) looked "already correct" here and stayed naked —
+              // field repro: "no type visible", a wall of "no Font Asset
+              // assigned to Fill/Stroke/Shadow/Glints"
+              if (!wantDress)
+                foreach (var lt in probeRoot.GetComponentsInChildren<TextMeshProUGUI>(true))
+                  if (lt.font == null) { wantDress = true; break; }
+            }
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
             // the kit's Type Size dial drives the word size — converge
