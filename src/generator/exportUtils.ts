@@ -76,8 +76,25 @@ export function downloadZip(name: string, files: { path: string; data: string | 
   download(name, makeZip(files));
 }
 
+/* Fonts inside a rasterized SVG: an SVG loaded through an <img> is a SEALED
+   document — it cannot see the page's loaded fonts, so any <text> silently
+   falls back to a system face at raster time (field: the baked alphabet
+   shipped skinny system glyphs wearing the full kit treatment; stamps carry
+   the same risk). Register the kit's font bytes around an export and every
+   rasterization embeds them as an inline @font-face. */
+let embedFont: { family: string; b64: string } | null = null;
+export function setEmbedFont(family: string, bytes: Uint8Array | null) {
+  if (!bytes) { embedFont = null; return; }
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+  embedFont = { family, b64: btoa(bin) };
+}
+
 /** Rasterize an SVG string to transparent PNG bytes at the given scale. */
 export function svgToPngBytes(svg: string, scale = 2): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+  if (embedFont && svg.includes("<text"))
+    svg = svg.replace(/(<svg[^>]*>)/, `$1<style>@font-face{font-family:"${embedFont.family.replace(/"/g, "")}";src:url(data:font/ttf;base64,${embedFont.b64}) format("truetype");}</style>`);
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {

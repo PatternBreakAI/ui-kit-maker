@@ -10,7 +10,7 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, setEmbedFont } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -60,7 +60,7 @@ const sha256Hex = async (data: Uint8Array): Promise<string> => {
    labels speak the right font with zero user steps. TTFs come from the
    google/fonts repo at export time; ANY failure degrades to the manifest's
    Google Fonts link and never blocks the export. */
-async function fetchKitFont(family: string): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
+export async function fetchKitFont(family: string): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
   const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!slug) return null;
   for (const dir of ["ofl", "apache", "ufl"]) {
@@ -357,21 +357,28 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng(`icons/${name}.png`, svg, { component: "icons", part: name, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "White glyph — tint in-engine; never bake into components." });
   }
 
-  /* ── rasterise everything queued above, reporting progress ────── */
-  await rasterQueue();
-
-  /* ── fonts: ship the kit's faces with their licenses ──────────── */
-  onProgress?.(pngQueue.length, pngQueue.length + 1, "fonts");
+  /* ── fonts FIRST: ship the kit's faces with their licenses — and register
+     the primary for embedding, because an SVG rasterized through an <img>
+     is a SEALED document that cannot see the page's fonts. Without this,
+     every <text> in every rasterized export (baked alphabet, stamps, any
+     text-bearing sprite) silently falls back to a system face (field: the
+     baked MIAMI shipped skinny system glyphs in full kit dress). ── */
+  onProgress?.(0, pngQueue.length + 1, "fonts");
   const famList = [...new Set([st.cfg.type.font, ...(st.cfg.type.listFont ? [st.cfg.type.listFont] : [])])].slice(0, 4);
   let primaryFontFile: string | null = null;
+  let primaryFontBytes: Uint8Array | null = null;
   for (const fam of famList) {
     const got = await fetchKitFont(fam).catch(() => null);
     if (!got) continue;
     const famSlug = fam.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     files.push({ path: `fonts/${got.file}`, data: got.bytes });
     files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
-    if (fam === st.cfg.type.font) primaryFontFile = `fonts/${got.file}`;
+    if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; }
   }
+  setEmbedFont(st.cfg.type.font, primaryFontBytes);
+
+  /* ── rasterise everything queued above, reporting progress ────── */
+  await rasterQueue();
 
   /* ── the letterform pattern, as a LIVE-TEXT tile: the app's own rotated
      <pattern> rasterized onto an opaque white ground (TMP's face texture
@@ -554,6 +561,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
   download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
+  setEmbedFont("", null); // don't leak the embed into unrelated rasterizations
 }
 
 /* ── the alphabet bake ──────────────────────────────────────────────

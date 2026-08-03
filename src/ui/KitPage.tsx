@@ -7,8 +7,8 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape }
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
-import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight } from "@/generator/exportUtils";
-import { downloadEngineExport } from "@/generator/engineExport";
+import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont } from "@/generator/exportUtils";
+import { downloadEngineExport, fetchKitFont } from "@/generator/engineExport";
 import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
@@ -1185,6 +1185,11 @@ const kitTier = useGen((s) => s.tier);
         const st = useGen.getState();
         let uslug = st.unitySlug;
         if (!uslug) { uslug = sanitizeUnitySlug(st.kitName) ?? "ui-kit"; st.setUnitySlug(uslug); }
+        /* rasterized SVGs are sealed documents — embed the kit's face or the
+           stamps bake with a system fallback font (best effort; the document
+           font still styles everything if the fetch fails) */
+        const kf = await fetchKitFont(st.cfg.type.font).catch(() => null);
+        setEmbedFont(st.cfg.type.font, kf?.bytes ?? null);
         const files: { path: string; data: string | Uint8Array }[] = [];
         for (const p of phrases) {
           const pslug = p.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "stamp";
@@ -1199,6 +1204,7 @@ const kitTier = useGen((s) => s.tier);
         downloadZip(`${uslug}-type-stamps.zip`, files);
       });
     } finally {
+      setEmbedFont("", null);
       setStampBusy(false);
       setStampsOpen(false);
     }
