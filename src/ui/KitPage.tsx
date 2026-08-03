@@ -1052,6 +1052,24 @@ export function KitPage() {
   const [sheetBusy, setSheetBusy] = useState(false);
   const [engineBusy, setEngineBusy] = useState(false);
   const [engineProg, setEngineProg] = useState<{ done: number; total: number; label: string } | null>(null);
+  /* I1, revised: the Unity slug follows the kit's CURRENT name. Same name →
+     same slug, so re-exports keep landing in the same Unity folder and
+     overwrite in place. A different name means a different kit (or a
+     deliberate rename): fresh folder, version restarts at v1. The old
+     never-re-mint rule froze the slug per BROWSER — owner field report: a
+     brand-new kit exported as "miami nice". The mint lands in the cloud doc
+     too, or reopening the project elsewhere resurrects the old identity. */
+  const ensureUnitySlug = (name: string): string => {
+    const st = useGen.getState();
+    const want = sanitizeUnitySlug(name) ?? "ui-kit";
+    if (st.unitySlug !== want) {
+      st.setUnitySlug(want);
+      st.resetUnityKitVer();
+      const pid = st.openProjectId;
+      if (pid) void updateProjectDoc(pid, useGen.getState().kitPayload());
+    }
+    return want;
+  };
   const downloadEngineKit = async () => {
     if (engineBusy) return;
     setEngineBusy(true);
@@ -1059,22 +1077,7 @@ export function KitPage() {
       await guardedExport("engine", gateHandlers, async (grant) => {
         const st = useGen.getState();
         const name = st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`;
-        /* I1: the slug is the kit's PERMANENT Unity address — minted from
-           the name on the very first export and never re-minted, so later
-           renames don't move files in anyone's project */
-        let uslug = st.unitySlug;
-        if (!uslug) {
-          uslug = sanitizeUnitySlug(name) ?? "ui-kit";
-          st.setUnitySlug(uslug);
-          /* the mint must land in the CLOUD DOC too, or a later reopen of a
-             project saved before this export resurrects a slug-less copy
-             and re-mints under whatever the kit is named by then — a new
-             Unity folder, everything placed orphaned (I1 audit). Best
-             effort: same-browser continuity is already covered by the
-             workspace sync. */
-          const pid = useGen.getState().openProjectId;
-          if (pid) void updateProjectDoc(pid, useGen.getState().kitPayload());
-        }
+        const uslug = ensureUnitySlug(name);
         const kitVersion = st.bumpUnityKitVer();
         /* the payload scope is the SERVER's call, read from plan_id and
            returned in the grant — a client-side tier flip cannot widen it.
@@ -1183,8 +1186,9 @@ const kitTier = useGen((s) => s.tier);
     try {
       await guardedExport("engine", gateHandlers, async (grant) => {
         const st = useGen.getState();
-        let uslug = st.unitySlug;
-        if (!uslug) { uslug = sanitizeUnitySlug(st.kitName) ?? "ui-kit"; st.setUnitySlug(uslug); }
+        // stamps root in the SAME Unity folder as the engine kit — the slug
+        // rule must match ensureUnitySlug or a renamed kit's stamps strand
+        const uslug = ensureUnitySlug(st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`);
         /* rasterized SVGs are sealed documents — embed the kit's face or the
            stamps bake with a system fallback font (best effort; the document
            font still styles everything if the fetch fails) */
