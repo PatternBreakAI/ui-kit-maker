@@ -218,10 +218,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* organic silhouettes can push the cap math past reason — the wavy
            button's slice guides nearly met in the middle, caps ate ~92% of
            the sprite and the type area with it (owner: "this is clearly
-           off"). A cap never takes more than 35% of the width / 40% of the
-           height per side, so the stretchable center stays a real share of
-           EVERY sprite. */
-        const maxLR = Math.floor(w * 0.35), maxTB = Math.floor(h * 0.4);
+           off", then at 35%: "still off... lots more room for text in the
+           middle between the concave/convex"). A cap never takes more
+           than 25% of the width / 40% of the height per side — the
+           stretchable middle is at least HALF of every sprite. */
+        const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.4);
         if (s.left > maxLR) s.left = maxLR;
         if (s.right > maxLR) s.right = maxLR;
         if (s.top > maxTB) s.top = maxTB;
@@ -945,10 +946,11 @@ namespace PatternBreak {
 #endif
   {
 #if UNITY_2023_2_OR_NEWER
+    /* what MOVES: the whole label (single text or a layered stack root) */
+    public RectTransform shiftTarget;
+    /* what RE-INKS: a single dynamic-color text; null for layered baked
+       stacks (their pixels are painted — they only ride the shifts) */
     public TextMeshProUGUI label;
-    /* ink: only driven when the kit forks its text COLORS for a state
-       (inkOn flags) — baked-face labels keep their painted pixels and use
-       the shifts alone */
     public bool inkOn;
     public bool restGradient; public Color restTop = Color.white; public Color restBottom = Color.white;
     public bool hoverOn; public bool hoverGradient; public Color hoverTop = Color.white; public Color hoverBottom = Color.white;
@@ -957,9 +959,11 @@ namespace PatternBreak {
        moves the label by the same delta (design px, positive = down) */
     public float hoverShift; public float pressedShift;
     bool over, down; Vector2 basePos; bool basePosSet;
+    RectTransform Mover() { return shiftTarget != null ? shiftTarget : (label != null ? label.rectTransform : null); }
     void OnEnable() {
       over = false; down = false;
-      if (label != null && !basePosSet) { basePos = label.rectTransform.anchoredPosition; basePosSet = true; }
+      var mover = Mover();
+      if (mover != null && !basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
       ApplyCurrent();
     }
     void OnDisable() { over = false; down = false; }
@@ -968,12 +972,12 @@ namespace PatternBreak {
     public void OnPointerDown(PointerEventData e) { down = true; ApplyCurrent(); }
     public void OnPointerUp(PointerEventData e) { down = false; ApplyCurrent(); }
     void ApplyCurrent() {
-      if (label == null) return;
-      if (basePosSet) {
+      var mover = Mover();
+      if (mover != null && basePosSet) {
         float shift = down ? pressedShift : over ? hoverShift : 0f;
-        label.rectTransform.anchoredPosition = basePos + new Vector2(0f, -shift);
+        mover.anchoredPosition = basePos + new Vector2(0f, -shift);
       }
-      if (!inkOn) return;
+      if (label == null || !inkOn) return;
       if (down && pressedOn) Ink(pressedTop, pressedBottom, pressedGradient);
       else if (over && hoverOn) Ink(hoverTop, hoverBottom, hoverGradient);
       else Ink(restTop, restBottom, restGradient);
@@ -1620,32 +1624,10 @@ namespace PatternBreak {
         esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 #endif
 
-        /* the kit's resting AURA (bloom): the app shows every piece in its
-           glow field, but auras must overlap whatever sits behind them, so
-           they can't live inside a cropped sprite. Compose it here the way
-           the app does — fx/glow.png behind each piece, tinted the kit's
-           glow, sized by the bloom recipe. (Field: the side-by-side's
-           biggest delta was pieces landing "dry".) */
-        PBManifest bm = null;
-        try { bm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(root + "/kit-manifest.json")); } catch (Exception) { }
-        /* the aura is the app's BLOOM, matched to its exact math (field:
-           the first pass composed huge centered glow-balls — "what's up
-           with the weird glow"): a soft ellipse in the HIGHLIGHT color,
-           0.92w x 0.52h at bloom size, drifted AWAY from the kit's light
-           (bounce light on the unlit side), opacity straight from the
-           kit's bloom dial. */
-        Sprite auraSprite = null;
-        Color auraColor = Color.white;
-        float auraS = 1f, auraLx = 0f, auraLy = 1f;
-        if (bm != null && bm.bloom != null && bm.bloom.opacity > 1f) {
-          auraSprite = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/fx/glow.png");
-          if (auraSprite == null) Debug.Log("UI Kit Maker: assets/fx/glow.png isn't imported — Playground pieces placed without their bloom aura.");
-          if (bm.palette != null && !string.IsNullOrEmpty(bm.palette.highlight)) ColorUtility.TryParseHtmlString(bm.palette.highlight, out auraColor);
-          auraColor.a = Mathf.Clamp01(bm.bloom.opacity / 100f);
-          auraS = Mathf.Clamp(bm.bloom.size / 100f, 0.05f, 1.2f);
-          float rad = (bm.typography != null && bm.typography.style != null ? bm.typography.style.lightAngle : 90f) * Mathf.Deg2Rad;
-          auraLx = Mathf.Cos(rad); auraLy = Mathf.Sin(rad);
-        }
+        /* NO auras (owner verdict after two calibration rounds: "just get
+           rid of the white glow beneath every object") — pieces place
+           clean; the bloom recipe stays in kit-manifest.json for anyone
+           who wants to compose their own with fx/glow.png. */
         var prefabs = new List<GameObject>();
         foreach (var g in guids) {
           var p = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(g));
@@ -1662,26 +1644,6 @@ namespace PatternBreak {
           if (y - h < -1020f && y < -91f) { colX += colMaxW + 70f; y = -90f; colMaxW = 0f; }
           rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
           rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
-          if (auraSprite != null) {
-            /* the aura is a CHILD, so it follows when the user moves the
-               piece (field: moved pieces left their glow stranded) — and a
-               child would render OVER its parent, so it carries its own
-               canvas sorted one step behind: it draws under every piece. */
-            var auraGo = new GameObject("Aura", typeof(RectTransform), typeof(CanvasRenderer));
-            auraGo.transform.SetParent(inst.transform, false);
-            auraGo.transform.SetSiblingIndex(0);
-            var art = auraGo.GetComponent<RectTransform>();
-            art.anchorMin = new Vector2(0.5f, 0.5f); art.anchorMax = new Vector2(0.5f, 0.5f);
-            art.sizeDelta = new Vector2(w * 0.92f * auraS, h * 0.52f * auraS);
-            art.anchoredPosition = new Vector2(-auraLx * w * 0.16f, -auraLy * h * 0.3f);
-            var ac = auraGo.AddComponent<Canvas>();
-            ac.overrideSorting = true;
-            ac.sortingOrder = -1;
-            var ai = auraGo.AddComponent<UnityEngine.UI.Image>();
-            ai.sprite = auraSprite;
-            ai.color = auraColor;
-            ai.raycastTarget = false;
-          }
           y -= h + 44f;
           if (w > colMaxW) colMaxW = w;
           placed++;
@@ -2115,13 +2077,6 @@ namespace PatternBreak {
       if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
       else { t.enableVertexGradient = false; t.color = top; }
     }
-    // only the label WE generated (named "Label") — a renamed or added
-    // text is the user's and is never touched
-    static TextMeshProUGUI FindOurLabel(GameObject go) {
-      foreach (var t in go.GetComponentsInChildren<TextMeshProUGUI>(true))
-        if (t.gameObject.name == "Label") return t;
-      return null;
-    }
     static bool LabelCurrent(TextMeshProUGUI t, PBStyle s, TMP_FontAsset face) {
       Color top, bot; bool grad;
       TargetInk(s, out top, out bot, out grad);
@@ -2165,23 +2120,73 @@ namespace PatternBreak {
       if (HasInkColorFork(m, family)) return null;
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
     }
-    static void AddBakedLabel(GameObject parent, string text, TMP_FontAsset face) {
-      var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
+    static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo) {
+      var go = new GameObject("Label", typeof(RectTransform));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      var fillFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
+      var strokeFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
+      if (fillFace != null && strokeFace != null) {
+        /* layered mini-hero (owner: "the unified background stroke thing
+           and effects pass on the group, instead of each individual
+           letter"): ONE merged stroke and ONE soft shadow behind ALL
+           letterforms, fills above, glints on top — the HeroLabel
+           construction at button size, with the same one-text-box sync. */
+        var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
+        var shadowFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Shadow.asset");
+        var glintsFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Glints.asset");
+        if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
+        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
+        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", fillFace));
+        if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
+        foreach (var layer in layers) {
+          var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
+          lgo.transform.SetParent(go.transform, false);
+          var lrt = lgo.GetComponent<RectTransform>();
+          lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+          lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+          var lt = lgo.AddComponent<TextMeshProUGUI>();
+          lt.text = text;
+          lt.alignment = TextAlignmentOptions.Center;
+          lt.fontSize = 40;
+          lt.raycastTarget = false;
+          lt.font = layer.Value;
+          lt.color = Color.white;
+        }
+        var hl = go.AddComponent<HeroLabel>();
+        hl.text = text; hl.fontSize = 40f;
+        return;
+      }
+      // solo fallback (kit shipped no layer faces): every glyph carries
+      // its own treatment
+      go.AddComponent<CanvasRenderer>();
       var t = go.AddComponent<TextMeshProUGUI>();
       t.text = text;
       t.alignment = TextAlignmentOptions.Center;
       t.fontSize = 40;
       t.raycastTarget = false;
-      t.font = face;
-      // baked glyphs carry the full treatment — white shows them verbatim
-      t.color = Color.white;
+      t.font = solo;
+      t.color = Color.white; // baked glyphs are pre-painted
     }
-    static bool WireLabelStates(GameObject go, TextMeshProUGUI label, PBManifest m, string family) {
-      if (m == null || m.typography == null || label == null) return false;
+    /* the label WE generated is the child GameObject named "Label" — a
+       single dynamic text OR a layered baked stack root */
+    static GameObject FindOurLabelRoot(GameObject go) {
+      foreach (var rt in go.GetComponentsInChildren<RectTransform>(true))
+        if (rt.gameObject.name == "Label" && rt.gameObject != go) return rt.gameObject;
+      return null;
+    }
+    static string LabelText(GameObject labelRoot, string fallback) {
+      var hl = labelRoot.GetComponent<HeroLabel>();
+      if (hl != null && !string.IsNullOrEmpty(hl.text)) return hl.text;
+      var tmp = labelRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+      return tmp != null && !string.IsNullOrEmpty(tmp.text) ? tmp.text : fallback;
+    }
+    static bool WireLabelStates(GameObject go, GameObject labelRoot, PBManifest m, string family) {
+      if (m == null || m.typography == null || labelRoot == null) return false;
+      // the whole label moves; only a single dynamic text re-inks
+      var label = labelRoot.GetComponent<TextMeshProUGUI>();
       var ty = m.typography;
       var states = new List<PBStateStyle>();
       if (m.labelStates != null)
@@ -2205,6 +2210,7 @@ namespace PatternBreak {
       }
       var ink = go.GetComponent<LabelStateInk>();
       if (ink == null) ink = go.AddComponent<LabelStateInk>();
+      ink.shiftTarget = labelRoot.GetComponent<RectTransform>();
       ink.label = label;
       Color top, bot; bool grad;
       TargetInk(ty.style, out top, out bot, out grad);
@@ -2212,8 +2218,9 @@ namespace PatternBreak {
       ink.inkOn = false; ink.hoverOn = false; ink.pressedOn = false;
       ink.hoverShift = 0f; ink.pressedShift = 0f;
       foreach (var fork in states) {
-        // an entry may carry ink colors, a face-riding shift, or both
-        bool hasInk = !string.IsNullOrEmpty(fork.fillMode);
+        // an entry may carry ink colors, a face-riding shift, or both;
+        // ink only drives a single dynamic text (baked stacks are painted)
+        bool hasInk = label != null && !string.IsNullOrEmpty(fork.fillMode);
         if (hasInk) {
           var forkStyle = new PBStyle();
           forkStyle.fillMode = fork.fillMode; forkStyle.fill = fork.fill; forkStyle.fill2 = fork.fill2;
@@ -2310,10 +2317,10 @@ namespace PatternBreak {
       }
       if (label != null) {
 #if UNITY_2023_2_OR_NEWER
-        // exact pixels first: the baked face when the kit ships it and the
-        // family needs no dynamic ink; the styled SDF otherwise
+        // exact pixels first: the baked faces when the kit ships them and
+        // the family needs no dynamic ink; the styled SDF otherwise
         var bakedLabelFace = BakedLabelFace(m, root, baseAsset.component);
-        if (bakedLabelFace != null) AddBakedLabel(go, label, bakedLabelFace);
+        if (bakedLabelFace != null) AddBakedLabel(go, label, root, bakedLabelFace);
         else
 #endif
         AddLabel(go, label, kitFont, root, m);
@@ -2321,8 +2328,8 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
       // the kit's designed state ink/shift follows the face swap (only
       // wired when the kit forks its states)
-      var tmpLabel = FindOurLabel(go);
-      if (tmpLabel != null) WireLabelStates(go, tmpLabel, m, baseAsset.component);
+      var labelRoot = FindOurLabelRoot(go);
+      if (labelRoot != null) WireLabelStates(go, labelRoot, m, baseAsset.component);
 #endif
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -2412,6 +2419,10 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       var kitStyle = m != null && m.typography != null ? m.typography.style : null;
+      // the shipped TTF, for labels rebuilt on the SDF path
+      Font mkFont = null;
+      if (m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
+        mkFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
 #endif
       int healed = 0;
       foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
@@ -2439,13 +2450,20 @@ namespace PatternBreak {
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
         if (kitStyle != null) {
-          var probe = FindOurLabel(asset);
-          if (probe != null) {
-            // the family's target face: EXACT baked when eligible, SDF else
+          var probeRoot = FindOurLabelRoot(asset);
+          if (probeRoot != null) {
+            /* the family's target label SHAPE: layered baked stack when the
+               kit ships layer faces and needs no dynamic ink; solo baked
+               next; styled SDF last — re-dress whenever the current shape
+               isn't the target */
             var wantBaked = BakedLabelFace(m, root, famName);
-            wantDress = wantBaked != null
-              ? (probe.font != wantBaked || probe.enableVertexGradient || probe.color != Color.white)
-              : !LabelCurrent(probe, kitStyle, face);
+            var probeTmp = probeRoot.GetComponent<TextMeshProUGUI>();
+            bool stacked = probeRoot.GetComponent<HeroLabel>() != null;
+            bool layersShip = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
+              && AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset") != null;
+            if (wantBaked != null && layersShip) wantDress = !stacked;
+            else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
+            else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
             // state ink/shift component missing while the kit forks states —
             // wire it (re-dress refreshes its values whenever the dress runs)
             if (!wantDress && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
@@ -2474,18 +2492,18 @@ namespace PatternBreak {
           }
 #if UNITY_2023_2_OR_NEWER
           if (wantDress) {
-            var label = FindOurLabel(contents);
-            if (label != null) {
+            var oldRoot = FindOurLabelRoot(contents);
+            if (oldRoot != null) {
+              /* rebuild the label in the target shape, WORDS PRESERVED —
+                 per-field surgery across three possible shapes is where
+                 stale dress bugs breed */
+              var keepText = LabelText(oldRoot, DefaultLabel(famName));
+              UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
-              if (wantBaked != null) {
-                label.font = wantBaked;
-                label.enableVertexGradient = false;
-                label.color = Color.white; // baked glyphs are pre-painted
-              } else {
-                if (face != null) label.font = face;
-                StyleLabel(label, kitStyle);
-              }
-              WireLabelStates(contents, label, m, famName);
+              if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked);
+              else AddLabel(contents, keepText, mkFont, root, m);
+              var newRoot = FindOurLabelRoot(contents);
+              if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
               redressed++; changed = true;
             }
           }
