@@ -310,15 +310,20 @@ interface GenStore {
   /** The curated, portable kit snapshot — the single payload contract behind
       both share links and named cloud projects (v76). */
   kitPayload: () => Record<string, unknown>;
-  /** Unity bridge identity (spec I1): minted at the FIRST engine export and
-      never changed after — display-name renames must not move files in the
-      user's Unity project, or every placed sprite loses its GUID. */
+  /** Unity bridge identity (spec I1, revised): the slug follows the kit's
+      CURRENT name at export time. Same name → same slug, so re-exports keep
+      overwriting in place; a different name is a different kit (or a
+      deliberate rename) and mints a fresh Unity folder. The original
+      never-re-mint rule made the slug permanent per BROWSER, not per kit —
+      field bug: a brand-new kit exported under the previous kit's name. */
   unitySlug: string | null;
   setUnitySlug: (s: string) => void;
   /** Monotonic kit version stamped into each engine export's manifest —
-      the importer's receipt (kit.lock.json) reports "v3 → v4" from it. */
+      the importer's receipt (kit.lock.json) reports "v3 → v4" from it.
+      Resets alongside a slug change: a fresh Unity folder starts at v1. */
   unityKitVer: number;
   bumpUnityKitVer: () => number;
+  resetUnityKitVer: () => void;
   /** Load a kit payload into the store. `viewer:false` (opening your own
       project) persists every field so the kit survives reload and flows into
       the cloud workspace; `viewer:true` (a share / public link) is in-memory
@@ -894,6 +899,10 @@ export const useGen = create<GenStore>((set, get) => ({
     saveJson("ui-generator-unitykitver", n);
     set({ unityKitVer: n });
     return n;
+  },
+  resetUnityKitVer: () => {
+    saveJson("ui-generator-unitykitver", 0);
+    set({ unityKitVer: 0 });
   },
   kitPayload: () => {
     const st = get();
