@@ -101,6 +101,7 @@ const svgWrap = (w: number, h: number, inner: string) =>
 export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
+  setEmbedFont("", null); // never inherit a stale embed from a crashed export
 
   const pieceCfg = (id: KitComponentId) => applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[id]), st.kitTextFill[id]);
   const base = pieceCfg("primary");
@@ -418,13 +419,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      TextMeshPro font asset from it, so Unity types hero text with the
      app's exact pixels. The SDF face stays the length-proof workhorse;
      this is the showpiece for display text. ── */
-  let bakedFace: { file: string; metrics: string; pointSize: number } | null = null;
+  let bakedFace: { file: string; metrics: string; pointSize: number; layers: string | null } | null = null;
   try {
-    const baked = await bakeAlphabetFace(base);
+    /* no font bytes = the rasterizer would bake SYSTEM glyphs in kit dress
+       (review catch: an offline export shipped that silently) — skip the
+       bake instead; the SDF face still styles labels from the recipe */
+    if (!primaryFontBytes) console.warn("engine export: kit font unavailable — the baked alphabet face is skipped this export");
+    const baked = primaryFontBytes ? await bakeAlphabetFace(base) : null;
     if (baked) {
       files.push({ path: "fonts/kitface-baked.png", data: baked.png });
       files.push({ path: "fonts/kitface-baked.json", data: new TextEncoder().encode(baked.metrics) });
-      bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize };
+      if (baked.layersPng) files.push({ path: "fonts/kitface-baked-layers.png", data: baked.layersPng });
+      bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize, layers: baked.layersPng ? "fonts/kitface-baked-layers.png" : null };
     }
   } catch (e) {
     console.warn("engine export: alphabet face bake failed — kit ships without it", e);
@@ -592,7 +598,7 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
   return { cv, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
 
-async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; metrics: string; pointSize: number } | null> {
+async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layersPng: Uint8Array | null; metrics: string; pointSize: number } | null> {
   const family = base.type.font;
   const weight = base.type.weight;
   const italicPfx = base.type.italic ? "italic " : "";
@@ -619,62 +625,96 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; met
   const baseY = calBox.y0 + (hMet.actualBoundingBoxAscent ?? ascent / BAKE_S) * BAKE_S;
 
   type Baked = { u: number; adv: number; bx: number; by: number; w: number; h: number; cv?: HTMLCanvasElement; sx?: number; sy?: number; x?: number; y?: number };
-  const glyphs: Baked[] = [];
+  /* three treatments per glyph:
+     - full: the solo face (everything) — what a single KitFace Baked shows
+     - fill: fill + pattern + glints + emboss, NO stroke/shadow/glow
+     - stroke: outline + shadow + glow only, fill transparent
+     fill-over-stroke in two stacked texts reproduces the app's paint order
+     (all strokes merge behind all letterforms — owner ask). */
+  const variants: { key: "full" | "fill" | "stroke"; mutate: (c: GenConfig) => void }[] = [
+    { key: "full", mutate: (c) => { c.type.size = 52; } },
+    { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; } },
+    { key: "stroke", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.stripes = undefined; c.type.glints = undefined; c.type.emboss.on = false; } },
+  ];
+  const sets: Record<"full" | "fill" | "stroke", Baked[]> = { full: [], fill: [], stroke: [] };
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
-    if (ch === " ") { glyphs.push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 }); continue; }
-    const box = await rasterInk(
-      renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: (c) => { c.type.size = 52; } }),
-      BAKE_S,
-    );
-    if (!box) continue; // a face without this glyph — skip, TMP falls back
-    glyphs.push({
-      u: ch.codePointAt(0)!, adv,
-      bx: box.x0 - penX, by: baseY - box.y0,
-      w: box.w, h: box.h, cv: box.cv, sx: box.x0, sy: box.y0,
-    });
+    if (ch === " ") {
+      for (const v of variants) sets[v.key].push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 });
+      continue;
+    }
+    for (const v of variants) {
+      const box = await rasterInk(
+        renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: v.mutate }),
+        BAKE_S,
+      );
+      if (!box) continue; // a face without this glyph — skip, TMP falls back
+      sets[v.key].push({
+        u: ch.codePointAt(0)!, adv,
+        bx: box.x0 - penX, by: baseY - box.y0,
+        w: box.w, h: box.h, cv: box.cv, sx: box.x0, sy: box.y0,
+      });
+    }
   }
-  if (glyphs.length < 10) return null; // face never loaded — don't ship garbage
+  if (sets.full.length < 10) return null; // face never loaded — don't ship garbage
 
   // shelf-pack into a 2048-wide atlas, tallest first for tight rows
   const PAD = 2;
-  const order = glyphs.filter((g) => g.w > 0).sort((a, b) => b.h - a.h);
   const AW = 2048;
-  let cx = PAD, cy = PAD, rowH = 0;
-  for (const g of order) {
-    if (cx + g.w + PAD > AW) { cx = PAD; cy += rowH + PAD; rowH = 0; }
-    g.x = cx; g.y = cy;
-    cx += g.w + PAD;
-    if (g.h > rowH) rowH = g.h;
-  }
-  const AH = cy + rowH + PAD;
-  if (AH > 4096) return null; // absurd treatment size — bail rather than truncate
-  const atlas = document.createElement("canvas");
-  atlas.width = AW; atlas.height = AH;
-  const ax = atlas.getContext("2d")!;
-  for (const g of order) ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
-  const png: Uint8Array = await new Promise((resolve, reject) => {
-    atlas.toBlob(async (b) => {
-      if (!b) { reject(new Error("atlas raster failed")); return; }
-      resolve(new Uint8Array(await b.arrayBuffer()));
-    }, "image/png");
-  });
+  const pack = (list: Baked[]): number | null => {
+    const order = list.filter((g) => g.w > 0).sort((a, b) => b.h - a.h);
+    let cx = PAD, cy = PAD, rowH = 0;
+    for (const g of order) {
+      if (cx + g.w + PAD > AW) { cx = PAD; cy += rowH + PAD; rowH = 0; }
+      g.x = cx; g.y = cy;
+      cx += g.w + PAD;
+      if (g.h > rowH) rowH = g.h;
+    }
+    const AH = cy + rowH + PAD;
+    return AH > 4096 ? null : AH; // absurd treatment size — bail rather than truncate
+  };
+  const rasterAtlas = (list: Baked[], AH: number): Promise<Uint8Array> => {
+    const atlas = document.createElement("canvas");
+    atlas.width = AW; atlas.height = AH;
+    const ax = atlas.getContext("2d")!;
+    for (const g of list) if (g.w > 0) ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
+    return new Promise((resolve, reject) => {
+      atlas.toBlob(async (b) => {
+        if (!b) { reject(new Error("atlas raster failed")); return; }
+        resolve(new Uint8Array(await b.arrayBuffer()));
+      }, "image/png");
+    });
+  };
 
+  const fullH = pack(sets.full);
+  if (fullH == null) return null;
+  const png = await rasterAtlas(sets.full, fullH);
+  // fill + stroke share ONE atlas: two font assets, two rect sets, one texture
+  const layered = [...sets.fill, ...sets.stroke];
+  const layersH = pack(layered);
+  const layersPng = layersH != null ? await rasterAtlas(layered, layersH) : null;
+
+  const emit = (list: Baked[]) => list.map((g) => ({
+    u: g.u, x: g.x ?? 0, y: g.y ?? 0, w: g.w, h: g.h,
+    bx: Math.round(g.bx * 10) / 10, by: Math.round(g.by * 10) / 10,
+    adv: Math.round(g.adv * 10) / 10,
+  }));
   const pointSize = 52 * BAKE_S;
   const metrics = JSON.stringify({
     pointSize,
     ascent: Math.round(ascent),
     descent: Math.round(descent),
     lineHeight: Math.round((ascent + descent) * 1.06),
-    atlasW: AW, atlasH: AH,
-    glyphs: glyphs.map((g) => ({
-      u: g.u, x: g.x ?? 0, y: g.y ?? 0, w: g.w, h: g.h,
-      bx: Math.round(g.bx * 10) / 10, by: Math.round(g.by * 10) / 10,
-      adv: Math.round(g.adv * 10) / 10,
-    })),
+    atlasW: AW, atlasH: fullH,
+    glyphs: emit(sets.full),
+    ...(layersPng ? {
+      layersAtlasW: AW, layersAtlasH: layersH,
+      fillGlyphs: emit(sets.fill),
+      strokeGlyphs: emit(sets.stroke),
+    } : {}),
   });
-  return { png, metrics, pointSize };
+  return { png, layersPng, metrics, pointSize };
 }
 
 /* The 3-step story, tuned per scope — ease of use is the product. */
@@ -785,6 +825,13 @@ and below its baked size, softening far beyond, like any bitmap game
 font; the SDF face stays the size-proof workhorse for everything else.
 Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
 the font in place, so placed labels restyle with the kit.
+
+Want the strokes to MERGE behind the letterforms like the app (no
+sticker-overlap between tight letters)? That's the **HeroLabel** prefab:
+two stacked texts — *KitFace Baked Stroke* behind (outlines, shadows and
+glows fuse into one silent layer) and *KitFace Baked Fill* in front (no
+stroke ever crosses a letter). Retype BOTH children to change the word;
+keep both colors white. Solo KitFace Baked stays the one-object option.
 
 ` : ""}Hand-made SDF labels start WHITE — the fill is a per-label setting,
 not a font setting (prefab labels arrive with it wired). One click fixes
@@ -910,9 +957,9 @@ namespace PatternBreak {
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
   [Serializable] class PBStyle { public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
-  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; }
+  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
-  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; }
   [Serializable] class PBBloom { public float opacity; public float size; }
@@ -979,11 +1026,16 @@ namespace PatternBreak {
     [InitializeOnLoadMethod]
     static void FirstImportSweep() {
       EditorApplication.delayCall += () => {
+        // the valet raises this flag before the domain reload wipes its
+        // queued pass — honor it by re-importing EVERYTHING once, receipts
+        // intact (fully idempotent: unchanged kits report "already right")
+        bool force = SessionState.GetBool("PBKitValetPending", false);
+        if (force) SessionState.SetBool("PBKitValetPending", false);
         var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
           var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-          if (!File.Exists(root + "/kit.lock.json")) ImportKit(mPath);
+          if (force || !File.Exists(root + "/kit.lock.json")) ImportKit(mPath);
         }
       };
     }
@@ -1054,10 +1106,16 @@ namespace PatternBreak {
          essentials are absent, they auto-import and BOTH the face and the
          prefabs wait one pass, so labels never lock in unstyled. */
       bool sdfWasThere = File.Exists(root + "/fonts/KitFace SDF.asset");
-      if (kitTtf != null && !TmpReady()) tmpPending = RequestEssentials();
+      // the baked faces need TMP even when no TTF shipped — request always
+      if (!TmpReady()) tmpPending = RequestEssentials();
       if (kitTtf != null && !tmpPending) EnsureTmpFace(root, manifest, kitTtf);
-      // the baked COLOR face needs no TTF — only TMP itself and the atlas
-      if (!tmpPending) EnsureBakedFace(root, manifest, false);
+      /* the baked faces refresh on EVERY import (review catch: an
+         extract-over rewrites the atlas and metrics, and stale glyph rects
+         over a new atlas garble every letter — restyle-in-place demands the
+         assembly track the files). They're generated mirrors of kit data,
+         like the gradient preset; the asset GUIDs survive the in-place
+         rebuild, so placed labels keep their face. */
+      if (!tmpPending) EnsureBakedFace(root, manifest, true);
       if (!tmpPending) EnsureGradientPreset(root, manifest);
       // the face arriving AFTER the prefabs did (first-ever TMP install
       // ordering) leaves plain labels behind — say so, with the one-click cure
@@ -1220,7 +1278,10 @@ namespace PatternBreak {
         Color auraColor = Color.white;
         float auraGrow = 1.5f;
         if (bm != null && bm.bloom != null && bm.bloom.opacity > 1f) {
-          auraSprite = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/fx/glow.png");
+          // review catch: sprites live under assets/ — the bare path loaded null
+          // and the whole aura block silently skipped
+          auraSprite = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/fx/glow.png");
+          if (auraSprite == null) Debug.Log("UI Kit Maker: assets/fx/glow.png isn't imported — Playground pieces placed without their bloom aura.");
           if (bm.palette != null && !string.IsNullOrEmpty(bm.palette.glow)) ColorUtility.TryParseHtmlString(bm.palette.glow, out auraColor);
           auraColor.a = Mathf.Clamp01(bm.bloom.opacity / 100f) * 0.85f;
           auraGrow = 1f + Mathf.Clamp(bm.bloom.size, 0f, 200f) / 100f * 0.9f;
@@ -1440,6 +1501,11 @@ namespace PatternBreak {
         float ow = Mathf.Clamp(s.outline.width / 60f, 0.025f, 0.3f);
         mat.SetFloat("_OutlineWidth", ow);
         mat.SetFloat("_FaceDilate", ow);
+      } else {
+        // review catch: restyles must also TAKE effects away — a kit that
+        // turned its outline off keeps a stale stroke otherwise
+        mat.SetFloat("_OutlineWidth", 0f);
+        mat.SetFloat("_FaceDilate", 0f);
       }
       /* the full Distance Field shader carries a REAL glow section, so the
          glow and the drop shadow (underlay) can both speak at once */
@@ -1449,7 +1515,7 @@ namespace PatternBreak {
         mat.SetColor("_GlowColor", c);
         mat.SetFloat("_GlowOuter", Mathf.Clamp(s.glow.size / 24f, 0.05f, 1f));
         mat.SetFloat("_GlowPower", 0.75f);
-      }
+      } else mat.DisableKeyword("GLOW_ON");
       if (s.shadow != null && !string.IsNullOrEmpty(s.shadow.color) && ColorUtility.TryParseHtmlString(s.shadow.color, out c)) {
         c.a = Mathf.Clamp01(s.shadow.opacity / 100f);
         mat.EnableKeyword("UNDERLAY_ON");
@@ -1457,7 +1523,7 @@ namespace PatternBreak {
         mat.SetFloat("_UnderlayOffsetX", Mathf.Clamp(s.shadow.x / 50f, -1f, 1f));
         mat.SetFloat("_UnderlayOffsetY", Mathf.Clamp(0f - s.shadow.y / 50f, -1f, 1f));
         mat.SetFloat("_UnderlaySoftness", Mathf.Clamp(s.shadow.blur / 30f, 0f, 1f));
-      }
+      } else mat.DisableKeyword("UNDERLAY_ON");
       /* emboss → the shader's bevel + lighting, lit from the kit's angle */
       if (s.emboss != null && Mathf.Abs(s.emboss.strength) > 0.01f) {
         mat.EnableKeyword("BEVEL_ON");
@@ -1467,7 +1533,7 @@ namespace PatternBreak {
         if (s.emboss.strength < 0f) mat.SetFloat("_BevelOffset", -0.25f);
         mat.SetFloat("_LightAngle", (s.lightAngle + 90f) * Mathf.Deg2Rad);
         mat.SetFloat("_SpecularPower", 1.5f);
-      }
+      } else mat.DisableKeyword("BEVEL_ON");
       /* the letterform pattern deliberately does NOT ride the face material
          (owner call): one shared material can't tile correctly for every
          label length a developer might type, and a treatment that only works
@@ -1493,29 +1559,47 @@ namespace PatternBreak {
     }
     static void EnsureBakedFace(string root, PBManifest m, bool refresh) {
       if (m == null || m.typography == null || m.typography.bakedFace == null || string.IsNullOrEmpty(m.typography.bakedFace.file)) return;
-      var assetPath = root + "/fonts/KitFace Baked.asset";
-      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
-      // a half-assembled survivor of a failed pass (created, then TMP threw
-      // before the tables landed) counts as missing — rebuild it in place
-      bool broken = existing != null && (existing.characterTable == null || existing.characterTable.Count == 0);
-      if (existing != null && !refresh && !broken) return; // yours after first assembly; Regenerate refreshes
       var jsonPath = root + "/" + m.typography.bakedFace.metrics;
-      var texPath = root + "/" + m.typography.bakedFace.file;
       if (!File.Exists(jsonPath)) return;
-      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
-      if (tex == null) return; // atlas not imported yet — the next pass retries
       PBBakedFace face = null;
       try { face = JsonUtility.FromJson<PBBakedFace>(File.ReadAllText(jsonPath)); } catch (Exception) { }
       if (face == null || face.glyphs == null || face.glyphs.Length == 0) {
         Debug.LogWarning("UI Kit Maker: " + jsonPath + " unreadable — the baked face is skipped (labels keep the SDF face).");
         return;
       }
+      AssembleBakedFont(root, m, refresh, "KitFace Baked", root + "/" + m.typography.bakedFace.file,
+        face.glyphs, face.atlasW, face.atlasH, face,
+        " glyphs of the app's exact pixels (pattern, glints and gloss included). Put it on any TMP label for hero text: Font Asset = KitFace Baked, label color WHITE.");
+      /* the LAYER pair (owner ask: strokes merging behind all letterforms,
+         like the app): fill-only and stroke-only variants share one atlas;
+         a two-layer label — Stroke face behind, Fill face in front —
+         reproduces the app's paint order: all strokes first, then all
+         fills on top. The HeroLabel prefab arrives pre-wired this way. */
+      if (!string.IsNullOrEmpty(m.typography.bakedFace.layers) && face.fillGlyphs != null && face.fillGlyphs.Length > 0 && face.strokeGlyphs != null && face.strokeGlyphs.Length > 0) {
+        var layersTex = root + "/" + m.typography.bakedFace.layers;
+        AssembleBakedFont(root, m, refresh, "KitFace Baked Fill", layersTex,
+          face.fillGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+          " glyphs — the FILL layer (no stroke). Pair it in FRONT of a KitFace Baked Stroke text; the HeroLabel prefab shows how.");
+        AssembleBakedFont(root, m, refresh, "KitFace Baked Stroke", layersTex,
+          face.strokeGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+          " glyphs — the STROKE layer (outline, shadow, glow; no fill). Pair it BEHIND a KitFace Baked Fill text; the HeroLabel prefab shows how.");
+      }
+    }
+    static void AssembleBakedFont(string root, PBManifest m, bool refresh, string faceName, string texPath, PBBakedGlyph[] glyphs, int atlasW, int atlasH, PBBakedFace face, string note) {
+      var assetPath = root + "/fonts/" + faceName + ".asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
+      // a half-assembled survivor of a failed pass (created, then TMP threw
+      // before the tables landed) counts as missing — rebuild it in place
+      bool broken = existing != null && (existing.characterTable == null || existing.characterTable.Count == 0);
+      if (existing != null && !refresh && !broken) return; // yours after first assembly; Regenerate refreshes
+      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+      if (tex == null) return; // atlas not imported yet — the next pass retries
       try {
         var shader = Shader.Find("TextMeshPro/Bitmap Custom Atlas"); // samples the atlas in full COLOR
         if (shader == null) shader = Shader.Find("TextMeshPro/Bitmap"); // alpha-only fallback: silhouettes, but working text
         if (shader == null) { Debug.LogWarning("UI Kit Maker: no TextMeshPro Bitmap shader in this project — baked face skipped."); return; }
         var fa = existing != null ? existing : ScriptableObject.CreateInstance<TMP_FontAsset>();
-        fa.name = "KitFace Baked";
+        fa.name = faceName;
         /* field report, first assembly attempt: "Upgrading font asset
            [KitFace Baked] to version 1.1.0" then an NRE. A fresh
            TMP_FontAsset has no version stamp, so TMP runs its legacy
@@ -1528,7 +1612,7 @@ namespace PatternBreak {
           if (fftType != null) { try { fftField.SetValue(fa, Activator.CreateInstance(fftType)); } catch (Exception) { } }
         }
         object fi = new UnityEngine.TextCore.FaceInfo();
-        SetField(fi, "m_FamilyName", (string.IsNullOrEmpty(m.typography.font) ? "Kit" : m.typography.font) + " Baked");
+        SetField(fi, "m_FamilyName", (string.IsNullOrEmpty(m.typography.font) ? "Kit" : m.typography.font) + " " + faceName.Replace("KitFace ", ""));
         SetField(fi, "m_StyleName", "Baked");
         SetField(fi, "m_PointSize", face.pointSize);
         SetField(fi, "m_Scale", 1f);
@@ -1552,9 +1636,9 @@ namespace PatternBreak {
         fa.glyphTable.Clear();
         fa.characterTable.Clear();
         uint gi = 1;
-        foreach (var g in face.glyphs) {
+        foreach (var g in glyphs) {
           // the JSON is top-origin (canvas); TextCore rects are bottom-origin
-          var rect = new UnityEngine.TextCore.GlyphRect(g.x, face.atlasH - g.y - g.h, g.w, g.h);
+          var rect = new UnityEngine.TextCore.GlyphRect(g.x, atlasH - g.y - g.h, g.w, g.h);
           var met = new UnityEngine.TextCore.GlyphMetrics(g.w, g.h, g.bx, g.by, g.adv);
           var glyph = new UnityEngine.TextCore.Glyph(gi, met, rect, 1f, 0);
           fa.glyphTable.Add(glyph);
@@ -1572,12 +1656,12 @@ namespace PatternBreak {
           gi++;
         }
         SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
-        SetField(fa, "m_AtlasWidth", face.atlasW);
-        SetField(fa, "m_AtlasHeight", face.atlasH);
+        SetField(fa, "m_AtlasWidth", atlasW);
+        SetField(fa, "m_AtlasHeight", atlasH);
         SetField(fa, "m_AtlasPadding", 2);
         SetField(fa, "m_AtlasPopulationMode", 0); // Static — the app owns the atlas
         var mat = fa.material != null ? fa.material : new Material(shader);
-        if (fa.material == null) mat.name = "KitFace Baked Material";
+        if (fa.material == null) mat.name = faceName + " Material";
         mat.SetTexture("_MainTex", tex);
         if (!SetField(fa, "m_Material", mat)) {
           Debug.LogWarning("UI Kit Maker: couldn't attach the baked face material on this TMP version — baked face skipped.");
@@ -1590,10 +1674,10 @@ namespace PatternBreak {
         fa.ReadFontAssetDefinition();
         EditorUtility.SetDirty(fa);
         AssetDatabase.SaveAssets();
-        Debug.Log("UI Kit Maker: baked alphabet face assembled at " + assetPath + " — " + fa.characterTable.Count
-          + " glyphs of the app's exact pixels (pattern, glints and gloss included). Put it on any TMP label for hero text: Font Asset = KitFace Baked, label color WHITE. Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics.");
+        Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
+          + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics.");
       } catch (Exception e) {
-        Debug.LogWarning("UI Kit Maker: the baked face couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
+        Debug.LogWarning("UI Kit Maker: " + faceName + " couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
     }
     /* ── the kit's fill as a one-click Color Gradient preset: prefab labels
@@ -1770,12 +1854,46 @@ namespace PatternBreak {
         var label = labeled.Contains(a.component) ? DefaultLabel(a.component) : null;
         if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont, m)) any = true;
       }
+#if UNITY_2023_2_OR_NEWER
+      if (HeroLabelPrefab(dir, root)) any = true;
+#endif
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
       return any;
     }
+#if UNITY_2023_2_OR_NEWER
+    /* ── HeroLabel: the app's paint order as a prefab. Two stacked texts —
+       the Stroke face behind (every outline/shadow/glow merges into one
+       silent layer) and the Fill face in front (no stroke ever crosses a
+       letterform). Retype BOTH children to change the word; keep both
+       colors white. ── */
+    static bool HeroLabelPrefab(string dir, string root) {
+      var front = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
+      var back = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
+      if (front == null || back == null) return false;
+      var go = new GameObject("HeroLabel", typeof(RectTransform));
+      go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
+      for (int i = 0; i < 2; i++) {
+        var lgo = new GameObject(i == 0 ? "Stroke" : "Fill", typeof(RectTransform), typeof(CanvasRenderer));
+        lgo.transform.SetParent(go.transform, false);
+        var lrt = lgo.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+        var t = lgo.AddComponent<TextMeshProUGUI>();
+        t.text = "PLAY";
+        t.alignment = TextAlignmentOptions.Center;
+        t.fontSize = 150f;
+        t.raycastTarget = false;
+        t.font = i == 0 ? back : front;
+        t.color = Color.white;
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/HeroLabel.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+#endif
   }
 
   /* Applies manifest settings to kit textures AS THEY IMPORT — covers
@@ -1786,7 +1904,7 @@ namespace PatternBreak {
       var path = assetPath.Replace("\\\\", "/");
       /* the baked-face atlas is a TEXTURE with exact glyph rects — sprite
          packing, compression or NPOT rounding would all corrupt it */
-      if (path.Contains("UIKitMaker/") && path.EndsWith("/fonts/kitface-baked.png")) {
+      if (path.Contains("UIKitMaker/") && path.Contains("/fonts/kitface-baked") && path.EndsWith(".png")) {
         var bti = (TextureImporter)assetImporter;
         bti.textureType = TextureImporterType.Default;
         bti.mipmapEnabled = false;
@@ -1851,11 +1969,22 @@ namespace PatternBreak {
       foreach (var p in imported) {
         var norm = p.Replace("\\\\", "/");
         if (!norm.EndsWith("/kit-manifest.json")) continue;
-        var parts = norm.Split('/');
-        if (parts.Length < 3 || parts[0] != "Assets") continue;
-        var top = parts[1];
-        if (top == "UIKitMaker" || !top.StartsWith("UIKitMaker")) continue;
-        var dupTop = "Assets/" + top;
+        /* the manifest's GRANDPARENT is the dropped kit root (it holds
+           <slug>/ and Editor/). Canonical is Assets/UIKitMaker — anything
+           else named like the macOS/Unity suffix forks ("UIKitMaker 1"),
+           a nested drop (Assets/UIKitMaker/UIKitMaker) or a zip-wrapper's
+           inner UIKitMaker gets relocated. Deliberately RENAMED user
+           copies ("UIKitMaker-backup") are left alone: destroying a
+           backup is worse than the compile error it causes. */
+        var slugDir = Path.GetDirectoryName(norm);
+        if (string.IsNullOrEmpty(slugDir)) continue;
+        var dupTop = Path.GetDirectoryName(slugDir);
+        if (string.IsNullOrEmpty(dupTop)) continue;
+        dupTop = dupTop.Replace("\\\\", "/");
+        if (dupTop == "Assets/UIKitMaker") continue; // home already
+        if (dupTop == "Assets" || !dupTop.StartsWith("Assets/")) continue; // never operate on roots
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(dupTop), "^UIKitMaker( \\\\d+)?$")) continue;
+        if (!Directory.Exists(dupTop)) continue; // a sibling manifest already valeted this tree
         int relocated = 0;
         try {
           foreach (var f in Directory.GetFiles(dupTop, "*", SearchOption.AllDirectories)) {
@@ -1873,15 +2002,25 @@ namespace PatternBreak {
           continue;
         }
         /* the valet may have just replaced this importer itself — the domain
-           reload that follows wipes any queued pass, so clear the receipts
-           and let the post-reload sweep re-import every kit fresh */
-        try {
-          if (Directory.Exists("Assets/UIKitMaker"))
-            foreach (var lockP in Directory.GetFiles("Assets/UIKitMaker", "kit.lock.json", SearchOption.AllDirectories)) File.Delete(lockP);
-        } catch (Exception) { }
+           reload that follows wipes any queued pass. A session flag survives
+           the reload and tells the sweep to re-import EVERY kit; receipts
+           stay on disk, so orphan history (I3) survives too (review catch:
+           deleting locks silently destroyed deferred-orphan tracking). */
+        SessionState.SetBool("PBKitValetPending", true);
         AssetDatabase.DeleteAsset(dupTop);
+        // a zip-wrapper husk ("candy-arcade-engine-kit/") left holding nothing
+        // gets swept too — but never the canonical folder or Assets itself
+        var wrapper = Path.GetDirectoryName(dupTop);
+        if (!string.IsNullOrEmpty(wrapper)) {
+          wrapper = wrapper.Replace("\\\\", "/");
+          try {
+            if (wrapper != "Assets" && wrapper != "Assets/UIKitMaker" && Directory.Exists(wrapper)
+                && Directory.GetFileSystemEntries(wrapper).Length == 0)
+              AssetDatabase.DeleteAsset(wrapper);
+          } catch (Exception) { }
+        }
         valeted = true;
-        Debug.Log("UI Kit Maker: that drop landed as '" + top + "' (macOS never merges folders) — " + relocated + " files were moved home into Assets/UIKitMaker and the duplicate folder was removed. Drop updates anywhere; the kit finds its way.");
+        Debug.Log("UI Kit Maker: that drop landed at '" + dupTop + "' (folders never merge on drop) — " + relocated + " files were moved home into Assets/UIKitMaker and the duplicate was removed. Drop updates anywhere UIKitMaker-shaped; the kit finds its way.");
       }
       if (valeted) {
         cache.Clear();
