@@ -609,7 +609,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30]] as const).map(([pid, fam, fs]) => {
         const pc = pieceCfg(pid);
         const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
-        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 10) / 10 };
+        /* x0.78 fit factor: the app WIDENS its shell to the word, a Unity
+           rect is fixed — the raw app size crowds it (owner: "too big now
+           for the available space"); 0.78 lands the proportion the owner
+           approved (90.7 -> 70.7 on their kit) */
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.78 * 10) / 10 };
       }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
@@ -921,7 +925,14 @@ namespace PatternBreak {
     public float fontSize = 150f;
     string appliedText; float appliedSize;
     void OnEnable() { Apply(); }
-    void Update() { if (text != appliedText || fontSize != appliedSize) Apply(); }
+    void Update() {
+      if (text != appliedText || fontSize != appliedSize) { Apply(); return; }
+      /* typing on any LAYER adopts into the group — editing the Fill child
+         used to leave Stroke and Shadow behind (field: "changing the type
+         did not change the stroke layer") */
+      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true))
+        if (label.text != appliedText) { text = label.text; Apply(); return; }
+    }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
       appliedText = text; appliedSize = fontSize;
@@ -998,6 +1009,13 @@ namespace PatternBreak {
       if (grad) { label.enableVertexGradient = true; label.colorGradient = new VertexGradient(top, top, bottom, bottom); label.color = Color.white; }
       else { label.enableVertexGradient = false; label.color = top; }
     }
+    /* edit-mode probes: right-click the component header. If Test Press
+       moves the label but a real Play-mode press doesn't, the mechanics
+       are fine and the pointer events are the problem — and vice versa. */
+    [ContextMenu("Test Press")]
+    void TestPress() { down = true; ApplyCurrent(); }
+    [ContextMenu("Test Release")]
+    void TestRelease() { down = false; over = false; ApplyCurrent(); }
 #endif
   }
 }
@@ -1332,6 +1350,16 @@ namespace PatternBreak {
         sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
           ? "Layer faces assembled."
           : "Layer faces NOT assembled in this project.");
+        // the sink, family by family: what the kit expects vs what the
+        // prefab actually carries — the line that ends the guessing
+        foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab" }) {
+          var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+          if (pf == null) continue;
+          var inkc = pf.GetComponent<LabelStateInk>();
+          sb.Append("\\n  " + fam + ": label size " + LabelSize(m, fam)
+            + " · press sink expected " + ExpectedShift(m, fam, "pressed") + "px, armed "
+            + (inkc != null ? inkc.pressedShift + "px" : "NONE (no state component)"));
+        }
 #endif
       }
       Debug.Log(sb.ToString());
@@ -1723,7 +1751,7 @@ namespace PatternBreak {
           hint.alignment = TextAnchor.LowerRight;
           hint.color = new Color(1f, 1f, 1f, 0.5f);
           hint.raycastTarget = false;
-          hint.text = "Press Play (top center) to feel hover + press. Edit with Play OFF - Play-mode changes don't stick.\\nRetype any label: expand the piece, select its Label, edit the text box in the Inspector.\\nBroke something? Select the piece > Overrides > Revert All - or drag a fresh copy from Prefabs/.\\nThese are copies; the kit itself can't be damaged from here. Delete this note anytime.";
+          hint.text = "Press Play (top center) to feel hover + press. Edit with Play OFF - Play-mode changes don't stick.\\nRetype any label: expand the piece, select its Label, type in the Hero Label box (typing on any layer works too - the group follows).\\nBroke something? Select the piece > Overrides > Revert All - or drag a fresh copy from Prefabs/.\\nThese are copies; the kit itself can't be damaged from here. Delete this note anytime.";
         }
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
           Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
