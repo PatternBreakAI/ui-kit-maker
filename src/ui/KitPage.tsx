@@ -1215,10 +1215,12 @@ const kitTier = useGen((s) => s.tier);
   const maySvg = canExport(kitTier, "svg");
   const exportActions = [
     { id: "engine",
-      name: kitTier === "free" ? "Unity starter kit (ZIP)" : "Engine kit (ZIP)",
+      // THE Unity download, named as such (owner call) — Unreal is a
+      // promise, not a format, until it gets the same first-class bridge
+      name: kitTier === "free" ? "Unity starter kit (ZIP)" : "Unity kit (ZIP)",
       desc: kitTier === "free"
         ? "Three wired pieces — button, chip, progress. Drop into Assets/, prefabs appear; re-download later and everything restyles in place. The full kit lands in the same folder when you upgrade."
-        : "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, in-place restyle on re-import. Unreal recipes included.",
+        : "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
       busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
     { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
@@ -3080,7 +3082,8 @@ const kitTier = useGen((s) => s.tier);
         <SpecList rows={[
           ["Figma", "Drop any exported SVG on the canvas; ungroup once for the layer tree (shadow, extrusion, shell, face, content, gloss)"],
           ["Illustrator", "Opens directly. The SVG-Tiny clipping notice concerns re-saving only; imports are complete"],
-          ["Engines", "Atomic engine export: content-free nine-slice PNGs + kit-manifest.json (dims, margins, pivots, tintability), a Unity importer + example prefabs, Unreal UMG recipes — labels stay live engine text; the sprite sheet is a visual catalog only"],
+          ["Unity", "The Unity kit: nine-slice sprites + kit-manifest.json (dims, margins, pivots, tintability), a smart importer, wired example prefabs, styled live text and a press-Play Playground scene; the sprite sheet is a visual catalog only"],
+          ["Unreal", "Coming soon — the Unity kit's zip already carries UMG recipes (unreal/) for early birds"],
           ["Nine-slice", "Caps are capScale × shell height and never stretch; content gives the text-safe insets (9slice.json)"],
           ["Settings", "The whole design as portable JSON — re-import it or share it as a team default"],
         ]} />

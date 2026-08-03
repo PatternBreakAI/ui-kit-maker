@@ -2257,11 +2257,10 @@ export interface KitOpts {
   /** Joystick deflection, each axis −1..1. */
   stick?: [number, number];
   label?: string; segments?: string[]; icon?: IconDef | null; expand?: boolean; textOy?: number; textOx?: number;
-  /** false = render the input as a BARE surface with no specimen
-   *  placeholder baked in — the engine export's contract is that every
-   *  replaceable text is live engine content (owner: strip static text
-   *  so Unity users lean on the dynamic type system). In-app renders
-   *  omit this and keep the quiet "Type something…" specimen. */
+  /** false = render the input as a BARE surface with no "Type something…"
+   *  specimen baked in. Available as a knob; the engine export ships the
+   *  specimen (owner call: the affordance is necessary — it's how the
+   *  piece reads as an input). */
   placeholder?: boolean;
   /** Docked emblem socket — a silhouette-aware mini shell riding a bar's
    *  end, hosting any glyph (timer, coin, avatar placeholder). The dock
@@ -6417,13 +6416,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
     }
     case "dropdown": {
-      /* explicit icon null = the engine export's bare closed shell: no
-         chevron baked (it ships as icons/chevron.png, the value text is
-         live engine content) — and since the empty label would let the
-         shell collapse to icon-only width, the bare render holds the
-         input's standard width instead. */
+      /* explicit icon null = chevron removed (resolveKitIcon's "none",
+         honored like every other piece). An explicitly EMPTY label (the
+         engine export's value-free shell) holds the input's standard
+         width — an empty label plus the chevron otherwise reads as
+         icon-only and collapses the shell to a circle. */
       const bare = opts.icon === null;
-      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: bare ? 0 : 30 * k }, { label: opts.label ?? "Select option", iconDef: bare ? null : STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: bare && !opts.label ? 560 * k : undefined });
+      if (opts.label === "" && !bare) {
+        /* the export's value-free shell: the chevron rides the RIGHT CAP —
+           build() would center a label-less icon, parking it in the
+           nine-slice stretch zone where any width change shears it. The
+           export widens the sprite's right border to shield the glyph. */
+        const w2 = 560 * k, h2 = 110 * k;
+        const track2 = build(cfg, state, { x: 39, y: 30, h: h2, fs: 32 * k, iconSize: 0 }, { label: "", iconDef: null, shapeOverride: sov, fixedW: w2 });
+        return inject(track2, iconGroup(STOCK_ICONS.chevron, 39 + w2 - 56 * k, 30 + h2 / 2 - 13 * k, 26 * k, glow, { strokeWidth: 2.6 * iconWK }));
+      }
+      const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: bare ? 0 : 30 * k }, { label: opts.label ?? "Select option", iconDef: bare ? null : STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: opts.label === "" ? 560 * k : undefined });
       if (state !== "pressed") return btn;
       // pressed = open: the menu drops beneath, drawn from the same palette.
       // The viewBox origin is -glowPad, so the content width is the total

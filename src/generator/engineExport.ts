@@ -217,7 +217,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "small", family: "button-small", h: 100, usage: "Compact action button." },
     { id: "chip", family: "chip", h: 84, usage: "Pill / chip. Value text is live engine text." },
     { id: "tab", family: "tab", h: 84, usage: "Tab. Selected state = tint or the full-material variant." },
-    { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Value + caret are live engine widgets." },
+    { id: "input", family: "input", h: 124, usage: "Input field surface (well included; the quiet 'Type something…' specimen is part of the art). Value + caret are live engine widgets — put your live input text above the surface." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
@@ -225,11 +225,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   ];
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
-    const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never }
-      // the input's specimen placeholder is app-only chrome — the surface
-      // ships bare (owner: no static text; live engines type their own)
-      : n.id === "input" ? { placeholder: false }
-      : {};
+    /* the input keeps its quiet "Type something…" specimen (owner call:
+       the affordance is necessary — it's how the piece reads as an input);
+       replaceable CONTENT stays stripped via the blanket label/icon nulls */
+    const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
     const fullSvg = shell(n.id, rowOpts, slim);
     const slice = sliceOf(n.id, n.h);
     await addPng(`${n.family}/base.9.png`, fullSvg,
@@ -282,12 +281,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("toggle/track.9.png", capsule(220, 110, wellC, `<path d="${rr(6, 6, 208, 98, 49)}" fill="${hexRgba(bevelC, 0.25)}"/>`), { component: "toggle", part: "track", nineSlice: barSlice(110), pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Toggle track. Tint toward the accent when ON." });
   await addPng("toggle/thumb.png", ballSvg(110), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Toggle knob — engine slides it between ends." });
 
-  await addPng("checkbox/base.png", shell("checkbox", {}, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box. The check mark is a separate tintable glyph." });
-  await addPng("radio/base.png", shell("radio", {}, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell. The dot is a separate tintable glyph." });
+  /* affordance glyphs SHIP (owner call — the ghost marks, chevron and kit
+     icon are how the pieces read; "none" per piece on uikitmaker.com is
+     the strip switch, honored end to end): icon undefined here overrides
+     shell()'s blanket null back to "as designed" */
+  await addPng("checkbox/base.png", shell("checkbox", { icon: undefined }, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box, ghost mark included (as designed). The lit check is a separate tintable glyph (icons/check.png)." });
+  await addPng("radio/base.png", shell("radio", { icon: undefined }, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell, ghost pip included (as designed). The lit dot is a separate tintable glyph (icons/dot.png)." });
   await addPng("orb/lit.png", shell("orb", {}, undefined, 1), { component: "orb", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, lit — streaks, statuses, day markers." });
   await addPng("orb/off.png", shell("orb", {}, undefined, 0), { component: "orb", part: "off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, off (dark glass)." });
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
-  await addPng("iconbtn/base.png", shell("iconbtn"), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell. Icon is a separate tintable glyph." });
+  await addPng("iconbtn/base.png", shell("iconbtn", { icon: undefined }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
 
   /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
      The tier ladder (this kit's names and colors, custom edits included)
@@ -311,9 +314,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      Hover recipe made into an asset: the hover state's aura color at the
      hover glow dial's strength. */
   {
-    const ddSvg = shell("dropdown", {}, slim);
+    const ddSvg = shell("dropdown", { icon: undefined }, slim);
+    /* the shell's chevron rides ~56 SVG units off the right edge — the
+       right border grows past it so nine-slice stretching never touches
+       the glyph (the raster clamp still guards the center strip) */
+    const ddSlice = sliceOf("dropdown", 110);
+    ddSlice.right = Math.max(ddSlice.right, Math.round(80 * PNG_SCALE));
     await addPng("dropdown/base.9.png", ddSvg,
-      { component: "dropdown", part: "base", nineSlice: sliceOf("dropdown", 110), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell. The value text and chevron are live engine content." }, true);
+      { component: "dropdown", part: "base", nineSlice: ddSlice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, chevron included (as designed, safe inside the right cap). The value text is live engine content." }, true);
     await addPng("dropdown/menu.9.png",
       svgWrap(440, 260, `<path d="${rr(1, 1, 438, 258, 14)}" fill="${darken(innerC, 0.55)}" stroke="${darken(bevelC, 0.5)}" stroke-width="1.5"/>`),
       { component: "dropdown", part: "menu", nineSlice: { left: 28, right: 28, top: 28, bottom: 28 }, pivot: { x: 0.5, y: 0 }, tintable: false, usage: "Open-menu plate. Stretch vertically to the option count; option rows are live engine text." });
