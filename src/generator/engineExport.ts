@@ -561,7 +561,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         bakedFace,
         note: "Render all labels as live engine text in this face.",
       },
-      palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
+      /* highlight = the app's bloom/aura ink: lighting tint FIRST, Highlight
+         role as fallback (bevel's hiC) — emitting only the Highlight left
+         tinted-light kits with neutral gray auras in Unity (owner: "the
+         glows underneath the components are rendering weird") */
+      palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
          baked into sprites (auras overlap what's behind them), composed
          engine-side from fx/glow.png; the Playground shows the pattern */
@@ -1261,6 +1265,21 @@ namespace PatternBreak {
         // intact (fully idempotent: unchanged kits report "already right")
         bool force = SessionState.GetBool("PBKitValetPending", false);
         if (force) SessionState.SetBool("PBKitValetPending", false);
+        /* a NEW importer version arriving mid-Play recompiles scripts, and
+           that domain reload wipes the play-wait subscription — without
+           this re-arm, stopping Play finished NOTHING and the kit sat
+           half-imported behind old receipts (owner field repro: "now, NO
+           type at all"). Re-arm while playing; run the deferred build if
+           Play already ended. */
+        if (SessionState.GetBool("PBKitPlayPending", false)) {
+          if (EditorApplication.isPlayingOrWillChangePlaymode) {
+            if (!playWaitArmed) { playWaitArmed = true; EditorApplication.playModeStateChanged += ResumeAfterPlay; }
+          } else {
+            SessionState.SetBool("PBKitPlayPending", false);
+            Debug.Log("UI Kit Maker: Play ended before the last import could finish — completing the kit build now.");
+            force = true;
+          }
+        }
         var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
@@ -1282,10 +1301,17 @@ namespace PatternBreak {
       if (change != PlayModeStateChange.EnteredEditMode) return;
       EditorApplication.playModeStateChanged -= ResumeAfterPlay;
       playWaitArmed = false;
+      SessionState.SetBool("PBKitPlayPending", false);
+      Debug.Log("UI Kit Maker: Play stopped — finishing the kit build now.");
       EditorApplication.delayCall += Apply;
     }
     static void ImportKit(string mPath) {
       if (EditorApplication.isPlayingOrWillChangePlaymode) {
+        /* the flag persists across domain reloads (a NEW importer version
+           arriving mid-Play recompiles scripts and wipes this class's
+           statics — the sweep re-arms the wait from the flag, field repro:
+           "now, NO type at all") */
+        SessionState.SetBool("PBKitPlayPending", true);
         if (!playWaitArmed) {
           playWaitArmed = true;
           EditorApplication.playModeStateChanged += ResumeAfterPlay;
@@ -1587,18 +1613,24 @@ namespace PatternBreak {
           rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
           rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
           if (auraSprite != null) {
-            var auraGo = new GameObject(prefab.name + " Aura", typeof(RectTransform), typeof(CanvasRenderer));
-            auraGo.transform.SetParent(canvasGo.transform, false);
+            /* the aura is a CHILD, so it follows when the user moves the
+               piece (field: moved pieces left their glow stranded) — and a
+               child would render OVER its parent, so it carries its own
+               canvas sorted one step behind: it draws under every piece. */
+            var auraGo = new GameObject("Aura", typeof(RectTransform), typeof(CanvasRenderer));
+            auraGo.transform.SetParent(inst.transform, false);
+            auraGo.transform.SetSiblingIndex(0);
             var art = auraGo.GetComponent<RectTransform>();
-            art.anchorMin = new Vector2(0f, 1f); art.anchorMax = new Vector2(0f, 1f);
+            art.anchorMin = new Vector2(0.5f, 0.5f); art.anchorMax = new Vector2(0.5f, 0.5f);
             art.sizeDelta = new Vector2(w * 0.92f * auraS, h * 0.52f * auraS);
-            art.anchoredPosition = rt.anchoredPosition + new Vector2(-auraLx * w * 0.16f, -auraLy * h * 0.3f);
+            art.anchoredPosition = new Vector2(-auraLx * w * 0.16f, -auraLy * h * 0.3f);
+            var ac = auraGo.AddComponent<Canvas>();
+            ac.overrideSorting = true;
+            ac.sortingOrder = -1;
             var ai = auraGo.AddComponent<UnityEngine.UI.Image>();
             ai.sprite = auraSprite;
             ai.color = auraColor;
             ai.raycastTarget = false;
-            // siblings render in order: slide the aura just BEFORE its piece
-            auraGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
           }
           y -= h + 44f;
           if (w > colMaxW) colMaxW = w;
