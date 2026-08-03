@@ -10,7 +10,7 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, setEmbedFont } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, setEmbedFont } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -134,13 +134,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   /* Designed state renders — unlike shell(), state forks are KEPT: the
      hover/pressed/disabled looks are the kit's own recipes, baked so the
-     engine can Sprite-Swap them. Outer effects still engine-composed. */
+     engine can Sprite-Swap them. Outer effects still engine-composed —
+     AND that must hold inside the fork too: a designed state carries its
+     own shadow/contact/bloom, and zeroing only the master let them bake
+     back in. The hover sprite shipped 32px wider and 74px taller than
+     base, so the swap shrank the art inside the same rect and added a
+     smudged halo (owner: "the rollovers are weird and incorrect"). Calm
+     the fork exactly like the master so all four states share base's
+     geometry. */
   const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}) => {
     const c = clone(pieceCfg(id));
-    c.shadow.opacity = 0;
-    c.candy.contact.opacity = 0;
+    const calm = (g: GenConfig) => {
+      g.shadow.opacity = 0;
+      g.candy.contact.opacity = 0;
+      g.candy.bloom.opacity = 0;
+    };
+    calm(c);
     for (const s of Object.values(c.states)) s.glow = 0;
-    slim(c);
+    for (const f of Object.values(c.stateDesigns)) if (f) calm(f as GenConfig);
     return renderKit(c, id, effKitSize(st.kitSizes[id]), state, undefined, st.kitShapes[id], { label: "", icon: null, ...opts });
   };
 
@@ -168,19 +179,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; crop: boolean; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false): Promise<void> => {
+  const pngQueue: { path: string; svg: string; crop: boolean; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false, group?: string): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
-    pngQueue.push({ path, svg, crop, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
+    pngQueue.push({ path, svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   const rasterQueue = async () => {
     const total = pngQueue.length + (catalog ? 1 : 0);
+    /* entries sharing a group (a family's rest + swap states) rasterize
+       together on ONE union crop box, so every state sprite shares base's
+       coordinate space — a pressed sink stays a sink instead of being
+       stretched back over the rect, and nothing jumps on swap. Groups
+       resolve lazily when their first member is reached, keeping the
+       progress bar honest. */
+    const byGroup = new Map<string, number[]>();
+    pngQueue.forEach((q, i) => { if (q.group) byGroup.set(q.group, [...(byGroup.get(q.group) ?? []), i]); });
+    const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number }>();
     for (let qi = 0; qi < pngQueue.length; qi++) {
       const q = pngQueue[qi];
       onProgress?.(qi, total, q.path);
-      const { bytes, w, h } = q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE);
+      if (q.group && !grouped.has(qi)) {
+        const idxs = byGroup.get(q.group)!;
+        const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE);
+        idxs.forEach((i, j) => grouped.set(i, outs[j]));
+      }
+      const { bytes, w, h } = grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
       // Last line of defence: whatever the cap math says, borders must leave
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
@@ -231,18 +256,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
     const fullSvg = shell(n.id, rowOpts, slim);
     const slice = sliceOf(n.id, n.h);
+    /* swap families crop base + states on ONE union box (the group) so the
+       four sprites share a coordinate space — see rasterQueue */
+    const swap = ["primary", "secondary", "small", "chip", "tab", "slot", "datarow"].includes(n.id);
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage }, true);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage }, true, swap ? n.family : undefined);
     const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
     /* interactive pieces ship their DESIGNED states for engine Sprite Swap —
        generic color-tint transitions never match the kit's own recipes */
-    if (["primary", "secondary", "small", "chip", "tab", "slot", "datarow"].includes(n.id)) {
+    if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
         await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts),
-          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice as base. Glow and lift stay engine-composed (fx/glow.png, a small translate).` }, true);
+          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/glow.png, a small translate).` }, true, n.family);
       }
     }
   }
@@ -1272,9 +1300,11 @@ namespace PatternBreak {
       bool prefabsReady = (prev != null && prev.prefabsGenerated) || AssetDatabase.IsValidFolder(root + "/Prefabs");
       bool prefabsNew = false;
       if (!prefabsReady && !tmpPending) { prefabsNew = GeneratePrefabs(root, manifest); prefabsReady = prefabsNew; }
-      // dead-button cure for projects whose examples predate state wiring:
-      // upgrade in place (strictly additive), no menu hunt required
-      if (prefabsReady && !prefabsNew) UpgradePrefabWiring(root);
+      // per-import maintenance for examples generated by OLDER kit versions:
+      // missing state wiring is added, stale label dress is re-applied —
+      // in place, surgical, no menu hunt (fresh generations are current
+      // by construction and skip this)
+      if (prefabsReady && !prefabsNew) MaintainExamplePrefabs(root, manifest);
 #if UNITY_2023_2_OR_NEWER
       if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
 #endif
@@ -1870,6 +1900,48 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: fill preset ready — on any TMP label, tick Color Gradient and set Color Preset to KitFace Gradient (in fonts/) to paint the text in the kit's own fill.");
       } else EditorUtility.SetDirty(g);
     }
+    /* The kit's CURRENT label dress — ink (solid or gradient), weight,
+       italic, tracking — shared by prefab generation and by the per-import
+       maintenance pass. Words, font size and alignment are never in here:
+       those belong to the user. */
+    static void TargetInk(PBStyle s, out Color top, out Color bot, out bool grad) {
+      top = Color.white; bot = Color.white; grad = false;
+      if (s == null) return;
+      if (s.fillMode == "gradient" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top) && ColorUtility.TryParseHtmlString(s.fill2 != null ? s.fill2 : "", out bot)) grad = true;
+      else if (s.fillMode == "solid" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top)) { }
+      else top = Color.white; // "auto" resolves against each face; white is the safe stage ink
+    }
+    static FontStyles TargetFontStyle(PBStyle s) {
+      var style = s != null && s.italic ? FontStyles.Italic : FontStyles.Normal;
+      if (s != null && s.weight >= 700) style = style | FontStyles.Bold;
+      return style;
+    }
+    static void StyleLabel(TextMeshProUGUI t, PBStyle s) {
+      Color top, bot; bool grad;
+      TargetInk(s, out top, out bot, out grad);
+      t.fontStyle = TargetFontStyle(s);
+      // the kit's tracking: both sides speak hundredths of an em
+      if (s != null) t.characterSpacing = s.spacingEmPct;
+      if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
+      else { t.enableVertexGradient = false; t.color = top; }
+    }
+    // only the label WE generated (named "Label") — a renamed or added
+    // text is the user's and is never touched
+    static TextMeshProUGUI FindOurLabel(GameObject go) {
+      foreach (var t in go.GetComponentsInChildren<TextMeshProUGUI>(true))
+        if (t.gameObject.name == "Label") return t;
+      return null;
+    }
+    static bool LabelCurrent(TextMeshProUGUI t, PBStyle s, TMP_FontAsset face) {
+      Color top, bot; bool grad;
+      TargetInk(s, out top, out bot, out grad);
+      if (face != null && t.font != face) return false;
+      if (t.fontStyle != TargetFontStyle(s)) return false;
+      if (s != null && !Mathf.Approximately(t.characterSpacing, s.spacingEmPct)) return false;
+      if (t.enableVertexGradient != grad) return false;
+      if (grad) return t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white;
+      return t.color == top;
+    }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
       go.transform.SetParent(parent.transform, false);
@@ -1882,20 +1954,7 @@ namespace PatternBreak {
       t.fontSize = 40;
       t.raycastTarget = false;
       if (face != null) t.font = face;
-      Color top = Color.white, bot = Color.white;
-      bool grad = false;
-      if (s != null) {
-        if (s.fillMode == "gradient" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top) && ColorUtility.TryParseHtmlString(s.fill2 != null ? s.fill2 : "", out bot)) grad = true;
-        else if (s.fillMode == "solid" && ColorUtility.TryParseHtmlString(s.fill != null ? s.fill : "", out top)) { }
-        else top = Color.white; // "auto" resolves against each face; white is the safe stage ink
-        var style = s.italic ? FontStyles.Italic : FontStyles.Normal;
-        if (s.weight >= 700) style = style | FontStyles.Bold;
-        t.fontStyle = style;
-        // the kit's tracking: both sides speak hundredths of an em
-        t.characterSpacing = s.spacingEmPct;
-      }
-      if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
-      else t.color = top;
+      StyleLabel(t, s);
     }
 #endif
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m) {
@@ -1960,7 +2019,9 @@ namespace PatternBreak {
         btn.transition = Selectable.Transition.SpriteSwap;
         var ss = new SpriteState();
         ss.highlightedSprite = hover;
-        ss.selectedSprite = hover;
+        // selected stays the RESTING face — mirroring hover here left a
+        // clicked button stuck in rollover after the pointer moved away
+        ss.selectedSprite = null;
         ss.pressedSprite = pressed;
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
@@ -2033,51 +2094,84 @@ namespace PatternBreak {
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
       return any;
     }
-    /* Example prefabs from kits downloaded before state wiring existed
-       carry no Button — hover/press feels dead in Play mode (owner field
-       report) and the cure was a menu nobody finds. Upgrade OUR prefabs in
-       place instead: only roots whose Image shows this kit's own base
-       sprite, only when NO Selectable of any kind is present (one the user
-       removed or replaced is a choice we honor), and only when the family
-       ships state sprites. The addition is strictly additive — labels,
-       sizes and added components survive — and prefab instances already
-       placed in scenes (the Playground included) inherit it automatically. */
-    static void UpgradePrefabWiring(string root) {
+    /* Per-import maintenance for OUR example prefabs — the two things that
+       must track the kit even though "your prefabs are yours" (owner field
+       reports: dead buttons from pre-wiring kits; labels wearing the type
+       style from the day they were generated — "legacy text"):
+       1. WIRING: a prefab with NO Selectable of any kind whose family
+          ships state sprites gets Button + SpriteSwap (one the user
+          removed or replaced is a choice we honor).
+       2. LABEL DRESS: the label WE generated (named "Label") is re-dressed
+          in the kit's CURRENT type — ink, weight, italic, tracking, face.
+          Words, size and alignment are the user's and never touched;
+          renamed or added texts are skipped entirely.
+       Both are surgical, idempotent (nothing saves unless something
+       actually changed), and placed copies (the Playground included)
+       inherit the result automatically. */
+    static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0;
+      int wired = 0, redressed = 0;
+#if UNITY_2023_2_OR_NEWER
+      var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      var kitStyle = m != null && m.typography != null ? m.typography.style : null;
+#endif
       foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
         var path = AssetDatabase.GUIDToAssetPath(g);
         var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (asset == null) continue;
         var rootImg = asset.GetComponent<Image>();
-        if (rootImg == null || rootImg.sprite == null || asset.GetComponent<Selectable>() != null) continue;
+        if (rootImg == null || rootImg.sprite == null) continue;
         var spritePath = AssetDatabase.GetAssetPath(rootImg.sprite).Replace("\\\\", "/");
         if (!spritePath.StartsWith(root + "/assets/")) continue; // not this kit's sprite — not ours to touch
         var famDir = Path.GetDirectoryName(spritePath).Replace("\\\\", "/");
         var hover = S(famDir + "/base-hover.9.png");
         var pressed = S(famDir + "/base-pressed.9.png");
         var disabled = S(famDir + "/base-disabled.9.png");
-        if (hover == null && pressed == null && disabled == null) continue; // family ships no states
+        bool wantWiring = asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
+        bool wantDress = false;
+#if UNITY_2023_2_OR_NEWER
+        if (kitStyle != null) {
+          var probe = FindOurLabel(asset);
+          wantDress = probe != null && !LabelCurrent(probe, kitStyle, face);
+        }
+#endif
+        if (!wantWiring && !wantDress) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
-          if (contents.GetComponent<Selectable>() == null) {
+          bool changed = false;
+          if (wantWiring && contents.GetComponent<Selectable>() == null) {
             var btn = contents.AddComponent<Button>();
             btn.targetGraphic = contents.GetComponent<Image>();
             btn.transition = Selectable.Transition.SpriteSwap;
             var ss = new SpriteState();
             ss.highlightedSprite = hover;
-            ss.selectedSprite = hover;
+            // selected stays the RESTING face — mirroring hover here made a
+            // clicked button look stuck in rollover (field: "weird and
+            // incorrect"); null falls back to the base sprite
+            ss.selectedSprite = null;
             ss.pressedSprite = pressed;
             ss.disabledSprite = disabled;
             btn.spriteState = ss;
-            PrefabUtility.SaveAsPrefabAsset(contents, path);
-            wired++;
+            wired++; changed = true;
           }
+#if UNITY_2023_2_OR_NEWER
+          if (wantDress) {
+            var label = FindOurLabel(contents);
+            if (label != null) {
+              if (face != null) label.font = face;
+              StyleLabel(label, kitStyle);
+              redressed++; changed = true;
+            }
+          }
+#endif
+          if (changed) PrefabUtility.SaveAsPrefabAsset(contents, path);
         } finally { PrefabUtility.UnloadPrefabContents(contents); }
       }
       if (wired > 0)
         Debug.Log("UI Kit Maker: wired hover/press/disabled states onto " + wired + " example prefab(s) from an earlier kit version — press Play and mouse over them. Copies already placed in scenes (the Playground included) picked the wiring up automatically.");
+      if (redressed > 0)
+        Debug.Log("UI Kit Maker: re-dressed the label on " + redressed + " example prefab(s) to the kit's current type style (words untouched) — the old dress was frozen at generation time.");
     }
 #if UNITY_2023_2_OR_NEWER
     /* ── HeroLabel: the app's paint order as a prefab. Two stacked texts —

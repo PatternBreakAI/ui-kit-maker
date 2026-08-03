@@ -153,6 +153,51 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
   });
 }
 
+/** Rasterize several SVGs sharing ONE canvas geometry (a component's rest +
+ *  hover/pressed/disabled renders) and crop them all to the UNION of their
+ *  alpha boxes (+margin). Sprite-swap variants must agree on coordinates:
+ *  cropped each to its own ink, a pressed state that sinks (shorter art)
+ *  loses its empty sky and the engine stretches it back over the same rect,
+ *  cancelling the sink — and any per-state ink difference becomes a visible
+ *  jump on swap. */
+export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number }[]> {
+  const canvases: HTMLCanvasElement[] = [];
+  let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
+  for (const svg of svgs) {
+    const full = await svgToPngBytes(svg, scale);
+    const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
+    const cv = document.createElement("canvas");
+    cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    canvases.push(cv);
+    const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    for (let yy = 0; yy < cv.height; yy++)
+      for (let xx = 0; xx < cv.width; xx++)
+        if (px[(yy * cv.width + xx) * 4 + 3] > 8) {
+          if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
+          if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
+        }
+  }
+  const encode = (cv: HTMLCanvasElement, sx: number, sy: number, cw: number, ch: number) =>
+    new Promise<{ bytes: Uint8Array; w: number; h: number }>((resolve, reject) => {
+      const out = document.createElement("canvas");
+      out.width = cw; out.height = ch;
+      out.getContext("2d")!.drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
+      out.toBlob(async (b) => {
+        if (!b) { reject(new Error("crop raster failed")); return; }
+        resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch });
+      }, "image/png");
+    });
+  if (x1 < 0) return Promise.all(canvases.map((cv) => encode(cv, 0, 0, cv.width, cv.height)));
+  x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin);
+  // raster rounding can vary canvas sizes by a pixel — clamp per canvas
+  return Promise.all(canvases.map((cv) => {
+    const X1 = Math.min(cv.width - 1, x1 + margin), Y1 = Math.min(cv.height - 1, y1 + margin);
+    return encode(cv, x0, y0, X1 - x0 + 1, Y1 - y0 + 1);
+  }));
+}
+
 /** Rasterize an SVG string to a transparent PNG at the given scale. */
 export function downloadPng(svg: string, name: string, scale = 2): Promise<void> {
   return new Promise((resolve, reject) => {
