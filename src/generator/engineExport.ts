@@ -602,6 +602,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           return [{ family: fam, state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
         });
       }),
+      /* per-family label sizes, the APP'S OWN formula (owner: "make sure
+         these sizes correlate to what we output from the app"): each
+         family's geometry font size x the kit-size factor x the Type Size
+         dial over its 52 baseline — the same three numbers renderKit uses */
+      labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30]] as const).map(([pid, fam, fs]) => {
+        const pc = pieceCfg(pid);
+        const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 10) / 10 };
+      }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
          baked into sprites (auras overlap what's behind them), composed
@@ -1251,7 +1260,8 @@ namespace PatternBreak {
   [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBLabelSize { public string family; public float size; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -1291,6 +1301,40 @@ namespace PatternBreak {
         if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
       }
       return changed;
+    }
+
+    /* One click, whole truth — the debugging loop this kit went through
+       pried these facts loose one screenshot at a time: play mode? build
+       queued? which export build? fonts in the zip? faces assembled? */
+    [MenuItem("Tools/PatternBreak/Kit Status")]
+    public static void KitStatus() {
+      var sb = new System.Text.StringBuilder();
+      sb.Append("UI Kit Maker status — ");
+      sb.Append(EditorApplication.isPlayingOrWillChangePlaymode
+        ? "editor is in PLAY MODE (kit builds wait for Stop). "
+        : "edit mode. ");
+      if (SessionState.GetBool("PBKitPlayPending", false)) sb.Append("A kit build is QUEUED and runs when Play stops. ");
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) sb.Append("No kit-manifest.json in this project — drop the UIKitMaker folder from the export zip into Assets/.");
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+        if (m == null) { sb.Append("\\n" + mPath + ": unreadable manifest."); continue; }
+        sb.Append("\\n'" + (string.IsNullOrEmpty(m.kit) ? m.slug : m.kit) + "'" + (m.kitVersion > 0 ? " v" + m.kitVersion : "")
+          + " [export build " + (string.IsNullOrEmpty(m.generatorVersion) ? "UNKNOWN — old zip, re-download" : m.generatorVersion) + "] — ");
+        sb.Append(File.Exists(root + "/kit.lock.json") ? "imported. " : "NOT imported yet. ");
+        sb.Append(m.typography != null && m.typography.bakedFace != null
+          ? "Zip carries the baked hero fonts. "
+          : "Zip has NO baked hero fonts (the font fetch failed during export — re-export from uikitmaker.com). ");
+#if UNITY_2023_2_OR_NEWER
+        sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
+          ? "Layer faces assembled."
+          : "Layer faces NOT assembled in this project.");
+#endif
+      }
+      Debug.Log(sb.ToString());
     }
 
     [MenuItem("Tools/PatternBreak/Reapply Kit Import Settings")]
@@ -1369,8 +1413,11 @@ namespace PatternBreak {
         if (!playWaitArmed) {
           playWaitArmed = true;
           EditorApplication.playModeStateChanged += ResumeAfterPlay;
-          Debug.Log("UI Kit Maker: the editor is in Play mode — sprites are in, and the kit's fonts, prefabs and Playground will finish building the moment Play stops.");
         }
+        /* say it EVERY time — the once-latched version left the Reapply
+           menu perfectly mute when run during Play (field: an owner deep
+           in a debugging loop, screenshotting an empty Console) */
+        Debug.Log("UI Kit Maker: the editor is in PLAY MODE — press STOP (the square, top center) and the kit build finishes by itself.");
         return;
       }
       var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
@@ -2130,9 +2177,21 @@ namespace PatternBreak {
     }
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
-    static float LabelSize(PBManifest m) {
+    static float LabelSize(PBManifest m, string family) {
+      // the app's own per-family size, shipped in the manifest; the single
+      // style.labelSize covers older zips
+      if (m != null && m.labelSizes != null)
+        foreach (var e in m.labelSizes) if (e.family == family) return e.size;
       var ty = m != null && m.typography != null ? m.typography.style : null;
       return ty != null && ty.labelSize > 0f ? ty.labelSize : 40f;
+    }
+    static float ExpectedShift(PBManifest m, string family, string state) {
+      if (m == null) return 0f;
+      if (m.labelStates != null)
+        foreach (var ls in m.labelStates) if (ls.family == family && ls.state == state) return ls.dy;
+      if (m.typography != null && m.typography.stateStyles != null)
+        foreach (var e in m.typography.stateStyles) if (e.state == state) return e.dy;
+      return 0f;
     }
     // kit-sized, and auto-shrinking so a long word never spills the rect
     static void SizeLabel(TextMeshProUGUI t, float ls) {
@@ -2141,8 +2200,8 @@ namespace PatternBreak {
       t.fontSizeMax = ls;
       t.fontSizeMin = 12f;
     }
-    static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m) {
-      float ls = LabelSize(m);
+    static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
+      float ls = LabelSize(m, family);
       var go = new GameObject("Label", typeof(RectTransform));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
@@ -2253,7 +2312,7 @@ namespace PatternBreak {
       }
       return true;
     }
-    static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
+    static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s, float ls) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
@@ -2262,17 +2321,17 @@ namespace PatternBreak {
       var t = go.AddComponent<TextMeshProUGUI>();
       t.text = text;
       t.alignment = TextAlignmentOptions.Center;
-      SizeLabel(t, s != null && s.labelSize > 0f ? s.labelSize : 40f);
+      SizeLabel(t, ls);
       t.raycastTarget = false;
       if (face != null) t.font = face;
       StyleLabel(t, s);
     }
 #endif
-    static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m) {
+    static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
 #if UNITY_2023_2_OR_NEWER
       var face = EnsureTmpFace(root, m, kitFont);
       if (face != null) {
-        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null);
+        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, LabelSize(m, family));
         return;
       }
 #endif
@@ -2342,10 +2401,10 @@ namespace PatternBreak {
         // exact pixels first: the baked faces when the kit ships them and
         // the family needs no dynamic ink; the styled SDF otherwise
         var bakedLabelFace = BakedLabelFace(m, root, baseAsset.component);
-        if (bakedLabelFace != null) AddBakedLabel(go, label, root, bakedLabelFace, m);
+        if (bakedLabelFace != null) AddBakedLabel(go, label, root, bakedLabelFace, m, baseAsset.component);
         else
 #endif
-        AddLabel(go, label, kitFont, root, m);
+        AddLabel(go, label, kitFont, root, m, baseAsset.component);
       }
 #if UNITY_2023_2_OR_NEWER
       // the kit's designed state ink/shift follows the face swap (only
@@ -2437,7 +2496,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -2499,12 +2558,20 @@ namespace PatternBreak {
             // the kit's Type Size dial drives the word size — converge
             // labels sized by an older importer (or an older dial)
             var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (!wantDress && sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m))))
+            if (!wantDress && sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
               wantDress = true;
-            // state ink/shift component missing while the kit forks states —
-            // wire it (re-dress refreshes its values whenever the dress runs)
-            if (!wantDress && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
-              wantDress = true;
+            /* dead or stale state wiring re-converges: a script-identity
+               break (delete-and-redrop mints a new script GUID) leaves a
+               "Behaviour is missing" GHOST — GetComponent returns null,
+               SpriteSwap keeps working, and the sink dies silently (field:
+               "it still does not move with the button face") */
+            if (!wantDress && HasStateInk(m, famName)) {
+              var inkNow = asset.GetComponent<LabelStateInk>();
+              if (inkNow == null
+                  || !Mathf.Approximately(inkNow.pressedShift, ExpectedShift(m, famName, "pressed"))
+                  || !Mathf.Approximately(inkNow.hoverShift, ExpectedShift(m, famName, "hover")))
+                wantDress = true;
+            }
           }
         }
 #endif
@@ -2512,6 +2579,10 @@ namespace PatternBreak {
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
+          // sweep dead script references (a delete-and-redrop mints new
+          // script GUIDs; the ghosts block nothing but confuse everything)
+          foreach (var tr in contents.GetComponentsInChildren<Transform>(true))
+            if (GameObjectUtility.RemoveMonoBehavioursWithMissingScript(tr.gameObject) > 0) { purgedGhosts++; changed = true; }
           if (wantWiring && contents.GetComponent<Selectable>() == null) {
             var btn = contents.AddComponent<Button>();
             btn.targetGraphic = contents.GetComponent<Image>();
@@ -2537,8 +2608,8 @@ namespace PatternBreak {
               var keepText = LabelText(oldRoot, DefaultLabel(famName));
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
-              if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m);
-              else AddLabel(contents, keepText, mkFont, root, m);
+              if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m, famName);
+              else AddLabel(contents, keepText, mkFont, root, m, famName);
               var newRoot = FindOurLabelRoot(contents);
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
               var armed = contents.GetComponent<LabelStateInk>();
@@ -2560,6 +2631,8 @@ namespace PatternBreak {
           + (armedSink != 0f ? " Press sink armed: labels ride the face " + armedSink + "px down while pressed." : " No press sink in this kit's state recipe (labels stay put by design)."));
       if (healed > 0)
         Debug.Log("UI Kit Maker: re-attached " + healed + " missing or stale layer face(s) on the HeroLabel prefab — an interrupted import can leave them naked; placed copies healed with it.");
+      if (purgedGhosts > 0)
+        Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
