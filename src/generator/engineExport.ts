@@ -1351,7 +1351,13 @@ namespace PatternBreak {
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the Playground at " + scenePath + " — go File > New Scene, then Tools > PatternBreak > Rebuild Kit Playground Scene.");
       } finally {
-        UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+        /* field catch: when the Playground ends up the ONLY loaded scene
+           (the stale one was closed, nothing else open), Unity refuses to
+           close it and prints a scary warning. Landing inside the freshly
+           saved Playground is the nicer outcome anyway — only tidy up when
+           another scene is there to return to. */
+        if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
+          UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
       }
     }
 
