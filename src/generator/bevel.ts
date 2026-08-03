@@ -1181,6 +1181,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  opacity) apply from the true state, so the state sliders are never
    *  dead on these pieces (owner: "glow isn't working here"). */
   pinDesign?: boolean;
+  /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
+   *  inside each glyph are what make glints read per-letter; a bandScale
+   *  wide enough pushes the caps outside the glyph so adjacent baked
+   *  letters' stripes fuse into one continuous streak. glintStars replaces
+   *  the stock trio: null = no stars, or explicit {f: x-fraction of the
+   *  text, dy: y-offset in em, s: size in em, r: rotation} per star —
+   *  the bake seeds these per glyph so stars scatter across a word. */
+  glintBand?: number;
+  glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
+  /** Replace the stock two-rect slab with an explicit band FIELD — each
+   *  {dy: center offset in em, h: height in em, o: opacity}. Fixed (not
+   *  seeded) offsets keep every baked glyph's bands at the same heights,
+   *  so adjacent letters' bands align into streaks crossing the word
+   *  (owner reference: the MIAMI glint field). */
+  glintBands?: { dy: number; h: number; o: number }[];
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -1735,7 +1750,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const gy = cy + 1 + textOy * K;
     const tx0 = opts.anchorLeft ? tTextX : tTextX - textW / 2;
     const gcx = tx0 + textW / 2;
-    const bandW = textW * 1.18, bandH = fs * 0.28;
+    const bandW = textW * 1.18 * (opts.glintBand ?? 1), bandH = fs * 0.28;
     // user nudge — % of the letter height, applied to slab and stars alike
     const gdx = clamp(GL2!.ox ?? 0, -100, 100) / 100 * fs;
     const gdy = clamp(GL2!.oy ?? 0, -100, 100) / 100 * fs;
@@ -1746,13 +1761,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
     glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
     glintsLayer = `<g clip-path="url(#${id}tgc)" opacity="${gOp.toFixed(2)}">
-        <rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
-        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        ${opts.glintBands
+          ? opts.glintBands.map((b) => {
+              const by = bcy + b.dy * fs, bh = b.h * fs;
+              return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${b.o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
+            }).join("\n        ")
+          : `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`}
       </g>
       <g opacity="${Math.min(1, gOp * 1.15).toFixed(2)}">
-        ${star4(tx0 + textW * 0.16 + lx * fs * 0.06 + gdx, gy - fs * 0.24 + ly * fs * 0.06 + gdy, fs * 0.16, 0)}
-        ${star4(tx0 + textW * 0.52 + lx * fs * 0.06 + gdx, gy + fs * 0.16 + ly * fs * 0.06 + gdy, fs * 0.09, 18)}
-        ${star4(tx0 + textW * 0.85 + lx * fs * 0.06 + gdx, gy - fs * 0.1 + ly * fs * 0.06 + gdy, fs * 0.125, -14)}
+        ${(opts.glintStars === undefined
+          ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
+          : opts.glintStars ?? []
+        ).map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
       </g>`;
   }
 
@@ -1990,6 +2011,10 @@ export interface SpecimenOpts {
   /** Mutate the cloned type treatment before rendering — the Build Parts
    *  typography recipe uses this to switch layers on and off. */
   mutate?: (c: GenConfig) => void;
+  /** Glint bake knobs — see build()'s glintBand/glintStars/glintBands. */
+  glintBand?: number;
+  glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
+  glintBands?: { dy: number; h: number; o: number }[];
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2012,7 +2037,7 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */

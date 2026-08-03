@@ -518,6 +518,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the importer builds real ones with real references instead). ── */
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
+  files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -564,7 +565,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      file byte-for-byte, and Apply() already walks ALL manifests. */
   const rooted = files.map((f) => ({
     ...f,
-    path: f.path === "Editor/PatternBreakKitImporter.cs"
+    path: f.path === "Editor/PatternBreakKitImporter.cs" || f.path === "Runtime/PatternBreakHeroLabel.cs"
       ? `UIKitMaker/${f.path}`
       : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
@@ -581,14 +582,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()";
 const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
 
-async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } | null> {
+async function rasterCanvas(svg: string, scale: number): Promise<HTMLCanvasElement> {
   const full = await svgToPngBytes(svg, scale);
   const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
   const cv = document.createElement("canvas");
   cv.width = img.width; cv.height = img.height;
-  const ctx = cv.getContext("2d")!;
-  ctx.drawImage(img, 0, 0);
-  const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  cv.getContext("2d")!.drawImage(img, 0, 0);
+  return cv;
+}
+function scanInk(cv: HTMLCanvasElement): { cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } | null {
+  const px = cv.getContext("2d")!.getImageData(0, 0, cv.width, cv.height).data;
   let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
   for (let yy = 0; yy < cv.height; yy++)
     for (let xx = 0; xx < cv.width; xx++)
@@ -598,6 +601,9 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
       }
   if (x1 < 0) return null; // nothing opaque (space)
   return { cv, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } | null> {
+  return scanInk(await rasterCanvas(svg, scale));
 }
 
 async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layersPng: Uint8Array | null; metrics: string; pointSize: number } | null> {
@@ -627,36 +633,90 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const baseY = calBox.y0 + (hMet.actualBoundingBoxAscent ?? ascent / BAKE_S) * BAKE_S;
 
   type Baked = { u: number; adv: number; bx: number; by: number; w: number; h: number; cv?: HTMLCanvasElement; sx?: number; sy?: number; x?: number; y?: number };
-  /* three treatments per glyph:
+  /* four treatments per glyph:
      - full: the solo face (everything) — what a single KitFace Baked shows
      - fill: fill + pattern + glints + emboss, NO stroke/shadow/glow
-     - stroke: outline + shadow + glow only, fill transparent
-     fill-over-stroke in two stacked texts reproduces the app's paint order
-     (all strokes merge behind all letterforms — owner ask). */
-  const variants: { key: "full" | "fill" | "stroke"; mutate: (c: GenConfig) => void }[] = [
-    { key: "full", mutate: (c) => { c.type.size = 52; } },
-    { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; } },
-    { key: "stroke", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.stripes = undefined; c.type.glints = undefined; c.type.emboss.on = false; } },
+     - stroke: outline + glow only — NO shadow (owner: per-glyph shadows
+       painted seams onto neighboring strokes)
+     - shadow: the pure cast shadow, isolated by rendering the stroked
+       glyph WITH and WITHOUT its shadow and subtracting — one soft
+       app-exact shadow layer that sits behind the whole stroke badge
+     Shadow → Stroke → Fill stacked reproduces the app's paint order:
+     one universal shadow, all strokes merged, no stroke over a fill. */
+  const strokeBase = (c: GenConfig) => {
+    c.type.size = 52; c.type.fillOpacity = 0;
+    c.type.stripes = undefined; c.type.glints = undefined; c.type.emboss.on = false;
+  };
+  /* the glint FIELD (owner reference: streaks crossing the whole word):
+     fixed band offsets so every glyph's bands sit at the same heights —
+     adjacent letters' bands align into continuous streaks at type time */
+  const GLINT_FIELD = [
+    { dy: -0.3, h: 0.16, o: 0.55 },
+    { dy: -0.02, h: 0.26, o: 0.9 },
+    { dy: 0.34, h: 0.12, o: 0.4 },
   ];
-  const sets: Record<"full" | "fill" | "stroke", Baked[]> = { full: [], fill: [], stroke: [] };
+  type VKey = "full" | "fill" | "stroke" | "glints";
+  const variants: { key: VKey; mutate: (c: GenConfig) => void; glinted: boolean }[] = [
+    { key: "full", mutate: (c) => { c.type.size = 52; }, glinted: true },
+    // fill drops glints too — the dedicated Glints layer carries them in
+    // the HeroLabel stack (baking them into Fill would double them)
+    { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.glints = undefined; }, glinted: false },
+    { key: "stroke", mutate: (c) => { strokeBase(c); c.type.shadow.on = false; }, glinted: false },
+    { key: "glints", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.emboss.on = false; c.type.stripes = undefined; }, glinted: true },
+  ];
+  const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
+  const hasShadow = !!base.type.shadow.on;
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
     if (ch === " ") {
-      for (const v of variants) sets[v.key].push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 });
+      for (const k of ["full", "fill", "stroke", "glints", "shadow"] as const)
+        sets[k].push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 });
       continue;
     }
-    for (const v of variants) {
-      const box = await rasterInk(
-        renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: v.mutate }),
-        BAKE_S,
-      );
-      if (!box) continue; // a face without this glyph — skip, TMP falls back
-      sets[v.key].push({
-        u: ch.codePointAt(0)!, adv,
+    const u = ch.codePointAt(0)!;
+    /* seeded glint variation (owner: stars on EVERY letter read as
+       repetition; the stripe should cross letterforms). Per-glyph seed:
+       ~1/3 of glyphs get one star at a scattered spot; the slab bakes
+       3x wide so its end-caps fall outside the glyph and neighboring
+       letters' stripes fuse into one continuous streak. Kits with
+       glints off are untouched (the knobs only shape an active glint). */
+    const h32 = (u * 2654435761) >>> 0;
+    const rnd = (k: number) => ((h32 >>> (k * 7)) & 127) / 127;
+    const glintStars = rnd(0) < 0.36
+      ? [{ f: 0.12 + rnd(1) * 0.72, dy: (rnd(2) - 0.5) * 0.56, s: 0.08 + rnd(3) * 0.09, r: rnd(1) * 44 - 22 }]
+      : null;
+    const push = (key: VKey | "shadow", box: { cv: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } | null) => {
+      if (!box) return;
+      sets[key].push({
+        u, adv,
         bx: box.x0 - penX, by: baseY - box.y0,
         w: box.w, h: box.h, cv: box.cv, sx: box.x0, sy: box.y0,
       });
+    };
+    for (const v of variants) {
+      const box = await rasterInk(
+        renderTypeSpecimen(base, ch, {
+          keepCase: true, highlight: "", mutate: v.mutate,
+          glintBand: v.glinted ? 3 : undefined,
+          glintStars: v.glinted ? glintStars : undefined,
+          glintBands: v.key === "glints" ? GLINT_FIELD : undefined,
+        }),
+        BAKE_S,
+      );
+      if (v.key === "stroke" && box && hasShadow) {
+        // shadow isolation: (stroke + shadow) minus (stroke) = the shadow
+        const withSh = await rasterCanvas(
+          renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: strokeBase }),
+          BAKE_S,
+        );
+        const wcx = withSh.getContext("2d")!;
+        wcx.globalCompositeOperation = "destination-out";
+        wcx.drawImage(box.cv, 0, 0);
+        wcx.globalCompositeOperation = "source-over";
+        push("shadow", scanInk(withSh));
+      }
+      push(v.key, box); // a face without this glyph — skip, TMP falls back
     }
   }
   if (sets.full.length < 10) return null; // face never loaded — don't ship garbage
@@ -692,8 +752,9 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const fullH = pack(sets.full);
   if (fullH == null) return null;
   const png = await rasterAtlas(sets.full, fullH);
-  // fill + stroke share ONE atlas: two font assets, two rect sets, one texture
-  const layered = [...sets.fill, ...sets.stroke];
+  // fill + stroke + shadow + glints share ONE atlas: one texture, four
+  // font assets pointing at their own rect sets
+  const layered = [...sets.fill, ...sets.stroke, ...sets.shadow, ...sets.glints];
   const layersH = pack(layered);
   const layersPng = layersH != null ? await rasterAtlas(layered, layersH) : null;
 
@@ -714,10 +775,49 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
       layersAtlasW: AW, layersAtlasH: layersH,
       fillGlyphs: emit(sets.fill),
       strokeGlyphs: emit(sets.stroke),
+      // sets with only the space entry mean the kit has that layer OFF
+      shadowGlyphs: sets.shadow.length > 5 ? emit(sets.shadow) : [],
+      glintGlyphs: sets.glints.length > 5 ? emit(sets.glints) : [],
     } : {}),
   });
   return { png, layersPng, metrics, pointSize };
 }
+
+/* The kit's ONE runtime script: the HeroLabel sync (owner, on editing a
+   four-layer label by hand: "no real point if it is supposed to be
+   dynamic"). Everything else the importer does is editor-only, but a
+   layered label must follow dynamic text in play mode and in builds, so
+   this ships as a real component — tiny and dependency-free on purpose. */
+const HERO_LABEL_RUNTIME = `using UnityEngine;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* One text box for the whole layered hero label: set Text here (or call
+     SetText from game code) and every layer — Shadow, Stroke, Fill,
+     Glints — follows. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Hero Label")]
+  public class HeroLabel : MonoBehaviour {
+#if UNITY_2023_2_OR_NEWER
+    [TextArea] public string text = "PLAY";
+    public float fontSize = 150f;
+    string appliedText; float appliedSize;
+    void OnEnable() { Apply(); }
+    void Update() { if (text != appliedText || fontSize != appliedSize) Apply(); }
+    public void SetText(string value) { text = value; Apply(); }
+    void Apply() {
+      appliedText = text; appliedSize = fontSize;
+      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        label.text = text;
+        label.fontSize = fontSize;
+      }
+    }
+#endif
+  }
+}
+`;
 
 /* The 3-step story, tuned per scope — ease of use is the product. */
 function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false): string {
@@ -830,10 +930,13 @@ the font in place, so placed labels restyle with the kit.
 
 Want the strokes to MERGE behind the letterforms like the app (no
 sticker-overlap between tight letters)? That's the **HeroLabel** prefab:
-two stacked texts — *KitFace Baked Stroke* behind (outlines, shadows and
-glows fuse into one silent layer) and *KitFace Baked Fill* in front (no
-stroke ever crosses a letter). Retype BOTH children to change the word;
-keep both colors white. Solo KitFace Baked stays the one-object option.
+stacked faces reproducing the app's paint order — one soft Shadow for
+the whole word at the back, all Strokes fused into one silent layer,
+Fills that no stroke ever crosses, and the Glint field on top (its bands
+align across letters into streaks that cross the word). **Type once on
+the root's Hero Label component** — every layer follows, in the editor
+and in play mode (it's the kit's only runtime script, ~30 lines, no
+dependencies). Solo KitFace Baked stays the one-object option.
 
 ` : ""}Hand-made SDF labels start WHITE — the fill is a per-label setting,
 not a font setting (prefab labels arrive with it wired). One click fixes
@@ -963,9 +1066,9 @@ namespace PatternBreak {
   [Serializable] class PBStyle { public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
-  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBBakedRef bakedFace; }
-  [Serializable] class PBPalette { public string glow; }
+  [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
@@ -1121,6 +1224,27 @@ namespace PatternBreak {
          rebuild, so placed labels keep their face. */
       if (!tmpPending) EnsureBakedFace(root, manifest, true);
       if (!tmpPending) EnsureGradientPreset(root, manifest);
+      /* new text objects are BORN in the kit's face (owner: the custom font
+         "should kinda just be there") — set TMP's project-wide default, but
+         only while it's still the stock Liberation face; a deliberate user
+         choice is never stomped. */
+      if (!tmpPending) {
+        var sdfFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        if (sdfFace != null && TMP_Settings.instance != null) {
+          var curDefault = TMP_Settings.defaultFontAsset;
+          if (curDefault == null || curDefault.name.StartsWith("LiberationSans")) {
+            var so = new SerializedObject(TMP_Settings.instance);
+            var prop = so.FindProperty("m_defaultFontAsset");
+            if (prop != null) {
+              prop.objectReferenceValue = sdfFace;
+              so.ApplyModifiedProperties();
+              EditorUtility.SetDirty(TMP_Settings.instance);
+              AssetDatabase.SaveAssets();
+              Debug.Log("UI Kit Maker: new TextMeshPro texts are now born in the kit's face (project default font = KitFace SDF). Change it anytime in Project Settings > TextMesh Pro > Settings.");
+            }
+          }
+        }
+      }
       // the face arriving AFTER the prefabs did (first-ever TMP install
       // ordering) leaves plain labels behind — say so, with the one-click cure
       if (!sdfWasThere && File.Exists(root + "/fonts/KitFace SDF.asset")
@@ -1278,17 +1402,23 @@ namespace PatternBreak {
            biggest delta was pieces landing "dry".) */
         PBManifest bm = null;
         try { bm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(root + "/kit-manifest.json")); } catch (Exception) { }
+        /* the aura is the app's BLOOM, matched to its exact math (field:
+           the first pass composed huge centered glow-balls — "what's up
+           with the weird glow"): a soft ellipse in the HIGHLIGHT color,
+           0.92w x 0.52h at bloom size, drifted AWAY from the kit's light
+           (bounce light on the unlit side), opacity straight from the
+           kit's bloom dial. */
         Sprite auraSprite = null;
         Color auraColor = Color.white;
-        float auraGrow = 1.5f;
+        float auraS = 1f, auraLx = 0f, auraLy = 1f;
         if (bm != null && bm.bloom != null && bm.bloom.opacity > 1f) {
-          // review catch: sprites live under assets/ — the bare path loaded null
-          // and the whole aura block silently skipped
           auraSprite = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/fx/glow.png");
           if (auraSprite == null) Debug.Log("UI Kit Maker: assets/fx/glow.png isn't imported — Playground pieces placed without their bloom aura.");
-          if (bm.palette != null && !string.IsNullOrEmpty(bm.palette.glow)) ColorUtility.TryParseHtmlString(bm.palette.glow, out auraColor);
-          auraColor.a = Mathf.Clamp01(bm.bloom.opacity / 100f) * 0.85f;
-          auraGrow = 1f + Mathf.Clamp(bm.bloom.size, 0f, 200f) / 100f * 0.9f;
+          if (bm.palette != null && !string.IsNullOrEmpty(bm.palette.highlight)) ColorUtility.TryParseHtmlString(bm.palette.highlight, out auraColor);
+          auraColor.a = Mathf.Clamp01(bm.bloom.opacity / 100f);
+          auraS = Mathf.Clamp(bm.bloom.size / 100f, 0.05f, 1.2f);
+          float rad = (bm.typography != null && bm.typography.style != null ? bm.typography.style.lightAngle : 90f) * Mathf.Deg2Rad;
+          auraLx = Mathf.Cos(rad); auraLy = Mathf.Sin(rad);
         }
         var prefabs = new List<GameObject>();
         foreach (var g in guids) {
@@ -1311,8 +1441,8 @@ namespace PatternBreak {
             auraGo.transform.SetParent(canvasGo.transform, false);
             var art = auraGo.GetComponent<RectTransform>();
             art.anchorMin = new Vector2(0f, 1f); art.anchorMax = new Vector2(0f, 1f);
-            art.sizeDelta = new Vector2(w * auraGrow, h * auraGrow);
-            art.anchoredPosition = rt.anchoredPosition;
+            art.sizeDelta = new Vector2(w * 0.92f * auraS, h * 0.52f * auraS);
+            art.anchoredPosition = rt.anchoredPosition + new Vector2(-auraLx * w * 0.16f, -auraLy * h * 0.3f);
             var ai = auraGo.AddComponent<UnityEngine.UI.Image>();
             ai.sprite = auraSprite;
             ai.color = auraColor;
@@ -1589,10 +1719,18 @@ namespace PatternBreak {
         var layersTex = root + "/" + m.typography.bakedFace.layers;
         AssembleBakedFont(root, m, refresh, "KitFace Baked Fill", layersTex,
           face.fillGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-          " glyphs — the FILL layer (no stroke). Pair it in FRONT of a KitFace Baked Stroke text; the HeroLabel prefab shows how.");
+          " glyphs — the FILL layer. Stacks over KitFace Baked Stroke; the HeroLabel prefab shows the order.");
         AssembleBakedFont(root, m, refresh, "KitFace Baked Stroke", layersTex,
           face.strokeGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-          " glyphs — the STROKE layer (outline, shadow, glow; no fill). Pair it BEHIND a KitFace Baked Fill text; the HeroLabel prefab shows how.");
+          " glyphs — the STROKE layer (outline + glow, no shadow). All strokes merge behind all letterforms.");
+        if (face.shadowGlyphs != null && face.shadowGlyphs.Length > 5)
+          AssembleBakedFont(root, m, refresh, "KitFace Baked Shadow", layersTex,
+            face.shadowGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+            " glyphs — ONE soft cast shadow for the whole word, at the very back of the HeroLabel stack.");
+        if (face.glintGlyphs != null && face.glintGlyphs.Length > 5)
+          AssembleBakedFont(root, m, refresh, "KitFace Baked Glints", layersTex,
+            face.glintGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+            " glyphs — the GLINT FIELD, topmost in the HeroLabel stack: bands align across letters into streaks that cross the word.");
       }
     }
     static void AssembleBakedFont(string root, PBManifest m, bool refresh, string faceName, string texPath, PBBakedGlyph[] glyphs, int atlasW, int atlasH, PBBakedFace face, string note) {
@@ -1880,13 +2018,23 @@ namespace PatternBreak {
        letterform). Retype BOTH children to change the word; keep both
        colors white. ── */
     static bool HeroLabelPrefab(string dir, string root) {
-      var front = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
-      var back = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
-      if (front == null || back == null) return false;
+      var fill = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
+      var stroke = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
+      if (fill == null || stroke == null) return false;
+      // shadow + glints are optional layers (kits without them skip)
+      var shadow = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Shadow.asset");
+      var glints = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Glints.asset");
+      var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
+      if (shadow != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadow));
+      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", stroke));
+      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", fill));
+      if (glints != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glints));
       var go = new GameObject("HeroLabel", typeof(RectTransform));
       go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
-      for (int i = 0; i < 2; i++) {
-        var lgo = new GameObject(i == 0 ? "Stroke" : "Fill", typeof(RectTransform), typeof(CanvasRenderer));
+      // ONE text box drives every layer — the kit's only runtime script
+      go.AddComponent<HeroLabel>();
+      foreach (var layer in layers) {
+        var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
         lgo.transform.SetParent(go.transform, false);
         var lrt = lgo.GetComponent<RectTransform>();
         lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
@@ -1896,7 +2044,7 @@ namespace PatternBreak {
         t.alignment = TextAlignmentOptions.Center;
         t.fontSize = 150f;
         t.raycastTarget = false;
-        t.font = i == 0 ? back : front;
+        t.font = layer.Value;
         t.color = Color.white;
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/HeroLabel.prefab");
