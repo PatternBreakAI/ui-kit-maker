@@ -482,6 +482,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         note: "Render all labels as live engine text in this face.",
       },
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
+      /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
+         baked into sprites (auras overlap what's behind them), composed
+         engine-side from fx/glow.png; the Playground shows the pattern */
+      bloom: { opacity: base.candy.bloom?.opacity ?? 0, size: base.candy.bloom?.size ?? 0 },
       ...(full ? {
         rarity: {
           note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
@@ -705,6 +709,13 @@ every gloss, bevel and emboss re-renders from the new direction (the
 text bevel on live labels follows it too). Game-time reactions — hover
 glow, press lift — are the states plus the fx/ layer, composed in-engine.
 
+The AURA is the same story: the glow field around pieces in the app is
+the kit's bloom, and an aura must overlap whatever sits behind it, so it
+can't ship inside a cropped sprite. The Playground composes it for you —
+fx/glow.png behind each piece, tinted the manifest's palette.glow, sized
+by the bloom block. Copy that pattern in your own scenes for the full
+resting look.
+
 ## Restyling everything you've placed (the one rule)
 
 When you change the kit on uikitmaker.com, download again and extract
@@ -895,7 +906,9 @@ namespace PatternBreak {
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBBakedRef bakedFace; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBAsset[] assets; }
+  [Serializable] class PBPalette { public string glow; }
+  [Serializable] class PBBloom { public float opacity; public float size; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -1187,6 +1200,23 @@ namespace PatternBreak {
         esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 #endif
 
+        /* the kit's resting AURA (bloom): the app shows every piece in its
+           glow field, but auras must overlap whatever sits behind them, so
+           they can't live inside a cropped sprite. Compose it here the way
+           the app does — fx/glow.png behind each piece, tinted the kit's
+           glow, sized by the bloom recipe. (Field: the side-by-side's
+           biggest delta was pieces landing "dry".) */
+        PBManifest bm = null;
+        try { bm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(root + "/kit-manifest.json")); } catch (Exception) { }
+        Sprite auraSprite = null;
+        Color auraColor = Color.white;
+        float auraGrow = 1.5f;
+        if (bm != null && bm.bloom != null && bm.bloom.opacity > 1f) {
+          auraSprite = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/fx/glow.png");
+          if (bm.palette != null && !string.IsNullOrEmpty(bm.palette.glow)) ColorUtility.TryParseHtmlString(bm.palette.glow, out auraColor);
+          auraColor.a = Mathf.Clamp01(bm.bloom.opacity / 100f) * 0.85f;
+          auraGrow = 1f + Mathf.Clamp(bm.bloom.size, 0f, 200f) / 100f * 0.9f;
+        }
         var prefabs = new List<GameObject>();
         foreach (var g in guids) {
           var p = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(g));
@@ -1203,6 +1233,20 @@ namespace PatternBreak {
           if (y - h < -1020f && y < -91f) { colX += colMaxW + 70f; y = -90f; colMaxW = 0f; }
           rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
           rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
+          if (auraSprite != null) {
+            var auraGo = new GameObject(prefab.name + " Aura", typeof(RectTransform), typeof(CanvasRenderer));
+            auraGo.transform.SetParent(canvasGo.transform, false);
+            var art = auraGo.GetComponent<RectTransform>();
+            art.anchorMin = new Vector2(0f, 1f); art.anchorMax = new Vector2(0f, 1f);
+            art.sizeDelta = new Vector2(w * auraGrow, h * auraGrow);
+            art.anchoredPosition = rt.anchoredPosition;
+            var ai = auraGo.AddComponent<UnityEngine.UI.Image>();
+            ai.sprite = auraSprite;
+            ai.color = auraColor;
+            ai.raycastTarget = false;
+            // siblings render in order: slide the aura just BEFORE its piece
+            auraGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
+          }
           y -= h + 44f;
           if (w > colMaxW) colMaxW = w;
           placed++;
