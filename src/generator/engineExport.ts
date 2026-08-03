@@ -1753,28 +1753,8 @@ namespace PatternBreak {
           if (w > colMaxW) colMaxW = w;
           placed++;
         }
-        /* the sign on the sandbox — the first-session answers, in the scene
-           itself (field-driven: "I don't know unity at all"). Quiet, corner,
-           built-in font so it works before any kit face exists. */
-        Font hintFont = null;
-        try { hintFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch (Exception) { }
-        if (hintFont == null) { try { hintFont = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch (Exception) { } }
-        if (hintFont != null) {
-          var hintGo = new GameObject("How to drive", typeof(RectTransform), typeof(CanvasRenderer));
-          hintGo.transform.SetParent(canvasGo.transform, false);
-          var hrt = hintGo.GetComponent<RectTransform>();
-          hrt.anchorMin = new Vector2(1f, 0f); hrt.anchorMax = new Vector2(1f, 0f);
-          hrt.pivot = new Vector2(1f, 0f);
-          hrt.anchoredPosition = new Vector2(-28f, 28f);
-          hrt.sizeDelta = new Vector2(600f, 200f);
-          var hint = hintGo.AddComponent<UnityEngine.UI.Text>();
-          hint.font = hintFont;
-          hint.fontSize = 20;
-          hint.alignment = TextAnchor.LowerRight;
-          hint.color = new Color(1f, 1f, 1f, 0.5f);
-          hint.raycastTarget = false;
-          hint.text = "Press Play (top center) to feel hover + press. Edit with Play OFF - Play-mode changes don't stick.\\nRetype any label: expand the piece, select its Label, type in the Hero Label box (typing on any layer works too - the group follows).\\nBroke something? Select the piece > Overrides > Revert All - or drag a fresh copy from Prefabs/.\\nThese are copies; the kit itself can't be damaged from here. Delete this note anytime.";
-        }
+        /* no help card in the scene (owner call: the Playground stays
+           clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
           Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
         else
