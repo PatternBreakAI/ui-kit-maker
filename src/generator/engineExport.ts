@@ -220,9 +220,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            the sprite and the type area with it (owner: "this is clearly
            off", then at 35%: "still off... lots more room for text in the
            middle between the concave/convex"). A cap never takes more
-           than 25% of the width / 40% of the height per side — the
-           stretchable middle is at least HALF of every sprite. */
-        const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.4);
+           than 25% of the width / 30% of the height per side — the
+           stretchable middle is at least HALF the width and 40% of the
+           height of every sprite. */
+        const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
         if (s.left > maxLR) s.left = maxLR;
         if (s.right > maxLR) s.right = maxLR;
         if (s.top > maxTB) s.top = maxTB;
@@ -533,6 +534,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         style: {
           weight: base.type.weight,
           italic: base.type.italic,
+          /* prefab label font size in design px — the app scales button
+             words by the kit's Type Size dial (52 = baseline); hardcoding
+             40 left big-type kits with tiny words (owner: "the text sits
+             so small in that area") */
+          labelSize: Math.round(40 * (base.type.size / 52) * 10) / 10,
           spacingEmPct: base.type.spacing,
           case: base.type.case,
           fillMode: base.type.fillMode,
@@ -960,12 +966,7 @@ namespace PatternBreak {
     public float hoverShift; public float pressedShift;
     bool over, down; Vector2 basePos; bool basePosSet;
     RectTransform Mover() { return shiftTarget != null ? shiftTarget : (label != null ? label.rectTransform : null); }
-    void OnEnable() {
-      over = false; down = false;
-      var mover = Mover();
-      if (mover != null && !basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
-      ApplyCurrent();
-    }
+    void OnEnable() { over = false; down = false; ApplyCurrent(); }
     void OnDisable() { over = false; down = false; }
     public void OnPointerEnter(PointerEventData e) { over = true; ApplyCurrent(); }
     public void OnPointerExit(PointerEventData e) { over = false; ApplyCurrent(); }
@@ -973,7 +974,9 @@ namespace PatternBreak {
     public void OnPointerUp(PointerEventData e) { down = false; ApplyCurrent(); }
     void ApplyCurrent() {
       var mover = Mover();
-      if (mover != null && basePosSet) {
+      if (mover != null) {
+        // base captured lazily at first apply — no scene-load-order games
+        if (!basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
         float shift = down ? pressedShift : over ? hoverShift : 0f;
         mover.anchoredPosition = basePos + new Vector2(0f, -shift);
       }
@@ -1239,7 +1242,7 @@ namespace PatternBreak {
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
-  [Serializable] class PBStyle { public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
+  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
@@ -2120,7 +2123,21 @@ namespace PatternBreak {
       if (HasInkColorFork(m, family)) return null;
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
     }
-    static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo) {
+    /* the kit's button-word size: the app scales it by the Type Size dial
+       (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
+    static float LabelSize(PBManifest m) {
+      var ty = m != null && m.typography != null ? m.typography.style : null;
+      return ty != null && ty.labelSize > 0f ? ty.labelSize : 40f;
+    }
+    // kit-sized, and auto-shrinking so a long word never spills the rect
+    static void SizeLabel(TextMeshProUGUI t, float ls) {
+      t.fontSize = ls;
+      t.enableAutoSizing = true;
+      t.fontSizeMax = ls;
+      t.fontSizeMin = 12f;
+    }
+    static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m) {
+      float ls = LabelSize(m);
       var go = new GameObject("Label", typeof(RectTransform));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
@@ -2150,13 +2167,13 @@ namespace PatternBreak {
           var lt = lgo.AddComponent<TextMeshProUGUI>();
           lt.text = text;
           lt.alignment = TextAlignmentOptions.Center;
-          lt.fontSize = 40;
+          SizeLabel(lt, ls);
           lt.raycastTarget = false;
           lt.font = layer.Value;
           lt.color = Color.white;
         }
         var hl = go.AddComponent<HeroLabel>();
-        hl.text = text; hl.fontSize = 40f;
+        hl.text = text; hl.fontSize = ls;
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -2165,7 +2182,7 @@ namespace PatternBreak {
       var t = go.AddComponent<TextMeshProUGUI>();
       t.text = text;
       t.alignment = TextAlignmentOptions.Center;
-      t.fontSize = 40;
+      SizeLabel(t, ls);
       t.raycastTarget = false;
       t.font = solo;
       t.color = Color.white; // baked glyphs are pre-painted
@@ -2240,7 +2257,7 @@ namespace PatternBreak {
       var t = go.AddComponent<TextMeshProUGUI>();
       t.text = text;
       t.alignment = TextAlignmentOptions.Center;
-      t.fontSize = 40;
+      SizeLabel(t, s != null && s.labelSize > 0f ? s.labelSize : 40f);
       t.raycastTarget = false;
       if (face != null) t.font = face;
       StyleLabel(t, s);
@@ -2320,7 +2337,7 @@ namespace PatternBreak {
         // exact pixels first: the baked faces when the kit ships them and
         // the family needs no dynamic ink; the styled SDF otherwise
         var bakedLabelFace = BakedLabelFace(m, root, baseAsset.component);
-        if (bakedLabelFace != null) AddBakedLabel(go, label, root, bakedLabelFace);
+        if (bakedLabelFace != null) AddBakedLabel(go, label, root, bakedLabelFace, m);
         else
 #endif
         AddLabel(go, label, kitFont, root, m);
@@ -2416,6 +2433,7 @@ namespace PatternBreak {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
       int wired = 0, redressed = 0;
+      float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       var kitStyle = m != null && m.typography != null ? m.typography.style : null;
@@ -2464,6 +2482,11 @@ namespace PatternBreak {
             if (wantBaked != null && layersShip) wantDress = !stacked;
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
+            // the kit's Type Size dial drives the word size — converge
+            // labels sized by an older importer (or an older dial)
+            var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (!wantDress && sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m))))
+              wantDress = true;
             // state ink/shift component missing while the kit forks states —
             // wire it (re-dress refreshes its values whenever the dress runs)
             if (!wantDress && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
@@ -2500,10 +2523,12 @@ namespace PatternBreak {
               var keepText = LabelText(oldRoot, DefaultLabel(famName));
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
-              if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked);
+              if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m);
               else AddLabel(contents, keepText, mkFont, root, m);
               var newRoot = FindOurLabelRoot(contents);
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
+              var armed = contents.GetComponent<LabelStateInk>();
+              if (armed != null && armed.pressedShift != 0f) armedSink = armed.pressedShift;
               redressed++; changed = true;
             }
           }
@@ -2514,7 +2539,11 @@ namespace PatternBreak {
       if (wired > 0)
         Debug.Log("UI Kit Maker: wired hover/press/disabled states onto " + wired + " example prefab(s) from an earlier kit version — press Play and mouse over them. Copies already placed in scenes (the Playground included) picked the wiring up automatically.");
       if (redressed > 0)
-        Debug.Log("UI Kit Maker: re-dressed the label on " + redressed + " example prefab(s) to the kit's current type style (words untouched) — the old dress was frozen at generation time.");
+        Debug.Log("UI Kit Maker: re-dressed the label on " + redressed + " example prefab(s) to the kit's current type style (words untouched) — the old dress was frozen at generation time."
+          /* the armed sink IN THE RECEIPT: whether press-follow is wired is
+             field-checkable from the Console alone (owner loop: "type still
+             isn't following the face") */
+          + (armedSink != 0f ? " Press sink armed: labels ride the face " + armedSink + "px down while pressed." : " No press sink in this kit's state recipe (labels stay put by design)."));
       if (healed > 0)
         Debug.Log("UI Kit Maker: re-attached " + healed + " missing or stale layer face(s) on the HeroLabel prefab — an interrupted import can leave them naked; placed copies healed with it.");
     }
