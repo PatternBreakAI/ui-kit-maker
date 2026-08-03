@@ -1488,9 +1488,16 @@ namespace PatternBreak {
           var glyph = new UnityEngine.TextCore.Glyph(gi, met, rect, 1f, 0);
           fa.glyphTable.Add(glyph);
           object ch = null;
-          try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, glyph); }
-          catch (Exception) { try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, fa, glyph); } catch (Exception) { } }
-          if (ch != null) fa.characterTable.Add((TMP_Character)ch);
+          try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, fa, glyph); }
+          catch (Exception) { try { ch = Activator.CreateInstance(typeof(TMP_Character), (uint)g.u, glyph); } catch (Exception) { } }
+          if (ch != null) {
+            // field report: glyphs present but text fell back to the default
+            // font — a character whose back-pointer to its font asset is null
+            // reads as "not here" at render time. Set it no matter which
+            // constructor we got.
+            SetField(ch, "m_TextAsset", fa);
+            fa.characterTable.Add((TMP_Character)ch);
+          }
           gi++;
         }
         SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
