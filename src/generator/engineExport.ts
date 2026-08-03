@@ -693,6 +693,18 @@ The Project window highlights **${root}/Prefabs** when they land, right
 after the Console receipt. They're generated once and never touched
 again — edit them freely.
 
+## Why Unity's lights don't change the kit
+
+The kit is PRE-LIT ART. The gloss sweeps, specular hits, extrusion
+shading and glints ARE the lighting — computed by the kit engine and
+painted into the pixels, so what you designed is exactly what ships, on
+every device, in every project. UI sprites render unlit: skyboxes and
+scene lights pass through them by design. Want the light to move? That's
+the Lighting angle dial on uikitmaker.com — change it and re-export, and
+every gloss, bevel and emboss re-renders from the new direction (the
+text bevel on live labels follows it too). Game-time reactions — hover
+glow, press lift — are the states plus the fx/ layer, composed in-engine.
+
 ## Restyling everything you've placed (the one rule)
 
 When you change the kit on uikitmaker.com, download again and extract
