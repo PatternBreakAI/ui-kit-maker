@@ -69,6 +69,21 @@ for (let ln = 0; ln < lines.length; ln++) {
 const normalizers = (cs.match(/Replace\("\\\\", "\/"\)/g) ?? []).length;
 if (normalizers < 4) errors.push(`expected >=4 Replace("\\\\", "/") path normalizers in the emitted C#, found ${normalizers} — an escaping level was probably lost`);
 
+/* mini semantic pass: the guard lexes but doesn't COMPILE, and that gap
+   shipped a CS1061 to the field ('PBStyle' has no 'spacingEmPct' — the
+   usage landed without the field). The style local is conventionally `s`
+   throughout the template, so every `s.<member>` access must name a
+   declared PBStyle field. If a future unrelated `s` local trips this,
+   rename that local — the convention is load-bearing. */
+const styleDecl = cs.match(/class PBStyle \{([^}]*)\}/);
+if (!styleDecl) errors.push("PBStyle class declaration not found");
+else {
+  const declared = new Set([...styleDecl[1].matchAll(/public \w+ (\w+);/g)].map((x) => x[1]));
+  const uses = [...new Set([...cs.matchAll(/\bs\.(\w+)/g)].map((x) => x[1]))];
+  for (const u of uses)
+    if (!declared.has(u)) errors.push(`s.${u} is used in the C# but PBStyle declares no '${u}' field (CS1061 in Unity)`);
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
