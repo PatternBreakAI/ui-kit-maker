@@ -210,6 +210,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
       if (s) {
+        /* organic silhouettes can push the cap math past reason — the wavy
+           button's slice guides nearly met in the middle, caps ate ~92% of
+           the sprite and the type area with it (owner: "this is clearly
+           off"). A cap never takes more than 35% of the width / 40% of the
+           height per side, so the stretchable center stays a real share of
+           EVERY sprite. */
+        const maxLR = Math.floor(w * 0.35), maxTB = Math.floor(h * 0.4);
+        if (s.left > maxLR) s.left = maxLR;
+        if (s.right > maxLR) s.right = maxLR;
+        if (s.top > maxTB) s.top = maxTB;
+        if (s.bottom > maxTB) s.bottom = maxTB;
         const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
         if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
@@ -531,6 +542,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lightAngle: base.lighting.angle,
           pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100, angle: patternAngle, reps: Math.round(patternReps * 100) / 100 } : null,
         },
+        /* per-state text ink — the kit's OWN state recipes for live labels
+           (owner field report: the face swaps on press but "the text isn't
+           following the face" — e.g. a down state that flips the gradient).
+           Only states whose designed fork actually changes the ink are
+           listed; the importer wires a Label State Ink component that
+           applies them in sync with the Button's Sprite Swap. */
+        stateStyles: (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
+          const f = base.stateDesigns[sn];
+          if (!f) return [];
+          const t = f.type, b = base.type;
+          if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
+          if (t.fillMode === b.fillMode && t.fill === b.fill && (t.fillMode !== "gradient" || t.fill2 === b.fill2)) return [];
+          return [{ state: sn, fillMode: t.fillMode, fill: t.fill, fill2: t.fillMode === "gradient" ? t.fill2 : null }];
+        }),
         /* the baked color font — atlas + metrics the importer assembles
            into "KitFace Baked": app-exact glyphs for hero/display text */
         bakedFace,
@@ -559,6 +584,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -605,7 +631,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      file byte-for-byte, and Apply() already walks ALL manifests. */
   const rooted = files.map((f) => ({
     ...f,
-    path: f.path === "Editor/PatternBreakKitImporter.cs" || f.path === "Runtime/PatternBreakHeroLabel.cs"
+    path: f.path === "Editor/PatternBreakKitImporter.cs" || f.path === "Runtime/PatternBreakHeroLabel.cs" || f.path === "Runtime/PatternBreakLabelStateInk.cs"
       ? `UIKitMaker/${f.path}`
       : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
@@ -853,6 +879,58 @@ namespace PatternBreak {
         label.text = text;
         label.fontSize = fontSize;
       }
+    }
+#endif
+  }
+}
+`;
+
+/* Runtime script #2: state ink for live labels (owner field report: on
+   press/hover the face sprite swaps but "the text isn't following the
+   face" — e.g. a down state that flips the text gradient). SpriteSwap is
+   pure engine; the label's ink change must ride the same pointer events,
+   in play mode and in builds. Same contract as HeroLabel: tiny,
+   dependency-free, wired automatically on example prefabs, usable by hand
+   on any button. */
+const LABEL_STATE_INK_RUNTIME = `using UnityEngine;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* The kit's designed state recipes for LIVE TEXT: when the face swaps
+     (hover / press), the label's ink follows — the same colors the maker
+     set on uikitmaker.com. Play-mode behavior only (the importer keeps the
+     resting dress in edit mode). Point 'label' at any TMP text to reuse it
+     on your own buttons. */
+  [AddComponentMenu("UI Kit Maker/Label State Ink")]
+  public class LabelStateInk : MonoBehaviour
+#if UNITY_2023_2_OR_NEWER
+    , IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+#endif
+  {
+#if UNITY_2023_2_OR_NEWER
+    public TextMeshProUGUI label;
+    public bool restGradient; public Color restTop = Color.white; public Color restBottom = Color.white;
+    public bool hoverOn; public bool hoverGradient; public Color hoverTop = Color.white; public Color hoverBottom = Color.white;
+    public bool pressedOn; public bool pressedGradient; public Color pressedTop = Color.white; public Color pressedBottom = Color.white;
+    bool over, down;
+    void OnEnable() { over = false; down = false; ApplyCurrent(); }
+    void OnDisable() { over = false; down = false; }
+    public void OnPointerEnter(PointerEventData e) { over = true; ApplyCurrent(); }
+    public void OnPointerExit(PointerEventData e) { over = false; ApplyCurrent(); }
+    public void OnPointerDown(PointerEventData e) { down = true; ApplyCurrent(); }
+    public void OnPointerUp(PointerEventData e) { down = false; ApplyCurrent(); }
+    void ApplyCurrent() {
+      if (label == null) return;
+      if (down && pressedOn) Ink(pressedTop, pressedBottom, pressedGradient);
+      else if (over && hoverOn) Ink(hoverTop, hoverBottom, hoverGradient);
+      else Ink(restTop, restBottom, restGradient);
+    }
+    void Ink(Color top, Color bottom, bool grad) {
+      if (grad) { label.enableVertexGradient = true; label.colorGradient = new VertexGradient(top, top, bottom, bottom); label.color = Color.white; }
+      else { label.enableVertexGradient = false; label.color = top; }
     }
 #endif
   }
@@ -1111,7 +1189,8 @@ namespace PatternBreak {
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBBakedRef bakedFace; }
+  [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
@@ -1964,6 +2043,28 @@ namespace PatternBreak {
       if (grad) return t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white;
       return t.color == top;
     }
+    /* The kit's designed state INK for live labels, wired as a tiny runtime
+       component riding the same pointer events as the Button's SpriteSwap
+       (field: the face swaps on press but "the text isn't following the
+       face"). Only wired when the kit actually forks its text ink. */
+    static bool WireLabelStates(GameObject go, TextMeshProUGUI label, PBTypography ty) {
+      if (ty == null || ty.stateStyles == null || ty.stateStyles.Length == 0 || label == null) return false;
+      var ink = go.GetComponent<LabelStateInk>();
+      if (ink == null) ink = go.AddComponent<LabelStateInk>();
+      ink.label = label;
+      Color top, bot; bool grad;
+      TargetInk(ty.style, out top, out bot, out grad);
+      ink.restTop = top; ink.restBottom = bot; ink.restGradient = grad;
+      ink.hoverOn = false; ink.pressedOn = false;
+      foreach (var fork in ty.stateStyles) {
+        var forkStyle = new PBStyle();
+        forkStyle.fillMode = fork.fillMode; forkStyle.fill = fork.fill; forkStyle.fill2 = fork.fill2;
+        TargetInk(forkStyle, out top, out bot, out grad);
+        if (fork.state == "hover") { ink.hoverOn = true; ink.hoverTop = top; ink.hoverBottom = bot; ink.hoverGradient = grad; }
+        else if (fork.state == "pressed") { ink.pressedOn = true; ink.pressedTop = top; ink.pressedBottom = bot; ink.pressedGradient = grad; }
+      }
+      return true;
+    }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
       go.transform.SetParent(parent.transform, false);
@@ -2049,6 +2150,12 @@ namespace PatternBreak {
         btn.spriteState = ss;
       }
       if (label != null) AddLabel(go, label, kitFont, root, m);
+#if UNITY_2023_2_OR_NEWER
+      // the kit's designed state ink follows the face swap (only wired
+      // when the kit forks its text ink)
+      var tmpLabel = FindOurLabel(go);
+      if (tmpLabel != null) WireLabelStates(go, tmpLabel, m != null ? m.typography : null);
+#endif
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -2165,6 +2272,11 @@ namespace PatternBreak {
         if (kitStyle != null) {
           var probe = FindOurLabel(asset);
           wantDress = probe != null && !LabelCurrent(probe, kitStyle, face);
+          // state ink component missing while the kit forks its text ink —
+          // wire it (re-dress refreshes its colors whenever the dress runs)
+          if (!wantDress && probe != null && m != null && m.typography != null && m.typography.stateStyles != null
+              && m.typography.stateStyles.Length > 0 && asset.GetComponent<LabelStateInk>() == null)
+            wantDress = true;
         }
 #endif
         if (!wantWiring && !wantDress) continue;
@@ -2192,6 +2304,7 @@ namespace PatternBreak {
             if (label != null) {
               if (face != null) label.font = face;
               StyleLabel(label, kitStyle);
+              WireLabelStates(contents, label, m != null ? m.typography : null);
               redressed++; changed = true;
             }
           }
