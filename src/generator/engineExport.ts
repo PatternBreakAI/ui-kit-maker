@@ -746,7 +746,14 @@ font; the SDF face stays the size-proof workhorse for everything else.
 Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
 the font in place, so placed labels restyle with the kit.
 
-` : ""}How the type treatment travels: fill and gradient, outline (outside the
+` : ""}Hand-made SDF labels start WHITE — the fill is a per-label setting,
+not a font setting (prefab labels arrive with it wired). One click fixes
+it: on the text, tick **Color Gradient** and set Color Preset to
+**KitFace Gradient** (in fonts/) — the kit's own fill, and it restyles
+with every re-import. Outline, glow, shadow and bevel are already on the
+shared face material.
+
+How the type treatment travels: fill and gradient, outline (outside the
 letterform, like the app), glow, drop shadow, and emboss (lit from the
 kit's own light angle) translate 1:1 onto live text. The letterform
 pattern, glints and per-letter gloss stay OFF live labels on purpose —
@@ -1009,6 +1016,7 @@ namespace PatternBreak {
       if (kitTtf != null && !tmpPending) EnsureTmpFace(root, manifest, kitTtf);
       // the baked COLOR face needs no TTF — only TMP itself and the atlas
       if (!tmpPending) EnsureBakedFace(root, manifest, false);
+      if (!tmpPending) EnsureGradientPreset(root, manifest);
       // the face arriving AFTER the prefabs did (first-ever TMP install
       // ordering) leaves plain labels behind — say so, with the one-click cure
       if (!sdfWasThere && File.Exists(root + "/fonts/KitFace SDF.asset")
@@ -1107,6 +1115,7 @@ namespace PatternBreak {
         }
         // the baked face rebuilds IN PLACE too (same GUID — placed labels keep it)
         EnsureBakedFace(root, manifest, true);
+        EnsureGradientPreset(root, manifest);
 #endif
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
@@ -1484,6 +1493,29 @@ namespace PatternBreak {
       } catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: the baked face couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
+    }
+    /* ── the kit's fill as a one-click Color Gradient preset: prefab labels
+       arrive wearing the gradient automatically, but a HAND-made text
+       starts white (fill is per-label vertex color, not material). The
+       preset makes "paint it like the kit" a dropdown pick — and it
+       updates on every import, so hand-styled labels restyle with the
+       kit like everything else. ── */
+    static void EnsureGradientPreset(string root, PBManifest m) {
+      var s = m != null && m.typography != null ? m.typography.style : null;
+      if (s == null || string.IsNullOrEmpty(s.fill)) return;
+      Color top, bot;
+      if (!ColorUtility.TryParseHtmlString(s.fill, out top)) return;
+      if (s.fillMode != "gradient" || string.IsNullOrEmpty(s.fill2) || !ColorUtility.TryParseHtmlString(s.fill2, out bot)) bot = top;
+      var path = root + "/fonts/KitFace Gradient.asset";
+      var g = AssetDatabase.LoadAssetAtPath<TMP_ColorGradient>(path);
+      bool fresh = g == null;
+      if (fresh) g = ScriptableObject.CreateInstance<TMP_ColorGradient>();
+      g.colorMode = ColorMode.FourCornersGradient;
+      g.topLeft = top; g.topRight = top; g.bottomLeft = bot; g.bottomRight = bot;
+      if (fresh) {
+        AssetDatabase.CreateAsset(g, path);
+        Debug.Log("UI Kit Maker: fill preset ready — on any TMP label, tick Color Gradient and set Color Preset to KitFace Gradient (in fonts/) to paint the text in the kit's own fill.");
+      } else EditorUtility.SetDirty(g);
     }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s) {
       var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
