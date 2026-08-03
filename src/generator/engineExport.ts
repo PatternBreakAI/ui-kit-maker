@@ -609,11 +609,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30]] as const).map(([pid, fam, fs]) => {
         const pc = pieceCfg(pid);
         const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
-        /* x0.78 fit factor: the app WIDENS its shell to the word, a Unity
-           rect is fixed — the raw app size crowds it (owner: "too big now
-           for the available space"); 0.78 lands the proportion the owner
-           approved (90.7 -> 70.7 on their kit) */
-        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.78 * 10) / 10 };
+        /* x0.70 fit factor: the app WIDENS its shell to the word, a Unity
+           rect is fixed — the raw app size crowds it. Owner-calibrated in
+           two field passes ("too big" at 1.0, "tune down a touch" at
+           0.78); per-font taste stays a per-label Inspector edit. */
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.7 * 10) / 10 };
       }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
@@ -1350,19 +1350,30 @@ namespace PatternBreak {
         sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
           ? "Layer faces assembled."
           : "Layer faces NOT assembled in this project.");
-        // the sink, family by family: what the kit expects vs what the
-        // prefab actually carries — the line that ends the guessing
+#endif
+      }
+      Debug.Log(sb.ToString());
+#if UNITY_2023_2_OR_NEWER
+      /* the sink, family by family — ONE Console entry each: the list
+         view truncates entries to two lines, and packing these into the
+         header entry hid them behind a click (owner: "didn't get the
+         expected text") */
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+        if (m == null) continue;
         foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab" }) {
           var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
           if (pf == null) continue;
           var inkc = pf.GetComponent<LabelStateInk>();
-          sb.Append("\\n  " + fam + ": label size " + LabelSize(m, fam)
+          Debug.Log("UI Kit Maker status — " + fam + ": label size " + LabelSize(m, fam)
             + " · press sink expected " + ExpectedShift(m, fam, "pressed") + "px, armed "
             + (inkc != null ? inkc.pressedShift + "px" : "NONE (no state component)"));
         }
-#endif
       }
-      Debug.Log(sb.ToString());
+#endif
     }
 
     [MenuItem("Tools/PatternBreak/Reapply Kit Import Settings")]
