@@ -1382,7 +1382,10 @@ namespace PatternBreak {
       if (m == null || m.typography == null || m.typography.bakedFace == null || string.IsNullOrEmpty(m.typography.bakedFace.file)) return;
       var assetPath = root + "/fonts/KitFace Baked.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
-      if (existing != null && !refresh) return; // yours after first assembly; Regenerate refreshes
+      // a half-assembled survivor of a failed pass (created, then TMP threw
+      // before the tables landed) counts as missing — rebuild it in place
+      bool broken = existing != null && (existing.characterTable == null || existing.characterTable.Count == 0);
+      if (existing != null && !refresh && !broken) return; // yours after first assembly; Regenerate refreshes
       var jsonPath = root + "/" + m.typography.bakedFace.metrics;
       var texPath = root + "/" + m.typography.bakedFace.file;
       if (!File.Exists(jsonPath)) return;
@@ -1400,6 +1403,17 @@ namespace PatternBreak {
         if (shader == null) { Debug.LogWarning("UI Kit Maker: no TextMeshPro Bitmap shader in this project — baked face skipped."); return; }
         var fa = existing != null ? existing : ScriptableObject.CreateInstance<TMP_FontAsset>();
         fa.name = "KitFace Baked";
+        /* field report, first assembly attempt: "Upgrading font asset
+           [KitFace Baked] to version 1.1.0" then an NRE. A fresh
+           TMP_FontAsset has no version stamp, so TMP runs its legacy
+           upgrade over internals that were never populated. Stamp it
+           current and pre-create the table the upgrade would have built. */
+        SetField(fa, "m_Version", "1.1.0");
+        var fftField = typeof(TMP_FontAsset).GetField("m_FontFeatureTable", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        if (fftField != null && fftField.GetValue(fa) == null) {
+          var fftType = typeof(TMP_FontAsset).Assembly.GetType("TMPro.TMP_FontFeatureTable");
+          if (fftType != null) { try { fftField.SetValue(fa, Activator.CreateInstance(fftType)); } catch (Exception) { } }
+        }
         object fi = new UnityEngine.TextCore.FaceInfo();
         SetField(fi, "m_FamilyName", (string.IsNullOrEmpty(m.typography.font) ? "Kit" : m.typography.font) + " Baked");
         SetField(fi, "m_StyleName", "Baked");
