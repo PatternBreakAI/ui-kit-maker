@@ -565,6 +565,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          role as fallback (bevel's hiC) — emitting only the Highlight left
          tinted-light kits with neutral gray auras in Unity (owner: "the
          glows underneath the components are rendering weird") */
+      /* per-FAMILY label state ink: the maker may fork the text on one
+         specific button (a piece-scope down state), not the master — the
+         master-level typography.stateStyles above would miss it. Same
+         qualification rules; family entries win over the master set. */
+      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"]] as const).flatMap(([pid, fam]) => {
+        const pc = pieceCfg(pid);
+        return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
+          const f = pc.stateDesigns[sn];
+          if (!f) return [];
+          const t = f.type, b2 = pc.type;
+          if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
+          if (t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2)) return [];
+          return [{ family: fam, state: sn, fillMode: t.fillMode, fill: t.fill, fill2: t.fillMode === "gradient" ? t.fill2 : null }];
+        });
+      }),
       palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
          baked into sprites (auras overlap what's behind them), composed
@@ -1197,7 +1212,8 @@ namespace PatternBreak {
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string tier; public int pngScale; public PBTypography typography; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -1474,7 +1490,10 @@ namespace PatternBreak {
         + (prev == null ? fresh + " new" : fresh + " new, " + restyled + " restyled, " + same + " unchanged")
         + "; settings: " + applied + " applied, " + already + " already right)."
         + (prefabsNew ? " Wired prefabs are ready in " + root + "/Prefabs — drag one into your Canvas." : "")
-        + faceNote;
+        + faceNote
+        /* which uikitmaker.com BUILD packed this zip — ends the "is this
+           the latest download?" guessing game right in the Console */
+        + (string.IsNullOrEmpty(manifest.generatorVersion) ? "" : " [export build " + manifest.generatorVersion + "]");
       if (orphans.Count > 0)
         Debug.LogWarning(line + "\\n" + orphans.Count + " piece(s) are no longer part of this kit but STAY on disk (nothing is deleted without you): "
           + string.Join(", ", orphans.ToArray())
@@ -2078,9 +2097,38 @@ namespace PatternBreak {
     /* The kit's designed state INK for live labels, wired as a tiny runtime
        component riding the same pointer events as the Button's SpriteSwap
        (field: the face swaps on press but "the text isn't following the
-       face"). Only wired when the kit actually forks its text ink. */
-    static bool WireLabelStates(GameObject go, TextMeshProUGUI label, PBTypography ty) {
-      if (ty == null || ty.stateStyles == null || ty.stateStyles.Length == 0 || label == null) return false;
+       face"). A fork set on ONE specific button (manifest.labelStates,
+       keyed by family) wins over the master typography.stateStyles set;
+       only wired when the kit actually forks its text ink. */
+    static bool HasStateInk(PBManifest m, string family) {
+      if (m == null) return false;
+      if (m.typography != null && m.typography.stateStyles != null && m.typography.stateStyles.Length > 0) return true;
+      if (m.labelStates != null) foreach (var ls in m.labelStates) if (ls.family == family) return true;
+      return false;
+    }
+    static bool WireLabelStates(GameObject go, TextMeshProUGUI label, PBManifest m, string family) {
+      if (m == null || m.typography == null || label == null) return false;
+      var ty = m.typography;
+      var states = new List<PBStateStyle>();
+      if (m.labelStates != null)
+        foreach (var ls in m.labelStates)
+          if (ls.family == family) {
+            var fam = new PBStateStyle();
+            fam.state = ls.state; fam.fillMode = ls.fillMode; fam.fill = ls.fill; fam.fill2 = ls.fill2;
+            states.Add(fam);
+          }
+      if (ty.stateStyles != null)
+        foreach (var ms in ty.stateStyles) {
+          bool covered = false;
+          foreach (var q in states) if (q.state == ms.state) { covered = true; break; }
+          if (!covered) states.Add(ms);
+        }
+      if (states.Count == 0) {
+        // the kit no longer forks its text ink — retire a stale component
+        var stale = go.GetComponent<LabelStateInk>();
+        if (stale != null) UnityEngine.Object.DestroyImmediate(stale, true);
+        return false;
+      }
       var ink = go.GetComponent<LabelStateInk>();
       if (ink == null) ink = go.AddComponent<LabelStateInk>();
       ink.label = label;
@@ -2088,7 +2136,7 @@ namespace PatternBreak {
       TargetInk(ty.style, out top, out bot, out grad);
       ink.restTop = top; ink.restBottom = bot; ink.restGradient = grad;
       ink.hoverOn = false; ink.pressedOn = false;
-      foreach (var fork in ty.stateStyles) {
+      foreach (var fork in states) {
         var forkStyle = new PBStyle();
         forkStyle.fillMode = fork.fillMode; forkStyle.fill = fork.fill; forkStyle.fill2 = fork.fill2;
         TargetInk(forkStyle, out top, out bot, out grad);
@@ -2186,7 +2234,7 @@ namespace PatternBreak {
       // the kit's designed state ink follows the face swap (only wired
       // when the kit forks its text ink)
       var tmpLabel = FindOurLabel(go);
-      if (tmpLabel != null) WireLabelStates(go, tmpLabel, m != null ? m.typography : null);
+      if (tmpLabel != null) WireLabelStates(go, tmpLabel, m, baseAsset.component);
 #endif
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -2295,6 +2343,7 @@ namespace PatternBreak {
         var spritePath = AssetDatabase.GetAssetPath(rootImg.sprite).Replace("\\\\", "/");
         if (!spritePath.StartsWith(root + "/assets/")) continue; // not this kit's sprite — not ours to touch
         var famDir = Path.GetDirectoryName(spritePath).Replace("\\\\", "/");
+        var famName = Path.GetFileName(famDir);
         var hover = S(famDir + "/base-hover.9.png");
         var pressed = S(famDir + "/base-pressed.9.png");
         var disabled = S(famDir + "/base-disabled.9.png");
@@ -2306,8 +2355,7 @@ namespace PatternBreak {
           wantDress = probe != null && !LabelCurrent(probe, kitStyle, face);
           // state ink component missing while the kit forks its text ink —
           // wire it (re-dress refreshes its colors whenever the dress runs)
-          if (!wantDress && probe != null && m != null && m.typography != null && m.typography.stateStyles != null
-              && m.typography.stateStyles.Length > 0 && asset.GetComponent<LabelStateInk>() == null)
+          if (!wantDress && probe != null && asset.GetComponent<LabelStateInk>() == null && HasStateInk(m, famName))
             wantDress = true;
         }
 #endif
@@ -2336,7 +2384,7 @@ namespace PatternBreak {
             if (label != null) {
               if (face != null) label.font = face;
               StyleLabel(label, kitStyle);
-              WireLabelStates(contents, label, m != null ? m.typography : null);
+              WireLabelStates(contents, label, m, famName);
               redressed++; changed = true;
             }
           }
