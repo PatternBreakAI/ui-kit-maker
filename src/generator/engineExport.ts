@@ -144,14 +144,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      geometry. */
   const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}) => {
     const c = clone(pieceCfg(id));
-    const calm = (g: GenConfig) => {
-      g.shadow.opacity = 0;
-      g.candy.contact.opacity = 0;
-      g.candy.bloom.opacity = 0;
+    /* forks are PARTIAL (designFor: every field falls back to the master
+       independently) — calm only what a fork actually carries, or a
+       face-only fork crashes the whole export */
+    const calm = (g: { shadow?: GenConfig["shadow"]; candy?: GenConfig["candy"] }) => {
+      if (g.shadow) g.shadow.opacity = 0;
+      if (g.candy) {
+        g.candy.contact.opacity = 0;
+        g.candy.bloom.opacity = 0;
+      }
     };
     calm(c);
     for (const s of Object.values(c.states)) s.glow = 0;
-    for (const f of Object.values(c.stateDesigns)) if (f) calm(f as GenConfig);
+    for (const f of Object.values(c.stateDesigns)) if (f) calm(f);
     return renderKit(c, id, effKitSize(st.kitSizes[id]), state, undefined, st.kitShapes[id], { label: "", icon: null, ...opts });
   };
 
@@ -550,7 +555,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            applies them in sync with the Button's Sprite Swap. */
         stateStyles: (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = base.stateDesigns[sn];
-          if (!f) return [];
+          /* designFor's contract: forks are PARTIAL and .type exists only
+             when the user explicitly forked the text for that state —
+             absent means "mirror the master live" (no ink change) */
+          if (!f || !f.type) return [];
           const t = f.type, b = base.type;
           if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
           if (t.fillMode === b.fillMode && t.fill === b.fill && (t.fillMode !== "gradient" || t.fill2 === b.fill2)) return [];
@@ -573,7 +581,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const pc = pieceCfg(pid);
         return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = pc.stateDesigns[sn];
-          if (!f) return [];
+          // partial forks (designFor): no .type = the state mirrors the
+          // master's text live — nothing to emit
+          if (!f || !f.type) return [];
           const t = f.type, b2 = pc.type;
           if (t.fillMode !== "solid" && t.fillMode !== "gradient") return [];
           if (t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2)) return [];
