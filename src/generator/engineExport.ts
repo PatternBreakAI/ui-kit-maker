@@ -1011,11 +1011,19 @@ namespace PatternBreak {
     }
     /* edit-mode probes: right-click the component header. If Test Press
        moves the label but a real Play-mode press doesn't, the mechanics
-       are fine and the pointer events are the problem — and vice versa. */
+       are fine and the pointer events are the problem — and vice versa.
+       Each probe LOGS what it did: "nothing happened" then reads as
+       either armed-0 or nothing-wired instead of a shrug. */
     [ContextMenu("Test Press")]
-    void TestPress() { down = true; ApplyCurrent(); }
+    void TestPress() {
+      down = true; ApplyCurrent();
+      var mover = Mover();
+      Debug.Log("UI Kit Maker test press on '" + gameObject.name + "' — " + (mover == null
+        ? "NOTHING WIRED TO MOVE (no shift target on this component)."
+        : "holding '" + mover.gameObject.name + "' " + pressedShift + "px down (the armed value). If nothing moved on screen, run this on the piece in the scene Hierarchy, not the prefab file."));
+    }
     [ContextMenu("Test Release")]
-    void TestRelease() { down = false; over = false; ApplyCurrent(); }
+    void TestRelease() { down = false; over = false; ApplyCurrent(); Debug.Log("UI Kit Maker test release on '" + gameObject.name + "' — back to rest."); }
 #endif
   }
 }
@@ -1368,9 +1376,12 @@ namespace PatternBreak {
           var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
           if (pf == null) continue;
           var inkc = pf.GetComponent<LabelStateInk>();
+          /* the "export build" tag rides along so a Console search filter
+             for "export" (the habit the receipt taught) can't hide these */
           Debug.Log("UI Kit Maker status — " + fam + ": label size " + LabelSize(m, fam)
             + " · press sink expected " + ExpectedShift(m, fam, "pressed") + "px, armed "
-            + (inkc != null ? inkc.pressedShift + "px" : "NONE (no state component)"));
+            + (inkc != null ? inkc.pressedShift + "px" : "NONE (no state component)")
+            + " [export build " + (string.IsNullOrEmpty(m.generatorVersion) ? "UNKNOWN" : m.generatorVersion) + "]");
         }
       }
 #endif
@@ -2313,7 +2324,10 @@ namespace PatternBreak {
         foreach (var ls in m.labelStates)
           if (ls.family == family) {
             var fam = new PBStateStyle();
-            fam.state = ls.state; fam.fillMode = ls.fillMode; fam.fill = ls.fill; fam.fill2 = ls.fill2;
+            // dy included: the family entry MASKS the master entry below,
+            // so dropping it here silently disarms the press sink (field
+            // bug: every button armed 0px while the manifest said 14)
+            fam.state = ls.state; fam.fillMode = ls.fillMode; fam.fill = ls.fill; fam.fill2 = ls.fill2; fam.dy = ls.dy;
             states.Add(fam);
           }
       if (ty.stateStyles != null)
