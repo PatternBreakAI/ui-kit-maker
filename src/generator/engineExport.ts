@@ -3009,6 +3009,17 @@ namespace PatternBreak {
             tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL), k = kv.Value });
         }
         foreach (var fa in faces) WriteFacePairs(fa, merged);
+        /* Writing the table is not SHOWING it. TMP re-flows a label only
+           when it hears that label's font asset changed — the event its own
+           Inspector raises for the ONE asset you are editing. So the layer
+           whose face you tuned slid immediately, and the other three kept
+           their stale layout until something forced a rebuild (owner: "the
+           stroke isn't sliding with the text" — and earlier, the tell:
+           "it did resolve when I went to the scene, played it, then
+           returned"). Announce every face the way TMP's editor would, so
+           all four layers re-shape in the same frame. */
+        foreach (var fa in faces) TMPro_EventManager.ON_FONT_PROPERTY_CHANGED(true, fa);
+        SceneView.RepaintAll();
         // never trade a real record for an empty one — losing hand-tuning
         // silently is worse than keeping a pair the maker reverted (delete
         // the file to start clean; the README says so)
