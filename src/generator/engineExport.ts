@@ -1947,12 +1947,15 @@ TextMeshPro component and its material; neither has the table.
   \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
   −5 px on a label rendering near 55. Compare a pair against its
   neighbours (A–V, A–W) rather than guessing an absolute number.
-- **There is only ONE table.** The whole layer stack — Shadow, Stroke,
-  Fill, Glints — reads a single font asset, **KitFace Baked Layers**; the
-  layers differ only by material (the ink). Tune a pair in its Glyph
-  Adjustment Table and every layer moves the moment you type, because
-  every layer is reading the very table you are editing. Nothing to
-  save first, nothing to sync, no way for the stroke to tear away.
+- **Intent lives in ONE place: the master.** The Fill layer reads
+  **KitFace Baked Layers** — that is where you tune. The other layers
+  read the **KitFace Layer** assets beside it, which are auto-mirrored
+  copies of the master (same skeleton, same table, different ink): the
+  mirror overwrites them about a second after you stop editing, and on
+  every save. Edits made on a mirror by mistake don't fight anything —
+  they are simply replaced by the master's table. Tune a pair on the
+  master and the Fill moves as you type; the other layers snap to it a
+  moment later (or instantly on Cmd/Ctrl+S).
 - **OX and OY travel too.** Nudge a pair's placement, not just its
   advance, and the whole stack carries it — and it survives re-imports.
 - **A half-entered row is safe.** "Add New Glyph Adjustment Record"
@@ -1983,10 +1986,11 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-**Which asset do I open?** \`fonts/KitFace Baked Layers\` — or simply
-double-click the Font Asset field on ANY layer of a hero label, since all
-four layers point at the same asset. (\`KitFace Baked\` beside it is the
-solo single-layer face, with its own table.)
+**Which asset do I open?** \`fonts/KitFace Baked Layers\` — the master.
+Quickest route: double-click the Font Asset field on a hero label's
+**Fill** layer. (\`KitFace Baked\` beside it is the solo single-layer
+face with its own table; the \`KitFace Layer\` assets are the mirrors —
+tuning there gets overwritten.)
 
 Add the record: **+** at the bottom of the table, set the first glyph to
 the left letter's ID and the second to the right letter's (\`A\`=1 …
@@ -2888,35 +2892,29 @@ namespace PatternBreak {
         AssembleBakedFont(root, m, refresh, "KitFace Baked Layers", root + "/" + m.typography.bakedFace.layerFill,
           face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
           " glyphs — ONE font asset for the whole layer stack (one kerning table, one Glyph Adjustment Table for all four layers). Fill ink is this asset's own material; Stroke, Shadow and Glints are the KitFace Layer materials beside it.");
-        var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-        if (layersFa != null) {
-          EnsureLayerMaterial(root, layersFa, "Stroke", m.typography.bakedFace.layerStroke);
-          EnsureLayerMaterial(root, layersFa, "Shadow", m.typography.bakedFace.layerShadow);
-          EnsureLayerMaterial(root, layersFa, "Glints", m.typography.bakedFace.layerGlints);
-        }
+        /* the other three layers are FONT ASSETS built from the SAME
+           skeleton — TMP refuses a material whose texture isn't its font's
+           own atlas (it silently reverts to the default material, which is
+           how every layer briefly rendered fill ink) — but they are
+           MIRRORS, not siblings: their pair tables are one-way copies of
+           the master's. There is still exactly ONE place intent lives. */
+        MirrorFace(root, m, refresh, "Stroke", m.typography.bakedFace.layerStroke, face);
+        MirrorFace(root, m, refresh, "Shadow", m.typography.bakedFace.layerShadow, face);
+        MirrorFace(root, m, refresh, "Glints", m.typography.bakedFace.layerGlints, face);
+        // stale skins from the material experiment, if this project saw it
+        foreach (var nm in new string[] { "Stroke", "Shadow", "Glints" })
+          AssetDatabase.DeleteAsset(root + "/fonts/KitFace Layer " + nm + ".mat");
       }
     }
-    /* a SKIN: the shared face's material with a different atlas texture —
-       same shader, same rects, different ink. Rebuilt idempotently; a layer
-       the kit stopped shipping takes its material with it. */
-    static void EnsureLayerMaterial(string root, TMP_FontAsset layersFa, string layerName, string texFile) {
-      var matPath = root + "/fonts/KitFace Layer " + layerName + ".mat";
-      if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(matPath); return; }
-      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
-      if (tex == null || layersFa.material == null) return;
-      var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
-      if (mat == null) {
-        mat = new Material(layersFa.material);
-        AssetDatabase.CreateAsset(mat, matPath);
-      } else {
-        mat.shader = layersFa.material.shader;
-        mat.CopyPropertiesFromMaterial(layersFa.material);
-      }
-      mat.SetTexture("_MainTex", tex);
-      EditorUtility.SetDirty(mat);
+    static void MirrorFace(string root, PBManifest m, bool refresh, string layerName, string texFile, PBBakedFace face) {
+      var path = root + "/fonts/KitFace Layer " + layerName + ".asset";
+      if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(path); return; }
+      AssembleBakedFont(root, m, refresh, "KitFace Layer " + layerName, root + "/" + texFile,
+        face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+        " glyphs — the " + layerName.ToUpperInvariant() + " ink over the shared skeleton. AUTO-MIRRORED from KitFace Baked Layers: tune kerning pairs THERE — edits made here are overwritten by the mirror.");
     }
-    static Material LayerMaterial(string root, string layerName) {
-      return AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Layer " + layerName + ".mat");
+    static TMP_FontAsset LayerFace(string root, string layerName) {
+      return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Layer " + layerName + ".asset");
     }
     /* ── kerning plumbing. Pairs are keyed by CHARACTER, not glyph index:
        glyph indices belong to one font asset, characters are the same on
@@ -3015,8 +3013,25 @@ namespace PatternBreak {
            into fonts/kerning-overrides.json so the next import re-applies
            them onto the rebuilt asset. */
         var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+        bool isMaster = fa != null;
         if (fa == null) fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
         if (fa == null) continue;
+        /* ONE-WAY MIRROR, master to layers: a pure copy, so there is no
+           merge and nothing to arbitrate — the master's table IS the
+           truth, and an edit made on a mirror by mistake is simply
+           overwritten. The change event is the same one TMP's own editor
+           raises; without it the mirrored layers keep their stale layout
+           until something else forces a re-flow. */
+        if (isMaster) {
+          var masterPairs = ReadFacePairs(fa);
+          foreach (var nm in new string[] { "Stroke", "Shadow", "Glints" }) {
+            var mirror = LayerFace(root, nm);
+            if (mirror == null) continue;
+            WriteFacePairs(mirror, masterPairs);
+            TMPro_EventManager.ON_FONT_PROPERTY_CHANGED(true, mirror);
+          }
+          SceneView.RepaintAll();
+        }
         // what we SHIPPED, so a tweak can be told apart from the bake
         var shipped = new Dictionary<long, float>();
         if (m.typography != null && m.typography.bakedFace != null && !string.IsNullOrEmpty(m.typography.bakedFace.metrics)) {
@@ -3321,8 +3336,8 @@ namespace PatternBreak {
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-      var strokeMat = LayerMaterial(root, "Stroke");
-      if (layersFa != null && strokeMat != null) {
+      var strokeFace = LayerFace(root, "Stroke");
+      if (layersFa != null && strokeFace != null) {
         /* layered mini-hero (owner: "the unified background stroke thing
            and effects pass on the group, instead of each individual
            letter"): ONE merged stroke and ONE soft shadow behind ALL
@@ -3330,13 +3345,13 @@ namespace PatternBreak {
            SAME font asset; only the material (the ink) differs — so the
            stack cannot tear, whatever gets tuned. Fill's ink is the font's
            own material (null here = keep the default). */
-        var layers = new List<KeyValuePair<string, Material>>();
-        var shadowMat = LayerMaterial(root, "Shadow");
-        var glintsMat = LayerMaterial(root, "Glints");
-        if (shadowMat != null) layers.Add(new KeyValuePair<string, Material>("Shadow", shadowMat));
-        layers.Add(new KeyValuePair<string, Material>("Stroke", strokeMat));
-        layers.Add(new KeyValuePair<string, Material>("Fill", null));
-        if (glintsMat != null) layers.Add(new KeyValuePair<string, Material>("Glints", glintsMat));
+        var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
+        var shadowFace = LayerFace(root, "Shadow");
+        var glintsFace = LayerFace(root, "Glints");
+        if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
+        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
+        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", layersFa));
+        if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
         foreach (var layer in layers) {
           var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
           lgo.transform.SetParent(go.transform, false);
@@ -3354,10 +3369,7 @@ namespace PatternBreak {
           lt.fontSize = ls;
           lt.enableAutoSizing = false;
           lt.raycastTarget = false;
-          // font first, material second — assigning the font resets the
-          // component back to the font's default material
-          lt.font = layersFa;
-          if (layer.Value != null) lt.fontSharedMaterial = layer.Value;
+          lt.font = layer.Value;
           lt.color = Color.white;
         }
         /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
@@ -3919,17 +3931,18 @@ namespace PatternBreak {
             var wantBaked = BakedLabelFace(m, root, famName);
             var probeTmp = probeRoot.GetComponent<TextMeshProUGUI>();
             bool stacked = probeRoot.GetComponent<HeroLabel>() != null;
-            var wantLayersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-            bool layersShip = wantLayersFa != null && LayerMaterial(root, "Stroke") != null;
+            var wantMaster = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+            bool layersShip = wantMaster != null && LayerFace(root, "Stroke") != null;
             if (wantBaked != null && layersShip) {
               wantDress = !stacked;
-              /* a stack on anything but THE shared asset re-dresses: null
-                 fonts (deleted assets — field: "no Font Asset assigned"),
-                 and the old four-asset construction migrating to the
-                 one-skeleton build alike */
+              /* a stack off the skeleton re-dresses: null fonts (deleted
+                 assets — field: "no Font Asset assigned"), and the old
+                 four-asset construction migrating to master + mirrors */
               if (!wantDress)
-                foreach (var lt in probeRoot.GetComponentsInChildren<TextMeshProUGUI>(true))
-                  if (lt.font != wantLayersFa) { wantDress = true; break; }
+                foreach (var lt in probeRoot.GetComponentsInChildren<TextMeshProUGUI>(true)) {
+                  var want = WantFace(root, wantMaster, lt.gameObject.name);
+                  if (want != null && lt.font != want) { wantDress = true; break; }
+                }
             }
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
@@ -4048,23 +4061,28 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
     }
 #if UNITY_2023_2_OR_NEWER
+    // Fill reads the master; every other layer reads its own mirror —
+    // a stack on anything else (the old construction included) converges
+    static TMP_FontAsset WantFace(string root, TMP_FontAsset master, string layerName) {
+      if (layerName == "Fill") return master;
+      return LayerFace(root, layerName);
+    }
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
-      // the whole stack reads ONE font asset; a layer on anything else —
-      // including a face from the old four-asset construction — converges
-      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-      if (layersFa == null) return;
+      var master = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      if (master == null) return;
       bool broken = false;
-      foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true))
-        if (lt.font != layersFa) { broken = true; break; }
+      foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        var want = WantFace(root, master, lt.gameObject.name);
+        if (want != null && lt.font != want) { broken = true; break; }
+      }
       if (!broken) return;
       var contents = PrefabUtility.LoadPrefabContents(path);
       try {
         int n = 0;
         foreach (var lt in contents.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-          if (lt.font == layersFa) continue;
-          lt.font = layersFa;
-          var mat = LayerMaterial(root, lt.gameObject.name);
-          if (mat != null) lt.fontSharedMaterial = mat;
+          var want = WantFace(root, master, lt.gameObject.name);
+          if (want == null || lt.font == want) continue;
+          lt.font = want;
           n++;
         }
         if (n > 0) { PrefabUtility.SaveAsPrefabAsset(contents, path); healed += n; }
@@ -4079,17 +4097,17 @@ namespace PatternBreak {
        colors white. ── */
     static bool HeroLabelPrefab(string dir, string root) {
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-      var strokeMat = LayerMaterial(root, "Stroke");
-      if (layersFa == null || strokeMat == null) return false;
-      // shadow + glints are optional layers (kits without them skip);
-      // ONE font asset throughout — layers differ only by material
-      var shadowMat = LayerMaterial(root, "Shadow");
-      var glintsMat = LayerMaterial(root, "Glints");
-      var layers = new List<KeyValuePair<string, Material>>();
-      if (shadowMat != null) layers.Add(new KeyValuePair<string, Material>("Shadow", shadowMat));
-      layers.Add(new KeyValuePair<string, Material>("Stroke", strokeMat));
-      layers.Add(new KeyValuePair<string, Material>("Fill", null));
-      if (glintsMat != null) layers.Add(new KeyValuePair<string, Material>("Glints", glintsMat));
+      var strokeFace = LayerFace(root, "Stroke");
+      if (layersFa == null || strokeFace == null) return false;
+      // shadow + glints are optional layers (kits without them skip); one
+      // SKELETON throughout — the mirrors carry identical rects and tables
+      var shadowFace = LayerFace(root, "Shadow");
+      var glintsFace = LayerFace(root, "Glints");
+      var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
+      if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
+      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
+      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", layersFa));
+      if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
       var go = new GameObject("HeroLabel", typeof(RectTransform));
       go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
       // ONE text box drives every layer — the kit's only runtime script
@@ -4105,9 +4123,7 @@ namespace PatternBreak {
         t.alignment = TextAlignmentOptions.Center;
         t.fontSize = 150f;
         t.raycastTarget = false;
-        // font first, material second — assigning the font resets the material
-        t.font = layersFa;
-        if (layer.Value != null) t.fontSharedMaterial = layer.Value;
+        t.font = layer.Value;
         t.color = Color.white;
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/HeroLabel.prefab");
