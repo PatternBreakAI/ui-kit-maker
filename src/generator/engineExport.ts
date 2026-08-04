@@ -2290,9 +2290,9 @@ namespace PatternBreak {
               foreach (var kp in face.kerning) {
                 uint li, ri;
                 if (!giOf.TryGetValue((uint)kp.l, out li) || !giOf.TryGetValue((uint)kp.r, out ri)) continue;
-                var first = new TMP_GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f));
-                var second = new TMP_GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
-                feat.glyphPairAdjustmentRecords.Add(new TMP_GlyphPairAdjustmentRecord(first, second));
+                var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f));
+                var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
+                feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
               }
             }
           } catch (Exception) { /* pairs are a refinement — advances stay correct */ }
