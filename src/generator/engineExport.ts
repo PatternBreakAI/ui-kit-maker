@@ -1371,6 +1371,33 @@ The Project window highlights **${root}/Prefabs** when they land, right
 after the Console receipt. They're generated once and never touched
 again — edit them freely.
 
+## Stretching and patterns (the diagonal-stripe question)
+
+Nine-slice keeps the CORNERS honest and stretches the middle — so a
+pattern living in that middle stretches with it. Horizontal and vertical
+stripes survive (stretching a stripe along its own axis changes nothing),
+but a DIAGONAL shears: pull a 45° chevron to double width and it lands
+near 63°, with the bands wider. That's geometry, not a bug — and for the
+±20–30% stretches most UI does, nobody sees it.
+
+When it matters, three fixes, cheapest first:
+
+1. **Export near the size you'll use.** The kit draws each piece's
+   pattern at that piece's real dimensions, so a button exported close to
+   its final size never stretches at all. This is the one that costs
+   nothing and always works.
+2. **Switch Image Type from Sliced to Tiled.** Unity then REPEATS the
+   middle at native scale instead of stretching it — the pattern keeps
+   its angle and its rhythm. Whether the repeat is seamless depends on
+   where the pattern falls at the slice edge, so give it a look; on
+   angled patterns it sometimes seams.
+3. **Float the pattern on top.** Keep the base sprite Sliced for the
+   silhouette, add a second Image above it using \`fonts/face-pattern.png\`
+   set to **Tiled**, and mask it to the face (Rect Mask 2D, or a Mask on
+   the base). The frame stretches, the pattern never does. This is the
+   one to reach for on pieces that stretch a lot — wide banners, health
+   bars that grow.
+
 ## Why Unity's lights don't change the kit
 
 The kit is PRE-LIT ART. The gloss sweeps, specular hits, extrusion
