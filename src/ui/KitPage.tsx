@@ -309,6 +309,8 @@ function ExportMenu({ actions, preferId }: {
 }) {
   const [open, setOpen] = useState(false);
   const [last, setLast] = useState(() => { try { return preferId ?? localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return preferId ?? "engine"; } });
+  // the progress run wears the kit's own accent, like the Edit button (owner)
+  const accent = useGen((s) => s.cfg.effects.Bevel) ?? "#0E9CC9";
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -335,7 +337,7 @@ function ExportMenu({ actions, preferId }: {
             : "Working…")
           : `Export — ${primary.name}`}
         {primary.busy && primary.prog && (
-          <span className="kp-exportprog" style={{ width: `${Math.round((primary.prog.done / Math.max(1, primary.prog.total)) * 100)}%` }} />
+          <span className="kp-exportprog" style={{ width: `${Math.round((primary.prog.done / Math.max(1, primary.prog.total)) * 100)}%`, background: accent }} />
         )}
       </button>
       <button className="kp-dlall kp-exportarrow" aria-haspopup="menu" aria-expanded={open} title="All export formats"
