@@ -1533,13 +1533,25 @@ what it does, and it survives re-imports.)
 
 ### Tuning a single letter pair by hand
 
-Say the A–Y gap bothers you. The kerning table lives on the FONT ASSET,
-not on the text component: in the **Project window** select
-\`${root}/fonts/KitFace Baked Fill\`, then in its Inspector scroll to the
-bottom and expand **Glyph Adjustment Table** (older TMP: *Glyph
-Adjustment Table* under Font Feature Table). Search the pair ("AY") and
-edit the first glyph's **X Advance** — negative pulls the letters
-tighter, live in the scene.
+Say the A–Y gap bothers you. The kerning table lives on the **font
+asset** — NOT on the text object. Selecting a label shows you the
+TextMeshPro component and its material; neither has the table.
+
+1. In the **Project window** open \`${root}/fonts\` and click
+   **KitFace Baked Fill** (the blue **F** icon). Shortcut: with a label
+   selected, click the little ⊙ target at the right of its *Font Asset*
+   field to ping the asset, then click the asset itself.
+2. In that asset's Inspector, scroll past Face Info / Generation
+   Settings / Atlas & Material to the tables at the very bottom.
+   Depending on your TextMesh Pro version the section is called
+   **Glyph Adjustment Table** or **Font Feature Table → Glyph Pair
+   Adjustment Records**.
+3. Search the pair ("AY") and edit the FIRST glyph's **X Advance** —
+   negative pulls the letters tighter, live in the scene.
+
+The import receipt tells you the table is really there: each face logs
+"N kerning pairs written". If it says KERNING SKIPPED, your TMP version
+refused the table — send that line to uikitmaker.com.
 
 Two caveats: apply the SAME number to KitFace Baked **Stroke, Shadow and
 Glints** or that pair drifts apart between the label's layers; and the
@@ -2446,11 +2458,15 @@ namespace PatternBreak {
            other letterforms") — every face gets the SAME table so the
            layer stack stays in register. Tolerant: a TMP without the
            feature table just keeps plain advances. */
+        int kernApplied = 0;
         if (face.kerning != null && face.kerning.Length > 0) {
           try {
             var giOf = new Dictionary<uint, uint>();
             uint gi2 = 1;
             foreach (var g in glyphs) { if (!giOf.ContainsKey((uint)g.u)) giOf[(uint)g.u] = gi2; gi2++; }
+            // a fresh font asset has no feature table until something makes
+            // one — without this the pairs went nowhere, silently
+            if (fa.fontFeatureTable == null) SetField(fa, "m_FontFeatureTable", new TMP_FontFeatureTable());
             var feat = fa.fontFeatureTable;
             if (feat != null) {
               feat.glyphPairAdjustmentRecords.Clear();
@@ -2460,6 +2476,7 @@ namespace PatternBreak {
                 var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f));
                 var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
                 feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
+                kernApplied++;
               }
             }
           } catch (Exception) { /* pairs are a refinement — advances stay correct */ }
@@ -2484,7 +2501,12 @@ namespace PatternBreak {
         EditorUtility.SetDirty(fa);
         AssetDatabase.SaveAssets();
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
-          + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics.");
+          + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics."
+          + (kernApplied > 0
+            ? " " + kernApplied + " kerning pairs written (Glyph Adjustment Table on the FONT ASSET, not the text object)."
+            : (face.kerning != null && face.kerning.Length > 0
+              ? " KERNING SKIPPED — this TMP version wouldn't take a pair-adjustment table, so letter pairs keep their plain advances. Send this line to uikitmaker.com."
+              : " This kit's face reported no kerning pairs.")));
       } catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: " + faceName + " couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
