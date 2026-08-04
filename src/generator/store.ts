@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -1677,7 +1677,11 @@ export const useGen = create<GenStore>((set, get) => ({
       // typography is the user's voice — a roll never touches the font
       // pattern rolls tone-on-tone so it stays harmonious; "none" is rare
       // and every family pulls real, VISIBLE weight
-      const pats: GenConfig["candy"]["pattern"]["type"][] = ["stripes", "dots", "checker", "halftone", "stars"];
+      /* the WHOLE wardrobe, derived from the real list — the roll was
+         hardcoded to the original five, so the second pattern wave
+         (houndstooth, chevron, waves…) never came up (owner: "is
+         randomize everything picking up all the new content?") */
+      const pats = PATTERN_TYPES.filter((t) => t.id !== "none").map((t) => t.id);
       c.candy.pattern.type = Math.random() < 0.12 ? "none" : pats[roll(pats.length)];
       c.candy.pattern.color = null;
       c.candy.pattern.opacity = 26 + roll(42);
