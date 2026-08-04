@@ -1181,6 +1181,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  opacity) apply from the true state, so the state sliders are never
    *  dead on these pieces (owner: "glow isn't working here"). */
   pinDesign?: boolean;
+  /** Split the face into stretch-safe layers for engines (owner: a
+   *  diagonal pattern shears when a nine-slice middle stretches).
+   *  "under" = everything below the pattern (shadow, extrusion, shell,
+   *  rim, face fill); "over" = everything above it (inner glow, bloom,
+   *  gloss, grain, inner edge, specular). The pattern itself ships as a
+   *  seamless tile, so an engine stacks under → tiled pattern → over and
+   *  the pattern never distorts. Unset = the normal single-layer render,
+   *  byte-for-byte as before. */
+  faceLayer?: "under" | "over";
   /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
    *  inside each glyph are what make glints read per-letter; a bandScale
    *  wide enough pushes the caps outside the glyph so adjacent baked
@@ -1206,6 +1215,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     return bright(sat ? saturate(c, sat / 100) : c, adj.brightness);
   };
   const secondary = !!opts.secondary;
+  /* stretch-safe face layers: LU draws everything BELOW the pattern, LO
+     everything ABOVE it. Unset faceLayer = both, i.e. today's render. */
+  const LU = opts.faceLayer !== "over", LO = opts.faceLayer !== "under";
   const D = designFor(cfg, opts.pinDesign && state !== "disabled" ? "default" : state);
   /* per-state icon rig — color/effects/weight/pose fork with the state,
      the glyph itself is component-wide (store.update enforces that) */
@@ -1886,27 +1898,27 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${noise ? `<filter id="${id}nz" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="${nzFreq}" numOctaves="2" seed="7" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer></filter>` : ""}
 </defs>
 <g opacity="${(adj.opacity / 100).toFixed(2)}" transform="translate(0 ${riseDy.toFixed(1)})">
-  ${castShadow ? `<g id="${id}_cast-shadow" data-part="cast-shadow">${castShadow}</g>` : ""}
-  ${contact ? `<g id="${id}_contact-shadow" data-part="contact-shadow">${contact}</g>` : ""}
-  ${aura ? `<g id="${id}_outer-glow" data-part="outer-glow">${aura}</g>` : ""}
+  ${castShadow && LU ? `<g id="${id}_cast-shadow" data-part="cast-shadow">${castShadow}</g>` : ""}
+  ${contact && LU ? `<g id="${id}_contact-shadow" data-part="contact-shadow">${contact}</g>` : ""}
+  ${aura && LU ? `<g id="${id}_outer-glow" data-part="outer-glow">${aura}</g>` : ""}
   <g transform="translate(0 ${lift})">
-    ${extrusion ? `<g id="${id}_extrusion" data-part="extrusion">${extrusion}</g>` : ""}
-    <g id="${id}_shell" data-part="shell" opacity="${(T.frame / 100).toFixed(2)}">
+    ${extrusion && LU ? `<g id="${id}_extrusion" data-part="extrusion">${extrusion}</g>` : ""}
+    ${LU ? `<g id="${id}_shell" data-part="shell" opacity="${(T.frame / 100).toFixed(2)}">
       <path d="${outer}" fill="url(#${id}band)" stroke="${darken(bevelC, disabled ? 0.25 : 0.5)}" stroke-width="1.5"/>
       ${rimW > 0.2 ? `<path d="${rimP}" fill="none" stroke="url(#${id}rim)" stroke-width="${rimW.toFixed(1)}" opacity="${((C.rim.brightness / 100) * (disabled ? 0.5 : 1)).toFixed(2)}"/>` : ""}
       ${shape === "handdrawn" && !disabled ? roughInk(outer, darken(bevelC, 0.58), 1.4 * K) : ""}
-    </g>
+    </g>` : ""}
     <g data-oclip="1" clip-path="url(#${id}oc)">
     <g id="${id}_face" data-part="face" opacity="${(T.interior / 100).toFixed(2)}">
-      <path d="${faceP}" fill="url(#${id}face)"/>
+      ${LU ? `<path d="${faceP}" fill="url(#${id}face)"/>` : ""}
       <g clip-path="url(#${id}fc)">
-        ${patternUse ? `<g data-part="pattern">${patternUse}</g>` : ""}
-        ${igOp > 0.01 ? `<path d="${faceP}" fill="url(#${id}ig)" data-part="inner-glow"/>` : ""}
-        ${bloom ? `<g data-part="bloom">${bloom}</g>` : ""}
-        ${C.gloss.layer === "above" ? "" : `<g data-part="gloss">${C.gloss.blend && C.gloss.blend !== "normal" ? `<g style="mix-blend-mode:${C.gloss.blend}">${gloss}</g>` : gloss}</g>`}
-        ${noise ? `<g data-part="texture">${noise}</g>` : ""}
+        ${patternUse && !opts.faceLayer ? `<g data-part="pattern">${patternUse}</g>` : ""}
+        ${igOp > 0.01 && LO ? `<path d="${faceP}" fill="url(#${id}ig)" data-part="inner-glow"/>` : ""}
+        ${bloom && LO ? `<g data-part="bloom">${bloom}</g>` : ""}
+        ${C.gloss.layer === "above" || !LO ? "" : `<g data-part="gloss">${C.gloss.blend && C.gloss.blend !== "normal" ? `<g style="mix-blend-mode:${C.gloss.blend}">${gloss}</g>` : gloss}</g>`}
+        ${noise && LO ? `<g data-part="texture">${noise}</g>` : ""}
       </g>
-      ${innerEdge}
+      ${LO ? innerEdge : ""}
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
@@ -1930,8 +1942,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
             filter: iconFilter,
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
-    ${C.gloss.layer === "above" ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
-    ${specular ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
+    ${specular && LO ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
   </g>
 </g>
 </svg>`;
@@ -2273,6 +2285,10 @@ export interface KitOpts {
   /** Atomic-part render for the engine export: "face" | "needle" |
    *  "segment" | "track" — draws only that layer of a gauge/circuit. */
   part?: string;
+  /** Engine export: render only the face layers below ("under") or above
+   *  ("over") the pattern, so the pattern can tile independently and
+   *  never shears when a nine-slice middle stretches. */
+  faceLayer?: "under" | "over";
   sub?: string; max?: string; addBtn?: boolean; overlay?: string;
   /** Chosen slot values, keyed by slot id (see KIT_SLOTS in model.ts).
    *  The renderer validates against the slot's curated list — a choice
@@ -2805,7 +2821,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          fixed at the source now: build() derives face and rim through TRUE
          inward offsets, so the swallowtail's inner contour parallels the
          outer instead of drifting like a rescaled clone. */
-      return build(cfg, state, { x: 52, y: 34, h: h5, fs: 46 * k, iconSize: 0, maxW: 2600 * k }, { label: opts.label ?? cfg.content.label, iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: w5 });
+      return build(cfg, state, { x: 52, y: 34, h: h5, fs: 46 * k, iconSize: 0, maxW: 2600 * k }, { label: opts.label ?? cfg.content.label, iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: w5, faceLayer: opts.faceLayer });
     }
     case "panel": {
       // container shell — same recipe, bigger canvas. tokenH keeps walls,
@@ -2817,7 +2833,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : opts.kind === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
       const [pw, ph2] = dims[size];
-      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov });
+      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov, faceLayer: opts.faceLayer });
     }
     case "vsbar": {
       /* Fighting · VS health bar — two mirrored wells drain toward center,

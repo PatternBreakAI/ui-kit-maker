@@ -415,6 +415,43 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
   await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
   await addPng("extras/achievement.png", shell("achievetoast", { part: "shell" }), { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title are live engine text." });
+
+  /* ── STRETCH-SAFE FACES (owner: a diagonal pattern shears when the
+     nine-slice middle stretches). The wide, stateless pieces ship their
+     face SPLIT: under (shell, rim, fill) → the pattern as a seamless
+     tile → over (gloss, grain, inner edge, specular). Stacked in-engine
+     the frame stretches, the pattern tiles at constant scale, and the
+     gloss stays one sweep — the app's look at any width. Only worth the
+     bytes when the kit actually wears a pattern. ── */
+  const facePat = base.candy.pattern;
+  if (facePat && facePat.type !== "none" && facePat.opacity > 1) {
+    for (const [fam, cid] of [["panel", "panel"], ["header", "header"]] as const) {
+      const sl = sliceOf(cid as KitComponentId, cid === "panel" ? 380 : 158);
+      /* ONE union crop box for the pair (same trick the swap states use):
+         cropped apart, the over layer — which has no shell or shadow —
+         lands in a tighter box and every gloss sits misplaced once the
+         two are stretched over the same rect */
+      const grp = `faceLayer-${fam}`;
+      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under" }, slim),
+        { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
+      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over" }, slim),
+        { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
+    }
+    /* the face pattern as a seamless tile: one cell, drawn at the same
+       size and angle build() uses, so a Tiled Image reads identical to
+       the baked pattern at 1:1 */
+    const K1 = 1; // component faces render at K=1 in the export sizes
+    const ps = (8 + facePat.scale * 0.9) * K1;
+    const ang = ((facePat.angle ?? 0) % 180 + 180) % 180;
+    const diag = ang % 90 !== 0;
+    const cellW = Math.max(8, Math.round(ps * (diag ? Math.SQRT2 : 1)));
+    const patC = facePat.color ? facePat.color : darken(innerC, 0.2);
+    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellW}" viewBox="0 0 ${cellW} ${cellW}">` +
+      `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
+      `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
+    await addPng("fx/face-tile.png", patTile,
+      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between base-under and base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
+  }
   } // full scope
 
   /* ── shared FX blobs — engines compose their own shadows/glows ── */
@@ -1399,6 +1436,24 @@ Look at both and pick per piece: flat, pattern-heavy faces usually win
 with Tiled; glossy gradient faces usually win with Sliced. For a modest
 stretch (±20–30%) Sliced is almost always the right answer — the shear
 simply isn't visible.
+
+### The stretch-safe face (no compromise)
+
+When a kit wears a pattern, the wide pieces also ship **split into
+layers**, and the importer builds them as ready prefabs:
+**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+
+Inside is a three-layer stack: \`base-under.9\` (shell, rim, fill —
+Sliced) masks a Tiled \`fx/face-tile.png\`, and \`base-over.9\` (gloss,
+grain, inner edge, specular — Sliced) lays the light back on top. Drag
+one out and stretch it as far as you like: the frame stretches, the
+pattern keeps its exact angle and rhythm, and the gloss stays ONE sweep
+instead of repeating. That's the app's look at any width, with no
+trade — use these for wide banners, dialog frames and bars that grow.
+
+The plain single-sprite prefabs still ship beside them; they're lighter
+(one draw instead of three), so keep those for pieces that barely
+stretch.
 
 ## Why Unity's lights don't change the kit
 
@@ -3056,6 +3111,43 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    static void StretchFull(RectTransform rt) {
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+    }
+    /* the STRETCH-SAFE face: under (Sliced) masks a Tiled pattern, then
+       over (Sliced) lays the gloss back on top. Stretch this to any width
+       and the frame stretches, the pattern tiles at constant scale, and
+       the gloss stays one sweep — what the app shows, at any size. */
+    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
+      var under = S(root + "/assets/" + fam + "/base-under.9.png");
+      var over = S(root + "/assets/" + fam + "/base-over.9.png");
+      var tile = S(root + "/assets/fx/face-tile.png");
+      if (under == null || over == null || tile == null) return false;
+      var goName = NiceName(fam) + " (tiled face)";
+      var go = ImageObject(goName, under, pngScale);
+      var ui = go.GetComponent<Image>();
+      ui.type = Image.Type.Sliced;
+      // the under layer's own alpha is the mask — the pattern can never
+      // spill past the silhouette, whatever the rect does
+      var mask = go.AddComponent<Mask>();
+      mask.showMaskGraphic = true;
+      var pat = ImageObject("Pattern", tile, pngScale);
+      pat.transform.SetParent(go.transform, false);
+      var pi = pat.GetComponent<Image>();
+      pi.type = Image.Type.Tiled;
+      pi.raycastTarget = false;
+      StretchFull(pat.GetComponent<RectTransform>());
+      var ov = ImageObject("Over", over, pngScale);
+      ov.transform.SetParent(go.transform, false);
+      var oi = ov.GetComponent<Image>();
+      oi.type = Image.Type.Sliced;
+      oi.raycastTarget = false;
+      StretchFull(ov.GetComponent<RectTransform>());
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
        drop it on a Canvas, press Play, drag. Value is the direction. */
     static bool JoystickPrefab(string dir, string root, int pngScale) {
@@ -3140,6 +3232,9 @@ namespace PatternBreak {
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale)) any = true;
       if (GlobePrefab(dir, root, pngScale)) any = true;
+      // the wide, stateless pieces also get a stretch-safe variant when
+      // the kit wears a pattern (the plain Sliced prefab still ships)
+      foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
 #endif
