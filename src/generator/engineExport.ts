@@ -1380,23 +1380,25 @@ but a DIAGONAL shears: pull a 45° chevron to double width and it lands
 near 63°, with the bands wider. That's geometry, not a bug — and for the
 ±20–30% stretches most UI does, nobody sees it.
 
-When it matters, three fixes, cheapest first:
+**You don't pick this at export time.** Sliced and Tiled read the SAME
+sprite and the same nine-slice borders — Image Type lives on the Image
+component of each instance, not in the asset. So every piece in this kit
+can already do either; it's one dropdown on the piece you're placing,
+and nothing has to be re-exported.
 
-1. **Export near the size you'll use.** The kit draws each piece's
-   pattern at that piece's real dimensions, so a button exported close to
-   its final size never stretches at all. This is the one that costs
-   nothing and always works.
-2. **Switch Image Type from Sliced to Tiled.** Unity then REPEATS the
-   middle at native scale instead of stretching it — the pattern keeps
-   its angle and its rhythm. Whether the repeat is seamless depends on
-   where the pattern falls at the slice edge, so give it a look; on
-   angled patterns it sometimes seams.
-3. **Float the pattern on top.** Keep the base sprite Sliced for the
-   silhouette, add a second Image above it using \`fonts/face-pattern.png\`
-   set to **Tiled**, and mask it to the face (Rect Mask 2D, or a Mask on
-   the base). The frame stretches, the pattern never does. This is the
-   one to reach for on pieces that stretch a lot — wide banners, health
-   bars that grow.
+**Try Tiled where the middle is mostly pattern.** On the piece's
+**Image** component set **Image Type** to *Tiled*: Unity repeats the
+middle at native scale instead of stretching it, so the pattern keeps its
+angle and rhythm at any width. **Pixels Per Unit Multiplier** on the same
+component tunes how big the repeat is.
+
+**And know what it costs.** Tiled repeats the WHOLE middle, not just the
+pattern — the face gradient and the gloss sweep live in there too, so on
+a glossy face you can trade a sheared pattern for a repeated highlight.
+Look at both and pick per piece: flat, pattern-heavy faces usually win
+with Tiled; glossy gradient faces usually win with Sliced. For a modest
+stretch (±20–30%) Sliced is almost always the right answer — the shear
+simply isn't visible.
 
 ## Why Unity's lights don't change the kit
 
@@ -1733,10 +1735,15 @@ namespace PatternBreak {
       var pivot = new Vector2(a.pivot != null ? a.pivot.x : 0.5f, a.pivot != null ? a.pivot.y : 0.5f);
       // art ships at 2x resolution: PPU 200 lands every piece at DESIGN
       // size, so caps keep their designed thickness at any rect size
-      if (settings.spriteAlignment != (int)SpriteAlignment.Custom || settings.spritePivot != pivot || settings.spritePixelsPerUnit != 200f) {
+      /* Full Rect is REQUIRED by both Sliced and Tiled image types — on a
+         Tight mesh Unity warns and mis-draws the stretched middle, which
+         is exactly where a maker goes to escape pattern distortion */
+      if (settings.spriteAlignment != (int)SpriteAlignment.Custom || settings.spritePivot != pivot
+          || settings.spritePixelsPerUnit != 200f || settings.spriteMeshType != SpriteMeshType.FullRect) {
         settings.spriteAlignment = (int)SpriteAlignment.Custom;
         settings.spritePivot = pivot;
         settings.spritePixelsPerUnit = 200f;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
         ti.SetTextureSettings(settings);
         changed = true;
       }
@@ -2489,10 +2496,20 @@ namespace PatternBreak {
     /* Tune a pair once, on any face, then run this: the tweak lands on
        every layer face (so fill and stroke never split) and is saved to
        fonts/kerning-overrides.json so the next zip re-applies it. */
-    [MenuItem("Tools/PatternBreak/Sync Label Kerning (after hand-tuning a pair)")]
-    public static void SyncKerning() {
+    static bool s_kernSyncing;
+    /* saving the font asset IS the gesture — no menu item to remember
+       (owner: "running a tool is a bit cumbersome") */
+    public static void SyncKerningQuiet() { SyncKerningCore(true); }
+    [MenuItem("Tools/PatternBreak/Sync Label Kerning (usually automatic)")]
+    public static void SyncKerning() { SyncKerningCore(false); }
+    static void SyncKerningCore(bool auto) {
+      if (s_kernSyncing) return; // our own SaveAssets re-enters the save hook
+      s_kernSyncing = true;
+      try { SyncKerningRun(auto); } finally { s_kernSyncing = false; }
+    }
+    static void SyncKerningRun(bool auto) {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
-      if (manifests.Length == 0) { Debug.LogWarning("UI Kit Maker: no kit in this project to sync."); return; }
+      if (manifests.Length == 0) { if (!auto) Debug.LogWarning("UI Kit Maker: no kit in this project to sync."); return; }
       foreach (var guid in manifests) {
         var mPath = AssetDatabase.GUIDToAssetPath(guid);
         var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
@@ -2541,8 +2558,10 @@ namespace PatternBreak {
           AssetDatabase.ImportAsset(root + "/fonts/kerning-overrides.json");
         } catch (Exception e) { Debug.LogWarning("UI Kit Maker: couldn't save your kerning tweaks — " + e.Message); }
         AssetDatabase.SaveAssets();
-        Debug.Log("UI Kit Maker: kerning synced across " + faces.Count + " layer face(s) — "
-          + merged.Count + " pairs, " + tweaks.Count + " of them yours. Saved to fonts/kerning-overrides.json, so every future export re-applies them. Fill and stroke now move together.");
+        // an automatic pass only speaks when there was something to carry
+        if (!auto || tweaks.Count > 0)
+          Debug.Log("UI Kit Maker: kerning synced across " + faces.Count + " layer face(s) — "
+            + merged.Count + " pairs, " + tweaks.Count + " of them yours. Saved to fonts/kerning-overrides.json, so every future export re-applies them. Fill and stroke move together.");
       }
     }
 #endif
@@ -3396,6 +3415,24 @@ namespace PatternBreak {
 
   /* Applies manifest settings to kit textures AS THEY IMPORT — covers
      reimports and asset refreshes without anyone running the menu. */
+#if UNITY_2023_2_OR_NEWER
+  /* Tune a pair in the Glyph Adjustment Table, hit save — the tweak lands
+     on every layer face and is written to fonts/kerning-overrides.json by
+     itself. The menu item stays as a manual re-run. */
+  class KitKerningAutoSync : UnityEditor.AssetModificationProcessor {
+    static string[] OnWillSaveAssets(string[] paths) {
+      if (paths == null) return paths;
+      foreach (var p in paths) {
+        if (p != null && p.EndsWith(".asset") && p.Replace("\\\\", "/").Contains("/fonts/KitFace Baked")) {
+          // after the save lands, not during it
+          EditorApplication.delayCall += KitImporter.SyncKerningQuiet;
+          break;
+        }
+      }
+      return paths;
+    }
+  }
+#endif
   class KitTexturePostprocessor : AssetPostprocessor {
     static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
     void OnPreprocessTexture() {
