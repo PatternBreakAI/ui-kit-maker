@@ -1546,8 +1546,15 @@ TextMeshPro component and its material; neither has the table.
    Depending on your TextMesh Pro version the section is called
    **Glyph Adjustment Table** or **Font Feature Table → Glyph Pair
    Adjustment Records**.
-3. Search the pair ("AY") and edit the FIRST glyph's **X Advance** —
-   negative pulls the letters tighter, live in the scene.
+3. Find the pair and edit the FIRST (left) glyph's **AX / X Advance** —
+   negative pulls the letters together, live in the scene. The right
+   glyph's AX is a different thing: it sets the gap AFTER that letter.
+4. Mind the case. Every pair is listed separately, and the glyph IDs run
+   \`A\`=1…\`Z\`=26, then \`a\`=27…\`z\`=52 — so a button reading PLAY needs
+   the row whose right glyph is uppercase **Y (ID 25)**, not lowercase
+   \`y\` (ID 51). Sanity check against neighbouring diagonals (A–V, A–W):
+   a pair that reads near zero while its neighbours read −14 is usually
+   the wrong row.
 
 The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
