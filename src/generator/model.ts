@@ -705,7 +705,11 @@ export function presetById(id: string): Preset {
 export function defaultStates(): Record<GenStateName, StateAdjust> {
   return {
     default: { brightness: 5, saturation: 0, glow: 0, lift: 0, opacity: 100 },
-    hover: { brightness: 8, saturation: 0, glow: 38, lift: -3, opacity: 100 },
+    /* hover glows FULL by default (owner mandate, 2026-08-04): it's the
+       recipe applied by hand to nearly every kit anyway, it reads as
+       "look here" in tutorials and onboarding, and removing it from the
+       few pieces that don't want it is one slider. */
+    hover: { brightness: 8, saturation: 0, glow: 100, lift: -3, opacity: 100 },
     pressed: { brightness: -6, saturation: 0, glow: 12, lift: 3, opacity: 100 },
     disabled: { brightness: 0, saturation: 0, glow: 0, lift: 0, opacity: 62 },
   };
