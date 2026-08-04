@@ -3195,10 +3195,20 @@ namespace PatternBreak {
       var liquid = S(root + "/assets/globe/liquid.png");
       if (glass == null || rim == null || liquid == null) return false;
       var go = ImageObject("HealthGlobe", glass, pngScale);
-      var mask = go.AddComponent<Mask>();
-      mask.showMaskGraphic = true; // the glass stays visible AND clips the liquid
+      /* the stencil is a HIDDEN copy of the glass: Unity only alpha-clips
+         a Mask when its graphic is hidden, so masking with the visible
+         glass would clip the liquid to a RECTANGLE (same gotcha the
+         tiled face hit in the field) */
+      var maskGo = ImageObject("LiquidMask", glass, pngScale);
+      maskGo.transform.SetParent(go.transform, false);
+      maskGo.GetComponent<Image>().raycastTarget = false;
+      var mrt = maskGo.GetComponent<RectTransform>();
+      mrt.anchorMin = Vector2.zero; mrt.anchorMax = Vector2.one;
+      mrt.offsetMin = Vector2.zero; mrt.offsetMax = Vector2.zero;
+      var mask = maskGo.AddComponent<Mask>();
+      mask.showMaskGraphic = false;
       var lq = ImageObject("Liquid", liquid, pngScale);
-      lq.transform.SetParent(go.transform, false);
+      lq.transform.SetParent(maskGo.transform, false);
       var li = lq.GetComponent<Image>();
       li.type = Image.Type.Filled;
       li.fillMethod = Image.FillMethod.Vertical;
