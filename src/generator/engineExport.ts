@@ -1054,14 +1054,34 @@ namespace PatternBreak {
       var p = transform.parent as RectTransform;
       return p != null && p.rect.height > 1f ? p.rect.height / authoredHeight : 1f;
     }
-    void OnEnable() { Apply(); }
+    /* the layer list is walked every frame in the editor, so it is cached
+       rather than re-collected — GetComponentsInChildren allocates a fresh
+       array on every call, and a sceneful of hero labels doing that each
+       frame is pure garbage (field: the Playground "chugs in play mode to
+       the point of being unusable") */
+    TextMeshProUGUI[] layers;
+    TextMeshProUGUI[] Layers() {
+      // an EMPTY result is still a result — re-collecting on Length == 0 would
+      // allocate every frame for a label that has no layers yet
+      if (layers == null) layers = GetComponentsInChildren<TextMeshProUGUI>(true);
+      return layers;
+    }
+    void OnEnable() { layers = null; Apply(); }
+    void OnTransformChildrenChanged() { layers = null; }
     void Update() {
       if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
-      /* editing any LAYER adopts into the group — text, size and spacing
-         alike. Editing the Fill child used to leave Stroke and Shadow
-         behind (field: "changing the type did not change the stroke
-         layer"; "spacing only moved the top layer"). */
-      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+#if UNITY_EDITOR
+      /* Adoption is an AUTHORING convenience: it exists so that editing one
+         layer in the Inspector pulls the other three along (field: "changing
+         the type did not change the stroke layer"; "spacing only moved the
+         top layer"). Nobody is dragging Inspector fields inside a running
+         game, so it costs nothing there — and the four property reads per
+         layer per frame are exactly what made a full scene crawl. The check
+         above still catches anything set from game code, and SetText applies
+         immediately. */
+      if (Application.isPlaying) return;
+      foreach (var label in Layers()) {
+        if (label == null) { layers = null; return; }
         if (label.text != appliedText) { text = label.text; Apply(); return; }
         if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
         if (label.wordSpacing != appliedWordSpacing) { wordSpacing = label.wordSpacing; Apply(); return; }
@@ -1073,12 +1093,14 @@ namespace PatternBreak {
            disconnected") — one layer's edit becomes the group's */
         if (label.margin != appliedMargins) { margins = label.margin; Apply(); return; }
       }
+#endif
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
       var k = SizeK();
       appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
-      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+      foreach (var label in Layers()) {
+        if (label == null) { layers = null; break; }
         // the group's write is authoritative — TMP auto-fit would silently
         // re-solve fontSize per layer and split the stack
         label.enableAutoSizing = false;
@@ -2024,8 +2046,12 @@ namespace PatternBreak {
       try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
       if (l == null || m == null) return true; // unreadable either side: rebuild rather than guess
       if (l.kitVersion != m.kitVersion) return true;
-      if ((l.generatorVersion ?? "") != (m.generatorVersion ?? "")) return true;
-      return !l.prefabsGenerated; // a receipt that admits its prefabs never landed
+      return (l.generatorVersion ?? "") != (m.generatorVersion ?? "");
+      /* deliberately NOT "&& l.prefabsGenerated": a kit whose prefabs can't
+         build (no TMP yet, say) would then look stale forever, and entering
+         Play mode is a domain reload — so every Play would kick off a full
+         re-import. The version pair is the honest signal; a genuinely
+         prefab-less kit is one Reapply away. */
     }
 
     /* Play-mode drops half-import: scene creation is forbidden (the
