@@ -142,7 +142,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      smudged halo (owner: "the rollovers are weird and incorrect"). Calm
      the fork exactly like the master so all four states share base's
      geometry. */
-  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}) => {
+  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number) => {
     const c = clone(pieceCfg(id));
     /* forks are PARTIAL (designFor: every field falls back to the master
        independently) — calm only what a fork actually carries, or a
@@ -157,7 +157,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     calm(c);
     for (const s of Object.values(c.states)) s.glow = 0;
     for (const f of Object.values(c.stateDesigns)) if (f) calm(f);
-    return renderKit(c, id, effKitSize(st.kitSizes[id]), state, undefined, st.kitShapes[id], { label: "", icon: null, ...opts });
+    return renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts });
   };
 
   /* nine-slice margins in PNG pixels: the silhouette's own cap zone plus the
@@ -343,6 +343,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
   await addPng("iconbtn/base.png", shell("iconbtn", { icon: undefined }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
 
+  /* ── states for the OTHER controls people actually point at. Only the
+     nine-slice buttons shipped hover/pressed/disabled, so an icon button,
+     a checkbox and a radio arrived inert — you hover them in the Playground
+     and nothing happens (owner: "I think it's missing the hover states").
+     These bases render on the FULL canvas rather than cropped, so all four
+     states already share one geometry — the swap can't shift the art. ── */
+  const STATEFUL: { id: KitComponentId; family: string; opts: Record<string, unknown>; value?: number }[] = [
+    { id: "iconbtn", family: "iconbtn", opts: { icon: undefined } },
+    { id: "checkbox", family: "checkbox", opts: { icon: undefined }, value: 0 },
+    { id: "radio", family: "radio", opts: { icon: undefined }, value: 0 },
+  ];
+  const SWAP_USAGE: Record<string, string> = {
+    hover: "Highlighted (and Selected)",
+    pressed: "Pressed",
+    disabled: "Disabled",
+  };
+  for (const s of STATEFUL) {
+    for (const stName of ["hover", "pressed", "disabled"] as const) {
+      await addPng(`${s.family}/base-${stName}.png`, stateShell(s.id, stName, s.opts, s.value),
+        { component: s.family, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` });
+    }
+  }
+
   /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
      The tier ladder (this kit's names and colors, custom edits included)
      rides kit-manifest.json > rarity — the engine picks the tier from its
@@ -371,6 +395,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        the glyph (the raster clamp still guards the center strip) */
     const ddSlice = sliceOf("dropdown", 110);
     ddSlice.right = Math.max(ddSlice.right, Math.round(80 * PNG_SCALE));
+    /* no base-hover/pressed here on purpose: the dropdown is a COMPOSED
+       control with no generated prefab, and its emphasis already ships as
+       the row-highlight and row-check layers below. Three more full-size
+       sprites nobody wires isn't free — a full kit is already 134 MB of
+       uncompressed texture. */
     await addPng("dropdown/base.9.png", ddSvg,
       { component: "dropdown", part: "base", nineSlice: ddSlice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, chevron included (as designed, safe inside the right cap). The value text is live engine content." }, true);
     await addPng("dropdown/menu.9.png",
@@ -3284,9 +3313,9 @@ namespace PatternBreak {
       if (pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
       var famDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
-      var hover = S(famDir + "/base-hover.9.png");
-      var pressed = S(famDir + "/base-pressed.9.png");
-      var disabled = S(famDir + "/base-disabled.9.png");
+      var hover = State(famDir, "hover");
+      var pressed = State(famDir, "pressed");
+      var disabled = State(famDir, "disabled");
       if (hover != null || pressed != null || disabled != null) {
         var btn = go.AddComponent<Button>();
         // explicit target: play mode would self-resolve in Awake, but the
@@ -3327,6 +3356,15 @@ namespace PatternBreak {
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    /* A state sprite is nine-sliced on the stretchy families and plain on
+       the round ones (an icon button or a radio has nothing to stretch), so
+       both names have to be tried. Looking only for ".9.png" is why the
+       icon button, checkbox and radio arrived with no Button at all —
+       their states shipped, nothing ever read them. */
+    static Sprite State(string famDir, string name) {
+      var nine = S(famDir + "/base-" + name + ".9.png");
+      return nine != null ? nine : S(famDir + "/base-" + name + ".png");
     }
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
@@ -3568,9 +3606,9 @@ namespace PatternBreak {
         if (!spritePath.StartsWith(root + "/assets/")) continue; // not this kit's sprite — not ours to touch
         var famDir = Path.GetDirectoryName(spritePath).Replace("\\\\", "/");
         var famName = Path.GetFileName(famDir);
-        var hover = S(famDir + "/base-hover.9.png");
-        var pressed = S(famDir + "/base-pressed.9.png");
-        var disabled = S(famDir + "/base-disabled.9.png");
+        var hover = State(famDir, "hover");
+        var pressed = State(famDir, "pressed");
+        var disabled = State(famDir, "disabled");
         bool wantWiring = asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
