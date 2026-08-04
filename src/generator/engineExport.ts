@@ -706,6 +706,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          specific button (a piece-scope down state), not the master — the
          master-level typography.stateStyles above would miss it. Same
          qualification rules; family entries win over the master set. */
+      /* The hover GLOW and press LIFT, per family. These are the two moves
+         the app makes on a state that the sprite deliberately doesn't
+         carry: the glow is a soft halo that would blow up the sprite's
+         bounds and can't nine-slice, and the lift is a transform. Without
+         them a Unity rollover is a quiet face swap — the piece changes but
+         nothing announces it (owner: "I'm not getting the glows on hover…
+         it's impossible for me to know" whether it hovered at all). */
+      stateFx: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
+                 ["chip", "chip"], ["tab", "tab"], ["datarow", "list-row"], ["slot", "item-slot"],
+                 ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"]] as const).flatMap(([pid, fam]) => {
+        const ps = pieceCfg(pid).states;
+        return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
+          family: fam,
+          state: sn,
+          // a disabled piece never glows, whatever the dial says — the
+          // renderer forces it to zero too, and a glowing dead button is
+          // the wrong signal in any kit
+          glow: sn === "disabled" ? 0 : Math.round(ps[sn].glow),
+          /* RELATIVE to the resting state, and that matters: most kits set
+             the same lift on all four (Miami is -8 across the board), so
+             shipping the absolute number would shove every button off the
+             spot the designer put it in the moment the scene woke up. The
+             delta is the only part Unity can use. Positive is UP, Unity's
+             convention — the app measures the other way. */
+          lift: Math.round((ps.default.lift - ps[sn].lift) * 10) / 10,
+        }));
+      }),
       labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"]] as const).flatMap(([pid, fam]) => {
         const pc = pieceCfg(pid);
         return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
@@ -764,6 +791,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -812,6 +840,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Editor/PatternBreakKitImporter.cs",
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
+    "Runtime/PatternBreakStateFx.cs",
   ]);
   const rooted = files.map((f) => ({
     ...f,
@@ -1052,6 +1081,109 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
    dynamic"). Everything else the importer does is editor-only, but a
    layered label must follow dynamic text in play mode and in builds, so
    this ships as a real component — tiny and dependency-free on purpose. */
+/* Runtime: the two things a state sprite CAN'T carry — the hover glow and
+   the press lift. The glow is a soft halo that would blow up the sprite's
+   bounds and can't nine-slice; the lift is a transform. Both were promised
+   as "engine-composed" in the README and never actually built, so a Unity
+   rollover was a quiet face swap (owner: "I'm not getting the glows on
+   hover… it's impossible for me to know" whether it hovered). */
+const STATE_FX_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  /* Sits beside the Button. Numbers come from the kit's own state dials —
+     the same Glow and Lift you set on uikitmaker.com. */
+  [AddComponentMenu("UI Kit Maker/State FX")]
+  [RequireComponent(typeof(RectTransform))]
+  public class StateFx : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler {
+    [Header("Look — edited on uikitmaker.com, tune freely here")]
+    public Sprite glowSprite;
+    public Color glowColor = Color.white;
+    [Tooltip("Glow strength 0-100 per state, straight from the kit's Glow dial.")]
+    public float restGlow, hoverGlow = 100f, pressedGlow, disabledGlow;
+    [Tooltip("Vertical shift in pixels per state — the press sink. Positive is up.")]
+    public float restLift, hoverLift, pressedLift;
+    [Tooltip("How far past the piece the halo spreads, as a fraction of its size.")]
+    public float spread = 0.55f;
+    [Tooltip("Seconds to cross-fade between states.")]
+    public float fade = 0.11f;
+
+    RectTransform rt, glowRt;
+    Image glowImg;
+    Selectable sel;
+    bool over, down;
+    float glowNow, glowTo, liftNow, liftTo, baseY;
+    bool settling;
+
+    void OnEnable() {
+      rt = GetComponent<RectTransform>();
+      sel = GetComponent<Selectable>();
+      baseY = rt.anchoredPosition.y;
+      glowNow = glowTo = Target(out liftTo);
+      liftNow = liftTo;
+      /* the halo has to draw BEHIND the piece, and in Unity UI a child
+         always draws in FRONT of its parent's own graphic — so it is a
+         SIBLING inserted just before us. Built at runtime, which also
+         keeps it out of the prefab and out of your scene until it's
+         actually doing something. */
+      if (Application.isPlaying && glowSprite != null && rt.parent != null) BuildGlow();
+      Push(true);
+    }
+    void OnDisable() {
+      if (glowRt != null) Destroy(glowRt.gameObject);
+      glowRt = null; glowImg = null;
+      if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
+    }
+    void BuildGlow() {
+      var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      glowRt = go.GetComponent<RectTransform>();
+      glowRt.SetParent(rt.parent, false);
+      glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
+      glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
+      glowRt.pivot = rt.pivot;
+      glowRt.localScale = rt.localScale;
+      var pad = Mathf.Max(rt.rect.width, rt.rect.height) * spread;
+      glowRt.sizeDelta = rt.sizeDelta + new Vector2(pad, pad);
+      glowImg = go.GetComponent<Image>();
+      glowImg.sprite = glowSprite;
+      glowImg.raycastTarget = false;
+      glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+    }
+    float Target(out float lift) {
+      if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
+      if (down) { lift = pressedLift; return pressedGlow; }
+      if (over) { lift = hoverLift; return hoverGlow; }
+      lift = restLift; return restGlow;
+    }
+    void Retarget() { glowTo = Target(out liftTo); settling = true; }
+    public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); }
+    public void OnPointerExit(PointerEventData e) { over = false; down = false; Retarget(); }
+    public void OnPointerDown(PointerEventData e) { down = true; Retarget(); }
+    public void OnPointerUp(PointerEventData e) { down = false; Retarget(); }
+
+    /* Update runs ONLY while a transition is in flight — a component that
+       ticks forever is how the Playground got slow the first time. */
+    void Update() {
+      if (!settling) return;
+      var step = fade > 0.001f ? Time.unscaledDeltaTime / fade : 1f;
+      glowNow = Mathf.MoveTowards(glowNow, glowTo, Mathf.Abs(glowTo - glowNow) * 1f + step * 100f);
+      liftNow = Mathf.MoveTowards(liftNow, liftTo, Mathf.Abs(liftTo - liftNow) * 1f + step * 40f);
+      if (Mathf.Abs(glowNow - glowTo) < 0.2f && Mathf.Abs(liftNow - liftTo) < 0.05f) {
+        glowNow = glowTo; liftNow = liftTo; settling = false;
+      }
+      Push(false);
+    }
+    void Push(bool snap) {
+      if (snap) { glowNow = glowTo; liftNow = liftTo; }
+      if (glowImg != null) glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, Mathf.Clamp01(glowNow / 100f) * 0.85f);
+      if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+    }
+  }
+}
+`;
+
 const HERO_LABEL_RUNTIME = `using UnityEngine;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
@@ -1898,9 +2030,10 @@ namespace PatternBreak {
   [Serializable] class PBPalette { public string glow; public string highlight; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
+  [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
   [Serializable] class PBLabelSize { public string family; public float size; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -3330,6 +3463,7 @@ namespace PatternBreak {
         ss.pressedSprite = pressed;
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
+        WireStateFx(go, root, m, baseAsset.component);
       }
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
@@ -3365,6 +3499,36 @@ namespace PatternBreak {
     static Sprite State(string famDir, string name) {
       var nine = S(famDir + "/base-" + name + ".9.png");
       return nine != null ? nine : S(famDir + "/base-" + name + ".png");
+    }
+    /* the glow and the lift, wired from the kit's own state dials. Only
+       goes on pieces that actually swap — a panel has no hover to announce. */
+    static void WireStateFx(GameObject go, string root, PBManifest m, string family) {
+      if (m == null || m.stateFx == null || m.stateFx.Length == 0) return;
+      if (go.GetComponent<StateFx>() != null) return;
+      bool any = false;
+      float rest = 0f, hover = 0f, press = 0f, dis = 0f, restL = 0f, hoverL = 0f, pressL = 0f;
+      foreach (var f in m.stateFx) {
+        if (f == null || f.family != family) continue;
+        any = true;
+        if (f.state == "default") { rest = f.glow; restL = f.lift; }
+        else if (f.state == "hover") { hover = f.glow; hoverL = f.lift; }
+        else if (f.state == "pressed") { press = f.glow; pressL = f.lift; }
+        else if (f.state == "disabled") dis = f.glow;
+      }
+      if (!any) return;
+      var fx = go.AddComponent<StateFx>();
+      fx.glowSprite = S(root + "/assets/fx/glow.png");
+      Color gc;
+      if (m.palette == null || string.IsNullOrEmpty(m.palette.glow) || !ColorUtility.TryParseHtmlString(m.palette.glow, out gc)) gc = Color.white;
+      fx.glowColor = gc;
+      // the manifest already ships lift RELATIVE to rest and Unity-side up
+      fx.restGlow = rest; fx.hoverGlow = hover; fx.pressedGlow = press; fx.disabledGlow = dis;
+      fx.restLift = restL; fx.hoverLift = hoverL; fx.pressedLift = pressL;
+    }
+    static bool HasStateFx(PBManifest m, string family) {
+      if (m == null || m.stateFx == null) return false;
+      foreach (var f in m.stateFx) if (f != null && f.family == family) return true;
+      return false;
     }
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
@@ -3610,6 +3774,11 @@ namespace PatternBreak {
         var pressed = State(famDir, "pressed");
         var disabled = State(famDir, "disabled");
         bool wantWiring = asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
+        /* a prefab built by an older importer already has its Button, so the
+           wiring branch never fires — it would have kept its quiet face swap
+           forever without this (owner: "I'm not getting the glows on hover") */
+        bool wantFx = (hover != null || pressed != null || disabled != null)
+          && asset.GetComponent<StateFx>() == null && HasStateFx(m, famName);
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
         if (kitStyle != null) {
@@ -3671,7 +3840,7 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress) continue;
+        if (!wantWiring && !wantDress && !wantFx) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -3692,7 +3861,12 @@ namespace PatternBreak {
             ss.pressedSprite = pressed;
             ss.disabledSprite = disabled;
             btn.spriteState = ss;
+            WireStateFx(contents, root, m, famName);
             wired++; changed = true;
+          }
+          if (wantFx && contents.GetComponent<StateFx>() == null) {
+            WireStateFx(contents, root, m, famName);
+            if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
           }
 #if UNITY_2023_2_OR_NEWER
           if (wantDress) {
