@@ -260,7 +260,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "small", family: "button-small", h: 100, usage: "Compact action button." },
     { id: "chip", family: "chip", h: 84, usage: "Pill / chip. Value text is live engine text." },
     { id: "tab", family: "tab", h: 84, usage: "Tab. Selected state = tint or the full-material variant." },
-    { id: "input", family: "input", h: 124, usage: "Input field surface (well included; the quiet 'Type something…' specimen is part of the art). Value + caret are live engine widgets — put your live input text above the surface." },
+    { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
@@ -268,10 +268,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   ];
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
-    /* the input keeps its quiet "Type something…" specimen (owner call:
-       the affordance is necessary — it's how the piece reads as an input);
-       replaceable CONTENT stays stripped via the blanket label/icon nulls */
-    const rowOpts = n.id === "datarow" ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
+    /* NOTHING replaceable is baked into a sprite. The input's "Type
+       something…" used to ride along as art — the affordance reads well in
+       the app, but in Unity it arrived welded to the surface and there was
+       no way to take it off (owner: "I didn't realize the text would be
+       burned into the image"). It ships as a live text layer on the prefab
+       instead: editable, or deletable in one keystroke. */
+    const rowOpts: Record<string, unknown> = n.id === "datarow"
+      ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never }
+      : n.id === "input" ? { placeholder: false } : {};
     const fullSvg = shell(n.id, rowOpts, slim);
     const slice = sliceOf(n.id, n.h);
     /* swap families crop base + states on ONE union box (the group) so the
@@ -579,6 +584,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
       ],
+      /* The input's affordance, as NUMBERS rather than baked pixels. The
+         renderer draws it at x = (bevel + 4) + 20k from the shell's left
+         edge, centred on the well, at 30k — and one SVG px is one prefab
+         unit (the sprite rasterizes at pngScale and the prefab divides by
+         it again), so these travel straight through. */
+      placeholder: (() => {
+        const pc = pieceCfg("input");
+        const pk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes.input)] ?? 1;
+        const pbw = pc.bevel.off ? 0 : pc.bevel.width;
+        return {
+          text: "Type something…",
+          left: Math.round(((pbw + 4) + 20 * pk) * 10) / 10,
+          size: Math.round(30 * pk * 10) / 10,
+          /* Measured DOWN from the sprite's top edge, because the sprite is
+             cropped tight to the geometry and the extrusion hangs below the
+             field — so the sprite's middle is NOT the field's middle. The
+             importer turns this into a Unity offset once it knows the rect:
+             y = rect.height / 2 - centerFromTop. */
+          centerFromTop: Math.round(((124 * pk) / 2 + 1 + (pc.type.oy ?? 0) * pk) * 10) / 10,
+          color: "#FFFFFF",
+          opacity: 55,
+          italic: true,
+        };
+      })(),
       typography: {
         font: st.cfg.type.font,
         source: `https://fonts.google.com/specimen/${encodeURIComponent(st.cfg.type.font).replace(/%20/g, "+")}`,
@@ -1716,6 +1745,12 @@ Want to feel the states without wiring anything? Open
 **${root}/Playground.unity** (generated on first import) and press Play —
 it carries a camera, a raycasting canvas, exactly one EventSystem with
 the input module your project actually uses, and the examples placed.
+
+Every piece hangs off a single **Board** object, scaled down so the whole
+kit fits inside the 1920×1080 canvas — a full kit laid out at 1:1 is wider
+than that, and the overflow used to sit off-screen where you couldn't see
+it in Play or reach it easily in the Scene view. Set the Board's Scale
+back to 1 if you'd rather work at true size and scroll around.
 If buttons ever ignore the mouse in your OWN scene, the usual suspects
 are a duplicate EventSystem (keep exactly one) or an EventSystem whose
 input module doesn't match the project's Active Input Handling.
@@ -1813,7 +1848,8 @@ namespace PatternBreak {
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBLabelSize { public string family; public float size; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -2295,10 +2331,22 @@ namespace PatternBreak {
           if (p != null) prefabs.Add(p);
         }
         prefabs.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
-        float colX = 90f, y = -90f, colMaxW = 0f; int placed = 0;
+        /* Everything hangs off one Board, and the Board is scaled to fit the
+           canvas at the end. A full kit is wider than 1920 laid out at 1:1,
+           and the old code just let the later columns run off the right-hand
+           edge: invisible when you press Play, and in the Scene view you had
+           to go hunting outside the canvas frame to grab them (owner: "it's
+           really difficult dragging these elements around"). Set the Board's
+           scale back to 1 for a 1:1 board. */
+        var boardGo = new GameObject("Board", typeof(RectTransform));
+        boardGo.transform.SetParent(canvasGo.transform, false);
+        var board = boardGo.GetComponent<RectTransform>();
+        board.anchorMin = new Vector2(0f, 1f); board.anchorMax = new Vector2(0f, 1f);
+        board.pivot = new Vector2(0f, 1f);
+        float colX = 90f, y = -90f, colMaxW = 0f, deepest = 0f; int placed = 0;
         foreach (var prefab in prefabs) {
           var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
-          inst.transform.SetParent(canvasGo.transform, false);
+          inst.transform.SetParent(board, false);
           var rt = inst.GetComponent<RectTransform>();
           if (rt == null) continue;
           float w = Mathf.Max(80f, rt.sizeDelta.x), h = Mathf.Max(40f, rt.sizeDelta.y);
@@ -2306,9 +2354,16 @@ namespace PatternBreak {
           rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
           rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
           y -= h + 44f;
+          if (-y > deepest) deepest = -y;
           if (w > colMaxW) colMaxW = w;
           placed++;
         }
+        float boardW = colX + colMaxW + 90f, boardH = Mathf.Max(deepest + 90f, 200f);
+        board.sizeDelta = new Vector2(boardW, boardH);
+        // shrink to fit, never blow up a small kit past 1:1
+        float fit = Mathf.Min(1f, Mathf.Min(1920f / boardW, 1080f / boardH));
+        board.localScale = new Vector3(fit, fit, 1f);
+        board.anchoredPosition = new Vector2((1920f - boardW * fit) * 0.5f, -(1080f - boardH * fit) * 0.5f);
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
@@ -3101,6 +3156,57 @@ namespace PatternBreak {
       StyleLabel(t, s);
     }
 #endif
+    /* Placed from the manifest's numbers rather than guessed: one SVG pixel
+       is one prefab unit (the sprite rasterizes at pngScale and the prefab
+       divides by it again), so left and size travel through untouched.
+       Stretched anchors + a left margin keep it pinned to the field's left
+       edge at any width, which is what a 9-sliced input actually does. */
+    static void AddPlaceholder(GameObject parent, string root, PBManifest m, Font kitFont) {
+      var ph = m != null ? m.placeholder : null;
+      if (ph == null || string.IsNullOrEmpty(ph.text)) return;
+      var go = new GameObject("Placeholder (delete or bind)", typeof(RectTransform), typeof(CanvasRenderer));
+      go.transform.SetParent(parent.transform, false);
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      /* the sprite is cropped tight to the geometry and the extrusion hangs
+         BELOW the field, so the sprite's middle sits lower than the field's.
+         The manifest measures down from the top edge; convert once we know
+         the rect. */
+      var prt = parent.GetComponent<RectTransform>();
+      float mid = prt != null ? prt.rect.height * 0.5f : 0f;
+      rt.anchoredPosition = new Vector2(0f, mid - ph.centerFromTop);
+      Color col;
+      if (string.IsNullOrEmpty(ph.color) || !ColorUtility.TryParseHtmlString(ph.color, out col)) col = Color.white;
+      col.a = Mathf.Clamp01(ph.opacity / 100f);
+#if UNITY_2023_2_OR_NEWER
+      var face = EnsureTmpFace(root, m, kitFont);
+      if (face != null) {
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.text = ph.text;
+        t.font = face;
+        t.enableAutoSizing = false;
+        t.fontSize = ph.size;
+        t.alignment = TextAlignmentOptions.Left;   // midline-left: centred vertically, pinned left
+        t.margin = new Vector4(ph.left, 0f, ph.left, 0f);
+        t.color = col;
+        if (ph.italic) t.fontStyle = FontStyles.Italic;
+        t.raycastTarget = false;
+        return;
+      }
+#endif
+      var u = go.AddComponent<Text>();
+      u.text = ph.text;
+      u.alignment = TextAnchor.MiddleLeft;
+      u.fontSize = Mathf.RoundToInt(ph.size);
+      u.color = col;
+      u.raycastTarget = false;
+      if (ph.italic) u.fontStyle = FontStyle.Italic;
+      var f = kitFont != null ? kitFont : BuiltinFont();
+      if (f != null) u.font = f;
+      rt.offsetMin = new Vector2(ph.left, rt.offsetMin.y);
+      rt.offsetMax = new Vector2(-ph.left, rt.offsetMax.y);
+    }
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
 #if UNITY_2023_2_OR_NEWER
       var face = EnsureTmpFace(root, m, kitFont);
@@ -3170,6 +3276,12 @@ namespace PatternBreak {
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
       }
+      /* the input's affordance, as a LAYER. It used to be painted into the
+         surface, which looked right and could never be taken off (owner:
+         "I didn't realize the text would be burned into the image"). One
+         child named so its job is obvious — retype it, bind it to your
+         field's placeholder slot, or select it and press Delete. */
+      if (baseAsset.component == "input") AddPlaceholder(go, root, m, kitFont);
       if (label != null) {
 #if UNITY_2023_2_OR_NEWER
         // exact pixels first: the baked faces when the kit ships them and
