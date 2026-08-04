@@ -944,22 +944,32 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
     [TextArea] public string text = "PLAY";
     public float fontSize = 150f;
-    string appliedText; float appliedSize;
+    [Tooltip("Character spacing (tracking) — applies to every layer.")]
+    public float spacing = 0f;
+    [Tooltip("Word spacing — applies to every layer.")]
+    public float wordSpacing = 0f;
+    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing;
     void OnEnable() { Apply(); }
     void Update() {
-      if (text != appliedText || fontSize != appliedSize) { Apply(); return; }
-      /* typing on any LAYER adopts into the group — editing the Fill child
-         used to leave Stroke and Shadow behind (field: "changing the type
-         did not change the stroke layer") */
-      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true))
+      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing) { Apply(); return; }
+      /* editing any LAYER adopts into the group — text, size and spacing
+         alike. Editing the Fill child used to leave Stroke and Shadow
+         behind (field: "changing the type did not change the stroke
+         layer"; "spacing only moved the top layer"). */
+      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
         if (label.text != appliedText) { text = label.text; Apply(); return; }
+        if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
+        if (label.wordSpacing != appliedWordSpacing) { wordSpacing = label.wordSpacing; Apply(); return; }
+      }
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
-      appliedText = text; appliedSize = fontSize;
+      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing;
       foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
         label.text = text;
         label.fontSize = fontSize;
+        label.characterSpacing = spacing;
+        label.wordSpacing = wordSpacing;
       }
     }
 #endif
