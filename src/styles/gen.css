@@ -1393,8 +1393,10 @@ button.kp-fact { cursor: pointer; }
 .lay-row.lay-bar { justify-content: flex-start; }
 .lay-row.lay-mid { flex: 1; }
 .lay-row.lay-foot { justify-content: flex-start; }
-.lay-row.lay-board { gap: 4px; }
-.lay-boardwrap { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+/* board cells butt edge-to-edge — the tiles render FLAT (no extrusion),
+   so the grid reads as one board, not a field of floating buttons */
+.lay-row.lay-board { gap: 0; }
+.lay-boardwrap { display: flex; flex-direction: column; gap: 0; align-items: center; }
 .lay-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .lay-fill { flex: 1; align-items: flex-start; }
 .lay-spring { flex: 1; }

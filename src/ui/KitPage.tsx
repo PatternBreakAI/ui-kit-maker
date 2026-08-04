@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
-import { ChevronDown, Download, Lock, PenTool, ShieldCheck, SquarePen } from "lucide-react";
+import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
@@ -214,6 +214,10 @@ interface PieceOpts {
   id: KitComponentId; size?: KitSize; label?: string; segments?: string[];
   icon?: IconDef | null; value?: number; baseState?: GenStateName; scale?: number;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string; iconScale?: number; trim?: boolean; tight?: boolean;
+  /** render this instance FLAT — no extrusion, contact or cast shadow.
+      Screen patterns that butt tiles edge-to-edge (the match-3 board)
+      zero the depth story so cells sit flush like a real board. */
+  flat?: boolean;
   kind?: "circle" | "oval" | "strip"; tone?: "alt"; shape?: Shape; shine?: boolean;
   dock?: { icon?: IconDef | null; side?: "left" | "right" } | null;
   bar?: { segments?: number; gap?: number; snap?: boolean };
@@ -221,19 +225,35 @@ interface PieceOpts {
   slots?: Record<string, string>;
 }
 
+/* the flat instance recipe (owner on the match-3 board: "take the
+   extrusion out of those squares and butt them up against each other") */
+function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
+  if (!flat) return c;
+  const f = JSON.parse(JSON.stringify(c)) as GenConfig;
+  f.candy.extrusion.depth = 0;
+  f.candy.contact.opacity = 0;
+  f.shadow.opacity = 0;
+  return f;
+}
+
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
+  const { cfg, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
   // an explicit size (the Primary ramp) is fixed; everything else follows the
   // kit-wide size from the floating nav's M/L switch
   // the documentation shows medium and large only — a stored Small reads as Medium
   const size = p.size ?? effKitSize(kitSizes[p.id]);
   return {
-    // a locked component renders its own snapshot, not the master's style —
+    // a pinned component renders its own snapshot, not the master's style —
     // and a per-piece text color rides on top of either
-    cfg: applyKitTextFill(applyKitDesign(cfg, kitDesigns[p.id]), kitTextFill[p.id]),
-    locked: !!kitDesigns[p.id],
+    cfg: flatPiece(applyKitTextFill(applyKitDesign(cfg, kitDesigns[p.id]), kitTextFill[p.id]), p.flat),
+    /* two distinct badges (owner: pieces read "locked" here while the
+       editor said unlocked): LOCKED is the editor's "finished" freeze
+       (kitLocks); PINNED just means the piece keeps its own look
+       (kitDesigns) — unlocking keeps the pin by design. */
+    locked: !!kitLocks[p.id],
+    pinned: !!kitDesigns[p.id],
     size,
     name: KIT_COMPONENTS.find((c) => c.id === p.id)?.name ?? p.id,
     kit: {
@@ -397,7 +417,7 @@ function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolea
   return <PieceInner {...p} />;
 }
 function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
-  const { cfg, locked, size, name, kit, onEdit } = usePiece(p);
+  const { cfg, locked, pinned, size, name, kit, onEdit } = usePiece(p);
   const tier2 = useGen((s) => s.tier);
   const vectorOk = canExport(tier2, "svg");
   const shineOn = useGen((s) => s.shine);
@@ -410,7 +430,8 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
       <LiveArt cfg={cfg} playing scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} />
       <figcaption className="kp-cap">
-        {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked to its own look" />}
+        {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
+        {!locked && pinned && <Pin className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Pinned to its own look" />}
         <span>{p.caption}</span>
         <button className="kp-edit" title={`Edit ${name} in the editor`} aria-label={`Edit ${name}`}
           onClick={(e) => { e.stopPropagation(); onEdit(); }}>
@@ -448,7 +469,7 @@ function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
   const shineVars = useShineVars(!!p.shine);
   return (
     <LiveArt cfg={cfg} playing scale={p.scale ?? PATTERN_SCALE} className="gp-piece" style={shineVars}
-      kit={kit} title={name} ambient={p.ambient} trim={p.trim} tight={p.tight} shine={p.shine} />
+      kit={kit} title={name} ambient={p.ambient} trim={p.trim} tight={p.tight} snug={p.flat} shine={p.shine} />
   );
 }
 
@@ -1001,6 +1022,17 @@ export function KitPage() {
   const [splash, setSplash] = useState("SWEET VICTORY");
   const [splashHi, setSplashHi] = useState("VICTORY");
   const [treatOn, setTreatOn] = useState(true);
+  /* Highlight intensity drags from LOCAL state and commits once on release:
+     every store commit re-renders the page's hundreds of live pieces, so
+     per-tick commits made the thumb sticky (owner: "takes a long time to
+     drag"). The % readout tracks the drag; the specimen updates on release. */
+  const [hbLive, setHbLive] = useState<number | null>(null);
+  const commitHb = () => {
+    if (hbLive == null) return;
+    const v = hbLive;
+    updateMaster((c) => { c.type.highlightBoost = v; });
+    setHbLive(null);
+  };
   const typeOff = (c: GenConfig) => {
     c.type.outline.on = false; c.type.shadow.on = false; c.type.emboss.on = false;
     c.type.glow.on = false; c.type.stripes = { on: false, angle: 45, opacity: 30 };
@@ -1763,8 +1795,9 @@ const kitTier = useGen((s) => s.tier);
                   <span className="kp-tyfield"><input value={splashHi} maxLength={20} onChange={(e) => setSplashHi(e.target.value)} aria-label="Highlight phrase" /><i>{splashHi.length}/20</i></span>
                 </label>
                 <label className="kp-tyslide">Highlight intensity
-                  <span className="kp-tyfield"><input type="range" min={0} max={100} value={T.highlightBoost ?? 70} aria-label="Highlight intensity"
-                    onChange={(e) => updateMaster((c) => { c.type.highlightBoost = +e.target.value; })} /><i>{T.highlightBoost ?? 70}%</i></span>
+                  <span className="kp-tyfield"><input type="range" min={0} max={100} value={hbLive ?? T.highlightBoost ?? 70} aria-label="Highlight intensity"
+                    onChange={(e) => setHbLive(+e.target.value)}
+                    onPointerUp={commitHb} onKeyUp={commitHb} onBlur={commitHb} /><i>{hbLive ?? T.highlightBoost ?? 70}%</i></span>
                 </label>
                 <label className="kp-tytog">Treatment
                   <button className={`kp-tyswitch${treatOn ? " on" : ""}`} role="switch" aria-checked={treatOn} aria-label="Treatment on or off"
@@ -3067,7 +3100,7 @@ const kitTier = useGen((s) => s.tier);
                 ] as const).map((row, ri) => (
                   <div className="lay-row lay-board" key={ri}>
                     {row.map((ic, ci) => (
-                      <SPiece key={ci} id="slot" size="s" icon={STOCK_ICONS[ic]} iconScale={1.35} tight
+                      <SPiece key={ci} id="slot" size="s" icon={STOCK_ICONS[ic]} iconScale={1.35} tight flat
                         overlay={ri === 1 && ci === 2 ? "new" : undefined} scale={0.62} />
                     ))}
                   </div>
