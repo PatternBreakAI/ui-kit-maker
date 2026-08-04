@@ -1730,6 +1730,20 @@ same folder — plus the baked hero fonts (your kit's type as app-exact,
 typeable glyphs, with the layered HeroLabel treatment) — and everything
 you've already placed stays put.
 ` : ""}
+### Dropping a kit while the game is running
+
+Unity can't build scenes or prefabs during Play, so a kit dropped in that
+window waits: the Console says **"the editor is in PLAY MODE — press STOP
+… and the kit build finishes by itself."** Press Stop and it does.
+
+The sprites land either way, so if you never press Stop you get the new
+art wearing the old prefabs — new buttons, dead rollovers. The importer
+now compares its receipt against the manifest on every launch and
+finishes the interrupted build by itself, so this heals even if you quit
+Unity mid-Play. To force it immediately: **Tools > PatternBreak > Reapply
+Kit Import Settings** with Play off. **Tools > PatternBreak > Kit Status**
+tells you which build each kit is actually running.
+
 ## If something looks unsliced
 
 Tools > PatternBreak > Reapply Kit Import Settings re-runs the pass and
@@ -1801,7 +1815,7 @@ namespace PatternBreak {
   [Serializable] class PBLabelSize { public string family; public float size; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBLabelState[] labelStates; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -1949,9 +1963,33 @@ namespace PatternBreak {
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
           var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-          if (force || !File.Exists(root + "/kit.lock.json")) ImportKit(mPath);
+          if (force || Stale(root, mPath)) ImportKit(mPath);
         }
       };
+    }
+
+    /* Does the receipt describe the manifest sitting next to it? "No
+       receipt" means a first drop, but a receipt for an OLDER export means
+       a drop whose build never finished — and the only reason it wouldn't
+       have is that something interrupted it. Play mode is the usual one:
+       the build defers to edit mode through a SessionState flag, and
+       SessionState dies with the editor. Quit Unity without pressing Stop
+       and the old code saw a lock file, called the kit done, and left the
+       new sprites sitting beside last export's prefabs — the field shape
+       is new art with dead rollovers (owner: "I wasn't able to get the
+       rollovers working but I think I imported everything while in play
+       mode"). Comparing the receipt heals that on the next launch no
+       matter what interrupted the build. */
+    static bool Stale(string root, string mPath) {
+      var lockPath = root + "/kit.lock.json";
+      if (!File.Exists(lockPath)) return true;
+      PBLock l = null; PBManifest m = null;
+      try { l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+      try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+      if (l == null || m == null) return true; // unreadable either side: rebuild rather than guess
+      if (l.kitVersion != m.kitVersion) return true;
+      if ((l.generatorVersion ?? "") != (m.generatorVersion ?? "")) return true;
+      return !l.prefabsGenerated; // a receipt that admits its prefabs never landed
     }
 
     /* Play-mode drops half-import: scene creation is forbidden (the
@@ -2124,6 +2162,7 @@ namespace PatternBreak {
       var receipt = new PBLock();
       receipt.slug = manifest.slug;
       receipt.kitVersion = manifest.kitVersion;
+      receipt.generatorVersion = manifest.generatorVersion;
       receipt.imported = DateTime.UtcNow.ToString("o");
       receipt.prefabsGenerated = prefabsReady;
       var entries = new List<PBLockEntry>();
