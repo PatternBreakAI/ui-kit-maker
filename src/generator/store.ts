@@ -16,6 +16,7 @@ import wagerJson from "./preset-wager.json";
 import schweetheartJson from "./preset-schweetheart.json";
 import oopsieJson from "./preset-oopsie.json";
 import nopeYepJson from "./preset-nope-yep.json";
+import grapeJellyKit from "./preset-grape-jelly.kit.json";
 
 /* Presets with fully authored default designs (Chevon's uploads). */
 export const PRESET_DEFAULTS: Record<string, Record<string, any>> = {
@@ -27,6 +28,18 @@ export const PRESET_DEFAULTS: Record<string, Record<string, any>> = {
   schweetheart: schweetheartJson as Record<string, any>,
   oopsie: oopsieJson as Record<string, any>,
   "nope-yep": nopeYepJson as Record<string, any>,
+};
+
+/* A starter's KIT LAYER — the per-piece work that makes it a kit rather than
+   a button: forks, silhouettes, icon swaps, words, poses, nudges. Same shape
+   the settings file carries under __workspace, and the same shape a user
+   preset or a shipped pack travels with. A starter listed here arrives whole;
+   one that isn't resets the kit layer to nothing, because a look that carries
+   none of a map means "none" — blending would dress the new starter in the
+   old one's pieces. Kept in its own file so the front door's authored-preset
+   import stays the master look alone. */
+export const PRESET_KITS: Record<string, Record<string, any>> = {
+  "grape-jelly": grapeJellyKit as Record<string, any>,
 };
 
 /* Keep the text treatment's accent colors in step with the shell palette so a
@@ -710,6 +723,32 @@ function persistSnap(s: HistSnap) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s.cfg)); } catch { /* ignore */ }
   const rec = s as unknown as Record<string, unknown>;
   for (const [k, storeKey] of Object.entries(KIT_STORE_KEY)) saveJson(storeKey, rec[k]);
+}
+
+/* A starter arrives as a WHOLE KIT: its authored per-piece layer takes over
+   from whatever the last look left behind, and a map the starter doesn't
+   carry resets to empty rather than blending — otherwise Bubble Pop turns up
+   wearing Grape Jelly's forks, words and icon swaps, which reads as the
+   preset half-applying. kitLocks stays out on purpose: a lock is workflow
+   ("I'm finished with this piece"), not part of the look, exactly as it
+   stays out of a published preset. No history push of its own — the
+   replaceConfig/update that precedes every call already snapshotted the
+   whole document, maps included, so one undo puts the old kit back. */
+function presetKitPatch(id: string, cfg: GenConfig): Partial<GenStore> {
+  const kit = PRESET_KITS[id] ?? {};
+  const patch: Record<string, unknown> = {};
+  for (const k of [...WS_MAPS, "kitRow"]) {
+    const v = kit[k];
+    patch[k] = v && typeof v === "object" ? JSON.parse(JSON.stringify(v)) : {};
+  }
+  /* the same door a project open uses: a shipped fork is as old as the build
+     that authored it, and an unmigrated one renders half-updated once the
+     token set moves on (owner, on a shared preset: "fonts, certain states"
+     arrived stale) */
+  patch.kitDesigns = migrateKitDesigns(cfg, patch.kitDesigns as GenStore["kitDesigns"]).forks;
+  // kitSizes is session-only by design, so it lands in state but not on disk
+  for (const [k, storeKey] of Object.entries(KIT_STORE_KEY)) if (k in patch) saveJson(storeKey, patch[k]);
+  return patch as Partial<GenStore>;
 }
 
 function loadPanelW(): number {
@@ -1587,7 +1626,8 @@ export const useGen = create<GenStore>((set, get) => ({
       const next = hydrate(structuredClone(PRESET_DEFAULTS[id]));
       next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
       next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
-      get().replaceConfig(next);
+      get().replaceConfig(next); // pushes the undo snapshot — maps included
+      set(presetKitPatch(id, get().cfg));
       return;
     }
     const p = presetById(id);
@@ -1608,6 +1648,7 @@ export const useGen = create<GenStore>((set, get) => ({
       c.stateDesigns = {};
       retintText(c);
     });
+    set(presetKitPatch(id, get().cfg)); // after update(), so its snapshot still holds the old maps
   },
   randomize: () => {
     const next = randomizeConfig(get().cfg, get().hiddenStarters);
