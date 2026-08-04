@@ -651,7 +651,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      GENERATES wired example prefabs on first import (a text prefab cannot
      carry sprite GUIDs, so the old drag-the-sprite examples are gone —
      the importer builds real ones with real references instead). ── */
-  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null) });
+  /* illustrated docs, drawn from THIS kit (never stock art) — a failed
+     rasterization just means a text-only README, never a failed export */
+  let figs: { path: string; data: Uint8Array }[] = [];
+  try { figs = await readmeFigures(base); } catch { figs = []; }
+  for (const f of figs) files.push(f);
+  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
@@ -966,7 +971,11 @@ namespace PatternBreak {
     public float wordSpacing = 0f;
     [Tooltip("The button height this label was authored at. When set, resizing the button scales the type proportionally — like scaling. 0 = off.")]
     public float authoredHeight = 0f;
-    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedK = 1f;
+    [Tooltip("Move the whole word inside its button. Y up is positive — raise a word that optically sits low. Applies to every layer at once.")]
+    public Vector2 nudge = Vector2.zero;
+    [Tooltip("TMP margins (left, top, right, bottom) for the whole stack. Editing a single layer's Margins adopts into this — the other layers follow instead of tearing away.")]
+    public Vector4 margins = Vector4.zero;
+    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedK = 1f; Vector2 appliedNudge; Vector4 appliedMargins;
     float SizeK() {
       if (authoredHeight < 0.5f) return 1f;
       var p = transform.parent as RectTransform;
@@ -974,7 +983,7 @@ namespace PatternBreak {
     }
     void OnEnable() { Apply(); }
     void Update() {
-      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
+      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
       /* editing any LAYER adopts into the group — text, size and spacing
          alike. Editing the Fill child used to leave Stroke and Shadow
          behind (field: "changing the type did not change the stroke
@@ -986,12 +995,16 @@ namespace PatternBreak {
         // size adopts too — a single layer sized by hand (or left behind
         // by an older importer) re-converges within a frame
         if (!Mathf.Approximately(label.fontSize, appliedSize * appliedK)) { fontSize = appliedK > 0f ? label.fontSize / appliedK : label.fontSize; Apply(); return; }
+        /* margins are the OTHER way people move type in TMP (field: "tried
+           changing the margins to lift the type and the stroke is
+           disconnected") — one layer's edit becomes the group's */
+        if (label.margin != appliedMargins) { margins = label.margin; Apply(); return; }
       }
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
       var k = SizeK();
-      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k;
+      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
       foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
         // the group's write is authoritative — TMP auto-fit would silently
         // re-solve fontSize per layer and split the stack
@@ -1000,6 +1013,11 @@ namespace PatternBreak {
         label.fontSize = fontSize * k;
         label.characterSpacing = spacing;
         label.wordSpacing = wordSpacing;
+        /* the nudge rides the LAYERS, never this root — the press sink
+           (LabelStateInk) owns the root's position, and two writers on
+           one transform is how the stack drifts apart */
+        label.rectTransform.anchoredPosition = nudge;
+        label.margin = margins;
       }
     }
 #endif
@@ -1211,8 +1229,118 @@ namespace PatternBreak {
 }
 `;
 
+/* ── README imagery (owner: "let's try to stack the readme with
+   imagery"). The plates are drawn by the SAME engine that draws the
+   components, from the MAKER'S OWN kit, and rasterized at export time —
+   a stock screenshot would show someone else's buttons. Annotations are
+   plain SVG in a system face, so the sealed rasterization needs no
+   embedded font. ── */
+async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uint8Array }[]> {
+  const esc2 = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const dimsOf = (svg: string) => {
+    const m = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
+    return { w: m ? +m[1] : 0, h: m ? +m[2] : 0 };
+  };
+  /* the shell's box in the PLATE's coordinates: data-shell0 is stated in
+     viewBox units, and the renderer's glow pad pushes the viewBox origin
+     negative — miss that and every callout lands off the button */
+  const shellOf = (svg: string) => {
+    const m = /data-shell0="([-\d. ]+)"/.exec(svg);
+    const v = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+    if (!m || !v) return null;
+    const [x, y, w, h] = m[1].split(" ").map(Number);
+    return { x: x - +v[1], y: y - +v[2], w, h };
+  };
+  const INK = "#E9EDF7", DIM = "#96A0B8", LINE = "#5C6organ".replace("organ", "B8A"); // quiet slate
+  const txt = (x: number, y: number, s: string, o: { size?: number; fill?: string; weight?: number; anchor?: string } = {}) =>
+    `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="${o.size ?? 15}" font-weight="${o.weight ?? 600}" fill="${o.fill ?? INK}" text-anchor="${o.anchor ?? "start"}" dominant-baseline="central">${esc2(s)}</text>`;
+  const plate = (w: number, h: number, body: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}">` +
+    `<rect width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="#12141C"/>${body}</svg>`;
+  const place = (svg: string, x: number, y: number, s: number) =>
+    `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)})">${svg}</g>`;
+  const out: { path: string; data: Uint8Array }[] = [];
+
+  /* PLATE 1 — button anatomy: what the prefab is made of, with callouts
+     at the real geometry (data-shell0 gives the shell's true box). */
+  {
+    const btn = renderKit(base, "primary", "l", "default", undefined, undefined, { label: "PLAY" });
+    const d = dimsOf(btn), sh = shellOf(btn);
+    if (d.w && sh) {
+      const s = Math.max(0.3, Math.min(1.05, 430 / sh.w));
+      const padX = 40, padY = 34, colGap = 34, colW = 460;
+      const rowsSrc: { at: [number, number]; head: string; body: string[] }[] = [
+        { at: [0.14, 0.22], head: "base.9 — the sprite",
+          body: ["Nine-sliced: stretch it to any size and the", "corners stay crisp. Hover, pressed and", "disabled sprites swap in automatically."] },
+        { at: [0.5, 0.5], head: "Label → Shadow · Stroke · Fill · Glints",
+          body: ["One word, four baked faces stacked — the", "app's exact letterforms, patterns and glints."] },
+        { at: [0.62, 0.84], head: "Hero Label (on the Label object)",
+          body: ["One box drives the whole stack: text, size,", "spacing and nudge. Resize the button and", "the word scales with it."] },
+      ];
+      // the text column sets the rhythm; the plate is only as tall as the
+      // taller of the two columns (no acres of empty background)
+      const rowH = (r: typeof rowsSrc[number]) => 26 + r.body.length * 21;
+      const GAPY = 40;
+      const textH = rowsSrc.reduce((a, r) => a + rowH(r), 0) + GAPY * (rowsSrc.length - 1);
+      /* frame the SHELL, not the render canvas: the renderer reserves a
+         glow pad and a deep shadow allowance below, which as a plate
+         reads as acres of empty background */
+      const bw2 = sh.w * s, bh = sh.h * s;
+      const mX = 58, mTop = 64, mBot = 92;
+      const artRegionW = bw2 + mX * 2, artRegionH = bh + mTop + mBot;
+      const W = padX + artRegionW + colGap + colW + padX;
+      const H = Math.max(artRegionH, textH) + padY * 2 + 18;
+      const artTop = 18 + (H - 18 - artRegionH) / 2;
+      const bx = padX + mX, by = artTop + mTop;
+      const colX = padX + artRegionW + colGap;
+      let body = place(btn, bx - sh.x * s, by - sh.y * s, s);
+      let cy2 = 18 + (H - 18 - textH) / 2;
+      for (const r of rowsSrc) {
+        const ax = bx + bw2 * r.at[0], ay = by + bh * r.at[1];
+        const ty = cy2 + 10;
+        body += `<path d="M ${ax.toFixed(1)} ${ay.toFixed(1)} L ${(colX - 20).toFixed(1)} ${ty.toFixed(1)}" fill="none" stroke="${LINE}" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.8"/>`;
+        body += `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4.5" fill="${INK}" opacity="0.95"/>`;
+        body += txt(colX, ty, r.head, { size: 17, weight: 800 });
+        r.body.forEach((l, i) => { body += txt(colX, ty + 25 + i * 21, l, { size: 14, weight: 500, fill: DIM }); });
+        cy2 += rowH(r) + GAPY;
+      }
+      body += txt(padX, 26, "ANATOMY OF A GENERATED PREFAB", { size: 12, weight: 800, fill: DIM });
+      const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
+      out.push({ path: "docs/button-anatomy.png", data: bytes });
+    }
+  }
+
+  /* PLATE 2 — the states, as the Button component swaps them. */
+  {
+    const names: [string, "default" | "hover" | "pressed" | "disabled"][] =
+      [["Default", "default"], ["Hover", "hover"], ["Pressed", "pressed"], ["Disabled", "disabled"]];
+    const svgs = names.map(([, st2]) => renderKit(base, "primary", "m", st2, undefined, undefined, { label: "PLAY" }));
+    const sh0 = shellOf(svgs[0]);
+    if (sh0) {
+      // framed on the shell (like the anatomy plate) so the strip isn't
+      // mostly the renderer's glow allowance
+      const s = Math.max(0.28, Math.min(0.85, 250 / sh0.w));
+      const mX = 34, mTop = 44, mBot = 52;
+      const cellW = sh0.w * s + mX * 2, cellH = sh0.h * s + mTop + mBot;
+      const gap = 6, padX = 30, padY = 44;
+      const W = padX * 2 + cellW * 4 + gap * 3, H = padY + cellH + 46;
+      let body = "";
+      svgs.forEach((svg, i) => {
+        const x = padX + i * (cellW + gap);
+        const shi = shellOf(svg) ?? sh0;
+        body += place(svg, x + mX - shi.x * s, padY + mTop - shi.y * s, s);
+        body += txt(x + cellW / 2, padY + cellH + 14, names[i][0].toUpperCase(), { size: 12, weight: 800, fill: DIM, anchor: "middle" });
+      });
+      body += txt(padX, 26, "STATES — PRE-WIRED ON EVERY BUTTON PREFAB", { size: 12, weight: 800, fill: DIM });
+      const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
+      out.push({ path: "docs/states.png", data: bytes });
+    }
+  }
+  return out;
+}
+
 /* The 3-step story, tuned per scope — ease of use is the product. */
-function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false): string {
+function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   return `# ${st.kitName} — Unity, in 3 steps
 
@@ -1225,7 +1353,11 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
    Canvas and press Play. The Console prints a one-line receipt of what
    happened.
 
-## Where are the prefabs? (they're not in this zip — on purpose)
+${figures ? `![Anatomy of a generated prefab: the nine-sliced sprite, the stacked label faces, and the Hero Label box that drives them](docs/button-anatomy.png)
+
+*Every picture in this README is YOUR kit, rendered at export time.*
+
+` : ""}## Where are the prefabs? (they're not in this zip — on purpose)
 
 A prefab file can only reference sprites through the identity (GUID) that
 YOUR Unity assigns each PNG at import. A prefab shipped inside a zip
@@ -1388,18 +1520,37 @@ system has no dials for them — the kit's instance is frozen in) and
 browser-only shaping extras. If a word ever spaces differently than the
 app, re-export first — older zips predate the kerning bake.
 
-**Tuning a single letter pair by hand** (say the A–Y gap bothers you):
-select \`fonts/KitFace Baked Fill\`, open its **Glyph Adjustment Table**,
-search the pair ("AY"), and edit the first glyph's **X Advance** —
-negative pulls them tighter, live in the scene. Two caveats: apply the
-SAME number to KitFace Baked **Stroke, Shadow and Glints** or that pair
-drifts apart between the label's layers; and the faces rebuild on every
-re-import, so hand-tuned pairs don't survive the next zip. For a fix
-that sticks, tell uikitmaker.com which pair looks off — the bake is
-measured once and ships to everyone.
+### Moving the word inside its button
+
+Select the **Label** object and use **Hero Label → Nudge** (Y up is
+positive). That one field moves Shadow, Stroke, Fill and Glints together.
+
+Reach for it INSTEAD of a single layer's Margins or Rect Transform: those
+live on one layer, so moving just the Fill tears the word away from its
+own stroke. (If you do edit a layer's **Margins**, the Hero Label adopts
+the value and applies it to all four — but Nudge is the control that says
+what it does, and it survives re-imports.)
+
+### Tuning a single letter pair by hand
+
+Say the A–Y gap bothers you. The kerning table lives on the FONT ASSET,
+not on the text component: in the **Project window** select
+\`${root}/fonts/KitFace Baked Fill\`, then in its Inspector scroll to the
+bottom and expand **Glyph Adjustment Table** (older TMP: *Glyph
+Adjustment Table* under Font Feature Table). Search the pair ("AY") and
+edit the first glyph's **X Advance** — negative pulls the letters
+tighter, live in the scene.
+
+Two caveats: apply the SAME number to KitFace Baked **Stroke, Shadow and
+Glints** or that pair drifts apart between the label's layers; and the
+faces rebuild on every re-import, so hand-tuned pairs don't survive the
+next zip. For a fix that sticks, tell uikitmaker.com which pair looks off
+— the bake is measured once and ships to everyone.
 
 ## States — and the press-Play Playground
-
+${figures ? `
+![The four button states — default, hover, pressed and disabled — as the Button component swaps them](docs/states.png)
+` : ""}
 Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
 base-disabled next to base). The generated Button prefabs arrive with
 Sprite Swap already wired — nothing to reconnect. Hover glow and press
@@ -2969,14 +3120,20 @@ namespace PatternBreak {
                  the v-scale to 1 and snap their scaled type back */
               var oldHl = oldRoot.GetComponent<HeroLabel>();
               float keepAuthored = oldHl != null ? oldHl.authoredHeight : 0f;
+              Vector2 keepNudge = oldHl != null ? oldHl.nudge : Vector2.zero;
+              Vector4 keepMargins = oldHl != null ? oldHl.margins : Vector4.zero;
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
               if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m, famName);
               else AddLabel(contents, keepText, mkFont, root, m, famName);
               var newRoot = FindOurLabelRoot(contents);
-              if (newRoot != null && keepAuthored >= 0.5f) {
+              if (newRoot != null) {
                 var newHl = newRoot.GetComponent<HeroLabel>();
-                if (newHl != null) newHl.authoredHeight = keepAuthored;
+                // the maker's own placement survives the rebuild
+                if (newHl != null) {
+                  if (keepAuthored >= 0.5f) newHl.authoredHeight = keepAuthored;
+                  if (keepNudge != Vector2.zero || keepMargins != Vector4.zero) { newHl.nudge = keepNudge; newHl.margins = keepMargins; newHl.SetText(newHl.text); }
+                }
               }
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
               var armed = contents.GetComponent<LabelStateInk>();
