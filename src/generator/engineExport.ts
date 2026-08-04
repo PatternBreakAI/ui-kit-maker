@@ -400,6 +400,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Throttle/brake/speed traces are live engine content." }, true);
   }
   await addPng("startlights/base.png", shell("startlights", { part: "base" }), { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown." });
+
+  /* ── the RIGS (owner round, 2026-08-04): joystick, health globe and
+     season track ship as WORKING prefab ingredients, plus bare extras
+     shells. Live-content rule holds: no words, numbers or reward icons
+     baked anywhere — the shells carry the material, the engine carries
+     the content. ── */
+  await addPng("joystick/base.png", shell("joystick", { part: "base" }), { component: "joystick", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick base — well and travel ring. The importer builds a wired Joystick prefab (PatternBreakJoystick drives the thumb)." });
+  await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
+  await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
+  await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
+  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — use a Filled (Vertical) Image masked by the glass; fillAmount IS the health." });
+  await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
+  await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
+  await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
+  await addPng("extras/achievement.png", shell("achievetoast", { part: "shell" }), { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title are live engine text." });
   } // full scope
 
   /* ── shared FX blobs — engines compose their own shadows/glows ── */
@@ -640,6 +655,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -684,11 +701,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      user installs a second kit (CS0101 — the whole editor assembly dies).
      Its content is kit-independent, so every kit's zip overwrites the same
      file byte-for-byte, and Apply() already walks ALL manifests. */
+  const sharedScripts = new Set([
+    "Editor/PatternBreakKitImporter.cs",
+    "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
+    "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
+  ]);
   const rooted = files.map((f) => ({
     ...f,
-    path: f.path === "Editor/PatternBreakKitImporter.cs" || f.path === "Runtime/PatternBreakHeroLabel.cs" || f.path === "Runtime/PatternBreakLabelStateInk.cs"
-      ? `UIKitMaker/${f.path}`
-      : `UIKitMaker/${safeSlug}/${f.path}`,
+    path: sharedScripts.has(f.path) ? `UIKitMaker/${f.path}` : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
   download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
   setEmbedFont("", null); // don't leak the embed into unrelated rasterizations
@@ -1025,6 +1045,127 @@ namespace PatternBreak {
     }
     [ContextMenu("Test Release")]
     void TestRelease() { down = false; over = false; ApplyCurrent(); Debug.Log("UI Kit Maker test release on '" + gameObject.name + "' — back to rest."); }
+#endif
+  }
+}
+`;
+
+/* Runtime script #3: the touch stick. The joystick ships as base + thumb
+   sprites and this component makes them a WORKING control — the "your
+   kit, driving a character, thirty seconds after the drop" demo. */
+const TOUCH_STICK_RUNTIME = `using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  /* Touch stick — press or drag anywhere on the base; the thumb follows
+     and Value reports a normalized direction (-1..1 each axis). Poll
+     Value in Update, or hook onChanged in the Inspector. */
+  [AddComponentMenu("UI Kit Maker/Touch Stick")]
+  public class TouchStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler {
+    public RectTransform thumb;
+    [Tooltip("Travel radius in px. 0 = automatic (40% of this rect's width).")]
+    public float radius = 0f;
+    public bool snapBack = true;
+    [System.Serializable] public class StickEvent : UnityEngine.Events.UnityEvent<Vector2> {}
+    public StickEvent onChanged = new StickEvent();
+    public Vector2 Value { get; private set; }
+    RectTransform Rt { get { return (RectTransform)transform; } }
+    float R { get { return radius > 0.01f ? radius : Rt.rect.width * 0.4f; } }
+    void Track(PointerEventData e) {
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(Rt, e.position, e.pressEventCamera, out local)) return;
+      var v = Vector2.ClampMagnitude(local / R, 1f);
+      Value = v;
+      if (thumb != null) thumb.anchoredPosition = v * R;
+      onChanged.Invoke(v);
+    }
+    public void OnPointerDown(PointerEventData e) { Track(e); }
+    public void OnDrag(PointerEventData e) { Track(e); }
+    public void OnPointerUp(PointerEventData e) {
+      Value = Vector2.zero;
+      if (snapBack && thumb != null) thumb.anchoredPosition = Vector2.zero;
+      onChanged.Invoke(Vector2.zero);
+    }
+  }
+}
+`;
+
+/* Runtime script #4: the season track's CONTENT rig — the look is baked
+   art (edited on uikitmaker.com), the content is live engine text this
+   component owns and lays out. Prototyper-first Inspector (owner). */
+const SEASON_TRACK_RUNTIME = `using UnityEngine;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* Season track content. THE LOOK IS EDITED ON UIKITMAKER.COM — re-export
+     the kit to restyle the track art. This component owns the CONTENT:
+     lane names, level numbers and progress, as live text and a live fill
+     over the bare track sprite. Anchors are fractions of this rect —
+     nudge them in the Inspector if your layout drifts. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Season Track")]
+  public class SeasonTrack : MonoBehaviour {
+#if UNITY_2023_2_OR_NEWER
+    [Header("Content — the LOOK is edited on uikitmaker.com")]
+    public string laneA = "FREE";
+    public string laneB = "PREMIUM";
+    public int firstLevel = 12;
+    [Range(0f, 1f)] public float progress = 0.5f;
+    [Header("Type")]
+    public TMP_FontAsset face;
+    public float labelSize = 16f;
+    public Color laneAColor = Color.white;
+    public Color laneBColor = new Color(0.98f, 0.8f, 0.08f);
+    public Color progressColor = new Color(0.4f, 0.9f, 1f, 0.9f);
+    [Header("Anchors (fractions of this rect)")]
+    public Vector2 laneAAnchor = new Vector2(0.11f, 0.72f);
+    public Vector2 laneBAnchor = new Vector2(0.11f, 0.28f);
+    public float[] nodeX = new float[] { 0.24f, 0.5f, 0.76f };
+    public float nodeY = 0.5f;
+    void OnEnable() { Rebuild(); }
+    void OnValidate() { if (transform.Find("LaneA") != null) Apply(); }
+    TextMeshProUGUI Ensure(string childName) {
+      var t = transform.Find(childName);
+      var g = t != null ? t.gameObject : null;
+      if (g == null) { g = new GameObject(childName, typeof(RectTransform)); g.transform.SetParent(transform, false); }
+      var tmp = g.GetComponent<TextMeshProUGUI>();
+      if (tmp == null) tmp = g.AddComponent<TextMeshProUGUI>();
+      tmp.raycastTarget = false;
+      tmp.alignment = TextAlignmentOptions.Center;
+      return tmp;
+    }
+    void Place(RectTransform rt, Vector2 frac, float w, float h) {
+      rt.anchorMin = frac; rt.anchorMax = frac; rt.pivot = new Vector2(0.5f, 0.5f);
+      rt.anchoredPosition = Vector2.zero; rt.sizeDelta = new Vector2(w, h);
+    }
+    public void Rebuild() { Apply(); }
+    void Apply() {
+      var a = Ensure("LaneA");
+      a.text = laneA; a.fontSize = labelSize; a.color = laneAColor; if (face != null) a.font = face;
+      Place(a.rectTransform, laneAAnchor, 200f, 34f);
+      var b = Ensure("LaneB");
+      b.text = laneB; b.fontSize = labelSize; b.color = laneBColor; if (face != null) b.font = face;
+      Place(b.rectTransform, laneBAnchor, 200f, 34f);
+      for (int i = 0; i < nodeX.Length; i++) {
+        var n = Ensure("Node" + (i + 1));
+        n.text = (firstLevel + i).ToString(); n.fontSize = labelSize * 0.85f; n.color = laneAColor; if (face != null) n.font = face;
+        Place(n.rectTransform, new Vector2(nodeX[i], nodeY), 60f, 30f);
+      }
+      // the progress run rides the spine between the first and last node
+      var t = transform.Find("Progress");
+      var g = t != null ? t.gameObject : null;
+      if (g == null) { g = new GameObject("Progress", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image)); g.transform.SetParent(transform, false); g.transform.SetSiblingIndex(0); }
+      var img = g.GetComponent<UnityEngine.UI.Image>();
+      img.color = progressColor; img.raycastTarget = false;
+      var prt = (RectTransform)g.transform;
+      float x0 = nodeX.Length > 0 ? nodeX[0] : 0.2f;
+      float x1 = nodeX.Length > 0 ? nodeX[nodeX.Length - 1] : 0.8f;
+      prt.anchorMin = new Vector2(x0, nodeY - 0.012f);
+      prt.anchorMax = new Vector2(x0 + (x1 - x0) * Mathf.Clamp01(progress), nodeY + 0.012f);
+      prt.offsetMin = Vector2.zero; prt.offsetMax = Vector2.zero;
+    }
 #endif
   }
 }
@@ -2475,6 +2616,72 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
+       drop it on a Canvas, press Play, drag. Value is the direction. */
+    static bool JoystickPrefab(string dir, string root, int pngScale) {
+      var baseSp = S(root + "/assets/joystick/base.png");
+      var thumbSp = S(root + "/assets/joystick/thumb.png");
+      if (baseSp == null || thumbSp == null) return false;
+      var go = ImageObject("Joystick", baseSp, pngScale);
+      var th = ImageObject("Thumb", thumbSp, pngScale);
+      th.transform.SetParent(go.transform, false);
+      th.GetComponent<Image>().raycastTarget = false;
+      var stick = go.AddComponent<TouchStick>();
+      stick.thumb = th.GetComponent<RectTransform>();
+      float half = (baseSp.rect.width / pngScale) * 0.5f;
+      float thumbHalf = (thumbSp.rect.width / pngScale) * 0.5f;
+      stick.radius = Mathf.Max(20f, half - thumbHalf - 6f);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Joystick.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
+       Image.fillAmount IS the health; the rim draws above. */
+    static bool GlobePrefab(string dir, string root, int pngScale) {
+      var glass = S(root + "/assets/globe/glass.png");
+      var rim = S(root + "/assets/globe/rim.png");
+      var liquid = S(root + "/assets/globe/liquid.png");
+      if (glass == null || rim == null || liquid == null) return false;
+      var go = ImageObject("HealthGlobe", glass, pngScale);
+      var mask = go.AddComponent<Mask>();
+      mask.showMaskGraphic = true; // the glass stays visible AND clips the liquid
+      var lq = ImageObject("Liquid", liquid, pngScale);
+      lq.transform.SetParent(go.transform, false);
+      var li = lq.GetComponent<Image>();
+      li.type = Image.Type.Filled;
+      li.fillMethod = Image.FillMethod.Vertical;
+      li.fillOrigin = (int)Image.OriginVertical.Bottom;
+      li.fillAmount = 0.72f; // drive this from your live health
+      li.raycastTarget = false;
+      var lrt = lq.GetComponent<RectTransform>();
+      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      var rm = ImageObject("Rim", rim, pngScale);
+      rm.transform.SetParent(go.transform, false);
+      rm.GetComponent<Image>().raycastTarget = false;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/HealthGlobe.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+#if UNITY_2023_2_OR_NEWER
+    /* the season track: bare art + PatternBreak.SeasonTrack, which owns
+       the CONTENT (lane names, level numbers, progress) as live text —
+       its Inspector says so, prototypers edit there (owner). */
+    static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/seasontrack/base.png");
+      if (baseSp == null) return false;
+      var go = ImageObject("SeasonTrack", baseSp, pngScale);
+      var trackC = go.AddComponent<SeasonTrack>();
+      Font kitFont = null;
+      if (m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
+        kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
+      trackC.face = EnsureTmpFace(root, m, kitFont);
+      trackC.Rebuild();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/SeasonTrack.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+#endif
     static bool GeneratePrefabs(string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
       bool createdHere = false;
@@ -2490,13 +2697,19 @@ namespace PatternBreak {
       if (m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
       if (ProgressPrefab(dir, root, pngScale)) any = true;
+      // the RIGS: working controls composed from their layer sprites
+      if (JoystickPrefab(dir, root, pngScale)) any = true;
+      if (GlobePrefab(dir, root, pngScale)) any = true;
+#if UNITY_2023_2_OR_NEWER
+      if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
+#endif
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
       var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras" };
       foreach (var a in m.assets) {
         if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
         if (skip.Contains(a.component)) continue;

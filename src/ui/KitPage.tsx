@@ -299,12 +299,16 @@ function usePiece(p: PieceOpts) {
 
 /** Split-button export: the primary click repeats the LAST format used
  *  (engine zip by default); the chevron lists every format with a one-line
- *  description. One click for the common case, nothing buried. */
-function ExportMenu({ actions }: {
+ *  description. One click for the common case, nothing buried.
+ *  preferId pins an instance's primary to one format regardless of the
+ *  remembered pick — the Build Parts pulldown leads with the SVG pack
+ *  (owner: that chapter IS the layered-SVG story). */
+function ExportMenu({ actions, preferId }: {
   actions: { id: string; name: string; desc: string; busy?: boolean; locked?: boolean; prog?: { done: number; total: number; label: string } | null; run: () => void }[];
+  preferId?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [last, setLast] = useState(() => { try { return localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return "engine"; } });
+  const [last, setLast] = useState(() => { try { return preferId ?? localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return preferId ?? "engine"; } });
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -2388,7 +2392,7 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 14 · build parts ── */}
       <Sec n="01" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
-        {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+        {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} preferId="svg" />}
         <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
           {shared ? "Link copied ✓" : "Share kit"}
         </button>

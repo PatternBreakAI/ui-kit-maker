@@ -3437,6 +3437,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
             <g opacity="0.18"><animateTransform attributeName="transform" type="rotate" from="360 ${cG} ${cG}" to="0 ${cG} ${cG}" dur="9.5s" repeatCount="indefinite"/><ellipse cx="${(cG + inR * 0.3).toFixed(1)}" cy="${(cG + inR * 0.42).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.17).toFixed(1)}" fill="${darken(glow, 0.3)}"/></g>
           </g>`
         : "";
+      /* Unity rig export: three layers — rim / glass / liquid. The liquid
+         is a plain gradient panel; Unity's filled Image crops it to the
+         health value inside the glass circle's mask. */
+      if (opts.part === "liquid") {
+        const gid9 = "hgl" + UID++;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="globe liquid">
+<defs><linearGradient id="${gid9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.35" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.35)}"/></linearGradient></defs>
+<rect width="256" height="256" fill="url(#${gid9})"/><rect width="256" height="9" fill="${lighten(glow, 0.55)}" opacity="0.55"/></svg>`;
+      }
+      const partG = opts.part; // "rim" | "glass" | undefined = whole globe
       const totalG = dG + padG * 2;
       /* the RIM answers the kit like a button rim does (owner: "pattern
          should appear in the rim, rim should be detailed like the button
@@ -3473,7 +3483,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </defs>
 <g opacity="${dim}">
   ${state === "hover" && vG > 0 ? `<circle cx="${cG}" cy="${cG}" r="${(rG + rimW * 0.35).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.45)}" stroke-width="${(rimW * 0.5).toFixed(1)}" style="filter: blur(3px)"/>` : ""}
-  <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="url(#${gidG}glass)"/>
+  ${partG !== "rim" ? `<circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="url(#${gidG}glass)"/>` : ""}
   <g clip-path="url(#${gidG}c)">
     ${vG > 0.01 ? `<path d="${wave}" fill="url(#${gidG}l)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(inR * 0.12).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}>${waveAnim}</path>
     <ellipse cx="${cG}" cy="${surfY.toFixed(1)}" rx="${(inR * 0.92).toFixed(1)}" ry="${(waveAmp * 1.4).toFixed(1)}" fill="${lighten(glow, 0.55)}" opacity="0.5"/>` : ""}
@@ -3481,14 +3491,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     ${bubbles}
     ${vG > 0.05 ? `<ellipse cx="${cG}" cy="${(cG + inR * 0.8).toFixed(1)}" rx="${(inR * 0.7).toFixed(1)}" ry="${(inR * 0.22).toFixed(1)}" fill="${darken(glow, 0.4)}" opacity="0.5"/>` : ""}
   </g>
-  <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1.2" opacity="0.8"/>
-  <circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}r)" stroke-width="${rimW.toFixed(1)}"/>
+  ${partG !== "rim" ? `<circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1.2" opacity="0.8"/>` : ""}
+  ${partG !== "glass" ? `<circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}r)" stroke-width="${rimW.toFixed(1)}"/>
   ${patG ? `<circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}p)" stroke-width="${rimW.toFixed(1)}" opacity="${(clamp((cfg.candy.pattern?.opacity ?? 0) / 100, 0, 1) * 0.85).toFixed(2)}"/>` : ""}
   <circle cx="${cG}" cy="${cG}" r="${(rG - rimW * 0.26).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.42)}" stroke-width="1" opacity="${(0.55 * rimB).toFixed(2)}"/>
   <circle cx="${cG}" cy="${cG}" r="${(rG - rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="${(0.6 * rimB).toFixed(2)}"/>
-  <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>
-  <ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>
+  <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>` : ""}
+  ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}
 </g>
 </svg>`;
     }
@@ -4691,6 +4701,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const ccx = sx + sw / 2;
+      // Unity extras export: the bare tile — number and caption are live text
+      if (opts.part === "shell") return shell.replace("<svg ", '<svg data-movecounter="1" ');
       const moves = Math.round(clamp(value ?? 0.8, 0, 1) * 30);
       const low = moves <= 5;
       const ALARM = "#FF4D5A";
@@ -5360,21 +5372,25 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const tileXs = Array.from({ length: nT }, (_, i) => 42 + inset + 122 * k + i * ((w - inset * 2 - 192 * k) / (nT - 1)));
       const icsF = [STOCK_ICONS.flask, STOCK_ICONS.scroll, STOCK_ICONS.key];
       const icsP = [STOCK_ICONS.gem, STOCK_ICONS.crosshair, STOCK_ICONS.gift];
-      let inner = infoText((opts.slots?.laneA ?? "FREE").slice(0, 12), 42 + inset + 8 * k, yFree + laneH / 2, 13 * k, "start", 800) +
+      /* Unity export: the BARE track — no lane words, node numbers,
+         progress or reward icons; those are the dev's live content
+         (PatternBreakSeasonTrack overlays TMP labels + a filled Image) */
+      const bareS = opts.part === "shell";
+      let inner = bareS ? "" : infoText((opts.slots?.laneA ?? "FREE").slice(0, 12), 42 + inset + 8 * k, yFree + laneH / 2, 13 * k, "start", 800) +
         `<text x="${(42 + inset + 8 * k).toFixed(1)}" y="${(yPrem + laneH / 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.1em" fill="${GOLD}" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.4); stroke-width: 2px">${esc((opts.slots?.laneB ?? "PREMIUM").slice(0, 12))}</text>`;
       // the level spine with progress
       const spX0 = tileXs[0], spX1 = tileXs[nT - 1];
       inner += `<rect x="${(spX0 - 10 * k).toFixed(1)}" y="${(spineY - 5 * k).toFixed(1)}" width="${(spX1 - spX0 + 20 * k).toFixed(1)}" height="${(10 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
-        (vS1 > 0.02 ? `<rect x="${(spX0 - 10 * k + 2 * k).toFixed(1)}" y="${(spineY - 3 * k).toFixed(1)}" width="${Math.max(0, (spX1 - spX0 + 16 * k) * vS1).toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
+        (!bareS && vS1 > 0.02 ? `<rect x="${(spX0 - 10 * k + 2 * k).toFixed(1)}" y="${(spineY - 3 * k).toFixed(1)}" width="${Math.max(0, (spX1 - spX0 + 16 * k) * vS1).toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
       tileXs.forEach((txX, i) => {
-        const reached = i / (nT - 1) <= vS1;
+        const reached = !bareS && i / (nT - 1) <= vS1;
         inner += `<circle cx="${txX.toFixed(1)}" cy="${spineY.toFixed(1)}" r="${(14 * k).toFixed(1)}" fill="${reached ? glow : wellFill}" stroke="${reached ? darken(glow, 0.35) : "rgba(255,255,255,0.25)"}" stroke-width="1.4"/>` +
-          `<text x="${txX.toFixed(1)}" y="${(spineY + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${reached ? darken(bevel, 0.6) : infoInk}" text-anchor="middle" dominant-baseline="central">${12 + i}</text>`;
+          (bareS ? "" : `<text x="${txX.toFixed(1)}" y="${(spineY + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${reached ? darken(bevel, 0.6) : infoInk}" text-anchor="middle" dominant-baseline="central">${12 + i}</text>`);
         const fx = txX - tileS / 2;
         inner += `<rect x="${fx.toFixed(1)}" y="${(yFree + (laneH - tileS) / 2).toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"/>` +
-          (icsF[i] ? themedIcon(icsF[i]!, txX - 15 * k, yFree + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "") +
+          (!bareS && icsF[i] ? themedIcon(icsF[i]!, txX - 15 * k, yFree + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "") +
           `<rect x="${fx.toFixed(1)}" y="${(yPrem + (laneH - tileS) / 2).toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="${GOLD}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px rgba(250,204,21,0.4))"` : ""}/>` +
-          (icsP[i] ? themedIcon(icsP[i]!, txX - 15 * k, yPrem + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "");
+          (!bareS && icsP[i] ? themedIcon(icsP[i]!, txX - 15 * k, yPrem + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "");
       });
       return inject(shell.replace("<svg ", '<svg data-seasontrack="1" '), inner);
     }
@@ -5397,6 +5413,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          untouched, the stroke keeps the soft translucent factory dark */
       const eyeC = opts.slots?.eyebrowColor ?? "#FACC15";
       const eyeS = opts.slots?.eyebrowStroke ?? "rgba(8,12,22,0.45)";
+      // Unity extras export: plate + medallion — both words are live text
+      if (opts.part === "shell") return inject(shell.replace("<svg ", '<svg data-achievetoast="1" '), med);
       /* the text nudge moves the WHOLE announcement block — eyebrow and
          title travel together (owner: "need to be able to nudge the
          eyebrow"; before this, nudging separated the two lines) */
@@ -5684,17 +5702,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </svg>`;
         return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" `);
       }
+      const kr2 = d2 * 0.3;
+      /* Unity rig export: base and thumb ship as SEPARATE sprites — the
+         PatternBreakJoystick runtime moves the thumb over the base */
+      if (opts.part === "thumb") {
+        const pad9 = 26, s9 = (kr2 + pad9) * 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow)}</svg>`;
+      }
       const track = build(cfg, state, { x: 33, y: 27, h: d2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d2, shapeOverride: "pill" });
       const inset2 = bw + 5;
       const cx2 = 33 + d2 / 2, cy2 = 27 + d2 / 2;
-      const kr2 = d2 * 0.3;
       const maxOff = d2 / 2 - inset2 - kr2 - 7;
       const sx2 = clamp(opts.stick?.[0] ?? 0, -1, 1), sy3 = clamp(opts.stick?.[1] ?? 0, -1, 1);
       const mag = Math.hypot(sx2, sy3), f2 = mag > 1 ? 1 / mag : 1;
       const svg2 = inject(track,
         `<path d="${roundRect(33 + inset2, 27 + inset2, d2 - inset2 * 2, d2 - inset2 * 2, (d2 - inset2 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          <circle cx="${cx2}" cy="${cy2}" r="${(maxOff + kr2 * 0.5).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2" stroke-dasharray="3 8"/>` +
-        candyKnob(cx2 + sx2 * f2 * maxOff, cy2 + sy3 * f2 * maxOff, kr2, knobC, state === "disabled" ? "#A7AAB4" : glow));
+        (opts.part === "base" ? "" : candyKnob(cx2 + sx2 * f2 * maxOff, cy2 + sy3 * f2 * maxOff, kr2, knobC, state === "disabled" ? "#A7AAB4" : glow)));
       return svg2.replace("<svg ", `<svg data-stick="${cx2} ${cy2} ${maxOff.toFixed(1)}" `);
     }
     case "slot": {
@@ -5826,6 +5850,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `M ${cx4 - innerR} ${cy4} a ${innerR} ${innerR} 0 1 0 ${innerR * 2} 0 a ${innerR} ${innerR} 0 1 0 ${-innerR * 2} 0`
         : shapePath(shape4, 33 + inset4, 27 + inset4, d4 - inset4 * 2, d4 - inset4 * 2, Math.max(0, cfg.bevel.softness - 10));
       const mp: string[] = [`<path d="${wellP2}" fill="${wellFill}" opacity="0.94"/>`];
+      // Unity extras export: frame + well only — the dev's map goes inside
+      if (opts.part === "shell") return inject(track, mp.join(""));
       mp.push(`<path d="M ${cx4 - innerR} ${cy4} H ${cx4 + innerR} M ${cx4} ${cy4 - innerR} V ${cy4 + innerR}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`);
       if (!round2 && !circleWell) mp.push(`<path d="M ${33 + inset4} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${33 + inset4} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
       // blips + player arrow
