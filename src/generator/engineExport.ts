@@ -2834,6 +2834,13 @@ namespace PatternBreak {
                "Behaviour is missing" GHOST — GetComponent returns null,
                SpriteSwap keeps working, and the sink dies silently (field:
                "it still does not move with the button face") */
+            /* v-scale arming: a stack built before authoredHeight existed
+               can't scale with its button (field: "scaling still isn't
+               working") — one rebuild arms it, words preserved */
+            if (!wantDress) {
+              var hlProbe = probeRoot.GetComponent<HeroLabel>();
+              if (hlProbe != null && hlProbe.authoredHeight < 0.5f) wantDress = true;
+            }
             if (!wantDress && HasStateInk(m, famName)) {
               var inkNow = asset.GetComponent<LabelStateInk>();
               if (inkNow == null
