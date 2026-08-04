@@ -1568,11 +1568,18 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-Two caveats: apply the SAME number to KitFace Baked **Stroke, Shadow and
-Glints** or that pair drifts apart between the label's layers; and the
-faces rebuild on every re-import, so hand-tuned pairs don't survive the
-next zip. For a fix that sticks, tell uikitmaker.com which pair looks off
-— the bake is measured once and ships to everyone.
+Then run **Tools → PatternBreak → Sync Label Kerning**. That does the two
+things hand-tuning otherwise gets wrong:
+
+- it copies your tuned pairs onto **every layer face** (Fill, Stroke,
+  Shadow, Glints), so the letterform and its outline move together —
+  tune one face and the others drift, which reads as a detached stroke;
+- it saves them to \`fonts/kerning-overrides.json\`, and **every future
+  import re-applies them**. The faces themselves rebuild on each drop to
+  track your kit; your tweaks ride on top. The import receipt says how
+  many of the pairs are yours.
+
+Delete that file to go back to the typeface's own spacing.
 
 ## States — and the press-Play Playground
 ${figures ? `
@@ -1660,6 +1667,10 @@ namespace PatternBreak {
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
+  /* the maker's hand-tuned pairs, kept beside the faces so a re-import
+     restores them (the faces themselves rebuild every drop) */
+  [Serializable] class PBKernOv { public int l; public int r; public float k; }
+  [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
@@ -2399,6 +2410,115 @@ namespace PatternBreak {
             " glyphs — the GLINT FIELD, topmost in the HeroLabel stack: bands align across letters into streaks that cross the word.");
       }
     }
+    /* ── kerning plumbing. Pairs are keyed by CHARACTER, not glyph index:
+       glyph indices belong to one font asset, characters are the same on
+       all four layer faces (and survive a glyph-set change). ── */
+    static long PairKey(uint l, uint r) { return ((long)l << 32) | (long)r; }
+    static readonly string[] LAYER_FACES = { "KitFace Baked Fill", "KitFace Baked Stroke", "KitFace Baked Shadow", "KitFace Baked Glints", "KitFace Baked" };
+#if UNITY_2023_2_OR_NEWER
+    static Dictionary<long, float> ReadFacePairs(TMP_FontAsset fa) {
+      var outp = new Dictionary<long, float>();
+      if (fa == null || fa.fontFeatureTable == null || fa.characterTable == null) return outp;
+      var uni = new Dictionary<uint, uint>();
+      foreach (var c in fa.characterTable) if (c != null && !uni.ContainsKey(c.glyphIndex)) uni[c.glyphIndex] = c.unicode;
+      foreach (var r in fa.fontFeatureTable.glyphPairAdjustmentRecords) {
+        uint lu, ru;
+        if (!uni.TryGetValue(r.firstAdjustmentRecord.glyphIndex, out lu)) continue;
+        if (!uni.TryGetValue(r.secondAdjustmentRecord.glyphIndex, out ru)) continue;
+        outp[PairKey(lu, ru)] = r.firstAdjustmentRecord.glyphValueRecord.xAdvance;
+      }
+      return outp;
+    }
+    static void WriteFacePairs(TMP_FontAsset fa, Dictionary<long, float> pairs) {
+      if (fa == null) return;
+      // a fresh font asset has no feature table until something makes one —
+      // without this every measured pair went nowhere, silently
+      if (fa.fontFeatureTable == null) SetField(fa, "m_FontFeatureTable", new TMP_FontFeatureTable());
+      var feat = fa.fontFeatureTable;
+      if (feat == null || fa.characterTable == null) return;
+      var gi = new Dictionary<uint, uint>();
+      foreach (var c in fa.characterTable) if (c != null && !gi.ContainsKey(c.unicode)) gi[c.unicode] = c.glyphIndex;
+      feat.glyphPairAdjustmentRecords.Clear();
+      foreach (var kv in pairs) {
+        uint lu = (uint)(kv.Key >> 32), ru = (uint)(kv.Key & 0xFFFFFFFFL);
+        uint li, ri;
+        if (!gi.TryGetValue(lu, out li) || !gi.TryGetValue(ru, out ri)) continue;
+        var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kv.Value, 0f));
+        var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
+        feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
+      }
+      fa.ReadFontAssetDefinition();
+      EditorUtility.SetDirty(fa);
+    }
+    static int ApplyKernOverrides(string root, Dictionary<long, float> pairs) {
+      var p = root + "/fonts/kerning-overrides.json";
+      if (!File.Exists(p)) return 0;
+      PBKernOvFile f = null;
+      try { f = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(p)); } catch (Exception) { }
+      if (f == null || f.pairs == null) return 0;
+      foreach (var o in f.pairs) pairs[PairKey((uint)o.l, (uint)o.r)] = o.k;
+      return f.pairs.Length;
+    }
+    /* Tune a pair once, on any face, then run this: the tweak lands on
+       every layer face (so fill and stroke never split) and is saved to
+       fonts/kerning-overrides.json so the next zip re-applies it. */
+    [MenuItem("Tools/PatternBreak/Sync Label Kerning (after hand-tuning a pair)")]
+    public static void SyncKerning() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) { Debug.LogWarning("UI Kit Maker: no kit in this project to sync."); return; }
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+        if (m == null) continue;
+        // the UNION of every face's table: the maker may have tuned on any
+        // one of them, and a pair edited anywhere counts as intent
+        var merged = new Dictionary<long, float>();
+        var faces = new List<TMP_FontAsset>();
+        foreach (var nm in LAYER_FACES) {
+          var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/" + nm + ".asset");
+          if (fa == null) continue;
+          faces.Add(fa);
+        }
+        if (faces.Count == 0) continue;
+        // what we SHIPPED, so a tweak can be told apart from the bake
+        var shipped = new Dictionary<long, float>();
+        if (m.typography != null && m.typography.bakedFace != null && !string.IsNullOrEmpty(m.typography.bakedFace.metrics)) {
+          var jp = root + "/" + m.typography.bakedFace.metrics;
+          if (File.Exists(jp)) {
+            PBBakedFace bf = null;
+            try { bf = JsonUtility.FromJson<PBBakedFace>(File.ReadAllText(jp)); } catch (Exception) { }
+            if (bf != null && bf.kerning != null) foreach (var kp in bf.kerning) shipped[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
+          }
+        }
+        foreach (var fa in faces) {
+          foreach (var kv in ReadFacePairs(fa)) {
+            float s;
+            bool isTweak = !shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f;
+            // a tweak wins over the shipped value; shipped fills the rest
+            if (isTweak || !merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
+          }
+        }
+        foreach (var kv in shipped) if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
+        var tweaks = new List<PBKernOv>();
+        foreach (var kv in merged) {
+          float s;
+          if (!shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f)
+            tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL), k = kv.Value });
+        }
+        foreach (var fa in faces) WriteFacePairs(fa, merged);
+        var ovFile = new PBKernOvFile { pairs = tweaks.ToArray() };
+        try {
+          File.WriteAllText(root + "/fonts/kerning-overrides.json", JsonUtility.ToJson(ovFile, true));
+          AssetDatabase.ImportAsset(root + "/fonts/kerning-overrides.json");
+        } catch (Exception e) { Debug.LogWarning("UI Kit Maker: couldn't save your kerning tweaks — " + e.Message); }
+        AssetDatabase.SaveAssets();
+        Debug.Log("UI Kit Maker: kerning synced across " + faces.Count + " layer face(s) — "
+          + merged.Count + " pairs, " + tweaks.Count + " of them yours. Saved to fonts/kerning-overrides.json, so every future export re-applies them. Fill and stroke now move together.");
+      }
+    }
+#endif
     static void AssembleBakedFont(string root, PBManifest m, bool refresh, string faceName, string texPath, PBBakedGlyph[] glyphs, int atlasW, int atlasH, PBBakedFace face, string note) {
       var assetPath = root + "/fonts/" + faceName + ".asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
@@ -2473,29 +2593,19 @@ namespace PatternBreak {
            other letterforms") — every face gets the SAME table so the
            layer stack stays in register. Tolerant: a TMP without the
            feature table just keeps plain advances. */
-        int kernApplied = 0;
-        if (face.kerning != null && face.kerning.Length > 0) {
-          try {
-            var giOf = new Dictionary<uint, uint>();
-            uint gi2 = 1;
-            foreach (var g in glyphs) { if (!giOf.ContainsKey((uint)g.u)) giOf[(uint)g.u] = gi2; gi2++; }
-            // a fresh font asset has no feature table until something makes
-            // one — without this the pairs went nowhere, silently
-            if (fa.fontFeatureTable == null) SetField(fa, "m_FontFeatureTable", new TMP_FontFeatureTable());
-            var feat = fa.fontFeatureTable;
-            if (feat != null) {
-              feat.glyphPairAdjustmentRecords.Clear();
-              foreach (var kp in face.kerning) {
-                uint li, ri;
-                if (!giOf.TryGetValue((uint)kp.l, out li) || !giOf.TryGetValue((uint)kp.r, out ri)) continue;
-                var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f));
-                var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
-                feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
-                kernApplied++;
-              }
-            }
-          } catch (Exception) { /* pairs are a refinement — advances stay correct */ }
-        }
+        /* the pair table: what the typeface says, then the maker's own
+           tweaks on top (fonts/kerning-overrides.json) — the SAME table
+           on every layer face, or a tuned pair tears the fill away from
+           its stroke (owner: "we just need to tie the stroke to it") */
+        int kernApplied = 0, kernKept = 0;
+        try {
+          var pairs = new Dictionary<long, float>();
+          if (face.kerning != null)
+            foreach (var kp in face.kerning) pairs[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
+          kernKept = ApplyKernOverrides(root, pairs);
+          WriteFacePairs(fa, pairs);
+          kernApplied = pairs.Count;
+        } catch (Exception) { kernApplied = 0; /* pairs are a refinement — advances stay correct */ }
         SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
         SetField(fa, "m_AtlasWidth", atlasW);
         SetField(fa, "m_AtlasHeight", atlasH);
@@ -2518,7 +2628,7 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
           + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics."
           + (kernApplied > 0
-            ? " " + kernApplied + " kerning pairs written (Glyph Adjustment Table on the FONT ASSET, not the text object)."
+            ? " " + kernApplied + " kerning pairs written" + (kernKept > 0 ? " (" + kernKept + " of them YOUR tuned pairs, re-applied from fonts/kerning-overrides.json)" : "") + "."
             : (face.kerning != null && face.kerning.Length > 0
               ? " KERNING SKIPPED — this TMP version wouldn't take a pair-adjustment table, so letter pairs keep their plain advances. Send this line to uikitmaker.com."
               : " This kit's face reported no kerning pairs.")));
