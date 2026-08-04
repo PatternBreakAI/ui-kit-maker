@@ -1556,6 +1556,14 @@ TextMeshPro component and its material; neither has the table.
    a pair that reads near zero while its neighbours read −14 is usually
    the wrong row.
 
+**Pair not in the list at all?** Then the font itself specifies no kern
+for it — the table only carries what the typeface asks for, and plenty
+of display faces kern their lowercase thoroughly and their capitals
+barely at all. Add the record by hand: **+** at the bottom of the table,
+set the first glyph to the left letter's ID and the second to the right
+letter's (\`A\`=1 … \`Z\`=26, \`a\`=27 … \`z\`=52 — so A–Y is 1 and 25), then
+pull the first glyph's AX negative.
+
 The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
