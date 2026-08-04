@@ -3438,8 +3438,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           </g>`
         : "";
       const totalG = dG + padG * 2;
+      /* the RIM answers the kit like a button rim does (owner: "pattern
+         should appear in the rim, rim should be detailed like the button
+         rim"): the kit pattern weaves through the bezel band, the Rim
+         brightness dial drives the keylines and the specular arc, and the
+         Bevel role keeps painting the metal. The bezel width itself stays
+         geometric — a globe's frame is its silhouette. */
+      const PTg = cfg.candy.pattern;
+      const rimB = clamp((cfg.candy.rim?.brightness ?? 80) / 80, 0, 1.25);
+      const patG = PTg && PTg.type !== "none" && PTg.opacity > 1 ? (() => {
+        const ps = Math.max(8, 8 + (PTg.scale / 100) * 26);
+        const pc = PTg.color ? PTg.color : lighten(bevel, 0.25);
+        return `<pattern id="${gidG}p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${PTg.angle ?? 0})">${textPatternCell(PTg.type, ps, pc)}</pattern>`;
+      })() : "";
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalG}" height="${totalG}" viewBox="0 0 ${totalG} ${totalG}" data-healthglobe="1" role="img" aria-label="health ${Math.round(vG * 100)}%">
 <defs>
+  ${patG}
   <linearGradient id="${gidG}r" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="${lighten(bevel, 0.42)}"/>
     <stop offset="0.5" stop-color="${bevel}"/>
@@ -3469,8 +3483,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   </g>
   <circle cx="${cG}" cy="${cG}" r="${inR.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1.2" opacity="0.8"/>
   <circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}r)" stroke-width="${rimW.toFixed(1)}"/>
+  ${patG ? `<circle cx="${cG}" cy="${cG}" r="${rG.toFixed(1)}" fill="none" stroke="url(#${gidG}p)" stroke-width="${rimW.toFixed(1)}" opacity="${(clamp((cfg.candy.pattern?.opacity ?? 0) / 100, 0, 1) * 0.85).toFixed(2)}"/>` : ""}
+  <circle cx="${cG}" cy="${cG}" r="${(rG - rimW * 0.26).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.42)}" stroke-width="1" opacity="${(0.55 * rimB).toFixed(2)}"/>
   <circle cx="${cG}" cy="${cG}" r="${(rG - rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
-  <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="0.6"/>
+  <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="${(0.6 * rimB).toFixed(2)}"/>
+  <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>
   <ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>
 </g>
 </svg>`;
@@ -4681,10 +4698,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const armorM = cfg.type.outline.on ? cfg.type.outline.color : (cfg.face.mode === "dark" ? darken(bevel, 0.55) : "rgba(255,255,255,0.85)");
       const numY = sy + sh * 0.44;
       const pulse = low && state !== "disabled" ? `<animate attributeName="fill-opacity" values="1;0.5;1" dur="0.9s" repeatCount="indefinite"/>` : "";
+      /* the text nudge reaches BOTH lines in both ink modes (owner: "need
+         to be able to move those fonts around") — the plain number branch
+         and the caption take the offsets by hand; the themed branch gets
+         them inside contentText */
       const num = opts.themedText
         ? contentText(String(moves), ccx, numY, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkM })
-        : `<text x="${ccx.toFixed(1)}" y="${numY.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
-      const over = infoText((opts.slots?.caption ?? "MOVES").slice(0, 12), ccx, sy + sh - 20 * k, 15 * k, "middle", 800) + num;
+        : `<text x="${(ccx + typeOxK * k).toFixed(1)}" y="${(numY + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
+      const over = infoText((opts.slots?.caption ?? "MOVES").slice(0, 12), ccx + typeOxK * k, sy + sh - 20 * k + typeOyK * k, 15 * k, "middle", 800) + num;
       return inject(shell.replace("<svg ", '<svg data-movecounter="1" '), over);
     }
     case "orderticket": {
@@ -5376,8 +5397,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          untouched, the stroke keeps the soft translucent factory dark */
       const eyeC = opts.slots?.eyebrowColor ?? "#FACC15";
       const eyeS = opts.slots?.eyebrowStroke ?? "rgba(8,12,22,0.45)";
+      /* the text nudge moves the WHOLE announcement block — eyebrow and
+         title travel together (owner: "need to be able to nudge the
+         eyebrow"; before this, nudging separated the two lines) */
       const parts = med +
-        `<text x="${(mX + mR + 16 * k).toFixed(1)}" y="${(cy - 15 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="${eyeC}" dominant-baseline="central" style="paint-order: stroke; stroke: ${eyeS}; stroke-width: 2.2px">${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
+        `<text x="${(mX + mR + 16 * k + typeOxK * k).toFixed(1)}" y="${(cy - 15 * k + typeOyK * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="${eyeC}" dominant-baseline="central" style="paint-order: stroke; stroke: ${eyeS}; stroke-width: 2.2px">${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
         contentText(opts.label ?? "FIRST BLOOD", mX + mR + 16 * k, cy + 14 * k, 26 * k * typeK);
       return inject(shell.replace("<svg ", '<svg data-achievetoast="1" '), parts);
     }
@@ -5784,23 +5808,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${d3}" height="${d3}" viewBox="0 0 ${d3} ${d3}" role="img" aria-label="reticle${locked ? ", locked on" : ""}" style="filter: drop-shadow(0 0 ${locked ? 9 : 5}px ${hexRgba(lockC, locked ? 0.75 : 0.5)})">${parts3.join("")}</svg>`;
     }
     case "minimap": {
-      /* mini-map — kinds: round compass, square radar. Well + markers.
-         The silhouette is NOT hard-bound (owner: "these two maps shouldn't
-         be bound by shape"): a user override wins, then each kind's
-         canonical form — pill (a circle at square aspect) for the compass,
-         rounded square for the radar. The well mirrors the pill family as
-         a dial; any other silhouette gets the neutral inset square. */
+      /* mini-map — kinds: round compass, square radar (CONTENT only: the
+         N letter vs the grid). The FRAME follows the cardinal rule — a
+         user override wins, then the MASTER silhouette (owner: "follow
+         the silhouette shape"; the old canonical pill/round pair ignored
+         the kit). The well mirrors the same shape, like slot's. */
       const round2 = opts.kind !== ("square" as never) && opts.overlay !== "square";
       const d4 = ({ s: 180, m: 230, l: 290 } as const)[size];
-      const shape4 = sov ?? (round2 ? "pill" : "round");
+      const shape4 = sov ?? cfg.shape;
       const circleWell = shape4 === "pill";
       const track = build(cfg, state, { x: 33, y: 27, h: d4, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d4, shapeOverride: shape4 });
       const inset4 = bw + 5;
       const cx4 = 33 + d4 / 2, cy4 = 27 + d4 / 2;
       const innerR = d4 / 2 - inset4;
       const wellP2 = circleWell
+        // a pill at square aspect IS the dial — keep the exact circle
         ? `M ${cx4 - innerR} ${cy4} a ${innerR} ${innerR} 0 1 0 ${innerR * 2} 0 a ${innerR} ${innerR} 0 1 0 ${-innerR * 2} 0`
-        : roundRect(33 + inset4, 27 + inset4, d4 - inset4 * 2, d4 - inset4 * 2, 12);
+        : shapePath(shape4, 33 + inset4, 27 + inset4, d4 - inset4 * 2, d4 - inset4 * 2, Math.max(0, cfg.bevel.softness - 10));
       const mp: string[] = [`<path d="${wellP2}" fill="${wellFill}" opacity="0.94"/>`];
       mp.push(`<path d="M ${cx4 - innerR} ${cy4} H ${cx4 + innerR} M ${cx4} ${cy4 - innerR} V ${cy4 + innerR}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`);
       if (!round2 && !circleWell) mp.push(`<path d="M ${33 + inset4} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${33 + inset4} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
