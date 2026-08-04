@@ -983,6 +983,9 @@ namespace PatternBreak {
         if (label.text != appliedText) { text = label.text; Apply(); return; }
         if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
         if (label.wordSpacing != appliedWordSpacing) { wordSpacing = label.wordSpacing; Apply(); return; }
+        // size adopts too — a single layer sized by hand (or left behind
+        // by an older importer) re-converges within a frame
+        if (!Mathf.Approximately(label.fontSize, appliedSize * appliedK)) { fontSize = appliedK > 0f ? label.fontSize / appliedK : label.fontSize; Apply(); return; }
       }
     }
     public void SetText(string value) { text = value; Apply(); }
@@ -990,6 +993,9 @@ namespace PatternBreak {
       var k = SizeK();
       appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k;
       foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        // the group's write is authoritative — TMP auto-fit would silently
+        // re-solve fontSize per layer and split the stack
+        label.enableAutoSizing = false;
         label.text = text;
         label.fontSize = fontSize * k;
         label.characterSpacing = spacing;
@@ -2469,17 +2475,27 @@ namespace PatternBreak {
           var lt = lgo.AddComponent<TextMeshProUGUI>();
           lt.text = text;
           lt.alignment = TextAlignmentOptions.Center;
-          SizeLabel(lt, ls);
+          /* the GROUP owns sizing: HeroLabel scales every layer by the
+             button ratio. Per-layer auto-fit silently discarded that
+             write and split the stack — auto-ON layers clamped to the
+             app size while an auto-OFF layer obeyed the scaled value
+             (field: "the not scaling in unison bug is back") */
+          lt.fontSize = ls;
+          lt.enableAutoSizing = false;
           lt.raycastTarget = false;
           lt.font = layer.Value;
           lt.color = Color.white;
         }
+        /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
+           (a fresh stack briefly applied text=PLAY/size=150 defaults and
+           saved that way) — set everything, then re-Apply via SetText */
         var hl = go.AddComponent<HeroLabel>();
-        hl.text = text; hl.fontSize = ls;
+        hl.fontSize = ls;
         // resizing the BUTTON scales the type with it (owner: "scaling
         // needs to work like scaling") — remember the authored height
         var prt = parent.GetComponent<RectTransform>();
         hl.authoredHeight = prt != null ? prt.rect.height : 0f;
+        hl.SetText(text);
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -2873,10 +2889,18 @@ namespace PatternBreak {
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
             // the kit's Type Size dial drives the word size — converge
-            // labels sized by an older importer (or an older dial)
-            var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (!wantDress && sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
-              wantDress = true;
+            // labels sized by an older importer (or an older dial).
+            // STACKS are judged by the GROUP contract (HeroLabel owns the
+            // size; auto-fit is forced OFF per layer — the old per-layer
+            // demand would rebuild every healthy stack on every import)
+            var hlSize = probeRoot.GetComponent<HeroLabel>();
+            if (!wantDress && hlSize != null) {
+              if (!Mathf.Approximately(hlSize.fontSize, LabelSize(m, famName))) wantDress = true;
+            } else if (!wantDress) {
+              var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
+                wantDress = true;
+            }
             /* dead or stale state wiring re-converges: a script-identity
                break (delete-and-redrop mints a new script GUID) leaves a
                "Behaviour is missing" GHOST — GetComponent returns null,
@@ -2930,11 +2954,20 @@ namespace PatternBreak {
                  per-field surgery across three possible shapes is where
                  stale dress bugs breed */
               var keepText = LabelText(oldRoot, DefaultLabel(famName));
+              /* the AUTHORED height survives the rebuild — re-capturing it
+                 from the owner's resized rect would silently re-baseline
+                 the v-scale to 1 and snap their scaled type back */
+              var oldHl = oldRoot.GetComponent<HeroLabel>();
+              float keepAuthored = oldHl != null ? oldHl.authoredHeight : 0f;
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
               if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m, famName);
               else AddLabel(contents, keepText, mkFont, root, m, famName);
               var newRoot = FindOurLabelRoot(contents);
+              if (newRoot != null && keepAuthored >= 0.5f) {
+                var newHl = newRoot.GetComponent<HeroLabel>();
+                if (newHl != null) newHl.authoredHeight = keepAuthored;
+              }
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
               var armed = contents.GetComponent<LabelStateInk>();
               if (armed != null && armed.pressedShift != 0f) armedSink = armed.pressedShift;
