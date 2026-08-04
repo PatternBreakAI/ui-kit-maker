@@ -808,6 +808,21 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
   const hasShadow = !!base.type.shadow.on;
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
+  /* KERNING PAIRS (owner: "look at how far away the Y is from the other
+     letterforms"): per-glyph advances can't carry the pair adjustments
+     the browser applies (A·Y, L·T, …). Measure every pair against its
+     glyphs' solo widths and ship the non-zero deltas; the importer
+     writes them into TMP's pair-adjustment table so Unity spaces baked
+     pairs exactly like the app. Same units as the advances. */
+  const kerning: { l: number; r: number; k: number }[] = [];
+  {
+    const solo = new Map<string, number>();
+    for (const ch of BAKE_GLYPHS) solo.set(ch, mx.measureText(ch).width);
+    for (const a of BAKE_GLYPHS) for (const b of BAKE_GLYPHS) {
+      const kp = mx.measureText(a + b).width - solo.get(a)! - solo.get(b)!;
+      if (Math.abs(kp) > 0.1) kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+    }
+  }
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
     if (ch === " ") {
@@ -911,6 +926,7 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     descent: Math.round(descent),
     lineHeight: Math.round((ascent + descent) * 1.06),
     atlasW: AW, atlasH: fullH,
+    kerning,
     glyphs: emit(sets.full),
     ...(layersPng ? {
       layersAtlasW: AW, layersAtlasH: layersH,
@@ -1357,6 +1373,15 @@ For pixel-perfect HERO text — titles, banners, victory moments — use
 into Assets/ — they land in ${root}/stamps as ready sprites in the full
 styled treatment, and re-exports overwrite in place like everything else.
 
+**How faithful is the type?** The baked faces snapshot the app's exact
+glyphs — the font instance your kit uses (variable-font width/weight
+included), its gradients, patterns and effects — plus each letter's true
+width AND the font's kerning pairs, measured in the app and written into
+the TMP faces. What can't travel: live variable-font axes (Unity's text
+system has no dials for them — the kit's instance is frozen in) and
+browser-only shaping extras. If a word ever spaces differently than the
+app, re-export first — older zips predate the kerning bake.
+
 ## States — and the press-Play Playground
 
 Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
@@ -1440,7 +1465,8 @@ namespace PatternBreak {
   [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
-  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
+  [Serializable] class PBBakedKern { public int l; public int r; public float k; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
@@ -2248,6 +2274,28 @@ namespace PatternBreak {
             fa.characterTable.Add((TMP_Character)ch);
           }
           gi++;
+        }
+        /* the app's KERNING PAIRS (owner: "how far away the Y is from the
+           other letterforms") — every face gets the SAME table so the
+           layer stack stays in register. Tolerant: a TMP without the
+           feature table just keeps plain advances. */
+        if (face.kerning != null && face.kerning.Length > 0) {
+          try {
+            var giOf = new Dictionary<uint, uint>();
+            uint gi2 = 1;
+            foreach (var g in glyphs) { if (!giOf.ContainsKey((uint)g.u)) giOf[(uint)g.u] = gi2; gi2++; }
+            var feat = fa.fontFeatureTable;
+            if (feat != null) {
+              feat.glyphPairAdjustmentRecords.Clear();
+              foreach (var kp in face.kerning) {
+                uint li, ri;
+                if (!giOf.TryGetValue((uint)kp.l, out li) || !giOf.TryGetValue((uint)kp.r, out ri)) continue;
+                var first = new TMP_GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f));
+                var second = new TMP_GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
+                feat.glyphPairAdjustmentRecords.Add(new TMP_GlyphPairAdjustmentRecord(first, second));
+              }
+            }
+          } catch (Exception) { /* pairs are a refinement — advances stay correct */ }
         }
         SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
         SetField(fa, "m_AtlasWidth", atlasW);
