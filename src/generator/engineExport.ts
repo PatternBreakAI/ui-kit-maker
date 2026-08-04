@@ -2663,8 +2663,13 @@ namespace PatternBreak {
         // never trade a real record for an empty one — losing hand-tuning
         // silently is worse than keeping a pair the maker reverted (delete
         // the file to start clean; the README says so)
-        if (tweaks.Count == 0 && prior.Count > 0) {
-          if (!auto) Debug.Log("UI Kit Maker: no new kerning tweaks found — keeping the " + prior.Count + " already recorded in fonts/kerning-overrides.json.");
+        /* nothing to record = nothing to write. An empty file must never
+           replace a real one, and deleting the file must STAY deleted —
+           re-creating an empty record on every save made it impossible to
+           clear (field: "I couldn't delete the new one"). */
+        if (tweaks.Count == 0) {
+          if (!auto) Debug.Log("UI Kit Maker: no kerning tweaks to record"
+            + (prior.Count > 0 ? " beyond the " + prior.Count + " already in fonts/kerning-overrides.json." : " — the faces match the typeface's own spacing."));
           continue;
         }
         var ovFile = new PBKernOvFile { pairs = tweaks.ToArray() };
