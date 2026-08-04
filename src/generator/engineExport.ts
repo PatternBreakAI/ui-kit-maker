@@ -1242,6 +1242,8 @@ namespace PatternBreak {
          immediately. */
       if (Application.isPlaying) return;
       foreach (var label in Layers()) {
+        // a stale entry: drop the cache and let the next tick re-read a
+        // fresh set rather than adopt from a corpse
         if (label == null) { layers = null; return; }
         if (label.text != appliedText) { text = label.text; Apply(); return; }
         if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
@@ -1260,8 +1262,17 @@ namespace PatternBreak {
     void Apply() {
       var k = SizeK();
       appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
-      foreach (var label in Layers()) {
-        if (label == null) { layers = null; break; }
+      /* EVERY live layer gets the write, or none of this works. Bailing on
+         the first null reference would leave the layers before it carrying
+         the new spacing and the ones after it carrying the old — with the
+         applied values already recorded, so the dirty check never fires
+         again and the stack stays torn. That is precisely how the stroke
+         detaches from the letterform. A stale entry means the cache is
+         stale, so re-collect and write the fresh set. */
+      var ls = Layers();
+      foreach (var l in ls) if (l == null) { layers = null; ls = Layers(); break; }
+      foreach (var label in ls) {
+        if (label == null) continue;
         // the group's write is authoritative — TMP auto-fit would silently
         // re-solve fontSize per layer and split the stack
         label.enableAutoSizing = false;
