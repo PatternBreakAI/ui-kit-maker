@@ -588,7 +588,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      TextMeshPro font asset from it, so Unity types hero text with the
      app's exact pixels. The SDF face stays the length-proof workhorse;
      this is the showpiece for display text. ── */
-  let bakedFace: { file: string; metrics: string; pointSize: number; layers: string | null } | null = null;
+  let bakedFace: { file: string; metrics: string; pointSize: number; layerFill: string | null; layerStroke: string | null; layerShadow: string | null; layerGlints: string | null } | null = null;
   try {
     /* Pro-only (owner call): the baked faces are the type showpiece — the
        starter keeps the SDF face + gradient preset and upsells the rest.
@@ -600,8 +600,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (baked) {
       files.push({ path: "fonts/kitface-baked.png", data: baked.png });
       files.push({ path: "fonts/kitface-baked.json", data: new TextEncoder().encode(baked.metrics) });
-      if (baked.layersPng) files.push({ path: "fonts/kitface-baked-layers.png", data: baked.layersPng });
-      bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize, layers: baked.layersPng ? "fonts/kitface-baked-layers.png" : null };
+      const lp = baked.layerPngs;
+      const lput = (k: "fill" | "stroke" | "shadow" | "glints"): string | null => {
+        const d = lp?.[k];
+        if (!d) return null;
+        const path = `fonts/kitface-baked-${k}.png`;
+        files.push({ path, data: d });
+        return path;
+      };
+      bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize,
+        layerFill: lput("fill"), layerStroke: lput("stroke"), layerShadow: lput("shadow"), layerGlints: lput("glints") };
     }
   } catch (e) {
     console.warn("engine export: alphabet face bake failed — kit ships without it", e);
@@ -901,7 +909,7 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
   return scanInk(await rasterCanvas(svg, scale));
 }
 
-async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layersPng: Uint8Array | null; metrics: string; pointSize: number } | null> {
+async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } | null; metrics: string; pointSize: number } | null> {
   const family = base.type.font;
   const weight = base.type.weight;
   const italicPfx = base.type.italic ? "italic " : "";
@@ -1062,11 +1070,46 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const fullH = pack(sets.full);
   if (fullH == null) return null;
   const png = await rasterAtlas(sets.full, fullH);
-  // fill + stroke + shadow + glints share ONE atlas: one texture, four
-  // font assets pointing at their own rect sets
-  const layered = [...sets.fill, ...sets.stroke, ...sets.shadow, ...sets.glints];
-  const layersH = pack(layered);
-  const layersPng = layersH != null ? await rasterAtlas(layered, layersH) : null;
+
+  /* ── ONE SKELETON, FOUR SKINS (owner: "think about a foolproof way to
+     bind these together"). Every glyph's four layer variants are packed
+     in the UNION of their ink boxes, so all four textures share identical
+     rects, bearings and advances — the importer builds ONE font asset
+     (one kerning table, one Glyph Adjustment Table) and four materials
+     that differ only in texture. The layers become incapable of
+     disagreeing about layout; the whole face-to-face sync class of bugs
+     (torn strokes, half-applied pairs, stale re-flows) has nothing left
+     to act on. All variants render on the same specimen grid, so the
+     union is box arithmetic and each atlas crops from the variant's
+     existing canvas — no re-rendering. */
+  const LAYER_KEYS = ["fill", "stroke", "shadow", "glints"] as const;
+  const byU = (list: Baked[]) => new Map(list.map((g) => [g.u, g]));
+  const maps = { fill: byU(sets.fill), stroke: byU(sets.stroke), shadow: byU(sets.shadow), glints: byU(sets.glints) };
+  const skeleton: Baked[] = [];
+  for (const ch of BAKE_GLYPHS + " ") {
+    const u = ch.codePointAt(0)!;
+    const present = LAYER_KEYS.map((k) => maps[k].get(u)).filter((g): g is Baked => !!g);
+    if (!present.length) continue;
+    const inked = present.filter((g) => g.w > 0);
+    if (!inked.length) { skeleton.push(present[0]); continue; } // the space: advance only
+    const ux0 = Math.min(...inked.map((g) => g.sx!));
+    const uy0 = Math.min(...inked.map((g) => g.sy!));
+    const ux1 = Math.max(...inked.map((g) => g.sx! + g.w));
+    const uy1 = Math.max(...inked.map((g) => g.sy! + g.h));
+    const skel: Baked = { u, adv: present[0].adv, bx: ux0 - penX, by: baseY - uy0, w: ux1 - ux0, h: uy1 - uy0 };
+    skeleton.push(skel);
+    for (const g of inked) { g.sx = ux0; g.sy = uy0; g.w = skel.w; g.h = skel.h; g.bx = skel.bx; g.by = skel.by; }
+  }
+  const layersH = pack(skeleton);
+  const layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } = {};
+  if (layersH != null) {
+    for (const skel of skeleton)
+      for (const k of LAYER_KEYS) { const g = maps[k].get(skel.u); if (g) { g.x = skel.x; g.y = skel.y; } }
+    for (const k of LAYER_KEYS)
+      // a set with only the space entry means the kit has that layer OFF
+      if (sets[k].length > 5) layerPngs[k] = await rasterAtlas(sets[k], layersH);
+  }
+  const layered = layersH != null && layerPngs.fill && layerPngs.stroke;
 
   const emit = (list: Baked[]) => list.map((g) => ({
     u: g.u, x: g.x ?? 0, y: g.y ?? 0, w: g.w, h: g.h,
@@ -1082,16 +1125,13 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     atlasW: AW, atlasH: fullH,
     kerning,
     glyphs: emit(sets.full),
-    ...(layersPng ? {
+    ...(layered ? {
       layersAtlasW: AW, layersAtlasH: layersH,
-      fillGlyphs: emit(sets.fill),
-      strokeGlyphs: emit(sets.stroke),
-      // sets with only the space entry mean the kit has that layer OFF
-      shadowGlyphs: sets.shadow.length > 5 ? emit(sets.shadow) : [],
-      glintGlyphs: sets.glints.length > 5 ? emit(sets.glints) : [],
+      // ONE glyph list for every layer — the shared skeleton
+      layerGlyphs: emit(skeleton),
     } : {}),
   });
-  return { png, layersPng, metrics, pointSize };
+  return { png, layerPngs: layered ? layerPngs : null, metrics, pointSize };
 }
 
 /* The kit's ONE runtime script: the HeroLabel sync (owner, on editing a
@@ -1879,7 +1919,7 @@ asset** — NOT on the text object. Selecting a label shows you the
 TextMeshPro component and its material; neither has the table.
 
 1. In the **Project window** open \`${root}/fonts\` and click
-   **KitFace Baked Fill** (the blue **F** icon). Shortcut: with a label
+   **KitFace Baked Layers** (the blue **F** icon). Shortcut: with a label
    selected, click the little ⊙ target at the right of its *Font Asset*
    field to ping the asset, then click the asset itself.
 2. In that asset's Inspector, scroll past Face Info / Generation
@@ -1907,25 +1947,24 @@ TextMeshPro component and its material; neither has the table.
   \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
   −5 px on a label rendering near 55. Compare a pair against its
   neighbours (A–V, A–W) rather than guessing an absolute number.
-- **All four faces carry the same table.** Fill, Stroke, Shadow and
-  Glints must agree or a tuned pair tears the letter away from its own
-  outline. The importer writes them identically; the sync keeps them that
-  way.
-- **Save to see it.** Type your pair, then **Cmd/Ctrl+S**. The sync fans
-  the tweak out to all four faces and the type re-flows. It also runs on
-  its own about a second after you stop editing, so most of the time the
-  save is belt-and-braces — but Unity caches an open Inspector, and the
-  save is the one gesture that always lands. If the stroke still looks
-  detached, save; if it somehow doesn't, entering and leaving Play mode
-  forces it.
-- **A half-entered row is safe.** "Add New Glyph Adjustment Record" gives
-  you a blank pair, and a blank pair is left strictly alone until both
-  sides are set. The sync will not tidy it away underneath you.
-- **Your edits live in \`fonts/kerning-overrides.json\`.** The sync puts
-  your pairs on every face and into that file. It is never shipped in a
-  zip, so extracting a new export over the same folder cannot clobber it,
-  and every import re-applies it on top of the fresh bake. The receipt
-  counts them: "N kerning pairs written (M of them YOUR tuned pairs…)".
+- **There is only ONE table.** The whole layer stack — Shadow, Stroke,
+  Fill, Glints — reads a single font asset, **KitFace Baked Layers**; the
+  layers differ only by material (the ink). Tune a pair in its Glyph
+  Adjustment Table and every layer moves the moment you type, because
+  every layer is reading the very table you are editing. Nothing to
+  save first, nothing to sync, no way for the stroke to tear away.
+- **OX and OY travel too.** Nudge a pair's placement, not just its
+  advance, and the whole stack carries it — and it survives re-imports.
+- **A half-entered row is safe.** "Add New Glyph Adjustment Record"
+  gives you a blank pair; nothing touches your font while you type
+  (the bookkeeping pass only reads), and a pair with no numbers yet is
+  never mistaken for a tweak.
+- **Your edits live in \`fonts/kerning-overrides.json\`.** Saving — or
+  just pausing for a second — records your deviations from the shipped
+  bake into that file. It is never shipped in a zip, so extracting a new
+  export over the same folder cannot clobber it, and every import
+  re-applies it onto the rebuilt asset. Reverting a pair back to the
+  shipped value removes it from the record.
 - **Renaming the kit leaves it behind.** A new kit name mints a new
   Unity folder; copy \`fonts/kerning-overrides.json\` across if you want
   the tuning to follow.
@@ -1944,27 +1983,15 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-**It doesn't matter which of the four faces you open.** \`fonts/\` holds
-KitFace Baked Fill, Stroke, Shadow and Glints, and at a narrow Project
-column they all truncate to "KitFace Ba…" — so double-clicking lands you
-on whichever one you hit. That's fine: whichever face you tune is the
-source, and the other three follow. Widen the column (or use the list
-view) if you want to see which is which. Multi-selecting all four and
-editing them together works too, but you don't need it — that's the job
-the sync is doing. If you like a habit, tune the **Fill**.
+**Which asset do I open?** \`fonts/KitFace Baked Layers\` — or simply
+double-click the Font Asset field on ANY layer of a hero label, since all
+four layers point at the same asset. (\`KitFace Baked\` beside it is the
+solo single-layer face, with its own table.)
 
-Then **save** (Cmd/Ctrl+S). Saving fans the tweak out; so does simply
-stopping for a second, and **Tools → PatternBreak → Sync Label Kerning**
-forces it any time. Whichever way it runs, it does the two things
-hand-tuning otherwise gets wrong:
-
-- it copies your tuned pairs onto **every layer face** (Fill, Stroke,
-  Shadow, Glints), so the letterform and its outline move together —
-  tune one face and the others drift, which reads as a detached stroke;
-- it saves them to \`fonts/kerning-overrides.json\`, and **every future
-  import re-applies them**. The faces themselves rebuild on each drop to
-  track your kit; your tweaks ride on top. The import receipt says how
-  many of the pairs are yours.
+Add the record: **+** at the bottom of the table, set the first glyph to
+the left letter's ID and the second to the right letter's (\`A\`=1 …
+\`Z\`=26, \`a\`=27 … \`z\`=52 — so A–Y is 1 and 25), then pull the first
+glyph's AX negative. Every layer follows as you type.
 
 Delete that file to go back to the typeface's own spacing.
 
@@ -2071,14 +2098,14 @@ namespace PatternBreak {
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
   [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
-  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
+  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
   /* the maker's hand-tuned pairs, kept beside the faces so a re-import
      restores them (the faces themselves rebuild every drop) */
-  [Serializable] class PBKernOv { public int l; public int r; public float k; }
+  [Serializable] class PBKernOv { public int l; public int r; public float k; public float ox; public float oy; }
   [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
-  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
@@ -2160,9 +2187,9 @@ namespace PatternBreak {
           ? "Zip carries the baked hero fonts. "
           : "Zip has NO baked hero fonts (the font fetch failed during export — re-export from uikitmaker.com). ");
 #if UNITY_2023_2_OR_NEWER
-        sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
-          ? "Layer faces assembled."
-          : "Layer faces NOT assembled in this project.");
+        sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset") != null
+          ? "Layer face assembled (one font asset, four materials)."
+          : "Layer face NOT assembled in this project.");
 #endif
       }
       Debug.Log(sb.ToString());
@@ -2849,49 +2876,71 @@ namespace PatternBreak {
       AssembleBakedFont(root, m, refresh, "KitFace Baked", root + "/" + m.typography.bakedFace.file,
         face.glyphs, face.atlasW, face.atlasH, face,
         " glyphs of the app's exact pixels (pattern, glints and gloss included). Put it on any TMP label for hero text: Font Asset = KitFace Baked, label color WHITE.");
-      /* the LAYER pair (owner ask: strokes merging behind all letterforms,
-         like the app): fill-only and stroke-only variants share one atlas;
-         a two-layer label — Stroke face behind, Fill face in front —
-         reproduces the app's paint order: all strokes first, then all
-         fills on top. The HeroLabel prefab arrives pre-wired this way. */
-      if (!string.IsNullOrEmpty(m.typography.bakedFace.layers) && face.fillGlyphs != null && face.fillGlyphs.Length > 0 && face.strokeGlyphs != null && face.strokeGlyphs.Length > 0) {
-        var layersTex = root + "/" + m.typography.bakedFace.layers;
-        AssembleBakedFont(root, m, refresh, "KitFace Baked Fill", layersTex,
-          face.fillGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-          " glyphs — the FILL layer. Stacks over KitFace Baked Stroke; the HeroLabel prefab shows the order.");
-        AssembleBakedFont(root, m, refresh, "KitFace Baked Stroke", layersTex,
-          face.strokeGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-          " glyphs — the STROKE layer (outline + glow, no shadow). All strokes merge behind all letterforms.");
-        if (face.shadowGlyphs != null && face.shadowGlyphs.Length > 5)
-          AssembleBakedFont(root, m, refresh, "KitFace Baked Shadow", layersTex,
-            face.shadowGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-            " glyphs — ONE soft cast shadow for the whole word, at the very back of the HeroLabel stack.");
-        if (face.glintGlyphs != null && face.glintGlyphs.Length > 5)
-          AssembleBakedFont(root, m, refresh, "KitFace Baked Glints", layersTex,
-            face.glintGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-            " glyphs — the GLINT FIELD, topmost in the HeroLabel stack: bands align across letters into streaks that cross the word.");
+      /* ONE SKELETON, FOUR SKINS (owner: "think about a foolproof way to
+         bind these together"). The stack shares a single font asset — one
+         glyph table, one kerning table, ONE Glyph Adjustment Table — and
+         the layers differ only by material, each material pointing at its
+         own ink texture over identical rects. Tuning a pair in the GAT
+         moves every layer natively, because every layer is reading the
+         same table; there are no copies left to drift. */
+      if (!string.IsNullOrEmpty(m.typography.bakedFace.layerFill) && !string.IsNullOrEmpty(m.typography.bakedFace.layerStroke)
+          && face.layerGlyphs != null && face.layerGlyphs.Length > 0) {
+        AssembleBakedFont(root, m, refresh, "KitFace Baked Layers", root + "/" + m.typography.bakedFace.layerFill,
+          face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
+          " glyphs — ONE font asset for the whole layer stack (one kerning table, one Glyph Adjustment Table for all four layers). Fill ink is this asset's own material; Stroke, Shadow and Glints are the KitFace Layer materials beside it.");
+        var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+        if (layersFa != null) {
+          EnsureLayerMaterial(root, layersFa, "Stroke", m.typography.bakedFace.layerStroke);
+          EnsureLayerMaterial(root, layersFa, "Shadow", m.typography.bakedFace.layerShadow);
+          EnsureLayerMaterial(root, layersFa, "Glints", m.typography.bakedFace.layerGlints);
+        }
       }
+    }
+    /* a SKIN: the shared face's material with a different atlas texture —
+       same shader, same rects, different ink. Rebuilt idempotently; a layer
+       the kit stopped shipping takes its material with it. */
+    static void EnsureLayerMaterial(string root, TMP_FontAsset layersFa, string layerName, string texFile) {
+      var matPath = root + "/fonts/KitFace Layer " + layerName + ".mat";
+      if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(matPath); return; }
+      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
+      if (tex == null || layersFa.material == null) return;
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+      if (mat == null) {
+        mat = new Material(layersFa.material);
+        AssetDatabase.CreateAsset(mat, matPath);
+      } else {
+        mat.shader = layersFa.material.shader;
+        mat.CopyPropertiesFromMaterial(layersFa.material);
+      }
+      mat.SetTexture("_MainTex", tex);
+      EditorUtility.SetDirty(mat);
+    }
+    static Material LayerMaterial(string root, string layerName) {
+      return AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Layer " + layerName + ".mat");
     }
     /* ── kerning plumbing. Pairs are keyed by CHARACTER, not glyph index:
        glyph indices belong to one font asset, characters are the same on
        all four layer faces (and survive a glyph-set change). ── */
     static long PairKey(uint l, uint r) { return ((long)l << 32) | (long)r; }
-    static readonly string[] LAYER_FACES = { "KitFace Baked Fill", "KitFace Baked Stroke", "KitFace Baked Shadow", "KitFace Baked Glints", "KitFace Baked" };
 #if UNITY_2023_2_OR_NEWER
-    static Dictionary<long, float> ReadFacePairs(TMP_FontAsset fa) {
-      var outp = new Dictionary<long, float>();
+    static Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord> ReadFacePairs(TMP_FontAsset fa) {
+      var outp = new Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord>();
       if (fa == null || fa.fontFeatureTable == null || fa.characterTable == null) return outp;
       var uni = new Dictionary<uint, uint>();
       foreach (var c in fa.characterTable) if (c != null && !uni.ContainsKey(c.glyphIndex)) uni[c.glyphIndex] = c.unicode;
       foreach (var r in fa.fontFeatureTable.glyphPairAdjustmentRecords) {
         uint lu, ru;
+        // a half-entered Inspector row has glyph index 0 — not a pair yet
         if (!uni.TryGetValue(r.firstAdjustmentRecord.glyphIndex, out lu)) continue;
         if (!uni.TryGetValue(r.secondAdjustmentRecord.glyphIndex, out ru)) continue;
-        outp[PairKey(lu, ru)] = r.firstAdjustmentRecord.glyphValueRecord.xAdvance;
+        /* the WHOLE first-record value travels — OX/OY placement nudges
+           included, not just the advance (field: an OY typed into the
+           table was silently zeroed by the next pass) */
+        outp[PairKey(lu, ru)] = r.firstAdjustmentRecord.glyphValueRecord;
       }
       return outp;
     }
-    static void WriteFacePairs(TMP_FontAsset fa, Dictionary<long, float> pairs) {
+    static void WriteFacePairs(TMP_FontAsset fa, Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord> pairs) {
       if (fa == null) return;
       // a fresh font asset has no feature table until something makes one —
       // without this every measured pair went nowhere, silently
@@ -2918,20 +2967,20 @@ namespace PatternBreak {
         uint lu = (uint)(kv.Key >> 32), ru = (uint)(kv.Key & 0xFFFFFFFFL);
         uint li, ri;
         if (!gi.TryGetValue(lu, out li) || !gi.TryGetValue(ru, out ri)) continue;
-        var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kv.Value, 0f));
+        var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, kv.Value);
         var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
         feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
       }
       fa.ReadFontAssetDefinition();
       EditorUtility.SetDirty(fa);
     }
-    static int ApplyKernOverrides(string root, Dictionary<long, float> pairs) {
+    static int ApplyKernOverrides(string root, Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord> pairs) {
       var p = root + "/fonts/kerning-overrides.json";
       if (!File.Exists(p)) return 0;
       PBKernOvFile f = null;
       try { f = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(p)); } catch (Exception) { }
       if (f == null || f.pairs == null) return 0;
-      foreach (var o in f.pairs) pairs[PairKey((uint)o.l, (uint)o.r)] = o.k;
+      foreach (var o in f.pairs) pairs[PairKey((uint)o.l, (uint)o.r)] = new UnityEngine.TextCore.LowLevel.GlyphValueRecord(o.ox, o.oy, o.k, 0f);
       return f.pairs.Length;
     }
     /* Tune a pair once, on any face, then run this: the tweak lands on
@@ -2957,16 +3006,17 @@ namespace PatternBreak {
         PBManifest m = null;
         try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (m == null) continue;
-        // the UNION of every face's table: the maker may have tuned on any
-        // one of them, and a pair edited anywhere counts as intent
-        var merged = new Dictionary<long, float>();
-        var faces = new List<TMP_FontAsset>();
-        foreach (var nm in LAYER_FACES) {
-          var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/" + nm + ".asset");
-          if (fa == null) continue;
-          faces.Add(fa);
-        }
-        if (faces.Count == 0) continue;
+        /* ONE table now — this pass is a SNAPSHOT, not a reconciliation.
+           The whole layer stack reads a single font asset, so a pair tuned
+           in its Glyph Adjustment Table moves every layer natively; there
+           are no sibling copies to drift, and nothing here writes to the
+           font — a row you are half-way through typing cannot be touched.
+           All this does is record your deviations from the shipped bake
+           into fonts/kerning-overrides.json so the next import re-applies
+           them onto the rebuilt asset. */
+        var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+        if (fa == null) fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
+        if (fa == null) continue;
         // what we SHIPPED, so a tweak can be told apart from the bake
         var shipped = new Dictionary<long, float>();
         if (m.typography != null && m.typography.bakedFace != null && !string.IsNullOrEmpty(m.typography.bakedFace.metrics)) {
@@ -2977,71 +3027,56 @@ namespace PatternBreak {
             if (bf != null && bf.kerning != null) foreach (var kp in bf.kerning) shipped[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
           }
         }
-        /* SEED FROM THE RECORD FIRST. If an import rebuilt the faces from
-           the bake alone (an older importer, a half-finished drop), their
-           tables no longer show the maker's pairs — and a sync that read
-           only the faces would decide there were no tweaks and overwrite
-           the record with nothing. Field: the overrides file came back
-           '{"pairs": []}' after tuning. The record is intent; faces are
-           just its current rendering. */
-        var prior = new Dictionary<long, float>();
+        /* seed from the record: a pair the face LOST (an older importer's
+           rebuild) survives — the record is intent, the face only its
+           current rendering. A pair the face still carries speaks for
+           itself below, so reverting one by hand also clears it here. */
+        var rec = new Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord>();
+        var prior = new Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord>();
         var ovPath = root + "/fonts/kerning-overrides.json";
         if (File.Exists(ovPath)) {
           PBKernOvFile pf = null;
           try { pf = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(ovPath)); } catch (Exception) { }
-          if (pf != null && pf.pairs != null) foreach (var o in pf.pairs) prior[PairKey((uint)o.l, (uint)o.r)] = o.k;
+          if (pf != null && pf.pairs != null)
+            foreach (var o in pf.pairs) prior[PairKey((uint)o.l, (uint)o.r)] = new UnityEngine.TextCore.LowLevel.GlyphValueRecord(o.ox, o.oy, o.k, 0f);
         }
-        foreach (var kv in prior) merged[kv.Key] = kv.Value;
-        foreach (var fa in faces) {
-          foreach (var kv in ReadFacePairs(fa)) {
-            float s;
-            bool isTweak = !shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f;
-            // a live edit wins over the record; shipped only fills gaps
-            if (isTweak) merged[kv.Key] = kv.Value;
-            else if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
-          }
+        foreach (var kv in prior) rec[kv.Key] = kv.Value;
+        foreach (var kv in ReadFacePairs(fa)) {
+          var v = kv.Value;
+          float ship;
+          bool hasShip = shipped.TryGetValue(kv.Key, out ship);
+          bool zero = Mathf.Abs(v.xAdvance) < 0.01f && Mathf.Abs(v.xPlacement) < 0.01f && Mathf.Abs(v.yPlacement) < 0.01f;
+          /* an all-zero pair the typeface never shipped is a row still
+             being typed (glyphs set, numbers not yet) — never intent */
+          if (zero && !hasShip) { rec.Remove(kv.Key); continue; }
+          bool dev = (hasShip ? Mathf.Abs(v.xAdvance - ship) > 0.01f : true)
+            || Mathf.Abs(v.xPlacement) > 0.01f || Mathf.Abs(v.yPlacement) > 0.01f;
+          if (dev) rec[kv.Key] = v;
+          else rec.Remove(kv.Key); // back to the shipped value = tweak reverted
         }
-        foreach (var kv in shipped) if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
-        var tweaks = new List<PBKernOv>();
-        foreach (var kv in merged) {
-          float s;
-          if (!shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f)
-            tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL), k = kv.Value });
-        }
-        foreach (var fa in faces) WriteFacePairs(fa, merged);
-        /* Writing the table is not SHOWING it. TMP re-flows a label only
-           when it hears that label's font asset changed — the event its own
-           Inspector raises for the ONE asset you are editing. So the layer
-           whose face you tuned slid immediately, and the other three kept
-           their stale layout until something forced a rebuild (owner: "the
-           stroke isn't sliding with the text" — and earlier, the tell:
-           "it did resolve when I went to the scene, played it, then
-           returned"). Announce every face the way TMP's editor would, so
-           all four layers re-shape in the same frame. */
-        foreach (var fa in faces) TMPro_EventManager.ON_FONT_PROPERTY_CHANGED(true, fa);
-        SceneView.RepaintAll();
-        // never trade a real record for an empty one — losing hand-tuning
-        // silently is worse than keeping a pair the maker reverted (delete
-        // the file to start clean; the README says so)
         /* nothing to record = nothing to write. An empty file must never
-           replace a real one, and deleting the file must STAY deleted —
-           re-creating an empty record on every save made it impossible to
-           clear (field: "I couldn't delete the new one"). */
-        if (tweaks.Count == 0) {
-          if (!auto) Debug.Log("UI Kit Maker: no kerning tweaks to record"
-            + (prior.Count > 0 ? " beyond the " + prior.Count + " already in fonts/kerning-overrides.json." : " — the faces match the typeface's own spacing."));
+           replace a real one, and deleting the file must STAY deleted. */
+        if (rec.Count == 0) {
+          if (!auto) Debug.Log("UI Kit Maker: no kerning tweaks to record — the table matches the shipped bake.");
           continue;
         }
+        bool changed = rec.Count != prior.Count;
+        if (!changed) foreach (var kv in rec) {
+          UnityEngine.TextCore.LowLevel.GlyphValueRecord pv;
+          if (!prior.TryGetValue(kv.Key, out pv) || Mathf.Abs(pv.xAdvance - kv.Value.xAdvance) > 0.005f
+              || Mathf.Abs(pv.xPlacement - kv.Value.xPlacement) > 0.005f || Mathf.Abs(pv.yPlacement - kv.Value.yPlacement) > 0.005f) { changed = true; break; }
+        }
+        if (!changed && auto) continue; // a quiet pass with nothing new stays quiet
+        var tweaks = new List<PBKernOv>();
+        foreach (var kv in rec)
+          tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL),
+            k = kv.Value.xAdvance, ox = kv.Value.xPlacement, oy = kv.Value.yPlacement });
         var ovFile = new PBKernOvFile { pairs = tweaks.ToArray() };
         try {
-          File.WriteAllText(root + "/fonts/kerning-overrides.json", JsonUtility.ToJson(ovFile, true));
-          AssetDatabase.ImportAsset(root + "/fonts/kerning-overrides.json");
+          File.WriteAllText(ovPath, JsonUtility.ToJson(ovFile, true));
+          AssetDatabase.ImportAsset(ovPath);
         } catch (Exception e) { Debug.LogWarning("UI Kit Maker: couldn't save your kerning tweaks — " + e.Message); }
-        AssetDatabase.SaveAssets();
-        // an automatic pass only speaks when there was something to carry
-        if (!auto || tweaks.Count > 0)
-          Debug.Log("UI Kit Maker: kerning synced across " + faces.Count + " layer face(s) — "
-            + merged.Count + " pairs, " + tweaks.Count + " of them yours. Saved to fonts/kerning-overrides.json, so every future export re-applies them. Fill and stroke move together.");
+        Debug.Log("UI Kit Maker: " + tweaks.Count + " tuned pair(s) recorded to fonts/kerning-overrides.json — every layer already follows (one shared table), and every future import re-applies them.");
       }
     }
 #endif
@@ -3125,9 +3160,9 @@ namespace PatternBreak {
            its stroke (owner: "we just need to tie the stroke to it") */
         int kernApplied = 0, kernKept = 0;
         try {
-          var pairs = new Dictionary<long, float>();
+          var pairs = new Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord>();
           if (face.kerning != null)
-            foreach (var kp in face.kerning) pairs[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
+            foreach (var kp in face.kerning) pairs[PairKey((uint)kp.l, (uint)kp.r)] = new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kp.k, 0f);
           kernKept = ApplyKernOverrides(root, pairs);
           WriteFacePairs(fa, pairs);
           kernApplied = pairs.Count;
@@ -3285,21 +3320,23 @@ namespace PatternBreak {
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-      var fillFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
-      var strokeFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
-      if (fillFace != null && strokeFace != null) {
+      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      var strokeMat = LayerMaterial(root, "Stroke");
+      if (layersFa != null && strokeMat != null) {
         /* layered mini-hero (owner: "the unified background stroke thing
            and effects pass on the group, instead of each individual
            letter"): ONE merged stroke and ONE soft shadow behind ALL
-           letterforms, fills above, glints on top — the HeroLabel
-           construction at button size, with the same one-text-box sync. */
-        var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
-        var shadowFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Shadow.asset");
-        var glintsFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Glints.asset");
-        if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
-        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
-        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", fillFace));
-        if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
+           letterforms, fills above, glints on top. Every layer reads the
+           SAME font asset; only the material (the ink) differs — so the
+           stack cannot tear, whatever gets tuned. Fill's ink is the font's
+           own material (null here = keep the default). */
+        var layers = new List<KeyValuePair<string, Material>>();
+        var shadowMat = LayerMaterial(root, "Shadow");
+        var glintsMat = LayerMaterial(root, "Glints");
+        if (shadowMat != null) layers.Add(new KeyValuePair<string, Material>("Shadow", shadowMat));
+        layers.Add(new KeyValuePair<string, Material>("Stroke", strokeMat));
+        layers.Add(new KeyValuePair<string, Material>("Fill", null));
+        if (glintsMat != null) layers.Add(new KeyValuePair<string, Material>("Glints", glintsMat));
         foreach (var layer in layers) {
           var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
           lgo.transform.SetParent(go.transform, false);
@@ -3317,7 +3354,10 @@ namespace PatternBreak {
           lt.fontSize = ls;
           lt.enableAutoSizing = false;
           lt.raycastTarget = false;
-          lt.font = layer.Value;
+          // font first, material second — assigning the font resets the
+          // component back to the font's default material
+          lt.font = layersFa;
+          if (layer.Value != null) lt.fontSharedMaterial = layer.Value;
           lt.color = Color.white;
         }
         /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
@@ -3879,17 +3919,17 @@ namespace PatternBreak {
             var wantBaked = BakedLabelFace(m, root, famName);
             var probeTmp = probeRoot.GetComponent<TextMeshProUGUI>();
             bool stacked = probeRoot.GetComponent<HeroLabel>() != null;
-            bool layersShip = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset") != null
-              && AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset") != null;
+            var wantLayersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+            bool layersShip = wantLayersFa != null && LayerMaterial(root, "Stroke") != null;
             if (wantBaked != null && layersShip) {
               wantDress = !stacked;
-              // a stack whose layer fonts went NULL (deleted/broken face
-              // assets) looked "already correct" here and stayed naked —
-              // field repro: "no type visible", a wall of "no Font Asset
-              // assigned to Fill/Stroke/Shadow/Glints"
+              /* a stack on anything but THE shared asset re-dresses: null
+                 fonts (deleted assets — field: "no Font Asset assigned"),
+                 and the old four-asset construction migrating to the
+                 one-skeleton build alike */
               if (!wantDress)
                 foreach (var lt in probeRoot.GetComponentsInChildren<TextMeshProUGUI>(true))
-                  if (lt.font == null) { wantDress = true; break; }
+                  if (lt.font != wantLayersFa) { wantDress = true; break; }
             }
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
@@ -4009,18 +4049,23 @@ namespace PatternBreak {
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
+      // the whole stack reads ONE font asset; a layer on anything else —
+      // including a face from the old four-asset construction — converges
+      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      if (layersFa == null) return;
       bool broken = false;
-      foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-        var wantFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked " + lt.gameObject.name + ".asset");
-        if (wantFace != null && lt.font != wantFace) { broken = true; break; }
-      }
+      foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true))
+        if (lt.font != layersFa) { broken = true; break; }
       if (!broken) return;
       var contents = PrefabUtility.LoadPrefabContents(path);
       try {
         int n = 0;
         foreach (var lt in contents.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-          var wantFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked " + lt.gameObject.name + ".asset");
-          if (wantFace != null && lt.font != wantFace) { lt.font = wantFace; n++; }
+          if (lt.font == layersFa) continue;
+          lt.font = layersFa;
+          var mat = LayerMaterial(root, lt.gameObject.name);
+          if (mat != null) lt.fontSharedMaterial = mat;
+          n++;
         }
         if (n > 0) { PrefabUtility.SaveAsPrefabAsset(contents, path); healed += n; }
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
@@ -4033,17 +4078,18 @@ namespace PatternBreak {
        letterform). Retype BOTH children to change the word; keep both
        colors white. ── */
     static bool HeroLabelPrefab(string dir, string root) {
-      var fill = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Fill.asset");
-      var stroke = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Stroke.asset");
-      if (fill == null || stroke == null) return false;
-      // shadow + glints are optional layers (kits without them skip)
-      var shadow = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Shadow.asset");
-      var glints = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Glints.asset");
-      var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
-      if (shadow != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadow));
-      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", stroke));
-      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", fill));
-      if (glints != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glints));
+      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      var strokeMat = LayerMaterial(root, "Stroke");
+      if (layersFa == null || strokeMat == null) return false;
+      // shadow + glints are optional layers (kits without them skip);
+      // ONE font asset throughout — layers differ only by material
+      var shadowMat = LayerMaterial(root, "Shadow");
+      var glintsMat = LayerMaterial(root, "Glints");
+      var layers = new List<KeyValuePair<string, Material>>();
+      if (shadowMat != null) layers.Add(new KeyValuePair<string, Material>("Shadow", shadowMat));
+      layers.Add(new KeyValuePair<string, Material>("Stroke", strokeMat));
+      layers.Add(new KeyValuePair<string, Material>("Fill", null));
+      if (glintsMat != null) layers.Add(new KeyValuePair<string, Material>("Glints", glintsMat));
       var go = new GameObject("HeroLabel", typeof(RectTransform));
       go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
       // ONE text box drives every layer — the kit's only runtime script
@@ -4059,7 +4105,9 @@ namespace PatternBreak {
         t.alignment = TextAlignmentOptions.Center;
         t.fontSize = 150f;
         t.raycastTarget = false;
-        t.font = layer.Value;
+        // font first, material second — assigning the font resets the material
+        t.font = layersFa;
+        if (layer.Value != null) t.fontSharedMaterial = layer.Value;
         t.color = Color.white;
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/HeroLabel.prefab");
