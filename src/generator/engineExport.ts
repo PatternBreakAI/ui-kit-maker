@@ -10,7 +10,7 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, setEmbedFont } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -191,6 +191,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     pngQueue.push({ path, svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
+  /* families whose prefabs swap states, so they are the ones that get an
+     aura sprite — kept beside the manifest's stateFx list, which drives the
+     runtime that fades it */
+  const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
+    "list-row", "item-slot", "iconbtn", "checkbox", "radio"]);
   const rasterQueue = async () => {
     const total = pngQueue.length + (catalog ? 1 : 0);
     /* entries sharing a group (a family's rest + swap states) rasterize
@@ -234,6 +239,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
       manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), ...q.meta });
+      /* the piece's own aura, derived from the sprite we just made — the
+         silhouette blurred exactly the way the app blurs it. Only for the
+         families that swap: a panel has no hover to announce. */
+      if (q.meta.part === "base" && GLOW_FAMS.has(q.meta.component)) {
+        const g = await glowFromPng(bytes, PNG_SCALE);
+        files.push({ path: `assets/${q.meta.component}/glow.png`, data: g.bytes });
+        manifest.push({
+          file: `assets/${q.meta.component}/glow.png`, nativeW: g.w, nativeH: g.h,
+          sha256: await sha256Hex(g.bytes), component: q.meta.component, part: "glow",
+          nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+          usage: "This piece's aura — its silhouette, blurred the way the app blurs it. White, so it tints to any role; the hover glow uses it behind the piece.",
+        });
+      }
     }
     onProgress?.(pngQueue.length, total, catalog ? "catalog" : "zip");
   };
@@ -1099,13 +1117,13 @@ namespace PatternBreak {
   public class StateFx : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler {
     [Header("Look — edited on uikitmaker.com, tune freely here")]
     public Sprite glowSprite;
+    [Tooltip("How far the aura sprite overhangs the piece, per side, in UI units.")]
+    public Vector2 glowPad;
     public Color glowColor = Color.white;
     [Tooltip("Glow strength 0-100 per state, straight from the kit's Glow dial.")]
     public float restGlow, hoverGlow = 100f, pressedGlow, disabledGlow;
     [Tooltip("Vertical shift in pixels per state — the press sink. Positive is up.")]
     public float restLift, hoverLift, pressedLift;
-    [Tooltip("How far past the piece the halo spreads, as a fraction of its size.")]
-    public float spread = 0.55f;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
 
@@ -1144,8 +1162,14 @@ namespace PatternBreak {
       glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
       glowRt.pivot = rt.pivot;
       glowRt.localScale = rt.localScale;
-      var pad = Mathf.Max(rt.rect.width, rt.rect.height) * spread;
-      glowRt.sizeDelta = rt.sizeDelta + new Vector2(pad, pad);
+      /* sit exactly where the piece sits. Forgetting this parked every halo
+         at the parent's anchor origin instead of behind its own button —
+         one big blob in the corner (owner: "obviously not aligned, that's
+         it cut off screen on the upper left"). */
+      glowRt.anchoredPosition = rt.anchoredPosition;
+      // the aura sprite is the piece plus a fixed overhang, so the pad is an
+      // ADDITIVE offset — correct whether the piece is fixed or stretched
+      glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
       glowImg = go.GetComponent<Image>();
       glowImg.sprite = glowSprite;
       glowImg.raycastTarget = false;
@@ -1179,6 +1203,8 @@ namespace PatternBreak {
       if (snap) { glowNow = glowTo; liftNow = liftTo; }
       if (glowImg != null) glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, Mathf.Clamp01(glowNow / 100f) * 0.85f);
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+      // the halo rides the lift with the piece, or it slides out from under it
+      if (glowRt != null) glowRt.anchoredPosition = new Vector2(glowRt.anchoredPosition.x, baseY + liftNow);
     }
   }
 }
@@ -1231,16 +1257,14 @@ namespace PatternBreak {
     void OnTransformChildrenChanged() { layers = null; }
     void Update() {
       if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
-#if UNITY_EDITOR
-      /* Adoption is an AUTHORING convenience: it exists so that editing one
-         layer in the Inspector pulls the other three along (field: "changing
-         the type did not change the stroke layer"; "spacing only moved the
-         top layer"). Nobody is dragging Inspector fields inside a running
-         game, so it costs nothing there — and the four property reads per
-         layer per frame are exactly what made a full scene crawl. The check
-         above still catches anything set from game code, and SetText applies
-         immediately. */
-      if (Application.isPlaying) return;
+      /* Adoption runs in PLAY MODE TOO. It was briefly editor-only, on the
+         theory that nobody edits Inspector fields in a running game — which
+         is simply wrong, that is how people tune UI (field, with Play
+         running and Font Size typed onto the Stroke layer: "tried to change
+         the font size and still getting breakage from the stroke"). The
+         expensive part was never these reads; it was re-collecting the
+         layer array every frame. Cached, this is a handful of field
+         comparisons and it belongs everywhere. */
       foreach (var label in Layers()) {
         // a stale entry: drop the cache and let the next tick re-read a
         // fresh set rather than adopt from a corpse
@@ -1256,7 +1280,6 @@ namespace PatternBreak {
            disconnected") — one layer's edit becomes the group's */
         if (label.margin != appliedMargins) { margins = label.margin; Apply(); return; }
       }
-#endif
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
@@ -3474,7 +3497,7 @@ namespace PatternBreak {
         ss.pressedSprite = pressed;
         ss.disabledSprite = disabled;
         btn.spriteState = ss;
-        WireStateFx(go, root, m, baseAsset.component);
+        WireStateFx(go, root, m, baseAsset.component, basePath, pngScale);
       }
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
@@ -3513,7 +3536,7 @@ namespace PatternBreak {
     }
     /* the glow and the lift, wired from the kit's own state dials. Only
        goes on pieces that actually swap — a panel has no hover to announce. */
-    static void WireStateFx(GameObject go, string root, PBManifest m, string family) {
+    static void WireStateFx(GameObject go, string root, PBManifest m, string family, string basePath, int pngScale) {
       if (m == null || m.stateFx == null || m.stateFx.Length == 0) return;
       if (go.GetComponent<StateFx>() != null) return;
       bool any = false;
@@ -3528,7 +3551,17 @@ namespace PatternBreak {
       }
       if (!any) return;
       var fx = go.AddComponent<StateFx>();
-      fx.glowSprite = S(root + "/assets/fx/glow.png");
+      /* the piece's OWN aura — its silhouette, blurred the way the app
+         blurs it. fx/glow.png is a generic radial blob and only stands in
+         for a family that ships no aura (owner, on the blob: "looks pretty
+         generic… very big and not as soft comparatively"). */
+      var baseSp = S(basePath);
+      var glowSp = S(Path.GetDirectoryName(basePath).Replace("\\\\", "/") + "/glow.png");
+      fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/glow.png");
+      if (glowSp != null && baseSp != null && pngScale > 0)
+        fx.glowPad = new Vector2(
+          (glowSp.rect.width - baseSp.rect.width) * 0.5f / pngScale,
+          (glowSp.rect.height - baseSp.rect.height) * 0.5f / pngScale);
       Color gc;
       if (m.palette == null || string.IsNullOrEmpty(m.palette.glow) || !ColorUtility.TryParseHtmlString(m.palette.glow, out gc)) gc = Color.white;
       fx.glowColor = gc;
@@ -3872,11 +3905,11 @@ namespace PatternBreak {
             ss.pressedSprite = pressed;
             ss.disabledSprite = disabled;
             btn.spriteState = ss;
-            WireStateFx(contents, root, m, famName);
+            WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             wired++; changed = true;
           }
           if (wantFx && contents.GetComponent<StateFx>() == null) {
-            WireStateFx(contents, root, m, famName);
+            WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
           }
 #if UNITY_2023_2_OR_NEWER
@@ -3998,6 +4031,34 @@ namespace PatternBreak {
   /* Tune a pair in the Glyph Adjustment Table, hit save — the tweak lands
      on every layer face and is written to fonts/kerning-overrides.json by
      itself. The menu item stays as a manual re-run. */
+  /* Saving is not the only moment a pair gets tuned — mostly it isn't the
+     moment at all. Typing a number into the Glyph Adjustment Table marks the
+     font asset dirty and nothing else, so the save hook below never fired and
+     the tweak sat on ONE face: the stroke's Y slid and the fill's Y stayed
+     put (owner: "also didn't survive the glyph adjustment"). Inspector edits
+     go through Undo, so that is where to listen. Debounced through delayCall
+     so a held-down arrow key syncs once, not per keystroke. */
+  [InitializeOnLoad]
+  static class KitKerningWatch {
+    static bool queued;
+    static KitKerningWatch() { Undo.postprocessModifications += OnEdit; }
+    static UndoPropertyModification[] OnEdit(UndoPropertyModification[] mods) {
+      if (queued || mods == null) return mods;
+      foreach (var mod in mods) {
+        var t = mod.currentValue != null ? mod.currentValue.target : null;
+        if (t == null) continue;
+#if UNITY_2023_2_OR_NEWER
+        if (!(t is TMP_FontAsset)) continue;
+        var path = AssetDatabase.GetAssetPath(t);
+        if (string.IsNullOrEmpty(path) || !path.Replace("\\\\", "/").Contains("/fonts/KitFace Baked")) continue;
+        queued = true;
+        EditorApplication.delayCall += () => { queued = false; KitImporter.SyncKerningQuiet(); };
+        break;
+#endif
+      }
+      return mods;
+    }
+  }
   class KitKerningAutoSync : UnityEditor.AssetModificationProcessor {
     static string[] OnWillSaveAssets(string[] paths) {
       if (paths == null) return paths;

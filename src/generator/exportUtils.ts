@@ -469,3 +469,52 @@ export async function downloadGameKit(cfg: GenConfig, licence?: string): Promise
   download(`ui-${cfg.presetId}-kit.json`, new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }));
   if (licence) download("LICENCE.txt", new Blob([licence], { type: "text/plain" }));
 }
+
+/** The kit's own aura, as a tintable sprite: the piece's SILHOUETTE blurred,
+ *  painted white so the engine can tint it to the Glow role.
+ *
+ *  Unity was compositing a generic radial blob stretched over the piece's box
+ *  — a soft ellipse behind a shaped button, which reads exactly as what it is
+ *  (owner: "these glows look very big and not as soft comparatively… what is
+ *  different about these than what we have in the app"). What the app draws
+ *  is the outer path blurred TWICE — stdDeviation 14 at full strength and 30
+ *  at 0.6 — so the halo hugs the shape. Same two passes here, over the
+ *  rendered sprite's own alpha, at the same sigmas scaled to device pixels.
+ *
+ *  The runtime multiplies the whole thing by the state's glow dial, so the
+ *  two passes carry only their RELATIVE weights. */
+export async function glowFromPng(
+  bytes: Uint8Array, scale = 2,
+): Promise<{ bytes: Uint8Array; w: number; h: number; pad: number }> {
+  const img = await createImageBitmap(new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const s1 = 14 * scale, s2 = 30 * scale;
+  const pad = Math.ceil(s2 * 3); // a Gaussian is spent by ~3 sigma
+  const w = img.width + pad * 2, h = img.height + pad * 2;
+
+  // 1 — the silhouette in white: draw the art, then keep only its alpha
+  const sil = document.createElement("canvas");
+  sil.width = w; sil.height = h;
+  const sctx = sil.getContext("2d")!;
+  sctx.drawImage(img, pad, pad);
+  sctx.globalCompositeOperation = "source-in";
+  sctx.fillStyle = "#FFFFFF";
+  sctx.fillRect(0, 0, w, h);
+
+  // 2 — the app's two passes, wide one first so the tight core sits on top
+  const out = document.createElement("canvas");
+  out.width = w; out.height = h;
+  const octx = out.getContext("2d")!;
+  octx.globalAlpha = 0.44; // 0.6 / 1.35 — the app's second pass, relative
+  octx.filter = `blur(${s2}px)`;
+  octx.drawImage(sil, 0, 0);
+  octx.globalAlpha = 1;
+  octx.filter = `blur(${s1}px)`;
+  octx.drawImage(sil, 0, 0);
+
+  return new Promise((resolve, reject) => {
+    out.toBlob(async (b) => {
+      if (!b) { reject(new Error("glow raster failed")); return; }
+      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w, h, pad });
+    }, "image/png");
+  });
+}
