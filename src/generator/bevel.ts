@@ -1187,9 +1187,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  rim, face fill); "over" = everything above it (inner glow, bloom,
    *  gloss, grain, inner edge, specular). The pattern itself ships as a
    *  seamless tile, so an engine stacks under → tiled pattern → over and
-   *  the pattern never distorts. Unset = the normal single-layer render,
-   *  byte-for-byte as before. */
-  faceLayer?: "under" | "over";
+   *  the pattern never distorts. "mask" is the face silhouette alone,
+   *  opaque — the engine stencil that clips the tiled pattern to the
+   *  shape. Unset = the normal single-layer render, byte-for-byte as
+   *  before. */
+  faceLayer?: "under" | "over" | "mask";
   /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
    *  inside each glyph are what make glints read per-letter; a bandScale
    *  wide enough pushes the caps outside the glyph so adjacent baked
@@ -1217,7 +1219,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const secondary = !!opts.secondary;
   /* stretch-safe face layers: LU draws everything BELOW the pattern, LO
      everything ABOVE it. Unset faceLayer = both, i.e. today's render. */
-  const LU = opts.faceLayer !== "over", LO = opts.faceLayer !== "under";
+  const LM = opts.faceLayer === "mask"; // the face silhouette alone, opaque
+  const LU = !LM && opts.faceLayer !== "over", LO = !LM && opts.faceLayer !== "under";
   const D = designFor(cfg, opts.pinDesign && state !== "disabled" ? "default" : state);
   /* per-state icon rig — color/effects/weight/pose fork with the state,
      the glyph itself is component-wide (store.update enforces that) */
@@ -1911,6 +1914,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <g data-oclip="1" clip-path="url(#${id}oc)">
     <g id="${id}_face" data-part="face" opacity="${(T.interior / 100).toFixed(2)}">
       ${LU ? `<path d="${faceP}" fill="url(#${id}face)"/>` : ""}
+      ${LM ? `<path d="${faceP}" fill="#FFFFFF"/>` : ""}
       <g clip-path="url(#${id}fc)">
         ${patternUse && !opts.faceLayer ? `<g data-part="pattern">${patternUse}</g>` : ""}
         ${igOp > 0.01 && LO ? `<path d="${faceP}" fill="url(#${id}ig)" data-part="inner-glow"/>` : ""}
@@ -2287,8 +2291,10 @@ export interface KitOpts {
   part?: string;
   /** Engine export: render only the face layers below ("under") or above
    *  ("over") the pattern, so the pattern can tile independently and
-   *  never shears when a nine-slice middle stretches. */
-  faceLayer?: "under" | "over";
+   *  never shears when a nine-slice middle stretches. "mask" is the bare
+   *  face silhouette, opaque — an engine stencil that clips the tiled
+   *  pattern to the shape. */
+  faceLayer?: "under" | "over" | "mask";
   sub?: string; max?: string; addBtn?: boolean; overlay?: string;
   /** Chosen slot values, keyed by slot id (see KIT_SLOTS in model.ts).
    *  The renderer validates against the slot's curated list — a choice

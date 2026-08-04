@@ -436,6 +436,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
       await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over" }, slim),
         { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
+      /* the STENCIL: the face silhouette alone, opaque. Unity's Mask only
+         alpha-clips when its graphic is hidden, so masking with a visible
+         art layer gives a RECTANGULAR mask and the pattern spills past
+         the shape (field: "pattern mask is off here"). A dedicated hidden
+         mask sprite clips exactly, with no glow fringe to leak through. */
+      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask" }, slim),
+        { component: fam, part: "base-mask", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face STENCIL: the bare face silhouette. Put it on a hidden Mask (Show Mask Graphic OFF) with the tiled pattern as its child — that clips the pattern to the shape exactly." }, true, grp);
     }
     /* the face pattern as a seamless tile: one cell, drawn at the same
        size and angle build() uses, so a Tiled Image reads identical to
@@ -1443,9 +1450,13 @@ When a kit wears a pattern, the wide pieces also ship **split into
 layers**, and the importer builds them as ready prefabs:
 **Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
 
-Inside is a three-layer stack: \`base-under.9\` (shell, rim, fill —
-Sliced) masks a Tiled \`fx/face-tile.png\`, and \`base-over.9\` (gloss,
-grain, inner edge, specular — Sliced) lays the light back on top. Drag
+Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
+hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
+that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
+\`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
+light back on top. The mask has to be its own hidden layer: Unity only
+alpha-clips a stencil when its graphic is hidden, so masking with
+visible art gives a RECTANGULAR mask and the pattern spills. Drag
 one out and stretch it as far as you like: the frame stretches, the
 pattern keeps its exact angle and rhythm, and the gloss stays ONE sweep
 instead of repeating. That's the app's look at any width, with no
@@ -3128,12 +3139,21 @@ namespace PatternBreak {
       var go = ImageObject(goName, under, pngScale);
       var ui = go.GetComponent<Image>();
       ui.type = Image.Type.Sliced;
-      // the under layer's own alpha is the mask — the pattern can never
-      // spill past the silhouette, whatever the rect does
-      var mask = go.AddComponent<Mask>();
-      mask.showMaskGraphic = true;
+      /* the stencil is its OWN hidden layer. Unity only alpha-clips a
+         Mask when Show Mask Graphic is OFF — masking with the visible art
+         gives a rectangular stencil, and the pattern spills past the
+         silhouette (field report). */
+      var maskSp = S(root + "/assets/" + fam + "/base-mask.9.png");
+      var maskGo = ImageObject("PatternMask", maskSp != null ? maskSp : under, pngScale);
+      maskGo.transform.SetParent(go.transform, false);
+      var mi = maskGo.GetComponent<Image>();
+      mi.type = Image.Type.Sliced;
+      mi.raycastTarget = false;
+      StretchFull(maskGo.GetComponent<RectTransform>());
+      var mask = maskGo.AddComponent<Mask>();
+      mask.showMaskGraphic = false;
       var pat = ImageObject("Pattern", tile, pngScale);
-      pat.transform.SetParent(go.transform, false);
+      pat.transform.SetParent(maskGo.transform, false);
       var pi = pat.GetComponent<Image>();
       pi.type = Image.Type.Tiled;
       pi.raycastTarget = false;
