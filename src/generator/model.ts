@@ -1372,6 +1372,17 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
+/* Components whose FRAME keeps the Default design in every state — the
+   hot element (selected cell, the mark, the knob) carries the state, and
+   the Global sliders still apply. Derived from bevel's pinDesign call
+   sites; the Panel shows a hint so state-editing these doesn't read as
+   dead controls (owner: "specular light isn't editable here"). */
+export const PINNED_CHROME = new Set<KitComponentId>([
+  "checkbox", "chestpanel", "choicelist", "dialog", "dialoguebox", "flipclock",
+  "invgrid", "listmenu", "movecounter", "questpanel", "radio", "respawn",
+  "rewardtray", "scorebug", "scrollbar", "seasontrack", "setrow", "stopwatch",
+]);
+
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the
    parent design live. (Full-snapshot forks froze a component forever: one
