@@ -1911,12 +1911,21 @@ TextMeshPro component and its material; neither has the table.
   Glints must agree or a tuned pair tears the letter away from its own
   outline. The importer writes them identically; the sync keeps them that
   way.
-- **Your edits live in \`fonts/kerning-overrides.json\`.** Saving a font
-  asset triggers the sync automatically: your pairs go to every face and
-  into that file. It is never shipped in a zip, so extracting a new
-  export over the same folder cannot clobber it, and every import
-  re-applies it on top of the fresh bake. The receipt counts them:
-  "N kerning pairs written (M of them YOUR tuned pairs…)".
+- **Save to see it.** Type your pair, then **Cmd/Ctrl+S**. The sync fans
+  the tweak out to all four faces and the type re-flows. It also runs on
+  its own about a second after you stop editing, so most of the time the
+  save is belt-and-braces — but Unity caches an open Inspector, and the
+  save is the one gesture that always lands. If the stroke still looks
+  detached, save; if it somehow doesn't, entering and leaving Play mode
+  forces it.
+- **A half-entered row is safe.** "Add New Glyph Adjustment Record" gives
+  you a blank pair, and a blank pair is left strictly alone until both
+  sides are set. The sync will not tidy it away underneath you.
+- **Your edits live in \`fonts/kerning-overrides.json\`.** The sync puts
+  your pairs on every face and into that file. It is never shipped in a
+  zip, so extracting a new export over the same folder cannot clobber it,
+  and every import re-applies it on top of the fresh bake. The receipt
+  counts them: "N kerning pairs written (M of them YOUR tuned pairs…)".
 - **Renaming the kit leaves it behind.** A new kit name mints a new
   Unity folder; copy \`fonts/kerning-overrides.json\` across if you want
   the tuning to follow.
@@ -1935,8 +1944,19 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-Then run **Tools → PatternBreak → Sync Label Kerning**. That does the two
-things hand-tuning otherwise gets wrong:
+**It doesn't matter which of the four faces you open.** \`fonts/\` holds
+KitFace Baked Fill, Stroke, Shadow and Glints, and at a narrow Project
+column they all truncate to "KitFace Ba…" — so double-clicking lands you
+on whichever one you hit. That's fine: whichever face you tune is the
+source, and the other three follow. Widen the column (or use the list
+view) if you want to see which is which. Multi-selecting all four and
+editing them together works too, but you don't need it — that's the job
+the sync is doing. If you like a habit, tune the **Fill**.
+
+Then **save** (Cmd/Ctrl+S). Saving fans the tweak out; so does simply
+stopping for a second, and **Tools → PatternBreak → Sync Label Kerning**
+forces it any time. Whichever way it runs, it does the two things
+hand-tuning otherwise gets wrong:
 
 - it copies your tuned pairs onto **every layer face** (Fill, Stroke,
   Shadow, Glints), so the letterform and its outline move together —
