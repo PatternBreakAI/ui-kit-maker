@@ -1388,6 +1388,16 @@ system has no dials for them — the kit's instance is frozen in) and
 browser-only shaping extras. If a word ever spaces differently than the
 app, re-export first — older zips predate the kerning bake.
 
+**Tuning a single letter pair by hand** (say the A–Y gap bothers you):
+select \`fonts/KitFace Baked Fill\`, open its **Glyph Adjustment Table**,
+search the pair ("AY"), and edit the first glyph's **X Advance** —
+negative pulls them tighter, live in the scene. Two caveats: apply the
+SAME number to KitFace Baked **Stroke, Shadow and Glints** or that pair
+drifts apart between the label's layers; and the faces rebuild on every
+re-import, so hand-tuned pairs don't survive the next zip. For a fix
+that sticks, tell uikitmaker.com which pair looks off — the bake is
+measured once and ships to everyone.
+
 ## States — and the press-Play Playground
 
 Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
