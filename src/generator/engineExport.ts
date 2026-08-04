@@ -1651,6 +1651,32 @@ TextMeshPro component and its material; neither has the table.
    a pair that reads near zero while its neighbours read −14 is usually
    the wrong row.
 
+### Where the numbers come from, and where they live
+
+- **The bake measures your font.** At export we set every letter pair
+  against its two letters' solo widths in the browser, at your kit's
+  exact font instance, and ship the differences. That's the typeface's
+  own kerning, captured — nothing invented.
+- **Units are the baked em, not pixels.** The baked em is
+  \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
+  −5 px on a label rendering near 55. Compare a pair against its
+  neighbours (A–V, A–W) rather than guessing an absolute number.
+- **All four faces carry the same table.** Fill, Stroke, Shadow and
+  Glints must agree or a tuned pair tears the letter away from its own
+  outline. The importer writes them identically; the sync keeps them that
+  way.
+- **Your edits live in \`fonts/kerning-overrides.json\`.** Saving a font
+  asset triggers the sync automatically: your pairs go to every face and
+  into that file. It is never shipped in a zip, so extracting a new
+  export over the same folder cannot clobber it, and every import
+  re-applies it on top of the fresh bake. The receipt counts them:
+  "N kerning pairs written (M of them YOUR tuned pairs…)".
+- **Renaming the kit leaves it behind.** A new kit name mints a new
+  Unity folder; copy \`fonts/kerning-overrides.json\` across if you want
+  the tuning to follow.
+- **To start clean**, delete that file and re-import — you're back to the
+  typeface's own spacing.
+
 **Pair not in the list at all?** Then the font itself specifies no kern
 for it — the table only carries what the typeface asks for, and plenty
 of display faces kern their lowercase thoroughly and their capitals
@@ -2602,12 +2628,28 @@ namespace PatternBreak {
             if (bf != null && bf.kerning != null) foreach (var kp in bf.kerning) shipped[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
           }
         }
+        /* SEED FROM THE RECORD FIRST. If an import rebuilt the faces from
+           the bake alone (an older importer, a half-finished drop), their
+           tables no longer show the maker's pairs — and a sync that read
+           only the faces would decide there were no tweaks and overwrite
+           the record with nothing. Field: the overrides file came back
+           '{"pairs": []}' after tuning. The record is intent; faces are
+           just its current rendering. */
+        var prior = new Dictionary<long, float>();
+        var ovPath = root + "/fonts/kerning-overrides.json";
+        if (File.Exists(ovPath)) {
+          PBKernOvFile pf = null;
+          try { pf = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(ovPath)); } catch (Exception) { }
+          if (pf != null && pf.pairs != null) foreach (var o in pf.pairs) prior[PairKey((uint)o.l, (uint)o.r)] = o.k;
+        }
+        foreach (var kv in prior) merged[kv.Key] = kv.Value;
         foreach (var fa in faces) {
           foreach (var kv in ReadFacePairs(fa)) {
             float s;
             bool isTweak = !shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f;
-            // a tweak wins over the shipped value; shipped fills the rest
-            if (isTweak || !merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
+            // a live edit wins over the record; shipped only fills gaps
+            if (isTweak) merged[kv.Key] = kv.Value;
+            else if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
           }
         }
         foreach (var kv in shipped) if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
@@ -2618,6 +2660,13 @@ namespace PatternBreak {
             tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL), k = kv.Value });
         }
         foreach (var fa in faces) WriteFacePairs(fa, merged);
+        // never trade a real record for an empty one — losing hand-tuning
+        // silently is worse than keeping a pair the maker reverted (delete
+        // the file to start clean; the README says so)
+        if (tweaks.Count == 0 && prior.Count > 0) {
+          if (!auto) Debug.Log("UI Kit Maker: no new kerning tweaks found — keeping the " + prior.Count + " already recorded in fonts/kerning-overrides.json.");
+          continue;
+        }
         var ovFile = new PBKernOvFile { pairs = tweaks.ToArray() };
         try {
           File.WriteAllText(root + "/fonts/kerning-overrides.json", JsonUtility.ToJson(ovFile, true));
