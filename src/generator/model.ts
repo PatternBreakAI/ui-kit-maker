@@ -705,7 +705,11 @@ export function presetById(id: string): Preset {
 export function defaultStates(): Record<GenStateName, StateAdjust> {
   return {
     default: { brightness: 5, saturation: 0, glow: 0, lift: 0, opacity: 100 },
-    hover: { brightness: 8, saturation: 0, glow: 38, lift: -3, opacity: 100 },
+    /* hover glows FULL by default (owner mandate, 2026-08-04): it's the
+       recipe applied by hand to nearly every kit anyway, it reads as
+       "look here" in tutorials and onboarding, and removing it from the
+       few pieces that don't want it is one slider. */
+    hover: { brightness: 8, saturation: 0, glow: 100, lift: -3, opacity: 100 },
     pressed: { brightness: -6, saturation: 0, glow: 12, lift: 3, opacity: 100 },
     disabled: { brightness: 0, saturation: 0, glow: 0, lift: 0, opacity: 62 },
   };
@@ -1367,6 +1371,17 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
   killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
+
+/* Components whose FRAME keeps the Default design in every state — the
+   hot element (selected cell, the mark, the knob) carries the state, and
+   the Global sliders still apply. Derived from bevel's pinDesign call
+   sites; the Panel shows a hint so state-editing these doesn't read as
+   dead controls (owner: "specular light isn't editable here"). */
+export const PINNED_CHROME = new Set<KitComponentId>([
+  "checkbox", "chestpanel", "choicelist", "dialog", "dialoguebox", "flipclock",
+  "invgrid", "listmenu", "movecounter", "questpanel", "radio", "respawn",
+  "rewardtray", "scorebug", "scrollbar", "seasontrack", "setrow", "stopwatch",
+]);
 
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the

@@ -400,6 +400,65 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Throttle/brake/speed traces are live engine content." }, true);
   }
   await addPng("startlights/base.png", shell("startlights", { part: "base" }), { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown." });
+
+  /* ── the RIGS (owner round, 2026-08-04): joystick, health globe and
+     season track ship as WORKING prefab ingredients, plus bare extras
+     shells. Live-content rule holds: no words, numbers or reward icons
+     baked anywhere — the shells carry the material, the engine carries
+     the content. ── */
+  await addPng("joystick/base.png", shell("joystick", { part: "base" }), { component: "joystick", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick base — well and travel ring. The importer builds a wired Joystick prefab (PatternBreakJoystick drives the thumb)." });
+  await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
+  await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
+  await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
+  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — use a Filled (Vertical) Image masked by the glass; fillAmount IS the health." });
+  await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
+  await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
+  await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
+  await addPng("extras/achievement.png", shell("achievetoast", { part: "shell" }), { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title are live engine text." });
+
+  /* ── STRETCH-SAFE FACES (owner: a diagonal pattern shears when the
+     nine-slice middle stretches). The wide, stateless pieces ship their
+     face SPLIT: under (shell, rim, fill) → the pattern as a seamless
+     tile → over (gloss, grain, inner edge, specular). Stacked in-engine
+     the frame stretches, the pattern tiles at constant scale, and the
+     gloss stays one sweep — the app's look at any width. Only worth the
+     bytes when the kit actually wears a pattern. ── */
+  const facePat = base.candy.pattern;
+  if (facePat && facePat.type !== "none" && facePat.opacity > 1) {
+    for (const [fam, cid] of [["panel", "panel"], ["header", "header"]] as const) {
+      const sl = sliceOf(cid as KitComponentId, cid === "panel" ? 380 : 158);
+      /* ONE union crop box for the pair (same trick the swap states use):
+         cropped apart, the over layer — which has no shell or shadow —
+         lands in a tighter box and every gloss sits misplaced once the
+         two are stretched over the same rect */
+      const grp = `faceLayer-${fam}`;
+      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under" }, slim),
+        { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
+      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over" }, slim),
+        { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
+      /* the STENCIL: the face silhouette alone, opaque. Unity's Mask only
+         alpha-clips when its graphic is hidden, so masking with a visible
+         art layer gives a RECTANGULAR mask and the pattern spills past
+         the shape (field: "pattern mask is off here"). A dedicated hidden
+         mask sprite clips exactly, with no glow fringe to leak through. */
+      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask" }, slim),
+        { component: fam, part: "base-mask", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face STENCIL: the bare face silhouette. Put it on a hidden Mask (Show Mask Graphic OFF) with the tiled pattern as its child — that clips the pattern to the shape exactly." }, true, grp);
+    }
+    /* the face pattern as a seamless tile: one cell, drawn at the same
+       size and angle build() uses, so a Tiled Image reads identical to
+       the baked pattern at 1:1 */
+    const K1 = 1; // component faces render at K=1 in the export sizes
+    const ps = (8 + facePat.scale * 0.9) * K1;
+    const ang = ((facePat.angle ?? 0) % 180 + 180) % 180;
+    const diag = ang % 90 !== 0;
+    const cellW = Math.max(8, Math.round(ps * (diag ? Math.SQRT2 : 1)));
+    const patC = facePat.color ? facePat.color : darken(innerC, 0.2);
+    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellW}" viewBox="0 0 ${cellW} ${cellW}">` +
+      `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
+      `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
+    await addPng("fx/face-tile.png", patTile,
+      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between base-under and base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
+  }
   } // full scope
 
   /* ── shared FX blobs — engines compose their own shadows/glows ── */
@@ -636,10 +695,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      GENERATES wired example prefabs on first import (a text prefab cannot
      carry sprite GUIDs, so the old drag-the-sprite examples are gone —
      the importer builds real ones with real references instead). ── */
-  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null) });
+  /* illustrated docs, drawn from THIS kit (never stock art) — a failed
+     rasterization just means a text-only README, never a failed export */
+  let figs: { path: string; data: Uint8Array }[] = [];
+  try { figs = await readmeFigures(base); } catch { figs = []; }
+  for (const f of figs) files.push(f);
+  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -684,11 +750,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      user installs a second kit (CS0101 — the whole editor assembly dies).
      Its content is kit-independent, so every kit's zip overwrites the same
      file byte-for-byte, and Apply() already walks ALL manifests. */
+  const sharedScripts = new Set([
+    "Editor/PatternBreakKitImporter.cs",
+    "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
+    "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
+  ]);
   const rooted = files.map((f) => ({
     ...f,
-    path: f.path === "Editor/PatternBreakKitImporter.cs" || f.path === "Runtime/PatternBreakHeroLabel.cs" || f.path === "Runtime/PatternBreakLabelStateInk.cs"
-      ? `UIKitMaker/${f.path}`
-      : `UIKitMaker/${safeSlug}/${f.path}`,
+    path: sharedScripts.has(f.path) ? `UIKitMaker/${f.path}` : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
   download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
   setEmbedFont("", null); // don't leak the embed into unrelated rasterizations
@@ -788,6 +857,21 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
   const hasShadow = !!base.type.shadow.on;
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
+  /* KERNING PAIRS (owner: "look at how far away the Y is from the other
+     letterforms"): per-glyph advances can't carry the pair adjustments
+     the browser applies (A·Y, L·T, …). Measure every pair against its
+     glyphs' solo widths and ship the non-zero deltas; the importer
+     writes them into TMP's pair-adjustment table so Unity spaces baked
+     pairs exactly like the app. Same units as the advances. */
+  const kerning: { l: number; r: number; k: number }[] = [];
+  {
+    const solo = new Map<string, number>();
+    for (const ch of BAKE_GLYPHS) solo.set(ch, mx.measureText(ch).width);
+    for (const a of BAKE_GLYPHS) for (const b of BAKE_GLYPHS) {
+      const kp = mx.measureText(a + b).width - solo.get(a)! - solo.get(b)!;
+      if (Math.abs(kp) > 0.1) kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+    }
+  }
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
     if (ch === " ") {
@@ -891,6 +975,7 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     descent: Math.round(descent),
     lineHeight: Math.round((ascent + descent) * 1.06),
     atlasW: AW, atlasH: fullH,
+    kerning,
     glyphs: emit(sets.full),
     ...(layersPng ? {
       layersAtlasW: AW, layersAtlasH: layersH,
@@ -924,22 +1009,59 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
     [TextArea] public string text = "PLAY";
     public float fontSize = 150f;
-    string appliedText; float appliedSize;
+    [Tooltip("Character spacing (tracking) — applies to every layer.")]
+    public float spacing = 0f;
+    [Tooltip("Word spacing — applies to every layer.")]
+    public float wordSpacing = 0f;
+    [Tooltip("The button height this label was authored at. When set, resizing the button scales the type proportionally — like scaling. 0 = off.")]
+    public float authoredHeight = 0f;
+    [Tooltip("Move the whole word inside its button. Y up is positive — raise a word that optically sits low. Applies to every layer at once.")]
+    public Vector2 nudge = Vector2.zero;
+    [Tooltip("TMP margins (left, top, right, bottom) for the whole stack. Editing a single layer's Margins adopts into this — the other layers follow instead of tearing away.")]
+    public Vector4 margins = Vector4.zero;
+    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedK = 1f; Vector2 appliedNudge; Vector4 appliedMargins;
+    float SizeK() {
+      if (authoredHeight < 0.5f) return 1f;
+      var p = transform.parent as RectTransform;
+      return p != null && p.rect.height > 1f ? p.rect.height / authoredHeight : 1f;
+    }
     void OnEnable() { Apply(); }
     void Update() {
-      if (text != appliedText || fontSize != appliedSize) { Apply(); return; }
-      /* typing on any LAYER adopts into the group — editing the Fill child
-         used to leave Stroke and Shadow behind (field: "changing the type
-         did not change the stroke layer") */
-      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true))
+      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
+      /* editing any LAYER adopts into the group — text, size and spacing
+         alike. Editing the Fill child used to leave Stroke and Shadow
+         behind (field: "changing the type did not change the stroke
+         layer"; "spacing only moved the top layer"). */
+      foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
         if (label.text != appliedText) { text = label.text; Apply(); return; }
+        if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
+        if (label.wordSpacing != appliedWordSpacing) { wordSpacing = label.wordSpacing; Apply(); return; }
+        // size adopts too — a single layer sized by hand (or left behind
+        // by an older importer) re-converges within a frame
+        if (!Mathf.Approximately(label.fontSize, appliedSize * appliedK)) { fontSize = appliedK > 0f ? label.fontSize / appliedK : label.fontSize; Apply(); return; }
+        /* margins are the OTHER way people move type in TMP (field: "tried
+           changing the margins to lift the type and the stroke is
+           disconnected") — one layer's edit becomes the group's */
+        if (label.margin != appliedMargins) { margins = label.margin; Apply(); return; }
+      }
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
-      appliedText = text; appliedSize = fontSize;
+      var k = SizeK();
+      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
       foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        // the group's write is authoritative — TMP auto-fit would silently
+        // re-solve fontSize per layer and split the stack
+        label.enableAutoSizing = false;
         label.text = text;
-        label.fontSize = fontSize;
+        label.fontSize = fontSize * k;
+        label.characterSpacing = spacing;
+        label.wordSpacing = wordSpacing;
+        /* the nudge rides the LAYERS, never this root — the press sink
+           (LabelStateInk) owns the root's position, and two writers on
+           one transform is how the stack drifts apart */
+        label.rectTransform.anchoredPosition = nudge;
+        label.margin = margins;
       }
     }
 #endif
@@ -1030,8 +1152,239 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script #3: the touch stick. The joystick ships as base + thumb
+   sprites and this component makes them a WORKING control — the "your
+   kit, driving a character, thirty seconds after the drop" demo. */
+const TOUCH_STICK_RUNTIME = `using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  /* Touch stick — press or drag anywhere on the base; the thumb follows
+     and Value reports a normalized direction (-1..1 each axis). Poll
+     Value in Update, or hook onChanged in the Inspector. */
+  [AddComponentMenu("UI Kit Maker/Touch Stick")]
+  public class TouchStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler {
+    public RectTransform thumb;
+    [Tooltip("Travel radius in px. 0 = automatic (40% of this rect's width).")]
+    public float radius = 0f;
+    public bool snapBack = true;
+    [System.Serializable] public class StickEvent : UnityEngine.Events.UnityEvent<Vector2> {}
+    public StickEvent onChanged = new StickEvent();
+    public Vector2 Value { get; private set; }
+    RectTransform Rt { get { return (RectTransform)transform; } }
+    float R { get { return radius > 0.01f ? radius : Rt.rect.width * 0.4f; } }
+    void Track(PointerEventData e) {
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(Rt, e.position, e.pressEventCamera, out local)) return;
+      var v = Vector2.ClampMagnitude(local / R, 1f);
+      Value = v;
+      if (thumb != null) thumb.anchoredPosition = v * R;
+      onChanged.Invoke(v);
+    }
+    public void OnPointerDown(PointerEventData e) { Track(e); }
+    public void OnDrag(PointerEventData e) { Track(e); }
+    public void OnPointerUp(PointerEventData e) {
+      Value = Vector2.zero;
+      if (snapBack && thumb != null) thumb.anchoredPosition = Vector2.zero;
+      onChanged.Invoke(Vector2.zero);
+    }
+  }
+}
+`;
+
+/* Runtime script #4: the season track's CONTENT rig — the look is baked
+   art (edited on uikitmaker.com), the content is live engine text this
+   component owns and lays out. Prototyper-first Inspector (owner). */
+const SEASON_TRACK_RUNTIME = `using UnityEngine;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* Season track content. THE LOOK IS EDITED ON UIKITMAKER.COM — re-export
+     the kit to restyle the track art. This component owns the CONTENT:
+     lane names, level numbers and progress, as live text and a live fill
+     over the bare track sprite. Anchors are fractions of this rect —
+     nudge them in the Inspector if your layout drifts. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Season Track")]
+  public class SeasonTrack : MonoBehaviour {
+#if UNITY_2023_2_OR_NEWER
+    [Header("Content — the LOOK is edited on uikitmaker.com")]
+    public string laneA = "FREE";
+    public string laneB = "PREMIUM";
+    public int firstLevel = 12;
+    [Range(0f, 1f)] public float progress = 0.5f;
+    [Header("Type")]
+    public TMP_FontAsset face;
+    public float labelSize = 16f;
+    public Color laneAColor = Color.white;
+    public Color laneBColor = new Color(0.98f, 0.8f, 0.08f);
+    public Color progressColor = new Color(0.4f, 0.9f, 1f, 0.9f);
+    [Header("Anchors (fractions of this rect)")]
+    public Vector2 laneAAnchor = new Vector2(0.11f, 0.72f);
+    public Vector2 laneBAnchor = new Vector2(0.11f, 0.28f);
+    public float[] nodeX = new float[] { 0.24f, 0.5f, 0.76f };
+    public float nodeY = 0.5f;
+    void OnEnable() { Rebuild(); }
+    void OnValidate() { if (transform.Find("LaneA") != null) Apply(); }
+    TextMeshProUGUI Ensure(string childName) {
+      var t = transform.Find(childName);
+      var g = t != null ? t.gameObject : null;
+      if (g == null) { g = new GameObject(childName, typeof(RectTransform)); g.transform.SetParent(transform, false); }
+      var tmp = g.GetComponent<TextMeshProUGUI>();
+      if (tmp == null) tmp = g.AddComponent<TextMeshProUGUI>();
+      tmp.raycastTarget = false;
+      tmp.alignment = TextAlignmentOptions.Center;
+      return tmp;
+    }
+    void Place(RectTransform rt, Vector2 frac, float w, float h) {
+      rt.anchorMin = frac; rt.anchorMax = frac; rt.pivot = new Vector2(0.5f, 0.5f);
+      rt.anchoredPosition = Vector2.zero; rt.sizeDelta = new Vector2(w, h);
+    }
+    public void Rebuild() { Apply(); }
+    void Apply() {
+      var a = Ensure("LaneA");
+      a.text = laneA; a.fontSize = labelSize; a.color = laneAColor; if (face != null) a.font = face;
+      Place(a.rectTransform, laneAAnchor, 200f, 34f);
+      var b = Ensure("LaneB");
+      b.text = laneB; b.fontSize = labelSize; b.color = laneBColor; if (face != null) b.font = face;
+      Place(b.rectTransform, laneBAnchor, 200f, 34f);
+      for (int i = 0; i < nodeX.Length; i++) {
+        var n = Ensure("Node" + (i + 1));
+        n.text = (firstLevel + i).ToString(); n.fontSize = labelSize * 0.85f; n.color = laneAColor; if (face != null) n.font = face;
+        Place(n.rectTransform, new Vector2(nodeX[i], nodeY), 60f, 30f);
+      }
+      // the progress run rides the spine between the first and last node
+      var t = transform.Find("Progress");
+      var g = t != null ? t.gameObject : null;
+      if (g == null) { g = new GameObject("Progress", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image)); g.transform.SetParent(transform, false); g.transform.SetSiblingIndex(0); }
+      var img = g.GetComponent<UnityEngine.UI.Image>();
+      img.color = progressColor; img.raycastTarget = false;
+      var prt = (RectTransform)g.transform;
+      float x0 = nodeX.Length > 0 ? nodeX[0] : 0.2f;
+      float x1 = nodeX.Length > 0 ? nodeX[nodeX.Length - 1] : 0.8f;
+      prt.anchorMin = new Vector2(x0, nodeY - 0.012f);
+      prt.anchorMax = new Vector2(x0 + (x1 - x0) * Mathf.Clamp01(progress), nodeY + 0.012f);
+      prt.offsetMin = Vector2.zero; prt.offsetMax = Vector2.zero;
+    }
+#endif
+  }
+}
+`;
+
+/* ── README imagery (owner: "let's try to stack the readme with
+   imagery"). The plates are drawn by the SAME engine that draws the
+   components, from the MAKER'S OWN kit, and rasterized at export time —
+   a stock screenshot would show someone else's buttons. Annotations are
+   plain SVG in a system face, so the sealed rasterization needs no
+   embedded font. ── */
+async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uint8Array }[]> {
+  const esc2 = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const dimsOf = (svg: string) => {
+    const m = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
+    return { w: m ? +m[1] : 0, h: m ? +m[2] : 0 };
+  };
+  /* the shell's box in the PLATE's coordinates: data-shell0 is stated in
+     viewBox units, and the renderer's glow pad pushes the viewBox origin
+     negative — miss that and every callout lands off the button */
+  const shellOf = (svg: string) => {
+    const m = /data-shell0="([-\d. ]+)"/.exec(svg);
+    const v = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+    if (!m || !v) return null;
+    const [x, y, w, h] = m[1].split(" ").map(Number);
+    return { x: x - +v[1], y: y - +v[2], w, h };
+  };
+  const INK = "#E9EDF7", DIM = "#96A0B8", LINE = "#5C6organ".replace("organ", "B8A"); // quiet slate
+  const txt = (x: number, y: number, s: string, o: { size?: number; fill?: string; weight?: number; anchor?: string } = {}) =>
+    `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="${o.size ?? 15}" font-weight="${o.weight ?? 600}" fill="${o.fill ?? INK}" text-anchor="${o.anchor ?? "start"}" dominant-baseline="central">${esc2(s)}</text>`;
+  const plate = (w: number, h: number, body: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}">` +
+    `<rect width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="#12141C"/>${body}</svg>`;
+  const place = (svg: string, x: number, y: number, s: number) =>
+    `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)})">${svg}</g>`;
+  const out: { path: string; data: Uint8Array }[] = [];
+
+  /* PLATE 1 — button anatomy: what the prefab is made of, with callouts
+     at the real geometry (data-shell0 gives the shell's true box). */
+  {
+    const btn = renderKit(base, "primary", "l", "default", undefined, undefined, { label: "PLAY" });
+    const d = dimsOf(btn), sh = shellOf(btn);
+    if (d.w && sh) {
+      const s = Math.max(0.3, Math.min(1.05, 430 / sh.w));
+      const padX = 40, padY = 34, colGap = 34, colW = 460;
+      const rowsSrc: { at: [number, number]; head: string; body: string[] }[] = [
+        { at: [0.14, 0.22], head: "base.9 — the sprite",
+          body: ["Nine-sliced: stretch it to any size and the", "corners stay crisp. Hover, pressed and", "disabled sprites swap in automatically."] },
+        { at: [0.5, 0.5], head: "Label → Shadow · Stroke · Fill · Glints",
+          body: ["One word, four baked faces stacked — the", "app's exact letterforms, patterns and glints."] },
+        { at: [0.62, 0.84], head: "Hero Label (on the Label object)",
+          body: ["One box drives the whole stack: text, size,", "spacing and nudge. Resize the button and", "the word scales with it."] },
+      ];
+      // the text column sets the rhythm; the plate is only as tall as the
+      // taller of the two columns (no acres of empty background)
+      const rowH = (r: typeof rowsSrc[number]) => 26 + r.body.length * 21;
+      const GAPY = 40;
+      const textH = rowsSrc.reduce((a, r) => a + rowH(r), 0) + GAPY * (rowsSrc.length - 1);
+      /* frame the SHELL, not the render canvas: the renderer reserves a
+         glow pad and a deep shadow allowance below, which as a plate
+         reads as acres of empty background */
+      const bw2 = sh.w * s, bh = sh.h * s;
+      const mX = 58, mTop = 64, mBot = 92;
+      const artRegionW = bw2 + mX * 2, artRegionH = bh + mTop + mBot;
+      const W = padX + artRegionW + colGap + colW + padX;
+      const H = Math.max(artRegionH, textH) + padY * 2 + 18;
+      const artTop = 18 + (H - 18 - artRegionH) / 2;
+      const bx = padX + mX, by = artTop + mTop;
+      const colX = padX + artRegionW + colGap;
+      let body = place(btn, bx - sh.x * s, by - sh.y * s, s);
+      let cy2 = 18 + (H - 18 - textH) / 2;
+      for (const r of rowsSrc) {
+        const ax = bx + bw2 * r.at[0], ay = by + bh * r.at[1];
+        const ty = cy2 + 10;
+        body += `<path d="M ${ax.toFixed(1)} ${ay.toFixed(1)} L ${(colX - 20).toFixed(1)} ${ty.toFixed(1)}" fill="none" stroke="${LINE}" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.8"/>`;
+        body += `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4.5" fill="${INK}" opacity="0.95"/>`;
+        body += txt(colX, ty, r.head, { size: 17, weight: 800 });
+        r.body.forEach((l, i) => { body += txt(colX, ty + 25 + i * 21, l, { size: 14, weight: 500, fill: DIM }); });
+        cy2 += rowH(r) + GAPY;
+      }
+      body += txt(padX, 26, "ANATOMY OF A GENERATED PREFAB", { size: 12, weight: 800, fill: DIM });
+      const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
+      out.push({ path: "docs/button-anatomy.png", data: bytes });
+    }
+  }
+
+  /* PLATE 2 — the states, as the Button component swaps them. */
+  {
+    const names: [string, "default" | "hover" | "pressed" | "disabled"][] =
+      [["Default", "default"], ["Hover", "hover"], ["Pressed", "pressed"], ["Disabled", "disabled"]];
+    const svgs = names.map(([, st2]) => renderKit(base, "primary", "m", st2, undefined, undefined, { label: "PLAY" }));
+    const sh0 = shellOf(svgs[0]);
+    if (sh0) {
+      // framed on the shell (like the anatomy plate) so the strip isn't
+      // mostly the renderer's glow allowance
+      const s = Math.max(0.28, Math.min(0.85, 250 / sh0.w));
+      const mX = 34, mTop = 44, mBot = 52;
+      const cellW = sh0.w * s + mX * 2, cellH = sh0.h * s + mTop + mBot;
+      const gap = 6, padX = 30, padY = 44;
+      const W = padX * 2 + cellW * 4 + gap * 3, H = padY + cellH + 46;
+      let body = "";
+      svgs.forEach((svg, i) => {
+        const x = padX + i * (cellW + gap);
+        const shi = shellOf(svg) ?? sh0;
+        body += place(svg, x + mX - shi.x * s, padY + mTop - shi.y * s, s);
+        body += txt(x + cellW / 2, padY + cellH + 14, names[i][0].toUpperCase(), { size: 12, weight: 800, fill: DIM, anchor: "middle" });
+      });
+      body += txt(padX, 26, "STATES — PRE-WIRED ON EVERY BUTTON PREFAB", { size: 12, weight: 800, fill: DIM });
+      const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
+      out.push({ path: "docs/states.png", data: bytes });
+    }
+  }
+  return out;
+}
+
 /* The 3-step story, tuned per scope — ease of use is the product. */
-function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false): string {
+function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   return `# ${st.kitName} — Unity, in 3 steps
 
@@ -1044,7 +1397,11 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
    Canvas and press Play. The Console prints a one-line receipt of what
    happened.
 
-## Where are the prefabs? (they're not in this zip — on purpose)
+${figures ? `![Anatomy of a generated prefab: the nine-sliced sprite, the stacked label faces, and the Hero Label box that drives them](docs/button-anatomy.png)
+
+*Every picture in this README is YOUR kit, rendered at export time.*
+
+` : ""}## Where are the prefabs? (they're not in this zip — on purpose)
 
 A prefab file can only reference sprites through the identity (GUID) that
 YOUR Unity assigns each PNG at import. A prefab shipped inside a zip
@@ -1057,6 +1414,57 @@ the kit's hover/pressed/disabled states on the Button, a label. ${st.scope === "
 The Project window highlights **${root}/Prefabs** when they land, right
 after the Console receipt. They're generated once and never touched
 again — edit them freely.
+
+## Stretching and patterns (the diagonal-stripe question)
+
+Nine-slice keeps the CORNERS honest and stretches the middle — so a
+pattern living in that middle stretches with it. Horizontal and vertical
+stripes survive (stretching a stripe along its own axis changes nothing),
+but a DIAGONAL shears: pull a 45° chevron to double width and it lands
+near 63°, with the bands wider. That's geometry, not a bug — and for the
+±20–30% stretches most UI does, nobody sees it.
+
+**You don't pick this at export time.** Sliced and Tiled read the SAME
+sprite and the same nine-slice borders — Image Type lives on the Image
+component of each instance, not in the asset. So every piece in this kit
+can already do either; it's one dropdown on the piece you're placing,
+and nothing has to be re-exported.
+
+**Try Tiled where the middle is mostly pattern.** On the piece's
+**Image** component set **Image Type** to *Tiled*: Unity repeats the
+middle at native scale instead of stretching it, so the pattern keeps its
+angle and rhythm at any width. **Pixels Per Unit Multiplier** on the same
+component tunes how big the repeat is.
+
+**And know what it costs.** Tiled repeats the WHOLE middle, not just the
+pattern — the face gradient and the gloss sweep live in there too, so on
+a glossy face you can trade a sheared pattern for a repeated highlight.
+Look at both and pick per piece: flat, pattern-heavy faces usually win
+with Tiled; glossy gradient faces usually win with Sliced. For a modest
+stretch (±20–30%) Sliced is almost always the right answer — the shear
+simply isn't visible.
+
+### The stretch-safe face (no compromise)
+
+When a kit wears a pattern, the wide pieces also ship **split into
+layers**, and the importer builds them as ready prefabs:
+**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+
+Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
+hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
+that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
+\`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
+light back on top. The mask has to be its own hidden layer: Unity only
+alpha-clips a stencil when its graphic is hidden, so masking with
+visible art gives a RECTANGULAR mask and the pattern spills. Drag
+one out and stretch it as far as you like: the frame stretches, the
+pattern keeps its exact angle and rhythm, and the gloss stays ONE sweep
+instead of repeating. That's the app's look at any width, with no
+trade — use these for wide banners, dialog frames and bars that grow.
+
+The plain single-sprite prefabs still ship beside them; they're lighter
+(one draw instead of three), so keep those for pieces that barely
+stretch.
 
 ## Why Unity's lights don't change the kit
 
@@ -1198,8 +1606,106 @@ For pixel-perfect HERO text — titles, banners, victory moments — use
 into Assets/ — they land in ${root}/stamps as ready sprites in the full
 styled treatment, and re-exports overwrite in place like everything else.
 
-## States — and the press-Play Playground
+**How faithful is the type?** The baked faces snapshot the app's exact
+glyphs — the font instance your kit uses (variable-font width/weight
+included), its gradients, patterns and effects — plus each letter's true
+width AND the font's kerning pairs, measured in the app and written into
+the TMP faces. What can't travel: live variable-font axes (Unity's text
+system has no dials for them — the kit's instance is frozen in) and
+browser-only shaping extras. If a word ever spaces differently than the
+app, re-export first — older zips predate the kerning bake.
 
+### Moving the word inside its button
+
+Select the **Label** object and use **Hero Label → Nudge** (Y up is
+positive). That one field moves Shadow, Stroke, Fill and Glints together.
+
+Reach for it INSTEAD of a single layer's Margins or Rect Transform: those
+live on one layer, so moving just the Fill tears the word away from its
+own stroke. (If you do edit a layer's **Margins**, the Hero Label adopts
+the value and applies it to all four — but Nudge is the control that says
+what it does, and it survives re-imports.)
+
+### Tuning a single letter pair by hand
+
+Say the A–Y gap bothers you. The kerning table lives on the **font
+asset** — NOT on the text object. Selecting a label shows you the
+TextMeshPro component and its material; neither has the table.
+
+1. In the **Project window** open \`${root}/fonts\` and click
+   **KitFace Baked Fill** (the blue **F** icon). Shortcut: with a label
+   selected, click the little ⊙ target at the right of its *Font Asset*
+   field to ping the asset, then click the asset itself.
+2. In that asset's Inspector, scroll past Face Info / Generation
+   Settings / Atlas & Material to the tables at the very bottom.
+   Depending on your TextMesh Pro version the section is called
+   **Glyph Adjustment Table** or **Font Feature Table → Glyph Pair
+   Adjustment Records**.
+3. Find the pair and edit the FIRST (left) glyph's **AX / X Advance** —
+   negative pulls the letters together, live in the scene. The right
+   glyph's AX is a different thing: it sets the gap AFTER that letter.
+4. Mind the case. Every pair is listed separately, and the glyph IDs run
+   \`A\`=1…\`Z\`=26, then \`a\`=27…\`z\`=52 — so a button reading PLAY needs
+   the row whose right glyph is uppercase **Y (ID 25)**, not lowercase
+   \`y\` (ID 51). Sanity check against neighbouring diagonals (A–V, A–W):
+   a pair that reads near zero while its neighbours read −14 is usually
+   the wrong row.
+
+### Where the numbers come from, and where they live
+
+- **The bake measures your font.** At export we set every letter pair
+  against its two letters' solo widths in the browser, at your kit's
+  exact font instance, and ship the differences. That's the typeface's
+  own kerning, captured — nothing invented.
+- **Units are the baked em, not pixels.** The baked em is
+  \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
+  −5 px on a label rendering near 55. Compare a pair against its
+  neighbours (A–V, A–W) rather than guessing an absolute number.
+- **All four faces carry the same table.** Fill, Stroke, Shadow and
+  Glints must agree or a tuned pair tears the letter away from its own
+  outline. The importer writes them identically; the sync keeps them that
+  way.
+- **Your edits live in \`fonts/kerning-overrides.json\`.** Saving a font
+  asset triggers the sync automatically: your pairs go to every face and
+  into that file. It is never shipped in a zip, so extracting a new
+  export over the same folder cannot clobber it, and every import
+  re-applies it on top of the fresh bake. The receipt counts them:
+  "N kerning pairs written (M of them YOUR tuned pairs…)".
+- **Renaming the kit leaves it behind.** A new kit name mints a new
+  Unity folder; copy \`fonts/kerning-overrides.json\` across if you want
+  the tuning to follow.
+- **To start clean**, delete that file and re-import — you're back to the
+  typeface's own spacing.
+
+**Pair not in the list at all?** Then the font itself specifies no kern
+for it — the table only carries what the typeface asks for, and plenty
+of display faces kern their lowercase thoroughly and their capitals
+barely at all. Add the record by hand: **+** at the bottom of the table,
+set the first glyph to the left letter's ID and the second to the right
+letter's (\`A\`=1 … \`Z\`=26, \`a\`=27 … \`z\`=52 — so A–Y is 1 and 25), then
+pull the first glyph's AX negative.
+
+The import receipt tells you the table is really there: each face logs
+"N kerning pairs written". If it says KERNING SKIPPED, your TMP version
+refused the table — send that line to uikitmaker.com.
+
+Then run **Tools → PatternBreak → Sync Label Kerning**. That does the two
+things hand-tuning otherwise gets wrong:
+
+- it copies your tuned pairs onto **every layer face** (Fill, Stroke,
+  Shadow, Glints), so the letterform and its outline move together —
+  tune one face and the others drift, which reads as a detached stroke;
+- it saves them to \`fonts/kerning-overrides.json\`, and **every future
+  import re-applies them**. The faces themselves rebuild on each drop to
+  track your kit; your tweaks ride on top. The import receipt says how
+  many of the pairs are yours.
+
+Delete that file to go back to the typeface's own spacing.
+
+## States — and the press-Play Playground
+${figures ? `
+![The four button states — default, hover, pressed and disabled — as the Button component swaps them](docs/states.png)
+` : ""}
 Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
 base-disabled next to base). The generated Button prefabs arrive with
 Sprite Swap already wired — nothing to reconnect. Hover glow and press
@@ -1281,7 +1787,12 @@ namespace PatternBreak {
   [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layers; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
-  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
+  [Serializable] class PBBakedKern { public int l; public int r; public float k; }
+  /* the maker's hand-tuned pairs, kept beside the faces so a re-import
+     restores them (the faces themselves rebuild every drop) */
+  [Serializable] class PBKernOv { public int l; public int r; public float k; }
+  [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
+  [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] fillGlyphs; public PBBakedGlyph[] strokeGlyphs; public PBBakedGlyph[] shadowGlyphs; public PBBakedGlyph[] glintGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; }
@@ -1316,10 +1827,15 @@ namespace PatternBreak {
       var pivot = new Vector2(a.pivot != null ? a.pivot.x : 0.5f, a.pivot != null ? a.pivot.y : 0.5f);
       // art ships at 2x resolution: PPU 200 lands every piece at DESIGN
       // size, so caps keep their designed thickness at any rect size
-      if (settings.spriteAlignment != (int)SpriteAlignment.Custom || settings.spritePivot != pivot || settings.spritePixelsPerUnit != 200f) {
+      /* Full Rect is REQUIRED by both Sliced and Tiled image types — on a
+         Tight mesh Unity warns and mis-draws the stretched middle, which
+         is exactly where a maker goes to escape pattern distortion */
+      if (settings.spriteAlignment != (int)SpriteAlignment.Custom || settings.spritePivot != pivot
+          || settings.spritePixelsPerUnit != 200f || settings.spriteMeshType != SpriteMeshType.FullRect) {
         settings.spriteAlignment = (int)SpriteAlignment.Custom;
         settings.spritePivot = pivot;
         settings.spritePixelsPerUnit = 200f;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
         ti.SetTextureSettings(settings);
         changed = true;
       }
@@ -2020,6 +2536,155 @@ namespace PatternBreak {
             " glyphs — the GLINT FIELD, topmost in the HeroLabel stack: bands align across letters into streaks that cross the word.");
       }
     }
+    /* ── kerning plumbing. Pairs are keyed by CHARACTER, not glyph index:
+       glyph indices belong to one font asset, characters are the same on
+       all four layer faces (and survive a glyph-set change). ── */
+    static long PairKey(uint l, uint r) { return ((long)l << 32) | (long)r; }
+    static readonly string[] LAYER_FACES = { "KitFace Baked Fill", "KitFace Baked Stroke", "KitFace Baked Shadow", "KitFace Baked Glints", "KitFace Baked" };
+#if UNITY_2023_2_OR_NEWER
+    static Dictionary<long, float> ReadFacePairs(TMP_FontAsset fa) {
+      var outp = new Dictionary<long, float>();
+      if (fa == null || fa.fontFeatureTable == null || fa.characterTable == null) return outp;
+      var uni = new Dictionary<uint, uint>();
+      foreach (var c in fa.characterTable) if (c != null && !uni.ContainsKey(c.glyphIndex)) uni[c.glyphIndex] = c.unicode;
+      foreach (var r in fa.fontFeatureTable.glyphPairAdjustmentRecords) {
+        uint lu, ru;
+        if (!uni.TryGetValue(r.firstAdjustmentRecord.glyphIndex, out lu)) continue;
+        if (!uni.TryGetValue(r.secondAdjustmentRecord.glyphIndex, out ru)) continue;
+        outp[PairKey(lu, ru)] = r.firstAdjustmentRecord.glyphValueRecord.xAdvance;
+      }
+      return outp;
+    }
+    static void WriteFacePairs(TMP_FontAsset fa, Dictionary<long, float> pairs) {
+      if (fa == null) return;
+      // a fresh font asset has no feature table until something makes one —
+      // without this every measured pair went nowhere, silently
+      if (fa.fontFeatureTable == null) SetField(fa, "m_FontFeatureTable", new TMP_FontFeatureTable());
+      var feat = fa.fontFeatureTable;
+      if (feat == null || fa.characterTable == null) return;
+      var gi = new Dictionary<uint, uint>();
+      foreach (var c in fa.characterTable) if (c != null && !gi.ContainsKey(c.unicode)) gi[c.unicode] = c.glyphIndex;
+      feat.glyphPairAdjustmentRecords.Clear();
+      foreach (var kv in pairs) {
+        uint lu = (uint)(kv.Key >> 32), ru = (uint)(kv.Key & 0xFFFFFFFFL);
+        uint li, ri;
+        if (!gi.TryGetValue(lu, out li) || !gi.TryGetValue(ru, out ri)) continue;
+        var first = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(li, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, kv.Value, 0f));
+        var second = new UnityEngine.TextCore.LowLevel.GlyphAdjustmentRecord(ri, new UnityEngine.TextCore.LowLevel.GlyphValueRecord(0f, 0f, 0f, 0f));
+        feat.glyphPairAdjustmentRecords.Add(new UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord(first, second));
+      }
+      fa.ReadFontAssetDefinition();
+      EditorUtility.SetDirty(fa);
+    }
+    static int ApplyKernOverrides(string root, Dictionary<long, float> pairs) {
+      var p = root + "/fonts/kerning-overrides.json";
+      if (!File.Exists(p)) return 0;
+      PBKernOvFile f = null;
+      try { f = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(p)); } catch (Exception) { }
+      if (f == null || f.pairs == null) return 0;
+      foreach (var o in f.pairs) pairs[PairKey((uint)o.l, (uint)o.r)] = o.k;
+      return f.pairs.Length;
+    }
+    /* Tune a pair once, on any face, then run this: the tweak lands on
+       every layer face (so fill and stroke never split) and is saved to
+       fonts/kerning-overrides.json so the next zip re-applies it. */
+    static bool s_kernSyncing;
+    /* saving the font asset IS the gesture — no menu item to remember
+       (owner: "running a tool is a bit cumbersome") */
+    public static void SyncKerningQuiet() { SyncKerningCore(true); }
+    [MenuItem("Tools/PatternBreak/Sync Label Kerning (usually automatic)")]
+    public static void SyncKerning() { SyncKerningCore(false); }
+    static void SyncKerningCore(bool auto) {
+      if (s_kernSyncing) return; // our own SaveAssets re-enters the save hook
+      s_kernSyncing = true;
+      try { SyncKerningRun(auto); } finally { s_kernSyncing = false; }
+    }
+    static void SyncKerningRun(bool auto) {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) { if (!auto) Debug.LogWarning("UI Kit Maker: no kit in this project to sync."); return; }
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+        if (m == null) continue;
+        // the UNION of every face's table: the maker may have tuned on any
+        // one of them, and a pair edited anywhere counts as intent
+        var merged = new Dictionary<long, float>();
+        var faces = new List<TMP_FontAsset>();
+        foreach (var nm in LAYER_FACES) {
+          var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/" + nm + ".asset");
+          if (fa == null) continue;
+          faces.Add(fa);
+        }
+        if (faces.Count == 0) continue;
+        // what we SHIPPED, so a tweak can be told apart from the bake
+        var shipped = new Dictionary<long, float>();
+        if (m.typography != null && m.typography.bakedFace != null && !string.IsNullOrEmpty(m.typography.bakedFace.metrics)) {
+          var jp = root + "/" + m.typography.bakedFace.metrics;
+          if (File.Exists(jp)) {
+            PBBakedFace bf = null;
+            try { bf = JsonUtility.FromJson<PBBakedFace>(File.ReadAllText(jp)); } catch (Exception) { }
+            if (bf != null && bf.kerning != null) foreach (var kp in bf.kerning) shipped[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
+          }
+        }
+        /* SEED FROM THE RECORD FIRST. If an import rebuilt the faces from
+           the bake alone (an older importer, a half-finished drop), their
+           tables no longer show the maker's pairs — and a sync that read
+           only the faces would decide there were no tweaks and overwrite
+           the record with nothing. Field: the overrides file came back
+           '{"pairs": []}' after tuning. The record is intent; faces are
+           just its current rendering. */
+        var prior = new Dictionary<long, float>();
+        var ovPath = root + "/fonts/kerning-overrides.json";
+        if (File.Exists(ovPath)) {
+          PBKernOvFile pf = null;
+          try { pf = JsonUtility.FromJson<PBKernOvFile>(File.ReadAllText(ovPath)); } catch (Exception) { }
+          if (pf != null && pf.pairs != null) foreach (var o in pf.pairs) prior[PairKey((uint)o.l, (uint)o.r)] = o.k;
+        }
+        foreach (var kv in prior) merged[kv.Key] = kv.Value;
+        foreach (var fa in faces) {
+          foreach (var kv in ReadFacePairs(fa)) {
+            float s;
+            bool isTweak = !shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f;
+            // a live edit wins over the record; shipped only fills gaps
+            if (isTweak) merged[kv.Key] = kv.Value;
+            else if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
+          }
+        }
+        foreach (var kv in shipped) if (!merged.ContainsKey(kv.Key)) merged[kv.Key] = kv.Value;
+        var tweaks = new List<PBKernOv>();
+        foreach (var kv in merged) {
+          float s;
+          if (!shipped.TryGetValue(kv.Key, out s) || Mathf.Abs(s - kv.Value) > 0.01f)
+            tweaks.Add(new PBKernOv { l = (int)(kv.Key >> 32), r = (int)(kv.Key & 0xFFFFFFFFL), k = kv.Value });
+        }
+        foreach (var fa in faces) WriteFacePairs(fa, merged);
+        // never trade a real record for an empty one — losing hand-tuning
+        // silently is worse than keeping a pair the maker reverted (delete
+        // the file to start clean; the README says so)
+        /* nothing to record = nothing to write. An empty file must never
+           replace a real one, and deleting the file must STAY deleted —
+           re-creating an empty record on every save made it impossible to
+           clear (field: "I couldn't delete the new one"). */
+        if (tweaks.Count == 0) {
+          if (!auto) Debug.Log("UI Kit Maker: no kerning tweaks to record"
+            + (prior.Count > 0 ? " beyond the " + prior.Count + " already in fonts/kerning-overrides.json." : " — the faces match the typeface's own spacing."));
+          continue;
+        }
+        var ovFile = new PBKernOvFile { pairs = tweaks.ToArray() };
+        try {
+          File.WriteAllText(root + "/fonts/kerning-overrides.json", JsonUtility.ToJson(ovFile, true));
+          AssetDatabase.ImportAsset(root + "/fonts/kerning-overrides.json");
+        } catch (Exception e) { Debug.LogWarning("UI Kit Maker: couldn't save your kerning tweaks — " + e.Message); }
+        AssetDatabase.SaveAssets();
+        // an automatic pass only speaks when there was something to carry
+        if (!auto || tweaks.Count > 0)
+          Debug.Log("UI Kit Maker: kerning synced across " + faces.Count + " layer face(s) — "
+            + merged.Count + " pairs, " + tweaks.Count + " of them yours. Saved to fonts/kerning-overrides.json, so every future export re-applies them. Fill and stroke move together.");
+      }
+    }
+#endif
     static void AssembleBakedFont(string root, PBManifest m, bool refresh, string faceName, string texPath, PBBakedGlyph[] glyphs, int atlasW, int atlasH, PBBakedFace face, string note) {
       var assetPath = root + "/fonts/" + faceName + ".asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
@@ -2090,6 +2755,23 @@ namespace PatternBreak {
           }
           gi++;
         }
+        /* the app's KERNING PAIRS (owner: "how far away the Y is from the
+           other letterforms") — every face gets the SAME table so the
+           layer stack stays in register. Tolerant: a TMP without the
+           feature table just keeps plain advances. */
+        /* the pair table: what the typeface says, then the maker's own
+           tweaks on top (fonts/kerning-overrides.json) — the SAME table
+           on every layer face, or a tuned pair tears the fill away from
+           its stroke (owner: "we just need to tie the stroke to it") */
+        int kernApplied = 0, kernKept = 0;
+        try {
+          var pairs = new Dictionary<long, float>();
+          if (face.kerning != null)
+            foreach (var kp in face.kerning) pairs[PairKey((uint)kp.l, (uint)kp.r)] = kp.k;
+          kernKept = ApplyKernOverrides(root, pairs);
+          WriteFacePairs(fa, pairs);
+          kernApplied = pairs.Count;
+        } catch (Exception) { kernApplied = 0; /* pairs are a refinement — advances stay correct */ }
         SetField(fa, "m_AtlasTextures", new Texture2D[] { tex });
         SetField(fa, "m_AtlasWidth", atlasW);
         SetField(fa, "m_AtlasHeight", atlasH);
@@ -2110,7 +2792,12 @@ namespace PatternBreak {
         EditorUtility.SetDirty(fa);
         AssetDatabase.SaveAssets();
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
-          + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics.");
+          + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics."
+          + (kernApplied > 0
+            ? " " + kernApplied + " kerning pairs written" + (kernKept > 0 ? " (" + kernKept + " of them YOUR tuned pairs, re-applied from fonts/kerning-overrides.json)" : "") + "."
+            : (face.kerning != null && face.kerning.Length > 0
+              ? " KERNING SKIPPED — this TMP version wouldn't take a pair-adjustment table, so letter pairs keep their plain advances. Send this line to uikitmaker.com."
+              : " This kit's face reported no kerning pairs.")));
       } catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: " + faceName + " couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
@@ -2262,13 +2949,27 @@ namespace PatternBreak {
           var lt = lgo.AddComponent<TextMeshProUGUI>();
           lt.text = text;
           lt.alignment = TextAlignmentOptions.Center;
-          SizeLabel(lt, ls);
+          /* the GROUP owns sizing: HeroLabel scales every layer by the
+             button ratio. Per-layer auto-fit silently discarded that
+             write and split the stack — auto-ON layers clamped to the
+             app size while an auto-OFF layer obeyed the scaled value
+             (field: "the not scaling in unison bug is back") */
+          lt.fontSize = ls;
+          lt.enableAutoSizing = false;
           lt.raycastTarget = false;
           lt.font = layer.Value;
           lt.color = Color.white;
         }
+        /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
+           (a fresh stack briefly applied text=PLAY/size=150 defaults and
+           saved that way) — set everything, then re-Apply via SetText */
         var hl = go.AddComponent<HeroLabel>();
-        hl.text = text; hl.fontSize = ls;
+        hl.fontSize = ls;
+        // resizing the BUTTON scales the type with it (owner: "scaling
+        // needs to work like scaling") — remember the authored height
+        var prt = parent.GetComponent<RectTransform>();
+        hl.authoredHeight = prt != null ? prt.rect.height : 0f;
+        hl.SetText(text);
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -2475,6 +3176,128 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    static void StretchFull(RectTransform rt) {
+      rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+    }
+    /* the STRETCH-SAFE face: under (Sliced) masks a Tiled pattern, then
+       over (Sliced) lays the gloss back on top. Stretch this to any width
+       and the frame stretches, the pattern tiles at constant scale, and
+       the gloss stays one sweep — what the app shows, at any size. */
+    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
+      var under = S(root + "/assets/" + fam + "/base-under.9.png");
+      var over = S(root + "/assets/" + fam + "/base-over.9.png");
+      var tile = S(root + "/assets/fx/face-tile.png");
+      if (under == null || over == null || tile == null) return false;
+      var goName = NiceName(fam) + " (tiled face)";
+      var go = ImageObject(goName, under, pngScale);
+      var ui = go.GetComponent<Image>();
+      ui.type = Image.Type.Sliced;
+      /* the stencil is its OWN hidden layer. Unity only alpha-clips a
+         Mask when Show Mask Graphic is OFF — masking with the visible art
+         gives a rectangular stencil, and the pattern spills past the
+         silhouette (field report). */
+      var maskSp = S(root + "/assets/" + fam + "/base-mask.9.png");
+      var maskGo = ImageObject("PatternMask", maskSp != null ? maskSp : under, pngScale);
+      maskGo.transform.SetParent(go.transform, false);
+      var mi = maskGo.GetComponent<Image>();
+      mi.type = Image.Type.Sliced;
+      mi.raycastTarget = false;
+      StretchFull(maskGo.GetComponent<RectTransform>());
+      var mask = maskGo.AddComponent<Mask>();
+      mask.showMaskGraphic = false;
+      var pat = ImageObject("Pattern", tile, pngScale);
+      pat.transform.SetParent(maskGo.transform, false);
+      var pi = pat.GetComponent<Image>();
+      pi.type = Image.Type.Tiled;
+      pi.raycastTarget = false;
+      StretchFull(pat.GetComponent<RectTransform>());
+      var ov = ImageObject("Over", over, pngScale);
+      ov.transform.SetParent(go.transform, false);
+      var oi = ov.GetComponent<Image>();
+      oi.type = Image.Type.Sliced;
+      oi.raycastTarget = false;
+      StretchFull(ov.GetComponent<RectTransform>());
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
+       drop it on a Canvas, press Play, drag. Value is the direction. */
+    static bool JoystickPrefab(string dir, string root, int pngScale) {
+      var baseSp = S(root + "/assets/joystick/base.png");
+      var thumbSp = S(root + "/assets/joystick/thumb.png");
+      if (baseSp == null || thumbSp == null) return false;
+      var go = ImageObject("Joystick", baseSp, pngScale);
+      var th = ImageObject("Thumb", thumbSp, pngScale);
+      th.transform.SetParent(go.transform, false);
+      th.GetComponent<Image>().raycastTarget = false;
+      var stick = go.AddComponent<TouchStick>();
+      stick.thumb = th.GetComponent<RectTransform>();
+      float half = (baseSp.rect.width / pngScale) * 0.5f;
+      float thumbHalf = (thumbSp.rect.width / pngScale) * 0.5f;
+      stick.radius = Mathf.Max(20f, half - thumbHalf - 6f);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Joystick.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
+       Image.fillAmount IS the health; the rim draws above. */
+    static bool GlobePrefab(string dir, string root, int pngScale) {
+      var glass = S(root + "/assets/globe/glass.png");
+      var rim = S(root + "/assets/globe/rim.png");
+      var liquid = S(root + "/assets/globe/liquid.png");
+      if (glass == null || rim == null || liquid == null) return false;
+      var go = ImageObject("HealthGlobe", glass, pngScale);
+      /* the stencil is a HIDDEN copy of the glass: Unity only alpha-clips
+         a Mask when its graphic is hidden, so masking with the visible
+         glass would clip the liquid to a RECTANGLE (same gotcha the
+         tiled face hit in the field) */
+      var maskGo = ImageObject("LiquidMask", glass, pngScale);
+      maskGo.transform.SetParent(go.transform, false);
+      maskGo.GetComponent<Image>().raycastTarget = false;
+      var mrt = maskGo.GetComponent<RectTransform>();
+      mrt.anchorMin = Vector2.zero; mrt.anchorMax = Vector2.one;
+      mrt.offsetMin = Vector2.zero; mrt.offsetMax = Vector2.zero;
+      var mask = maskGo.AddComponent<Mask>();
+      mask.showMaskGraphic = false;
+      var lq = ImageObject("Liquid", liquid, pngScale);
+      lq.transform.SetParent(maskGo.transform, false);
+      var li = lq.GetComponent<Image>();
+      li.type = Image.Type.Filled;
+      li.fillMethod = Image.FillMethod.Vertical;
+      li.fillOrigin = (int)Image.OriginVertical.Bottom;
+      li.fillAmount = 0.72f; // drive this from your live health
+      li.raycastTarget = false;
+      var lrt = lq.GetComponent<RectTransform>();
+      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      var rm = ImageObject("Rim", rim, pngScale);
+      rm.transform.SetParent(go.transform, false);
+      rm.GetComponent<Image>().raycastTarget = false;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/HealthGlobe.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+#if UNITY_2023_2_OR_NEWER
+    /* the season track: bare art + PatternBreak.SeasonTrack, which owns
+       the CONTENT (lane names, level numbers, progress) as live text —
+       its Inspector says so, prototypers edit there (owner). */
+    static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/seasontrack/base.png");
+      if (baseSp == null) return false;
+      var go = ImageObject("SeasonTrack", baseSp, pngScale);
+      var trackC = go.AddComponent<SeasonTrack>();
+      Font kitFont = null;
+      if (m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
+        kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
+      trackC.face = EnsureTmpFace(root, m, kitFont);
+      trackC.Rebuild();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/SeasonTrack.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+#endif
     static bool GeneratePrefabs(string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
       bool createdHere = false;
@@ -2490,13 +3313,22 @@ namespace PatternBreak {
       if (m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
       if (ProgressPrefab(dir, root, pngScale)) any = true;
+      // the RIGS: working controls composed from their layer sprites
+      if (JoystickPrefab(dir, root, pngScale)) any = true;
+      if (GlobePrefab(dir, root, pngScale)) any = true;
+      // the wide, stateless pieces also get a stretch-safe variant when
+      // the kit wears a pattern (the plain Sliced prefab still ships)
+      foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
+#if UNITY_2023_2_OR_NEWER
+      if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
+#endif
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
       var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras" };
       foreach (var a in m.assets) {
         if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
         if (skip.Contains(a.component)) continue;
@@ -2590,15 +3422,30 @@ namespace PatternBreak {
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
             // the kit's Type Size dial drives the word size — converge
-            // labels sized by an older importer (or an older dial)
-            var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (!wantDress && sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
-              wantDress = true;
+            // labels sized by an older importer (or an older dial).
+            // STACKS are judged by the GROUP contract (HeroLabel owns the
+            // size; auto-fit is forced OFF per layer — the old per-layer
+            // demand would rebuild every healthy stack on every import)
+            var hlSize = probeRoot.GetComponent<HeroLabel>();
+            if (!wantDress && hlSize != null) {
+              if (!Mathf.Approximately(hlSize.fontSize, LabelSize(m, famName))) wantDress = true;
+            } else if (!wantDress) {
+              var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
+                wantDress = true;
+            }
             /* dead or stale state wiring re-converges: a script-identity
                break (delete-and-redrop mints a new script GUID) leaves a
                "Behaviour is missing" GHOST — GetComponent returns null,
                SpriteSwap keeps working, and the sink dies silently (field:
                "it still does not move with the button face") */
+            /* v-scale arming: a stack built before authoredHeight existed
+               can't scale with its button (field: "scaling still isn't
+               working") — one rebuild arms it, words preserved */
+            if (!wantDress) {
+              var hlProbe = probeRoot.GetComponent<HeroLabel>();
+              if (hlProbe != null && hlProbe.authoredHeight < 0.5f) wantDress = true;
+            }
             if (!wantDress && HasStateInk(m, famName)) {
               var inkNow = asset.GetComponent<LabelStateInk>();
               if (inkNow == null
@@ -2640,11 +3487,26 @@ namespace PatternBreak {
                  per-field surgery across three possible shapes is where
                  stale dress bugs breed */
               var keepText = LabelText(oldRoot, DefaultLabel(famName));
+              /* the AUTHORED height survives the rebuild — re-capturing it
+                 from the owner's resized rect would silently re-baseline
+                 the v-scale to 1 and snap their scaled type back */
+              var oldHl = oldRoot.GetComponent<HeroLabel>();
+              float keepAuthored = oldHl != null ? oldHl.authoredHeight : 0f;
+              Vector2 keepNudge = oldHl != null ? oldHl.nudge : Vector2.zero;
+              Vector4 keepMargins = oldHl != null ? oldHl.margins : Vector4.zero;
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
               if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m, famName);
               else AddLabel(contents, keepText, mkFont, root, m, famName);
               var newRoot = FindOurLabelRoot(contents);
+              if (newRoot != null) {
+                var newHl = newRoot.GetComponent<HeroLabel>();
+                // the maker's own placement survives the rebuild
+                if (newHl != null) {
+                  if (keepAuthored >= 0.5f) newHl.authoredHeight = keepAuthored;
+                  if (keepNudge != Vector2.zero || keepMargins != Vector4.zero) { newHl.nudge = keepNudge; newHl.margins = keepMargins; newHl.SetText(newHl.text); }
+                }
+              }
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
               var armed = contents.GetComponent<LabelStateInk>();
               if (armed != null && armed.pressedShift != 0f) armedSink = armed.pressedShift;
@@ -2732,6 +3594,24 @@ namespace PatternBreak {
 
   /* Applies manifest settings to kit textures AS THEY IMPORT — covers
      reimports and asset refreshes without anyone running the menu. */
+#if UNITY_2023_2_OR_NEWER
+  /* Tune a pair in the Glyph Adjustment Table, hit save — the tweak lands
+     on every layer face and is written to fonts/kerning-overrides.json by
+     itself. The menu item stays as a manual re-run. */
+  class KitKerningAutoSync : UnityEditor.AssetModificationProcessor {
+    static string[] OnWillSaveAssets(string[] paths) {
+      if (paths == null) return paths;
+      foreach (var p in paths) {
+        if (p != null && p.EndsWith(".asset") && p.Replace("\\\\", "/").Contains("/fonts/KitFace Baked")) {
+          // after the save lands, not during it
+          EditorApplication.delayCall += KitImporter.SyncKerningQuiet;
+          break;
+        }
+      }
+      return paths;
+    }
+  }
+#endif
   class KitTexturePostprocessor : AssetPostprocessor {
     static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
     void OnPreprocessTexture() {

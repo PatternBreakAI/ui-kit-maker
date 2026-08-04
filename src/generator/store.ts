@@ -1651,8 +1651,11 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setSelectedState: (s) => set({ selectedState: s }),
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
-  // whatever zoom the editor or board was left at
-  setPhase: (p) => set(p === "kit" ? { phase: p, zoom: 1 } : { phase: p }),
+  // whatever zoom the editor or board was left at.
+  // Leaving the editor also drops play mode: play hides the inspector by
+  // design, and a round trip through the kit page brought it back hidden
+  // with no visible reason (owner: "the controls are disappearing")
+  setPhase: (p) => set({ phase: p, ...(p === "kit" ? { zoom: 1 } : {}), ...(p !== "master" ? { canvasMode: "design" as const } : {}) }),
   setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
   setKitSizeAll: (s) => {
     pushHistory(get());

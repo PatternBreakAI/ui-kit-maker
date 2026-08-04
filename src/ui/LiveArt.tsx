@@ -65,7 +65,7 @@ export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: numbe
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, ambient, shine, className, style, title, onDesignClick, stablePad }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
@@ -80,6 +80,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   /** Dense-grid trim: reclaim the FULL fixed insets, not the conservative
    *  share — gem boards want tiles nearly touching. */
   tight?: boolean;
+  /** trim to the SHELL's exact box (read from data-shell0) — for flat
+      board tiles that butt edge-to-edge; the depth/shadow allowance
+      below the shell is empty on a flat render and the static insets
+      left rows floating apart */
+  snug?: boolean;
   /** Screen-composition mode: reclaim the invisible canvas around the shell
    *  (glow pad + fixed insets) with computed negative margins, so pieces
    *  stack at believable interface rhythm at any display scale. The glow
@@ -185,6 +190,20 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const trimStyle = useMemo(() => {
     if (!trim || scale === undefined || shellFree) return undefined;
     const s = scale;
+    if (snug) {
+      const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+      const sh0 = /data-shell0="([-\d. ]+)"/.exec(svg);
+      if (vb && sh0) {
+        const [bx, by, bw2, bh] = sh0[1].split(" ").map(Number);
+        const contentW = +vb[3] - pad * 2, contentH = +vb[4] - pad * 2;
+        return {
+          marginTop: -Math.round((pad + by) * s),
+          marginRight: -Math.round((pad + (contentW - bx - bw2)) * s),
+          marginBottom: -Math.round((pad + (contentH - by - bh)) * s),
+          marginLeft: -Math.round((pad + bx) * s),
+        };
+      }
+    }
     const ins = tight ? { t: 27, x: 33, b: 58 } : { t: 14, x: 12, b: 22 };
     return {
       marginTop: -Math.round((pad + ins.t) * s),
@@ -192,7 +211,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       marginBottom: -Math.round((pad + ins.b) * s),
       marginLeft: -Math.round((pad + ins.x) * s),
     };
-  }, [trim, scale, pad, shellFree, tight]);
+  }, [trim, scale, pad, shellFree, tight, snug, svg]);
 
   /* Map a pointer to the control's track using the exact geometry the renderer
      stamped on the svg (viewBox units) — precise at any scale or glow pad. */
