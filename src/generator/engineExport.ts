@@ -948,10 +948,17 @@ namespace PatternBreak {
     public float spacing = 0f;
     [Tooltip("Word spacing — applies to every layer.")]
     public float wordSpacing = 0f;
-    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing;
+    [Tooltip("The button height this label was authored at. When set, resizing the button scales the type proportionally — like scaling. 0 = off.")]
+    public float authoredHeight = 0f;
+    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedK = 1f;
+    float SizeK() {
+      if (authoredHeight < 0.5f) return 1f;
+      var p = transform.parent as RectTransform;
+      return p != null && p.rect.height > 1f ? p.rect.height / authoredHeight : 1f;
+    }
     void OnEnable() { Apply(); }
     void Update() {
-      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing) { Apply(); return; }
+      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
       /* editing any LAYER adopts into the group — text, size and spacing
          alike. Editing the Fill child used to leave Stroke and Shadow
          behind (field: "changing the type did not change the stroke
@@ -964,10 +971,11 @@ namespace PatternBreak {
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
-      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing;
+      var k = SizeK();
+      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k;
       foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true)) {
         label.text = text;
-        label.fontSize = fontSize;
+        label.fontSize = fontSize * k;
         label.characterSpacing = spacing;
         label.wordSpacing = wordSpacing;
       }
@@ -2420,6 +2428,10 @@ namespace PatternBreak {
         }
         var hl = go.AddComponent<HeroLabel>();
         hl.text = text; hl.fontSize = ls;
+        // resizing the BUTTON scales the type with it (owner: "scaling
+        // needs to work like scaling") — remember the authored height
+        var prt = parent.GetComponent<RectTransform>();
+        hl.authoredHeight = prt != null ? prt.rect.height : 0f;
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
