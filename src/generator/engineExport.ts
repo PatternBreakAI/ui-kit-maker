@@ -2880,7 +2880,20 @@ namespace PatternBreak {
       if (feat == null || fa.characterTable == null) return;
       var gi = new Dictionary<uint, uint>();
       foreach (var c in fa.characterTable) if (c != null && !gi.ContainsKey(c.unicode)) gi[c.unicode] = c.glyphIndex;
+      /* A row the maker is still filling in has a glyph index of 0 on one
+         side and resolves to nothing. This rebuild used to drop it, so the
+         blank record you get from "Add New Glyph Adjustment Record"
+         vanished the instant the sync ran — pressing the button appeared
+         to break the table (owner: "it broke on the glyph adjustment
+         after pressing add new glyph"). Carry those rows through
+         untouched; they become real pairs once both sides are set, and
+         the next pass picks them up properly. */
+      var inProgress = new List<UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord>();
+      foreach (var r in feat.glyphPairAdjustmentRecords)
+        if (r.firstAdjustmentRecord.glyphIndex == 0 || r.secondAdjustmentRecord.glyphIndex == 0)
+          inProgress.Add(r);
       feat.glyphPairAdjustmentRecords.Clear();
+      foreach (var r in inProgress) feat.glyphPairAdjustmentRecords.Add(r);
       foreach (var kv in pairs) {
         uint lu = (uint)(kv.Key >> 32), ru = (uint)(kv.Key & 0xFFFFFFFFL);
         uint li, ri;
@@ -4040,10 +4053,18 @@ namespace PatternBreak {
      so a held-down arrow key syncs once, not per keystroke. */
   [InitializeOnLoad]
   static class KitKerningWatch {
-    static bool queued;
+    /* Waits for QUIET, not for the next tick. delayCall fires immediately,
+       which meant the sync landed in the middle of the maker's interaction
+       with the table — while a row was half-entered, or on the very click
+       that added one. Every further edit pushes the deadline out, so
+       typing a pair, tabbing across and correcting a digit all settle into
+       one pass once the hands come off. */
+    const double QUIET = 1.5;
+    static double dueAt;
+    static bool armed;
     static KitKerningWatch() { Undo.postprocessModifications += OnEdit; }
     static UndoPropertyModification[] OnEdit(UndoPropertyModification[] mods) {
-      if (queued || mods == null) return mods;
+      if (mods == null) return mods;
       foreach (var mod in mods) {
         var t = mod.currentValue != null ? mod.currentValue.target : null;
         if (t == null) continue;
@@ -4051,12 +4072,18 @@ namespace PatternBreak {
         if (!(t is TMP_FontAsset)) continue;
         var path = AssetDatabase.GetAssetPath(t);
         if (string.IsNullOrEmpty(path) || !path.Replace("\\\\", "/").Contains("/fonts/KitFace Baked")) continue;
-        queued = true;
-        EditorApplication.delayCall += () => { queued = false; KitImporter.SyncKerningQuiet(); };
+        dueAt = EditorApplication.timeSinceStartup + QUIET;
+        if (!armed) { armed = true; EditorApplication.update += Tick; }
         break;
 #endif
       }
       return mods;
+    }
+    static void Tick() {
+      if (EditorApplication.timeSinceStartup < dueAt) return;
+      EditorApplication.update -= Tick;
+      armed = false;
+      KitImporter.SyncKerningQuiet();
     }
   }
   class KitKerningAutoSync : UnityEditor.AssetModificationProcessor {
