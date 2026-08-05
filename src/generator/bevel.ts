@@ -688,20 +688,72 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
   return shapePath(shape, x + delta, y + delta, w - delta * 2, h - delta * 2, softness);
 }
 
-/* A user import's cap geometry, derived from its own drawn box: the outer
-   30% of the drawn width at each end is the rigid cap band, expressed the
-   SilhouetteMeta way — as a fraction of component HEIGHT — so the label
-   safe-area, the export's nine-slice borders and the renderer all read the
-   SAME caps. (A wide drawing has proportionally wide caps; guessing them
-   from height alone put slice borders inside the decoration — owner: "I
-   actually think this is screwing with our 9-slice scaling".) */
+/* A user import's cap geometry, MEASURED from the drawing's own ink — not
+   assumed. The first cut assumed the full spec band (30% of the drawn
+   width per side); a shape whose spikes are slimmer than that padded its
+   label away from imaginary decoration and the whole button grew (owner:
+   "now this feels a little wide"). Instead: flatten the outline, slice it
+   along x, measure the filled vertical span per slice — the body is the
+   central plateau, and a cap ends where the span first SUSTAINS near-body
+   thickness. Slim spikes yield slim caps; chunky end housings yield wide
+   ones. Memoized per shape — the geometry never changes after import. */
+const CAP_SLICES = 64;
+const capMemo = new Map<string, { capL: number; capR: number }>(); // source units
+function measureCaps(us: { id: string; d: string; vb: [number, number, number, number] }): { capL: number; capR: number } {
+  const hit = capMemo.get(us.id);
+  if (hit) return hit;
+  const [vx, , vw] = us.vb;
+  const polys = flattenPath(us.d, 10);
+  const span = new Array(CAP_SLICES).fill(0) as number[];
+  for (let i = 0; i < CAP_SLICES; i++) {
+    const X = vx + ((i + 0.5) / CAP_SLICES) * vw;
+    let lo = Infinity, hi = -Infinity;
+    for (const poly of polys) {
+      for (let j = 0; j < poly.length; j++) {
+        const a = poly[j], b = poly[(j + 1) % poly.length];
+        if ((a.x > X) === (b.x > X)) continue;
+        const yv = a.y + ((X - a.x) / (b.x - a.x)) * (b.y - a.y);
+        if (yv < lo) lo = yv;
+        if (yv > hi) hi = yv;
+      }
+    }
+    span[i] = hi > lo ? hi - lo : 0;
+  }
+  // body thickness = the median span of the central band
+  const mid = span.slice(Math.floor(CAP_SLICES * 0.35), Math.ceil(CAP_SLICES * 0.65)).sort((a, b) => a - b);
+  const body = mid[Math.floor(mid.length / 2)] || 1;
+  // a cap ends where near-body thickness holds for two consecutive slices —
+  // a single fat corner barb must not read as the body starting early
+  const thick = (i: number) => span[i] >= body * 0.72;
+  let li = 0;
+  while (li < CAP_SLICES - 1 && !(thick(li) && thick(li + 1))) li++;
+  let ri = CAP_SLICES - 1;
+  while (ri > 0 && !(thick(ri) && thick(ri - 1))) ri--;
+  const out = {
+    capL: clamp((li / CAP_SLICES) * vw, vw * 0.06, vw * 0.42),
+    capR: clamp(((CAP_SLICES - 1 - ri) / CAP_SLICES) * vw, vw * 0.06, vw * 0.42),
+  };
+  capMemo.set(us.id, out);
+  return out;
+}
+/* Expressed the SilhouetteMeta way — as a fraction of component HEIGHT —
+   so the label safe-area, the export's nine-slice borders and the renderer
+   all read the SAME caps. (Guessing caps from height alone put slice
+   borders inside the decoration — owner: "I actually think this is
+   screwing with our 9-slice scaling".) */
 export function userShapeCaps(shape: string): { capScale: number; content: { top: number; right: number; bottom: number; left: number } } | undefined {
+  const flip = shape.endsWith("~flip");
   const id = shape.replace(/~flip$/, "");
   if (!id.startsWith("user:")) return undefined;
   const us = userShapes().find((u) => u.id === id);
   if (!us) return undefined;
-  const capScale = (0.3 * (us.vb[2] || 1)) / (us.vb[3] || 1);
-  return { capScale, content: { top: 0.14, right: capScale, bottom: 0.14, left: capScale } };
+  const vh = us.vb[3] || 1;
+  const { capL, capR } = measureCaps(us);
+  return {
+    capScale: Math.max(capL, capR) / vh,
+    // a mirrored render swaps which drawn cap sits on which side
+    content: { top: 0.14, right: (flip ? capL : capR) / vh, bottom: 0.14, left: (flip ? capR : capL) / vh },
+  };
 }
 
 /* STOCK artwork keeps its character: fill the frame, but never distort the
