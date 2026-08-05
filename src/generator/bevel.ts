@@ -1454,13 +1454,17 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // solid quad wall was tried and rolled back by owner call: with quads the
   // sweeps of opposite-running edges overlap at deep extrusion and the fill
   // rule hollowed the caps until winding was normalized — the stacked
-  // construction is the devil we know. Its one flaw stays: stepped copy
-  // edges show inside concave notches of multi-loop imports.)
-  const nSlices = Math.max(2, Math.ceil(visDepth / 2.5));
+  // construction is the devil we know.) Its residual flaw — stepped copy
+  // edges inside concave notches — is sanded two ways: half the old slice
+  // pitch, and every intermediate copy wears a hairline stroke of its own
+  // wall gradient, dilating each step into its neighbour (owner, on a
+  // spiky import's flank: "anything we can do to smooth out these edges
+  // so we don't see all the steps?").
+  const nSlices = Math.max(2, Math.ceil(visDepth / 1.25));
   const slices = Array.from({ length: nSlices }, (_, i) => {
     const ty = (visDepth * (i + 1)) / nSlices;
     const last = i === nSlices - 1;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ""}/>`;
+    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ` stroke="url(#${id}ext)" stroke-width="1.1"`}/>`;
   }).join("");
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;

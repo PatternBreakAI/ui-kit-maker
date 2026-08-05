@@ -214,7 +214,11 @@ export function CanvasView() {
               </span>
             )}
             <div className="state-cap" style={{ color: capColor }}>
-              {playing && focus ? "Live — hover, press, drag" : `${capOf(displayed)}${playing && live ? " · live" : ""}`}
+              {/* Play mode says WHY the tray is gone — a slimmed panel with
+                  no explanation reads as breakage, not a mode */}
+              {playing && focus ? "Live — hover, press, drag"
+                : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play — the pencil brings your controls back`
+                : capOf(displayed)}
             </div>
             {playing && focus ? (
               /* v62: in Play mode the hero IS the live component — sliders

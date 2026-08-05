@@ -1700,7 +1700,12 @@ export const useGen = create<GenStore>((set, get) => ({
   // Leaving the editor also drops play mode: play hides the inspector by
   // design, and a round trip through the kit page brought it back hidden
   // with no visible reason (owner: "the controls are disappearing")
-  setPhase: (p) => set({ phase: p, ...(p === "kit" ? { zoom: 1 } : {}), ...(p !== "master" ? { canvasMode: "design" as const } : {}) }),
+  /* EVERY phase navigation lands in Design mode. The old rule only reset
+     Play when LEAVING master, so Board → master carried Play along — and
+     Play slims the whole control tray, which reads as the app breaking
+     (owner: "the left tray isn't expanded... when I roundtrip"). Play is
+     a per-visit gesture, never a stowaway. */
+  setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" ? { zoom: 1 } : {}) }),
   setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
   setKitSizeAll: (s) => {
     pushHistory(get());
