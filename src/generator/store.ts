@@ -1666,12 +1666,13 @@ export const useGen = create<GenStore>((set, get) => ({
         c.bevel = { ...pr.bevel };
         applyPresetCandy(c.candy, pr);
       } else {
-        // every roll changes the cut, drawn from the BUTTON rack only
-        // (owner call): the master shape is the button's, and the banners,
-        // plaques and HUD rails read wrong as a button. Other components
-        // inherit the language downstream. Preset jumps above may still
-        // wear a preset's own theatrical cut — those outfits are curated.
-        const rack = SILHOUETTES.filter((m) => m.category === "Buttons" && m.id !== c.shape);
+        // every roll changes the cut, drawn from the BUTTON rack plus the
+        // Gothic drop (owner: "make sure the new silhouettes appear in the
+        // relevant random generators"). The banners, plaques and HUD rails
+        // still read wrong as a button. Other components inherit the
+        // language downstream. Preset jumps above may still wear a
+        // preset's own theatrical cut — those outfits are curated.
+        const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && m.id !== c.shape);
         c.shape = rack[roll(rack.length)].id;
       }
       // typography is the user's voice — a roll never touches the font

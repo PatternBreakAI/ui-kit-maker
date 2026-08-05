@@ -129,7 +129,8 @@ export const BLEND_MODES: BlendMode[] = ["normal", "multiply", "screen", "overla
 
 export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone"
   | "houndstooth" | "plaid" | "diamonds" | "chevron" | "waves" | "scales"
-  | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles";
+  | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
+  | "skulls" | "crosses" | "bats" | "thorns" | "fleur";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -152,6 +153,14 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "crosshatch", name: "Crosshatch" },
   { id: "grid", name: "Grid" },
   { id: "sprinkles", name: "Sprinkles" },
+  /* the third wave — the Gothic drop's surface language, shipped beside
+     its silhouettes (owner: "let's add some goth patterns like skulls,
+     crosses, etc"). Same seamless-square contract as every wave. */
+  { id: "skulls", name: "Skulls" },
+  { id: "crosses", name: "Crosses — gothic" },
+  { id: "bats", name: "Bats" },
+  { id: "thorns", name: "Thorn vine" },
+  { id: "fleur", name: "Fleur-de-lis" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row
@@ -828,10 +837,12 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     applyPresetCandy(nc, pr);
     c = { ...c, candy: nc };
   } else {
-    // non-jump rolls change the CUT too — from the BUTTON rack only (owner
-    // call): banners, plaques and HUD rails read wrong as a master button
-    // shape; preset jumps above keep their curated cuts
-    const rack = SILHOUETTES.filter((m) => m.category === "Buttons" && m.id !== c.shape);
+    // non-jump rolls change the CUT too — from the BUTTON rack plus the
+    // Gothic drop (owner: "make sure the new silhouettes appear in the
+    // relevant random generators"); banners, plaques and HUD rails still
+    // read wrong as a master button shape, and preset jumps above keep
+    // their curated cuts
+    const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && m.id !== c.shape);
     c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
@@ -848,10 +859,12 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
   const shellHue = (h + r(-8, 8) + 360) % 360;
   // lighting and speculars are intentionally untouched: a roll changes the
   // palette + wrap, never the light rig or reflections the user has set up.
-  const patRoll = Math.random();
-  // v67: every pattern family pulls real weight — "none" is the rare roll,
-  // and the exotic wraps (halftone, stars, checker) show up for real
-  const patType: PatternType = patRoll < 0.2 ? "stripes" : patRoll < 0.3 ? "none" : patRoll < 0.5 ? "dots" : patRoll < 0.68 ? "halftone" : patRoll < 0.84 ? "stars" : "checker";
+  /* the WHOLE wardrobe, derived from the real list — this roll was still
+     hardcoded to the original six, so the later waves (houndstooth, chevron,
+     skulls…) never reached the homepage's RANDOMIZE, which takes this config
+     wholesale. "none" stays the rare roll, same odds as the app's button. */
+  const pats = PATTERN_TYPES.filter((t) => t.id !== "none");
+  const patType: PatternType = Math.random() < 0.12 ? "none" : pats[Math.floor(Math.random() * pats.length)].id;
   const candy = JSON.parse(JSON.stringify(c.candy)) as CandyTokens;
   candy.pattern = {
     type: patType,

@@ -1255,6 +1255,50 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return dash(u, q, 24) + dash(h + u, u, -38) + dash(q, h + u, -12) + dash(h + q, h + q, 52);
   }
 
+  /* ── the third wave: the Gothic drop's surface language. Motifs are
+     authored in a 100-unit cell and scaled to ps by a group transform —
+     the drawings stay literal (and were approved from tiled renders),
+     stroke widths scale with the cell like every hand-set width above. */
+  const G = (inner: string) => `<g transform="scale(${n(p / 100)})">${inner}</g>`;
+
+  /* Skulls — big/small polka rhythm: one skull centered, a small echo
+     ON each corner (the halftone precedent) so quarters join whole
+     across every seam. Eyes and nose are evenodd cutouts of ONE
+     silhouette subpath, so tone-on-tone stays honest. */
+  if (style === "skulls") {
+    const skull = "M32 42 A18 18 0 0 1 68 42 L68 51 L61 54 L61 66 Q61 71 56 71 L44 71 Q39 71 39 66 L39 54 L32 51 Z M42.5 44 a5.5 5.5 0 1 0 0.01 0 Z M57.5 44 a5.5 5.5 0 1 0 0.01 0 Z M50 51 l-3.5 6 h7 Z";
+    const echo = (cx: number, cy: number) =>
+      `<path fill-rule="evenodd" fill="${color}" transform="translate(${cx} ${cy}) scale(0.38) translate(-50 -48)" d="${skull}"/>`;
+    return G(`<path fill-rule="evenodd" fill="${color}" d="${skull}"/>` + echo(0, 0) + echo(100, 0) + echo(0, 100) + echo(100, 100));
+  }
+
+  /* Gothic cross — dagger-pointed plus, with corner diamonds that close
+     into whole diamonds across the seam */
+  if (style === "crosses") return G(
+    `<path fill="${color}" d="M50 18 L55 28 L55 44 L70 44 L80 50 L70 56 L55 56 L55 72 L50 82 L45 72 L45 56 L30 56 L20 50 L30 44 L45 44 L45 28 Z"/>` +
+    `<path fill="${color}" d="M0 0 L6 0 L0 6 Z M100 0 L94 0 L100 6 Z M0 100 L6 100 L0 94 Z M100 100 L94 100 L100 94 Z"/>`);
+
+  /* Bats — one big, one small, both fully inside the tile (discrete,
+     like sprinkles): scalloped wings, eared crown */
+  if (style === "bats") {
+    const bat = "M50 40 l-4 -7 l2 6 h4 l2 -6 l-4 7 c8 -8 20 -9 30 -2 c-7 1 -10 5 -10 10 c-6 -4 -12 -3 -15 2 c-1 3 -2 5 -3 9 c-1 -4 -2 -6 -3 -9 c-3 -5 -9 -6 -15 -2 c0 -5 -3 -9 -10 -10 c10 -7 22 -6 30 2 Z";
+    return G(`<path fill="${color}" d="${bat}"/><path fill="${color}" transform="translate(24 74) scale(0.55) translate(-50 -50)" d="${bat}"/>`);
+  }
+
+  /* Thorn vine — the diagonal runs corner to corner (seam-safe like
+     crosshatch); curved claws alternate sides, fully inside the tile */
+  if (style === "thorns") return G(
+    `<path d="M0 0 L100 100" stroke="${color}" stroke-width="6" fill="none"/>` +
+    `<path fill="${color}" d="M20 20 q 12 -14 24 -15 q -14 -3 -27 8 Z"/>` +
+    `<path fill="${color}" d="M53 53 q -14 12 -15 24 q -3 -14 8 -27 Z"/>` +
+    `<path fill="${color}" d="M78 78 q 12 -14 24 -15 q -14 -3 -27 8 Z"/>`);
+
+  /* Fleur-de-lis — damask column: waisted center petal, outward-curling
+     side petals, banded waist and tail; edge diamonds close at the seams */
+  if (style === "fleur") return G(
+    `<path fill="${color}" d="M50 18 C43 30 43 42 50 54 C57 42 57 30 50 18 Z M40 52 C28 50 22 40 26 28 C31 38 36 44 44 47 Z M60 52 C72 50 78 40 74 28 C69 38 64 44 56 47 Z M39 56 h22 v6 h-22 Z M45 66 C45 73 42 78 37 82 L50 76 L63 82 C58 78 55 73 55 66 Z"/>` +
+    `<path fill="${color}" d="M50 -7 L55 0 L50 7 L45 0 Z M50 93 L55 100 L50 107 L45 100 Z M-7 50 L0 45 L7 50 L0 55 Z M107 50 L100 45 L93 50 L100 55 Z"/>`);
+
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
 
@@ -1519,22 +1563,17 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      copies keep the silhouette continuous on soft corners. */
   const dk = C.extrusion.darkness / 100;
   const deepC = hexMix(darken(bevelC, clamp(0.24 + 0.34 * dk, 0, 0.8)), bevelC, 0.18);
-  // enough interpolated slices that the side stays a continuous wall even at
-  // maximum depth — no scalloping between the cap and the base. (A swept-
-  // solid quad wall was tried and rolled back by owner call: with quads the
-  // sweeps of opposite-running edges overlap at deep extrusion and the fill
-  // rule hollowed the caps until winding was normalized — the stacked
-  // construction is the devil we know.) Its residual flaw — stepped copy
-  // edges inside concave notches — is sanded two ways: half the old slice
-  // pitch, and every intermediate copy wears a hairline stroke of its own
-  // wall gradient, dilating each step into its neighbour (owner, on a
-  // spiky import's flank: "anything we can do to smooth out these edges
-  // so we don't see all the steps?").
-  const nSlices = Math.max(2, Math.ceil(visDepth / 1.25));
-  const slices = Array.from({ length: nSlices }, (_, i) => {
-    const ty = (visDepth * (i + 1)) / nSlices;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)" stroke="url(#${id}ext)" stroke-width="1.1"/>`;
-  }).join("");
+  /* The wall is the EXACT vertical sweep of the silhouette — the union of
+     every translate from 0 to depth, computed in one stroke as a vertical-
+     only feMorphology dilate (Minkowski sum with a depth-tall segment)
+     rather than approximated with stacked copies. The stacked construction
+     served two rounds of sanding (finer pitch, hairline strokes) but any
+     finite pitch serrates on razor-sharp x-extremes — a spike at angle α
+     leaves notches ≈ pitch/tan(α/2), and the Gothic drop's tips made them
+     plainly visible (owner: "I thought we got rid of these serrated
+     edges?"). The dilate is a true union so the old quad-wall failure
+     can't recur: opposite-running edge sweeps can't hollow the caps,
+     because alpha dilation has no winding to cancel. */
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
@@ -1555,10 +1594,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
+        <filter id="${id}sw" filterUnits="userSpaceOnUse" ${extRegion}>
+          <feMorphology operator="dilate" radius="0 ${(visDepth / 2).toFixed(2)}"/>
+          <feOffset dy="${(visDepth / 2).toFixed(2)}"/>
+        </filter>
         <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
-          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${((visDepth * (i + 1)) / nSlices).toFixed(1)})" fill="#fff" stroke="#fff" stroke-width="1.1"/>`).join("")}
+          <g filter="url(#${id}sw)"><path d="${outer}" fill="#fff"/></g>
         </mask>
-        ${slices}
+        <rect x="${(x - 220).toFixed(0)}" y="${y.toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 220).toFixed(1)}" fill="url(#${id}ext)" mask="url(#${id}extu)"/>
         <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
         ${baseGlow}
       </g>`
@@ -1913,7 +1956,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset=".5" stop-color="${bevelC}"/>
     <stop offset="1" stop-color="${lighten(bevelC, clamp(0.45 * hiK, 0, 0.75))}"/>
   </linearGradient>
-  <linearGradient id="${id}ext" x1="${lx >= 0 ? 1 : 0}" y1="0.5" x2="${lx >= 0 ? 0 : 1}" y2="0.5">
+  <linearGradient id="${id}ext" gradientUnits="userSpaceOnUse" x1="${(lx >= 0 ? x + w : x).toFixed(1)}" y1="0" x2="${(lx >= 0 ? x : x + w).toFixed(1)}" y2="0">
     <stop offset="0" stop-color="${lighten(deepC, clamp(0.06 + 0.26 * Math.abs(lx) * hiK, 0, 0.5))}"/>
     <stop offset="0.55" stop-color="${deepC}"/>
     <stop offset="1" stop-color="${darken(deepC, clamp(0.05 + 0.2 * Math.abs(lx) * lowK, 0, 0.5))}"/>
