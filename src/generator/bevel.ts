@@ -1374,10 +1374,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      size. The old padding stands as a floor so compact shapes don't change. */
   const met = silhouetteMeta(shape) ?? impMeta ?? userShapeCaps(shape);
   const endRoom = shape === "pill" ? h * 0.16 : 0; // rounded ends eat width
+  /* the designer's own dial over the computed safe-area — additive, either
+     direction, scaling with the piece like every other padding (owner:
+     "let's add margin controls to make this an easy fix for any situation") */
+  const cMargin = (cfg.contentMargin ?? 0) * K;
   const basePad = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + endRoom;
   const safeGap = Math.max(12, fs * 0.35);
-  const padL = iconOnly || !met ? basePad : Math.max(basePad, met.content.left * h + safeGap);
-  const padR = iconOnly || !met ? basePad : Math.max(basePad, met.content.right * h + safeGap);
+  const padL = Math.max(12, (iconOnly || !met ? basePad : Math.max(basePad, met.content.left * h + safeGap)) + cMargin);
+  const padR = Math.max(12, (iconOnly || !met ? basePad : Math.max(basePad, met.content.right * h + safeGap)) + cMargin);
 
   /* Bounds rule: the canvas is sized to the LARGEST state of the component.
      Per-state forks may carry wider type or deeper shells — every state must
@@ -1403,8 +1407,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const erX = shx === "pill" ? h * 0.16 : 0;
     const bpX = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + erX;
     const sgX = Math.max(12, fsx * 0.35);
-    const pLX = iconOnly || !metX ? bpX : Math.max(bpX, metX.content.left * h + sgX);
-    const pRX = iconOnly || !metX ? bpX : Math.max(bpX, metX.content.right * h + sgX);
+    const pLX = Math.max(12, (iconOnly || !metX ? bpX : Math.max(bpX, metX.content.left * h + sgX)) + cMargin);
+    const pRX = Math.max(12, (iconOnly || !metX ? bpX : Math.max(bpX, metX.content.right * h + sgX)) + cMargin);
     return iconOnly ? Math.max(h, cwX + bpX * 2) : Math.max(g0.minW ?? 230 * K, cwX + pLX + pRX);
   };
   const forks = (["hover", "pressed", "disabled"] as const)
@@ -1531,39 +1535,25 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     ? `<g mask="url(#${id}extu)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
     : "";
   /* NOTHING in the wall may paint the bottom copy's own contour (owner,
-     with a screenshot of the ghost: "this is what i'm seeing for the
-     outline of the bottom shape, I shouldn't be seeing it through the
-     extrusion"). Two offenders, one discipline:
-     - the ground-darkening overlay was a TRANSLATED FILLED COPY — its
-       silhouette edge switched the darkening on/off mid-wall, drawing the
-       whole contour. It is now a full-width gradient rect masked to the
-       UNION of every slice, so the darkening is continuous at each height
-       and has no shape edge of its own (the base glow rides the same
-       union mask instead of the old bottom-copy clip);
-     - the bottom edge line and bounce-light lip stroke closed outlines,
-       whose top arcs crossed the wall — they pass through an occluder
-       mask that keeps only the exposed rim. */
+     across three zoomed screenshots of ghost lines). The ground-darkening
+     overlay was a TRANSLATED FILLED COPY whose silhouette edge switched
+     the darkening on/off mid-wall — it is now a full-width gradient rect
+     masked to the UNION of every slice, continuous at each height with no
+     shape edge of its own; the base glow rides the same union mask. The
+     decorative rim strokes (1px bottom edge line, bounce-light lip) are
+     DELETED, not masked: they stroked closed translated outlines, and
+     after two rounds of occluder masks a live-DOM dissection still showed
+     their line crossing the wall — a hairline garnish is not worth a
+     ghost. The rim already reads through the darkening and cast shadow. */
   const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
         <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
           ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${((visDepth * (i + 1)) / nSlices).toFixed(1)})" fill="#fff" stroke="#fff" stroke-width="1.1"/>`).join("")}
         </mask>
-        <mask id="${id}extm" maskUnits="userSpaceOnUse" ${extRegion}>
-          <rect ${extRegion} fill="#fff"/>
-          ${/* the occluder is the WHOLE shallower wall, not one copy: a thin
-                feature (a spike arm) sweeps a wall far taller than itself,
-                so a single 2.4px-shallower silhouette shielded only a
-                sliver and the rim strokes still crossed the feature's own
-                flank (owner, zoomed to the wall: "I can still see the
-                outline in the back") */ ""}
-          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${Math.max(0, (visDepth * (i + 1)) / nSlices - 2.4).toFixed(1)})" fill="#000"/>`).join("")}
-        </mask>
         ${slices}
         <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
-        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="none" stroke="${darken(deepC, 0.35)}" stroke-width="1" mask="url(#${id}extm)"/>
         ${baseGlow}
-        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45" mask="url(#${id}extm)"/>
       </g>`
     : "";
 

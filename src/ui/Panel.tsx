@@ -1107,6 +1107,15 @@ export function Panel() {
           over arc segments — arcs can distort under stretch. Boolean-union overlapping
           shapes before export; counter-holes are fine.
         </div>
+        {/* the designer's dial over the computed label safe-area (owner:
+            "let's add margin controls to make this an easy fix for any
+            situation") — kit-wide, either direction */}
+        <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
+          onChange={(v) => update((c) => { c.contentMargin = v; })} />
+        <div className="helper">
+          Breathing room between every label and its silhouette's ends, kit-wide.
+          Push it up when a word crowds the decoration; pull it negative to hug tighter.
+        </div>
       </Section>
 
       {/* ── v57/58: Component content — this piece's text and glyph.
