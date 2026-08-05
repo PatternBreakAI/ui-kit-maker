@@ -678,122 +678,103 @@ function polyRoundedInset(d: string, delta: number): string {
   return out;
 }
 
-/* ── the Gothic face: calm over faithful ──────────────────────────────────
-   The general offset follows every drawn feature — right for imports and
-   the classic racks, whose behavior is tuned and untouched. The Gothic
-   drop's filigree breaks that faithfulness three ways: razor thorns turn
-   the face into tendrils that chase them, engraved notches tear the face
-   into slashed islands, and at deep walls the ornament density tangles
-   the planar map (owner: "work on the offset path math on JUST the gothic
-   shapes"). This wrapper is HARD-GATED to registry category "Gothic":
-   1 · calm the source — collapse features the wall consumes anyway
-       (DP epsilon scaled to the wall; counter-holes pass untouched);
-   2 · run the SAME offsetPathInward machinery on the calm outline;
-   3 · clip pinches — a narrow appendage (outward tendril or inward slit)
-       thinner than the wall reads as a spike, not face; excising its
-       short vertex span seals it, and any excision that would cross the
-       loop reverts;
-   4 · validate — surviving loops stay inside the true outer and hold
-       real area, else the caller's scaled-inset fallback takes over
-       (a small faithful copy — never spikes).
+/* ── the Gothic face: the true offset, at drawing resolution ──────────────
+   The Gothic drop runs the SAME offsetPathInward machinery as everything
+   else — the difference is fidelity, not math. The machinery's default
+   curve flattening (14 chords per curve) is tuned for imports and reads
+   fine there, but gothic filigree packs many tight curves into few units:
+   at 14 chords the offset inherits chord kinks, the refit's corner
+   detector reads them as corners, and the result shows jagged tears and
+   tangles. An earlier cut answered that by pre-simplifying the source and
+   abdicating to the scaled inset when islands multiplied — calm, but the
+   owner's eye caught it immediately ("feels more like scaling down than a
+   true adobe illustrator level offset path... I may have preferred it
+   before"). So: flatten the source at 3× density, offset it faithfully,
+   and keep every honest island — the face parallels every thorn and
+   crack the way Offset Path would. The only pruning left is against
+   OUTPUT that is outright broken, shape-agnostic by design (owner:
+   "trying to prevent case-by-case notes"): loops that escape the source,
+   sub-wall crumbs, and mutually overlapping solids (a true erosion can
+   never overlap itself). Structural failure falls to the scaled inset.
    Non-gothic shapes never enter here; their path is byte-identical. */
 const GOTHIC_CACHE = new Map<string, string>();
-function clipPinches(loop: Pt[], thin: number): Pt[] {
-  let pts = loop.slice();
-  const minLen = thin * 2.2;
-  for (let pass = 0; pass < 6; pass++) {
-    const n = pts.length;
-    if (n < 8) break;
-    const span = Math.min(26, Math.floor(n / 4));
-    let cut: [number, number] | null = null;
-    outer: for (let i = 0; i < n; i++) {
-      let acc = 0;
-      for (let k = 1; k <= span; k++) {
-        const j = (i + k) % n;
-        acc += Math.hypot(pts[j].x - pts[(i + k - 1) % n].x, pts[j].y - pts[(i + k - 1) % n].y);
-        if (k < 3) continue;
-        const gap = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
-        if (gap < thin && acc > Math.max(gap * 2.6, minLen)) { cut = [i, k]; break outer; }
-      }
-    }
-    if (!cut) break;
-    const [ci, ck] = cut;
-    const keep: Pt[] = [];
-    for (let t = 0; t < n; t++) {
-      const rel = (t - ci + n) % n;
-      if (rel > 0 && rel < ck) continue;
-      keep.push(pts[t]);
-    }
-    if (keep.length < 3 || selfIntersections(keep) > 0) break; // sealing would fold — stop here
-    pts = keep;
-  }
-  return pts;
-}
 function gothicInset(outer: string, delta: number): string {
   const key = `${delta.toFixed(2)}|${outer}`;
   const hit = GOTHIC_CACHE.get(key);
   if (hit !== undefined) return hit;
   const done = (v: string) => { if (GOTHIC_CACHE.size > 400) GOTHIC_CACHE.clear(); GOTHIC_CACHE.set(key, v); return v; };
   const shoelace = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) { const a = ps[i], b = ps[(i + 1) % ps.length]; s += a.x * b.y - b.x * a.y; } return s / 2; };
-  const toD = (ps: Pt[]) => "M " + ps.map((p) => `${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}`).join(" L ") + " Z";
-  const srcLoops = flattenPath(outer, 14).filter((l) => l.length >= 3);
+  const toD = (ps: Pt[]) => "M " + ps.map((p) => `${Math.round(p.x * 100) / 100} ${Math.round(p.y * 100) / 100}`).join(" L ") + " Z";
+  const srcLoops = flattenPath(outer, 42).filter((l) => l.length >= 3);
   if (!srcLoops.length) return done("");
-  // 1 · calm the source: solids simplify, holes pass verbatim
-  const eps = Math.min(6, Math.max(1.2, delta * 0.35));
-  const calm: string[] = [];
-  for (let i = 0; i < srcLoops.length; i++) {
-    const l = srcLoops[i];
-    const isHole = srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o));
-    if (isHole) { calm.push(toD(l)); continue; }
-    const s = simplifyDP(l, eps);
-    if (s.length >= 6 && Math.abs(shoelace(s)) > Math.max(60, delta * delta * 3)) calm.push(toD(s));
-  }
-  if (!calm.length) return done("");
-  const off = offsetPathInward(calm.join(" "), delta);
+  const off = offsetPathInward(srcLoops.map(toD).join(" "), delta);
   if (!off) return done("");
-  // 3 + 4 · clip pinches, sand each island, then validate against the TRUE outer
+  // validate each output loop against the TRUE outer; return `off` verbatim
+  // when everything passes, else re-emit only the surviving loops
   const solids = srcLoops.filter((l, i) => !srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
-  const outLoopsRaw = flattenPath(off, 10).filter((l) => l.length >= 3);
-  const outSolids: Pt[][] = [];
-  const outHoles: Pt[][] = [];
-  for (let i = 0; i < outLoopsRaw.length; i++) {
-    const l = outLoopsRaw[i];
-    // an output counter-hole (face keeps a piercing) passes untouched
-    if (outLoopsRaw.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o))) { outHoles.push(l); continue; }
-    let c = clipPinches(l, delta * 0.85);
-    const sand = Math.min(3.5, Math.max(1.8, delta * 0.35));
-    c = simplifyDP(c, sand);
-    if (c.length < 3 || selfIntersections(c) > 0) continue;
-    // containment slack must cover the sanding epsilon, or every sanded
-    // vertex near a thin feature flunks a face the offset got right
+  const segs = off.match(/M[^M]+/g) ?? [];
+  // flatten per segment so loops map 1:1 to segments by construction —
+  // a whole-string flatten can drop degenerates and misalign the audit
+  const flat = segs.map((s) => flattenPath(s, 12)[0] ?? []);
+  const isHoleOut = flat.map((l, i) => flat.some((o, oi) => oi !== i && o.length >= 3 && l.length >= 1 && pointInPoly(l[0], o)));
+  const areas = flat.map((l) => Math.abs(shoelace(l)));
+  const overlapFrac = (a: Pt[], b: Pt[]) => {
+    const step = Math.max(1, Math.floor(a.length / 12));
+    let c = 0, t = 0;
+    for (let s = 0; s < a.length; s += step) { t++; if (pointInPoly(a[s], b)) c++; }
+    return t ? c / t : 0;
+  };
+  const keep = flat.map((l, i) => {
+    if (l.length < 3) return false;
+    /* EVERY loop — face panel or piercing — must stay inside the source: a
+       true inner offset can never leave the silhouette, so any excursion
+       beyond chord slack marks a planar-map tangle. (A tangle whose first
+       vertex lands inside a face loop masquerades as a counter-hole — the
+       belfry bat's wall-30 spear did exactly that — so piercings are
+       audited too, not waved through.) */
     let inside = 0;
-    for (const p of c) if (solids.some((sl) => pointInPoly(p, sl)) || solids.some((sl) => distToBoundary(p, sl) < sand + 0.6)) inside++;
-    if (inside < c.length * 0.98) continue;
-    outSolids.push(c);
-  }
-  /* island court: a face may be several PANELS (open cracks in the drawing
-     legitimately split it — Iron Vigil's weathering), but each must read as
-     deliberate. Thin shards fail the isoperimetric test (area/perimeter² —
-     a slash scores far under a slab) and go; sub-wall crumbs go; and past
-     three panels the face reads shattered, so the whole attempt abdicates
-     to the scaled-inset fallback, which is calm by construction. */
-  const perim = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) s += Math.hypot(ps[(i + 1) % ps.length].x - ps[i].x, ps[(i + 1) % ps.length].y - ps[i].y); return s; };
-  const panels = outSolids.filter((l) => {
-    const a = Math.abs(shoelace(l));
-    return a >= Math.max(40, delta * delta) && a / (perim(l) ** 2) >= 0.03;
+    for (const p of l) {
+      if (solids.some((sl) => pointInPoly(p, sl)) || solids.some((sl) => distToBoundary(p, sl) < 0.8)) inside++;
+      else if (Math.min(...solids.map((sl) => distToBoundary(p, sl))) > Math.max(1.5, delta * 0.25)) return false;
+    }
+    if (inside < l.length * 0.98) return false;
+    if (isHoleOut[i]) {
+      // a real piercing sits wholly inside one face loop, never astride it
+      const pi = flat.findIndex((o, oi) => oi !== i && !isHoleOut[oi] && o.length >= 3 && pointInPoly(l[0], o));
+      return pi >= 0 && overlapFrac(l, flat[pi]) > 0.9;
+    }
+    return areas[i] >= Math.max(24, delta * delta * 0.35); // crumb floor
   });
-  if (!panels.length || panels.length > 3) return done("");
+  // a true erosion never overlaps itself — kept solids sharing real area
+  // mark a tangle; the smaller one goes
+  for (let i = 0; i < flat.length; i++) {
+    if (!keep[i] || isHoleOut[i]) continue;
+    for (let j = 0; j < flat.length; j++) {
+      if (i === j || !keep[j] || isHoleOut[j]) continue;
+      if (areas[j] <= areas[i] && overlapFrac(flat[j], flat[i]) > 0.15) keep[j] = false;
+    }
+  }
+  // orphaned holes (parent dropped) go with their parent
+  for (let i = 0; i < flat.length; i++) {
+    if (!keep[i] || !isHoleOut[i]) continue;
+    if (!flat.some((o, oi) => keep[oi] && !isHoleOut[oi] && pointInPoly(flat[i][0], o))) keep[i] = false;
+  }
+  if (!keep.some((k, i) => k && !isHoleOut[i])) return done("");
+  /* structural floor, shape-agnostic: when the survivors hold under 15% of
+     the source area the machinery lost the face itself (deep walls on dense
+     ornament), and shipping shards would read broken — the scaled inset is
+     the honest admission there. This is a failure detector, not taste. */
   const totalSrc = solids.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
-  const totalOut = panels.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
-  if (totalOut < totalSrc * 0.18) return done("");
-  const holes = outHoles.filter((hl) => panels.some((pl) => pointInPoly(hl[0], pl)));
-  return done([...panels, ...holes].map((l) => smoothLoopPath(l.map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })))).join(" "));
+  const totalOut = flat.reduce((s, l, i) => s + (keep[i] && !isHoleOut[i] ? Math.abs(shoelace(l)) : 0), 0);
+  if (totalOut < totalSrc * 0.15) return done("");
+  if (keep.every(Boolean)) return done(off);
+  return done(segs.filter((_, i) => keep[i]).join(" "));
 }
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
-    // the Gothic drop takes the calm-face wrapper; everyone else runs the
-    // exact ladder they always did (owner: the rest is PERFECT — no step back)
+    // the Gothic drop takes the drawing-resolution offset; everyone else runs
+    // the exact ladder they always did (owner: the rest is PERFECT — no step back)
     if (silhouetteMeta(shape)?.category === "Gothic") {
       const g = gothicInset(outer, delta);
       if (g) return g;
