@@ -749,10 +749,17 @@ export function userShapeCaps(shape: string): { capScale: number; content: { top
   if (!us) return undefined;
   const vh = us.vb[3] || 1;
   const { capL, capR } = measureCaps(us);
+  /* The TYPE gets a fixed optical gutter beyond the measured cap — the raw
+     measurement parked words on the decoration's shoulder (owner: "not
+     enough breathing room, how about somewhere in the middle?"). The
+     gutter is a design constant in component-height terms, so it reads
+     the same on every import; the RENDER band and the export's nine-slice
+     borders stay at the true measurement, hugging the real decoration. */
+  const BREATH = 0.18;
   return {
     capScale: Math.max(capL, capR) / vh,
     // a mirrored render swaps which drawn cap sits on which side
-    content: { top: 0.14, right: (flip ? capL : capR) / vh, bottom: 0.14, left: (flip ? capR : capL) / vh },
+    content: { top: 0.14, right: (flip ? capL : capR) / vh + BREATH, bottom: 0.14, left: (flip ? capR : capL) / vh + BREATH },
   };
 }
 
@@ -1515,8 +1522,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const nSlices = Math.max(2, Math.ceil(visDepth / 1.25));
   const slices = Array.from({ length: nSlices }, (_, i) => {
     const ty = (visDepth * (i + 1)) / nSlices;
-    const last = i === nSlices - 1;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ` stroke="url(#${id}ext)" stroke-width="1.1"`}/>`;
+    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)" stroke="url(#${id}ext)" stroke-width="1.1"/>`;
   }).join("");
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
@@ -1524,12 +1530,23 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const baseGlow = egOp > 0.01 && visDepth > 1
     ? `<g clip-path="url(#${id}ec)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
     : "";
+  /* The bottom edge line and the bounce-light lip stroke a TRANSLATED COPY
+     of the whole silhouette — and a closed outline has a top arc, which
+     used to draw straight across the wall (owner: "I wish we did not see
+     the outline of the bottom shape through the extrusion"). A mask keeps
+     only the rim the eye can actually see: everything a slightly
+     shallower copy covers is hidden. */
   const extrusion = visDepth > 0.3
     ? `<g>
+        <mask id="${id}extm" maskUnits="userSpaceOnUse" x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}">
+          <rect x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}" fill="#fff"/>
+          <path d="${outer}" transform="translate(0 ${(visDepth - 2.4).toFixed(1)})" fill="#000"/>
+        </mask>
         ${slices}
         <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}extv)"/>
+        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="none" stroke="${darken(deepC, 0.35)}" stroke-width="1" mask="url(#${id}extm)"/>
         ${baseGlow}
-        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/>
+        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45" mask="url(#${id}extm)"/>
       </g>`
     : "";
 

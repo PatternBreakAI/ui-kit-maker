@@ -190,7 +190,13 @@ export function CanvasView() {
         onPointerUp={onPointerUp}
       >
         {phase === "master" ? (
-          <div className="stage" style={{ zoom }}>
+          /* the zoom lives on an INNER, content-sized wrapper: CSS zoom
+             re-resolves percentages, so zooming the stage itself made the
+             hero's max-width:100% cap bite harder as zoom grew — the art
+             SHRANK while the label said magnify (owner: "it actually
+             starts to get smaller... at 150%"). A width:max-content
+             wrapper has no percentages to fight. */
+          <div className="stage"><div className="stage-zoom" style={{ zoom }}>
             {focus && (
               <span className="focusrow">
                 <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
@@ -259,7 +265,7 @@ export function CanvasView() {
               dangerouslySetInnerHTML={{ __html: heroSvg }}
             />
             )}
-          </div>
+          </div></div>
         ) : phase === "board" ? (
           <BoardView playing={playing} />
         ) : (
