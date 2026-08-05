@@ -827,10 +827,17 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
   }
   if (shape.startsWith("stock:")) {
     const st = stockShape(shape);
-    // Stock artwork is authored the same way an import is, so it earns the
-    // same treatment: fill the frame, but never distort the drawn
-    // proportions past ~1.4x in either axis (see the user: branch below).
-    if (st) return fitArtwork(st.d, st.vb, x, y, w, h);
+    if (st) {
+      /* capAware stock (the Gothic drop onward) rides the same measured-cap
+         three-slice as user imports — drawn ends rigid, middle spans the
+         frame. The original set keeps the ~1.4x fitArtwork it was tuned
+         against (see the user: branch below). */
+      if (st.capAware) {
+        const mc = measureCaps(st);
+        return transformPathCapAware(st.d, st.vb, x, y, w, h, Math.max(mc.capL, mc.capR));
+      }
+      return fitArtwork(st.d, st.vb, x, y, w, h);
+    }
   }
   if (shape.startsWith("user:")) {
     const us = userShapes().find((u) => u.id === shape);
