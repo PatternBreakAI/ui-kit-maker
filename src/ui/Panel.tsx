@@ -1001,7 +1001,7 @@ export function Panel() {
           return (<>
             <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
             {isGothicSil && (
-              <div className="helper">The Gothic cuts are authored curves — smoothness doesn't apply, and their wall runs to a 10&nbsp;px cap so the face stays a true offset of the drawing.</div>
+              <div className="helper">The Gothic cuts are authored curves — smoothness doesn't apply to them.</div>
             )}
             {effSil === "pill" && (
               <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
@@ -1408,10 +1408,9 @@ export function Panel() {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
           const effShape = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
-          const gothicSil = silhouetteMeta(effShape)?.category === "Gothic";
-          // the Gothic set is drawn for a 10 px offset (owner proofed the
-          // drawings in Illustrator at −10) — the slider honors the cap
-          const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : gothicSil ? 10 : 34;
+          // goth3 runs uncapped like the classics (owner: "remove the 4
+          // limit and see what happens with these")
+          const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : 34;
           return (
             <>
               <Slider label="Wall width" value={Math.min(wMax, Math.max(wMin, D.bevel.width))} min={wMin} max={wMax} unit="px"

@@ -151,38 +151,49 @@ export const SILHOUETTES: SilhouetteMeta[] = [
     capScale: 0.37, content: { top: 0.17, right: 0.34, bottom: 0.212, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Peanut profile with a clean centre waist." },
 
-  /* ── Gothic — the owner-drawn cathedral-metal drop (2026-08-05), live
-     for every tier on arrival by owner call ("add these silhouettes to
-     live for all tiers"). Content insets and caps are MEASURED off each
-     outline by the same slicing the renderer uses, plus the standard
-     0.18h breathing gutter on the sides. ── */
-  { id: "stock:firstthorn", name: "First Thorn", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.648, content: { top: 0.187, right: 0.828, bottom: 0.186, left: 0.769 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Long side spears, thorn-barbed corners — the shape that taught the importer to stretch." },
-  { id: "stock:thornward", name: "Thornward Plaque", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.186, content: { top: 0.374, right: 0.366, bottom: 0.221, left: 0.366 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Thorn-tipped corners under a center spire." },
-  { id: "stock:ironvigil", name: "Iron Vigil", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.168, content: { top: 0.331, right: 0.348, bottom: 0.236, left: 0.348 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Carved slab flanked by wrought-iron spear posts." },
-  { id: "stock:cryptmarker", name: "Crypt Marker", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.223, content: { top: 0.227, right: 0.403, bottom: 0.226, left: 0.403 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Chamfered slab, diamond finials above and below." },
-  { id: "stock:quatrefoil", name: "Quatrefoil Crest", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.355, content: { top: 0.364, right: 0.535, bottom: 0.221, left: 0.535 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Cathedral point with a quatrefoil cut, spear ends." },
-  { id: "stock:hellmouth", name: "Hellmouth Scroll", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.217, content: { top: 0.389, right: 0.397, bottom: 0.36, left: 0.397 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Flame-curled ends, fanged center ridge." },
-  { id: "stock:evensong", name: "Evensong Banner", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.455, content: { top: 0.466, right: 0.635, bottom: 0.465, left: 0.635 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "Soft vesper banner between pierced star chimes." },
-  { id: "stock:cloisterrail", name: "Cloister Rail", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.736, content: { top: 0.224, right: 0.916, bottom: 0.213, left: 0.916 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "The long rail — pierced star finials on a clean span." },
-  { id: "stock:belfrybat", name: "Belfry Bat", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path",
-    capScale: 0.384, content: { top: 0.404, right: 0.564, bottom: 0.357, left: 0.564 }, minWidth: 96, minHeight: 40,
-    supports: [...BTN, "timer"], character: "The bat itself — scalloped wings, eared crown." },
+  /* ── Gothic — the goth3 drop (2026-08-05): twelve friendlier
+     silhouettes replacing the original nine, live for every tier like
+     the set they replace. Caps and content insets are MEASURED off each
+     outline by the renderer's own slicing plus the standard 0.18h side
+     gutter; verticals come from the central band's median edges plus
+     0.05h. No wall cap — these drawings hold a true offset at any depth
+     the slider reaches. ── */
+  { id: "stock:vesperblade", name: "Vesper Blade", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.392, content: { top: 0.246, right: 0.572, bottom: 0.237, left: 0.572 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Sleek pointed cartouche with twin side spurs." },
+  { id: "stock:nightcompass", name: "Night Compass", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.361, content: { top: 0.271, right: 0.541, bottom: 0.265, left: 0.541 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Four-point lozenge — a compass cut for dark maps." },
+  { id: "stock:chapelpeak", name: "Chapel Peak", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.187, content: { top: 0.238, right: 0.367, bottom: 0.216, left: 0.367 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Wide plaque rising to a center gable." },
+  { id: "stock:fleurcrown", name: "Fleur Crown", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.199, content: { top: 0.287, right: 0.379, bottom: 0.2, left: 0.379 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Soft cartouche crowned with a fleur-de-lis finial." },
+  { id: "stock:duskbat", name: "Dusk Bat", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.3, content: { top: 0.311, right: 0.48, bottom: 0.226, left: 0.48 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The friendlier bat — round wings, soft scallops." },
+  { id: "stock:briarbanner", name: "Briar Banner", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.27, content: { top: 0.313, right: 0.45, bottom: 0.209, left: 0.45 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Broad banner with gentle briar points." },
+  { id: "stock:irongate", name: "Iron Gate", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.06, content: { top: 0.302, right: 0.24, bottom: 0.227, left: 0.24 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Straight plaque flanked by gate-post blades." },
+  { id: "stock:cloisterscroll", name: "Cloister Scroll", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.075, content: { top: 0.276, right: 0.255, bottom: 0.16, left: 0.255 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Curled volute corners on a calm span." },
+  { id: "stock:abbeycrest", name: "Abbey Crest", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.107, content: { top: 0.275, right: 0.287, bottom: 0.213, left: 0.287 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Curved crest under a small trefoil finial." },
+  { id: "stock:cryptlantern", name: "Crypt Lantern", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.203, content: { top: 0.281, right: 0.383, bottom: 0.276, left: 0.383 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Elongated lantern gem, diamond points above and below." },
+  { id: "stock:reliquary", name: "Reliquary", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.102, content: { top: 0.261, right: 0.282, bottom: 0.185, left: 0.282 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Bracketed case with pointed finials." },
+  { id: "stock:velvetplaque", name: "Velvet Plaque", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
+    capScale: 0.261, content: { top: 0.178, right: 0.441, bottom: 0.134, left: 0.441 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The soft one — rounded cartouche, gentle swells." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

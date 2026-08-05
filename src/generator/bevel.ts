@@ -3,6 +3,7 @@ import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEF
 import { iconGroup } from "./icons";
 import { silhouetteMeta } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
+import { innerOffsetLoops } from "./offsetKernel";
 import { stockShape } from "./stockShapes";
 import rough from "roughjs";
 
@@ -537,17 +538,14 @@ function splitSimpleLoops(ring: Pt[]): Pt[][] {
 
 /** Effective wall width for a shape. The banner's tail geometry only reads
  *  clean between 13 and 33 (review-measured), so the renderer clamps what
- *  it consumes — stale or shared configs can't break the tails. The Gothic
- *  set caps at 10: the owner proofed the drawings in Illustrator at
- *  −10px Offset Path and that is the depth their filigree is drawn for
- *  ("capping the goth set at 10 pixels inward"). `off` drops the wall
- *  entirely: the face fills the whole silhouette. */
-export const GOTHIC_WALL_MAX = 10;
+ *  it consumes — stale or shared configs can't break the tails. The goth3
+ *  set runs UNCAPPED (owner: "remove the 4 limit and see what happens
+ *  with these") — the friendlier drawings hold a true offset across the
+ *  full range, so gothic no longer needs a special clamp. `off` drops the
+ *  wall entirely: the face fills the whole silhouette. */
 export function effectiveWall(width: number, shape: Shape, off?: boolean): number {
   if (off) return 0;
-  if (shape === "banner") return Math.min(33, Math.max(13, width));
-  if (silhouetteMeta(shape)?.category === "Gothic") return Math.min(GOTHIC_WALL_MAX, width);
-  return width;
+  return shape === "banner" ? Math.min(33, Math.max(13, width)) : width;
 }
 
 /** Inner shape at true offset `delta` — falls back to the classic scaled
@@ -846,9 +844,67 @@ function gothicInset(outer: string, delta: number): string {
   const toD = (ps: Pt[]) => "M " + ps.map((p) => `${Math.round(p.x * 100) / 100} ${Math.round(p.y * 100) / 100}`).join(" L ") + " Z";
   const srcLoops = flattenPath(outer, 42).filter((l) => l.length >= 3);
   if (!srcLoops.length) return done("");
-  // miter limit 4 — Illustrator's own default, matching the owner's
-  // Offset Path proof of the drawings; the tuned classic/import behavior
-  // keeps its 8
+  /* ── the reviewed kernel first ──
+     Curve-aware direct-offset sampling → half-edge arrangement → winding
+     classification (offsetKernel.ts, built to the external math review):
+     holes offset outward like the true erosion, miters synthesize at
+     limit 4 from real tangents, and tangles die by face classification
+     instead of heuristics. The kernel is pure geometry — the barb seal
+     and dent fill below stay as the ART-DIRECTION layer on its output.
+     A null return (structural failure) falls through to the legacy
+     chord-machinery path, so nothing can render worse than before. */
+  const kernelLoops = innerOffsetLoops(outer, delta, { miterLimit: 4 });
+  if (kernelLoops) {
+    const solids = srcLoops.filter((l, i) => !srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
+    const isHoleK = kernelLoops.map((l, i) => kernelLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
+    const srcArea = solids.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
+    const parts: string[] = [];
+    const kept: Pt[][] = [];
+    let total = 0;
+    /* crumb-filter BEFORE the art-direction passes: the arrangement emits
+       every face it finds, and sub-visible fragments are the majority of
+       them. Sealing and dent-filling are O(n·k²) scans — running them on
+       fragments that are about to be dropped cost ~250ms per render and
+       froze the kit page when every piece wore a gothic cut. */
+    const floor = Math.max(24, delta * delta * 0.35);
+    for (let i = 0; i < kernelLoops.length; i++) {
+      const raw = kernelLoops[i] as Pt[];
+      if (isHoleK[i]) { parts.push(toD(raw)); kept.push(raw); continue; }
+      if (raw.length < 3 || Math.abs(shoelace(raw)) < floor) continue;
+      const c = fillDents(clipPinches(raw, delta * 0.85), delta, solids);
+      const a = Math.abs(shoelace(c));
+      if (c.length < 3 || a < floor) continue;
+      total += a;
+      kept.push(c);
+      parts.push(toD(c));
+    }
+    /* THE INVERSION GATE (shape-agnostic, and cheap — point-in-polygon
+       only, no distance field): sample the source's interior on a coarse
+       grid and measure what fraction of it the face covers. A true inner
+       offset keeps most of the interior; a face-vs-void swap from a
+       mis-classified arrangement keeps almost none of it, whatever its
+       area or loop count. Found live on Evensong at δ=10, where the star
+       tips' collapse flipped the classification. */
+    let inPts = 0, inFace = 0;
+    if (solids.length) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const l of solids) for (const p of l) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      const N = 15;
+      for (let gx = 1; gx < N; gx++) for (let gy = 1; gy < N; gy++) {
+        const p = { x: x0 + ((x1 - x0) * gx) / N, y: y0 + ((y1 - y0) * gy) / N };
+        let par = 0;
+        for (const l of srcLoops) if (pointInPoly(p, l)) par++;
+        if (par % 2 === 0) continue;
+        inPts++;
+        let fp = 0;
+        for (const l of kept) if (pointInPoly(p, l)) fp++;
+        if (fp % 2 === 1) inFace++;
+      }
+    }
+    const coverOK = inPts < 8 || inFace / inPts >= 0.4;
+    if (parts.length && total >= srcArea * 0.15 && coverOK) return done(parts.join(" "));
+  }
+  // ── legacy fallback: the tuned chord machinery at miter 4 ──
   const off = offsetPathInward(srcLoops.map(toD).join(" "), delta, 4);
   if (!off) return done("");
   // validate each output loop against the TRUE outer; return `off` verbatim
@@ -1858,12 +1914,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
-        <filter id="${id}sw" filterUnits="userSpaceOnUse" ${extRegion}>
+        <filter id="${id}xsw" filterUnits="userSpaceOnUse" ${extRegion}>
           <feMorphology operator="dilate" radius="0 ${(visDepth / 2).toFixed(2)}"/>
           <feOffset dy="${(visDepth / 2).toFixed(2)}"/>
         </filter>
         <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
-          <g filter="url(#${id}sw)"><path d="${outer}" fill="#fff"/></g>
+          <g filter="url(#${id}xsw)"><path d="${outer}" fill="#fff"/></g>
         </mask>
         <rect x="${(x - 220).toFixed(0)}" y="${y.toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 220).toFixed(1)}" fill="url(#${id}ext)" mask="url(#${id}extu)"/>
         <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
