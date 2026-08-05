@@ -1363,10 +1363,13 @@ export function textPatternCell(style: string, ps: number, color: string): strin
 
   /* Skulls — big/small polka rhythm: one skull centered, a small echo
      ON each corner (the halftone precedent) so quarters join whole
-     across every seam. Eyes and nose are evenodd cutouts of ONE
-     silhouette subpath, so tone-on-tone stays honest. */
+     across every seam. Detailed silhouette (owner: "make the skull
+     shapes more detailed"): cheekbone flares, a four-tooth crenellated
+     jaw, glaring sockets whose upper edge slants down toward the
+     center, a kite nasal aperture and a temple crack — all evenodd
+     cutouts of ONE subpath, so tone-on-tone stays honest. */
   if (style === "skulls") {
-    const skull = "M32 42 A18 18 0 0 1 68 42 L68 51 L61 54 L61 66 Q61 71 56 71 L44 71 Q39 71 39 66 L39 54 L32 51 Z M42.5 44 a5.5 5.5 0 1 0 0.01 0 Z M57.5 44 a5.5 5.5 0 1 0 0.01 0 Z M50 51 l-3.5 6 h7 Z";
+    const skull = "M31.5 41 A19 19 0 0 1 69.5 41 L69.5 46 Q72.5 48.5 70.5 52.5 L64 55.5 L64 59 Q64 61 62.5 62 L62.5 70 Q62.5 74 58.5 74.5 L58.5 71 Q58.5 69.3 56.9 69.3 Q55.4 69.3 55.4 71 L55.4 74.8 L52.2 75 L52.2 71 Q52.2 69.3 50.5 69.3 Q48.9 69.3 48.9 71 L48.9 75 L45.7 74.8 L45.7 71 Q45.7 69.3 44.1 69.3 Q42.6 69.3 42.6 71 L42.6 74.5 Q38.5 74 38.5 70 L38.5 62 Q37 61 37 59 L37 55.5 L30.5 52.5 Q28.5 48.5 31.5 46 Z M36.8 40.6 L45.8 44 Q46 48.4 41.4 48.6 Q36.2 47.4 36.8 40.6 Z M64.2 40.6 L55.2 44 Q55 48.4 59.6 48.6 Q64.8 47.4 64.2 40.6 Z M50 51.6 Q52.6 54 52.1 57.9 L50 58.9 L47.9 57.9 Q47.4 54 50 51.6 Z M59 29.5 l3.4 -2.4 l-1.8 3.2 l2.6 2.2 l-3.8 -0.9 Z";
     const echo = (cx: number, cy: number) =>
       `<path fill-rule="evenodd" fill="${color}" transform="translate(${cx} ${cy}) scale(0.38) translate(-50 -48)" d="${skull}"/>`;
     return G(`<path fill-rule="evenodd" fill="${color}" d="${skull}"/>` + echo(0, 0) + echo(100, 0) + echo(0, 100) + echo(100, 100));
@@ -1393,11 +1396,19 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     `<path fill="${color}" d="M53 53 q -14 12 -15 24 q -3 -14 8 -27 Z"/>` +
     `<path fill="${color}" d="M78 78 q 12 -14 24 -15 q -14 -3 -27 8 Z"/>`);
 
-  /* Fleur-de-lis — damask column: waisted center petal, outward-curling
-     side petals, banded waist and tail; edge diamonds close at the seams */
+  /* Fleur-de-lis — damask column, ONE fused solid glyph (owner: "make
+     the fleur de lis a solid shape (or simplify)"): center spindle
+     dipping into the band, side petals that arc up and DROOP past the
+     band in a down-point (the ⚜ read — upswept petals kept reading as
+     wings), band and splayed tail all overlap-unioned; edge diamonds
+     close at the seams */
   if (style === "fleur") return G(
-    `<path fill="${color}" d="M50 18 C43 30 43 42 50 54 C57 42 57 30 50 18 Z M40 52 C28 50 22 40 26 28 C31 38 36 44 44 47 Z M60 52 C72 50 78 40 74 28 C69 38 64 44 56 47 Z M39 56 h22 v6 h-22 Z M45 66 C45 73 42 78 37 82 L50 76 L63 82 C58 78 55 73 55 66 Z"/>` +
-    `<path fill="${color}" d="M50 -7 L55 0 L50 7 L45 0 Z M50 93 L55 100 L50 107 L45 100 Z M-7 50 L0 45 L7 50 L0 55 Z M107 50 L100 45 L93 50 L100 55 Z"/>`);
+    `<path fill="${color}" d="M50 14 C42.5 26 42.5 40 50 57 C57.5 40 57.5 26 50 14 Z"/>` +
+    `<path fill="${color}" d="M45.5 42 C37 40 31 34 31 27 C25.5 31.5 24 41 27.5 50 C29 53.5 27.5 56.5 24.5 59 C30 58 34.5 55 37.5 51 C41 46.5 44 44 45.5 42 Z"/>` +
+    `<path fill="${color}" d="M54.5 42 C63 40 69 34 69 27 C74.5 31.5 76 41 72.5 50 C71 53.5 72.5 56.5 75.5 59 C70 58 65.5 55 62.5 51 C59 46.5 56 44 54.5 42 Z"/>` +
+    `<path fill="${color}" d="M38.5 55 L61.5 55 L61.5 61.5 L38.5 61.5 Z"/>` +
+    `<path fill="${color}" d="M45.5 60 C45.5 69.5 42.5 75.5 37 81 L50 75 L63 81 C57.5 75.5 54.5 69.5 54.5 60 Z"/>` +
+    `<path fill="${color}" d="M50 -6 L54.5 0 L50 6 L45.5 0 Z M50 94 L54.5 100 L50 106 L45.5 100 Z M-6 50 L0 45.5 L6 50 L0 54.5 Z M106 50 L100 45.5 L94 50 L100 54.5 Z"/>`);
 
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
@@ -2032,21 +2043,39 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
     glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+    /* style picks the clipped body + which stars ride along; the bake knobs
+       (glintBands/glintStars, alphabet-face export) keep overriding — they
+       normalize per-glyph treatment and always speak slab. */
+    const gStyle = opts.glintBands ? "slab" : (GL2!.style ?? "slab");
+    const bandRect = (dy: number, hF: number, o: number) => {
+      const by = bcy + dy * fs, bh = hF * fs;
+      return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
+    };
+    let body: string;
+    if (opts.glintBands) body = opts.glintBands.map((b) => bandRect(b.dy, b.h, b.o)).join("\n        ");
+    else if (gStyle === "streak") body = [bandRect(-0.22, 0.09, 1), bandRect(0.02, 0.045, 0.75), bandRect(0.21, 0.07, 0.5)].join("\n        ");
+    else if (gStyle === "sheen")
+      // the top light: horizontal, hugging the cap line — rotation-free by
+      // design, so it reads as studio sheen rather than the key light
+      body = `<rect x="${(tx0 - fs * 0.2 + gdx).toFixed(1)}" y="${(gy - fs * 0.44 + gdy).toFixed(1)}" width="${(textW + fs * 0.4).toFixed(1)}" height="${(fs * 0.2).toFixed(1)}" rx="${(fs * 0.1).toFixed(1)}" fill="#FFFFFF"/>
+        <rect x="${(tx0 + textW * 0.06 + gdx).toFixed(1)}" y="${(gy - fs * 0.16 + gdy).toFixed(1)}" width="${(textW * 0.55).toFixed(1)}" height="${(fs * 0.08).toFixed(1)}" rx="${(fs * 0.04).toFixed(1)}" fill="#FFFFFF" opacity="0.55"/>`;
+    else if (gStyle === "stars") body = "";
+    else body = `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`;
+    const starSet =
+      opts.glintStars !== undefined ? (opts.glintStars ?? [])
+      : gStyle === "stars"
+        ? [{ f: 0.06, dy: -0.3, s: 0.15, r: 0 }, { f: 0.28, dy: 0.2, s: 0.09, r: 22 }, { f: 0.48, dy: -0.18, s: 0.135, r: -10 }, { f: 0.66, dy: 0.26, s: 0.08, r: 14 }, { f: 0.86, dy: -0.08, s: 0.145, r: -18 }, { f: 0.97, dy: 0.28, s: 0.07, r: 30 }]
+      : gStyle === "slab"
+        ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
+        : []; // streak and sheen stay pure — the mix is what makes styles distinct
     glintsLayer = `<g clip-path="url(#${id}tgc)" opacity="${gOp.toFixed(2)}">
-        ${opts.glintBands
-          ? opts.glintBands.map((b) => {
-              const by = bcy + b.dy * fs, bh = b.h * fs;
-              return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${b.o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
-            }).join("\n        ")
-          : `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
-        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`}
+        ${body}
       </g>
       <g opacity="${Math.min(1, gOp * 1.15).toFixed(2)}">
-        ${(opts.glintStars === undefined
-          ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
-          : opts.glintStars ?? []
-        ).map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
+        ${starSet.map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
       </g>`;
+    if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">

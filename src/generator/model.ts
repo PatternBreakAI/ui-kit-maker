@@ -127,6 +127,15 @@ export const SPECULAR_MODES: { id: SpecularMode; name: string }[] = [
 export type BlendMode = "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
 export const BLEND_MODES: BlendMode[] = ["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"];
 
+/** Highlight-glint treatments for letterforms — see TypeTokens.glints. */
+export type GlintStyle = "slab" | "stars" | "streak" | "sheen";
+export const GLINT_STYLES: { id: GlintStyle; name: string }[] = [
+  { id: "slab", name: "Specular slab & stars" },
+  { id: "stars", name: "Star field" },
+  { id: "streak", name: "Streak bands" },
+  { id: "sheen", name: "Top sheen" },
+];
+
 export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone"
   | "houndstooth" | "plaid" | "diamonds" | "chevron" | "waves" | "scales"
   | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
@@ -258,10 +267,14 @@ export interface TypeCfg {
   /** Balloon highlight following the key light — the closest the shell gets
    *  to an inflate effect without touching the glyph geometry. */
   inflate?: { on: boolean; strength: number };
-  /** Crisp vector glints riding the letterforms — a specular slab clipped to
-   *  the glyphs plus star sparkles, all placed by the master lighting angle.
+  /** Crisp vector glints riding the letterforms, placed by the master
+   *  lighting angle. `style` picks the treatment (owner: "a few styles of
+   *  highlight glints to choose from"): slab = specular slab + stars (the
+   *  original), stars = constellation only, streak = thin light bands,
+   *  sheen = horizontal top light. `blend` composites the glints against
+   *  the letter faces exactly like the shell gloss/specular blends.
    *  ox/oy nudge the whole treatment in % of the letter height. */
-  glints?: { on: boolean; opacity: number; ox?: number; oy?: number };
+  glints?: { on: boolean; opacity: number; ox?: number; oy?: number; style?: GlintStyle; blend?: BlendMode };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
   fill2: string;       // gradient bottom

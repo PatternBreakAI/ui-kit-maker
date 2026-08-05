@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { ensureFont } from "./fonts";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -1675,7 +1676,18 @@ export const useGen = create<GenStore>((set, get) => ({
         const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && m.id !== c.shape);
         c.shape = rack[roll(rack.length)].id;
       }
-      // typography is the user's voice — a roll never touches the font
+      /* the wardrobe includes the voice now — every roll picks a fresh
+         face from the permanent rack plus registered customs (owner: "we
+         need to change the font with the randomizer (every time). you can
+         always undo to go back", retiring the old typography-is-sacred
+         rule), weight clamped into what the face can show */
+      // registry hygiene: users paste specimen URLs into the custom box and
+      // the registry keeps them — the roll only wears plausible family names
+      const faces = [...GAME_FONTS.map((f) => f.name), ...customFontNames().filter((n2) => !/[:/]/.test(n2) && n2.length < 40)].filter((f2) => f2 !== c.type.font);
+      const face = faces[roll(faces.length)];
+      ensureFont(face);
+      c.type.font = face;
+      c.type.weight = clampWeight(fontByName(face).caps, c.type.weight);
       // pattern rolls tone-on-tone so it stays harmonious; "none" is rare
       // and every family pulls real, VISIBLE weight
       /* the WHOLE wardrobe, derived from the real list — the roll was
