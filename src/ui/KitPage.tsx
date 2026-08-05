@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
@@ -309,8 +309,11 @@ function ExportMenu({ actions, preferId }: {
 }) {
   const [open, setOpen] = useState(false);
   const [last, setLast] = useState(() => { try { return preferId ?? localStorage.getItem("ui-generator-lastexport") ?? "engine"; } catch { return preferId ?? "engine"; } });
-  // the progress run wears the kit's own accent, like the Edit button (owner)
-  const accent = useGen((s) => s.cfg.effects.Bevel) ?? "#0E9CC9";
+  /* the progress run wears the kit's GLOW, always (owner) — it's the role
+     that reads as light and motion, and on a dark page it carries a moving
+     bar better than the bevel, which is a surface color. Bevel only stands
+     in for a kit that never set a glow. */
+  const accent = useGen((s) => s.cfg.effects.Glow || s.cfg.effects.Bevel || "#0E9CC9");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -327,7 +330,7 @@ function ExportMenu({ actions, preferId }: {
   };
   return (
     <div className="kp-export" ref={ref}>
-      <button className="kp-dlall kp-exportmain" disabled={primary.busy} onClick={() => fire(primary)} title={primary.desc}>
+      <button className="kp-dlall kp-exportmain" style={{ "--kp-accent": accent } as CSSProperties} disabled={primary.busy} onClick={() => fire(primary)} title={primary.desc}>
         <Download size={14} strokeWidth={2.2} />{" "}
         {primary.busy
           ? (primary.prog
@@ -340,7 +343,7 @@ function ExportMenu({ actions, preferId }: {
           <span className="kp-exportprog" style={{ width: `${Math.round((primary.prog.done / Math.max(1, primary.prog.total)) * 100)}%`, background: accent }} />
         )}
       </button>
-      <button className="kp-dlall kp-exportarrow" aria-haspopup="menu" aria-expanded={open} title="All export formats"
+      <button className="kp-dlall kp-exportarrow" style={{ "--kp-accent": accent } as CSSProperties} aria-haspopup="menu" aria-expanded={open} title="All export formats"
         onClick={() => setOpen((v) => !v)}>
         <ChevronDown size={15} strokeWidth={2.2} />
       </button>

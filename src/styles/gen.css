@@ -1824,8 +1824,11 @@ button.kp-fact { cursor: pointer; }
 }
 
 /* ── v47: one-button sprite-sheet export ───────────────────────── */
-.kp-dlall { display: inline-flex; align-items: center; gap: 9px; margin: 18px 0 4px; padding: 12px 22px; border-radius: 12px; border: 1.5px solid #3d8edb; background: color-mix(in srgb, #3d8edb 10%, transparent); color: var(--kp-ink); font: 700 14px/1 inherit; letter-spacing: .02em; cursor: pointer; }
-.kp-dlall:hover { background: color-mix(in srgb, #3d8edb 20%, transparent); }
+/* the export control wears the kit's GLOW role (owner) — the generic blue
+   it used to hardcode read as someone else's chrome on every kit. Both
+   buttons carry --kp-accent inline; the blue is only a fallback. */
+.kp-dlall { display: inline-flex; align-items: center; gap: 9px; margin: 18px 0 4px; padding: 12px 22px; border-radius: 12px; border: 1.5px solid var(--kp-accent, #3d8edb); background: color-mix(in srgb, var(--kp-accent, #3d8edb) 10%, transparent); color: var(--kp-ink); font: 700 14px/1 inherit; letter-spacing: .02em; cursor: pointer; }
+.kp-dlall:hover { background: color-mix(in srgb, var(--kp-accent, #3d8edb) 20%, transparent); }
 .kp-dlall:disabled { opacity: .6; cursor: progress; }
 
 /* factory reset — deliberately quiet until hovered, unmistakably a danger */

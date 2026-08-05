@@ -69,6 +69,19 @@ for (let ln = 0; ln < lines.length; ln++) {
 const normalizers = (cs.match(/Replace\("\\\\", "\/"\)/g) ?? []).length;
 if (normalizers < 4) errors.push(`expected >=4 Replace("\\\\", "/") path normalizers in the emitted C#, found ${normalizers} — an escaping level was probably lost`);
 
+/* A stray backtick in a C# comment CLOSES the template early, and every
+   check above then passes happily on the surviving fragment — the importer
+   just arrives with half its methods missing. Caught in the act: a comment
+   quoting `left` and `size` cut 2036 lines down to 1370 and still reported
+   OK. A floor makes truncation loud. Raise it when the importer grows; it
+   only ever needs to sit below the real length. */
+const MIN_LINES = 1900;
+if (lines.length < MIN_LINES)
+  errors.push(`the emitted C# is only ${lines.length} lines (floor ${MIN_LINES}) — the template literal was almost certainly closed early by a stray backtick in a comment or string`);
+// the last method in the template — proves we reached the end, not just a length
+if (!/class KitTexturePostprocessor/.test(cs))
+  errors.push("KitTexturePostprocessor is missing from the emitted C# — the template literal ends before the file does");
+
 /* mini semantic pass: the guard lexes but doesn't COMPILE, and that gap
    shipped a CS1061 to the field ('PBStyle' has no 'spacingEmPct' — the
    usage landed without the field). The style local is conventionally `s`
