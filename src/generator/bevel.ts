@@ -698,6 +698,137 @@ function polyRoundedInset(d: string, delta: number): string {
    never overlap itself). Structural failure falls to the scaled inset.
    Non-gothic shapes never enter here; their path is byte-identical. */
 const GOTHIC_CACHE = new Map<string, string>();
+/* Excise appendages of a face loop narrower than `thin`: walk vertex windows
+   and seal any span whose endpoints sit closer than `thin` while the path
+   between them detours far longer — an offset feature thinner than the wall
+   is geometric truth but reads as a barb, not face (owner, on Thornward's
+   bottom pendant pockets: "perfect aside from this one shape at the
+   bottom"). A seal that would fold the loop reverts. */
+function clipPinches(loop: Pt[], thin: number): Pt[] {
+  let pts = loop.slice();
+  const minLen = thin * 2.2;
+  const loopArea = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) { const a = ps[i], b = ps[(i + 1) % ps.length]; s += a.x * b.y - b.x * a.y; } return Math.abs(s / 2); };
+  const A0 = loopArea(pts);
+  let removed = 0;
+  for (let pass = 0; pass < 6; pass++) {
+    const n = pts.length;
+    if (n < 8) break;
+    const span = Math.min(26, Math.floor(n / 4));
+    let cut: [number, number] | null = null;
+    outer: for (let i = 0; i < n; i++) {
+      let acc = 0;
+      for (let k = 1; k <= span; k++) {
+        const j = (i + k) % n;
+        acc += Math.hypot(pts[j].x - pts[(i + k - 1) % n].x, pts[j].y - pts[(i + k - 1) % n].y);
+        if (acc >= thin * 12) break;
+        if (k < 3) continue;
+        const gap = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+        if (gap < thin && acc > Math.max(gap * 2.6, minLen)) {
+          /* the discriminator is RELATIVE area: a barb is negligible next
+             to its loop, while the end segment of a legitimately thin face
+             BODY (a wall-30 band) is a real share of it — absolute
+             thresholds can't tell them apart at deep walls, where the
+             band's own height is δ-scale. The cumulative cap stops
+             pass-by-pass nibbling. */
+          let s2 = 0;
+          for (let t = 0; t < k; t++) {
+            const a = pts[(i + t) % n], b = pts[(i + t + 1) % n];
+            s2 += a.x * b.y - b.x * a.y;
+          }
+          const a2 = pts[(i + k) % n], b2 = pts[i];
+          s2 += a2.x * b2.y - b2.x * a2.y;
+          const cutA = Math.abs(s2 / 2);
+          if (cutA < thin * thin * 2.5 && cutA < A0 * 0.045 && removed + cutA <= A0 * 0.09) { cut = [i, k]; break outer; }
+        }
+      }
+    }
+    if (!cut) break;
+    const [ci, ck] = cut;
+    const keep: Pt[] = [];
+    for (let t = 0; t < n; t++) {
+      const rel = (t - ci + n) % n;
+      if (rel > 0 && rel < ck) continue;
+      keep.push(pts[t]);
+    }
+    if (keep.length < 3 || selfIntersections(keep) > 0) break;
+    removed += loopArea(pts) - loopArea(keep);
+    pts = keep;
+  }
+  return pts;
+}
+/* Fill concave dents shallower than half the wall: where an ornament root
+   just grazes the δ band, the true offset dips by a few pixels — too
+   shallow to read as a designed V, too wide for the pinch seal, so it
+   scans as a wobble (owner, circling Evensong's apex kinks: "perfect
+   outside of these two errant angles"). Deep features — designed Vs,
+   crack seams, the ornament basins — exceed the depth gate and stay.
+   A seal only applies when its chord midpoint stays on solid drawing. */
+function fillDents(loop: Pt[], delta: number, solids: Pt[][]): Pt[] {
+  let pts = loop.slice();
+  let sign = 0;
+  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; sign += a.x * b.y - b.x * a.y; }
+  sign = Math.sign(sign) || 1;
+  /* the depth gate is the smaller of wall-relative and LOOP-relative: at
+     deep walls δ*0.55 alone grows past drawn character (Hellmouth's waves,
+     the bat's scallops flattened) — a kink is small against the face
+     itself, a designed wave is not */
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const devCap = Math.min(delta * 0.55, Math.min(x1 - x0, y1 - y0) * 0.04);
+  for (let pass = 0; pass < 8; pass++) {
+    const n = pts.length;
+    if (n < 8) break;
+    /* pick the WIDEST qualifying seal, not the first: a greedy first-found
+       chord lands shoulder-to-mid-flank and trades the kink for an
+       asymmetric step — the widest window spans shoulder to shoulder */
+    let cut: [number, number] | null = null;
+    let cutArc = 0;
+    for (let i = 0; i < n; i++) {
+      let acc = 0;
+      for (let k = 3; k <= Math.min(34, Math.floor(n / 3)); k++) {
+        const j = (i + k) % n;
+        acc += Math.hypot(pts[j].x - pts[(i + k - 1) % n].x, pts[j].y - pts[(i + k - 1) % n].y);
+        if (acc >= delta * 7) break;
+        if (acc <= cutArc) continue;
+        const A = pts[i], B = pts[j];
+        const chord = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+        let s2 = 0, maxDev = 0, minDot = 1;
+        for (let t = 0; t < k; t++) {
+          const a = pts[(i + t) % n], b = pts[(i + t + 1) % n];
+          s2 += a.x * b.y - b.x * a.y;
+          const dev = Math.abs((a.x - A.x) * (B.y - A.y) - (a.y - A.y) * (B.x - A.x)) / chord;
+          if (t > 0 && dev > maxDev) maxDev = dev;
+          if (t > 0) {
+            const p0 = pts[(i + t - 1) % n];
+            const l1 = Math.hypot(a.x - p0.x, a.y - p0.y) || 1, l2 = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+            minDot = Math.min(minDot, ((a.x - p0.x) * (b.x - a.x) + (a.y - p0.y) * (b.y - a.y)) / (l1 * l2));
+          }
+        }
+        s2 += B.x * A.y - A.x * B.y;
+        /* a dent winds against the loop; a convex bump winds with it. And
+           the dent must contain a sharp corner — the owner's word was
+           errant ANGLES: sealing a smooth shallow arc swaps a curve for a
+           visible straight chamfer (Cloister Rail's shoulder), so smooth
+           spans stay untouched however shallow they are */
+        if (Math.sign(s2) === sign || maxDev < 0.8 || maxDev > devCap || minDot > 0.85) continue;
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        if (!solids.some((sl) => pointInPoly(mid, sl))) continue;
+        cut = [i, k]; cutArc = acc;
+      }
+    }
+    if (!cut) break;
+    const [ci, ck] = cut;
+    const keep: Pt[] = [];
+    for (let t = 0; t < n; t++) {
+      const rel = (t - ci + n) % n;
+      if (rel > 0 && rel < ck) continue;
+      keep.push(pts[t]);
+    }
+    if (keep.length < 3 || selfIntersections(keep) > 0) break;
+    pts = keep;
+  }
+  return pts;
+}
 function gothicInset(outer: string, delta: number): string {
   const key = `${delta.toFixed(2)}|${outer}`;
   const hit = GOTHIC_CACHE.get(key);
@@ -767,8 +898,19 @@ function gothicInset(outer: string, delta: number): string {
   const totalSrc = solids.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
   const totalOut = flat.reduce((s, l, i) => s + (keep[i] && !isHoleOut[i] ? Math.abs(shoelace(l)) : 0), 0);
   if (totalOut < totalSrc * 0.15) return done("");
-  if (keep.every(Boolean)) return done(off);
-  return done(segs.filter((_, i) => keep[i]).join(" "));
+  /* sub-wall barbs sealed per loop; a loop the clip modifies is re-emitted
+     through the corner-aware refit, an untouched loop keeps the machinery's
+     own cubics verbatim */
+  const parts: string[] = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (!keep[i]) continue;
+    if (isHoleOut[i]) { parts.push(segs[i].trim()); continue; }
+    const c = fillDents(clipPinches(flat[i], delta * 0.85), delta, solids);
+    parts.push(c.length !== flat[i].length
+      ? smoothLoopPath(c.map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })))
+      : segs[i].trim());
+  }
+  return done(parts.join(" "));
 }
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
