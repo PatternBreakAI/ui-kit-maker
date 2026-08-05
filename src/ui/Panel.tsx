@@ -172,16 +172,16 @@ function Section({ id, title, summary, right, children }: {
   );
 }
 
-function Slider({ label, value, min, max, unit, step, onChange }: {
-  label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void;
+function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
+  label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
   return (
-    <div className="ctl">
+    <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} onChange={(e) => onChange(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => onChange(+e.target.value)} />
       <span className="valbox">
-        <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value}
+        <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
           onChange={(e) => { const v = +e.target.value; if (!Number.isNaN(v)) onChange(clampV(v)); }} />
         <i>{unit}</i>
@@ -975,10 +975,19 @@ export function Panel() {
         {/* v56: corner smoothness lives at the TOP of the section, always
             visible — it was buried under the import notes and vanished for
             pills, which read as "missing" */}
-        <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.bevel.softness = v; })} />
-        {(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === "pill" && (
-          <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
-        )}
+        {(() => {
+          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const isGothicSil = silhouetteMeta(effSil)?.category === "Gothic";
+          return (<>
+            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
+            {isGothicSil && (
+              <div className="helper">The Gothic cuts are authored curves — smoothness doesn't apply, and their wall runs to a 10&nbsp;px cap so the face stays a true offset of the drawing.</div>
+            )}
+            {effSil === "pill" && (
+              <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
+            )}
+          </>);
+        })()}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
@@ -1379,7 +1388,10 @@ export function Panel() {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
           const effShape = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
-          const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : 34;
+          const gothicSil = silhouetteMeta(effShape)?.category === "Gothic";
+          // the Gothic set is drawn for a 10 px offset (owner proofed the
+          // drawings in Illustrator at −10) — the slider honors the cap
+          const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : gothicSil ? 10 : 34;
           return (
             <>
               <Slider label="Wall width" value={Math.min(wMax, Math.max(wMin, D.bevel.width))} min={wMin} max={wMax} unit="px"

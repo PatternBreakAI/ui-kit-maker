@@ -232,9 +232,9 @@ function simplifyDP(pts: Pt[], eps: number): Pt[] {
   }
   return pts.filter((_, i) => keep[i]);
 }
-export function offsetPathInward(d: string, delta: number): string {
+export function offsetPathInward(d: string, delta: number, miterK = 8): string {
   if (delta <= 0.05) return d;
-  const key = `${delta.toFixed(2)}|${d}`;
+  const key = `${delta.toFixed(2)}|${miterK}|${d}`;
   const hit = OFFSET_CACHE.get(key);
   if (hit !== undefined) return hit;
   /* Multi-loop silhouettes are first-class: an imported ribbon banner is a
@@ -253,7 +253,7 @@ export function offsetPathInward(d: string, delta: number): string {
       outs.push("M " + raw.map((p) => `${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}`).join(" L ") + " Z");
       continue;
     }
-    const one = ringOffsetInward(raw, delta);
+    const one = ringOffsetInward(raw, delta, miterK);
     if (one) { solidHits++; outs.push(one); }
   }
   // no solid loop survived → report failure so callers use their fallback
@@ -262,7 +262,7 @@ export function offsetPathInward(d: string, delta: number): string {
   OFFSET_CACHE.set(key, dOut);
   return dOut;
 }
-function ringOffsetInward(raw: Pt[], delta: number): string {
+function ringOffsetInward(raw: Pt[], delta: number, miterK = 8): string {
   // dedupe — shared corner endpoints from L/Q handoffs make zero-length edges
   const dd: Pt[] = [];
   for (const p of raw) {
@@ -297,7 +297,7 @@ function ringOffsetInward(raw: Pt[], delta: number): string {
      their corner candidates all land in thin wedges — and fall through to
      the classic ladder below, whose coarser collapse is what synthesizes
      their miter tips. */
-  dOut = offsetAttempt(ring, delta, Math.min(0.9, delta * 0.3), 1.1, delta * 0.8);
+  dOut = offsetAttempt(ring, delta, Math.min(0.9, delta * 0.3), 1.1, delta * 0.8, miterK);
   if (!dOut) for (const k of [0.3, 0.55, 0.85]) {
     const eps = Math.min(k === 0.3 ? 4.5 : 8, delta * k);
     /* retries also relax the pinch cull by eps: the chordified boundary sits
@@ -305,12 +305,12 @@ function ringOffsetInward(raw: Pt[], delta: number): string {
        measure up to eps short — the excision pass then resolves the tiny
        tip crossings those borderline points create */
     const cullT = k === 0.3 ? delta * 0.8 : Math.max(delta * 0.5, delta * 0.8 - eps);
-    dOut = offsetAttempt(ring, delta, eps, Math.max(1.5, delta * k), cullT);
+    dOut = offsetAttempt(ring, delta, eps, Math.max(1.5, delta * k), cullT, miterK);
     if (dOut) break;
   }
   return dOut;
 }
-function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, cullT: number): string {
+function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, cullT: number, miterK = 8): string {
   /* pre-simplify the SOURCE: micro-roundings (r « delta) collapse to sharp
      vertices so their two straight neighbors become adjacent — that's what
      lets the miter join synthesize the receding tip an offset demands.
@@ -372,8 +372,10 @@ function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, c
       const t = ((bx - ax) * dirs[i].y - (by - ay) * dirs[i].x) / den;
       const q = { x: ax + dirs[eP].x * t, y: ay + dirs[eP].y * t };
       // past the miter limit, Illustrator bevels: keep BOTH offset endpoints
-      // instead of averaging them into a dent
-      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * 8) cand.push({ x: ax, y: ay }, { x: bx, y: by });
+      // instead of averaging them into a dent. miterK is the limit as a
+      // multiple of the offset — 8 for the tuned import/classic behavior,
+      // 4 for the Gothic set (Illustrator's own default, owner-proofed)
+      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * miterK) cand.push({ x: ax, y: ay }, { x: bx, y: by });
       else cand.push(q);
     }
   }
@@ -535,11 +537,17 @@ function splitSimpleLoops(ring: Pt[]): Pt[][] {
 
 /** Effective wall width for a shape. The banner's tail geometry only reads
  *  clean between 13 and 33 (review-measured), so the renderer clamps what
- *  it consumes — stale or shared configs can't break the tails. `off` drops
- *  the wall entirely: the face fills the whole silhouette. */
+ *  it consumes — stale or shared configs can't break the tails. The Gothic
+ *  set caps at 10: the owner proofed the drawings in Illustrator at
+ *  −10px Offset Path and that is the depth their filigree is drawn for
+ *  ("capping the goth set at 10 pixels inward"). `off` drops the wall
+ *  entirely: the face fills the whole silhouette. */
+export const GOTHIC_WALL_MAX = 10;
 export function effectiveWall(width: number, shape: Shape, off?: boolean): number {
   if (off) return 0;
-  return shape === "banner" ? Math.min(33, Math.max(13, width)) : width;
+  if (shape === "banner") return Math.min(33, Math.max(13, width));
+  if (silhouetteMeta(shape)?.category === "Gothic") return Math.min(GOTHIC_WALL_MAX, width);
+  return width;
 }
 
 /** Inner shape at true offset `delta` — falls back to the classic scaled
@@ -838,7 +846,10 @@ function gothicInset(outer: string, delta: number): string {
   const toD = (ps: Pt[]) => "M " + ps.map((p) => `${Math.round(p.x * 100) / 100} ${Math.round(p.y * 100) / 100}`).join(" L ") + " Z";
   const srcLoops = flattenPath(outer, 42).filter((l) => l.length >= 3);
   if (!srcLoops.length) return done("");
-  const off = offsetPathInward(srcLoops.map(toD).join(" "), delta);
+  // miter limit 4 — Illustrator's own default, matching the owner's
+  // Offset Path proof of the drawings; the tuned classic/import behavior
+  // keeps its 8
+  const off = offsetPathInward(srcLoops.map(toD).join(" "), delta, 4);
   if (!off) return done("");
   // validate each output loop against the TRUE outer; return `off` verbatim
   // when everything passes, else re-emit only the surviving loops
