@@ -539,7 +539,6 @@ export function Panel() {
   const [iconQuery, setIconQuery] = useState("");
   const [libTick, setLibTick] = useState(0);
   const [justAdded, setJustAdded] = useState(false);
-  const [outlines, setOutlines] = useState(false);
   const [silCat, setSilCat] = useState<string>("All");
   const [shapeErr, setShapeErr] = useState<string | null>(null);
   const savedLib = cfg.icon.def?.lib && ICON_LIBS.some((l) => l.id === cfg.icon.def!.lib) ? cfg.icon.def!.lib : "lucide";
@@ -1090,22 +1089,23 @@ export function Panel() {
             });
           }} />
         </label>
-        <button className="resetstate" onClick={() => setOutlines(true)} title="Judge silhouettes as plain geometry — before materials flatter them">
-          <Shapes size={13} strokeWidth={2} /> Outline view — compare raw geometry
-        </button>
         </div>
         {shapeErr && <div className="helper" role="alert">{shapeErr}</div>}
+        {/* spec copy is DESIGNER language by owner mandate ("simplify this
+            spec for designer/human understandable language") — no path
+            jargon, no percentages; the engine measures the rest */}
         <div className="helper">
-          Import spec: a plain flat vector — a single <b>filled</b> path (no strokes, groups,
-          transforms or images). Separate islands are welcome — a ribbon banner's flaps
-          each get the full face treatment — as long as they live in one path element.
-          Draw at <b>any landscape proportion</b> — file size and artboard never matter,
-          only the drawing's own shape. Each component fits it like a nine-slice: the
-          outer 30% of the drawn width at each end stays rigid (put decorative tips and
-          spikes there), and the middle band stretches to span the piece — so let the
-          <b> body</b> touch all four edges of the drawing. Prefer bezier curves
-          over arc segments — arcs can distort under stretch. Boolean-union overlapping
-          shapes before export; counter-holes are fine.
+          How to draw one: <b>one filled shape</b>, flattened — no strokes,
+          groups, or images. Draw it wide, at whatever proportions look right.
+          Size never matters; only the shape itself does.
+        </div>
+        <div className="helper">
+          The ends of your drawing stay <b>exactly as drawn</b> and the middle
+          stretches to fit each piece — so keep spikes and ornaments at the
+          ends, give the middle a calm stretch of body, and let the shape touch
+          all four edges of the drawing. Holes and floating pieces (a gem over
+          a plaque) are welcome — just merge overlapping shapes into one before
+          you export.
         </div>
         {/* the designer's dial over the computed label safe-area (owner:
             "let's add margin controls to make this an easy fix for any
@@ -1295,45 +1295,6 @@ export function Panel() {
             <div className="helper">Cells light one by one — stamina pips.</div>
           </>)}
         </Section>
-      )}
-
-      {outlines && (
-        <div className="devoutlines" role="dialog" aria-label="Silhouette outline comparison" onClick={() => setOutlines(false)}>
-          <div className="devo-head">
-            Raw silhouette geometry — <span style={{ color: "#fff" }}>white outline</span>,
-            <span style={{ color: "#c084fc" }}> purple dashes = fixed end caps (never stretch)</span>,
-            <span style={{ color: "#4ade80" }}> green = content-safe area</span>. Click anywhere to close.
-          </div>
-          {SILHOUETTE_CATEGORIES
-            /* unlisted previews stay unlisted here too; skip a category
-               that would render empty for this viewer */
-            .filter((cat) => SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)))
-            .map((cat) => (
-          <div key={cat}>
-          <div className="devo-cat">{cat}</div>
-          <div className="devo-grid">
-            {SILHOUETTES.filter((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)).map((m) => {
-              const W = 250, H = 92, ox = 12, oy = 14, gw = W - 24, gh = H - 28;
-              const cap = Math.min(m.capScale * gh, gw * 0.45);
-              return (
-                <div key={m.id} className={`devo-card${D.shape === m.id ? " on" : ""}`}>
-                  <svg viewBox={`0 0 ${W} ${H}`}>
-                    <path d={shapePath(m.id, ox, oy, gw, gh, 60)} fill="none" stroke="#fff" strokeWidth="1.6" />
-                    <line x1={ox + cap} y1={3} x2={ox + cap} y2={H - 3} stroke="#c084fc" strokeWidth="1" strokeDasharray="4 3" />
-                    <line x1={ox + gw - cap} y1={3} x2={ox + gw - cap} y2={H - 3} stroke="#c084fc" strokeWidth="1" strokeDasharray="4 3" />
-                    <rect x={ox + m.content.left * gh} y={oy + m.content.top * gh}
-                      width={gw - (m.content.left + m.content.right) * gh} height={gh - (m.content.top + m.content.bottom) * gh}
-                      fill="none" stroke="#4ade80" strokeWidth="1" strokeDasharray="3 3" />
-                  </svg>
-                  <div className="devo-name">{m.name}</div>
-                  <div className="devo-src">{m.source} · {m.license}</div>
-                </div>
-              );
-            })}
-          </div>
-          </div>
-          ))}
-        </div>
       )}
 
       {/* ── B · Color — THE color editor ──────────────────── */}
