@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
+import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
@@ -169,7 +169,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (owner report, Unity 6.5). */
   const sliceOf = (id: KitComponentId, shellH: number) => {
     const shape = st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape;
-    const met = silhouetteMeta(shape);
+    // user imports carry their caps in their drawn proportions — a wide
+    // drawing has wide caps, and guessing from height alone put the slice
+    // borders inside the decoration
+    const met = silhouetteMeta(shape) ?? userShapeCaps(shape);
     const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22);
     const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8));
     return {

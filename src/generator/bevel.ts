@@ -688,9 +688,27 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
   return shapePath(shape, x + delta, y + delta, w - delta * 2, h - delta * 2, softness);
 }
 
-/* Authored artwork — stock or user-imported — keeps its character: fill the
-   frame, but never distort the drawn proportions by more than ~1.4x in either
-   axis. Beyond that the silhouette scales true-to-shape and centers. */
+/* A user import's cap geometry, derived from its own drawn box: the outer
+   30% of the drawn width at each end is the rigid cap band, expressed the
+   SilhouetteMeta way — as a fraction of component HEIGHT — so the label
+   safe-area, the export's nine-slice borders and the renderer all read the
+   SAME caps. (A wide drawing has proportionally wide caps; guessing them
+   from height alone put slice borders inside the decoration — owner: "I
+   actually think this is screwing with our 9-slice scaling".) */
+export function userShapeCaps(shape: string): { capScale: number; content: { top: number; right: number; bottom: number; left: number } } | undefined {
+  const id = shape.replace(/~flip$/, "");
+  if (!id.startsWith("user:")) return undefined;
+  const us = userShapes().find((u) => u.id === id);
+  if (!us) return undefined;
+  const capScale = (0.3 * (us.vb[2] || 1)) / (us.vb[3] || 1);
+  return { capScale, content: { top: 0.14, right: capScale, bottom: 0.14, left: capScale } };
+}
+
+/* STOCK artwork keeps its character: fill the frame, but never distort the
+   drawn proportions by more than ~1.4x in either axis. Beyond that the
+   silhouette scales true-to-shape and centers. (User imports used to share
+   this and now ride the cap-aware fill above — stock shapes were tuned
+   against this behavior and keep it.) */
 function fitArtwork(d: string, vb: [number, number, number, number], x: number, y: number, w: number, h: number): string {
   const [, , vw, vh] = vb;
   const natural = (vw || 1) / (vh || 1);
@@ -758,7 +776,16 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
   if (shape.startsWith("user:")) {
     const us = userShapes().find((u) => u.id === shape);
     if (us) {
-      return fitArtwork(us.d, us.vb, x, y, w, h);
+      /* Imports FILL the frame, whatever proportion they were drawn at —
+         designers author at the shape's own aspect, and the frame (not the
+         file) decides the footprint. The outer 30% of the drawn width at
+         each end rides rigid (the import spec's decorative-cap band, the
+         same vector three-slice the lab silhouettes ride); the middle band
+         alone stretches. This replaced the old uniform-scale letterbox,
+         which floated wide art small and centered (owner, on a 3.5:1
+         plaque: "why is this complex silhouette presenting so small") and
+         left transparent margins inside the export's nine-slice borders. */
+      return transformPathCapAware(us.d, us.vb, x, y, w, h, us.vb[2] * 0.3);
     }
     return roundRect(x, y, w, h, 4 + softness * 0.52); // registry miss — neutral fallback
   }
@@ -1286,7 +1313,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   /* text-safe area — the silhouette's authored content insets keep labels out
      of caps, tails and bevels, with breathing room that scales with the label
      size. The old padding stands as a floor so compact shapes don't change. */
-  const met = silhouetteMeta(shape) ?? impMeta;
+  const met = silhouetteMeta(shape) ?? impMeta ?? userShapeCaps(shape);
   const endRoom = shape === "pill" ? h * 0.16 : 0; // rounded ends eat width
   const basePad = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + endRoom;
   const safeGap = Math.max(12, fs * 0.35);
@@ -1313,7 +1340,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ? (mX + casedX.length * Tx.spacing / 100) * fsx * wdX * wkX * (opts.anchorLeft ? 1.04 : 1.02)
       : casedX.length * fsx * fontByName(Tx.font).factor * wdX * (1 + Tx.spacing / 100) * wkX * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + itX;
     const cwX = twX + (iconDef ? iconSize : 0) + gap;
-    const metX = silhouetteMeta(shx) ?? importedShape(shx);
+    const metX = silhouetteMeta(shx) ?? importedShape(shx) ?? userShapeCaps(shx);
     const erX = shx === "pill" ? h * 0.16 : 0;
     const bpX = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + erX;
     const sgX = Math.max(12, fsx * 0.35);

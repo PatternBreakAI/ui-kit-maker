@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
 import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
 import { LessonBody } from "./LessonCard";
@@ -125,6 +125,25 @@ export function CanvasView() {
   const dotColor = dark ? "rgba(235,238,255,0.16)" : "rgba(24,28,48,0.13)";
   const fineColor = dark ? "rgba(235,238,255,0.07)" : "rgba(24,28,48,0.06)";
 
+  /* Zoom anchors on the viewport's CENTER, not the content's top. The scale
+     is applied with the CSS `zoom` property, which — unlike a transform —
+     grows the element's real layout box, so the scroller gains genuine
+     scroll range and the hand tool can reach every part of the piece.
+     (transform: scale() left the box unchanged: the scaled overflow existed
+     visually but had no scroll range, so at 200% the piece pinned to the
+     top and the hand tool went dead — owner: "the component gets locked at
+     the top and you can't use the hand tool to center it".) */
+  const lastZoom = useRef(zoom);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const prev = lastZoom.current;
+    if (!el || prev === zoom) return;
+    const k = zoom / prev;
+    lastZoom.current = zoom;
+    el.scrollLeft = (el.scrollLeft + el.clientWidth / 2) * k - el.clientWidth / 2;
+    el.scrollTop = (el.scrollTop + el.clientHeight / 2) * k - el.clientHeight / 2;
+  }, [zoom]);
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!panMode || !scroller.current) return;
     drag.current = { x: e.clientX, y: e.clientY, sl: scroller.current.scrollLeft, st: scroller.current.scrollTop };
@@ -171,7 +190,7 @@ export function CanvasView() {
         onPointerUp={onPointerUp}
       >
         {phase === "master" ? (
-          <div className="stage" style={{ transform: `scale(${zoom})` }}>
+          <div className="stage" style={{ zoom }}>
             {focus && (
               <span className="focusrow">
                 <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
@@ -240,7 +259,7 @@ export function CanvasView() {
         ) : phase === "board" ? (
           <BoardView playing={playing} />
         ) : (
-          <div className="kitwrap" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+          <div className="kitwrap" style={{ zoom }}>
             <KitPage />
           </div>
         )}
