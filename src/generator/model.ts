@@ -514,6 +514,20 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Boogaloo", css: "Boogaloo", factor: 0.5, caps: { weights: [400] } },
   { name: "Staatliches", css: "Staatliches", factor: 0.5, caps: { weights: [400] } },
   { name: "Grandstander", css: "Grandstander:ital,wght@0,100..900;1,100..900", factor: 0.58, caps: { wght: [100, 900, 700], italic: true } },
+  // the Gothic drop's type rack (owner list, 2026-08-05) — blackletter,
+  // carnival and machined display faces to pair with the new silhouettes.
+  // Bangers and Staatliches from the owner's list were already above.
+  { name: "New Rocker", css: "New+Rocker", factor: 0.55, caps: { weights: [400] } },
+  { name: "Grenze", css: "Grenze:wght@400;700", factor: 0.52, caps: { weights: [400, 700] } },
+  { name: "Pirata One", css: "Pirata+One", factor: 0.5, caps: { weights: [400] } },
+  { name: "Germania One", css: "Germania+One", factor: 0.55, caps: { weights: [400] } },
+  { name: "Freckle Face", css: "Freckle+Face", factor: 0.55, caps: { weights: [400] } },
+  { name: "Slackey", css: "Slackey", factor: 0.6, caps: { weights: [400] } },
+  { name: "Hanalei Fill", css: "Hanalei+Fill", factor: 0.55, caps: { weights: [400] } },
+  { name: "Monoton", css: "Monoton", factor: 0.7, caps: { weights: [400] } },
+  { name: "Michroma", css: "Michroma", factor: 0.78, caps: { weights: [400] } },
+  { name: "Bruno Ace", css: "Bruno+Ace", factor: 0.72, caps: { weights: [400] } },
+  { name: "Bakbak One", css: "Bakbak+One", factor: 0.62, caps: { weights: [400] } },
 ];
 /* User-added Google Fonts — registered at runtime, names persisted in the
    config. Any family from fonts.google.com works; we request a broad weight
