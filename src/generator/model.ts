@@ -488,7 +488,7 @@ export interface FontCaps {
 /** Popular game-UI faces from Google Fonts. `factor` ≈ average glyph advance
  *  (em) used for auto-width; `css` is the families query for fonts.googleapis
  *  — variable faces request their full real axis range. */
-export const GAME_FONTS: { name: string; css: string | null; factor: number; caps: FontCaps }[] = [
+export const GAME_FONTS: { name: string; css: string | null; factor: number; caps: FontCaps; lang?: "zh" }[] = [
   { name: "Inter", css: null, factor: 0.6, caps: { wght: [100, 900, 400], italic: true } },
   { name: "Bangers", css: "Bangers", factor: 0.5, caps: { weights: [400] } },
   { name: "Luckiest Guy", css: "Luckiest+Guy", factor: 0.58, caps: { weights: [400] } },
@@ -541,7 +541,57 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Michroma", css: "Michroma", factor: 0.78, caps: { weights: [400] } },
   { name: "Bruno Ace", css: "Bruno+Ace", factor: 0.72, caps: { weights: [400] } },
   { name: "Bakbak One", css: "Bakbak+One", factor: 0.62, caps: { weights: [400] } },
+  /* the Chinese rack (owner: "I want to see how this UI looks with some
+     chinese fonts"). `lang` drives the CTA takeover below — switching to
+     a zh face swaps a recognized label for its Chinese counterpart. CJK
+     glyphs run full-width, so factor 1.0 until the loaded face measures. */
+  { name: "ZCOOL QingKe HuangYou", css: "ZCOOL+QingKe+HuangYou", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "ZCOOL KuaiLe", css: "ZCOOL+KuaiLe", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Ma Shan Zheng", css: "Ma+Shan+Zheng", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Zhi Mang Xing", css: "Zhi+Mang+Xing", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Liu Jian Mao Cao", css: "Liu+Jian+Mao+Cao", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Noto Sans SC", css: "Noto+Sans+SC:wght@400..900", factor: 1.0, caps: { wght: [400, 900, 900] }, lang: "zh" },
 ];
+
+/* ── the CTA dictionary — takeover words ─────────────────────────────────
+   When the display font switches language, a label the app RECOGNIZES
+   swaps to its counterpart (owner: "default chinese words that take over
+   the moment I switch to those fonts"); a bespoke label is the user's
+   voice and is never touched. The untouched default "PLAY" draws a
+   RANDOM entry on entering Chinese (owner: "maybe we randomize 10
+   CTAs"); any other recognized CTA translates 1:1 both directions.
+   `gloss` feeds the liner note beside the label field. */
+export const CTA_SETS: { en: string; zh: string; gloss: string }[] = [
+  { en: "PLAY", zh: "开始游戏", gloss: "start the game" },
+  { en: "START", zh: "开始", gloss: "start" },
+  { en: "GO!", zh: "出发！", gloss: "let's go" },
+  { en: "FIRE", zh: "开火", gloss: "open fire" },
+  { en: "CLAIM", zh: "领取", gloss: "claim the reward" },
+  { en: "SHOP", zh: "商店", gloss: "shop" },
+  { en: "UPGRADE", zh: "升级", gloss: "level up" },
+  { en: "BATTLE", zh: "战斗", gloss: "battle" },
+  { en: "CONTINUE", zh: "继续", gloss: "continue" },
+  { en: "WIN", zh: "胜利", gloss: "victory" },
+];
+export function fontLang(name: string): "en" | "zh" {
+  return GAME_FONTS.find((f) => f.name === name)?.lang ?? "en";
+}
+export function ctaEntry(label: string): (typeof CTA_SETS)[number] | undefined {
+  const t = label.trim();
+  return CTA_SETS.find((c) => c.en.toUpperCase() === t.toUpperCase() || c.zh === t);
+}
+/** The takeover: the label the new font's language wants, or null to
+ *  leave the label alone. */
+export function ctaForFont(label: string, fontName: string): string | null {
+  const hit = ctaEntry(label);
+  if (!hit) return null;
+  if (fontLang(fontName) === "zh") {
+    if (hit.zh === label.trim()) return null; // already Chinese
+    if (hit.en === "PLAY") return CTA_SETS[Math.floor(Math.random() * CTA_SETS.length)].zh;
+    return hit.zh;
+  }
+  return hit.zh === label.trim() ? hit.en : null; // coming home from zh
+}
 /* User-added Google Fonts — registered at runtime, names persisted in the
    config. Any family from fonts.google.com works; we request a broad weight
    set and expose those as a static list (no axis data is known for them). */

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
@@ -1688,6 +1688,10 @@ export const useGen = create<GenStore>((set, get) => ({
       ensureFont(face);
       c.type.font = face;
       c.type.weight = clampWeight(fontByName(face).caps, c.type.weight);
+      // a roll that lands on a Chinese face carries a recognized CTA into
+      // Chinese (and back out) — the same takeover as the font picker
+      const swap = ctaForFont(c.content.label, face);
+      if (swap) c.content.label = swap;
       // pattern rolls tone-on-tone so it stays harmonious; "none" is rare
       // and every family pulls real, VISIBLE weight
       /* the WHOLE wardrobe, derived from the real list — the roll was

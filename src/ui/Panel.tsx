@@ -3,7 +3,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutG
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -186,6 +186,26 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
           onChange={(e) => { const v = +e.target.value; if (!Number.isNaN(v)) onChange(clampV(v)); }} />
         <i>{unit}</i>
       </span>
+    </div>
+  );
+}
+
+/* A liner note that knows which control it belongs to: an ⓘ chip beside a
+   short always-visible summary, with the longer explanation folded behind
+   the chip (owner: "kinda hard to tell which note is for which control, so
+   maybe hide them behind i's"). First adopter: the CTA translation note. */
+function InfoNote({ summary, children }: { summary: React.ReactNode; children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "flex-start", margin: "2px 0 6px" }}>
+      <button className="fxpeek" aria-label={open ? "Hide note" : "More about this"} aria-expanded={open}
+        onClick={() => setOpen(!open)} style={{ flexShrink: 0 }}>
+        <Info size={13} strokeWidth={2.2} />
+      </button>
+      <div className="helper" style={{ margin: 0 }}>
+        {summary}
+        {open && children ? <> {children}</> : null}
+      </div>
     </div>
   );
 }
@@ -1696,6 +1716,17 @@ export function Panel() {
           <input className="tinput" value={cfg.content.label} maxLength={32} aria-label="Label text"
             onChange={(e) => update((c) => { c.content.label = e.target.value; })} />
         )}
+        {(() => {
+          // the translation liner note — only when the label is a dictionary
+          // CTA sitting in a language the current face carried in
+          const e2 = ctaEntry(focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label);
+          const showing = e2 && (focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label).trim() === e2.zh;
+          return showing ? (
+            <InfoNote summary={<>“{e2.zh}” = <b>{e2.en}</b> — {e2.gloss}.</>}>
+              Swapped in automatically for the Chinese face ({fontLang(T2.font) === "zh" ? T2.font : "previous font"}). Type anything to replace it — bespoke labels are never auto-translated. Picking a Latin face swaps a dictionary CTA back to English.
+            </InfoNote>
+          ) : null;
+        })()}
         <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase — e.g. VICTORY" aria-label="Highlight phrase"
           onChange={(e) => update((c) => { c.type.highlight = e.target.value; })} />
         <div className="helper">The first matching word or phrase inside the label renders as a brighter, illuminated portion of the same material. Leave empty for none.</div>
@@ -1709,6 +1740,11 @@ export function Panel() {
               const caps = fontByName(f).caps;
               c.type.weight = clampWeight(caps, c.type.weight);
               c.type.width = caps?.wdth ? caps.wdth[2] : undefined;
+              // the CTA takeover — a recognized label follows the face's
+              // language (owner: "default chinese words that take over the
+              // moment I switch to those fonts"); bespoke labels stay put
+              const swap = ctaForFont(c.content.label, f);
+              if (swap) c.content.label = swap;
             });
           }} />
         <div className="addfont">
