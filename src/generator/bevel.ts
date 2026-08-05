@@ -1551,7 +1551,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         </mask>
         <mask id="${id}extm" maskUnits="userSpaceOnUse" ${extRegion}>
           <rect ${extRegion} fill="#fff"/>
-          <path d="${outer}" transform="translate(0 ${(visDepth - 2.4).toFixed(1)})" fill="#000"/>
+          ${/* the occluder is the WHOLE shallower wall, not one copy: a thin
+                feature (a spike arm) sweeps a wall far taller than itself,
+                so a single 2.4px-shallower silhouette shielded only a
+                sliver and the rim strokes still crossed the feature's own
+                flank (owner, zoomed to the wall: "I can still see the
+                outline in the back") */ ""}
+          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${Math.max(0, (visDepth * (i + 1)) / nSlices - 2.4).toFixed(1)})" fill="#000"/>`).join("")}
         </mask>
         ${slices}
         <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
