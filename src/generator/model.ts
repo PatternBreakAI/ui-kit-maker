@@ -598,6 +598,12 @@ export interface GenConfig extends StateDesign {
    *  colors (developers bring their own logic); null/absent = the
    *  genre-standard factory tiers. Kit-wide by design, like canvas. */
   rarity?: { name: string; c: string }[] | null;
+  /** Extra breathing room between a label and its silhouette's ends, in
+   *  design px at baseline size (scales with the piece). Negative pulls
+   *  tighter. The designer's dial over the measured/authored safe-area
+   *  (owner: "let's add margin controls to make this an easy fix for any
+   *  situation"). Absent = 0 on kits saved before the control existed. */
+  contentMargin?: number;
 }
 
 /** Effective kit size for a component — Small retired (reads as Medium),

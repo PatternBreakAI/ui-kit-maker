@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen } from "./bevel";
+import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
@@ -169,7 +169,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (owner report, Unity 6.5). */
   const sliceOf = (id: KitComponentId, shellH: number) => {
     const shape = st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape;
-    const met = silhouetteMeta(shape);
+    // user imports carry their caps in their drawn proportions — a wide
+    // drawing has wide caps, and guessing from height alone put the slice
+    // borders inside the decoration
+    const met = silhouetteMeta(shape) ?? userShapeCaps(shape);
     const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22);
     const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8));
     return {
@@ -1739,148 +1742,104 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
   return out;
 }
 
-/* The 3-step story, tuned per scope — ease of use is the product. */
+/* The walkthrough deck, tuned per scope — ease of use is the product.
+   Owner mandate: reads like a presentation aimed at the Unity dev, one
+   idea per slide, boring-but-vital detail in callouts, walking the
+   whole export in the order a dev actually meets it. */
 function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
-  return `# ${st.kitName} — Unity, in 3 steps
+  return `# ${st.kitName} — the Unity walkthrough
+
+Three steps, then a slide-by-slide tour of the whole export.
 
 1. Unzip this download.
 2. Drag the **UIKitMaker** folder into your Unity project's **Assets/**
    folder (or extract it straight there).
-3. That's it. Unity imports everything by itself: every sprite arrives
-   nine-sliced with the right pivots and pixels-per-unit, and ready-made
-   prefabs are BUILT FOR YOU in **${root}/Prefabs** — drag one into your
-   Canvas and press Play. The Console prints a one-line receipt of what
-   happened.
+3. That's it. Unity imports everything by itself and the Console prints
+   a one-line receipt. Ready-made prefabs are BUILT FOR YOU in
+   **${root}/Prefabs** — drag one into your Canvas and press Play.
 
-${figures ? `![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
+The slides run in the order you'll actually meet things: what imported,
+your first scene, states, hero labels, tuning type, stretching wide,
+re-exporting. Skim the titles; stop where your question lives.
+${figures ? `
+![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
 
-*Every picture in this README is YOUR kit, rendered at export time.*
+*Every picture in this README is YOUR kit, rendered at export time —
+this is not a stock manual.*
+` : ""}
+---
 
-` : ""}## Where are the prefabs? (they're not in this zip — on purpose)
+## 01 · What just happened when you dropped it
 
-A prefab file can only reference sprites through the identity (GUID) that
-YOUR Unity assigns each PNG at import. A prefab shipped inside a zip
-would therefore arrive with every sprite slot empty — the old
-drag-it-yourself experience. So the importer builds them INSIDE your
-project instead, seconds after the drop, already wired: sliced sprites,
-the kit's hover/pressed/disabled states on the Button, a label. ${st.scope === "free"
+Every sprite arrived nine-sliced with the right pivots and
+pixels-per-unit, and the importer BUILT prefabs inside your project,
+already wired: sliced sprites, the kit's hover/pressed/disabled states
+on the Button, a live label. ${st.scope === "free"
     ? "The starter generates three (PrimaryButton, Chip, ProgressBar); the full kit generates one per component."
     : "Every component family gets one — buttons, panels, rows, slots, badges and more."}
 The Project window highlights **${root}/Prefabs** when they land, right
 after the Console receipt. They're generated once and never touched
 again — edit them freely.
 
-## Stretching and patterns (the diagonal-stripe question)
+> **Why aren't the prefabs just in the zip?** A prefab file can only
+> reference sprites through the identity (GUID) that YOUR Unity assigns
+> each PNG at import. A prefab shipped inside a zip would arrive with
+> every sprite slot empty — the old drag-it-yourself experience. Built
+> inside your project, seconds after the drop, every slot is full.
 
-Nine-slice keeps the CORNERS honest and stretches the middle — so a
-pattern living in that middle stretches with it. Horizontal and vertical
-stripes survive (stretching a stripe along its own axis changes nothing),
-but a DIAGONAL shears: pull a 45° chevron to double width and it lands
-near 63°, with the bands wider. That's geometry, not a bug — and for the
-±20–30% stretches most UI does, nobody sees it.
+> **No hidden state.** kit-manifest.json holds every border, pivot and
+> hash in plain JSON; kit.lock.json is the last import's receipt.
+> Everything the importer does is data you could set by hand — the
+> script only saves you the typing.
 
-**You don't pick this at export time.** Sliced and Tiled read the SAME
-sprite and the same nine-slice borders — Image Type lives on the Image
-component of each instance, not in the asset. So every piece in this kit
-can already do either; it's one dropdown on the piece you're placing,
-and nothing has to be re-exported.
+---
 
-**Try Tiled where the middle is mostly pattern.** On the piece's
-**Image** component set **Image Type** to *Tiled*: Unity repeats the
-middle at native scale instead of stretching it, so the pattern keeps its
-angle and rhythm at any width. **Pixels Per Unit Multiplier** on the same
-component tunes how big the repeat is.
+## 02 · Your first scene, in sixty seconds
 
-**And know what it costs.** Tiled repeats the WHOLE middle, not just the
-pattern — the face gradient and the gloss sweep live in there too, so on
-a glossy face you can trade a sheared pattern for a repeated highlight.
-Look at both and pick per piece: flat, pattern-heavy faces usually win
-with Tiled; glossy gradient faces usually win with Sliced. For a modest
-stretch (±20–30%) Sliced is almost always the right answer — the shear
-simply isn't visible.
+Drag any prefab from **${root}/Prefabs** into a Canvas, press Play,
+mouse over it. That's the kit working — states, glow and press lift
+included.
 
-### The stretch-safe face (no compromise)
+No scene handy? Open **${root}/Playground.unity** (generated on first
+import) and press Play: a camera, a raycasting canvas, exactly one
+EventSystem with the input module your project actually uses, and every
+example placed. The pieces hang off a single **Board** object, scaled
+down so the whole kit fits the 1920×1080 canvas — set the Board's Scale
+back to 1 to work at true size and scroll around. (Playground.unity is
+never overwritten once it exists; **Tools > PatternBreak > Rebuild Kit
+Playground Scene** replaces it.)
 
-When a kit wears a pattern, the wide pieces also ship **split into
-layers**, and the importer builds them as ready prefabs:
-**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+> **Buttons ignoring the mouse in your own scene?** The usual suspects
+> are a duplicate EventSystem (keep exactly one) or an EventSystem
+> whose input module doesn't match the project's Active Input Handling.
 
-Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
-hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
-that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
-\`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
-light back on top. The mask has to be its own hidden layer: Unity only
-alpha-clips a stencil when its graphic is hidden, so masking with
-visible art gives a RECTANGULAR mask and the pattern spills. Drag
-one out and stretch it as far as you like: the frame stretches, the
-pattern keeps its exact angle and rhythm, and the gloss stays ONE sweep
-instead of repeating. That's the app's look at any width, with no
-trade — use these for wide banners, dialog frames and bars that grow.
+---
 
-The plain single-sprite prefabs still ship beside them; they're lighter
-(one draw instead of three), so keep those for pieces that barely
-stretch.
+## 03 · States — designed, shipped, pre-wired
+${figures ? `
+![The four button states — default, hover, pressed and disabled — as the Button component swaps them](docs/states.png)
+` : ""}
+Interactive pieces ship their DESIGNED states (base-hover /
+base-pressed / base-disabled next to base), and the generated Button
+prefabs arrive with **Sprite Swap already wired** — nothing to
+reconnect. What a swapped sprite can't carry is composed in-engine by
+the small **StateFx** runtime on each prefab: the hover glow (the kit's
+own glow color over fx/glow.png, shaped to the piece) and the press
+lift, driven by pointer events with the exact numbers you set on
+uikitmaker.com.
 
-## Why Unity's lights don't change the kit
+> **The aura, in your own scenes.** The glow field around pieces in the
+> app is the kit's bloom, and an aura must overlap whatever sits behind
+> it — so it can't ship inside a cropped sprite. Compose it the way the
+> Playground does: fx/glow.png behind the piece, tinted the manifest's
+> palette.glow, sized by the bloom block. That's the full resting look.
 
-The kit is PRE-LIT ART. The gloss sweeps, specular hits, extrusion
-shading and glints ARE the lighting — computed by the kit engine and
-painted into the pixels, so what you designed is exactly what ships, on
-every device, in every project. UI sprites render unlit: skyboxes and
-scene lights pass through them by design. Want the light to move? That's
-the Lighting angle dial on uikitmaker.com — change it and re-export, and
-every gloss, bevel and emboss re-renders from the new direction (the
-text bevel on live labels follows it too). Game-time reactions — hover
-glow, press lift — are the states plus the fx/ layer, composed in-engine.
+---
 
-The AURA is the same story: the glow field around pieces in the app is
-the kit's bloom, and an aura must overlap whatever sits behind it, so it
-can't ship inside a cropped sprite. The Playground composes it for you —
-fx/glow.png behind each piece, tinted the manifest's palette.glow, sized
-by the bloom block. Copy that pattern in your own scenes for the full
-resting look.
+## 04 · Labels are live text — never pixels
 
-## Restyling everything you've placed (the one rule)
-
-When you change the kit on uikitmaker.com, download again and extract
-over the SAME spot. Same folder in, same files over — every button, bar
-and chip you already placed in your scenes restyles in place. Unity
-tracks each sprite through a .meta file that lives beside it in your
-project; the zip never contains .meta files, so overwriting a PNG keeps
-its identity and nothing you built ever breaks.
-
-**On macOS you can't actually "extract over"** — Finder never merges
-folders, so a re-drop lands as "UIKitMaker 1". That's fine: drop it into
-Assets anyway. The importer notices, moves every file home into
-Assets/UIKitMaker (your .meta files and identities untouched), removes
-the duplicate folder, and re-imports. Drop updates anywhere; the kit
-finds its way.
-
-The importer keeps four promises on every re-import:
-- **Nothing is deleted without you.** Pieces removed from the kit stay on
-  disk and are listed in the Console; Tools > PatternBreak > Review
-  Orphaned Kit Files removes them only when you say so.
-- **Unchanged files cost nothing.** The receipt (kit.lock.json) carries a
-  hash per sprite, so a re-import reports exactly what's new, what
-  restyled and what stayed put — and settings are only re-applied when
-  they actually differ.
-- **Your prefabs are yours.** The examples in Prefabs/ are generated once,
-  on first import, fully wired (sliced sprites, hover/pressed/disabled
-  states on the Button, a label). After that the importer never edits
-  them — and because your re-exports keep the same sprite files, prefabs
-  you've customized restyle automatically anyway. One additive exception:
-  examples generated by an older kit version, before state wiring
-  existed, get their Button + Sprite Swap added in place on the next
-  import (skipped the moment a prefab carries any Selectable — your own
-  wiring choices always win).
-- **Everything is inspectable.** kit-manifest.json holds every border,
-  pivot and hash in plain JSON; kit.lock.json is the last import's
-  receipt. No hidden state.
-
-## Labels and fonts
-
-Labels are LIVE TEXT, never pixels. ${fontShipped
+${fontShipped
     ? `Your kit's face ships in **fonts/** with its open-font license
 beside it. On Unity 2023.2+ the importer builds **KitFace SDF** from it
 automatically and styles the material with the kit's own type recipe;
@@ -1906,6 +1865,8 @@ and below its baked size, softening far beyond, like any bitmap game
 font; the SDF face stays the size-proof workhorse for everything else.
 Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
 the font in place, so placed labels restyle with the kit.
+
+### The HeroLabel prefab — one text, echo inks
 
 Want the strokes to MERGE behind the letterforms like the app (no
 sticker-overlap between tight letters)? That's the **HeroLabel** prefab,
@@ -1977,7 +1938,9 @@ system has no dials for them — the kit's instance is frozen in) and
 browser-only shaping extras. If a word ever spaces differently than the
 app, re-export first — older zips predate the kerning bake.
 
-### Moving and shaping the word inside its button
+---
+
+## 05 · Shaping the word: move, size, leading
 
 Select the **Label** object and use **Hero Label → Nudge** (Y up is
 positive). One field and the whole word moves — shadow, stroke and
@@ -1992,7 +1955,9 @@ chore is gone; re-import this kit and the old texts retire themselves.)
 The Hero Label fields exist to REMEMBER your values so they survive
 re-imports; anything you tune on the text adopts into them by itself.
 
-### Tuning a single letter pair by hand
+---
+
+## 06 · The kerning clinic: tuning a letter pair by hand
 
 Say the A–Y gap bothers you. The kerning table lives on the **font
 asset** — NOT on the text object. Selecting a label shows you the
@@ -2071,37 +2036,115 @@ the solo single-layer face with its own table; the \`KitFace Ink\`
 files are materials, not fonts — they carry a layer's pixels and have
 no tables at all.)
 
-Add the record: **+** at the bottom of the table, set the first glyph to
-the left letter's ID and the second to the right letter's (\`A\`=1 …
-\`Z\`=26, \`a\`=27 … \`z\`=52 — so A–Y is 1 and 25), then pull the first
-glyph's AX negative. Every layer follows as you type.
+---
 
-Delete that file to go back to the typeface's own spacing.
+## 07 · Stretching wide — and the diagonal-stripe question
 
-## States — and the press-Play Playground
-${figures ? `
-![The four button states — default, hover, pressed and disabled — as the Button component swaps them](docs/states.png)
-` : ""}
-Interactive pieces ship their DESIGNED states (base-hover / base-pressed /
-base-disabled next to base). The generated Button prefabs arrive with
-Sprite Swap already wired — nothing to reconnect. Hover glow and press
-lift are engine-side: tint fx/glow.png behind a piece, nudge the
-RectTransform a few px.
+Nine-slice keeps the CORNERS honest and stretches the middle — so a
+pattern living in that middle stretches with it. Horizontal and vertical
+stripes survive (stretching a stripe along its own axis changes nothing),
+but a DIAGONAL shears: pull a 45° chevron to double width and it lands
+near 63°, with the bands wider. That's geometry, not a bug — and for the
+±20–30% stretches most UI does, nobody sees it.
 
-Want to feel the states without wiring anything? Open
-**${root}/Playground.unity** (generated on first import) and press Play —
-it carries a camera, a raycasting canvas, exactly one EventSystem with
-the input module your project actually uses, and the examples placed.
+**You don't pick this at export time.** Sliced and Tiled read the SAME
+sprite and the same nine-slice borders — Image Type lives on the Image
+component of each instance, not in the asset. So every piece in this kit
+can already do either; it's one dropdown on the piece you're placing,
+and nothing has to be re-exported.
 
-Every piece hangs off a single **Board** object, scaled down so the whole
-kit fits inside the 1920×1080 canvas — a full kit laid out at 1:1 is wider
-than that, and the overflow used to sit off-screen where you couldn't see
-it in Play or reach it easily in the Scene view. Set the Board's Scale
-back to 1 if you'd rather work at true size and scroll around.
-If buttons ever ignore the mouse in your OWN scene, the usual suspects
-are a duplicate EventSystem (keep exactly one) or an EventSystem whose
-input module doesn't match the project's Active Input Handling.
+**Try Tiled where the middle is mostly pattern.** On the piece's
+**Image** component set **Image Type** to *Tiled*: Unity repeats the
+middle at native scale instead of stretching it, so the pattern keeps its
+angle and rhythm at any width. **Pixels Per Unit Multiplier** on the same
+component tunes how big the repeat is.
+
+**And know what it costs.** Tiled repeats the WHOLE middle, not just the
+pattern — the face gradient and the gloss sweep live in there too, so on
+a glossy face you can trade a sheared pattern for a repeated highlight.
+Look at both and pick per piece: flat, pattern-heavy faces usually win
+with Tiled; glossy gradient faces usually win with Sliced. For a modest
+stretch (±20–30%) Sliced is almost always the right answer — the shear
+simply isn't visible.
+
+### The stretch-safe face (no compromise)
+
+When a kit wears a pattern, the wide pieces also ship **split into
+layers**, and the importer builds them as ready prefabs:
+**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+
+Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
+hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
+that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
+\`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
+light back on top. The mask has to be its own hidden layer: Unity only
+alpha-clips a stencil when its graphic is hidden, so masking with
+visible art gives a RECTANGULAR mask and the pattern spills. Drag
+one out and stretch it as far as you like: the frame stretches, the
+pattern keeps its exact angle and rhythm, and the gloss stays ONE sweep
+instead of repeating. That's the app's look at any width, with no
+trade — use these for wide banners, dialog frames and bars that grow.
+
+The plain single-sprite prefabs still ship beside them; they're lighter
+(one draw instead of three), so keep those for pieces that barely
+stretch.
+
+---
+
+## 08 · Why Unity's lights don't change the kit
+
+The kit is PRE-LIT ART. The gloss sweeps, specular hits, extrusion
+shading and glints ARE the lighting — computed by the kit engine and
+painted into the pixels, so what you designed is exactly what ships, on
+every device, in every project. UI sprites render unlit: skyboxes and
+scene lights pass through them by design. Want the light to move? That's
+the Lighting angle dial on uikitmaker.com — change it and re-export, and
+every gloss, bevel and emboss re-renders from the new direction (the
+text bevel on live labels follows it too). Game-time reactions — hover
+glow, press lift — are the states plus the fx/ layer, composed in-engine
+(slide 03).
+
+---
+
+## 09 · Re-exporting: the one rule
+
+When you change the kit on uikitmaker.com, download again and extract
+over the SAME spot. Same folder in, same files over — every button, bar
+and chip you already placed in your scenes restyles in place. Unity
+tracks each sprite through a .meta file that lives beside it in your
+project; the zip never contains .meta files, so overwriting a PNG keeps
+its identity and nothing you built ever breaks.
+
+**On macOS you can't actually "extract over"** — Finder never merges
+folders, so a re-drop lands as "UIKitMaker 1". That's fine: drop it into
+Assets anyway. The importer notices, moves every file home into
+Assets/UIKitMaker (your .meta files and identities untouched), removes
+the duplicate folder, and re-imports. Drop updates anywhere; the kit
+finds its way.
+
+The importer keeps four promises on every re-import:
+- **Nothing is deleted without you.** Pieces removed from the kit stay on
+  disk and are listed in the Console; Tools > PatternBreak > Review
+  Orphaned Kit Files removes them only when you say so.
+- **Unchanged files cost nothing.** The receipt (kit.lock.json) carries a
+  hash per sprite, so a re-import reports exactly what's new, what
+  restyled and what stayed put — and settings are only re-applied when
+  they actually differ.
+- **Your prefabs are yours.** The examples in Prefabs/ are generated once,
+  on first import, fully wired (sliced sprites, hover/pressed/disabled
+  states on the Button, a label). After that the importer never edits
+  them — and because your re-exports keep the same sprite files, prefabs
+  you've customized restyle automatically anyway. One additive exception:
+  examples generated by an older kit version, before state wiring
+  existed, get their Button + Sprite Swap added in place on the next
+  import (skipped the moment a prefab carries any Selectable — your own
+  wiring choices always win).
+- **Everything is inspectable.** kit-manifest.json holds every border,
+  pivot and hash in plain JSON; kit.lock.json is the last import's
+  receipt. No hidden state.
 ${st.scope === "free" ? `
+---
+
 ## This is the free starter kit
 
 Three pieces — the master button, a chip and the progress bar — with the
@@ -2112,26 +2155,29 @@ same folder — plus the baked hero fonts (your kit's type as app-exact,
 typeable glyphs, with the layered HeroLabel treatment) — and everything
 you've already placed stays put.
 ` : ""}
-### Dropping a kit while the game is running
+---
 
-Unity can't build scenes or prefabs during Play, so a kit dropped in that
-window waits: the Console says **"the editor is in PLAY MODE — press STOP
-… and the kit build finishes by itself."** Press Stop and it does.
+## 10 · When something looks wrong
 
-The sprites land either way, so if you never press Stop you get the new
-art wearing the old prefabs — new buttons, dead rollovers. The importer
-now compares its receipt against the manifest on every launch and
-finishes the interrupted build by itself, so this heals even if you quit
-Unity mid-Play. To force it immediately: **Tools > PatternBreak > Reapply
-Kit Import Settings** with Play off. **Tools > PatternBreak > Kit Status**
-tells you which build each kit is actually running.
+**You dropped the kit while the game was running.** Unity can't build
+scenes or prefabs during Play, so a kit dropped in that window waits:
+the Console says **"the editor is in PLAY MODE — press STOP … and the
+kit build finishes by itself."** Press Stop and it does. The sprites
+land either way, so if you never press Stop you get the new art wearing
+the old prefabs — new buttons, dead rollovers. The importer compares
+its receipt against the manifest on every launch and finishes the
+interrupted build by itself, so this heals even if you quit Unity
+mid-Play.
 
-## If something looks unsliced
+**Something looks unsliced.** Tools > PatternBreak > Reapply Kit Import
+Settings re-runs the pass (with Play off) and says exactly what it
+fixed.
 
-Tools > PatternBreak > Reapply Kit Import Settings re-runs the pass and
-says exactly what it fixed. Everything the importer does is plain data
-you could set by hand from kit-manifest.json — the script only saves you
-the typing.
+**Not sure which build a kit is running?** Tools > PatternBreak > Kit
+Status tells you, per kit — check it before blaming the export.
+
+**A kerning line says KERNING SKIPPED?** Your TMP version refused the
+table — send that Console line to uikitmaker.com.
 `;
 }
 

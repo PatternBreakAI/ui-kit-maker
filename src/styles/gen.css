@@ -236,10 +236,16 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .canvas {
   position: relative; border: 0; border-radius: 0;
   overflow: auto; background: #FBFBFD; min-width: 0; flex: 1;
+  /* grid + margin:auto on the child is overflow-SAFE centering: a stage
+     smaller than the viewport centers, a zoomed stage larger than it
+     overflows toward reachable scroll range — never off the top edge */
+  display: grid;
 }
 .canvas.pan { cursor: grab; }
 .canvas.pan:active { cursor: grabbing; }
-.stage { min-width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 60px 120px; transform-origin: center center; }
+.stage { margin: auto; min-width: 100%; min-height: 100%; display: grid; place-items: center; }
+/* content-sized, so CSS zoom scales it without any percentage pushback */
+.stage-zoom { width: max-content; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 60px 120px; }
 .state-cap { font-size: 13.5px; font-weight: 500; color: var(--ink2); text-align: center; margin-bottom: 26px; }
 .hero-slot { min-height: 480px; display: grid; place-items: center; }
 .hero-slot svg { display: block; max-width: 100%; height: auto; }

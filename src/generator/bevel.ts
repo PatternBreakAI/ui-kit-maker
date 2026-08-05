@@ -688,9 +688,86 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
   return shapePath(shape, x + delta, y + delta, w - delta * 2, h - delta * 2, softness);
 }
 
-/* Authored artwork — stock or user-imported — keeps its character: fill the
-   frame, but never distort the drawn proportions by more than ~1.4x in either
-   axis. Beyond that the silhouette scales true-to-shape and centers. */
+/* A user import's cap geometry, MEASURED from the drawing's own ink — not
+   assumed. The first cut assumed the full spec band (30% of the drawn
+   width per side); a shape whose spikes are slimmer than that padded its
+   label away from imaginary decoration and the whole button grew (owner:
+   "now this feels a little wide"). Instead: flatten the outline, slice it
+   along x, measure the filled vertical span per slice — the body is the
+   central plateau, and a cap ends where the span first SUSTAINS near-body
+   thickness. Slim spikes yield slim caps; chunky end housings yield wide
+   ones. Memoized per shape — the geometry never changes after import. */
+const CAP_SLICES = 64;
+const capMemo = new Map<string, { capL: number; capR: number }>(); // source units
+function measureCaps(us: { id: string; d: string; vb: [number, number, number, number] }): { capL: number; capR: number } {
+  const hit = capMemo.get(us.id);
+  if (hit) return hit;
+  const [vx, , vw] = us.vb;
+  const polys = flattenPath(us.d, 10);
+  const span = new Array(CAP_SLICES).fill(0) as number[];
+  for (let i = 0; i < CAP_SLICES; i++) {
+    const X = vx + ((i + 0.5) / CAP_SLICES) * vw;
+    let lo = Infinity, hi = -Infinity;
+    for (const poly of polys) {
+      for (let j = 0; j < poly.length; j++) {
+        const a = poly[j], b = poly[(j + 1) % poly.length];
+        if ((a.x > X) === (b.x > X)) continue;
+        const yv = a.y + ((X - a.x) / (b.x - a.x)) * (b.y - a.y);
+        if (yv < lo) lo = yv;
+        if (yv > hi) hi = yv;
+      }
+    }
+    span[i] = hi > lo ? hi - lo : 0;
+  }
+  // body thickness = the median span of the central band
+  const mid = span.slice(Math.floor(CAP_SLICES * 0.35), Math.ceil(CAP_SLICES * 0.65)).sort((a, b) => a - b);
+  const body = mid[Math.floor(mid.length / 2)] || 1;
+  // a cap ends where near-body thickness holds for two consecutive slices —
+  // a single fat corner barb must not read as the body starting early
+  const thick = (i: number) => span[i] >= body * 0.72;
+  let li = 0;
+  while (li < CAP_SLICES - 1 && !(thick(li) && thick(li + 1))) li++;
+  let ri = CAP_SLICES - 1;
+  while (ri > 0 && !(thick(ri) && thick(ri - 1))) ri--;
+  const out = {
+    capL: clamp((li / CAP_SLICES) * vw, vw * 0.06, vw * 0.42),
+    capR: clamp(((CAP_SLICES - 1 - ri) / CAP_SLICES) * vw, vw * 0.06, vw * 0.42),
+  };
+  capMemo.set(us.id, out);
+  return out;
+}
+/* Expressed the SilhouetteMeta way — as a fraction of component HEIGHT —
+   so the label safe-area, the export's nine-slice borders and the renderer
+   all read the SAME caps. (Guessing caps from height alone put slice
+   borders inside the decoration — owner: "I actually think this is
+   screwing with our 9-slice scaling".) */
+export function userShapeCaps(shape: string): { capScale: number; content: { top: number; right: number; bottom: number; left: number } } | undefined {
+  const flip = shape.endsWith("~flip");
+  const id = shape.replace(/~flip$/, "");
+  if (!id.startsWith("user:")) return undefined;
+  const us = userShapes().find((u) => u.id === id);
+  if (!us) return undefined;
+  const vh = us.vb[3] || 1;
+  const { capL, capR } = measureCaps(us);
+  /* The TYPE gets a fixed optical gutter beyond the measured cap — the raw
+     measurement parked words on the decoration's shoulder (owner: "not
+     enough breathing room, how about somewhere in the middle?"). The
+     gutter is a design constant in component-height terms, so it reads
+     the same on every import; the RENDER band and the export's nine-slice
+     borders stay at the true measurement, hugging the real decoration. */
+  const BREATH = 0.18;
+  return {
+    capScale: Math.max(capL, capR) / vh,
+    // a mirrored render swaps which drawn cap sits on which side
+    content: { top: 0.14, right: (flip ? capL : capR) / vh + BREATH, bottom: 0.14, left: (flip ? capR : capL) / vh + BREATH },
+  };
+}
+
+/* STOCK artwork keeps its character: fill the frame, but never distort the
+   drawn proportions by more than ~1.4x in either axis. Beyond that the
+   silhouette scales true-to-shape and centers. (User imports used to share
+   this and now ride the cap-aware fill above — stock shapes were tuned
+   against this behavior and keep it.) */
 function fitArtwork(d: string, vb: [number, number, number, number], x: number, y: number, w: number, h: number): string {
   const [, , vw, vh] = vb;
   const natural = (vw || 1) / (vh || 1);
@@ -758,7 +835,16 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
   if (shape.startsWith("user:")) {
     const us = userShapes().find((u) => u.id === shape);
     if (us) {
-      return fitArtwork(us.d, us.vb, x, y, w, h);
+      /* Imports FILL the frame, whatever proportion they were drawn at —
+         designers author at the shape's own aspect, and the frame (not the
+         file) decides the footprint. The outer 30% of the drawn width at
+         each end rides rigid (the import spec's decorative-cap band, the
+         same vector three-slice the lab silhouettes ride); the middle band
+         alone stretches. This replaced the old uniform-scale letterbox,
+         which floated wide art small and centered (owner, on a 3.5:1
+         plaque: "why is this complex silhouette presenting so small") and
+         left transparent margins inside the export's nine-slice borders. */
+      return transformPathCapAware(us.d, us.vb, x, y, w, h, us.vb[2] * 0.3);
     }
     return roundRect(x, y, w, h, 4 + softness * 0.52); // registry miss — neutral fallback
   }
@@ -1286,12 +1372,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   /* text-safe area — the silhouette's authored content insets keep labels out
      of caps, tails and bevels, with breathing room that scales with the label
      size. The old padding stands as a floor so compact shapes don't change. */
-  const met = silhouetteMeta(shape) ?? impMeta;
+  const met = silhouetteMeta(shape) ?? impMeta ?? userShapeCaps(shape);
   const endRoom = shape === "pill" ? h * 0.16 : 0; // rounded ends eat width
+  /* the designer's own dial over the computed safe-area — additive, either
+     direction, scaling with the piece like every other padding (owner:
+     "let's add margin controls to make this an easy fix for any situation") */
+  const cMargin = (cfg.contentMargin ?? 0) * K;
   const basePad = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + endRoom;
   const safeGap = Math.max(12, fs * 0.35);
-  const padL = iconOnly || !met ? basePad : Math.max(basePad, met.content.left * h + safeGap);
-  const padR = iconOnly || !met ? basePad : Math.max(basePad, met.content.right * h + safeGap);
+  const padL = Math.max(12, (iconOnly || !met ? basePad : Math.max(basePad, met.content.left * h + safeGap)) + cMargin);
+  const padR = Math.max(12, (iconOnly || !met ? basePad : Math.max(basePad, met.content.right * h + safeGap)) + cMargin);
 
   /* Bounds rule: the canvas is sized to the LARGEST state of the component.
      Per-state forks may carry wider type or deeper shells — every state must
@@ -1313,12 +1403,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ? (mX + casedX.length * Tx.spacing / 100) * fsx * wdX * wkX * (opts.anchorLeft ? 1.04 : 1.02)
       : casedX.length * fsx * fontByName(Tx.font).factor * wdX * (1 + Tx.spacing / 100) * wkX * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + itX;
     const cwX = twX + (iconDef ? iconSize : 0) + gap;
-    const metX = silhouetteMeta(shx) ?? importedShape(shx);
+    const metX = silhouetteMeta(shx) ?? importedShape(shx) ?? userShapeCaps(shx);
     const erX = shx === "pill" ? h * 0.16 : 0;
     const bpX = (iconOnly ? Math.max(24, h * 0.2) : Math.max(64 * K, h * 0.42)) + erX;
     const sgX = Math.max(12, fsx * 0.35);
-    const pLX = iconOnly || !metX ? bpX : Math.max(bpX, metX.content.left * h + sgX);
-    const pRX = iconOnly || !metX ? bpX : Math.max(bpX, metX.content.right * h + sgX);
+    const pLX = Math.max(12, (iconOnly || !metX ? bpX : Math.max(bpX, metX.content.left * h + sgX)) + cMargin);
+    const pRX = Math.max(12, (iconOnly || !metX ? bpX : Math.max(bpX, metX.content.right * h + sgX)) + cMargin);
     return iconOnly ? Math.max(h, cwX + bpX * 2) : Math.max(g0.minW ?? 230 * K, cwX + pLX + pRX);
   };
   const forks = (["hover", "pressed", "disabled"] as const)
@@ -1427,26 +1517,43 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // solid quad wall was tried and rolled back by owner call: with quads the
   // sweeps of opposite-running edges overlap at deep extrusion and the fill
   // rule hollowed the caps until winding was normalized — the stacked
-  // construction is the devil we know. Its one flaw stays: stepped copy
-  // edges show inside concave notches of multi-loop imports.)
-  const nSlices = Math.max(2, Math.ceil(visDepth / 2.5));
+  // construction is the devil we know.) Its residual flaw — stepped copy
+  // edges inside concave notches — is sanded two ways: half the old slice
+  // pitch, and every intermediate copy wears a hairline stroke of its own
+  // wall gradient, dilating each step into its neighbour (owner, on a
+  // spiky import's flank: "anything we can do to smooth out these edges
+  // so we don't see all the steps?").
+  const nSlices = Math.max(2, Math.ceil(visDepth / 1.25));
   const slices = Array.from({ length: nSlices }, (_, i) => {
     const ty = (visDepth * (i + 1)) / nSlices;
-    const last = i === nSlices - 1;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)"${last ? ` stroke="${darken(deepC, 0.35)}" stroke-width="1"` : ""}/>`;
+    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)" stroke="url(#${id}ext)" stroke-width="1.1"/>`;
   }).join("");
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
   const baseGlow = egOp > 0.01 && visDepth > 1
-    ? `<g clip-path="url(#${id}ec)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
+    ? `<g mask="url(#${id}extu)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
     : "";
+  /* NOTHING in the wall may paint the bottom copy's own contour (owner,
+     across three zoomed screenshots of ghost lines). The ground-darkening
+     overlay was a TRANSLATED FILLED COPY whose silhouette edge switched
+     the darkening on/off mid-wall — it is now a full-width gradient rect
+     masked to the UNION of every slice, continuous at each height with no
+     shape edge of its own; the base glow rides the same union mask. The
+     decorative rim strokes (1px bottom edge line, bounce-light lip) are
+     DELETED, not masked: they stroked closed translated outlines, and
+     after two rounds of occluder masks a live-DOM dissection still showed
+     their line crossing the wall — a hairline garnish is not worth a
+     ghost. The rim already reads through the darkening and cast shadow. */
+  const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
+        <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
+          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${((visDepth * (i + 1)) / nSlices).toFixed(1)})" fill="#fff" stroke="#fff" stroke-width="1.1"/>`).join("")}
+        </mask>
         ${slices}
-        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}extv)"/>
+        <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
         ${baseGlow}
-        <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45"/>
       </g>`
     : "";
 
@@ -1808,8 +1915,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0.5" stop-color="${darken(deepC, 0.55)}" stop-opacity="0"/>
     <stop offset="1" stop-color="${darken(deepC, 0.55)}" stop-opacity="0.38"/>
   </linearGradient>
-  ${baseGlow ? `<clipPath id="${id}ec"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>
-  <radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
+  ${baseGlow ? `<radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
   ${patternDef}
   <linearGradient id="${id}rim" ${axis}>
     <stop offset="0" stop-color="${hiC}" stop-opacity="0.45"/>
