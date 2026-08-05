@@ -1528,22 +1528,33 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
   const baseGlow = egOp > 0.01 && visDepth > 1
-    ? `<g clip-path="url(#${id}ec)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
+    ? `<g mask="url(#${id}extu)"><ellipse cx="${(x + w / 2).toFixed(1)}" cy="${(y + h + visDepth * 0.45).toFixed(1)}" rx="${(w * 0.32).toFixed(1)}" ry="${Math.max(8, visDepth * 1.1).toFixed(1)}" fill="url(#${id}eg)" opacity="${egOp.toFixed(2)}"/></g>`
     : "";
-  /* The bottom edge line and the bounce-light lip stroke a TRANSLATED COPY
-     of the whole silhouette — and a closed outline has a top arc, which
-     used to draw straight across the wall (owner: "I wish we did not see
-     the outline of the bottom shape through the extrusion"). A mask keeps
-     only the rim the eye can actually see: everything a slightly
-     shallower copy covers is hidden. */
+  /* NOTHING in the wall may paint the bottom copy's own contour (owner,
+     with a screenshot of the ghost: "this is what i'm seeing for the
+     outline of the bottom shape, I shouldn't be seeing it through the
+     extrusion"). Two offenders, one discipline:
+     - the ground-darkening overlay was a TRANSLATED FILLED COPY — its
+       silhouette edge switched the darkening on/off mid-wall, drawing the
+       whole contour. It is now a full-width gradient rect masked to the
+       UNION of every slice, so the darkening is continuous at each height
+       and has no shape edge of its own (the base glow rides the same
+       union mask instead of the old bottom-copy clip);
+     - the bottom edge line and bounce-light lip stroke closed outlines,
+       whose top arcs crossed the wall — they pass through an occluder
+       mask that keeps only the exposed rim. */
+  const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
-        <mask id="${id}extm" maskUnits="userSpaceOnUse" x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}">
-          <rect x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}" fill="#fff"/>
+        <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
+          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${((visDepth * (i + 1)) / nSlices).toFixed(1)})" fill="#fff" stroke="#fff" stroke-width="1.1"/>`).join("")}
+        </mask>
+        <mask id="${id}extm" maskUnits="userSpaceOnUse" ${extRegion}>
+          <rect ${extRegion} fill="#fff"/>
           <path d="${outer}" transform="translate(0 ${(visDepth - 2.4).toFixed(1)})" fill="#000"/>
         </mask>
         ${slices}
-        <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="url(#${id}extv)"/>
+        <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
         <path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})" fill="none" stroke="${darken(deepC, 0.35)}" stroke-width="1" mask="url(#${id}extm)"/>
         ${baseGlow}
         <path d="${outer}" transform="translate(0 ${(visDepth - 0.8).toFixed(1)})" fill="none" stroke="${lighten(deepC, 0.38)}" stroke-width="1.2" opacity="0.45" mask="url(#${id}extm)"/>
@@ -1908,8 +1919,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0.5" stop-color="${darken(deepC, 0.55)}" stop-opacity="0"/>
     <stop offset="1" stop-color="${darken(deepC, 0.55)}" stop-opacity="0.38"/>
   </linearGradient>
-  ${baseGlow ? `<clipPath id="${id}ec"><path d="${outer}" transform="translate(0 ${visDepth.toFixed(1)})"/></clipPath>
-  <radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
+  ${baseGlow ? `<radialGradient id="${id}eg"><stop offset="0" stop-color="${egC}" stop-opacity="1"/><stop offset="1" stop-color="${egC}" stop-opacity="0"/></radialGradient>` : ""}
   ${patternDef}
   <linearGradient id="${id}rim" ${axis}>
     <stop offset="0" stop-color="${hiC}" stop-opacity="0.45"/>
