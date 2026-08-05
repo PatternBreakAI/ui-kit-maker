@@ -1256,99 +1256,169 @@ using TMPro;
 #endif
 
 namespace PatternBreak {
-  /* One text box for the whole layered hero label: set Text here (or call
-     SetText from game code) and every layer — Shadow, Stroke, Fill,
-     Glints — follows. */
+  /* One text box for the whole layered hero label — and one TEXT, full
+     stop. The Fill child is the only TextMeshPro in the stack: the only
+     thing that lays out glyphs, wraps lines or reads the kerning table.
+     Shadow, Stroke and Glints are ECHOES — plain CanvasRenderers that
+     redraw the Fill's own mesh (the same mesh object, not a copy)
+     wearing a different ink texture, behind it or in front of it. A
+     layer cannot lag, wrap differently or kern differently, because a
+     layer has nothing of its own to be wrong with: one geometry exists
+     and every ink repaints it. Probe-proven in the field before it
+     shipped — the echo held through live retyping, font-size scrubbing
+     and Play mode, exactly where the four-text stack kept tearing. */
   [ExecuteAlways]
   [AddComponentMenu("UI Kit Maker/Hero Label")]
   public class HeroLabel : MonoBehaviour {
 #if UNITY_2023_2_OR_NEWER
     [TextArea] public string text = "PLAY";
     public float fontSize = 150f;
-    [Tooltip("Character spacing (tracking) — applies to every layer.")]
+    [Tooltip("Character spacing (tracking).")]
     public float spacing = 0f;
-    [Tooltip("Word spacing — applies to every layer.")]
+    [Tooltip("Word spacing.")]
     public float wordSpacing = 0f;
+    [Tooltip("Line height for wrapped labels. Negative pulls lines together. (Field: a line height typed on the text used to leave the old shadow text behind — with echoes every layer follows it natively; this field just makes the value survive re-imports.)")]
+    public float lineSpacing = 0f;
     [Tooltip("The button height this label was authored at. When set, resizing the button scales the type proportionally — like scaling. 0 = off.")]
     public float authoredHeight = 0f;
-    [Tooltip("Move the whole word inside its button. Y up is positive — raise a word that optically sits low. Applies to every layer at once.")]
+    [Tooltip("Move the whole word inside its button. Y up is positive — raise a word that optically sits low.")]
     public Vector2 nudge = Vector2.zero;
-    [Tooltip("TMP margins (left, top, right, bottom) for the whole stack. Editing a single layer's Margins adopts into this — the other layers follow instead of tearing away.")]
+    [Tooltip("TMP margins (left, top, right, bottom). Editing the text's own Margins adopts into this.")]
     public Vector4 margins = Vector4.zero;
-    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedK = 1f; Vector2 appliedNudge; Vector4 appliedMargins;
+    [Header("Layer inks — wired by the importer")]
+    [Tooltip("Soft shadow behind the whole word. Empty = this kit has no shadow layer.")]
+    public Material shadowInk;
+    [Tooltip("Every stroke merged into one band behind every fill. Empty = no stroke layer.")]
+    public Material strokeInk;
+    [Tooltip("Glint sparks in front of the fills. Empty = no glint layer.")]
+    public Material glintsInk;
+    string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedLineSpacing; float appliedK = 1f; Vector2 appliedNudge; Vector4 appliedMargins;
+    TextMeshProUGUI tmp;
+    CanvasRenderer shadowEcho, strokeEcho, glintsEcho;
     float SizeK() {
       if (authoredHeight < 0.5f) return 1f;
       var p = transform.parent as RectTransform;
       return p != null && p.rect.height > 1f ? p.rect.height / authoredHeight : 1f;
     }
-    /* the layer list is walked every frame in the editor, so it is cached
-       rather than re-collected — GetComponentsInChildren allocates a fresh
-       array on every call, and a sceneful of hero labels doing that each
-       frame is pure garbage (field: the Playground "chugs in play mode to
-       the point of being unusable") */
-    TextMeshProUGUI[] layers;
-    TextMeshProUGUI[] Layers() {
-      // an EMPTY result is still a result — re-collecting on Length == 0 would
-      // allocate every frame for a label that has no layers yet
-      if (layers == null) layers = GetComponentsInChildren<TextMeshProUGUI>(true);
-      return layers;
-    }
-    void OnEnable() { layers = null; Apply(); }
-    void OnTransformChildrenChanged() { layers = null; }
-    void Update() {
-      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
-      /* Adoption runs in PLAY MODE TOO. It was briefly editor-only, on the
-         theory that nobody edits Inspector fields in a running game — which
-         is simply wrong, that is how people tune UI (field, with Play
-         running and Font Size typed onto the Stroke layer: "tried to change
-         the font size and still getting breakage from the stroke"). The
-         expensive part was never these reads; it was re-collecting the
-         layer array every frame. Cached, this is a handful of field
-         comparisons and it belongs everywhere. */
-      foreach (var label in Layers()) {
-        // a stale entry: drop the cache and let the next tick re-read a
-        // fresh set rather than adopt from a corpse
-        if (label == null) { layers = null; return; }
-        if (label.text != appliedText) { text = label.text; Apply(); return; }
-        if (label.characterSpacing != appliedSpacing) { spacing = label.characterSpacing; Apply(); return; }
-        if (label.wordSpacing != appliedWordSpacing) { wordSpacing = label.wordSpacing; Apply(); return; }
-        // size adopts too — a single layer sized by hand (or left behind
-        // by an older importer) re-converges within a frame
-        if (!Mathf.Approximately(label.fontSize, appliedSize * appliedK)) { fontSize = appliedK > 0f ? label.fontSize / appliedK : label.fontSize; Apply(); return; }
-        /* margins are the OTHER way people move type in TMP (field: "tried
-           changing the margins to lift the type and the stroke is
-           disconnected") — one layer's edit becomes the group's */
-        if (label.margin != appliedMargins) { margins = label.margin; Apply(); return; }
+    TextMeshProUGUI Tmp() {
+      // cached: destroyed references fail the != null check (Unity's
+      // overload) and re-collect on their own
+      if (tmp != null) return tmp;
+      foreach (var t in GetComponentsInChildren<TextMeshProUGUI>(true)) {
+        if (t.gameObject.name == "Fill") { tmp = t; break; }
+        if (tmp == null) tmp = t;
       }
+      /* the retired four-text construction kept Shadow/Stroke/Glints
+         TEXTS beside the Fill. With inks armed those are corpses —
+         drawing them doubles every layer — so they sleep here and the
+         echoes take over. (The importer rebuilds prefabs properly; this
+         covers copies already placed in scenes.) */
+      if (tmp != null && (strokeInk != null || shadowInk != null || glintsInk != null))
+        foreach (var t in GetComponentsInChildren<TextMeshProUGUI>(true))
+          if (t != tmp && (t.gameObject.name == "Shadow" || t.gameObject.name == "Stroke" || t.gameObject.name == "Glints") && t.gameObject.activeSelf)
+            t.gameObject.SetActive(false);
+      return tmp;
+    }
+    void OnEnable() { tmp = null; Apply(); }
+    void OnTransformChildrenChanged() { tmp = null; }
+    void OnDisable() {
+      /* echoes SLEEP instead of dying: destroying a child while its
+         parent is mid-(de)activation is a Unity error (field: the red
+         "Cannot destroy GameObject" line during the probe), and a
+         sleeping echo wakes clean with nothing to rebuild */
+      if (shadowEcho != null) shadowEcho.gameObject.SetActive(false);
+      if (strokeEcho != null) strokeEcho.gameObject.SetActive(false);
+      if (glintsEcho != null) glintsEcho.gameObject.SetActive(false);
+    }
+    void Update() {
+      var t = Tmp();
+      if (t == null) return;
+      if (text != appliedText || fontSize != appliedSize || spacing != appliedSpacing || wordSpacing != appliedWordSpacing || lineSpacing != appliedLineSpacing || nudge != appliedNudge || margins != appliedMargins || !Mathf.Approximately(SizeK(), appliedK)) { Apply(); return; }
+      /* Adoption, in the editor AND in play mode: people tune the text
+         itself — retype it, scrub Font Size, set Line Spacing, set
+         Margins — and the group field follows so the change survives
+         re-imports. With one text there is one voice to listen to; the
+         four-way arbitration that used to live here is gone with the
+         extra texts. */
+      if (t.text != appliedText) { text = t.text; Apply(); return; }
+      if (t.characterSpacing != appliedSpacing) { spacing = t.characterSpacing; Apply(); return; }
+      if (t.wordSpacing != appliedWordSpacing) { wordSpacing = t.wordSpacing; Apply(); return; }
+      if (t.lineSpacing != appliedLineSpacing) { lineSpacing = t.lineSpacing; Apply(); return; }
+      if (!Mathf.Approximately(t.fontSize, appliedSize * appliedK)) { fontSize = appliedK > 0f ? t.fontSize / appliedK : t.fontSize; Apply(); return; }
+      if (t.margin != appliedMargins) { margins = t.margin; Apply(); return; }
     }
     public void SetText(string value) { text = value; Apply(); }
     void Apply() {
+      var t = Tmp();
+      if (t == null) return;
       var k = SizeK();
-      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
-      /* EVERY live layer gets the write, or none of this works. Bailing on
-         the first null reference would leave the layers before it carrying
-         the new spacing and the ones after it carrying the old — with the
-         applied values already recorded, so the dirty check never fires
-         again and the stack stays torn. That is precisely how the stroke
-         detaches from the letterform. A stale entry means the cache is
-         stale, so re-collect and write the fresh set. */
-      var ls = Layers();
-      foreach (var l in ls) if (l == null) { layers = null; ls = Layers(); break; }
-      foreach (var label in ls) {
-        if (label == null) continue;
-        // the group's write is authoritative — TMP auto-fit would silently
-        // re-solve fontSize per layer and split the stack
-        label.enableAutoSizing = false;
-        label.text = text;
-        label.fontSize = fontSize * k;
-        label.characterSpacing = spacing;
-        label.wordSpacing = wordSpacing;
-        /* the nudge rides the LAYERS, never this root — the press sink
-           (LabelStateInk) owns the root's position, and two writers on
-           one transform is how the stack drifts apart */
-        label.rectTransform.anchoredPosition = nudge;
-        label.margin = margins;
+      appliedText = text; appliedSize = fontSize; appliedSpacing = spacing; appliedWordSpacing = wordSpacing; appliedLineSpacing = lineSpacing; appliedK = k; appliedNudge = nudge; appliedMargins = margins;
+      // auto-fit stays OFF: the group owns the size — TMP re-solving it
+      // behind our back is how sizes used to wander
+      t.enableAutoSizing = false;
+      t.text = text;
+      t.fontSize = fontSize * k;
+      t.characterSpacing = spacing;
+      t.wordSpacing = wordSpacing;
+      t.lineSpacing = lineSpacing;
+      /* the nudge rides the TEXT, never this root — the press sink
+         (LabelStateInk) owns the root's position, and two writers on one
+         transform is how things drift. The echoes copy the text's frame,
+         so the nudge carries them automatically. */
+      t.rectTransform.anchoredPosition = nudge;
+      t.margin = margins;
+    }
+    /* Painted LAST each frame, after every possible layout write, from
+       whatever mesh the text owns right now. SetMesh points the echo at
+       the text's OWN mesh object — when TMP regenerates the word, the
+       echoes are already holding the result. */
+    void LateUpdate() {
+      var t = Tmp();
+      if (t == null) return;
+      if (shadowInk != null) PaintEcho(ref shadowEcho, "Shadow (echo)", t, shadowInk);
+      if (strokeInk != null) PaintEcho(ref strokeEcho, "Stroke (echo)", t, strokeInk);
+      if (glintsInk != null) PaintEcho(ref glintsEcho, "Glints (echo)", t, glintsInk);
+      // draw order is sibling order: shadow, stroke, the text, glints
+      int i = 0;
+      if (shadowEcho != null) Place(shadowEcho.transform, i++);
+      if (strokeEcho != null) Place(strokeEcho.transform, i++);
+      Place(t.transform, i++);
+      if (glintsEcho != null) Place(glintsEcho.transform, i);
+    }
+    static void Place(Transform tr, int idx) {
+      if (tr.GetSiblingIndex() != idx) tr.SetSiblingIndex(idx);
+    }
+    void PaintEcho(ref CanvasRenderer slot, string echoName, TextMeshProUGUI t, Material ink) {
+      if (slot == null) {
+        // adopt a survivor before minting one — a domain reload clears
+        // these fields, not the scene
+        var prior = transform.Find(echoName);
+        var go = prior != null ? prior.gameObject : null;
+        if (go == null) {
+          go = new GameObject(echoName, typeof(RectTransform), typeof(CanvasRenderer));
+          // never saved — rebuilt on load, in scenes and prefabs alike,
+          // so an echo can never go stale on disk
+          go.hideFlags = HideFlags.DontSave;
+          go.transform.SetParent(transform, false);
+        }
+        slot = go.GetComponent<CanvasRenderer>();
+        if (slot == null) slot = go.AddComponent<CanvasRenderer>();
       }
+      if (!slot.gameObject.activeSelf) slot.gameObject.SetActive(true);
+      /* the echo wears the text's exact frame, so the shared mesh lands
+         in the same place. Writes are guarded — a RectTransform write
+         dirties layout even when the value is unchanged. */
+      var rt = (RectTransform)slot.transform;
+      var src = t.rectTransform;
+      if (rt.anchorMin != src.anchorMin) rt.anchorMin = src.anchorMin;
+      if (rt.anchorMax != src.anchorMax) rt.anchorMax = src.anchorMax;
+      if (rt.pivot != src.pivot) rt.pivot = src.pivot;
+      if (rt.sizeDelta != src.sizeDelta) rt.sizeDelta = src.sizeDelta;
+      if (rt.anchoredPosition != src.anchoredPosition) rt.anchoredPosition = src.anchoredPosition;
+      if (rt.localRotation != src.localRotation) rt.localRotation = src.localRotation;
+      if (rt.localScale != src.localScale) rt.localScale = src.localScale;
+      slot.SetMesh(t.mesh);
+      slot.SetMaterial(ink, null);
     }
 #endif
   }
@@ -1602,8 +1672,8 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
       const rowsSrc: { at: [number, number]; head: string; body: string[] }[] = [
         { at: [0.14, 0.22], head: "base.9 — the sprite",
           body: ["Nine-sliced: stretch it to any size and the", "corners stay crisp. Hover, pressed and", "disabled sprites swap in automatically."] },
-        { at: [0.5, 0.5], head: "Label → Shadow · Stroke · Fill · Glints",
-          body: ["One word, four baked faces stacked — the", "app's exact letterforms, patterns and glints."] },
+        { at: [0.5, 0.5], head: "Label → one Fill text + echo layers",
+          body: ["One real text; shadow, stroke and glints are", "echoes — the same letters repainted in the", "app's inks. One geometry, so nothing drifts."] },
         { at: [0.62, 0.84], head: "Hero Label (on the Label object)",
           body: ["One box drives the whole stack: text, size,", "spacing and nudge. Resize the button and", "the word scales with it."] },
       ];
@@ -1683,7 +1753,7 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
    Canvas and press Play. The Console prints a one-line receipt of what
    happened.
 
-${figures ? `![Anatomy of a generated prefab: the nine-sliced sprite, the stacked label faces, and the Hero Label box that drives them](docs/button-anatomy.png)
+${figures ? `![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
 
 *Every picture in this README is YOUR kit, rendered at export time.*
 
@@ -1838,14 +1908,20 @@ Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
 the font in place, so placed labels restyle with the kit.
 
 Want the strokes to MERGE behind the letterforms like the app (no
-sticker-overlap between tight letters)? That's the **HeroLabel** prefab:
-stacked faces reproducing the app's paint order — one soft Shadow for
-the whole word at the back, all Strokes fused into one silent layer,
-Fills that no stroke ever crosses, and the Glint field on top (its bands
-align across letters into streaks that cross the word). **Type once on
-the root's Hero Label component** — every layer follows, in the editor
-and in play mode (it's the kit's only runtime script, ~30 lines, no
-dependencies). Solo KitFace Baked stays the one-object option.
+sticker-overlap between tight letters)? That's the **HeroLabel** prefab,
+and it works like this: there is ONE real text — the **Fill** — and the
+other layers are **echoes**: invisible painters that redraw the very
+same letters wearing a different ink. Shadow and stroke echo behind the
+word (every stroke fusing into one silent band), glints echo in front.
+Because each layer is literally the same letters repainted — one
+geometry, one kerning table, one line-wrap — the layers **cannot**
+drift, lag, or wrap differently. Not "are kept in sync": there is
+nothing separate to sync. Retype the word, scrub the size, change the
+line height — the whole stack IS the text. Type on the Fill or on the
+root's **Hero Label** box, whichever you reach first; they stay in
+step. (The echoes appear in the Hierarchy as "Stroke (echo)" etc. —
+they rebuild themselves, never save to disk, and need nothing from
+you.) Solo KitFace Baked stays the one-object option.
 
 ` : ""}Hand-made SDF labels start WHITE — the fill is a per-label setting,
 not a font setting (prefab labels arrive with it wired). One click fixes
@@ -1901,16 +1977,20 @@ system has no dials for them — the kit's instance is frozen in) and
 browser-only shaping extras. If a word ever spaces differently than the
 app, re-export first — older zips predate the kerning bake.
 
-### Moving the word inside its button
+### Moving and shaping the word inside its button
 
 Select the **Label** object and use **Hero Label → Nudge** (Y up is
-positive). That one field moves Shadow, Stroke, Fill and Glints together.
+positive). One field and the whole word moves — shadow, stroke and
+glints included, because they are repaints of the same letters.
 
-Reach for it INSTEAD of a single layer's Margins or Rect Transform: those
-live on one layer, so moving just the Fill tears the word away from its
-own stroke. (If you do edit a layer's **Margins**, the Hero Label adopts
-the value and applies it to all four — but Nudge is the control that says
-what it does, and it survives re-imports.)
+Or just edit the Fill text directly: Font Size, Margins, tracking,
+**Line Spacing (leading)** — every layer follows the moment you type,
+since there is no separate shadow or stroke object left to fall behind.
+(Older kits DID have a separate Shadow text, and a line-height change
+could leave it stranded until you matched the number by hand — that
+chore is gone; re-import this kit and the old texts retire themselves.)
+The Hero Label fields exist to REMEMBER your values so they survive
+re-imports; anything you tune on the text adopts into them by itself.
 
 ### Tuning a single letter pair by hand
 
@@ -1947,15 +2027,13 @@ TextMeshPro component and its material; neither has the table.
   \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
   −5 px on a label rendering near 55. Compare a pair against its
   neighbours (A–V, A–W) rather than guessing an absolute number.
-- **Intent lives in ONE place: the master.** The Fill layer reads
-  **KitFace Baked Layers** — that is where you tune. The other layers
-  read the **KitFace Layer** assets beside it, which are auto-mirrored
-  copies of the master (same skeleton, same table, different ink): the
-  mirror overwrites them about a second after you stop editing, and on
-  every save. Edits made on a mirror by mistake don't fight anything —
-  they are simply replaced by the master's table. Tune a pair on the
-  master and the Fill moves as you type; the other layers snap to it a
-  moment later (or instantly on Cmd/Ctrl+S).
+- **There is only ONE table.** The whole hero stack — fill, stroke,
+  shadow, glints — is a single font asset, **KitFace Baked Layers**,
+  and every label lays its word out exactly once from it. Tune a pair
+  and every layer moves AS YOU TYPE, because the other layers are
+  repaints of the same letters, not copies with their own tables. There
+  is no second place a kerning number could live, so there is nothing
+  to sync, nothing to overwrite, and nothing that can lag behind.
 - **OX and OY travel too.** Nudge a pair's placement, not just its
   advance, and the whole stack carries it — and it survives re-imports.
 - **A half-entered row is safe.** "Add New Glyph Adjustment Record"
@@ -1986,11 +2064,12 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-**Which asset do I open?** \`fonts/KitFace Baked Layers\` — the master.
-Quickest route: double-click the Font Asset field on a hero label's
-**Fill** layer. (\`KitFace Baked\` beside it is the solo single-layer
-face with its own table; the \`KitFace Layer\` assets are the mirrors —
-tuning there gets overwritten.)
+**Which asset do I open?** \`fonts/KitFace Baked Layers\` — the only
+one with the hero table. Quickest route: double-click the Font Asset
+field on a hero label's **Fill** text. (\`KitFace Baked\` beside it is
+the solo single-layer face with its own table; the \`KitFace Ink\`
+files are materials, not fonts — they carry a layer's pixels and have
+no tables at all.)
 
 Add the record: **+** at the bottom of the table, set the first glyph to
 the left letter's ID and the second to the right letter's (\`A\`=1 …
@@ -2880,41 +2959,60 @@ namespace PatternBreak {
       AssembleBakedFont(root, m, refresh, "KitFace Baked", root + "/" + m.typography.bakedFace.file,
         face.glyphs, face.atlasW, face.atlasH, face,
         " glyphs of the app's exact pixels (pattern, glints and gloss included). Put it on any TMP label for hero text: Font Asset = KitFace Baked, label color WHITE.");
-      /* ONE SKELETON, FOUR SKINS (owner: "think about a foolproof way to
-         bind these together"). The stack shares a single font asset — one
-         glyph table, one kerning table, ONE Glyph Adjustment Table — and
-         the layers differ only by material, each material pointing at its
-         own ink texture over identical rects. Tuning a pair in the GAT
-         moves every layer natively, because every layer is reading the
-         same table; there are no copies left to drift. */
+      /* ONE GEOMETRY, MANY INKS (owner: "1 character = 3 layers bound
+         that move, transform, are affected by the same forces"). The
+         whole layer stack is ONE font asset — this one — laid out by ONE
+         TextMeshPro text. Stroke, Shadow and Glints are not fonts and
+         not texts: they are plain ink materials, drawn by HeroLabel
+         re-rendering the text's own mesh behind or in front of it. The
+         bake packs every layer's texture over identical glyph rects, so
+         the same mesh reads each ink perfectly in register. A layer
+         cannot misalign, because there is no second layout to disagree
+         with — and nothing left to synchronize. */
       if (!string.IsNullOrEmpty(m.typography.bakedFace.layerFill) && !string.IsNullOrEmpty(m.typography.bakedFace.layerStroke)
           && face.layerGlyphs != null && face.layerGlyphs.Length > 0) {
         AssembleBakedFont(root, m, refresh, "KitFace Baked Layers", root + "/" + m.typography.bakedFace.layerFill,
           face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-          " glyphs — ONE font asset for the whole layer stack (one kerning table, one Glyph Adjustment Table for all four layers). Fill ink is this asset's own material; Stroke, Shadow and Glints are the KitFace Layer materials beside it.");
-        /* the other three layers are FONT ASSETS built from the SAME
-           skeleton — TMP refuses a material whose texture isn't its font's
-           own atlas (it silently reverts to the default material, which is
-           how every layer briefly rendered fill ink) — but they are
-           MIRRORS, not siblings: their pair tables are one-way copies of
-           the master's. There is still exactly ONE place intent lives. */
-        MirrorFace(root, m, refresh, "Stroke", m.typography.bakedFace.layerStroke, face);
-        MirrorFace(root, m, refresh, "Shadow", m.typography.bakedFace.layerShadow, face);
-        MirrorFace(root, m, refresh, "Glints", m.typography.bakedFace.layerGlints, face);
-        // stale skins from the material experiment, if this project saw it
-        foreach (var nm in new string[] { "Stroke", "Shadow", "Glints" })
+          " glyphs — THE layered-label font, and the ONLY place hero type lays out: glyphs, kerning and the Glyph Adjustment Table all live here, once. Stroke, Shadow and Glints redraw this font's own mesh wearing the KitFace Ink materials beside it.");
+        EnsureInkMaterial(root, "Stroke", m.typography.bakedFace.layerStroke);
+        EnsureInkMaterial(root, "Shadow", m.typography.bakedFace.layerShadow);
+        EnsureInkMaterial(root, "Glints", m.typography.bakedFace.layerGlints);
+        /* retire the two dead ends this system lived through: the
+           per-layer material skins (TMP silently reverts a material whose
+           texture isn't the font's own atlas) and the mirror font assets
+           (four layout engines kept in step by sync code — the sync
+           always lost eventually). The redress pass rebuilds any label
+           still wearing either. */
+        foreach (var nm in new string[] { "Stroke", "Shadow", "Glints" }) {
           AssetDatabase.DeleteAsset(root + "/fonts/KitFace Layer " + nm + ".mat");
+          AssetDatabase.DeleteAsset(root + "/fonts/KitFace Layer " + nm + ".asset");
+        }
       }
     }
-    static void MirrorFace(string root, PBManifest m, bool refresh, string layerName, string texFile, PBBakedFace face) {
-      var path = root + "/fonts/KitFace Layer " + layerName + ".asset";
+    /* An ink is the smallest possible asset: UI/Default plus the layer's
+       baked texture. No font, no table, no TMP jurisdiction — TMP's
+       material validation never sees it, because it never sits on a TMP
+       component. */
+    static void EnsureInkMaterial(string root, string layerName, string texFile) {
+      var path = root + "/fonts/KitFace Ink " + layerName + ".mat";
       if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(path); return; }
-      AssembleBakedFont(root, m, refresh, "KitFace Layer " + layerName, root + "/" + texFile,
-        face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
-        " glyphs — the " + layerName.ToUpperInvariant() + " ink over the shared skeleton. AUTO-MIRRORED from KitFace Baked Layers: tune kerning pairs THERE — edits made here are overwritten by the mirror.");
+      var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
+      if (tex == null) return; // atlas not imported yet — the next pass retries
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+      if (mat == null) {
+        var shader = Shader.Find("UI/Default");
+        if (shader == null) { Debug.LogWarning("UI Kit Maker: UI/Default shader missing — the " + layerName + " ink is skipped."); return; }
+        mat = new Material(shader);
+        mat.mainTexture = tex;
+        AssetDatabase.CreateAsset(mat, path);
+        return;
+      }
+      // re-imports retexture in place; the material file (and any tint a
+      // user set on it) stays theirs
+      if (mat.mainTexture != tex) { mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
     }
-    static TMP_FontAsset LayerFace(string root, string layerName) {
-      return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Layer " + layerName + ".asset");
+    static Material InkMaterial(string root, string layerName) {
+      return AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Ink " + layerName + ".mat");
     }
     /* ── kerning plumbing. Pairs are keyed by CHARACTER, not glyph index:
        glyph indices belong to one font asset, characters are the same on
@@ -2981,8 +3079,8 @@ namespace PatternBreak {
       foreach (var o in f.pairs) pairs[PairKey((uint)o.l, (uint)o.r)] = new UnityEngine.TextCore.LowLevel.GlyphValueRecord(o.ox, o.oy, o.k, 0f);
       return f.pairs.Length;
     }
-    /* Tune a pair once, on any face, then run this: the tweak lands on
-       every layer face (so fill and stroke never split) and is saved to
+    /* Tune a pair — every layer moves natively (one font asset, one
+       table, echoes of one mesh). This pass only RECORDS the tweak to
        fonts/kerning-overrides.json so the next zip re-applies it. */
     static bool s_kernSyncing;
     /* saving the font asset IS the gesture — no menu item to remember
@@ -3013,25 +3111,13 @@ namespace PatternBreak {
            into fonts/kerning-overrides.json so the next import re-applies
            them onto the rebuilt asset. */
         var fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-        bool isMaster = fa != null;
         if (fa == null) fa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
         if (fa == null) continue;
-        /* ONE-WAY MIRROR, master to layers: a pure copy, so there is no
-           merge and nothing to arbitrate — the master's table IS the
-           truth, and an edit made on a mirror by mistake is simply
-           overwritten. The change event is the same one TMP's own editor
-           raises; without it the mirrored layers keep their stale layout
-           until something else forces a re-flow. */
-        if (isMaster) {
-          var masterPairs = ReadFacePairs(fa);
-          foreach (var nm in new string[] { "Stroke", "Shadow", "Glints" }) {
-            var mirror = LayerFace(root, nm);
-            if (mirror == null) continue;
-            WriteFacePairs(mirror, masterPairs);
-            TMPro_EventManager.ON_FONT_PROPERTY_CHANGED(true, mirror);
-          }
-          SceneView.RepaintAll();
-        }
+        /* No mirror copy lives here any more. The echo layers draw the
+           master's own mesh, so a tuned pair moves every layer THE FRAME
+           it lands — there is no second table in the project to bring up
+           to date, and the brief catch-up blink the mirrors had is gone
+           with them. */
         // what we SHIPPED, so a tweak can be told apart from the bake
         var shipped = new Dictionary<long, float>();
         if (m.typography != null && m.typography.bakedFace != null && !string.IsNullOrEmpty(m.typography.bakedFace.metrics)) {
@@ -3166,13 +3252,12 @@ namespace PatternBreak {
           gi++;
         }
         /* the app's KERNING PAIRS (owner: "how far away the Y is from the
-           other letterforms") — every face gets the SAME table so the
-           layer stack stays in register. Tolerant: a TMP without the
-           feature table just keeps plain advances. */
-        /* the pair table: what the typeface says, then the maker's own
-           tweaks on top (fonts/kerning-overrides.json) — the SAME table
-           on every layer face, or a tuned pair tears the fill away from
-           its stroke (owner: "we just need to tie the stroke to it") */
+           other letterforms"): what the typeface says, then the maker's
+           own tweaks on top (fonts/kerning-overrides.json). One table on
+           one asset is the whole story now — the echo layers draw this
+           font's own mesh, so they cannot hold a different table.
+           Tolerant: a TMP without the feature table keeps plain
+           advances. */
         int kernApplied = 0, kernKept = 0;
         try {
           var pairs = new Dictionary<long, UnityEngine.TextCore.LowLevel.GlyphValueRecord>();
@@ -3336,47 +3421,38 @@ namespace PatternBreak {
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-      var strokeFace = LayerFace(root, "Stroke");
-      if (layersFa != null && strokeFace != null) {
-        /* layered mini-hero (owner: "the unified background stroke thing
-           and effects pass on the group, instead of each individual
-           letter"): ONE merged stroke and ONE soft shadow behind ALL
-           letterforms, fills above, glints on top. Every layer reads the
-           SAME font asset; only the material (the ink) differs — so the
-           stack cannot tear, whatever gets tuned. Fill's ink is the font's
-           own material (null here = keep the default). */
-        var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
-        var shadowFace = LayerFace(root, "Shadow");
-        var glintsFace = LayerFace(root, "Glints");
-        if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
-        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
-        layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", layersFa));
-        if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
-        foreach (var layer in layers) {
-          var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
-          lgo.transform.SetParent(go.transform, false);
-          var lrt = lgo.GetComponent<RectTransform>();
-          lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-          lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
-          var lt = lgo.AddComponent<TextMeshProUGUI>();
-          lt.text = text;
-          lt.alignment = TextAlignmentOptions.Center;
-          /* the GROUP owns sizing: HeroLabel scales every layer by the
-             button ratio. Per-layer auto-fit silently discarded that
-             write and split the stack — auto-ON layers clamped to the
-             app size while an auto-OFF layer obeyed the scaled value
-             (field: "the not scaling in unison bug is back") */
-          lt.fontSize = ls;
-          lt.enableAutoSizing = false;
-          lt.raycastTarget = false;
-          lt.font = layer.Value;
-          lt.color = Color.white;
-        }
+      var strokeInk = InkMaterial(root, "Stroke");
+      if (layersFa != null && strokeInk != null) {
+        /* layered mini-hero, echo construction (owner: "the unified
+           background stroke thing and effects pass on the group, instead
+           of each individual letter"): ONE text lays the word out; the
+           soft shadow and the merged stroke are echoes of its mesh
+           painted behind it, the glints in front. HeroLabel builds the
+           echoes itself at load — the prefab carries only the text and
+           the ink assignments, so nothing here can go stale. */
+        var lgo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer));
+        lgo.transform.SetParent(go.transform, false);
+        var lrt = lgo.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+        var lt = lgo.AddComponent<TextMeshProUGUI>();
+        lt.text = text;
+        lt.alignment = TextAlignmentOptions.Center;
+        // the GROUP owns sizing: auto-fit re-solving the size behind the
+        // group's back is how sizes used to wander
+        lt.fontSize = ls;
+        lt.enableAutoSizing = false;
+        lt.raycastTarget = false;
+        lt.font = layersFa;
+        lt.color = Color.white;
         /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
            (a fresh stack briefly applied text=PLAY/size=150 defaults and
            saved that way) — set everything, then re-Apply via SetText */
         var hl = go.AddComponent<HeroLabel>();
         hl.fontSize = ls;
+        hl.shadowInk = InkMaterial(root, "Shadow");
+        hl.strokeInk = strokeInk;
+        hl.glintsInk = InkMaterial(root, "Glints");
         // resizing the BUTTON scales the type with it (owner: "scaling
         // needs to work like scaling") — remember the authored height
         var prt = parent.GetComponent<RectTransform>();
@@ -3932,17 +4008,24 @@ namespace PatternBreak {
             var probeTmp = probeRoot.GetComponent<TextMeshProUGUI>();
             bool stacked = probeRoot.GetComponent<HeroLabel>() != null;
             var wantMaster = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-            bool layersShip = wantMaster != null && LayerFace(root, "Stroke") != null;
+            var wantStroke = InkMaterial(root, "Stroke");
+            bool layersShip = wantMaster != null && wantStroke != null;
             if (wantBaked != null && layersShip) {
               wantDress = !stacked;
-              /* a stack off the skeleton re-dresses: null fonts (deleted
-                 assets — field: "no Font Asset assigned"), and the old
-                 four-asset construction migrating to master + mirrors */
-              if (!wantDress)
+              /* any older stack shape re-dresses to the echo construction:
+                 the mirror-era four-text build (more than one text under
+                 the root), a text off the master font (deleted mirror
+                 assets — field: "no Font Asset assigned"), or ink slots
+                 the importer hasn't armed yet */
+              if (!wantDress) {
+                int texts = 0;
                 foreach (var lt in probeRoot.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-                  var want = WantFace(root, wantMaster, lt.gameObject.name);
-                  if (want != null && lt.font != want) { wantDress = true; break; }
+                  texts++;
+                  if (lt.font != wantMaster) wantDress = true;
                 }
+                var hlInk = probeRoot.GetComponent<HeroLabel>();
+                if (texts != 1 || hlInk == null || hlInk.strokeInk != wantStroke) wantDress = true;
+              }
             }
             else if (wantBaked != null) wantDress = stacked || probeTmp == null || probeTmp.font != wantBaked || probeTmp.enableVertexGradient || probeTmp.color != Color.white;
             else wantDress = stacked || probeTmp == null || !LabelCurrent(probeTmp, kitStyle, face);
@@ -4024,6 +4107,11 @@ namespace PatternBreak {
               float keepAuthored = oldHl != null ? oldHl.authoredHeight : 0f;
               Vector2 keepNudge = oldHl != null ? oldHl.nudge : Vector2.zero;
               Vector4 keepMargins = oldHl != null ? oldHl.margins : Vector4.zero;
+              // hand-tuned tracking and line height survive too (field:
+              // a line height matched up by hand must never be re-lost)
+              float keepSpacing = oldHl != null ? oldHl.spacing : 0f;
+              float keepWordSpacing = oldHl != null ? oldHl.wordSpacing : 0f;
+              float keepLineSpacing = oldHl != null ? oldHl.lineSpacing : 0f;
               UnityEngine.Object.DestroyImmediate(oldRoot);
               var wantBaked = BakedLabelFace(m, root, famName);
               if (wantBaked != null) AddBakedLabel(contents, keepText, root, wantBaked, m, famName);
@@ -4031,10 +4119,12 @@ namespace PatternBreak {
               var newRoot = FindOurLabelRoot(contents);
               if (newRoot != null) {
                 var newHl = newRoot.GetComponent<HeroLabel>();
-                // the maker's own placement survives the rebuild
+                // the maker's own placement and spacing survive the rebuild
                 if (newHl != null) {
                   if (keepAuthored >= 0.5f) newHl.authoredHeight = keepAuthored;
-                  if (keepNudge != Vector2.zero || keepMargins != Vector4.zero) { newHl.nudge = keepNudge; newHl.margins = keepMargins; newHl.SetText(newHl.text); }
+                  newHl.nudge = keepNudge; newHl.margins = keepMargins;
+                  newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing; newHl.lineSpacing = keepLineSpacing;
+                  newHl.SetText(newHl.text);
                 }
               }
               if (newRoot != null) WireLabelStates(contents, newRoot, m, famName);
@@ -4056,76 +4146,90 @@ namespace PatternBreak {
              isn't following the face") */
           + (armedSink != 0f ? " Press sink armed: labels ride the face " + armedSink + "px down while pressed." : " No press sink in this kit's state recipe (labels stay put by design)."));
       if (healed > 0)
-        Debug.Log("UI Kit Maker: re-attached " + healed + " missing or stale layer face(s) on the HeroLabel prefab — an interrupted import can leave them naked; placed copies healed with it.");
+        Debug.Log("UI Kit Maker: rebuilt " + healed + " HeroLabel prefab(s) to the echo construction (one text, layer inks) — words preserved; placed copies healed with it.");
       if (purgedGhosts > 0)
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
     }
 #if UNITY_2023_2_OR_NEWER
-    // Fill reads the master; every other layer reads its own mirror —
-    // a stack on anything else (the old construction included) converges
-    static TMP_FontAsset WantFace(string root, TMP_FontAsset master, string layerName) {
-      if (layerName == "Fill") return master;
-      return LayerFace(root, layerName);
-    }
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
       var master = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       if (master == null) return;
+      var strokeInk = InkMaterial(root, "Stroke");
+      // the echo shape: exactly one text, on the master font, inks armed
       bool broken = false;
+      int texts = 0;
       foreach (var lt in asset.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-        var want = WantFace(root, master, lt.gameObject.name);
-        if (want != null && lt.font != want) { broken = true; break; }
+        texts++;
+        if (lt.font != master) broken = true;
       }
+      var hl = asset.GetComponent<HeroLabel>();
+      if (texts != 1 || hl == null || (strokeInk != null && hl.strokeInk != strokeInk)) broken = true;
       if (!broken) return;
+      /* rebuild in place, word preserved — the echo construction is cheap
+         and total, and per-field surgery across generations of stack
+         shapes is where stale-dress bugs breed */
       var contents = PrefabUtility.LoadPrefabContents(path);
       try {
-        int n = 0;
-        foreach (var lt in contents.GetComponentsInChildren<TextMeshProUGUI>(true)) {
-          var want = WantFace(root, master, lt.gameObject.name);
-          if (want == null || lt.font == want) continue;
-          lt.font = want;
-          n++;
-        }
-        if (n > 0) { PrefabUtility.SaveAsPrefabAsset(contents, path); healed += n; }
-      } finally { PrefabUtility.UnloadPrefabContents(contents); }
-    }
-#endif
-#if UNITY_2023_2_OR_NEWER
-    /* ── HeroLabel: the app's paint order as a prefab. Two stacked texts —
-       the Stroke face behind (every outline/shadow/glow merges into one
-       silent layer) and the Fill face in front (no stroke ever crosses a
-       letterform). Retype BOTH children to change the word; keep both
-       colors white. ── */
-    static bool HeroLabelPrefab(string dir, string root) {
-      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
-      var strokeFace = LayerFace(root, "Stroke");
-      if (layersFa == null || strokeFace == null) return false;
-      // shadow + glints are optional layers (kits without them skip); one
-      // SKELETON throughout — the mirrors carry identical rects and tables
-      var shadowFace = LayerFace(root, "Shadow");
-      var glintsFace = LayerFace(root, "Glints");
-      var layers = new List<KeyValuePair<string, TMP_FontAsset>>();
-      if (shadowFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Shadow", shadowFace));
-      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Stroke", strokeFace));
-      layers.Add(new KeyValuePair<string, TMP_FontAsset>("Fill", layersFa));
-      if (glintsFace != null) layers.Add(new KeyValuePair<string, TMP_FontAsset>("Glints", glintsFace));
-      var go = new GameObject("HeroLabel", typeof(RectTransform));
-      go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
-      // ONE text box drives every layer — the kit's only runtime script
-      go.AddComponent<HeroLabel>();
-      foreach (var layer in layers) {
-        var lgo = new GameObject(layer.Key, typeof(RectTransform), typeof(CanvasRenderer));
-        lgo.transform.SetParent(go.transform, false);
+        var oldHl = contents.GetComponent<HeroLabel>();
+        string keepText = oldHl != null && !string.IsNullOrEmpty(oldHl.text) ? oldHl.text : "PLAY";
+        float keepSize = oldHl != null && oldHl.fontSize > 1f ? oldHl.fontSize : 150f;
+        for (int i = contents.transform.childCount - 1; i >= 0; i--)
+          UnityEngine.Object.DestroyImmediate(contents.transform.GetChild(i).gameObject);
+        var lgo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer));
+        lgo.transform.SetParent(contents.transform, false);
         var lrt = lgo.GetComponent<RectTransform>();
         lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
         lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
         var t = lgo.AddComponent<TextMeshProUGUI>();
-        t.text = "PLAY";
+        t.text = keepText;
         t.alignment = TextAlignmentOptions.Center;
-        t.fontSize = 150f;
+        t.fontSize = keepSize;
+        t.enableAutoSizing = false;
         t.raycastTarget = false;
-        t.font = layer.Value;
+        t.font = master;
         t.color = Color.white;
-      }
+        var newHl = oldHl != null ? oldHl : contents.AddComponent<HeroLabel>();
+        newHl.fontSize = keepSize;
+        newHl.shadowInk = InkMaterial(root, "Shadow");
+        newHl.strokeInk = strokeInk;
+        newHl.glintsInk = InkMaterial(root, "Glints");
+        newHl.SetText(keepText);
+        PrefabUtility.SaveAsPrefabAsset(contents, path);
+        healed++;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+#endif
+#if UNITY_2023_2_OR_NEWER
+    /* ── HeroLabel: the app's paint order as a prefab. ONE text — the
+       Fill — and its echoes: the soft shadow and every stroke merged into
+       one silent band behind the whole word, glint sparks in front. The
+       word is typed ONCE, on the text or on the root's Hero Label box;
+       the echoes are redraws of the same mesh and cannot disagree. ── */
+    static bool HeroLabelPrefab(string dir, string root) {
+      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      var strokeInk = InkMaterial(root, "Stroke");
+      if (layersFa == null || strokeInk == null) return false;
+      var go = new GameObject("HeroLabel", typeof(RectTransform));
+      go.GetComponent<RectTransform>().sizeDelta = new Vector2(900f, 220f);
+      var hl = go.AddComponent<HeroLabel>();
+      var lgo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer));
+      lgo.transform.SetParent(go.transform, false);
+      var lrt = lgo.GetComponent<RectTransform>();
+      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      var t = lgo.AddComponent<TextMeshProUGUI>();
+      t.text = "PLAY";
+      t.alignment = TextAlignmentOptions.Center;
+      t.fontSize = 150f;
+      t.enableAutoSizing = false;
+      t.raycastTarget = false;
+      t.font = layersFa;
+      t.color = Color.white;
+      // shadow + glints are optional layers — an empty slot simply means
+      // this kit designed no such ink
+      hl.shadowInk = InkMaterial(root, "Shadow");
+      hl.strokeInk = strokeInk;
+      hl.glintsInk = InkMaterial(root, "Glints");
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/HeroLabel.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -4136,9 +4240,9 @@ namespace PatternBreak {
   /* Applies manifest settings to kit textures AS THEY IMPORT — covers
      reimports and asset refreshes without anyone running the menu. */
 #if UNITY_2023_2_OR_NEWER
-  /* Tune a pair in the Glyph Adjustment Table, hit save — the tweak lands
-     on every layer face and is written to fonts/kerning-overrides.json by
-     itself. The menu item stays as a manual re-run. */
+  /* Tune a pair in the Glyph Adjustment Table, pause — the tweak is
+     recorded to fonts/kerning-overrides.json by itself so re-imports
+     re-apply it. The menu item stays as a manual re-run. */
   /* Saving is not the only moment a pair gets tuned — mostly it isn't the
      moment at all. Typing a number into the Glyph Adjustment Table marks the
      font asset dirty and nothing else, so the save hook below never fired and
