@@ -197,8 +197,7 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
   },
   /* ── The Vigilante drop (owner upload, 2026-08-06) — thirty-five
      night-hero silhouettes in three families: winged emblems, comic
-     title plaques, velocity bars. UNLISTED PREVIEW until the owner
-     calls them up. ── */
+     title plaques, velocity bars. Live for every tier by owner call. ── */
   eclipsesigil: {
     id: "eclipsesigil", name: "Eclipse Sigil", capAware: true,
     vb: [0.0, 0.0, 323.18, 148.43],
