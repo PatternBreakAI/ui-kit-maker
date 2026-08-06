@@ -213,7 +213,10 @@ export function initLanding(deps: LandingDeps) {
         const r01 = d.round / 100;
         const outer = chamferPath(w, h, r01);
         const inner = chamferPath(w, h, r01, Math.max(4, h * 0.075));
-        const pat = PATTERNS[d.pattern];
+        // app kits carry pattern ids this map never learns (halftone, the
+        // gothic tiles…) — unknown reads render solid instead of crashing
+        // the whole page ("Something glitched", owner report 2026-08-06)
+        const pat = PATTERNS[d.pattern] || PATTERNS.None;
         const patDef = pat.svg ? pat.svg(id + "p") : "";
         const exH = Math.max(4, h * 0.085);
         return `<svg width="${w}" height="${h + exH}" viewBox="0 0 ${w} ${h + exH}" aria-hidden="true">
@@ -307,7 +310,7 @@ export function initLanding(deps: LandingDeps) {
         root.style.setProperty("--candy-glow", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, .46)`);
         root.style.setProperty("--radius", `${4 + (design.round / 100) * 42}px`);
         root.style.setProperty("--shine", (design.shine / 100).toFixed(2));
-        const pat = PATTERNS[design.pattern];
+        const pat = PATTERNS[design.pattern] || PATTERNS.None;
         root.style.setProperty("--pat", pat.css);
         root.style.setProperty("--pat-size", pat.size);
 

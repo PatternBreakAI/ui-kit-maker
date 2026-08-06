@@ -1038,6 +1038,11 @@ export type SlotDef = {
    claims every sector is a heart. Curated to glyphs that read at
    wheel-sector size. */
 const GLYPH_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+/* Inventory-flavored picks (armory + loot), plus Empty to clear a cell —
+   Factory keeps each cell's own stock glyph, same honesty rule as the
+   wheels. All names resolve to STOCK_ICONS keys by lowercasing. */
+const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "Boots", "Flask", "Scroll", "Key", "Gem", "Zap", "Skull", "Heart", "Star", "Trophy", "Gift", "Bag", "Lock", "Crosshair"];
+const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
@@ -1115,6 +1120,29 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "glyph3", name: "Glyph 3", kind: "choice", choices: GLYPH_CHOICES },
     { id: "glyph4", name: "Glyph 4", kind: "choice", choices: GLYPH_CHOICES,
       note: "Four glyphs cycle around the wheel. Their size and weight follow Typography → Icons like every other glyph in the kit." },
+  ],
+  streakmeter: [
+    /* the ignition glyph is the meter's whole story (owner: "need to be
+       able to control / customize the icon on the streak counter") */
+    { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
+      note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
+  ],
+  invgrid: [
+    /* every cell's glyph is content (owner: "I should be able to change
+       the icons in the text section") — nine wells, three spares */
+    { id: "cell1", name: "Cell 1 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell2", name: "Cell 2 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell3", name: "Cell 3 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell4", name: "Cell 4 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell5", name: "Cell 5 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell6", name: "Cell 6 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell7", name: "Cell 7 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell8", name: "Cell 8 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell9", name: "Cell 9 item", kind: "choice", choices: INV_GLYPHS,
+      note: "Cells 10–12 are the empty wells — pick a glyph for any cell (or Empty to clear one); Factory keeps the stock loadout." },
+    { id: "cell10", name: "Cell 10 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell11", name: "Cell 11 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell12", name: "Cell 12 item", kind: "choice", choices: INV_GLYPHS },
   ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",

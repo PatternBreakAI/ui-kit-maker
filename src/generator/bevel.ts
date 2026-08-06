@@ -4242,8 +4242,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < cols * rowsI; i++) {
         const cxI = gx0 + (i % cols) * (cell + gap), cyI = gy0 + Math.floor(i / cols) * (cell + gap);
         inner += `<rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
-        const icKey = items[i];
-        if (icKey && STOCK_ICONS[icKey]) inner += themedIcon(STOCK_ICONS[icKey], cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // per-cell glyph slots (owner: "change the icons in the text
+        // section") — Factory keeps the stock loadout, Empty clears
+        const pickI = opts.slots?.[`cell${i + 1}`];
+        const icDef = pickI === "Empty" ? null
+          : (pickI && STOCK_ICONS[pickI.toLowerCase()]) || (items[i] ? STOCK_ICONS[items[i] as string] : null);
+        if (icDef) inner += themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
         if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
@@ -4605,9 +4609,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       const zapX = 39 + w - inset - 52 * k;
-      inner += (STOCK_ICONS.zap ? (full && state !== "disabled"
-        ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
-        : iconGroup(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
+      // the ignition glyph is a content slot (owner ask) — Factory = zap,
+      // None removes it, names resolve like the wheels' glyph slots
+      const pickS9 = opts.slots?.endicon;
+      const zapIc = pickS9 === "None" ? null : (pickS9 && STOCK_ICONS[pickS9.toLowerCase()]) || STOCK_ICONS.zap;
+      inner += (zapIc ? (full && state !== "disabled"
+        ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(zapIc, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
+        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
       return inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner);
     }
     case "waypoint": {

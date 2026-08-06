@@ -8,6 +8,7 @@ import { usePageScroll } from "@/shell/usePageScroll";
 import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
+import { ensureFont } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
 
@@ -84,6 +85,23 @@ type Desig = {
    memo and land via dangerouslySetInnerHTML (React owns the node; no
    manual innerHTML into React's territory — the gallery taught us). */
 function KitPreview({ doc }: { doc: Record<string, unknown> }) {
+  /* the desk renders OTHER makers' kits — their faces are never in this
+     document's font set, so EQUIP wore a fallback (owner report). Load
+     every family the doc speaks; the browser re-rasterizes the inline
+     SVG text when each face lands. hydrate() already registered any
+     custom fonts, so ensureFont can resolve them. */
+  useEffect(() => {
+    try {
+      const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
+      const fams = new Set<string>([cfg.type.font]);
+      if (cfg.type.listFont) fams.add(cfg.type.listFont);
+      for (const kd of Object.values((doc.kitDesigns ?? {}) as Record<string, { type?: { font?: string; listFont?: string | null } }>)) {
+        if (kd?.type?.font) fams.add(kd.type.font);
+        if (kd?.type?.listFont) fams.add(kd.type.listFont);
+      }
+      fams.forEach((f) => ensureFont(f));
+    } catch { /* unrenderable docs already report below */ }
+  }, [doc]);
   const out = useMemo(() => {
     try {
       const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
@@ -180,6 +198,10 @@ export function AdminPage() {
   const [relName, setRelName] = useState("");
   const [relNote, setRelNote] = useState("");
   const [relDate, setRelDate] = useState("");
+  // designation targets — combinable by owner call ("hero and public
+  // should be checkboxes, so you can select one or both")
+  const [relHero, setRelHero] = useState(false);
+  const [relPublic, setRelPublic] = useState(true);
   const [relBusy, setRelBusy] = useState(false);
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [slate, setSlate] = useState<Desig[] | null>(null);
@@ -541,9 +563,10 @@ export function AdminPage() {
             nothing's saved, the desk checks live studios too, including <b>personal presets</b> makers
             saved for themselves. Designating <b>freezes a full snapshot as it is right now</b> — the
             maker can change or lose their copy later and your frozen version survives, deal note
-            attached. <b>Release now</b> puts it in every player's Presets panel immediately;
-            <b> upcoming</b> keeps it invisible to everyone but you until its date; <b>hero</b> files it
-            for the homepage carousel (wiring the homepage to read the slate is a separate pass).
+            attached. Tick <b>Hero carousel</b>, <b>Public release</b>, or both — one Designate covers
+            them. A public release with a <b>date</b> stays invisible to everyone but you until that
+            day; with the date blank it lands in every player's Presets panel immediately. Hero files
+            it for the homepage carousel (wiring the homepage to read the slate is a separate pass).
           </p>
           <div className="fd-adminsearch">
             <input
@@ -623,19 +646,28 @@ export function AdminPage() {
                     onChange={(e) => setRelName(e.target.value)} />
                   <input value={relNote} maxLength={2000} placeholder="deal note — e.g. 50/50 with maker, agreed today"
                     onChange={(e) => setRelNote(e.target.value)} />
-                  <label className="fd-desk__date">
-                    <CalendarClock size={14} strokeWidth={2.1} /> release date (upcoming only — blank parks it)
-                    <input type="date" value={relDate} onChange={(e) => setRelDate(e.target.value)} />
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={relHero} onChange={(e) => setRelHero(e.target.checked)} />
+                    <Star size={14} strokeWidth={2.1} /> Hero carousel
                   </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={relPublic} onChange={(e) => setRelPublic(e.target.checked)} />
+                    <Rocket size={14} strokeWidth={2.1} /> Public release
+                  </label>
+                  {relPublic && (
+                    <label className="fd-desk__date">
+                      <CalendarClock size={14} strokeWidth={2.1} /> release date — blank goes live now
+                      <input type="date" value={relDate} onChange={(e) => setRelDate(e.target.value)}
+                        onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* needs a user gesture; the field still types */ } }} />
+                    </label>
+                  )}
                   <div className="fd-desk__acts">
-                    <button className="fd-ghost" disabled={relBusy} onClick={() => void designate("hero")}>
-                      <Star size={14} strokeWidth={2.1} /> Hero carousel
-                    </button>
-                    <button className="fd-ghost" disabled={relBusy} onClick={() => void designate("upcoming")}>
-                      <CalendarClock size={14} strokeWidth={2.1} /> Upcoming
-                    </button>
-                    <button className="fd-primary fd-desk__go" disabled={relBusy} onClick={() => void designate("standard")}>
-                      {relBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Rocket size={15} strokeWidth={2.1} />} Release now
+                    <button className="fd-primary fd-desk__go" disabled={relBusy || (!relHero && !relPublic)}
+                      onClick={() => void (async () => {
+                        if (relHero) await designate("hero");
+                        if (relPublic) await designate(relDate ? "upcoming" : "standard");
+                      })()}>
+                      {relBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Rocket size={15} strokeWidth={2.1} />} Designate
                     </button>
                   </div>
                 </div>
