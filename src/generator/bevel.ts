@@ -847,13 +847,13 @@ function gothicInset(outer: string, delta: number): string {
   /* ── the reviewed kernel first ──
      Curve-aware direct-offset sampling → half-edge arrangement → winding
      classification (offsetKernel.ts, built to the external math review):
-     holes offset outward like the true erosion, miters synthesize at
-     limit 4 from real tangents, and tangles die by face classification
-     instead of heuristics. The kernel is pure geometry — the barb seal
-     and dent fill below stay as the ART-DIRECTION layer on its output.
-     A null return (structural failure) falls through to the legacy
-     chord-machinery path, so nothing can render worse than before. */
-  const kernelLoops = innerOffsetLoops(outer, delta, { miterLimit: 4 });
+     holes offset outward like the true erosion, reflex corners bridge
+     with the erosion's own δ-arc (verified against a dense distance
+     field), and tangles die by face classification instead of
+     heuristics. The kernel is pure geometry. A null return (structural
+     failure) falls through to the legacy chord-machinery path, so
+     nothing can render worse than before. */
+  const kernelLoops = innerOffsetLoops(outer, delta);
   if (kernelLoops) {
     const solids = srcLoops.filter((l, i) => !srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
     const isHoleK = kernelLoops.map((l, i) => kernelLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
@@ -861,47 +861,62 @@ function gothicInset(outer: string, delta: number): string {
     const parts: string[] = [];
     const kept: Pt[][] = [];
     let total = 0;
-    /* crumb-filter BEFORE the art-direction passes: the arrangement emits
-       every face it finds, and sub-visible fragments are the majority of
-       them. Sealing and dent-filling are O(n·k²) scans — running them on
-       fragments that are about to be dropped cost ~250ms per render and
-       froze the kit page when every piece wore a gothic cut. */
+    /* The kernel's output ships AS-IS — pure geometry, per the review and
+       the owner's call ("try chatgpt's math approach"). The barb seal and
+       dent fill were built for the old razor-filigree set and their
+       thresholds scale with δ: at hero scale (δ ≈ 50 units) they excised
+       and chamfered REAL geometry — the wobbling, asymmetric faces the
+       owner caught on preview. The friendly goth3 drawings need no art
+       direction; only sub-visible crumbs are dropped. */
     const floor = Math.max(24, delta * delta * 0.35);
     for (let i = 0; i < kernelLoops.length; i++) {
       const raw = kernelLoops[i] as Pt[];
       if (isHoleK[i]) { parts.push(toD(raw)); kept.push(raw); continue; }
       if (raw.length < 3 || Math.abs(shoelace(raw)) < floor) continue;
-      const c = fillDents(clipPinches(raw, delta * 0.85), delta, solids);
-      const a = Math.abs(shoelace(c));
-      if (c.length < 3 || a < floor) continue;
-      total += a;
-      kept.push(c);
-      parts.push(toD(c));
+      total += Math.abs(shoelace(raw));
+      kept.push(raw);
+      parts.push(toD(raw));
     }
-    /* THE INVERSION GATE (shape-agnostic, and cheap — point-in-polygon
-       only, no distance field): sample the source's interior on a coarse
-       grid and measure what fraction of it the face covers. A true inner
-       offset keeps most of the interior; a face-vs-void swap from a
-       mis-classified arrangement keeps almost none of it, whatever its
-       area or loop count. Found live on Evensong at δ=10, where the star
-       tips' collapse flipped the classification. */
-    let inPts = 0, inFace = 0;
+    /* THE INVERSION GATE (shape-agnostic): a face-vs-void swap from a
+       mis-classified arrangement — found live on Evensong at δ=10 —
+       keeps the band NEAR the outline and loses the interior's CORE.
+       So test the core: interior grid points deeper than δ belong to
+       the true erosion BY DEFINITION, at any wall depth, and the face
+       must hold them. (Plain interior coverage broke at deep walls,
+       where a legitimate face is a thin sliver of the interior.) */
+    let coreN = 0, coreIn = 0;
     if (solids.length) {
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const l of solids) for (const p of l) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      const segsB: [Pt, Pt][] = [];
+      for (const l of srcLoops) for (let i = 0; i < l.length; i++) segsB.push([l[i], l[(i + 1) % l.length]]);
+      const depth2 = (p: Pt) => {
+        let best = Infinity;
+        for (const [a, b] of segsB) {
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const L2 = dx * dx + dy * dy || 1;
+          let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const qx = a.x + dx * t - p.x, qy = a.y + dy * t - p.y;
+          const d = qx * qx + qy * qy;
+          if (d < best) best = d;
+        }
+        return best;
+      };
+      const needD = delta * delta * 1.04; // slight margin over δ² for polyline eps
       const N = 15;
       for (let gx = 1; gx < N; gx++) for (let gy = 1; gy < N; gy++) {
         const p = { x: x0 + ((x1 - x0) * gx) / N, y: y0 + ((y1 - y0) * gy) / N };
         let par = 0;
         for (const l of srcLoops) if (pointInPoly(p, l)) par++;
-        if (par % 2 === 0) continue;
-        inPts++;
+        if (par % 2 === 0 || depth2(p) <= needD) continue;
+        coreN++;
         let fp = 0;
         for (const l of kept) if (pointInPoly(p, l)) fp++;
-        if (fp % 2 === 1) inFace++;
+        if (fp % 2 === 1) coreIn++;
       }
     }
-    const coverOK = inPts < 8 || inFace / inPts >= 0.4;
+    const coverOK = coreN < 3 || coreIn / coreN >= 0.6;
     if (parts.length && total >= srcArea * 0.15 && coverOK) return done(parts.join(" "));
   }
   // ── legacy fallback: the tuned chord machinery at miter 4 ──

@@ -9,17 +9,22 @@
        erosion (the old pass-through is a design behavior, not an offset).
    2 · THE OFFSET IS SAMPLED FROM THE CURVES, not from chords of the
        source: Q(t) = B(t) + δ·N(t), adaptively subdivided on the OFFSET's
-       own flatness, with cubics pre-split at inflections. Miter joins
-       (limit 4, Illustrator's default) are synthesized only at real
-       corners; concave corners let the raw curves cross and leave the
-       trimming to the arrangement.
+       own flatness, with cubics pre-split at inflections. Convex corners
+       let the raw curves cross and leave the trimming to the arrangement;
+       reflex corners (where the offset pieces separate) are bridged with
+       the δ-arc centered on the source corner — the erosion's true
+       envelope, verified against a dense distance-field sample. A miter
+       there digs a wedge into the face that the real offset does not have.
    3 · A HALF-EDGE ARRANGEMENT with winding classification replaces the
        stack-popping heuristic: every crossing becomes a node (snapped
        consistently BEFORE the map is built), faces are traversed via
        angular-sorted half-edges, each face is classified by the winding
-       number of the raw loops at a guaranteed-interior sample, and the
-       kept region's boundary is walked out. Interleaved crossings, triple
-       points and tangles all resolve by construction.
+       number of the raw loops at a sample VERIFIED to sit inside it (a
+       nearest-edge point locator arbitrates), and the kept region's
+       boundary is walked out. Material-on-left makes every solid contour
+       wind NEGATIVE in SVG's y-down frame, so the face is the w < 0
+       region. Interleaved crossings, triple points and tangles all
+       resolve by construction.
 
    Output is a corner-pinned simplified polyline path (within 0.15 units
    of the sampled offset — below visual threshold at product scale).
@@ -139,15 +144,16 @@ function inflections(s: Seg & { kind: "C" }): number[] {
    Emits the raw offset of one contour as a closed polyline. `delta` > 0,
    material on the LEFT of travel: left normal = (dy, -dx)/|d|·(-1)? — in
    SVG's y-down frame the left of direction (dx,dy) is (dy, -dx). */
-function offsetContour(segs: Seg[], delta: number, eps: number, miterLimit: number): KPt[] {
+function offsetContour(segs: Seg[], delta: number, eps: number): KPt[] {
   const leftN = (dx: number, dy: number) => { const L = Math.hypot(dx, dy) || 1; return { x: dy / L, y: -dx / L }; };
-  const pieces: { pts: KPt[]; t0: { x: number; y: number }; t1: { x: number; y: number } }[] = [];
+  const pieces: { pts: KPt[]; t0: { x: number; y: number }; t1: { x: number; y: number }; vx: number; vy: number }[] = [];
   for (const s of segs) {
     if (s.kind === "L") {
       const n = leftN(s.bx - s.ax, s.by - s.ay);
       pieces.push({
         pts: [{ x: s.ax + n.x * delta, y: s.ay + n.y * delta }, { x: s.bx + n.x * delta, y: s.by + n.y * delta }],
         t0: { x: s.bx - s.ax, y: s.by - s.ay }, t1: { x: s.bx - s.ax, y: s.by - s.ay },
+        vx: s.bx, vy: s.by,
       });
     } else {
       // split at inflections, then adaptively flatten each span's OFFSET
@@ -170,10 +176,10 @@ function offsetContour(segs: Seg[], delta: number, eps: number, miterLimit: numb
         emit(a, b, p0, p1, 0);
       }
       const d0 = bezD(s, 0), d1 = bezD(s, 1);
-      pieces.push({ pts, t0: d0, t1: d1 });
+      pieces.push({ pts, t0: d0, t1: d1, vx: s.bx, vy: s.by });
     }
   }
-  // join pieces: miter (limit) on separated convex ends; plain connect else
+  // join pieces: reflex corners bridge with the erosion arc; smooth joints connect
   const outPts: KPt[] = [];
   for (let k2 = 0; k2 < pieces.length; k2++) {
     const cur = pieces[k2], nxt = pieces[(k2 + 1) % pieces.length];
@@ -182,21 +188,24 @@ function offsetContour(segs: Seg[], delta: number, eps: number, miterLimit: numb
     const E = a[a.length - 1], S = b[0];
     const gap = Math.hypot(S.x - E.x, S.y - E.y);
     if (gap > 0.02) {
-      // corner at the source vertex — synthesize the miter on the offset side
-      const d1 = cur.t1, d2 = nxt.t0;
-      const den = d1.x * d2.y - d1.y * d2.x;
-      if (Math.abs(den) > 1e-9) {
-        const t = ((S.x - E.x) * d2.y - (S.y - E.y) * d2.x) / den;
-        const q: KPt = { x: E.x + d1.x * t, y: E.y + d1.y * t, corner: true };
-        const v = segEnd(cur); // the source corner
-        if (Math.hypot(q.x - v.x, q.y - v.y) <= miterLimit * delta && t > 0) outPts.push(q);
-        else { E.corner = true; S.corner = true; } // bevel
-      } else { E.corner = true; S.corner = true; }
+      /* the offset pieces separated — a reflex corner. The TRUE inner
+         offset bridges E→S with the δ-arc centered on the source corner
+         (both endpoints sit at distance δ from it by construction). */
+      const a0 = Math.atan2(E.y - cur.vy, E.x - cur.vx);
+      const a1 = Math.atan2(S.y - cur.vy, S.x - cur.vx);
+      let sweep = a1 - a0;
+      while (sweep > Math.PI) sweep -= 2 * Math.PI;
+      while (sweep < -Math.PI) sweep += 2 * Math.PI;
+      const phi = 2 * Math.sqrt(Math.max(1e-4, (2 * eps) / Math.max(1, delta)));
+      const steps = Math.max(1, Math.ceil(Math.abs(sweep) / phi));
+      for (let s2 = 1; s2 < steps; s2++) {
+        const ang = a0 + (sweep * s2) / steps;
+        outPts.push({ x: cur.vx + Math.cos(ang) * delta, y: cur.vy + Math.sin(ang) * delta });
+      }
     }
   }
   return dedupe(outPts);
 }
-const segEnd = (p: { pts: KPt[]; t1: { x: number; y: number } }) => p.pts[p.pts.length - 1] && p.pts[p.pts.length - 1];
 function dedupe(pts: KPt[]): KPt[] {
   const out: KPt[] = [];
   for (const p of pts) {
@@ -318,38 +327,74 @@ export function clipRawLoops(rawLoops: KPt[][]): KPt[][] {
     });
   }
   for (let i = 0; i < hes.length; i++) {
-    const tw = hes[i].twin;
-    const nd = nodes[hes[tw].from === hes[i].to ? hes[i].to : hes[i].to];
+    // next(h) at node to(h): the counterclockwise successor of twin(h) in
+    // the angular order (verified empirically both ways — the clockwise
+    // rotation walks the complement and shatters the faces)
     const ring = nodes[hes[i].to].out;
-    const pos = ring.indexOf(tw);
+    const pos = ring.indexOf(hes[i].twin);
     hes[i].next = ring[(pos + 1) % ring.length];
-    void nd;
   }
-  // face traversal
+  // face traversal — keep each face's half-edge cycle for classification
   let faceCount = 0;
+  const faceCycles: number[][] = [];
   for (let i = 0; i < hes.length; i++) {
     if (hes[i].face !== -1) continue;
     const f = faceCount++;
+    const cyc: number[] = [];
     let cur = i, guard = 0;
-    while (hes[cur].face === -1 && guard++ < hes.length + 2) { hes[cur].face = f; cur = hes[cur].next; }
+    while (hes[cur].face === -1 && guard++ < hes.length + 2) { hes[cur].face = f; cyc.push(cur); cur = hes[cur].next; }
+    faceCycles.push(cyc);
   }
-  // winding per face (sampled just left of one of its half-edges)
-  const faceW = new Array<number | undefined>(faceCount);
-  const keptBoundary: KPt[][] = [];
-  const faceOf = (i: number) => hes[i].face;
-  const sampleW = (i: number) => {
-    const a = nodes[hes[i].from], b = nodes[hes[i].to];
-    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-    const nx = (b.y - a.y) / L, ny = -(b.x - a.x) / L; // left of travel
-    const off = Math.max(SNAP * 4, Math.min(0.35, L * 0.25));
-    return windingOfPoint({ x: (a.x + b.x) / 2 + nx * off, y: (a.y + b.y) / 2 + ny * off }, rawLoops);
+  /* point location by nearest edge: which face is p in? Find the closest
+     edge segment, then take the side — p left of the half-edge's travel
+     (cross < 0 in this y-down frame) puts it in that half-edge's face,
+     right puts it in the twin's. Exactly-on-the-line is ambiguous → -1. */
+  const sideFaceAt = (p: { x: number; y: number }): number => {
+    let bestD = Infinity, bestHe = -1;
+    for (let i = 0; i < hes.length; i += 2) {
+      const a = nodes[hes[i].from], b = nodes[hes[i].to];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const L2 = dx * dx + dy * dy || 1;
+      let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const qx = a.x + dx * t, qy = a.y + dy * t;
+      const d = (p.x - qx) * (p.x - qx) + (p.y - qy) * (p.y - qy);
+      if (d < bestD) { bestD = d; bestHe = i; }
+    }
+    if (bestHe < 0) return -1;
+    const a = nodes[hes[bestHe].from], b = nodes[hes[bestHe].to];
+    const cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    if (cross === 0) return -1;
+    return cross < 0 ? hes[bestHe].face : hes[hes[bestHe].twin].face;
   };
-  for (let i = 0; i < hes.length; i++) {
-    const f = faceOf(i);
-    if (faceW[f] === undefined) faceW[f] = sampleW(i);
+  /* winding per face at a VERIFIED interior sample: walk in from the
+     midpoint of the face's longest half-edge toward its own side (visual
+     left of travel), halving the walk-in until the locator confirms the
+     sample actually landed in this face. A fixed walk-in overshoots thin
+     sliver faces and misreads them wholesale. */
+  const faceW = new Array<number>(faceCount).fill(0);
+  for (let f = 0; f < faceCount; f++) {
+    const cyc = faceCycles[f];
+    let bi = cyc[0], bL = 0;
+    for (const iHe of cyc) {
+      const a = nodes[hes[iHe].from], b = nodes[hes[iHe].to];
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      if (L > bL) { bL = L; bi = iHe; }
+    }
+    const a = nodes[hes[bi].from], b = nodes[hes[bi].to];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const nx = (b.y - a.y) / (bL || 1), ny = -(b.x - a.x) / (bL || 1); // visual left
+    for (let off = Math.max(SNAP * 4, bL * 0.25); off >= SNAP * 2; off /= 2) {
+      const p = { x: mx + nx * off, y: my + ny * off };
+      if (sideFaceAt(p) === f) { faceW[f] = windingOfPoint(p, rawLoops); break; }
+    }
   }
-  // boundary of the kept (winding > 0) region
-  const isKept = (f: number) => (faceW[f] ?? 0) > 0;
+  /* the kept region: material rides on the LEFT of travel, which in the
+     y-down SVG frame winds every solid contour NEGATIVE — the true face
+     is the w < 0 region. (Keeping w > 0 selects exactly the reversed
+     cusp slivers the trim exists to discard.) */
+  const isKept = (f: number) => faceW[f] < 0;
+  const keptBoundary: KPt[][] = [];
   const used = new Array(hes.length).fill(false);
   for (let i = 0; i < hes.length; i++) {
     if (used[i] || !isKept(hes[i].face) || isKept(hes[hes[i].twin].face)) continue;
@@ -361,10 +406,13 @@ export function clipRawLoops(rawLoops: KPt[][]): KPt[][] {
       // advance along the kept-region boundary: rotate at the node until the
       // next boundary half-edge of the same region
       let nxt = hes[cur].next;
-      let spins = 0;
-      while ((!isKept(hes[nxt].face) || isKept(hes[hes[nxt].twin].face)) && spins++ < nodes[hes[nxt].from]?.out.length + 2) {
+      const cap = nodes[hes[nxt].from].out.length + 2;
+      let spins = 0, ok = false;
+      while (spins++ <= cap) {
+        if (isKept(hes[nxt].face) && !isKept(hes[hes[nxt].twin].face)) { ok = true; break; }
         nxt = hes[hes[nxt].twin].next;
       }
+      if (!ok) { loop.length = 0; break; } // no continuation — structural, drop the walk
       cur = nxt;
       if (cur === i) break;
     }
@@ -398,7 +446,7 @@ export function simplifyPinned(pts: KPt[], eps: number): KPt[] {
 /** The kernel entry: true inner offset of an arc-free path at `delta`.
  *  Returns closed polyline loops (corner-flagged), or null when the
  *  arrangement fails structurally — callers fall back. */
-export function innerOffsetLoops(d: string, delta: number, opts?: { miterLimit?: number; eps?: number }): KPt[][] | null {
+export function innerOffsetLoops(d: string, delta: number, opts?: { eps?: number }): KPt[][] | null {
   try {
     const contours = parseContours(d);
     if (!contours.length) return null;
@@ -425,7 +473,7 @@ export function innerOffsetLoops(d: string, delta: number, opts?: { miterLimit?:
       return probe && region(probe) ? segs : reverseSegs(segs);
     });
     const eps = opts?.eps ?? Math.max(0.06, Math.min(0.3, delta / 32));
-    const raw = normalized.map((segs) => offsetContour(segs, delta, eps, opts?.miterLimit ?? 4)).filter((r) => r.length >= 3);
+    const raw = normalized.map((segs) => offsetContour(segs, delta, eps)).filter((r) => r.length >= 3);
     if (!raw.length) return null;
     const kept = clipRawLoops(raw);
     if (!kept.length) return null;
