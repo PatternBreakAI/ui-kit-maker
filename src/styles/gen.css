@@ -166,6 +166,13 @@ button { font-family: inherit; color: inherit; }
 .panelsearch input::placeholder { color: var(--ink3, #9aa1ac); }
 .panelsearch button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 7px; background: var(--soft); color: var(--ink2); cursor: pointer; }
 .panelsearch button:hover { color: var(--ink); }
+/* the state flag: sticks under the search while a non-default state is
+   being styled, so the state pick is never out of sight */
+.stateflag { position: sticky; top: 30px; z-index: 5; display: flex; align-items: center; gap: 8px; margin: 0 -8px 8px; padding: 8px 12px; background: color-mix(in srgb, #F5A66B 16%, var(--card)); border: 1px solid color-mix(in srgb, #F5A66B 45%, var(--line)); border-radius: 11px; font-size: 12.5px; line-height: 1.35; color: var(--ink); box-shadow: 0 4px 14px rgba(10,14,26,.08); }
+.stateflag > svg { color: #F5A66B; flex: none; }
+.stateflag span { flex: 1; min-width: 0; }
+.stateflag button { flex: none; border: 1px solid color-mix(in srgb, #F5A66B 55%, var(--line)); background: var(--card); color: var(--ink); font: inherit; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+.stateflag button:hover { border-color: #F5A66B; color: #F5A66B; }
 .panel:hover, .panel:focus-within { scrollbar-color: var(--line2) transparent; }
 .panel::-webkit-scrollbar { width: 8px; }
 .panel::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }

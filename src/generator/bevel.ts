@@ -4698,7 +4698,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bigNum = (txt9: string, fill9: string, fs9: number, glowFx9 = "") =>
         `<g style="filter: ${shFx9}${glowFx9}"><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${fs9.toFixed(1)}" font-weight="${Math.max(800, T9.weight)}"${T9.italic ? ' font-style="italic"' : ""} fill="${fill9}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${strokeC9}; stroke-width: ${strokeW9.toFixed(1)}px; stroke-linejoin: round">${esc(txt9)}</text></g>`;
       const secsTxt = done
-        ? bigNum("GO", READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
+        ? bigNum((opts.slots?.goword || "GO").slice(0, 10), READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
           (state !== "disabled"
             ? `<circle cx="${cxR9.toFixed(1)}" cy="${secCy.toFixed(1)}" r="${(30 * k).toFixed(1)}" fill="none" stroke="${READY}" stroke-width="2">
                  <animate attributeName="r" values="${(30 * k).toFixed(1)};${(58 * k).toFixed(1)}" dur="1.3s" repeatCount="indefinite"/>
@@ -4708,7 +4708,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : opts.themedText
           ? contentText(String(secsR), cxR9, secCy, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkR })
           : bigNum(String(secsR), inkR, 58 * k, gMix > 0.3 && state !== "disabled" ? ` drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})` : "");
-      const inner = contentText(done ? "REDEPLOY" : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
+      const inner = contentText(done ? (opts.slots?.goheading || "REDEPLOY").slice(0, 24) : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
         `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
         `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
@@ -5753,7 +5753,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the old fixed 32k gap crowded big display type (owner). 0.73em
          reproduces the factory look exactly at the default type size. */
       const fsW = 30 * k * typeK;
-      const lead = fsW * 0.73 * ((cfg.type.leading ?? 100) / 100);
+      // fork-first like the list font: a Leading edit made while a state is
+      // selected lands on the fork, and the raw master never sees it
+      const leadT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+      const lead = fsW * 0.73 * ((leadT.leading ?? 100) / 100);
       const text = words.length > 1
         ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
           contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
@@ -5860,10 +5863,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          (click picks the sector under the pointer); icon = the selected
          emote (swappable); hub shows the pick; disabled dims. */
       const dE = ({ s: 280, m: 350, l: 430 } as Record<KitSize, number>)[size] * k;
-      const padE9 = 30;
+      /* the Global state aura, honored on this custom root (owner: "outer
+         glow for the whole thing... the slider does nothing"). Same recipe
+         as build(): pad reserves full slider travel, two blurred sweeps of
+         the silhouette — here, the disc — in the aura/Glow tint. */
+      const adjE9 = cfg.states[state];
+      const padE9 = 30 + glowPadOf(cfg);
       const cE = dE / 2 + padE9, rE = dE / 2;
       const hubR = dE * 0.16;
       const gidE9 = "ew" + UID++;
+      const auraC9 = state === "disabled" ? "#B9BEC6" : (cfg.candy.aura.color ?? glow);
+      const auraOp9 = (adjE9.glow / 100) * (state === "disabled" ? 0 : 1);
+      const tail9 = (s2: number) => 4 * s2 + 24;
+      const auraF9 = (s2: number) => `filterUnits="userSpaceOnUse" x="${(cE - rE - tail9(s2)).toFixed(0)}" y="${(cE - rE - tail9(s2)).toFixed(0)}" width="${((rE + tail9(s2)) * 2).toFixed(0)}" height="${((rE + tail9(s2)) * 2).toFixed(0)}"`;
+      const auraDisc9 = `<circle cx="${cE}" cy="${cE}" r="${rE.toFixed(1)}" fill="${auraC9}"/>`;
+      const aura9 = auraOp9 > 0.01
+        ? `<g opacity="${Math.min(1, auraOp9 * 1.35).toFixed(2)}" filter="url(#${gidE9}ga)">${auraDisc9}</g><g opacity="${(auraOp9 * 0.6).toFixed(2)}" filter="url(#${gidE9}gb)">${auraDisc9}</g>`
+        : "";
       /* sector count + every sector's emote are SLOTS now ("this component
          isn't very editable", owner). A named pick resolves against the
          stock set; unset sectors keep the factory cycle. */
@@ -5890,9 +5906,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       const selIc = opts.icon ?? emotes[selE9];
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" role="img" aria-label="emote wheel">
-<defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient></defs>
-<g opacity="${state === "disabled" ? 0.45 : 1}">
-  ${sect}
+<defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient>${auraOp9 > 0.01 ? `<filter id="${gidE9}ga" ${auraF9(14)}><feGaussianBlur stdDeviation="14"/></filter><filter id="${gidE9}gb" ${auraF9(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}</defs>
+<g opacity="${((adjE9.opacity / 100) * (state === "disabled" ? 0.45 : 1)).toFixed(2)}">
+  ${aura9}${sect}
   <circle cx="${cE}" cy="${cE}" r="${rE.toFixed(1)}" fill="none" stroke="url(#${gidE9}r)" stroke-width="${Math.max(8, dE * 0.035).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(dE * 0.02).toFixed(1)}px ${hexRgba(glow, 0.45)})"` : ""}/>
   <circle cx="${cE}" cy="${cE}" r="${hubR.toFixed(1)}" fill="${wellFill}" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.6"/>
   ${selIc ? themedIcon(selIc, cE - hubR * 0.5, cE - hubR * 0.5, hubR, hexMix(glow, "#FFFFFF", 0.2), 2.4) : ""}

@@ -937,9 +937,11 @@ export const useGen = create<GenStore>((set, get) => ({
   focus: null,
   // choosing a piece to edit lifts any rail focus filter — the user asked
   // for THIS component, so every relevant section must be reachable
-  // focusing a piece always lands on the narrow scope: a group edit is a
-  // deliberate choice, never something you inherit from the last piece
-  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null, scope: "piece" }),
+  // focusing a piece always lands on the narrow scope AND the Default state:
+  // a group edit or a state pick is a deliberate choice, never something you
+  // inherit from the last piece (owner: jumping pieces with Pressed still
+  // selected kept landing edits on the fork — "that is what is messing me up")
+  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null, scope: "piece", selectedState: "default" }),
   scope: "piece",
   setScope: (s) => set({ scope: s }),
   parentId: loadJson<KitComponentId | "button">("ui-generator-parent", "button"),

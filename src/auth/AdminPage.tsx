@@ -8,7 +8,7 @@ import { usePageScroll } from "@/shell/usePageScroll";
 import { hydrate } from "@/generator/store";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
-import { ensureFont } from "@/generator/fonts";
+import { ensureDocFonts } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
 
@@ -92,14 +92,7 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
      custom fonts, so ensureFont can resolve them. */
   useEffect(() => {
     try {
-      const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
-      const fams = new Set<string>([cfg.type.font]);
-      if (cfg.type.listFont) fams.add(cfg.type.listFont);
-      for (const kd of Object.values((doc.kitDesigns ?? {}) as Record<string, { type?: { font?: string; listFont?: string | null } }>)) {
-        if (kd?.type?.font) fams.add(kd.type.font);
-        if (kd?.type?.listFont) fams.add(kd.type.listFont);
-      }
-      fams.forEach((f) => ensureFont(f));
+      ensureDocFonts(hydrate(doc.cfg as Record<string, unknown>), doc.kitDesigns);
     } catch { /* unrenderable docs already report below */ }
   }, [doc]);
   const out = useMemo(() => {

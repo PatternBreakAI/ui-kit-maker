@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -704,6 +704,17 @@ export function Panel() {
           </button>
         )}
       </div>
+      {/* ── the STATE FLAG: jumping pieces snaps back to Default, but while
+           a non-default state is picked this sticky flag keeps saying so —
+           deep in Typography the chip in Global is long scrolled away
+           (owner: "need a warning or something") ── */}
+      {selectedState !== "default" && (
+        <div className="stateflag" role="status">
+          <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
+          <span>Styling <b>{STATE_LABEL[selectedState]}</b> — every edit lands on this state only.</span>
+          <button onClick={() => setSelectedState("default")}>Back to Default</button>
+        </div>
+      )}
       {/* ── the SCOPE BAR: where edits land, answered before you edit.
            One picker replaces the scattered banner chrome ("Back to parent
            design", "Style X only (pin it)"...). Every verb survives — it
@@ -818,9 +829,6 @@ export function Panel() {
         )}
         <Slider label="Lift" value={adj.lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
         <Slider label="Opacity" value={adj.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
-        {selectedState !== "default" && focus && PINNED_CHROME.has(focus) && (
-          <p className="hint">This piece's FRAME keeps its Default design in every state — the live element inside (selection ring, mark, knob) carries the state, and the sliders above still apply. To restyle the frame's material (gloss, specular, pattern…), edit the <b>Default</b> state; it flows to all of them.</p>
-        )}
         <div className="actionrow">
           <button className="resetstate" onClick={() => update((c) => { c.states[selectedState] = defaultStates()[selectedState]; })}>
             <RotateCcw size={13} strokeWidth={2} /> Reset {STATE_LABEL[selectedState]}

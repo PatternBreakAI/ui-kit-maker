@@ -1121,6 +1121,14 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "glyph4", name: "Glyph 4", kind: "choice", choices: GLYPH_CHOICES,
       note: "Four glyphs cycle around the wheel. Their size and weight follow Typography → Icons like every other glyph in the kit." },
   ],
+  respawn: [
+    /* the GO frame is reached by dragging Value to zero — and its words
+       are content (owner: "how do i edit the GO state") */
+    { id: "goword", name: "Ready word", kind: "free", def: "GO", maxLen: 10,
+      note: "The celebration word at zero. Drag the Value slider to 0 to stage the GO frame; the readout counts down to it." },
+    { id: "goheading", name: "Ready heading", kind: "free", def: "REDEPLOY", maxLen: 24,
+      note: "The heading the GO frame swaps in — the countdown heading is the piece's label in Typography." },
+  ],
   streakmeter: [
     /* the ignition glyph is the meter's whole story (owner: "need to be
        able to control / customize the icon on the streak counter") */
