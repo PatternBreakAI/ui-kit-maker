@@ -1673,7 +1673,7 @@ export const useGen = create<GenStore>((set, get) => ({
         // still read wrong as a button. Other components inherit the
         // language downstream. Preset jumps above may still wear a
         // preset's own theatrical cut — those outfits are curated.
-        const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && !m.preview && m.id !== c.shape);
+        const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape);
         c.shape = rack[roll(rack.length)].id;
       }
       /* the wardrobe includes the voice now — every roll picks a fresh

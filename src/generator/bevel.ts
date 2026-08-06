@@ -999,7 +999,7 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
   if (!/[Aa]/.test(outer)) {
     // the Gothic drop takes the drawing-resolution offset; everyone else runs
     // the exact ladder they always did (owner: the rest is PERFECT — no step back)
-    if (silhouetteMeta(shape)?.category === "Gothic") {
+    if (silhouetteMeta(shape)?.gothicCut) {
       const g = gothicInset(outer, delta);
       if (g) return g;
     } else {

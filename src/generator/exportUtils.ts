@@ -254,6 +254,29 @@ function fetchDeadline(url: string, ms = 8000): Promise<Response> {
   return fetch(url, { signal: ac.signal }).finally(() => clearTimeout(t));
 }
 
+/** Inline the kit's display face into a text-bearing SVG string. Rasterized
+ *  SVGs are sealed documents and downloaded singles open outside the app —
+ *  both silently fall back to a system face without this (owner report: the
+ *  top-bar PNG export baked EQUIP in a fallback font). Caller-supplied TTF
+ *  bytes win (the engine pipeline's google/fonts fetch); otherwise the
+ *  Google woff2 route the sprite sheet uses; a miss returns the SVG
+ *  untouched so the export never blocks on the network. */
+export async function inlineKitFace(svg: string, family: string, cssQuery: string | null, ttfBytes?: Uint8Array | null): Promise<string> {
+  if (!family || !svg.includes("<text")) return svg;
+  let src: string | null = null;
+  if (ttfBytes && ttfBytes.length) {
+    let bin = "";
+    for (let i = 0; i < ttfBytes.length; i += 0x8000)
+      bin += String.fromCharCode(...ttfBytes.subarray(i, Math.min(i + 0x8000, ttfBytes.length)));
+    src = `url(data:font/ttf;base64,${btoa(bin)}) format("truetype")`;
+  } else {
+    const uri = await fontDataUri(family, cssQuery);
+    if (uri) src = `url(${uri}) format("woff2")`;
+  }
+  if (!src) return svg;
+  return svg.replace(/(<svg[^>]*>)/, `$1<style>@font-face{font-family:"${family.replace(/"/g, "")}";src:${src};}</style>`);
+}
+
 export async function fontDataUri(family: string, cssQuery: string | null): Promise<string | null> {
   if (FONT_CACHE.has(family)) return FONT_CACHE.get(family) ?? null;
   let uri: string | null = null;

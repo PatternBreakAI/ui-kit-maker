@@ -7,7 +7,9 @@ import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
 import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
-import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText } from "@/generator/exportUtils";
+import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText, inlineKitFace } from "@/generator/exportUtils";
+import { fetchKitFont } from "@/generator/engineExport";
+import { fontByName } from "@/generator/model";
 import { guardedExport } from "@/generator/exportGate";
 import { t } from "@/shell/i18n";
 
@@ -49,6 +51,26 @@ export function TopBar() {
   }, []);
 
   const svg = () => renderBevel(cfg, selectedState);
+  /* The top-bar singles leave the page: the PNG rasterizes inside a sealed
+     <img> document and the SVG opens in other tools — neither can see the
+     page's loaded fonts, so the label falls back to a system face unless
+     the kit's face rides inside the file. Google woff2 first (small,
+     cached), the engine pipeline's google/fonts TTF as backup; a custom
+     file font that matches neither ships as before, best effort. */
+  const svgWithFace = async () => {
+    const s = svg();
+    const fam = cfg.type.font;
+    if (!s.includes("<text")) return s;
+    // exact-name match only: fontByName's GAME_FONTS[0] fallback would
+    // embed the wrong face's bytes under a custom family's name
+    const fdef = fontByName(fam);
+    let out = await inlineKitFace(s, fam, fdef.name === fam ? fdef.css ?? null : null);
+    if (out === s) {
+      const kf = await fetchKitFont(fam).catch(() => null);
+      if (kf) out = await inlineKitFace(s, fam, null, kf.bytes);
+    }
+    return out;
+  };
   /* Paid formats go through the server gate — the client's caps decide how
      the menu LOOKS, the server decides whether the file is produced. */
   const handlers = {
@@ -56,8 +78,8 @@ export function TopBar() {
     onUpgrade: () => navigate("#/pricing"),
     onMessage: (m: string) => window.alert(m),
   };
-  const dlSvg = () => void guardedExport("svg", handlers, () =>
-    downloadSvg(svg(), `ui-${cfg.presetId}-${selectedState}.svg`));
+  const dlSvg = () => void guardedExport("svg", handlers, async () =>
+    downloadSvg(await svgWithFace(), `ui-${cfg.presetId}-${selectedState}.svg`));
   const copyCode = () => void guardedExport("svg", handlers, async () => {
     const ok = await copyText(svg());
     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1400); }
@@ -180,7 +202,7 @@ export function TopBar() {
               ) : (
                 <button className="lockedmi" title={`Vector exports are a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportSvg"))}</button>
               )}
-              <button onClick={() => { void downloadPng(svg(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax); setMenuOpen(false); }}>
+              <button onClick={() => { void (async () => downloadPng(await svgWithFace(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax))(); setMenuOpen(false); }}>
                 <Image size={15} strokeWidth={1.8} /> {t("exportPng")} {tcaps.pngScaleMax}×
               </button>
               {may("html") ? (
