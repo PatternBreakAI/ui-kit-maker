@@ -127,9 +127,19 @@ export const SPECULAR_MODES: { id: SpecularMode; name: string }[] = [
 export type BlendMode = "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
 export const BLEND_MODES: BlendMode[] = ["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"];
 
+/** Highlight-glint treatments for letterforms — see TypeTokens.glints. */
+export type GlintStyle = "slab" | "stars" | "streak" | "sheen";
+export const GLINT_STYLES: { id: GlintStyle; name: string }[] = [
+  { id: "slab", name: "Specular slab & stars" },
+  { id: "stars", name: "Star field" },
+  { id: "streak", name: "Streak bands" },
+  { id: "sheen", name: "Top sheen" },
+];
+
 export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone"
   | "houndstooth" | "plaid" | "diamonds" | "chevron" | "waves" | "scales"
-  | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles";
+  | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
+  | "skulls" | "crosses" | "bats" | "thorns" | "fleur";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -152,6 +162,14 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "crosshatch", name: "Crosshatch" },
   { id: "grid", name: "Grid" },
   { id: "sprinkles", name: "Sprinkles" },
+  /* the third wave — the Gothic drop's surface language, shipped beside
+     its silhouettes (owner: "let's add some goth patterns like skulls,
+     crosses, etc"). Same seamless-square contract as every wave. */
+  { id: "skulls", name: "Skulls" },
+  { id: "crosses", name: "Crosses — gothic" },
+  { id: "bats", name: "Bats" },
+  { id: "thorns", name: "Thorn vine" },
+  { id: "fleur", name: "Fleur-de-lis" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row
@@ -249,10 +267,14 @@ export interface TypeCfg {
   /** Balloon highlight following the key light — the closest the shell gets
    *  to an inflate effect without touching the glyph geometry. */
   inflate?: { on: boolean; strength: number };
-  /** Crisp vector glints riding the letterforms — a specular slab clipped to
-   *  the glyphs plus star sparkles, all placed by the master lighting angle.
+  /** Crisp vector glints riding the letterforms, placed by the master
+   *  lighting angle. `style` picks the treatment (owner: "a few styles of
+   *  highlight glints to choose from"): slab = specular slab + stars (the
+   *  original), stars = constellation only, streak = thin light bands,
+   *  sheen = horizontal top light. `blend` composites the glints against
+   *  the letter faces exactly like the shell gloss/specular blends.
    *  ox/oy nudge the whole treatment in % of the letter height. */
-  glints?: { on: boolean; opacity: number; ox?: number; oy?: number };
+  glints?: { on: boolean; opacity: number; ox?: number; oy?: number; style?: GlintStyle; blend?: BlendMode };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
   fill2: string;       // gradient bottom
@@ -466,7 +488,7 @@ export interface FontCaps {
 /** Popular game-UI faces from Google Fonts. `factor` ≈ average glyph advance
  *  (em) used for auto-width; `css` is the families query for fonts.googleapis
  *  — variable faces request their full real axis range. */
-export const GAME_FONTS: { name: string; css: string | null; factor: number; caps: FontCaps }[] = [
+export const GAME_FONTS: { name: string; css: string | null; factor: number; caps: FontCaps; lang?: "zh" }[] = [
   { name: "Inter", css: null, factor: 0.6, caps: { wght: [100, 900, 400], italic: true } },
   { name: "Bangers", css: "Bangers", factor: 0.5, caps: { weights: [400] } },
   { name: "Luckiest Guy", css: "Luckiest+Guy", factor: 0.58, caps: { weights: [400] } },
@@ -505,7 +527,71 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Boogaloo", css: "Boogaloo", factor: 0.5, caps: { weights: [400] } },
   { name: "Staatliches", css: "Staatliches", factor: 0.5, caps: { weights: [400] } },
   { name: "Grandstander", css: "Grandstander:ital,wght@0,100..900;1,100..900", factor: 0.58, caps: { wght: [100, 900, 700], italic: true } },
+  // the Gothic drop's type rack (owner list, 2026-08-05) — blackletter,
+  // carnival and machined display faces to pair with the new silhouettes.
+  // Bangers and Staatliches from the owner's list were already above.
+  { name: "New Rocker", css: "New+Rocker", factor: 0.55, caps: { weights: [400] } },
+  { name: "Grenze", css: "Grenze:wght@400;700", factor: 0.52, caps: { weights: [400, 700] } },
+  { name: "Pirata One", css: "Pirata+One", factor: 0.5, caps: { weights: [400] } },
+  { name: "Germania One", css: "Germania+One", factor: 0.55, caps: { weights: [400] } },
+  { name: "Freckle Face", css: "Freckle+Face", factor: 0.55, caps: { weights: [400] } },
+  { name: "Slackey", css: "Slackey", factor: 0.6, caps: { weights: [400] } },
+  { name: "Hanalei Fill", css: "Hanalei+Fill", factor: 0.55, caps: { weights: [400] } },
+  { name: "Monoton", css: "Monoton", factor: 0.7, caps: { weights: [400] } },
+  { name: "Michroma", css: "Michroma", factor: 0.78, caps: { weights: [400] } },
+  { name: "Bruno Ace", css: "Bruno+Ace", factor: 0.72, caps: { weights: [400] } },
+  { name: "Bakbak One", css: "Bakbak+One", factor: 0.62, caps: { weights: [400] } },
+  /* the Chinese rack (owner: "I want to see how this UI looks with some
+     chinese fonts"). `lang` drives the CTA takeover below — switching to
+     a zh face swaps a recognized label for its Chinese counterpart. CJK
+     glyphs run full-width, so factor 1.0 until the loaded face measures. */
+  { name: "ZCOOL QingKe HuangYou", css: "ZCOOL+QingKe+HuangYou", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "ZCOOL KuaiLe", css: "ZCOOL+KuaiLe", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Ma Shan Zheng", css: "Ma+Shan+Zheng", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Zhi Mang Xing", css: "Zhi+Mang+Xing", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Liu Jian Mao Cao", css: "Liu+Jian+Mao+Cao", factor: 1.0, caps: { weights: [400] }, lang: "zh" },
+  { name: "Noto Sans SC", css: "Noto+Sans+SC:wght@400..900", factor: 1.0, caps: { wght: [400, 900, 900] }, lang: "zh" },
 ];
+
+/* ── the CTA dictionary — takeover words ─────────────────────────────────
+   When the display font switches language, a label the app RECOGNIZES
+   swaps to its counterpart (owner: "default chinese words that take over
+   the moment I switch to those fonts"); a bespoke label is the user's
+   voice and is never touched. The untouched default "PLAY" draws a
+   RANDOM entry on entering Chinese (owner: "maybe we randomize 10
+   CTAs"); any other recognized CTA translates 1:1 both directions.
+   `gloss` feeds the liner note beside the label field. */
+export const CTA_SETS: { en: string; zh: string; gloss: string }[] = [
+  { en: "PLAY", zh: "开始游戏", gloss: "start the game" },
+  { en: "START", zh: "开始", gloss: "start" },
+  { en: "GO!", zh: "出发！", gloss: "let's go" },
+  { en: "FIRE", zh: "开火", gloss: "open fire" },
+  { en: "CLAIM", zh: "领取", gloss: "claim the reward" },
+  { en: "SHOP", zh: "商店", gloss: "shop" },
+  { en: "UPGRADE", zh: "升级", gloss: "level up" },
+  { en: "BATTLE", zh: "战斗", gloss: "battle" },
+  { en: "CONTINUE", zh: "继续", gloss: "continue" },
+  { en: "WIN", zh: "胜利", gloss: "victory" },
+];
+export function fontLang(name: string): "en" | "zh" {
+  return GAME_FONTS.find((f) => f.name === name)?.lang ?? "en";
+}
+export function ctaEntry(label: string): (typeof CTA_SETS)[number] | undefined {
+  const t = label.trim();
+  return CTA_SETS.find((c) => c.en.toUpperCase() === t.toUpperCase() || c.zh === t);
+}
+/** The takeover: the label the new font's language wants, or null to
+ *  leave the label alone. */
+export function ctaForFont(label: string, fontName: string): string | null {
+  const hit = ctaEntry(label);
+  if (!hit) return null;
+  if (fontLang(fontName) === "zh") {
+    if (hit.zh === label.trim()) return null; // already Chinese
+    if (hit.en === "PLAY") return CTA_SETS[Math.floor(Math.random() * CTA_SETS.length)].zh;
+    return hit.zh;
+  }
+  return hit.zh === label.trim() ? hit.en : null; // coming home from zh
+}
 /* User-added Google Fonts — registered at runtime, names persisted in the
    config. Any family from fonts.google.com works; we request a broad weight
    set and expose those as a static list (no axis data is known for them). */
@@ -828,10 +914,12 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     applyPresetCandy(nc, pr);
     c = { ...c, candy: nc };
   } else {
-    // non-jump rolls change the CUT too — from the BUTTON rack only (owner
-    // call): banners, plaques and HUD rails read wrong as a master button
-    // shape; preset jumps above keep their curated cuts
-    const rack = SILHOUETTES.filter((m) => m.category === "Buttons" && m.id !== c.shape);
+    // non-jump rolls change the CUT too — from the BUTTON rack plus the
+    // Gothic drop (owner: "make sure the new silhouettes appear in the
+    // relevant random generators"); banners, plaques and HUD rails still
+    // read wrong as a master button shape, and preset jumps above keep
+    // their curated cuts
+    const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && m.id !== c.shape);
     c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
@@ -848,10 +936,12 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
   const shellHue = (h + r(-8, 8) + 360) % 360;
   // lighting and speculars are intentionally untouched: a roll changes the
   // palette + wrap, never the light rig or reflections the user has set up.
-  const patRoll = Math.random();
-  // v67: every pattern family pulls real weight — "none" is the rare roll,
-  // and the exotic wraps (halftone, stars, checker) show up for real
-  const patType: PatternType = patRoll < 0.2 ? "stripes" : patRoll < 0.3 ? "none" : patRoll < 0.5 ? "dots" : patRoll < 0.68 ? "halftone" : patRoll < 0.84 ? "stars" : "checker";
+  /* the WHOLE wardrobe, derived from the real list — this roll was still
+     hardcoded to the original six, so the later waves (houndstooth, chevron,
+     skulls…) never reached the homepage's RANDOMIZE, which takes this config
+     wholesale. "none" stays the rare roll, same odds as the app's button. */
+  const pats = PATTERN_TYPES.filter((t) => t.id !== "none");
+  const patType: PatternType = Math.random() < 0.12 ? "none" : pats[Math.floor(Math.random() * pats.length)].id;
   const candy = JSON.parse(JSON.stringify(c.candy)) as CandyTokens;
   candy.pattern = {
     type: patType,

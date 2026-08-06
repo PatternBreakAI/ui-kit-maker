@@ -3,8 +3,8 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutG
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME } from "@/generator/model";
-import type { GenStateName, BlendMode, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
+import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN } from "@/generator/bevel";
@@ -172,20 +172,40 @@ function Section({ id, title, summary, right, children }: {
   );
 }
 
-function Slider({ label, value, min, max, unit, step, onChange }: {
-  label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void;
+function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
+  label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
   return (
-    <div className="ctl">
+    <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} onChange={(e) => onChange(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => onChange(+e.target.value)} />
       <span className="valbox">
-        <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value}
+        <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
           onChange={(e) => { const v = +e.target.value; if (!Number.isNaN(v)) onChange(clampV(v)); }} />
         <i>{unit}</i>
       </span>
+    </div>
+  );
+}
+
+/* A liner note that knows which control it belongs to: an ⓘ chip beside a
+   short always-visible summary, with the longer explanation folded behind
+   the chip (owner: "kinda hard to tell which note is for which control, so
+   maybe hide them behind i's"). First adopter: the CTA translation note. */
+function InfoNote({ summary, children }: { summary: React.ReactNode; children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "flex-start", margin: "2px 0 6px" }}>
+      <button className="fxpeek" aria-label={open ? "Hide note" : "More about this"} aria-expanded={open}
+        onClick={() => setOpen(!open)} style={{ flexShrink: 0 }}>
+        <Info size={13} strokeWidth={2.2} />
+      </button>
+      <div className="helper" style={{ margin: 0 }}>
+        {summary}
+        {open && children ? <> {children}</> : null}
+      </div>
     </div>
   );
 }
@@ -975,10 +995,19 @@ export function Panel() {
         {/* v56: corner smoothness lives at the TOP of the section, always
             visible — it was buried under the import notes and vanished for
             pills, which read as "missing" */}
-        <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.bevel.softness = v; })} />
-        {(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === "pill" && (
-          <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
-        )}
+        {(() => {
+          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const isGothicSil = silhouetteMeta(effSil)?.category === "Gothic";
+          return (<>
+            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
+            {isGothicSil && (
+              <div className="helper">The Gothic cuts are authored curves — smoothness doesn't apply to them.</div>
+            )}
+            {effSil === "pill" && (
+              <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
+            )}
+          </>);
+        })()}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
@@ -1379,6 +1408,8 @@ export function Panel() {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
           const effShape = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          // goth3 runs uncapped like the classics (owner: "remove the 4
+          // limit and see what happens with these")
           const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : 34;
           return (
             <>
@@ -1684,6 +1715,17 @@ export function Panel() {
           <input className="tinput" value={cfg.content.label} maxLength={32} aria-label="Label text"
             onChange={(e) => update((c) => { c.content.label = e.target.value; })} />
         )}
+        {(() => {
+          // the translation liner note — only when the label is a dictionary
+          // CTA sitting in a language the current face carried in
+          const e2 = ctaEntry(focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label);
+          const showing = e2 && (focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label).trim() === e2.zh;
+          return showing ? (
+            <InfoNote summary={<>“{e2.zh}” = <b>{e2.en}</b> — {e2.gloss}.</>}>
+              Swapped in automatically for the Chinese face ({fontLang(T2.font) === "zh" ? T2.font : "previous font"}). Type anything to replace it — bespoke labels are never auto-translated. Picking a Latin face swaps a dictionary CTA back to English.
+            </InfoNote>
+          ) : null;
+        })()}
         <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase — e.g. VICTORY" aria-label="Highlight phrase"
           onChange={(e) => update((c) => { c.type.highlight = e.target.value; })} />
         <div className="helper">The first matching word or phrase inside the label renders as a brighter, illuminated portion of the same material. Leave empty for none.</div>
@@ -1697,6 +1739,11 @@ export function Panel() {
               const caps = fontByName(f).caps;
               c.type.weight = clampWeight(caps, c.type.weight);
               c.type.width = caps?.wdth ? caps.wdth[2] : undefined;
+              // the CTA takeover — a recognized label follows the face's
+              // language (owner: "default chinese words that take over the
+              // moment I switch to those fonts"); bespoke labels stay put
+              const swap = ctaForFont(c.content.label, f);
+              if (swap) c.content.label = swap;
             });
           }} />
         <div className="addfont">
@@ -1906,6 +1953,22 @@ export function Panel() {
         </FxToggle>
         <FxToggle label="Highlight glints" on={T2.glints?.on ?? false}
           onToggle={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: v, opacity: c.type.glints?.opacity ?? 55 }; })}>
+          <label className="fieldbox" style={{ minWidth: 0 }}>
+            <span className="fl">Glint style</span>
+            <select value={T2.glints?.style ?? "slab"} aria-label="Glint style"
+              onChange={(e) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, style: e.target.value as GlintStyle }; })}>
+              {GLINT_STYLES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+          </label>
+          <label className="fieldbox" style={{ minWidth: 0 }}>
+            <span className="fl">Glint blend mode</span>
+            <select value={T2.glints?.blend ?? "normal"} aria-label="Glint blend mode"
+              onChange={(e) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, blend: e.target.value as BlendMode }; })}>
+              {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+          </label>
           <Slider label="Opacity" value={T2.glints?.opacity ?? 55} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { on: true }), on: c.type.glints?.on ?? true, opacity: v }; })} />
           <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: c.type.glints?.oy, ox: v }; })} />
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />

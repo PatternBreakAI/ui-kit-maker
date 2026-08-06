@@ -3,6 +3,7 @@ import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEF
 import { iconGroup } from "./icons";
 import { silhouetteMeta } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
+import { innerOffsetLoops } from "./offsetKernel";
 import { stockShape } from "./stockShapes";
 import rough from "roughjs";
 
@@ -232,9 +233,9 @@ function simplifyDP(pts: Pt[], eps: number): Pt[] {
   }
   return pts.filter((_, i) => keep[i]);
 }
-export function offsetPathInward(d: string, delta: number): string {
+export function offsetPathInward(d: string, delta: number, miterK = 8): string {
   if (delta <= 0.05) return d;
-  const key = `${delta.toFixed(2)}|${d}`;
+  const key = `${delta.toFixed(2)}|${miterK}|${d}`;
   const hit = OFFSET_CACHE.get(key);
   if (hit !== undefined) return hit;
   /* Multi-loop silhouettes are first-class: an imported ribbon banner is a
@@ -253,7 +254,7 @@ export function offsetPathInward(d: string, delta: number): string {
       outs.push("M " + raw.map((p) => `${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}`).join(" L ") + " Z");
       continue;
     }
-    const one = ringOffsetInward(raw, delta);
+    const one = ringOffsetInward(raw, delta, miterK);
     if (one) { solidHits++; outs.push(one); }
   }
   // no solid loop survived → report failure so callers use their fallback
@@ -262,7 +263,7 @@ export function offsetPathInward(d: string, delta: number): string {
   OFFSET_CACHE.set(key, dOut);
   return dOut;
 }
-function ringOffsetInward(raw: Pt[], delta: number): string {
+function ringOffsetInward(raw: Pt[], delta: number, miterK = 8): string {
   // dedupe — shared corner endpoints from L/Q handoffs make zero-length edges
   const dd: Pt[] = [];
   for (const p of raw) {
@@ -297,7 +298,7 @@ function ringOffsetInward(raw: Pt[], delta: number): string {
      their corner candidates all land in thin wedges — and fall through to
      the classic ladder below, whose coarser collapse is what synthesizes
      their miter tips. */
-  dOut = offsetAttempt(ring, delta, Math.min(0.9, delta * 0.3), 1.1, delta * 0.8);
+  dOut = offsetAttempt(ring, delta, Math.min(0.9, delta * 0.3), 1.1, delta * 0.8, miterK);
   if (!dOut) for (const k of [0.3, 0.55, 0.85]) {
     const eps = Math.min(k === 0.3 ? 4.5 : 8, delta * k);
     /* retries also relax the pinch cull by eps: the chordified boundary sits
@@ -305,12 +306,12 @@ function ringOffsetInward(raw: Pt[], delta: number): string {
        measure up to eps short — the excision pass then resolves the tiny
        tip crossings those borderline points create */
     const cullT = k === 0.3 ? delta * 0.8 : Math.max(delta * 0.5, delta * 0.8 - eps);
-    dOut = offsetAttempt(ring, delta, eps, Math.max(1.5, delta * k), cullT);
+    dOut = offsetAttempt(ring, delta, eps, Math.max(1.5, delta * k), cullT, miterK);
     if (dOut) break;
   }
   return dOut;
 }
-function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, cullT: number): string {
+function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, cullT: number, miterK = 8): string {
   /* pre-simplify the SOURCE: micro-roundings (r « delta) collapse to sharp
      vertices so their two straight neighbors become adjacent — that's what
      lets the miter join synthesize the receding tip an offset demands.
@@ -372,8 +373,10 @@ function offsetAttempt(ring: Pt[], delta: number, eps: number, mergeR: number, c
       const t = ((bx - ax) * dirs[i].y - (by - ay) * dirs[i].x) / den;
       const q = { x: ax + dirs[eP].x * t, y: ay + dirs[eP].y * t };
       // past the miter limit, Illustrator bevels: keep BOTH offset endpoints
-      // instead of averaging them into a dent
-      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * 8) cand.push({ x: ax, y: ay }, { x: bx, y: by });
+      // instead of averaging them into a dent. miterK is the limit as a
+      // multiple of the offset — 8 for the tuned import/classic behavior,
+      // 4 for the Gothic set (Illustrator's own default, owner-proofed)
+      if (Math.hypot(q.x - p.x, q.y - p.y) > delta * miterK) cand.push({ x: ax, y: ay }, { x: bx, y: by });
       else cand.push(q);
     }
   }
@@ -535,8 +538,11 @@ function splitSimpleLoops(ring: Pt[]): Pt[][] {
 
 /** Effective wall width for a shape. The banner's tail geometry only reads
  *  clean between 13 and 33 (review-measured), so the renderer clamps what
- *  it consumes — stale or shared configs can't break the tails. `off` drops
- *  the wall entirely: the face fills the whole silhouette. */
+ *  it consumes — stale or shared configs can't break the tails. The goth3
+ *  set runs UNCAPPED (owner: "remove the 4 limit and see what happens
+ *  with these") — the friendlier drawings hold a true offset across the
+ *  full range, so gothic no longer needs a special clamp. `off` drops the
+ *  wall entirely: the face fills the whole silhouette. */
 export function effectiveWall(width: number, shape: Shape, off?: boolean): number {
   if (off) return 0;
   return shape === "banner" ? Math.min(33, Math.max(13, width)) : width;
@@ -678,12 +684,330 @@ function polyRoundedInset(d: string, delta: number): string {
   return out;
 }
 
+/* ── the Gothic face: the true offset, at drawing resolution ──────────────
+   The Gothic drop runs the SAME offsetPathInward machinery as everything
+   else — the difference is fidelity, not math. The machinery's default
+   curve flattening (14 chords per curve) is tuned for imports and reads
+   fine there, but gothic filigree packs many tight curves into few units:
+   at 14 chords the offset inherits chord kinks, the refit's corner
+   detector reads them as corners, and the result shows jagged tears and
+   tangles. An earlier cut answered that by pre-simplifying the source and
+   abdicating to the scaled inset when islands multiplied — calm, but the
+   owner's eye caught it immediately ("feels more like scaling down than a
+   true adobe illustrator level offset path... I may have preferred it
+   before"). So: flatten the source at 3× density, offset it faithfully,
+   and keep every honest island — the face parallels every thorn and
+   crack the way Offset Path would. The only pruning left is against
+   OUTPUT that is outright broken, shape-agnostic by design (owner:
+   "trying to prevent case-by-case notes"): loops that escape the source,
+   sub-wall crumbs, and mutually overlapping solids (a true erosion can
+   never overlap itself). Structural failure falls to the scaled inset.
+   Non-gothic shapes never enter here; their path is byte-identical. */
+const GOTHIC_CACHE = new Map<string, string>();
+/* Excise appendages of a face loop narrower than `thin`: walk vertex windows
+   and seal any span whose endpoints sit closer than `thin` while the path
+   between them detours far longer — an offset feature thinner than the wall
+   is geometric truth but reads as a barb, not face (owner, on Thornward's
+   bottom pendant pockets: "perfect aside from this one shape at the
+   bottom"). A seal that would fold the loop reverts. */
+function clipPinches(loop: Pt[], thin: number): Pt[] {
+  let pts = loop.slice();
+  const minLen = thin * 2.2;
+  const loopArea = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) { const a = ps[i], b = ps[(i + 1) % ps.length]; s += a.x * b.y - b.x * a.y; } return Math.abs(s / 2); };
+  const A0 = loopArea(pts);
+  let removed = 0;
+  for (let pass = 0; pass < 6; pass++) {
+    const n = pts.length;
+    if (n < 8) break;
+    const span = Math.min(26, Math.floor(n / 4));
+    let cut: [number, number] | null = null;
+    outer: for (let i = 0; i < n; i++) {
+      let acc = 0;
+      for (let k = 1; k <= span; k++) {
+        const j = (i + k) % n;
+        acc += Math.hypot(pts[j].x - pts[(i + k - 1) % n].x, pts[j].y - pts[(i + k - 1) % n].y);
+        if (acc >= thin * 12) break;
+        if (k < 3) continue;
+        const gap = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+        if (gap < thin && acc > Math.max(gap * 2.6, minLen)) {
+          /* the discriminator is RELATIVE area: a barb is negligible next
+             to its loop, while the end segment of a legitimately thin face
+             BODY (a wall-30 band) is a real share of it — absolute
+             thresholds can't tell them apart at deep walls, where the
+             band's own height is δ-scale. The cumulative cap stops
+             pass-by-pass nibbling. */
+          let s2 = 0;
+          for (let t = 0; t < k; t++) {
+            const a = pts[(i + t) % n], b = pts[(i + t + 1) % n];
+            s2 += a.x * b.y - b.x * a.y;
+          }
+          const a2 = pts[(i + k) % n], b2 = pts[i];
+          s2 += a2.x * b2.y - b2.x * a2.y;
+          const cutA = Math.abs(s2 / 2);
+          if (cutA < thin * thin * 2.5 && cutA < A0 * 0.045 && removed + cutA <= A0 * 0.09) { cut = [i, k]; break outer; }
+        }
+      }
+    }
+    if (!cut) break;
+    const [ci, ck] = cut;
+    const keep: Pt[] = [];
+    for (let t = 0; t < n; t++) {
+      const rel = (t - ci + n) % n;
+      if (rel > 0 && rel < ck) continue;
+      keep.push(pts[t]);
+    }
+    if (keep.length < 3 || selfIntersections(keep) > 0) break;
+    removed += loopArea(pts) - loopArea(keep);
+    pts = keep;
+  }
+  return pts;
+}
+/* Fill concave dents shallower than half the wall: where an ornament root
+   just grazes the δ band, the true offset dips by a few pixels — too
+   shallow to read as a designed V, too wide for the pinch seal, so it
+   scans as a wobble (owner, circling Evensong's apex kinks: "perfect
+   outside of these two errant angles"). Deep features — designed Vs,
+   crack seams, the ornament basins — exceed the depth gate and stay.
+   A seal only applies when its chord midpoint stays on solid drawing. */
+function fillDents(loop: Pt[], delta: number, solids: Pt[][]): Pt[] {
+  let pts = loop.slice();
+  let sign = 0;
+  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; sign += a.x * b.y - b.x * a.y; }
+  sign = Math.sign(sign) || 1;
+  /* the depth gate is the smaller of wall-relative and LOOP-relative: at
+     deep walls δ*0.55 alone grows past drawn character (Hellmouth's waves,
+     the bat's scallops flattened) — a kink is small against the face
+     itself, a designed wave is not */
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const devCap = Math.min(delta * 0.55, Math.min(x1 - x0, y1 - y0) * 0.04);
+  for (let pass = 0; pass < 8; pass++) {
+    const n = pts.length;
+    if (n < 8) break;
+    /* pick the WIDEST qualifying seal, not the first: a greedy first-found
+       chord lands shoulder-to-mid-flank and trades the kink for an
+       asymmetric step — the widest window spans shoulder to shoulder */
+    let cut: [number, number] | null = null;
+    let cutArc = 0;
+    for (let i = 0; i < n; i++) {
+      let acc = 0;
+      for (let k = 3; k <= Math.min(34, Math.floor(n / 3)); k++) {
+        const j = (i + k) % n;
+        acc += Math.hypot(pts[j].x - pts[(i + k - 1) % n].x, pts[j].y - pts[(i + k - 1) % n].y);
+        if (acc >= delta * 7) break;
+        if (acc <= cutArc) continue;
+        const A = pts[i], B = pts[j];
+        const chord = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+        let s2 = 0, maxDev = 0, minDot = 1;
+        for (let t = 0; t < k; t++) {
+          const a = pts[(i + t) % n], b = pts[(i + t + 1) % n];
+          s2 += a.x * b.y - b.x * a.y;
+          const dev = Math.abs((a.x - A.x) * (B.y - A.y) - (a.y - A.y) * (B.x - A.x)) / chord;
+          if (t > 0 && dev > maxDev) maxDev = dev;
+          if (t > 0) {
+            const p0 = pts[(i + t - 1) % n];
+            const l1 = Math.hypot(a.x - p0.x, a.y - p0.y) || 1, l2 = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+            minDot = Math.min(minDot, ((a.x - p0.x) * (b.x - a.x) + (a.y - p0.y) * (b.y - a.y)) / (l1 * l2));
+          }
+        }
+        s2 += B.x * A.y - A.x * B.y;
+        /* a dent winds against the loop; a convex bump winds with it. And
+           the dent must contain a sharp corner — the owner's word was
+           errant ANGLES: sealing a smooth shallow arc swaps a curve for a
+           visible straight chamfer (Cloister Rail's shoulder), so smooth
+           spans stay untouched however shallow they are */
+        if (Math.sign(s2) === sign || maxDev < 0.8 || maxDev > devCap || minDot > 0.85) continue;
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        if (!solids.some((sl) => pointInPoly(mid, sl))) continue;
+        cut = [i, k]; cutArc = acc;
+      }
+    }
+    if (!cut) break;
+    const [ci, ck] = cut;
+    const keep: Pt[] = [];
+    for (let t = 0; t < n; t++) {
+      const rel = (t - ci + n) % n;
+      if (rel > 0 && rel < ck) continue;
+      keep.push(pts[t]);
+    }
+    if (keep.length < 3 || selfIntersections(keep) > 0) break;
+    pts = keep;
+  }
+  return pts;
+}
+function gothicInset(outer: string, delta: number): string {
+  const key = `${delta.toFixed(2)}|${outer}`;
+  const hit = GOTHIC_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  const done = (v: string) => { if (GOTHIC_CACHE.size > 400) GOTHIC_CACHE.clear(); GOTHIC_CACHE.set(key, v); return v; };
+  const shoelace = (ps: Pt[]) => { let s = 0; for (let i = 0; i < ps.length; i++) { const a = ps[i], b = ps[(i + 1) % ps.length]; s += a.x * b.y - b.x * a.y; } return s / 2; };
+  const toD = (ps: Pt[]) => "M " + ps.map((p) => `${Math.round(p.x * 100) / 100} ${Math.round(p.y * 100) / 100}`).join(" L ") + " Z";
+  const srcLoops = flattenPath(outer, 42).filter((l) => l.length >= 3);
+  if (!srcLoops.length) return done("");
+  /* ── the reviewed kernel first ──
+     Curve-aware direct-offset sampling → half-edge arrangement → winding
+     classification (offsetKernel.ts, built to the external math review):
+     holes offset outward like the true erosion, reflex corners bridge
+     with the erosion's own δ-arc (verified against a dense distance
+     field), and tangles die by face classification instead of
+     heuristics. The kernel is pure geometry. A null return (structural
+     failure) falls through to the legacy chord-machinery path, so
+     nothing can render worse than before. */
+  const kernelLoops = innerOffsetLoops(outer, delta);
+  if (kernelLoops) {
+    const solids = srcLoops.filter((l, i) => !srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
+    const isHoleK = kernelLoops.map((l, i) => kernelLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
+    const srcArea = solids.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
+    const parts: string[] = [];
+    const kept: Pt[][] = [];
+    let total = 0;
+    /* The kernel's output ships AS-IS — pure geometry, per the review and
+       the owner's call ("try chatgpt's math approach"). The barb seal and
+       dent fill were built for the old razor-filigree set and their
+       thresholds scale with δ: at hero scale (δ ≈ 50 units) they excised
+       and chamfered REAL geometry — the wobbling, asymmetric faces the
+       owner caught on preview. The friendly goth3 drawings need no art
+       direction; only sub-visible crumbs are dropped. */
+    const floor = Math.max(24, delta * delta * 0.35);
+    for (let i = 0; i < kernelLoops.length; i++) {
+      const raw = kernelLoops[i] as Pt[];
+      if (isHoleK[i]) { parts.push(toD(raw)); kept.push(raw); continue; }
+      if (raw.length < 3 || Math.abs(shoelace(raw)) < floor) continue;
+      total += Math.abs(shoelace(raw));
+      kept.push(raw);
+      parts.push(toD(raw));
+    }
+    /* THE INVERSION GATE (shape-agnostic): a face-vs-void swap from a
+       mis-classified arrangement — found live on Evensong at δ=10 —
+       keeps the band NEAR the outline and loses the interior's CORE.
+       So test the core: interior grid points deeper than δ belong to
+       the true erosion BY DEFINITION, at any wall depth, and the face
+       must hold them. (Plain interior coverage broke at deep walls,
+       where a legitimate face is a thin sliver of the interior.) */
+    let coreN = 0, coreIn = 0;
+    if (solids.length) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const l of solids) for (const p of l) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      const segsB: [Pt, Pt][] = [];
+      for (const l of srcLoops) for (let i = 0; i < l.length; i++) segsB.push([l[i], l[(i + 1) % l.length]]);
+      const depth2 = (p: Pt) => {
+        let best = Infinity;
+        for (const [a, b] of segsB) {
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const L2 = dx * dx + dy * dy || 1;
+          let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const qx = a.x + dx * t - p.x, qy = a.y + dy * t - p.y;
+          const d = qx * qx + qy * qy;
+          if (d < best) best = d;
+        }
+        return best;
+      };
+      const needD = delta * delta * 1.04; // slight margin over δ² for polyline eps
+      const N = 15;
+      for (let gx = 1; gx < N; gx++) for (let gy = 1; gy < N; gy++) {
+        const p = { x: x0 + ((x1 - x0) * gx) / N, y: y0 + ((y1 - y0) * gy) / N };
+        let par = 0;
+        for (const l of srcLoops) if (pointInPoly(p, l)) par++;
+        if (par % 2 === 0 || depth2(p) <= needD) continue;
+        coreN++;
+        let fp = 0;
+        for (const l of kept) if (pointInPoly(p, l)) fp++;
+        if (fp % 2 === 1) coreIn++;
+      }
+    }
+    const coverOK = coreN < 3 || coreIn / coreN >= 0.6;
+    if (parts.length && total >= srcArea * 0.15 && coverOK) return done(parts.join(" "));
+  }
+  // ── legacy fallback: the tuned chord machinery at miter 4 ──
+  const off = offsetPathInward(srcLoops.map(toD).join(" "), delta, 4);
+  if (!off) return done("");
+  // validate each output loop against the TRUE outer; return `off` verbatim
+  // when everything passes, else re-emit only the surviving loops
+  const solids = srcLoops.filter((l, i) => !srcLoops.some((o, oi) => oi !== i && o.length >= 3 && pointInPoly(l[0], o)));
+  const segs = off.match(/M[^M]+/g) ?? [];
+  // flatten per segment so loops map 1:1 to segments by construction —
+  // a whole-string flatten can drop degenerates and misalign the audit
+  const flat = segs.map((s) => flattenPath(s, 12)[0] ?? []);
+  const isHoleOut = flat.map((l, i) => flat.some((o, oi) => oi !== i && o.length >= 3 && l.length >= 1 && pointInPoly(l[0], o)));
+  const areas = flat.map((l) => Math.abs(shoelace(l)));
+  const overlapFrac = (a: Pt[], b: Pt[]) => {
+    const step = Math.max(1, Math.floor(a.length / 12));
+    let c = 0, t = 0;
+    for (let s = 0; s < a.length; s += step) { t++; if (pointInPoly(a[s], b)) c++; }
+    return t ? c / t : 0;
+  };
+  const keep = flat.map((l, i) => {
+    if (l.length < 3) return false;
+    /* EVERY loop — face panel or piercing — must stay inside the source: a
+       true inner offset can never leave the silhouette, so any excursion
+       beyond chord slack marks a planar-map tangle. (A tangle whose first
+       vertex lands inside a face loop masquerades as a counter-hole — the
+       belfry bat's wall-30 spear did exactly that — so piercings are
+       audited too, not waved through.) */
+    let inside = 0;
+    for (const p of l) {
+      if (solids.some((sl) => pointInPoly(p, sl)) || solids.some((sl) => distToBoundary(p, sl) < 0.8)) inside++;
+      else if (Math.min(...solids.map((sl) => distToBoundary(p, sl))) > Math.max(1.5, delta * 0.25)) return false;
+    }
+    if (inside < l.length * 0.98) return false;
+    if (isHoleOut[i]) {
+      // a real piercing sits wholly inside one face loop, never astride it
+      const pi = flat.findIndex((o, oi) => oi !== i && !isHoleOut[oi] && o.length >= 3 && pointInPoly(l[0], o));
+      return pi >= 0 && overlapFrac(l, flat[pi]) > 0.9;
+    }
+    return areas[i] >= Math.max(24, delta * delta * 0.35); // crumb floor
+  });
+  // a true erosion never overlaps itself — kept solids sharing real area
+  // mark a tangle; the smaller one goes
+  for (let i = 0; i < flat.length; i++) {
+    if (!keep[i] || isHoleOut[i]) continue;
+    for (let j = 0; j < flat.length; j++) {
+      if (i === j || !keep[j] || isHoleOut[j]) continue;
+      if (areas[j] <= areas[i] && overlapFrac(flat[j], flat[i]) > 0.15) keep[j] = false;
+    }
+  }
+  // orphaned holes (parent dropped) go with their parent
+  for (let i = 0; i < flat.length; i++) {
+    if (!keep[i] || !isHoleOut[i]) continue;
+    if (!flat.some((o, oi) => keep[oi] && !isHoleOut[oi] && pointInPoly(flat[i][0], o))) keep[i] = false;
+  }
+  if (!keep.some((k, i) => k && !isHoleOut[i])) return done("");
+  /* structural floor, shape-agnostic: when the survivors hold under 15% of
+     the source area the machinery lost the face itself (deep walls on dense
+     ornament), and shipping shards would read broken — the scaled inset is
+     the honest admission there. This is a failure detector, not taste. */
+  const totalSrc = solids.reduce((s, l) => s + Math.abs(shoelace(l)), 0);
+  const totalOut = flat.reduce((s, l, i) => s + (keep[i] && !isHoleOut[i] ? Math.abs(shoelace(l)) : 0), 0);
+  if (totalOut < totalSrc * 0.15) return done("");
+  /* sub-wall barbs sealed per loop; a loop the clip modifies is re-emitted
+     through the corner-aware refit, an untouched loop keeps the machinery's
+     own cubics verbatim */
+  const parts: string[] = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (!keep[i]) continue;
+    if (isHoleOut[i]) { parts.push(segs[i].trim()); continue; }
+    const c = fillDents(clipPinches(flat[i], delta * 0.85), delta, solids);
+    parts.push(c.length !== flat[i].length
+      ? smoothLoopPath(c.map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })))
+      : segs[i].trim());
+  }
+  return done(parts.join(" "));
+}
+
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
-    const exact = polyRoundedInset(outer, delta);
-    if (exact) return exact;
-    const off = offsetPathInward(outer, delta);
-    if (off) return off;
+    // the Gothic drop takes the drawing-resolution offset; everyone else runs
+    // the exact ladder they always did (owner: the rest is PERFECT — no step back)
+    if (silhouetteMeta(shape)?.category === "Gothic") {
+      const g = gothicInset(outer, delta);
+      if (g) return g;
+    } else {
+      const exact = polyRoundedInset(outer, delta);
+      if (exact) return exact;
+      const off = offsetPathInward(outer, delta);
+      if (off) return off;
+    }
   }
   return shapePath(shape, x + delta, y + delta, w - delta * 2, h - delta * 2, softness);
 }
@@ -1255,6 +1579,61 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return dash(u, q, 24) + dash(h + u, u, -38) + dash(q, h + u, -12) + dash(h + q, h + q, 52);
   }
 
+  /* ── the third wave: the Gothic drop's surface language. Motifs are
+     authored in a 100-unit cell and scaled to ps by a group transform —
+     the drawings stay literal (and were approved from tiled renders),
+     stroke widths scale with the cell like every hand-set width above. */
+  const G = (inner: string) => `<g transform="scale(${n(p / 100)})">${inner}</g>`;
+
+  /* Skulls — big/small polka rhythm: one skull centered, a small echo
+     ON each corner (the halftone precedent) so quarters join whole
+     across every seam. Detailed silhouette (owner: "make the skull
+     shapes more detailed"): cheekbone flares, a four-tooth crenellated
+     jaw, glaring sockets whose upper edge slants down toward the
+     center, a kite nasal aperture and a temple crack — all evenodd
+     cutouts of ONE subpath, so tone-on-tone stays honest. */
+  if (style === "skulls") {
+    const skull = "M31.5 41 A19 19 0 0 1 69.5 41 L69.5 46 Q72.5 48.5 70.5 52.5 L64 55.5 L64 59 Q64 61 62.5 62 L62.5 70 Q62.5 74 58.5 74.5 L58.5 71 Q58.5 69.3 56.9 69.3 Q55.4 69.3 55.4 71 L55.4 74.8 L52.2 75 L52.2 71 Q52.2 69.3 50.5 69.3 Q48.9 69.3 48.9 71 L48.9 75 L45.7 74.8 L45.7 71 Q45.7 69.3 44.1 69.3 Q42.6 69.3 42.6 71 L42.6 74.5 Q38.5 74 38.5 70 L38.5 62 Q37 61 37 59 L37 55.5 L30.5 52.5 Q28.5 48.5 31.5 46 Z M36.8 40.6 L45.8 44 Q46 48.4 41.4 48.6 Q36.2 47.4 36.8 40.6 Z M64.2 40.6 L55.2 44 Q55 48.4 59.6 48.6 Q64.8 47.4 64.2 40.6 Z M50 51.6 Q52.6 54 52.1 57.9 L50 58.9 L47.9 57.9 Q47.4 54 50 51.6 Z M59 29.5 l3.4 -2.4 l-1.8 3.2 l2.6 2.2 l-3.8 -0.9 Z";
+    const echo = (cx: number, cy: number) =>
+      `<path fill-rule="evenodd" fill="${color}" transform="translate(${cx} ${cy}) scale(0.38) translate(-50 -48)" d="${skull}"/>`;
+    return G(`<path fill-rule="evenodd" fill="${color}" d="${skull}"/>` + echo(0, 0) + echo(100, 0) + echo(0, 100) + echo(100, 100));
+  }
+
+  /* Gothic cross — dagger-pointed plus, with corner diamonds that close
+     into whole diamonds across the seam */
+  if (style === "crosses") return G(
+    `<path fill="${color}" d="M50 18 L55 28 L55 44 L70 44 L80 50 L70 56 L55 56 L55 72 L50 82 L45 72 L45 56 L30 56 L20 50 L30 44 L45 44 L45 28 Z"/>` +
+    `<path fill="${color}" d="M0 0 L6 0 L0 6 Z M100 0 L94 0 L100 6 Z M0 100 L6 100 L0 94 Z M100 100 L94 100 L100 94 Z"/>`);
+
+  /* Bats — one big, one small, both fully inside the tile (discrete,
+     like sprinkles): scalloped wings, eared crown */
+  if (style === "bats") {
+    const bat = "M50 40 l-4 -7 l2 6 h4 l2 -6 l-4 7 c8 -8 20 -9 30 -2 c-7 1 -10 5 -10 10 c-6 -4 -12 -3 -15 2 c-1 3 -2 5 -3 9 c-1 -4 -2 -6 -3 -9 c-3 -5 -9 -6 -15 -2 c0 -5 -3 -9 -10 -10 c10 -7 22 -6 30 2 Z";
+    return G(`<path fill="${color}" d="${bat}"/><path fill="${color}" transform="translate(24 74) scale(0.55) translate(-50 -50)" d="${bat}"/>`);
+  }
+
+  /* Thorn vine — the diagonal runs corner to corner (seam-safe like
+     crosshatch); curved claws alternate sides, fully inside the tile */
+  if (style === "thorns") return G(
+    `<path d="M0 0 L100 100" stroke="${color}" stroke-width="6" fill="none"/>` +
+    `<path fill="${color}" d="M20 20 q 12 -14 24 -15 q -14 -3 -27 8 Z"/>` +
+    `<path fill="${color}" d="M53 53 q -14 12 -15 24 q -3 -14 8 -27 Z"/>` +
+    `<path fill="${color}" d="M78 78 q 12 -14 24 -15 q -14 -3 -27 8 Z"/>`);
+
+  /* Fleur-de-lis — damask column, ONE fused solid glyph (owner: "make
+     the fleur de lis a solid shape (or simplify)"): center spindle
+     dipping into the band, side petals that arc up and DROOP past the
+     band in a down-point (the ⚜ read — upswept petals kept reading as
+     wings), band and splayed tail all overlap-unioned; edge diamonds
+     close at the seams */
+  if (style === "fleur") return G(
+    `<path fill="${color}" d="M50 14 C42.5 26 42.5 40 50 57 C57.5 40 57.5 26 50 14 Z"/>` +
+    `<path fill="${color}" d="M45.5 42 C37 40 31 34 31 27 C25.5 31.5 24 41 27.5 50 C29 53.5 27.5 56.5 24.5 59 C30 58 34.5 55 37.5 51 C41 46.5 44 44 45.5 42 Z"/>` +
+    `<path fill="${color}" d="M54.5 42 C63 40 69 34 69 27 C74.5 31.5 76 41 72.5 50 C71 53.5 72.5 56.5 75.5 59 C70 58 65.5 55 62.5 51 C59 46.5 56 44 54.5 42 Z"/>` +
+    `<path fill="${color}" d="M38.5 55 L61.5 55 L61.5 61.5 L38.5 61.5 Z"/>` +
+    `<path fill="${color}" d="M45.5 60 C45.5 69.5 42.5 75.5 37 81 L50 75 L63 81 C57.5 75.5 54.5 69.5 54.5 60 Z"/>` +
+    `<path fill="${color}" d="M50 -6 L54.5 0 L50 6 L45.5 0 Z M50 94 L54.5 100 L50 106 L45.5 100 Z M-6 50 L0 45.5 L6 50 L0 54.5 Z M106 50 L100 45.5 L94 50 L100 54.5 Z"/>`);
+
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
 
@@ -1519,22 +1898,17 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      copies keep the silhouette continuous on soft corners. */
   const dk = C.extrusion.darkness / 100;
   const deepC = hexMix(darken(bevelC, clamp(0.24 + 0.34 * dk, 0, 0.8)), bevelC, 0.18);
-  // enough interpolated slices that the side stays a continuous wall even at
-  // maximum depth — no scalloping between the cap and the base. (A swept-
-  // solid quad wall was tried and rolled back by owner call: with quads the
-  // sweeps of opposite-running edges overlap at deep extrusion and the fill
-  // rule hollowed the caps until winding was normalized — the stacked
-  // construction is the devil we know.) Its residual flaw — stepped copy
-  // edges inside concave notches — is sanded two ways: half the old slice
-  // pitch, and every intermediate copy wears a hairline stroke of its own
-  // wall gradient, dilating each step into its neighbour (owner, on a
-  // spiky import's flank: "anything we can do to smooth out these edges
-  // so we don't see all the steps?").
-  const nSlices = Math.max(2, Math.ceil(visDepth / 1.25));
-  const slices = Array.from({ length: nSlices }, (_, i) => {
-    const ty = (visDepth * (i + 1)) / nSlices;
-    return `<path d="${outer}" transform="translate(0 ${ty.toFixed(1)})" fill="url(#${id}ext)" stroke="url(#${id}ext)" stroke-width="1.1"/>`;
-  }).join("");
+  /* The wall is the EXACT vertical sweep of the silhouette — the union of
+     every translate from 0 to depth, computed in one stroke as a vertical-
+     only feMorphology dilate (Minkowski sum with a depth-tall segment)
+     rather than approximated with stacked copies. The stacked construction
+     served two rounds of sanding (finer pitch, hairline strokes) but any
+     finite pitch serrates on razor-sharp x-extremes — a spike at angle α
+     leaves notches ≈ pitch/tan(α/2), and the Gothic drop's tips made them
+     plainly visible (owner: "I thought we got rid of these serrated
+     edges?"). The dilate is a true union so the old quad-wall failure
+     can't recur: opposite-running edge sweeps can't hollow the caps,
+     because alpha dilation has no winding to cancel. */
   // base glow: light caught inside the body, centered under the face
   const egC = C.innerGlow.color ? P(C.innerGlow.color) : glowC;
   const egOp = (C.extrusion.glow / 100) * (disabled ? 0 : 1);
@@ -1555,10 +1929,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
+        <filter id="${id}xsw" filterUnits="userSpaceOnUse" ${extRegion}>
+          <feMorphology operator="dilate" radius="0 ${(visDepth / 2).toFixed(2)}"/>
+          <feOffset dy="${(visDepth / 2).toFixed(2)}"/>
+        </filter>
         <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
-          ${Array.from({ length: nSlices }, (_, i) => `<path d="${outer}" transform="translate(0 ${((visDepth * (i + 1)) / nSlices).toFixed(1)})" fill="#fff" stroke="#fff" stroke-width="1.1"/>`).join("")}
+          <g filter="url(#${id}xsw)"><path d="${outer}" fill="#fff"/></g>
         </mask>
-        ${slices}
+        <rect x="${(x - 220).toFixed(0)}" y="${y.toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 220).toFixed(1)}" fill="url(#${id}ext)" mask="url(#${id}extu)"/>
         <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
         ${baseGlow}
       </g>`
@@ -1889,21 +2267,39 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
     glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+    /* style picks the clipped body + which stars ride along; the bake knobs
+       (glintBands/glintStars, alphabet-face export) keep overriding — they
+       normalize per-glyph treatment and always speak slab. */
+    const gStyle = opts.glintBands ? "slab" : (GL2!.style ?? "slab");
+    const bandRect = (dy: number, hF: number, o: number) => {
+      const by = bcy + dy * fs, bh = hF * fs;
+      return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
+    };
+    let body: string;
+    if (opts.glintBands) body = opts.glintBands.map((b) => bandRect(b.dy, b.h, b.o)).join("\n        ");
+    else if (gStyle === "streak") body = [bandRect(-0.22, 0.09, 1), bandRect(0.02, 0.045, 0.75), bandRect(0.21, 0.07, 0.5)].join("\n        ");
+    else if (gStyle === "sheen")
+      // the top light: horizontal, hugging the cap line — rotation-free by
+      // design, so it reads as studio sheen rather than the key light
+      body = `<rect x="${(tx0 - fs * 0.2 + gdx).toFixed(1)}" y="${(gy - fs * 0.44 + gdy).toFixed(1)}" width="${(textW + fs * 0.4).toFixed(1)}" height="${(fs * 0.2).toFixed(1)}" rx="${(fs * 0.1).toFixed(1)}" fill="#FFFFFF"/>
+        <rect x="${(tx0 + textW * 0.06 + gdx).toFixed(1)}" y="${(gy - fs * 0.16 + gdy).toFixed(1)}" width="${(textW * 0.55).toFixed(1)}" height="${(fs * 0.08).toFixed(1)}" rx="${(fs * 0.04).toFixed(1)}" fill="#FFFFFF" opacity="0.55"/>`;
+    else if (gStyle === "stars") body = "";
+    else body = `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
+        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`;
+    const starSet =
+      opts.glintStars !== undefined ? (opts.glintStars ?? [])
+      : gStyle === "stars"
+        ? [{ f: 0.06, dy: -0.3, s: 0.15, r: 0 }, { f: 0.28, dy: 0.2, s: 0.09, r: 22 }, { f: 0.48, dy: -0.18, s: 0.135, r: -10 }, { f: 0.66, dy: 0.26, s: 0.08, r: 14 }, { f: 0.86, dy: -0.08, s: 0.145, r: -18 }, { f: 0.97, dy: 0.28, s: 0.07, r: 30 }]
+      : gStyle === "slab"
+        ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
+        : []; // streak and sheen stay pure — the mix is what makes styles distinct
     glintsLayer = `<g clip-path="url(#${id}tgc)" opacity="${gOp.toFixed(2)}">
-        ${opts.glintBands
-          ? opts.glintBands.map((b) => {
-              const by = bcy + b.dy * fs, bh = b.h * fs;
-              return `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(by - bh / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bh.toFixed(1)}" fill="#FFFFFF" opacity="${b.o.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${by.toFixed(1)})"/>`;
-            }).join("\n        ")
-          : `<rect x="${(bcx - bandW / 2).toFixed(1)}" y="${(bcy - bandH / 2).toFixed(1)}" width="${bandW.toFixed(1)}" height="${bandH.toFixed(1)}" rx="${(bandH / 2).toFixed(1)}" fill="#FFFFFF" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>
-        <rect x="${(bcx - bandW * 0.19).toFixed(1)}" y="${(bcy + bandH * 0.75).toFixed(1)}" width="${(bandW * 0.38).toFixed(1)}" height="${(bandH * 0.42).toFixed(1)}" rx="${(bandH * 0.21).toFixed(1)}" fill="#FFFFFF" opacity="0.7" transform="rotate(${rot.toFixed(1)} ${bcx.toFixed(1)} ${bcy.toFixed(1)})"/>`}
+        ${body}
       </g>
       <g opacity="${Math.min(1, gOp * 1.15).toFixed(2)}">
-        ${(opts.glintStars === undefined
-          ? [{ f: 0.16, dy: -0.24, s: 0.16, r: 0 }, { f: 0.52, dy: 0.16, s: 0.09, r: 18 }, { f: 0.85, dy: -0.1, s: 0.125, r: -14 }]
-          : opts.glintStars ?? []
-        ).map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
+        ${starSet.map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
       </g>`;
+    if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">
@@ -1913,7 +2309,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset=".5" stop-color="${bevelC}"/>
     <stop offset="1" stop-color="${lighten(bevelC, clamp(0.45 * hiK, 0, 0.75))}"/>
   </linearGradient>
-  <linearGradient id="${id}ext" x1="${lx >= 0 ? 1 : 0}" y1="0.5" x2="${lx >= 0 ? 0 : 1}" y2="0.5">
+  <linearGradient id="${id}ext" gradientUnits="userSpaceOnUse" x1="${(lx >= 0 ? x + w : x).toFixed(1)}" y1="0" x2="${(lx >= 0 ? x : x + w).toFixed(1)}" y2="0">
     <stop offset="0" stop-color="${lighten(deepC, clamp(0.06 + 0.26 * Math.abs(lx) * hiK, 0, 0.5))}"/>
     <stop offset="0.55" stop-color="${deepC}"/>
     <stop offset="1" stop-color="${darken(deepC, clamp(0.05 + 0.2 * Math.abs(lx) * lowK, 0, 0.5))}"/>
