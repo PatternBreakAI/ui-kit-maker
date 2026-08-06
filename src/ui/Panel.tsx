@@ -1451,6 +1451,16 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         {C.pattern.type !== "none" && (<>
+          <label className="fieldbox" style={{ minWidth: 0 }}>
+            <span className="fl">Shows on</span>
+            <select value={C.pattern.zone ?? "face"} aria-label="Pattern placement"
+              onChange={(e) => update((c) => { c.candy.pattern.zone = e.target.value as "face" | "wall" | "both"; })}>
+              <option value="face">Face</option>
+              <option value="wall">Wall</option>
+              <option value="both">Face + wall</option>
+            </select>
+            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+          </label>
           <Slider label="Scale" value={C.pattern.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.scale = v; })} />
           <Slider label="Angle" value={C.pattern.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { c.candy.pattern.angle = v; })} />
           <Slider label="Opacity" value={C.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.opacity = v; })} />
