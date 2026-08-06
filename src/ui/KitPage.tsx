@@ -7,7 +7,7 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape }
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
-import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont } from "@/generator/exportUtils";
+import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport, fetchKitFont } from "@/generator/engineExport";
 import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
@@ -1168,9 +1168,20 @@ export function KitPage() {
          image pipelines render the real type), and the README carries the
          Google Fonts links for design tools that want the family installed. */
       const fams = [...new Set([st.cfg.type.font, ...Object.values(st.kitDesigns).map((d) => d?.type?.font).filter((f): f is string => !!f)])];
+      /* the README's promise, kept in code: resolve each family to a woff2
+         data URI once, inline the whole set into every text-bearing SVG.
+         Exact-name matches only — fontByName's fallback would embed the
+         wrong face's bytes under a custom family's name. */
+      const faceRules: string[] = [];
+      for (const fam of fams) {
+        const fd = fontByName(fam);
+        const uri = await fontDataUri(fam, fd.name === fam ? fd.css ?? null : null).catch(() => null);
+        if (uri) faceRules.push(`@font-face{font-family:"${fam.replace(/"/g, "")}";src:url(${uri}) format("woff2");}`);
+      }
+      const faceCss = faceRules.length ? `<style>${faceRules.join("")}</style>` : "";
       const files: { path: string; data: string }[] = sheetEntries(st).map((e) => ({
         path: `svg/${slug(e.name)}.svg`,
-        data: e.svg,
+        data: faceCss && e.svg.includes("<text") ? e.svg.replace(/(<svg[^>]*>)/, `$1${faceCss}`) : e.svg,
       }));
       /* Paperwork. README = how the pack is built PLUS the full recipe, so a
          designer can rebuild the look by hand. settings.json goes straight

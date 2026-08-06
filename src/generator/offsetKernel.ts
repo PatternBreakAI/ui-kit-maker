@@ -179,29 +179,56 @@ function offsetContour(segs: Seg[], delta: number, eps: number): KPt[] {
       pieces.push({ pts, t0: d0, t1: d1, vx: s.bx, vy: s.by });
     }
   }
-  // join pieces: reflex corners bridge with the erosion arc; smooth joints connect
+  /* join pieces: reflex corners bridge with the erosion arc (the δ-arc
+     centered on the source corner — both endpoints sit at distance δ from
+     it by construction); smooth joints connect directly.
+
+     Deep cusps (doubling-back spikes, kissing quatrefoil lobes) need
+     care: the wrapped shortest sweep can point the WRONG WAY when the
+     true tangent turn exceeds 180°, and a wrong-way arc is a
+     winding-reversing fold that poisons the classification for
+     everything within δ — found live on the quatrefoil piercing. The
+     decider is winding coverage, and it SPLITS BY OFFSET DIRECTION:
+     a DILATING hole contains the δ-disk around every boundary vertex
+     (hole ⊕ δ ⊇ v ⊕ δ), so its ring must wind those disks — deep-cusp
+     arcs are forced to the contour's orientation sign, the long way
+     around when the wrap disagrees (a bevel is NOT safe there: its
+     chord slashes across the dilation and carves winding-0 pockets).
+     An ERODING solid is the mirror image — those disks lie wholly
+     OUTSIDE the face and must never be wound, so the wrapped short arc
+     stands, and the near-180° coin-flip zone takes a straight bevel
+     whose chord sits in the trim zone (verified clean across both
+     gothic sets; forcing solids the long way bit firstthorn and
+     cryptmarker within minutes of trying it). */
+  let orient = 0;
+  {
+    const f = flattenSegs(segs);
+    let s = 0;
+    for (let i = 0; i < f.length; i++) { const a = f[i], b = f[(i + 1) % f.length]; s += a.x * b.y - b.x * a.y; }
+    orient = Math.sign(s) || 1;
+  }
   const outPts: KPt[] = [];
   for (let k2 = 0; k2 < pieces.length; k2++) {
     const cur = pieces[k2], nxt = pieces[(k2 + 1) % pieces.length];
-    const a = cur.pts, b = nxt.pts;
-    if (outPts.length === 0) outPts.push(...a); else outPts.push(...a.slice(0));
-    const E = a[a.length - 1], S = b[0];
-    const gap = Math.hypot(S.x - E.x, S.y - E.y);
-    if (gap > 0.02) {
-      /* the offset pieces separated — a reflex corner. The TRUE inner
-         offset bridges E→S with the δ-arc centered on the source corner
-         (both endpoints sit at distance δ from it by construction). */
-      const a0 = Math.atan2(E.y - cur.vy, E.x - cur.vx);
-      const a1 = Math.atan2(S.y - cur.vy, S.x - cur.vx);
-      let sweep = a1 - a0;
-      while (sweep > Math.PI) sweep -= 2 * Math.PI;
-      while (sweep < -Math.PI) sweep += 2 * Math.PI;
-      const phi = 2 * Math.sqrt(Math.max(1e-4, (2 * eps) / Math.max(1, delta)));
-      const steps = Math.max(1, Math.ceil(Math.abs(sweep) / phi));
-      for (let s2 = 1; s2 < steps; s2++) {
-        const ang = a0 + (sweep * s2) / steps;
-        outPts.push({ x: cur.vx + Math.cos(ang) * delta, y: cur.vy + Math.sin(ang) * delta });
-      }
+    if (outPts.length === 0) outPts.push(...cur.pts); else outPts.push(...cur.pts.slice(0));
+    const E = cur.pts[cur.pts.length - 1], S = nxt.pts[0];
+    if (Math.hypot(S.x - E.x, S.y - E.y) <= 0.02) continue;
+    const a0 = Math.atan2(E.y - cur.vy, E.x - cur.vx);
+    const a1 = Math.atan2(S.y - cur.vy, S.x - cur.vx);
+    let sweep = a1 - a0;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    if (orient > 0) {
+      if (Math.abs(sweep) > 2.6 && sweep < 0) sweep += 2 * Math.PI;
+    } else if (Math.abs(sweep) > Math.PI * 0.93) {
+      E.corner = true; S.corner = true; // bevel the coin-flip cusp
+      continue;
+    }
+    const phi = 2 * Math.sqrt(Math.max(1e-4, (2 * eps) / Math.max(1, delta)));
+    const steps = Math.max(1, Math.ceil(Math.abs(sweep) / phi));
+    for (let s2 = 1; s2 < steps; s2++) {
+      const ang = a0 + (sweep * s2) / steps;
+      outPts.push({ x: cur.vx + Math.cos(ang) * delta, y: cur.vy + Math.sin(ang) * delta });
     }
   }
   return dedupe(outPts);

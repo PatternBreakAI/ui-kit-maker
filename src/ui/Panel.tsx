@@ -997,7 +997,7 @@ export function Panel() {
             pills, which read as "missing" */}
         {(() => {
           const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
-          const isGothicSil = silhouetteMeta(effSil)?.category === "Gothic";
+          const isGothicSil = !!silhouetteMeta(effSil)?.gothicCut;
           return (<>
             <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
             {isGothicSil && (

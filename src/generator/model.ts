@@ -919,7 +919,7 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     // relevant random generators"); banners, plaques and HUD rails still
     // read wrong as a master button shape, and preset jumps above keep
     // their curated cuts
-    const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.category === "Gothic") && m.id !== c.shape);
+    const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape);
     c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
