@@ -194,6 +194,38 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:velvetplaque", name: "Velvet Plaque", category: "Gothic", source: "custom (PatternBreak goth3 set)", license: "original", renderer: "path",
     capScale: 0.261, content: { top: 0.178, right: 0.441, bottom: 0.134, left: 0.441 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The soft one — rounded cartouche, gentle swells." },
+
+  /* ── Gothic classics — the original nine, back as UNLISTED PREVIEW
+     entries (admins only) to trial the fixed offset kernel on the hard
+     set (owner: "let's see if the new math works with the old gothic
+     9"). Same measured caps and content boxes they shipped with. ── */
+  { id: "stock:firstthorn", name: "First Thorn", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.648, content: { top: 0.187, right: 0.828, bottom: 0.186, left: 0.769 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Long side spears, thorn-barbed corners — the shape that taught the importer to stretch." },
+  { id: "stock:thornward", name: "Thornward Plaque", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.186, content: { top: 0.374, right: 0.366, bottom: 0.221, left: 0.366 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Thorn-tipped corners under a center spire." },
+  { id: "stock:ironvigil", name: "Iron Vigil", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.168, content: { top: 0.331, right: 0.348, bottom: 0.236, left: 0.348 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Carved slab flanked by wrought-iron spear posts." },
+  { id: "stock:cryptmarker", name: "Crypt Marker", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.223, content: { top: 0.227, right: 0.403, bottom: 0.226, left: 0.403 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Chamfered slab, diamond finials above and below." },
+  { id: "stock:quatrefoil", name: "Quatrefoil Crest", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.355, content: { top: 0.364, right: 0.535, bottom: 0.221, left: 0.535 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Cathedral point with a quatrefoil cut, spear ends." },
+  { id: "stock:hellmouth", name: "Hellmouth Scroll", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.217, content: { top: 0.389, right: 0.397, bottom: 0.36, left: 0.397 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Flame-curled ends, fanged center ridge." },
+  { id: "stock:evensong", name: "Evensong Banner", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.455, content: { top: 0.466, right: 0.635, bottom: 0.465, left: 0.635 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "Soft vesper banner between pierced star chimes." },
+  { id: "stock:cloisterrail", name: "Cloister Rail", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.736, content: { top: 0.224, right: 0.916, bottom: 0.213, left: 0.916 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The long rail — pierced star finials on a clean span." },
+  { id: "stock:belfrybat", name: "Belfry Bat", category: "Gothic", source: "custom (PatternBreak gothic set)", license: "original", renderer: "path", preview: true,
+    capScale: 0.384, content: { top: 0.404, right: 0.564, bottom: 0.357, left: 0.564 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The bat itself — scalloped wings, eared crown." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
