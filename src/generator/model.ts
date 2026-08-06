@@ -214,7 +214,11 @@ export interface CandyTokens {
   bloom: { opacity: number; size: number };                       // 0..100 ×2 (bounce light, unlit side)
   contact: { opacity: number };                                   // tight shadow where body meets ground
   texture: { amount: number; scale: number };                     // 0..100 ×2 (micro grain)
-  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null }; // null = tone-on-tone
+  /** zone: where the tiles paint — the face well (default), the wall ring,
+   *  or both. The wall variant rides INSIDE the shell paint (no new export
+   *  part), so the Unity pipeline sees richer pixels in a layer it already
+   *  ships — never a new layer. */
+  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null; zone?: "face" | "wall" | "both" }; // color null = tone-on-tone
 }
 
 /* Universal defaults — Chevon's approved settings (uigeneratorsettings_2). */

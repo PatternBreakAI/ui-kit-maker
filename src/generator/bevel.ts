@@ -1963,7 +1963,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const patC = PT.color ? P(PT.color) : darken(face, 0.2);
   const patOp = (PT.type !== "none" ? PT.opacity / 100 : 0) * (disabled ? 0.5 : 1);
   const ps = (8 + PT.scale * 0.9) * K;
-  let patternDef = "", patternUse = "";
+  const patZone = PT.zone ?? "face";
+  let patternDef = "", patternUse = "", wallPattern = "";
   if (patOp > 0.005) {
     const rot = ` patternTransform="rotate(${PT.angle})"`;
     const cell = `id="${id}pt" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
@@ -1977,9 +1978,24 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     } else {
       patternDef = `<pattern ${cell}${rot}>${textPatternCell(PT.type, ps, patC)}</pattern>`;
     }
-    if (patternDef) {
+    if (patternDef && patZone !== "wall") {
       const maskAttr = PT.type === "halftone" ? ` mask="url(#${id}pm)"` : "";
       patternUse = `<rect x="${fx0 - 20}" y="${fy0 - 20}" width="${fw + 40}" height="${fh + 40}" fill="url(#${id}pt)" opacity="${patOp.toFixed(2)}"${maskAttr}/>`;
+    }
+    /* the wall ring wears the tiles too (owner ask) — WITHOUT touching the
+       export contract: the masked rect lives inside the shell paint group,
+       so every consumer (sprites, engine ports, HTML) inherits it as
+       richer pixels in a layer it already ships. Tone-on-tone tints from
+       the WALL color out here — the face-derived tint disappears against
+       the band; halftone skips its face-space fade mask. */
+    if (patZone !== "face") {
+      const wallC = PT.color ? P(PT.color) : darken(bevelC, 0.28);
+      const wcell = `id="${id}ptw" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
+      const wallCellDef = PT.type === "halftone"
+        ? `<pattern ${wcell}${rot}><circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps * 0.3).toFixed(1)}" fill="${wallC}"/></pattern>`
+        : `<pattern ${wcell}${rot}>${textPatternCell(PT.type, ps, wallC)}</pattern>`;
+      patternDef += `${wallCellDef}<mask id="${id}wpm"><path d="${outer}" fill="#fff"/><path d="${faceP}" fill="#000"/></mask>`;
+      wallPattern = `<rect x="${(x - 20).toFixed(1)}" y="${(y - 20).toFixed(1)}" width="${(w + 40).toFixed(1)}" height="${(h + 40).toFixed(1)}" fill="url(#${id}ptw)" opacity="${patOp.toFixed(2)}" mask="url(#${id}wpm)"/>`;
     }
   }
 
@@ -2417,6 +2433,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     ${extrusion && LU ? `<g id="${id}_extrusion" data-part="extrusion">${extrusion}</g>` : ""}
     ${LU ? `<g id="${id}_shell" data-part="shell" opacity="${(T.frame / 100).toFixed(2)}">
       <path d="${outer}" fill="url(#${id}band)" stroke="${darken(bevelC, disabled ? 0.25 : 0.5)}" stroke-width="1.5"/>
+      ${wallPattern && !opts.faceLayer ? wallPattern : ""}
       ${rimW > 0.2 ? `<path d="${rimP}" fill="none" stroke="url(#${id}rim)" stroke-width="${rimW.toFixed(1)}" opacity="${((C.rim.brightness / 100) * (disabled ? 0.5 : 1)).toFixed(2)}"/>` : ""}
       ${shape === "handdrawn" && !disabled ? roughInk(outer, darken(bevelC, 0.58), 1.4 * K) : ""}
     </g>` : ""}
