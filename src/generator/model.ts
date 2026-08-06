@@ -214,11 +214,14 @@ export interface CandyTokens {
   bloom: { opacity: number; size: number };                       // 0..100 ×2 (bounce light, unlit side)
   contact: { opacity: number };                                   // tight shadow where body meets ground
   texture: { amount: number; scale: number };                     // 0..100 ×2 (micro grain)
-  /** zone: where the tiles paint — the face well (default), the wall ring,
-   *  or both. The wall variant rides INSIDE the shell paint (no new export
-   *  part), so the Unity pipeline sees richer pixels in a layer it already
-   *  ships — never a new layer. */
-  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null; zone?: "face" | "wall" | "both" }; // color null = tone-on-tone
+  /** The face tiles, plus the wall ring's OWN spec (`wall`) — fully
+   *  independent type/knobs, so skulls can sit on the face while stripes
+   *  run the wall. Both wall variants ride INSIDE the shell paint (no new
+   *  export part), so the Unity pipeline sees richer pixels in a layer it
+   *  already ships — never a new layer. `zone` is the one-day placement
+   *  select this replaced (2026-08-06); hydrate folds it into `wall`. */
+  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null; zone?: "face" | "wall" | "both";
+    wall?: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null } }; // color null = tone-on-tone
 }
 
 /* Universal defaults — Chevon's approved settings (uigeneratorsettings_2). */

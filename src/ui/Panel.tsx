@@ -1451,16 +1451,6 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         {C.pattern.type !== "none" && (<>
-          <label className="fieldbox" style={{ minWidth: 0 }}>
-            <span className="fl">Shows on</span>
-            <select value={C.pattern.zone ?? "face"} aria-label="Pattern placement"
-              onChange={(e) => update((c) => { c.candy.pattern.zone = e.target.value as "face" | "wall" | "both"; })}>
-              <option value="face">Face</option>
-              <option value="wall">Wall</option>
-              <option value="both">Face + wall</option>
-            </select>
-            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
-          </label>
           <Slider label="Scale" value={C.pattern.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.scale = v; })} />
           <Slider label="Angle" value={C.pattern.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { c.candy.pattern.angle = v; })} />
           <Slider label="Opacity" value={C.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.opacity = v; })} />
@@ -1468,6 +1458,32 @@ export function Panel() {
             onChange={(e) => update((c) => { c.candy.pattern.color = e.target.checked ? null : (c.effects.Bevel ?? "#0E9CC9"); })} /> Tone-on-tone (auto)</label>
           {C.pattern.color !== null && (
             <Well label="Pattern color" value={C.pattern.color} onChange={(v) => update((c) => { c.candy.pattern.color = v; })} />
+          )}
+        </>)}
+
+        <div className="sublabel">Wall pattern</div>
+        <label className="fieldbox" style={{ minWidth: 0 }}>
+          <span className="fl">Pattern</span>
+          <select value={C.pattern.wall?.type ?? "none"} aria-label="Wall pattern type"
+            onChange={(e) => update((c) => {
+              const t2 = e.target.value as typeof C.pattern.type;
+              if (t2 === "none") { c.candy.pattern.wall = undefined; return; }
+              // first enable inherits the face knobs as a starting point
+              const p = c.candy.pattern;
+              c.candy.pattern.wall = { ...(p.wall ?? { scale: p.scale, angle: p.angle, opacity: Math.max(p.opacity, 40), color: p.color }), type: t2 };
+            })}>
+            {PATTERN_TYPES.map((p) => <option key={p.id} value={p.id}>{p.id === "none" ? "None" : p.name}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+        {C.pattern.wall && C.pattern.wall.type !== "none" && (<>
+          <Slider label="Scale" value={C.pattern.wall.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.scale = v; })} />
+          <Slider label="Angle" value={C.pattern.wall.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.angle = v; })} />
+          <Slider label="Opacity" value={C.pattern.wall.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.opacity = v; })} />
+          <label className="check"><input type="checkbox" checked={C.pattern.wall.color === null}
+            onChange={(e) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.color = e.target.checked ? null : (c.effects.Bevel ?? "#0E9CC9"); })} /> Tone-on-tone (auto)</label>
+          {C.pattern.wall.color !== null && (
+            <Well label="Wall pattern color" value={C.pattern.wall.color} onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.color = v; })} />
           )}
         </>)}
 

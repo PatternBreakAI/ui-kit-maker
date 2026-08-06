@@ -1963,9 +1963,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const patC = PT.color ? P(PT.color) : darken(face, 0.2);
   const patOp = (PT.type !== "none" ? PT.opacity / 100 : 0) * (disabled ? 0.5 : 1);
   const ps = (8 + PT.scale * 0.9) * K;
-  const patZone = PT.zone ?? "face";
   let patternDef = "", patternUse = "", wallPattern = "";
-  if (patOp > 0.005) {
+  // legacy zone (the one-day placement select): hydrate migrates saved kits,
+  // this catches raw blobs that skipped it (community presets applied as-is)
+  const legacyZone = PT.zone ?? "face";
+  if (patOp > 0.005 && legacyZone !== "wall") {
     const rot = ` patternTransform="rotate(${PT.angle})"`;
     const cell = `id="${id}pt" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
     /* one source of truth for every pattern cell — the face reads the same
@@ -1978,25 +1980,32 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     } else {
       patternDef = `<pattern ${cell}${rot}>${textPatternCell(PT.type, ps, patC)}</pattern>`;
     }
-    if (patternDef && patZone !== "wall") {
+    if (patternDef) {
       const maskAttr = PT.type === "halftone" ? ` mask="url(#${id}pm)"` : "";
       patternUse = `<rect x="${fx0 - 20}" y="${fy0 - 20}" width="${fw + 40}" height="${fh + 40}" fill="url(#${id}pt)" opacity="${patOp.toFixed(2)}"${maskAttr}/>`;
     }
-    /* the wall ring wears the tiles too (owner ask) — WITHOUT touching the
-       export contract: the masked rect lives inside the shell paint group,
-       so every consumer (sprites, engine ports, HTML) inherits it as
-       richer pixels in a layer it already ships. Tone-on-tone tints from
-       the WALL color out here — the face-derived tint disappears against
-       the band; halftone skips its face-space fade mask. */
-    if (patZone !== "face") {
-      const wallC = PT.color ? P(PT.color) : darken(bevelC, 0.28);
-      const wcell = `id="${id}ptw" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
-      const wallCellDef = PT.type === "halftone"
-        ? `<pattern ${wcell}${rot}><circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps * 0.3).toFixed(1)}" fill="${wallC}"/></pattern>`
-        : `<pattern ${wcell}${rot}>${textPatternCell(PT.type, ps, wallC)}</pattern>`;
-      patternDef += `${wallCellDef}<mask id="${id}wpm"><path d="${outer}" fill="#fff"/><path d="${faceP}" fill="#000"/></mask>`;
-      wallPattern = `<rect x="${(x - 20).toFixed(1)}" y="${(y - 20).toFixed(1)}" width="${(w + 40).toFixed(1)}" height="${(h + 40).toFixed(1)}" fill="url(#${id}ptw)" opacity="${patOp.toFixed(2)}" mask="url(#${id}wpm)"/>`;
-    }
+  }
+  /* the wall ring's OWN tiles (owner: "a different pattern on the wall and
+     a different pattern on the face") — WITHOUT touching the export
+     contract: the masked rect lives inside the shell paint group, so every
+     consumer (sprites, engine ports, HTML) inherits it as richer pixels in
+     a layer it already ships. Tone-on-tone tints from the WALL color out
+     here — the face-derived tint disappears against the band; halftone
+     skips its face-space fade mask. */
+  const PW = PT.wall && PT.wall.type !== "none" ? PT.wall
+    : legacyZone !== "face" && PT.type !== "none" ? { type: PT.type, scale: PT.scale, angle: PT.angle, opacity: PT.opacity, color: PT.color }
+    : null;
+  const wallOp = PW ? (PW.opacity / 100) * (disabled ? 0.5 : 1) : 0;
+  if (PW && wallOp > 0.005) {
+    const wps = (8 + PW.scale * 0.9) * K;
+    const wallC = PW.color ? P(PW.color) : darken(bevelC, 0.28);
+    const wrot = ` patternTransform="rotate(${PW.angle})"`;
+    const wcell = `id="${id}ptw" width="${wps.toFixed(1)}" height="${wps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
+    const wallCellDef = PW.type === "halftone"
+      ? `<pattern ${wcell}${wrot}><circle cx="${(wps / 2).toFixed(1)}" cy="${(wps / 2).toFixed(1)}" r="${(wps * 0.3).toFixed(1)}" fill="${wallC}"/></pattern>`
+      : `<pattern ${wcell}${wrot}>${textPatternCell(PW.type, wps, wallC)}</pattern>`;
+    patternDef += `${wallCellDef}<mask id="${id}wpm"><path d="${outer}" fill="#fff"/><path d="${faceP}" fill="#000"/></mask>`;
+    wallPattern = `<rect x="${(x - 20).toFixed(1)}" y="${(y - 20).toFixed(1)}" width="${(w + 40).toFixed(1)}" height="${(h + 40).toFixed(1)}" fill="url(#${id}ptw)" opacity="${wallOp.toFixed(2)}" mask="url(#${id}wpm)"/>`;
   }
 
   /* 8 ── broad curved gloss (screen space, flips if lit from below) */
@@ -2930,7 +2939,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // labels — vertical used to be per-callsite and read as dead elsewhere
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${o2.list && cfg.type.listFont ? cfg.type.listFont : T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
@@ -7060,7 +7069,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          speaks here when one is set */
       const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
         `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
-         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
+         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
       const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component

@@ -145,6 +145,20 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
     if (sd?.candy) sd.candy = mergeCandy(d.candy, sd.candy);
     if (sd?.icon) sd.icon = { ...d.icon, ...sd.icon };
   }
+  /* pattern.zone lived for one day (2026-08-06) before the wall got its own
+     spec — fold it in so those kits render pixel-identical: wall/both mirror
+     the face tiles into the wall, and "wall" turns the face tiles off */
+  const migratePatternZone = (p?: GenConfig["candy"]["pattern"]) => {
+    if (!p?.zone) return;
+    const z = p.zone;
+    delete p.zone;
+    if (z === "face") return;
+    if (!p.wall || p.wall.type === "none")
+      p.wall = { type: p.type, scale: p.scale, angle: p.angle, opacity: p.opacity, color: p.color };
+    if (z === "wall") p.type = "none";
+  };
+  migratePatternZone(cfg.candy.pattern);
+  for (const sd of Object.values(cfg.stateDesigns)) migratePatternZone(sd?.candy?.pattern);
   healStateIconPins(cfg);
   if ((cfg.shape as string) === "shard") cfg.shape = "sharp";
   // retired silhouettes map to their closest living relatives
