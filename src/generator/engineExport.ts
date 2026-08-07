@@ -851,12 +851,34 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const K1 = 1; // component faces render at K=1 in the export sizes
     const ps = (8 + facePat.scale * 0.9) * K1;
     const ang = ((facePat.angle ?? 0) % 180 + 180) % 180;
-    const diag = ang % 90 !== 0;
-    const cellW = Math.max(8, Math.round(ps * (diag ? Math.SQRT2 : 1)));
+    /* an integer cell spanning WHOLE pattern periods with minimal drift —
+       a fractional period leaves a hairline at every Tiled repeat. The old
+       √2 square was only period-exact at 45°; stripes are invariant along
+       their own axis, so their true sample is p/|sin| across, p/|cos| down
+       at ANY angle (45° reduces to the √2 cell). */
+    const intFit = (period: number) => {
+      let best = Math.max(8, Math.round(period)), bestErr = Math.abs(best - period) / period;
+      for (let n = 2; n <= 8; n++) {
+        const w = period * n;
+        if (w > 600) break;
+        const r = Math.round(w);
+        const err = Math.abs(r - w) / w;
+        if (r >= 8 && err < bestErr - 1e-9) { best = r; bestErr = err; }
+      }
+      return best;
+    };
+    let cellW: number, cellH: number;
+    if (facePat.type === "stripes" && ang % 90 !== 0) {
+      const rad = (ang * Math.PI) / 180;
+      cellW = intFit(ps / Math.abs(Math.sin(rad)));
+      cellH = intFit(ps / Math.abs(Math.cos(rad)));
+    } else {
+      cellW = cellH = Math.max(8, Math.round(ps * (ang % 90 !== 0 ? Math.SQRT2 : 1)));
+    }
     const patC = facePat.color ? facePat.color : darken(innerC, 0.2);
-    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellW}" viewBox="0 0 ${cellW} ${cellW}">` +
+    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellH}" viewBox="0 0 ${cellW} ${cellH}">` +
       `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
-      `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
+      `<rect width="${cellW}" height="${cellH}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
     await addPng("fx/face-tile.png", patTile,
       { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between -base-under and -base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
   }
