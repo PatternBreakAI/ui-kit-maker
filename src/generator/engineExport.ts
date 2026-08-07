@@ -114,7 +114,8 @@ const svgWrap = (w: number, h: number, inner: string) =>
      normal     SrcAlpha/OneMinusSrcAlpha  pack 0 (plain)        EXACT
      multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT (white ink: no-op, as in the app)
      screen     One/OneMinusSrcColor       pack 1 (premultiply)  EXACT
-     overlay    DstColor/One               pack 1 (premultiply)  EXACT for b ≤ ½, clamps above
+     overlay    DstColor/One               pack 4 (premult·0.8)  EXACT shape for b ≤ ½, clamps above;
+                                                the ·0.8 is the owner's 20% pull-back — dialed on the real kit
      hard-light One/OneMinusSrcColor       pack 1 (premultiply)  EXACT (hard-light with white IS screen)
      soft-light One/OneMinusSrcColor       pack 3 (premult·0.4)  fit of b + a(√b − b), mid-tone error < 0.03
    Single-pass fixed-function cannot branch on the backdrop per channel —
@@ -269,7 +270,8 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         } else {
           c = tex2D(_MainTex, i.texcoord) * i.color; // old zips: bands live in the atlas
         }
-        if (_Pack > 2.5) c.rgb *= c.a * 0.4;            // 3: gentle light — 0.4·(1−b) fits soft-light's a·(√b−b)
+        if (_Pack > 3.5) c.rgb *= c.a * 0.8;            // 4: candy gain, 20% pulled back (owner's dial)
+        else if (_Pack > 2.5) c.rgb *= c.a * 0.4;       // 3: gentle light — 0.4·(1−b) fits soft-light's a·(√b−b)
         else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
         else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
         return c;
@@ -3448,7 +3450,7 @@ namespace PatternBreak {
        overlay is headed anyway). Hard-light with white IS screen, so it
        ships as screen, exact. normal/multiply/screen were already exact. */
     static void ApplyGlintBlend(Material mat, string mode) {
-      float src = 2, dst = 1, pack = 1;                                 // overlay (default): DstColor/One candy gain
+      float src = 2, dst = 1, pack = 4;                                 // overlay (default): DstColor/One candy gain, 20% pulled back
       if (mode == "normal") { src = 5; dst = 10; pack = 0; }            // SrcAlpha/OneMinusSrcAlpha
       else if (mode == "multiply") { src = 2; dst = 0; pack = 2; }      // DstColor/Zero, empty air = white
       else if (mode == "screen") { src = 1; dst = 6; pack = 1; }        // One/OneMinusSrcColor
