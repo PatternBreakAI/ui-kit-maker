@@ -1176,6 +1176,12 @@ export function KitPage() {
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
   const roles = EFFECT_ROLES.filter((r) => cfg.effects[r] !== undefined);
+  /* the inner glow's CUSTOM color is a real material voice with no effects
+     role behind it — chart it beside the roles wherever chips show (owner:
+     "this green color isn't showing up in the 3d or the color swatches...
+     let's add it everywhere we display color chips"). When the well follows
+     the Color map it IS the Glow role, already charted. */
+  const innerGlowChip = cfg.candy.innerGlow.opacity > 0 && cfg.candy.innerGlow.color ? cfg.candy.innerGlow.color : null;
   const label = cfg.content.label || "PLAY";
   const T = cfg.type;
   const caps = fontByName(T.font).caps;
@@ -1803,6 +1809,7 @@ const kitTier = useGen((s) => s.tier);
           )}
           <div className="kp-roleline" aria-hidden="true">
             {roles.map((r) => <span className="kp-roledot" key={r}><i style={{ background: cfg.effects[r] }} />{r}</span>)}
+            {innerGlowChip && <span className="kp-roledot"><i style={{ background: innerGlowChip }} />Inner Glow</span>}
           </div>
           <button className="kp-about" aria-expanded={aboutOpen} onClick={() => setAboutOpen((v) => !v)}>About this kit {aboutOpen ? "–" : "+"}</button>
           {aboutOpen && (
@@ -1920,6 +1927,13 @@ const kitTier = useGen((s) => s.tier);
                 <code>{cfg.effects[r]?.toUpperCase()}{"\n"}RGB {rgbOf(cfg.effects[r] ?? "#000000").join(" ")}{"\n"}CMYK {cmykOf(cfg.effects[r] ?? "#000000")}</code>
               </div>
             ))}
+            {innerGlowChip && (
+              <div className="kp-role2">
+                <i style={{ background: innerGlowChip }} />
+                <div className="kp-rolemeta"><b>Inner Glow</b><span>Colored light inside the candy — this kit gives it its own voice instead of the Glow role</span></div>
+                <code>{innerGlowChip.toUpperCase()}{"\n"}RGB {rgbOf(innerGlowChip).join(" ")}{"\n"}CMYK {cmykOf(innerGlowChip)}</code>
+              </div>
+            )}
           </div>
         </div>
         <div className="kp-meta">

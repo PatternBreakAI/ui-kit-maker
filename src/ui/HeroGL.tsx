@@ -517,7 +517,10 @@ export function HeroGL() {
       const c = cfgRef.current;
       const bevel = c.effects.Bevel ?? "#0E9CC9";
       const fill = c.effects["Inner Fill"] ?? "#12B2E2";
-      const glow = c.effects.Glow ?? "#8FF0FF";
+      /* the Glow layer is the INNER glow's portrait (its subtitle says so) —
+         a custom F2 color is the kit's real light, not the Glow role
+         (owner: "this green color isn't showing up in the 3d") */
+      const glow = (c.candy.innerGlow.opacity > 0 ? c.candy.innerGlow.color : null) ?? c.effects.Glow ?? "#8FF0FF";
       const hi = c.effects.Highlight ?? "#EAFBFF";
       const shadow = c.effects.Shadow ?? "#05070d";
       for (const pl of R.layerMeshes) {
