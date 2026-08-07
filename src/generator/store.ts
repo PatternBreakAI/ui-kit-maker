@@ -145,6 +145,20 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
     if (sd?.candy) sd.candy = mergeCandy(d.candy, sd.candy);
     if (sd?.icon) sd.icon = { ...d.icon, ...sd.icon };
   }
+  /* pattern.zone lived for one day (2026-08-06) before the wall got its own
+     spec — fold it in so those kits render pixel-identical: wall/both mirror
+     the face tiles into the wall, and "wall" turns the face tiles off */
+  const migratePatternZone = (p?: GenConfig["candy"]["pattern"]) => {
+    if (!p?.zone) return;
+    const z = p.zone;
+    delete p.zone;
+    if (z === "face") return;
+    if (!p.wall || p.wall.type === "none")
+      p.wall = { type: p.type, scale: p.scale, angle: p.angle, opacity: p.opacity, color: p.color };
+    if (z === "wall") p.type = "none";
+  };
+  migratePatternZone(cfg.candy.pattern);
+  for (const sd of Object.values(cfg.stateDesigns)) migratePatternZone(sd?.candy?.pattern);
   healStateIconPins(cfg);
   if ((cfg.shape as string) === "shard") cfg.shape = "sharp";
   // retired silhouettes map to their closest living relatives
@@ -923,9 +937,11 @@ export const useGen = create<GenStore>((set, get) => ({
   focus: null,
   // choosing a piece to edit lifts any rail focus filter — the user asked
   // for THIS component, so every relevant section must be reachable
-  // focusing a piece always lands on the narrow scope: a group edit is a
-  // deliberate choice, never something you inherit from the last piece
-  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null, scope: "piece" }),
+  // focusing a piece always lands on the narrow scope AND the Default state:
+  // a group edit or a state pick is a deliberate choice, never something you
+  // inherit from the last piece (owner: jumping pieces with Pressed still
+  // selected kept landing edits on the fork — "that is what is messing me up")
+  setFocus: (f) => set({ focus: f, phase: "master", sectionFilter: null, scope: "piece", selectedState: "default" }),
   scope: "piece",
   setScope: (s) => set({ scope: s }),
   parentId: loadJson<KitComponentId | "button">("ui-generator-parent", "button"),

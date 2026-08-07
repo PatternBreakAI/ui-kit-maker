@@ -214,11 +214,14 @@ export interface CandyTokens {
   bloom: { opacity: number; size: number };                       // 0..100 ×2 (bounce light, unlit side)
   contact: { opacity: number };                                   // tight shadow where body meets ground
   texture: { amount: number; scale: number };                     // 0..100 ×2 (micro grain)
-  /** zone: where the tiles paint — the face well (default), the wall ring,
-   *  or both. The wall variant rides INSIDE the shell paint (no new export
-   *  part), so the Unity pipeline sees richer pixels in a layer it already
-   *  ships — never a new layer. */
-  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null; zone?: "face" | "wall" | "both" }; // color null = tone-on-tone
+  /** The face tiles, plus the wall ring's OWN spec (`wall`) — fully
+   *  independent type/knobs, so skulls can sit on the face while stripes
+   *  run the wall. Both wall variants ride INSIDE the shell paint (no new
+   *  export part), so the Unity pipeline sees richer pixels in a layer it
+   *  already ships — never a new layer. `zone` is the one-day placement
+   *  select this replaced (2026-08-06); hydrate folds it into `wall`. */
+  pattern: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null; zone?: "face" | "wall" | "both";
+    wall?: { type: PatternType; scale: number; angle: number; opacity: number; color: string | null } }; // color null = tone-on-tone
 }
 
 /* Universal defaults — Chevon's approved settings (uigeneratorsettings_2). */
@@ -1035,6 +1038,11 @@ export type SlotDef = {
    claims every sector is a heart. Curated to glyphs that read at
    wheel-sector size. */
 const GLYPH_CHOICES = ["Factory", "Heart", "Star", "Zap", "Check", "Gem", "Warning", "Skull", "Trophy", "Sword", "Shield", "Gift", "Hand"];
+/* Inventory-flavored picks (armory + loot), plus Empty to clear a cell —
+   Factory keeps each cell's own stock glyph, same honesty rule as the
+   wheels. All names resolve to STOCK_ICONS keys by lowercasing. */
+const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "Boots", "Flask", "Scroll", "Key", "Gem", "Zap", "Skull", "Heart", "Star", "Trophy", "Gift", "Bag", "Lock", "Crosshair"];
+const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   cardback: [
@@ -1112,6 +1120,41 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "glyph3", name: "Glyph 3", kind: "choice", choices: GLYPH_CHOICES },
     { id: "glyph4", name: "Glyph 4", kind: "choice", choices: GLYPH_CHOICES,
       note: "Four glyphs cycle around the wheel. Their size and weight follow Typography → Icons like every other glyph in the kit." },
+  ],
+  respawn: [
+    /* the GO frame is reached by dragging Value to zero — and its words
+       are content (owner: "how do i edit the GO state") */
+    { id: "goword", name: "Ready word", kind: "free", def: "GO", maxLen: 10,
+      note: "The celebration word at zero. Drag the Value slider to 0 to stage the GO frame; the readout counts down to it." },
+    { id: "goheading", name: "Ready heading", kind: "free", def: "REDEPLOY", maxLen: 24,
+      note: "The heading the GO frame swaps in — the countdown heading is the piece's label in Typography." },
+    { id: "readycolor", name: "Ready color", kind: "color", def: "#4ADE80",
+      note: "The celebration ink — the GO word, its pulse, and the hue the countdown and bar warm toward. Factory is the arcade ready-green." },
+    { id: "barheight", name: "Bar height", kind: "choice", choices: ["Standard", "Slim", "Chunky", "Hidden"],
+      note: "The countdown strip's weight — Hidden drops it entirely for a pure readout." },
+  ],
+  streakmeter: [
+    /* the ignition glyph is the meter's whole story (owner: "need to be
+       able to control / customize the icon on the streak counter") */
+    { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
+      note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
+  ],
+  invgrid: [
+    /* every cell's glyph is content (owner: "I should be able to change
+       the icons in the text section") — nine wells, three spares */
+    { id: "cell1", name: "Cell 1 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell2", name: "Cell 2 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell3", name: "Cell 3 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell4", name: "Cell 4 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell5", name: "Cell 5 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell6", name: "Cell 6 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell7", name: "Cell 7 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell8", name: "Cell 8 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell9", name: "Cell 9 item", kind: "choice", choices: INV_GLYPHS,
+      note: "Cells 10–12 are the empty wells — pick a glyph for any cell (or Empty to clear one); Factory keeps the stock loadout." },
+    { id: "cell10", name: "Cell 10 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell11", name: "Cell 11 item", kind: "choice", choices: INV_GLYPHS },
+    { id: "cell12", name: "Cell 12 item", kind: "choice", choices: INV_GLYPHS },
   ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",
@@ -1302,8 +1345,20 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
 /* `staged: true` = in the staging bay — bundled but admin-only until the
    owner releases it (app_settings key "component_releases"). Every public
    surface must hide staged pieces that aren't released; the landing never
-   shows staged at all (its roster is filtered at the engine boundary). */
-export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }[] = [
+   shows staged at all (its roster is filtered at the engine boundary).
+
+   `utility` — the owner's BACKGROUND ranking (2026-08-07, not surfaced in
+   any UI yet; "I may want to use it as a sort later on"). Ask of each
+   piece: a developer's "how can I use this?" and a designer's "how can I
+   customize this?"
+     1 = visually useful only (demo dressing, screen-pattern flavor)
+     2 = prototyper/designer-useful (mockups, boards, SVG exports)
+     3 = developer-useful in engine too (ships in the Unity kit) — implies
+         the previous two.
+   Unset reads as 3: most pieces are full engine citizens, and the honest
+   mechanical test for tier 3 is presence in the engine export. Tag only
+   deliberate exceptions. */
+export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; utility?: 1 | 2 | 3 }[] = [
   { id: "primary", name: "Primary button" },
   { id: "dialog", name: "Dialog" },
   { id: "toast", name: "Toast" },

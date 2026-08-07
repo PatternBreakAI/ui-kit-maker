@@ -166,6 +166,13 @@ button { font-family: inherit; color: inherit; }
 .panelsearch input::placeholder { color: var(--ink3, #9aa1ac); }
 .panelsearch button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 7px; background: var(--soft); color: var(--ink2); cursor: pointer; }
 .panelsearch button:hover { color: var(--ink); }
+/* the state flag: sticks under the search while a non-default state is
+   being styled, so the state pick is never out of sight */
+.stateflag { position: sticky; top: 30px; z-index: 5; display: flex; align-items: center; gap: 8px; margin: 0 -8px 8px; padding: 8px 12px; background: color-mix(in srgb, #F5A66B 16%, var(--card)); border: 1px solid color-mix(in srgb, #F5A66B 45%, var(--line)); border-radius: 11px; font-size: 12.5px; line-height: 1.35; color: var(--ink); box-shadow: 0 4px 14px rgba(10,14,26,.08); }
+.stateflag > svg { color: #F5A66B; flex: none; }
+.stateflag span { flex: 1; min-width: 0; }
+.stateflag button { flex: none; border: 1px solid color-mix(in srgb, #F5A66B 55%, var(--line)); background: var(--card); color: var(--ink); font: inherit; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+.stateflag button:hover { border-color: #F5A66B; color: #F5A66B; }
 .panel:hover, .panel:focus-within { scrollbar-color: var(--line2) transparent; }
 .panel::-webkit-scrollbar { width: 8px; }
 .panel::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
@@ -1145,7 +1152,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 /* the stage — a composed screen with deliberate zones, not a pile.
    Stage pieces carry computed trim margins inline (LiveArt), so the CSS
    only neutralizes the generic pattern-piece rules. */
-.sc { display: flex; flex-direction: column; align-items: center; width: 76%; gap: 8px; }
+.sc { display: flex; flex-direction: column; align-items: center; width: 76%; gap: 8px; transform-origin: center; }
 .sc .gp-piece { margin: 0; }
 .sc .kp-art { margin: -14px 0 -18px; }
 /* only painted pixels are interactive on a stage — the trimmed invisible
@@ -1403,6 +1410,32 @@ button.kp-fact { cursor: pointer; }
    so the grid reads as one board, not a field of floating buttons */
 .lay-row.lay-board { gap: 0; }
 .lay-boardwrap { display: flex; flex-direction: column; gap: 0; align-items: center; }
+/* ── the playable Match-3 board — five candy lanes, claim-style bursts,
+   gravity refills. Tiles are the board's own art (InvSlot precedent):
+   flat squares, butted together, each lane wearing its color. ── */
+.m3-wrap { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; width: 88%; align-self: center; touch-action: manipulation; }
+.m3-cell { position: relative; aspect-ratio: 1 / 1; border: 0; padding: 0; background: none; font: inherit; cursor: pointer; transition: transform 0.14s ease; }
+.m3-cell:hover { transform: scale(1.08); z-index: 2; }
+.m3-cell:active { transform: scale(0.94); }
+.m3-tile { position: absolute; inset: 3%; border-radius: 16%; display: grid; place-items: center; color: rgba(255, 255, 255, 0.94);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--m3c) 72%, #FFFFFF), var(--m3c) 46%, color-mix(in srgb, var(--m3c) 62%, #0A0C14));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.42), inset 0 -3px 0 rgba(6, 10, 18, 0.3), 0 1px 3px rgba(6, 10, 18, 0.35); }
+/* the kit's own tile as the ground (owner: "tint our existing squares"):
+   the flat slot render carries the material, the lane overlay carries the
+   category — hue and sat from the lane, luminosity from the kit */
+.m3-tile.m3-kittile { background: none; box-shadow: none; background-size: 100% 100%; background-repeat: no-repeat; }
+.m3-tile.m3-kittile .m3-lane { position: absolute; inset: 4%; border-radius: 14%; background: var(--m3c); mix-blend-mode: color; opacity: 0.92; pointer-events: none; }
+.m3-tile.m3-kittile::after { content: ""; position: absolute; inset: 4%; border-radius: 14%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--m3c) 55%, transparent), inset 0 0 12px color-mix(in srgb, var(--m3c) 30%, transparent); pointer-events: none; }
+.m3-tile svg { width: 52%; height: 52%; filter: drop-shadow(0 1.5px 0 rgba(6, 10, 18, 0.4)); position: relative; }
+/* clear = the claim celebration's arc writ small: white-hot, swell, gone */
+.m3-burst { animation: m3Vanish 0.46s ease-in forwards; z-index: 3; }
+@keyframes m3Vanish { 0% { transform: scale(1); opacity: 1; filter: brightness(1); } 45% { transform: scale(1.16); opacity: 1; filter: brightness(2.4) saturate(0.2); } 100% { transform: scale(1.3); opacity: 0; filter: brightness(3) saturate(0); } }
+/* every mover falls its own distance — --m3drop rows of its own height */
+.m3-drop { animation: m3Fall 0.4s cubic-bezier(0.22, 0.9, 0.32, 1.18); }
+@keyframes m3Fall { 0% { transform: translateY(calc(var(--m3drop) * -104%)); opacity: 0.35; } 55% { opacity: 1; } 100% { transform: translateY(0); } }
+.m3-nope { animation: m3Nope 0.3s ease; }
+@keyframes m3Nope { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-5%); } 60% { transform: translateX(5%); } }
+@media (prefers-reduced-motion: reduce) { .m3-burst, .m3-drop, .m3-nope { animation: none; } .m3-cell:hover { transform: none; } }
 .lay-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .lay-fill { flex: 1; align-items: flex-start; }
 .lay-spring { flex: 1; }
@@ -1696,7 +1729,10 @@ button.kp-fact { cursor: pointer; }
 .kp-wkdays::before { top: var(--rail-y, 44%); }
 
 /* ── v39: WebGL exploded-material hero ─────────────────────────── */
-.kp-glhero { position: relative; flex: 1 1 auto; min-width: 0; min-height: 540px; overflow: hidden; background: transparent; }
+/* the drag listeners live on the WRAP (labels included), so the gesture
+   claims belong here too — canvas-only touch-action left label-area drags
+   scrolling the page under the spin */
+.kp-glhero { position: relative; flex: 1 1 auto; min-width: 0; min-height: 540px; overflow: hidden; background: transparent; touch-action: none; user-select: none; }
 .kp-glhero .kp-glcanvas { cursor: grab; touch-action: none; }
 .kp-glhero.kp-gldrag .kp-glcanvas { cursor: grabbing; }
 .kp-glcanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -1926,7 +1962,11 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .inv2-ctl { display: inline-flex; align-items: center; gap: 6px; height: 27px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--st-line); background: color-mix(in srgb, var(--st-well) 70%, transparent); font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--st-ink2); white-space: nowrap; }
 .inv2-ctlbtn { justify-content: center; padding: 0 8px; }
 .inv2-search { justify-content: flex-start; }
-.inv2-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-content: start; min-height: 0; }
+/* overflow-y completes the min-height:0 contract: on wide screens the square
+   tiles outgrow the 16:9 panel, and without it they painted straight over
+   the pinned Capacity row (owner: "errant progress bar in the background") —
+   a real inventory scrolls instead */
+.inv2-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-content: start; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 @media (max-width: 1400px) { .inv2-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .inv2-cap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: auto; }
 .inv2-cap b { font-size: 11px; font-weight: 800; color: var(--st-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -2172,7 +2212,13 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   70% { opacity: 1; }
   100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.1); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .fx-burstwrap i { animation: none; display: none; } .fx-igniting svg { animation: none; } }
+/* the combo numeral's explosion: overshoot-scale with a kick of rotation,
+   riding the claim burst's white-hot flash and particles */
+/* both rides at once: the ignition's brightness flash AND the pop's scale —
+   a single animation property would silently drop fxHot */
+.fx-combopop svg { animation: fxHot 0.42s ease-out, fxComboPop 0.55s cubic-bezier(0.2, 1.6, 0.35, 1); transform-origin: center; }
+@keyframes fxComboPop { 0% { transform: scale(1); } 18% { transform: scale(0.82) rotate(-3deg); } 55% { transform: scale(1.32) rotate(2deg); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .fx-burstwrap i { animation: none; display: none; } .fx-igniting svg { animation: none; } .fx-combopop svg { animation: none; } }
 
 /* ── in-app lock dressing (kit teasers, presets, export menus) ─── */
 .kp-lockpiece { display: grid; place-items: center; }

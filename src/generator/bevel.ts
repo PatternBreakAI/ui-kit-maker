@@ -1722,7 +1722,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const { x, y, h, iconSize: baseIcon } = g0;
   const T2 = D.type;
   const fontDef = fontByName(T2.font);
-  const fs = g0.fs * (T2.size / 52);
+  let fs = g0.fs * (T2.size / 52);
   const rawLabel = opts.label ?? cfg.content.label ?? "PLAY";
   const cased = T2.case === "upper" ? rawLabel.toUpperCase()
     : T2.case === "lower" ? rawLabel.toLowerCase()
@@ -1736,8 +1736,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : opts.iconDef ?? (ICONS_ENABLED && IC.show ? (IC.def ?? DEFAULT_ICON) : null);
   const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && IC.only && !!iconDef);
   const showText = !iconOnly && label.length > 0;
-  const iconSize = baseIcon * (IC.size / 100);
-  const gap = showText && iconDef ? IC.gap * K : 0;
+  let iconSize = baseIcon * (IC.size / 100);
+  let gap = showText && iconDef ? IC.gap * K : 0;
   const spacingEm = T2.spacing / 100;
   const weightK = 1 + Math.max(0, T2.weight - 700) * 0.0004;
   // width (`wdth`) axis — honored only for faces that really expose it; the
@@ -1750,10 +1750,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // left-anchored specimens carry extra right slack — the whole estimate
   // error lands on the ragged right edge instead of splitting across both
   const mW = showText ? measureLabel(label, T2.font, T2.weight, !!T2.italic) : null;
-  const textW = (showText ? (mW !== null
+  let textW = (showText ? (mW !== null
     ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
     : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
-  const contentW = textW + (iconDef ? iconSize : 0) + gap;
+  let contentW = textW + (iconDef ? iconSize : 0) + gap;
 
   /* text-safe area — the silhouette's authored content insets keep labels out
      of caps, tails and bevels, with breathing room that scales with the label
@@ -1801,6 +1801,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     .map((s) => cfg.stateDesigns?.[s]).filter(Boolean) as StateDesign[];
   const minW = opts.fixedW ?? Math.max(stateWidth(cfg), ...forks.map(stateWidth));
   const w = opts.fixedW ?? Math.min(g0.maxW ?? 980, minW);
+  /* a FIXED frame can't grow for its content, but the safe-area story must
+     still hold there (owner: the homepage hero ignored Content margin —
+     auto-width surfaces honored it, fixed frames spilled instead). When
+     content + margins outgrow the frame, the type FITS DOWN, uniformly:
+     every derived metric scales with fs, so placement math stays coherent.
+     Anything that already fits renders byte-identically. */
+  if (opts.fixedW && showText && contentW > 0) {
+    const availW = Math.max(24, w - padL - padR);
+    if (contentW > availW) {
+      const fitK = Math.max(0.45, availW / contentW);
+      fs *= fitK; iconSize *= fitK; gap *= fitK; textW *= fitK; contentW *= fitK;
+    }
+  }
 
   /* ── extrusion & lift ─────────────────────────────────────────── */
   const depth = C.extrusion.depth * K * (secondary ? 0.55 : 1);
@@ -1963,9 +1976,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const patC = PT.color ? P(PT.color) : darken(face, 0.2);
   const patOp = (PT.type !== "none" ? PT.opacity / 100 : 0) * (disabled ? 0.5 : 1);
   const ps = (8 + PT.scale * 0.9) * K;
-  const patZone = PT.zone ?? "face";
   let patternDef = "", patternUse = "", wallPattern = "";
-  if (patOp > 0.005) {
+  // legacy zone (the one-day placement select): hydrate migrates saved kits,
+  // this catches raw blobs that skipped it (community presets applied as-is)
+  const legacyZone = PT.zone ?? "face";
+  if (patOp > 0.005 && legacyZone !== "wall") {
     const rot = ` patternTransform="rotate(${PT.angle})"`;
     const cell = `id="${id}pt" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
     /* one source of truth for every pattern cell — the face reads the same
@@ -1978,25 +1993,32 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     } else {
       patternDef = `<pattern ${cell}${rot}>${textPatternCell(PT.type, ps, patC)}</pattern>`;
     }
-    if (patternDef && patZone !== "wall") {
+    if (patternDef) {
       const maskAttr = PT.type === "halftone" ? ` mask="url(#${id}pm)"` : "";
       patternUse = `<rect x="${fx0 - 20}" y="${fy0 - 20}" width="${fw + 40}" height="${fh + 40}" fill="url(#${id}pt)" opacity="${patOp.toFixed(2)}"${maskAttr}/>`;
     }
-    /* the wall ring wears the tiles too (owner ask) — WITHOUT touching the
-       export contract: the masked rect lives inside the shell paint group,
-       so every consumer (sprites, engine ports, HTML) inherits it as
-       richer pixels in a layer it already ships. Tone-on-tone tints from
-       the WALL color out here — the face-derived tint disappears against
-       the band; halftone skips its face-space fade mask. */
-    if (patZone !== "face") {
-      const wallC = PT.color ? P(PT.color) : darken(bevelC, 0.28);
-      const wcell = `id="${id}ptw" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
-      const wallCellDef = PT.type === "halftone"
-        ? `<pattern ${wcell}${rot}><circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps * 0.3).toFixed(1)}" fill="${wallC}"/></pattern>`
-        : `<pattern ${wcell}${rot}>${textPatternCell(PT.type, ps, wallC)}</pattern>`;
-      patternDef += `${wallCellDef}<mask id="${id}wpm"><path d="${outer}" fill="#fff"/><path d="${faceP}" fill="#000"/></mask>`;
-      wallPattern = `<rect x="${(x - 20).toFixed(1)}" y="${(y - 20).toFixed(1)}" width="${(w + 40).toFixed(1)}" height="${(h + 40).toFixed(1)}" fill="url(#${id}ptw)" opacity="${patOp.toFixed(2)}" mask="url(#${id}wpm)"/>`;
-    }
+  }
+  /* the wall ring's OWN tiles (owner: "a different pattern on the wall and
+     a different pattern on the face") — WITHOUT touching the export
+     contract: the masked rect lives inside the shell paint group, so every
+     consumer (sprites, engine ports, HTML) inherits it as richer pixels in
+     a layer it already ships. Tone-on-tone tints from the WALL color out
+     here — the face-derived tint disappears against the band; halftone
+     skips its face-space fade mask. */
+  const PW = PT.wall && PT.wall.type !== "none" ? PT.wall
+    : legacyZone !== "face" && PT.type !== "none" ? { type: PT.type, scale: PT.scale, angle: PT.angle, opacity: PT.opacity, color: PT.color }
+    : null;
+  const wallOp = PW ? (PW.opacity / 100) * (disabled ? 0.5 : 1) : 0;
+  if (PW && wallOp > 0.005) {
+    const wps = (8 + PW.scale * 0.9) * K;
+    const wallC = PW.color ? P(PW.color) : darken(bevelC, 0.28);
+    const wrot = ` patternTransform="rotate(${PW.angle})"`;
+    const wcell = `id="${id}ptw" width="${wps.toFixed(1)}" height="${wps.toFixed(1)}" patternUnits="userSpaceOnUse"`;
+    const wallCellDef = PW.type === "halftone"
+      ? `<pattern ${wcell}${wrot}><circle cx="${(wps / 2).toFixed(1)}" cy="${(wps / 2).toFixed(1)}" r="${(wps * 0.3).toFixed(1)}" fill="${wallC}"/></pattern>`
+      : `<pattern ${wcell}${wrot}>${textPatternCell(PW.type, wps, wallC)}</pattern>`;
+    patternDef += `${wallCellDef}<mask id="${id}wpm"><path d="${outer}" fill="#fff"/><path d="${faceP}" fill="#000"/></mask>`;
+    wallPattern = `<rect x="${(x - 20).toFixed(1)}" y="${(y - 20).toFixed(1)}" width="${(w + 40).toFixed(1)}" height="${(h + 40).toFixed(1)}" fill="url(#${id}ptw)" opacity="${wallOp.toFixed(2)}" mask="url(#${id}wpm)"/>`;
   }
 
   /* 8 ── broad curved gloss (screen space, flips if lit from below) */
@@ -2557,6 +2579,13 @@ export interface SpecimenOpts {
   glintBand?: number;
   glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Extra canvas on every side, in viewBox units. Atlas bakes pass the
+   *  type effects' full blur reach here: overflow:visible lets glyphs
+   *  paint past the viewBox in a BROWSER, but a raster clips at the
+   *  canvas edge — a strong glow baked a hard-edged band into each glyph
+   *  cell (owner's Unity report: "clipping on the glow"). One shared pad
+   *  across a bake keeps every variant in one coordinate frame. */
+  fxPad?: number;
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2584,9 +2613,10 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
   const slack = c.type.italic ? 64 : 28;
+  const fxP = Math.max(0, Math.ceil(opts.fxPad ?? 0));
   return out
-    .replace(/ width="([\d.]+)"/, (_m, w) => ` width="${(+w + slack).toFixed(0)}"`)
-    .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, x, y, vw, vh) => `viewBox="${x} ${y} ${(+vw + slack).toFixed(0)} ${vh}" style="overflow:visible"`);
+    .replace(/ width="([\d.]+)" height="([\d.]+)"/, (_m, w, h) => ` width="${(+w + slack + fxP * 2).toFixed(0)}" height="${(+h + fxP * 2).toFixed(0)}"`)
+    .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, x, y, vw, vh) => `viewBox="${(+x - fxP).toFixed(0)} ${(+y - fxP).toFixed(0)} ${(+vw + slack + fxP * 2).toFixed(0)} ${(+vh + fxP * 2).toFixed(0)}" style="overflow:visible"`);
 }
 
 /* ── kit components ────────────────────────────────────────────── */
@@ -2930,7 +2960,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // labels — vertical used to be per-callsite and read as dead elsewhere
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${o2.list && cfg.type.listFont ? cfg.type.listFont : T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
@@ -4233,8 +4263,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < cols * rowsI; i++) {
         const cxI = gx0 + (i % cols) * (cell + gap), cyI = gy0 + Math.floor(i / cols) * (cell + gap);
         inner += `<rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
-        const icKey = items[i];
-        if (icKey && STOCK_ICONS[icKey]) inner += themedIcon(STOCK_ICONS[icKey], cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // per-cell glyph slots (owner: "change the icons in the text
+        // section") — Factory keeps the stock loadout, Empty clears
+        const pickI = opts.slots?.[`cell${i + 1}`];
+        const icDef = pickI === "Empty" ? null
+          : (pickI && STOCK_ICONS[pickI.toLowerCase()]) || (items[i] ? STOCK_ICONS[items[i] as string] : null);
+        if (icDef) inner += themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
         if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
@@ -4596,9 +4630,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       const zapX = 39 + w - inset - 52 * k;
-      inner += (STOCK_ICONS.zap ? (full && state !== "disabled"
-        ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
-        : iconGroup(STOCK_ICONS.zap, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
+      // the ignition glyph is a content slot (owner ask) — Factory = zap,
+      // None removes it, names resolve like the wheels' glyph slots
+      const pickS9 = opts.slots?.endicon;
+      const zapIc = pickS9 === "None" ? null : (pickS9 && STOCK_ICONS[pickS9.toLowerCase()]) || STOCK_ICONS.zap;
+      inner += (zapIc ? (full && state !== "disabled"
+        ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(zapIc, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
+        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
       return inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner);
     }
     case "waypoint": {
@@ -4659,12 +4697,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vR9 = clamp(value ?? 0.6, 0, 1);
       const done = vR9 <= 0.015;
       const secsR = Math.ceil(vR9 * 10);
-      const READY = "#4ADE80";
-      // warm toward green across the final 40% of the wait
+      // the celebration ink is a SLOT now (owner: "I really need to be able
+      // to edit the color") — factory stays the arcade ready-green
+      const READY = opts.slots?.readycolor || "#4ADE80";
+      // warm toward the ready color across the final 40% of the wait
       const gMix = clamp((0.4 - vR9) / 0.4, 0, 1);
       const inkR = done ? READY : hexMix("#FFFFFF", READY, gMix * 0.85);
       const barC = hexMix(glow, READY, gMix);
-      const barW9 = w - inset * 2 - 40 * k, barH9 = 12 * k;
+      const barHMap: Record<string, number> = { Slim: 7, Standard: 12, Chunky: 20, Hidden: 0 };
+      const barH9 = (barHMap[opts.slots?.barheight ?? "Standard"] ?? 12) * k;
+      const barW9 = w - inset * 2 - 40 * k;
       const barX9 = cxR9 - barW9 / 2, barY9 = 30 + h - inset - 24 * k;
       const gidR9 = "rs" + UID++;
       const gR9 = 2.5 * k, mHR9 = barH9 - gR9 * 2;
@@ -4681,7 +4723,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bigNum = (txt9: string, fill9: string, fs9: number, glowFx9 = "") =>
         `<g style="filter: ${shFx9}${glowFx9}"><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${fs9.toFixed(1)}" font-weight="${Math.max(800, T9.weight)}"${T9.italic ? ' font-style="italic"' : ""} fill="${fill9}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${strokeC9}; stroke-width: ${strokeW9.toFixed(1)}px; stroke-linejoin: round">${esc(txt9)}</text></g>`;
       const secsTxt = done
-        ? bigNum("GO", READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
+        ? bigNum((opts.slots?.goword || "GO").slice(0, 10), READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
           (state !== "disabled"
             ? `<circle cx="${cxR9.toFixed(1)}" cy="${secCy.toFixed(1)}" r="${(30 * k).toFixed(1)}" fill="none" stroke="${READY}" stroke-width="2">
                  <animate attributeName="r" values="${(30 * k).toFixed(1)};${(58 * k).toFixed(1)}" dur="1.3s" repeatCount="indefinite"/>
@@ -4691,11 +4733,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : opts.themedText
           ? contentText(String(secsR), cxR9, secCy, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkR })
           : bigNum(String(secsR), inkR, 58 * k, gMix > 0.3 && state !== "disabled" ? ` drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})` : "");
-      const inner = contentText(done ? "REDEPLOY" : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
+      const inner = contentText(done ? (opts.slots?.goheading || "REDEPLOY").slice(0, 24) : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
-        `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
-        `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
-        ((done ? 1 : vR9) > 0.03 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "");
+        (barH9 > 0.5
+          ? `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
+            `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
+            ((done ? 1 : vR9) > 0.03 && mHR9 > 0.5 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "")
+          : "");
       return inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
     }
     case "dmgarc": {
@@ -4904,7 +4948,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const lvl9 = (opts.label ?? "12").slice(0, 3);
       const locked9 = opts.overlay === "locked";
       const starsM = /^stars:(\d)/.exec(opts.overlay ?? "");
-      const shell = build(cfg, locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 54 * k, iconSize: 0 }, { label: locked9 ? "" : lvl9, iconDef: null, fixedW: s, shapeOverride: sov });
+      /* the numeral is build()'s own label — the Typography nudges must ride
+         along or the sliders go dead on this piece (owner report) */
+      const shell = build(cfg, locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 54 * k, iconSize: 0 }, { label: locked9 ? "" : lvl9, iconDef: null, fixedW: s, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
@@ -5215,11 +5261,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (i % 2 === 0) burst += `<circle cx="${(cxC0 + (r2 + 9 * k) * Math.cos(aR)).toFixed(1)}" cy="${(cyC0 + (r2 + 9 * k) * Math.sin(aR) * 0.78).toFixed(1)}" r="${((1.6 + ((i * 31) % 3)) * k).toFixed(1)}" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.6), 0.9)}"/>`;
       }
       const shimmer = state !== "disabled" ? `<animate attributeName="opacity" values="0.75;1;0.75" dur="2.2s" repeatCount="indefinite"/>` : "";
-      // the numeral — extruded copies behind, gradient face, dark armor
-      const numAttrs = `font-family="'${font}', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="900" font-style="italic" text-anchor="middle" dominant-baseline="central"`;
+      /* the numeral REINTERPRETS the kit's own type voice (owner: "style
+         whatever font they choose so it looks like this"): face, weight and
+         italic are the user's Typography choices; the celebration treatment
+         — extrusion, armor stroke, burst — stays the piece's. A custom fill
+         (solid or gradient) retints the lit face too; Auto keeps the
+         glow-lit recipe. */
+      const TWc = Math.max(400, cfg.type.weight || 900);
+      const numAttrs = `font-family="'${font}', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="${TWc}"${cfg.type.italic === false ? "" : ' font-style="italic"'} text-anchor="middle" dominant-baseline="central"`;
+      const numBase = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? cfg.type.fill2 : glow;
       const numeral = `<g transform="rotate(-4 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}>
-  <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(glow, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
-  <text x="${(cxC0 + 2.5 * k).toFixed(1)}" y="${(cyC0 + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(glow, 0.3)}">${esc(mult)}</text>
+  <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
+  <text x="${(cxC0 + 2.5 * k).toFixed(1)}" y="${(cyC0 + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.3)}">${esc(mult)}</text>
   <text x="${cxC0.toFixed(1)}" y="${cyC0.toFixed(1)}" ${numAttrs} fill="url(#${gidC9})" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(2 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
 </g>`;
       // the COMBO! plate — chamfered corners, dark well fill, glow trim
@@ -5230,7 +5283,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
 </g>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" role="img" aria-label="combo ${mult}">
-<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
+<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${
+        cfg.type.fillMode === "solid"
+          ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.55)}"/><stop offset="0.45" stop-color="${lighten(cfg.type.fill, 0.2)}"/><stop offset="1" stop-color="${cfg.type.fill}"/>`
+          : cfg.type.fillMode === "gradient"
+            ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.35)}"/><stop offset="0.5" stop-color="${cfg.type.fill}"/><stop offset="1" stop-color="${cfg.type.fill2}"/>`
+            : `<stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/>`
+      }</linearGradient></defs>
 <g opacity="${state === "disabled" ? 0.45 : 1}">
   <g>${shimmer}${burst}</g>
   ${numeral}
@@ -5736,7 +5795,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the old fixed 32k gap crowded big display type (owner). 0.73em
          reproduces the factory look exactly at the default type size. */
       const fsW = 30 * k * typeK;
-      const lead = fsW * 0.73 * ((cfg.type.leading ?? 100) / 100);
+      // fork-first like the list font: a Leading edit made while a state is
+      // selected lands on the fork, and the raw master never sees it
+      const leadT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+      const lead = fsW * 0.73 * ((leadT.leading ?? 100) / 100);
       const text = words.length > 1
         ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
           contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
@@ -5843,10 +5905,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          (click picks the sector under the pointer); icon = the selected
          emote (swappable); hub shows the pick; disabled dims. */
       const dE = ({ s: 280, m: 350, l: 430 } as Record<KitSize, number>)[size] * k;
-      const padE9 = 30;
+      /* the Global state aura, honored on this custom root (owner: "outer
+         glow for the whole thing... the slider does nothing"). Same recipe
+         as build(): pad reserves full slider travel, two blurred sweeps of
+         the silhouette — here, the disc — in the aura/Glow tint. */
+      const adjE9 = cfg.states[state];
+      const padE9 = 30 + glowPadOf(cfg);
       const cE = dE / 2 + padE9, rE = dE / 2;
       const hubR = dE * 0.16;
       const gidE9 = "ew" + UID++;
+      const auraC9 = state === "disabled" ? "#B9BEC6" : (cfg.candy.aura.color ?? glow);
+      const auraOp9 = (adjE9.glow / 100) * (state === "disabled" ? 0 : 1);
+      const tail9 = (s2: number) => 4 * s2 + 24;
+      const auraF9 = (s2: number) => `filterUnits="userSpaceOnUse" x="${(cE - rE - tail9(s2)).toFixed(0)}" y="${(cE - rE - tail9(s2)).toFixed(0)}" width="${((rE + tail9(s2)) * 2).toFixed(0)}" height="${((rE + tail9(s2)) * 2).toFixed(0)}"`;
+      const auraDisc9 = `<circle cx="${cE}" cy="${cE}" r="${rE.toFixed(1)}" fill="${auraC9}"/>`;
+      const aura9 = auraOp9 > 0.01
+        ? `<g opacity="${Math.min(1, auraOp9 * 1.35).toFixed(2)}" filter="url(#${gidE9}ga)">${auraDisc9}</g><g opacity="${(auraOp9 * 0.6).toFixed(2)}" filter="url(#${gidE9}gb)">${auraDisc9}</g>`
+        : "";
       /* sector count + every sector's emote are SLOTS now ("this component
          isn't very editable", owner). A named pick resolves against the
          stock set; unset sectors keep the factory cycle. */
@@ -5873,9 +5948,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       const selIc = opts.icon ?? emotes[selE9];
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" role="img" aria-label="emote wheel">
-<defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient></defs>
-<g opacity="${state === "disabled" ? 0.45 : 1}">
-  ${sect}
+<defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient>${auraOp9 > 0.01 ? `<filter id="${gidE9}ga" ${auraF9(14)}><feGaussianBlur stdDeviation="14"/></filter><filter id="${gidE9}gb" ${auraF9(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}</defs>
+<g opacity="${((adjE9.opacity / 100) * (state === "disabled" ? 0.45 : 1)).toFixed(2)}">
+  ${aura9}${sect}
   <circle cx="${cE}" cy="${cE}" r="${rE.toFixed(1)}" fill="none" stroke="url(#${gidE9}r)" stroke-width="${Math.max(8, dE * 0.035).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(dE * 0.02).toFixed(1)}px ${hexRgba(glow, 0.45)})"` : ""}/>
   <circle cx="${cE}" cy="${cE}" r="${hubR.toFixed(1)}" fill="${wellFill}" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.6"/>
   ${selIc ? themedIcon(selIc, cE - hubR * 0.5, cE - hubR * 0.5, hubR, hexMix(glow, "#FFFFFF", 0.2), 2.4) : ""}
@@ -7060,7 +7135,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          speaks here when one is set */
       const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
         `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
-         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
+         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
       const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component

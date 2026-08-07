@@ -10,6 +10,7 @@ import { useCloudStatus } from "@/shell/useCloudStatus";
 import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud";
 import { listCommunity, setLike, curateProject, rejectProject, deleteSubmission, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
 import { hydrate } from "@/generator/store";
+import { ensureDocFonts } from "@/generator/fonts";
 import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
 import { LiveArt } from "./LiveArt";
 import { renderKit } from "@/generator/bevel";
@@ -78,6 +79,11 @@ export function CardArt({ card }: { card: { id: string } }) {
         }
         try {
           const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
+          /* the card is ANOTHER maker's kit — its faces are never in this
+             visitor's font set. Load every family the doc speaks; the
+             browser re-rasterizes the live SVG text as each face lands
+             (owner: "thumbnails look true to the author's design"). */
+          ensureDocFonts(cfg, doc.kitDesigns);
           const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
           const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
           const labels = (doc.kitLabels ?? {}) as Record<string, string>;

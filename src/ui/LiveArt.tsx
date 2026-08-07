@@ -413,6 +413,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
   const activate = (e: React.PointerEvent) => {
     if ((kit?.label ?? "").toUpperCase().includes("CLAIM") || id === "pack") fireBurst();
+    // the combo numeral EXPLODES on click (owner ask): the claim burst's
+    // particles plus a punchy scale pop on the art itself
+    if (id === "combo") fireBurst();
     if (id === "input") { setEditing(true); if (typed === null) setTyped(kit?.label ?? ""); (e.currentTarget as HTMLElement).focus?.(); }
     else if (id === "toggle" || id === "checkbox" || id === "radio" || id === "orb") setOn((v) => !v);
     else if (id === "dropdown" || id === "badge") setOpen((v) => !v);
@@ -591,7 +594,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // draggable pieces own their gestures — a slider drag must never pan the page
   const gestureStyle = id === "slider" || id === "setrow" || id === "segment" || id === "joystick" || id === "weaponwheel" || vtracked ? { touchAction: "none" as const } : undefined;
   return (
-    <div ref={ref} className={`${shellFree ? `${className ?? ""} kp-shellfree` : className ?? ""}${burst ? " fx-igniting" : ""}`} title={title}
+    <div ref={ref} className={`${shellFree ? `${className ?? ""} kp-shellfree` : className ?? ""}${burst ? " fx-igniting" : ""}${burst && id === "combo" ? " fx-combopop" : ""}`} title={title}
       style={{ ...style, ...(width !== undefined ? { width } : {}), ...anchorStyle, ...gestureStyle, ...choiceHover }}
       {...(playing ? playHandlers
         : onDesignClick ? {

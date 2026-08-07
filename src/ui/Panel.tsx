@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, PINNED_CHROME, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -422,6 +422,9 @@ export function Panel() {
   const [parentErr, setParentErr] = useState<string | null>(null);
   // the admin publishing desk inside Looks — folded away by default
   const [adminLooksOpen, setAdminLooksOpen] = useState(false);
+  // the Looks rack collapses to the freshest few (owner: "we are showing
+  // too many looks at once, they should be sorted by newest")
+  const [looksAll, setLooksAll] = useState(false);
   /* Shared presets published from the RELEASE DESK carry no stored
      thumbnail — that publish happens on the server, which can't run the SVG
      engine (api/admin.ts sends thumb: null), so the card came up blank
@@ -704,6 +707,17 @@ export function Panel() {
           </button>
         )}
       </div>
+      {/* ── the STATE FLAG: jumping pieces snaps back to Default, but while
+           a non-default state is picked this sticky flag keeps saying so —
+           deep in Typography the chip in Global is long scrolled away
+           (owner: "need a warning or something") ── */}
+      {selectedState !== "default" && (
+        <div className="stateflag" role="status">
+          <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
+          <span>Styling <b>{STATE_LABEL[selectedState]}</b> — every edit lands on this state only.</span>
+          <button onClick={() => setSelectedState("default")}>Back to Default</button>
+        </div>
+      )}
       {/* ── the SCOPE BAR: where edits land, answered before you edit.
            One picker replaces the scattered banner chrome ("Back to parent
            design", "Style X only (pin it)"...). Every verb survives — it
@@ -818,9 +832,6 @@ export function Panel() {
         )}
         <Slider label="Lift" value={adj.lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
         <Slider label="Opacity" value={adj.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
-        {selectedState !== "default" && focus && PINNED_CHROME.has(focus) && (
-          <p className="hint">This piece's FRAME keeps its Default design in every state — the live element inside (selection ring, mark, knob) carries the state, and the sliders above still apply. To restyle the frame's material (gloss, specular, pattern…), edit the <b>Default</b> state; it flows to all of them.</p>
-        )}
         <div className="actionrow">
           <button className="resetstate" onClick={() => update((c) => { c.states[selectedState] = defaultStates()[selectedState]; })}>
             <RotateCcw size={13} strokeWidth={2} /> Reset {STATE_LABEL[selectedState]}
@@ -846,8 +857,22 @@ export function Panel() {
            The scattered "Publish current…" buttons live here now, behind
            one quiet admin row (owner: "we need to consolidate"). ── */}
       <Section id="shape" title={t("secLooks")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
+        {/* NEWEST FIRST, FEWEST SHOWN (owner): your latest saves lead (they
+            already store newest-first), pack drops sort by release date,
+            starters keep their curated order — and the rack folds to the
+            first dozen until Show all. */}
+        {(() => {
+          const cloudSorted = [...cloudPresets].sort((a, b) => String(b.publish_at ?? "").localeCompare(String(a.publish_at ?? "")));
+          const LOOKS_CAP = 12;
+          const total = userPresets.length + cloudSorted.length + presetArt().filter((p) => !hiddenStarters.includes(p.id)).length;
+          const capLeft = (used: number) => looksAll ? Infinity : Math.max(0, LOOKS_CAP - used);
+          const userShow = userPresets.slice(0, looksAll ? undefined : LOOKS_CAP);
+          const cloudShow = cloudSorted.slice(0, capLeft(userShow.length));
+          const starterCap = capLeft(userShow.length + cloudShow.length);
+          return (
+            <>
         <div className="presetgrid">
-          {userPresets.map((u) => (
+          {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
               onClick={() => applyUserPreset(u.id)}>
               {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: u.thumb }} /> : <span className="presetart" />}
@@ -859,7 +884,7 @@ export function Panel() {
           {/* The shared library is where the monthly preset packs land, so
               this lock is about the packs — not about capability. A student
               has the whole tool; what they don't have is the pack drops. */}
-          {cloudPresets.map((p) => tier !== "pro" ? (
+          {cloudShow.map((p) => tier !== "pro" ? (
             <button key={p.id} className="presetcard shared lockedp"
               title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
@@ -894,6 +919,7 @@ export function Panel() {
             </button>
           ))}
           {presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => {
+            // the tier gate follows the CURATED index, not the folded view
             const gated = pi >= capsOf(tier).presetLimit;
             return gated ? (
               <button key={p.id} className="presetcard lockedp" title={UPGRADE_LINES[tier]}
@@ -912,8 +938,16 @@ export function Panel() {
                 )}
               </button>
             );
-          })}
+          }).slice(0, starterCap === Infinity ? undefined : starterCap)}
         </div>
+        {total > LOOKS_CAP && (
+          <button className="pat-open" onClick={() => setLooksAll((v) => !v)}>
+            {looksAll ? "Show fewer looks ▴" : `Show all ${total} looks ▾`}
+          </button>
+        )}
+            </>
+          );
+        })()}
         <div className="helper">Each style is a different candy construction — shell, gloss and depth, not just a palette.</div>
         <div className="actionrow">
           <button className="resetstate" onClick={randomize}>
@@ -1451,16 +1485,6 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         {C.pattern.type !== "none" && (<>
-          <label className="fieldbox" style={{ minWidth: 0 }}>
-            <span className="fl">Shows on</span>
-            <select value={C.pattern.zone ?? "face"} aria-label="Pattern placement"
-              onChange={(e) => update((c) => { c.candy.pattern.zone = e.target.value as "face" | "wall" | "both"; })}>
-              <option value="face">Face</option>
-              <option value="wall">Wall</option>
-              <option value="both">Face + wall</option>
-            </select>
-            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
-          </label>
           <Slider label="Scale" value={C.pattern.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.scale = v; })} />
           <Slider label="Angle" value={C.pattern.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { c.candy.pattern.angle = v; })} />
           <Slider label="Opacity" value={C.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.opacity = v; })} />
@@ -1468,6 +1492,32 @@ export function Panel() {
             onChange={(e) => update((c) => { c.candy.pattern.color = e.target.checked ? null : (c.effects.Bevel ?? "#0E9CC9"); })} /> Tone-on-tone (auto)</label>
           {C.pattern.color !== null && (
             <Well label="Pattern color" value={C.pattern.color} onChange={(v) => update((c) => { c.candy.pattern.color = v; })} />
+          )}
+        </>)}
+
+        <div className="sublabel">Wall pattern</div>
+        <label className="fieldbox" style={{ minWidth: 0 }}>
+          <span className="fl">Pattern</span>
+          <select value={C.pattern.wall?.type ?? "none"} aria-label="Wall pattern type"
+            onChange={(e) => update((c) => {
+              const t2 = e.target.value as typeof C.pattern.type;
+              if (t2 === "none") { c.candy.pattern.wall = undefined; return; }
+              // first enable inherits the face knobs as a starting point
+              const p = c.candy.pattern;
+              c.candy.pattern.wall = { ...(p.wall ?? { scale: p.scale, angle: p.angle, opacity: Math.max(p.opacity, 40), color: p.color }), type: t2 };
+            })}>
+            {PATTERN_TYPES.map((p) => <option key={p.id} value={p.id}>{p.id === "none" ? "None" : p.name}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+        {C.pattern.wall && C.pattern.wall.type !== "none" && (<>
+          <Slider label="Scale" value={C.pattern.wall.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.scale = v; })} />
+          <Slider label="Angle" value={C.pattern.wall.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.angle = v; })} />
+          <Slider label="Opacity" value={C.pattern.wall.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.opacity = v; })} />
+          <label className="check"><input type="checkbox" checked={C.pattern.wall.color === null}
+            onChange={(e) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.color = e.target.checked ? null : (c.effects.Bevel ?? "#0E9CC9"); })} /> Tone-on-tone (auto)</label>
+          {C.pattern.wall.color !== null && (
+            <Well label="Wall pattern color" value={C.pattern.wall.color} onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.color = v; })} />
           )}
         </>)}
 

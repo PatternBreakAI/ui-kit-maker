@@ -15,13 +15,19 @@ import type { GenConfig } from "@/generator/model";
    Everything reskins live from the config. Auto-animates, leans firmly
    into the pointer; prefers-reduced-motion renders a still frame. */
 
+/* the Inner Glow layer joins the stack only when the kit lights the F2
+   well with its OWN color (owner: "was hoping to add inner glow not get
+   rid of the outer glow"). The Shadow plate is RETIRED from the diagram
+   (owner: "too much going on, let's remove the shadow layer") — the kit
+   still ships its shadow; the schematic just stops charting it. */
 const LAYERS = [
   { key: "highlight", t: "Highlight", sub: "gloss & specular", y: 1.45 },
   { key: "bevel", t: "Bevel", sub: "shell & wall", y: 0.87 },
   { key: "pattern", t: "Pattern", sub: "face texture", y: 0.29 },
-  { key: "fill", t: "Inner Fill", sub: "candy face", y: -0.29 },
-  { key: "glow", t: "Glow", sub: "inner glow", y: -0.87 },
-  { key: "shadow", t: "Shadow", sub: "grounding", y: -1.45 },
+  // light rising over the candy face — it sits ON TOP of the fill (owner)
+  { key: "innerglow", t: "Inner Glow", sub: "candy light", y: -0.29 },
+  { key: "fill", t: "Inner Fill", sub: "candy face", y: -0.87 },
+  { key: "glow", t: "Glow", sub: "outer glow", y: -1.45 },
 ] as const;
 
 const SATS = [
@@ -113,7 +119,7 @@ interface Rig {
   group: THREE.Group;
   layerMeshes: THREE.Mesh[];
   glowMat: THREE.MeshBasicMaterial;
-  shadowMat: THREE.MeshBasicMaterial;
+  innerGlowMat: THREE.MeshBasicMaterial;
   patternMat: THREE.MeshBasicMaterial;
   satGroup: THREE.Group;
   sats: THREE.Mesh[];
@@ -201,7 +207,7 @@ export function HeroGL() {
 
     const layerMeshes: THREE.Mesh[] = [];
     let glowMat: THREE.MeshBasicMaterial = null!;
-    let shadowMat: THREE.MeshBasicMaterial = null!;
+    let innerGlowMat: THREE.MeshBasicMaterial = null!;
     let patternMat: THREE.MeshBasicMaterial = null!;
     for (const L of LAYERS) {
       let mesh: THREE.Mesh;
@@ -209,10 +215,16 @@ export function HeroGL() {
         glowMat = new THREE.MeshBasicMaterial({ map: blobTex("#8FF0FF"), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
         disposables.push(glowMat);
         mesh = new THREE.Mesh(blobGeo, glowMat);
-      } else if (L.key === "shadow") {
-        shadowMat = new THREE.MeshBasicMaterial({ map: blobTex("#05070d"), transparent: true, opacity: 0.9, depthWrite: false });
-        disposables.push(shadowMat);
-        mesh = new THREE.Mesh(blobGeo, shadowMat);
+      } else if (L.key === "innerglow") {
+        // sleeps until the retint pass finds a lit custom well. NORMAL
+        // blending on purpose: additive light over the bright fill plate
+        // washed the well's hue to white — this layer's job is to SHOW
+        // the color
+        innerGlowMat = new THREE.MeshBasicMaterial({ map: blobTex("#8FF0FF"), transparent: true, opacity: 0.85, depthWrite: false });
+        disposables.push(innerGlowMat);
+        mesh = new THREE.Mesh(blobGeo, innerGlowMat);
+        mesh.scale.set(0.78, 1, 0.78); // inside the candy: a tighter light
+        mesh.visible = false;
       } else if (L.key === "pattern") {
         patternMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide });
         disposables.push(patternMat);
@@ -251,7 +263,7 @@ export function HeroGL() {
 
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     rig.current = {
-      renderer, scene, camera, group, layerMeshes, glowMat, shadowMat, patternMat,
+      renderer, scene, camera, group, layerMeshes, glowMat, innerGlowMat, patternMat,
       satGroup, sats, keyLight, still, renderOnce: () => {}, alignSats: () => {}, disposables,
     };
     wrap.dataset.gl = "on";
@@ -372,9 +384,12 @@ export function HeroGL() {
         const lab = labelRefs.current[i];
         const lx = 2;
         // crowded anchors fade out — at extreme angles the stack compresses
-        // and only the labels that still have room stay readable
+        // and only the labels that still have room stay readable. A sleeping
+        // layer (Inner Glow on kits that don't light it) takes its label,
+        // dot and leader with it and claims no room.
+        const vis = layerMeshes[i].visible ? 1 : 0;
         const minD = placed.length ? Math.min(...placed.map((py) => Math.abs(p.y - py))) : 99;
-        const op = Math.max(0, Math.min(1, (minD - 14) / 18));
+        const op = Math.max(0, Math.min(1, (minD - 14) / 18)) * vis;
         if (op > 0.05) placed.push(p.y);
         if (lab) {
           lab.style.transform = `translate(${lx}px, ${(p.y - 15).toFixed(1)}px)`;
@@ -428,6 +443,10 @@ export function HeroGL() {
       }
     } catch { /* ignore */ }
     const onDown = (e: PointerEvent) => {
+      /* claim the gesture outright: without this the browser ALSO runs a
+         text-selection drag under the spin, and selection auto-scrolls the
+         page (owner: "it scrolls the page up and down along with it") */
+      e.preventDefault();
       dragging = true; lastX = e.clientX; lastY = e.clientY; velX = 0; velY = 0;
       wrap.classList.add("kp-gldrag");
       wrap.setPointerCapture?.(e.pointerId);
@@ -475,6 +494,7 @@ export function HeroGL() {
       group.rotation.x = BASE_PITCH + userPitch;
       layerMeshes.forEach((pl, i) => { pl.position.y = pl.userData.baseY * (1 + Math.sin(t * 0.5 + i * 0.9) * 0.045); });
       glowMat.opacity = 0.7 + Math.sin(t * 0.9) * 0.22;
+      innerGlowMat.opacity = 0.6 + Math.sin(t * 0.9 + 1.4) * 0.16; // its own breath, off the outer's beat
       sats.forEach((m2, i) => { m2.position.y = m2.userData.baseY + Math.sin(t * 0.42 + i * 1.9) * 0.05; });
       billboard();
       renderer.render(scene, camera);
@@ -514,8 +534,21 @@ export function HeroGL() {
       const bevel = c.effects.Bevel ?? "#0E9CC9";
       const fill = c.effects["Inner Fill"] ?? "#12B2E2";
       const glow = c.effects.Glow ?? "#8FF0FF";
+      /* EMPLOYMENT: a layer appears only when the kit actually uses it — a
+         feature switched off or dialed to zero takes its plate, label, dot
+         and leader with it (owner: "if a user doesn't employ them or if
+         they are at 0% opacity they should not appear"). The inner glow is
+         an ADDITION beside the outer glow, never a replacement. */
+      const employed: Record<string, boolean> = {
+        highlight: c.candy.gloss.on || c.candy.specular.on,
+        bevel: true,
+        pattern: c.candy.pattern.type !== "none" || ((c.candy.pattern.wall?.type ?? "none") !== "none"),
+        innerglow: (c.candy.innerGlow.opacity ?? 0) > 0,
+        fill: true,
+        glow: Object.values(c.states).some((s) => s.glow > 0.5) || c.candy.bloom.opacity > 0.5 || c.candy.extrusion.glow > 0.5,
+      };
+      const innerG = employed.innerglow ? (c.candy.innerGlow.color ?? glow) : null;
       const hi = c.effects.Highlight ?? "#EAFBFF";
-      const shadow = c.effects.Shadow ?? "#05070d";
       for (const pl of R.layerMeshes) {
         const key = pl.userData.key as string;
         const rim2 = pl.userData.rim as THREE.LineBasicMaterial | undefined;
@@ -527,8 +560,23 @@ export function HeroGL() {
       // soft light layers redraw in their role colors
       R.glowMat.map?.dispose();
       R.glowMat.map = blobTex(glow);
-      R.shadowMat.map?.dispose();
-      R.shadowMat.map = blobTex(hexMix(shadow, "#000000", 0.35));
+      if (innerG) {
+        R.innerGlowMat.map?.dispose();
+        R.innerGlowMat.map = blobTex(innerG);
+      }
+      /* however many layers are awake, they share the stack's span evenly —
+         a five-layer kit reads as five honest plates, a seven-layer kit
+         gets air for them all */
+      const awake = LAYERS.filter((L) => employed[L.key]);
+      const yFor = (vi: number) => awake.length < 2 ? 0 : 1.45 - (vi / (awake.length - 1)) * 2.9;
+      R.layerMeshes.forEach((m, i) => {
+        const key = LAYERS[i].key;
+        m.visible = employed[key];
+        const vi = awake.findIndex((L) => L.key === key);
+        const y = vi >= 0 ? yFor(vi) : 0;
+        m.userData.baseY = y;
+        m.position.y = y;
+      });
       // the pattern plane carries the real face pattern
       svgTex(patternSvg(c), (tex) => {
         const R2 = rig.current;
