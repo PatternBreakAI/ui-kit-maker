@@ -389,10 +389,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
   const pngQueue: { path: string; svg: string; crop: boolean; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
+     naming convention for everything makes some assets hard to find' —
+     Unity search showed sixteen identical "base" rows). Every filename now
+     carries its family: button-primary/button-primary-base.9.png. icons/
+     already have distinct names and stay put. The importer deletes the
+     legacy short-named twins on refresh (owner: no migration needed). */
+  const NAME_EXEMPT = new Set(["icons"]);
+  const famPath = (path: string): string => {
+    const i = path.indexOf("/");
+    if (i < 0) return path;
+    const dir = path.slice(0, i), file = path.slice(i + 1);
+    if (NAME_EXEMPT.has(dir) || file.startsWith(dir + "-")) return path;
+    return `${dir}/${dir}-${file}`;
+  };
   const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false, group?: string): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
-    pngQueue.push({ path, svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
+    pngQueue.push({ path: famPath(path), svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   /* families whose prefabs swap states, so they are the ones that get an
@@ -448,9 +462,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          families that swap: a panel has no hover to announce. */
       if (q.meta.part === "base" && GLOW_FAMS.has(q.meta.component)) {
         const g = await glowFromPng(bytes, PNG_SCALE);
-        files.push({ path: `assets/${q.meta.component}/glow.png`, data: g.bytes });
+        files.push({ path: `assets/${q.meta.component}/${q.meta.component}-glow.png`, data: g.bytes });
         manifest.push({
-          file: `assets/${q.meta.component}/glow.png`, nativeW: g.w, nativeH: g.h,
+          file: `assets/${q.meta.component}/${q.meta.component}-glow.png`, nativeW: g.w, nativeH: g.h,
           sha256: await sha256Hex(g.bytes), component: q.meta.component, part: "glow",
           nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
           usage: "This piece's aura — its silhouette, blurred the way the app blurs it. White, so it tints to any role; the hover glow uses it behind the piece.",
@@ -517,7 +531,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
         await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts),
-          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/glow.png, a small translate).` }, true, n.family);
+          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
   }
@@ -755,7 +769,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
       `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
     await addPng("fx/face-tile.png", patTile,
-      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between base-under and base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
+      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between -base-under and -base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
   }
   } // full scope
 
@@ -883,8 +897,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
-        "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/drop-shadow.png, fx/glow.png, the states recipe).",
-        "base.9.png = full material (gloss baked); base-flat.9.png = tintable flat variant for independent effects.",
+        "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/fx-drop-shadow.png, fx/fx-glow.png, the states recipe).",
+        "<family>-base.9.png = full material (gloss baked); <family>-base-flat.9.png = tintable flat variant for independent effects. Every filename carries its family so search finds it.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
@@ -1061,7 +1075,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       bloom: { opacity: base.candy.bloom?.opacity ?? 0, size: base.candy.bloom?.size ?? 0 },
       ...(full ? {
         rarity: {
-          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/rarityframe-<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
           tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
         },
       } : {}),
@@ -2160,7 +2174,7 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
       const s = Math.max(0.3, Math.min(1.05, 430 / sh.w));
       const padX = 40, padY = 34, colGap = 34, colW = 460;
       const rowsSrc: { at: [number, number]; head: string; body: string[] }[] = [
-        { at: [0.14, 0.22], head: "base.9 — the sprite",
+        { at: [0.14, 0.22], head: "the base sprite (family-base.9)",
           body: ["Nine-sliced: stretch it to any size and the", "corners stay crisp. Hover, pressed and", "disabled sprites swap in automatically."] },
         { at: [0.5, 0.5], head: "Label → one Fill text + echo layers",
           body: ["One real text; shadow, stroke and glints are", "echoes — the same letters repainted in the", "app's inks. One geometry, so nothing drifts."] },
@@ -2312,14 +2326,14 @@ base-pressed / base-disabled next to base), and the generated Button
 prefabs arrive with **Sprite Swap already wired** — nothing to
 reconnect. What a swapped sprite can't carry is composed in-engine by
 the small **StateFx** runtime on each prefab: the hover glow (the kit's
-own glow color over fx/glow.png, shaped to the piece) and the press
+own glow color over fx/fx-glow.png, shaped to the piece) and the press
 lift, driven by pointer events with the exact numbers you set on
 uikitmaker.com.
 
 > **The aura, in your own scenes.** The glow field around pieces in the
 > app is the kit's bloom, and an aura must overlap whatever sits behind
 > it — so it can't ship inside a cropped sprite. Compose it the way the
-> Playground does: fx/glow.png behind the piece, tinted the manifest's
+> Playground does: fx/fx-glow.png behind the piece, tinted the manifest's
 > palette.glow, sized by the bloom block. That's the full resting look.
 
 ---
@@ -2567,7 +2581,7 @@ layers**, and the importer builds them as ready prefabs:
 
 Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
 hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
-that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
+that clips a Tiled \`fx/fx-face-tile.png\` to the exact silhouette — and
 \`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
 light back on top. The mask has to be its own hidden layer: Unity only
 alpha-clips a stencil when its graphic is hidden, so masking with
@@ -3007,14 +3021,28 @@ namespace PatternBreak {
       }
 
       /* ── I3: anything the last receipt knew that this manifest dropped
-         stays on disk and gets named — deletion is a human's click ── */
+         stays on disk and gets named — deletion is a human's click. ONE
+         exception: the great renaming (dev field report: sixteen identical
+         "base" files in search — filenames now carry their family). A
+         dropped file whose family-prefixed twin IS in this manifest isn't
+         a design decision, it's the same asset renamed; it deletes itself
+         so the rename doesn't bury the report in false orphans. ── */
       var inManifest = new HashSet<string>();
       foreach (var a in manifest.assets) inManifest.Add(a.file);
       var orphans = new List<string>();
       if (prev != null && prev.files != null)
         foreach (var f in prev.files)
-          if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file))
+          if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file)) {
+            var slash = f.file.LastIndexOf('/');
+            if (slash > 0) {
+              var dirp = f.file.Substring(0, slash);
+              var dslash = dirp.LastIndexOf('/');
+              var dname = dslash >= 0 ? dirp.Substring(dslash + 1) : dirp;
+              var renamed = dirp + "/" + dname + "-" + f.file.Substring(slash + 1);
+              if (inManifest.Contains(renamed)) { AssetDatabase.DeleteAsset(root + "/" + f.file); continue; }
+            }
             orphans.Add(f.file);
+          }
       if (prev != null && prev.orphans != null)
         foreach (var o in prev.orphans)
           if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
@@ -4336,7 +4364,7 @@ namespace PatternBreak {
          generic… very big and not as soft comparatively"). */
       var baseSp = S(basePath);
       var glowSp = S(Path.GetDirectoryName(basePath).Replace("\\\\", "/") + "/glow.png");
-      fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/glow.png");
+      fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/fx-glow.png");
       if (glowSp != null && baseSp != null && pngScale > 0)
         fx.glowPad = new Vector2(
           (glowSp.rect.width - baseSp.rect.width) * 0.5f / pngScale,
@@ -4359,10 +4387,10 @@ namespace PatternBreak {
       return "PLAY";
     }
     static bool ProgressPrefab(string dir, string root, int pngScale) {
-      var track = S(root + "/assets/progress/track.9.png");
+      var track = S(root + "/assets/progress/progress-track.9.png");
       if (track == null) return false;
       var go = ImageObject("ProgressBar", track, pngScale);
-      var fill = S(root + "/assets/progress/fill.9.png");
+      var fill = S(root + "/assets/progress/progress-fill.9.png");
       if (fill != null) {
         var f = ImageObject("Fill", fill, pngScale);
         f.transform.SetParent(go.transform, false);
@@ -4387,9 +4415,9 @@ namespace PatternBreak {
        and the frame stretches, the pattern tiles at constant scale, and
        the gloss stays one sweep — what the app shows, at any size. */
     static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
-      var under = S(root + "/assets/" + fam + "/base-under.9.png");
-      var over = S(root + "/assets/" + fam + "/base-over.9.png");
-      var tile = S(root + "/assets/fx/face-tile.png");
+      var under = S(root + "/assets/" + fam + "/" + fam + "-base-under.9.png");
+      var over = S(root + "/assets/" + fam + "/" + fam + "-base-over.9.png");
+      var tile = S(root + "/assets/fx/fx-face-tile.png");
       if (under == null || over == null || tile == null) return false;
       var goName = NiceName(fam) + " (tiled face)";
       var go = ImageObject(goName, under, pngScale);
@@ -4399,7 +4427,7 @@ namespace PatternBreak {
          Mask when Show Mask Graphic is OFF — masking with the visible art
          gives a rectangular stencil, and the pattern spills past the
          silhouette (field report). */
-      var maskSp = S(root + "/assets/" + fam + "/base-mask.9.png");
+      var maskSp = S(root + "/assets/" + fam + "/" + fam + "-base-mask.9.png");
       var maskGo = ImageObject("PatternMask", maskSp != null ? maskSp : under, pngScale);
       maskGo.transform.SetParent(go.transform, false);
       var mi = maskGo.GetComponent<Image>();
@@ -4427,8 +4455,8 @@ namespace PatternBreak {
     /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
        drop it on a Canvas, press Play, drag. Value is the direction. */
     static bool JoystickPrefab(string dir, string root, int pngScale) {
-      var baseSp = S(root + "/assets/joystick/base.png");
-      var thumbSp = S(root + "/assets/joystick/thumb.png");
+      var baseSp = S(root + "/assets/joystick/joystick-base.png");
+      var thumbSp = S(root + "/assets/joystick/joystick-thumb.png");
       if (baseSp == null || thumbSp == null) return false;
       var go = ImageObject("Joystick", baseSp, pngScale);
       var th = ImageObject("Thumb", thumbSp, pngScale);
@@ -4450,8 +4478,8 @@ namespace PatternBreak {
        and hides it natively. The designed ghost-mark prefabs stay too. */
     static bool TogglePrefabs(string dir, string root, int pngScale, PBManifest m) {
       bool any = false;
-      if (ToggleOne(dir, root, pngScale, m, "checkbox/base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f)) any = true;
-      if (ToggleOne(dir, root, pngScale, m, "radio/base-plain.png", "icons/dot.png", "RadioToggle", 0.34f)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.34f)) any = true;
       return any;
     }
     static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale) {
@@ -4486,9 +4514,9 @@ namespace PatternBreak {
        quality of life thing") — panel frame, RectMask2D viewport, empty
        Content ready for children, kit-dressed vertical scrollbar. */
     static bool ScrollViewPrefab(string dir, string root, int pngScale) {
-      var frame = S(root + "/assets/panel/base.9.png");
-      var track = S(root + "/assets/scrollview/track.9.png");
-      var handle = S(root + "/assets/scrollview/handle.9.png");
+      var frame = S(root + "/assets/panel/panel-base.9.png");
+      var track = S(root + "/assets/scrollview/scrollview-track.9.png");
+      var handle = S(root + "/assets/scrollview/scrollview-handle.9.png");
       if (frame == null || track == null || handle == null) return false;
       var go = ImageObject("ScrollView", frame, pngScale);
       go.GetComponent<Image>().type = Image.Type.Sliced;
@@ -4542,9 +4570,9 @@ namespace PatternBreak {
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
     static bool GlobePrefab(string dir, string root, int pngScale, PBManifest m) {
-      var glass = S(root + "/assets/globe/glass.png");
-      var rim = S(root + "/assets/globe/rim.png");
-      var liquid = S(root + "/assets/globe/liquid.png");
+      var glass = S(root + "/assets/globe/globe-glass.png");
+      var rim = S(root + "/assets/globe/globe-rim.png");
+      var liquid = S(root + "/assets/globe/globe-liquid.png");
       if (glass == null || rim == null || liquid == null) return false;
       var go = ImageObject("HealthGlobe", glass, pngScale);
       /* the stencil is a HIDDEN copy of the glass: Unity only alpha-clips
@@ -4589,7 +4617,7 @@ namespace PatternBreak {
        the CONTENT (lane names, level numbers, progress) as live text —
        its Inspector says so, prototypers edit there (owner). */
     static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
-      var baseSp = S(root + "/assets/seasontrack/base.png");
+      var baseSp = S(root + "/assets/seasontrack/seasontrack-base.png");
       if (baseSp == null) return false;
       var go = ImageObject("SeasonTrack", baseSp, pngScale);
       var trackC = go.AddComponent<SeasonTrack>();
@@ -5170,33 +5198,33 @@ in SliceMargins.csv in pixels).
 
 ## Button
 - Widget: Button (or Border + Button for flat-variant layering)
-- Style > Normal/Hovered/Pressed brush: assets/button-primary/base.9.png
+- Style > Normal/Hovered/Pressed brush: assets/button-primary/button-primary-base.9.png
   - Draw As: Box
   - Margin (px at export scale): __BTN_MARGIN__  -> divide by the PNG size per side
 - Child: TextBlock, font "__FONT__" (live text), plus an optional Image for the icon (assets/icons/*, tinted).
 
 ## Panel / window
-- Border widget, brush assets/panel/base.9.png, Draw As: Box
+- Border widget, brush assets/panel/panel-base.9.png, Draw As: Box
 - Margin (px): __PANEL_MARGIN__
 
 ## Progress bar
 - ProgressBar widget
-- Style > Background Image: assets/progress/track.9.png (Box)
-- Style > Fill Image: assets/progress/fill.9.png (Box)
+- Style > Background Image: assets/progress/progress-track.9.png (Box)
+- Style > Fill Image: assets/progress/progress-fill.9.png (Box)
 - Percent is bound to live data.
 
 ## Slider
 - Slider widget
-- Style > Normal Bar: assets/slider/track.9.png; Fill: assets/slider/fill.9.png
-- Style > Normal Thumb: assets/slider/thumb.png (Draw As: Image)
+- Style > Normal Bar: assets/slider/slider-track.9.png; Fill: assets/slider/slider-fill.9.png
+- Style > Normal Thumb: assets/slider/slider-thumb.png (Draw As: Image)
 
 ## Toggle
 - CheckBox widget styled as a switch:
-  Unchecked/Checked Image: assets/toggle/track.9.png (tint the checked state
+  Unchecked/Checked Image: assets/toggle/toggle-track.9.png (tint the checked state
   toward the palette glow), thumb via a child Image animated between ends.
 
 ## Checkbox / Radio
-- CheckBox widget: Unchecked Image assets/checkbox/base.png;
+- CheckBox widget: Unchecked Image assets/checkbox/checkbox-base.png;
   Checked = base + assets/icons/check.png (tinted) layered above.
   Prefer Unity's own Toggle? **CheckboxToggle.prefab** and
   **RadioToggle.prefab** are wired ones — bare well + the kit's mark as
