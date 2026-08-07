@@ -539,10 +539,21 @@ export function HeroGL() {
       const bevel = c.effects.Bevel ?? "#0E9CC9";
       const fill = c.effects["Inner Fill"] ?? "#12B2E2";
       const glow = c.effects.Glow ?? "#8FF0FF";
-      /* the F2 well with its OWN color wakes the Inner Glow layer — an
-         ADDITION beside the outer glow, never a replacement (owner: "was
-         hoping to add inner glow not get rid of the outer glow") */
-      const innerG = c.candy.innerGlow.opacity > 0 ? c.candy.innerGlow.color : null;
+      /* EMPLOYMENT: a layer appears only when the kit actually uses it — a
+         feature switched off or dialed to zero takes its plate, label, dot
+         and leader with it (owner: "if a user doesn't employ them or if
+         they are at 0% opacity they should not appear"). The inner glow is
+         an ADDITION beside the outer glow, never a replacement. */
+      const employed: Record<string, boolean> = {
+        highlight: c.candy.gloss.on || c.candy.specular.on,
+        bevel: true,
+        pattern: c.candy.pattern.type !== "none" || ((c.candy.pattern.wall?.type ?? "none") !== "none"),
+        innerglow: (c.candy.innerGlow.opacity ?? 0) > 0,
+        fill: true,
+        glow: Object.values(c.states).some((s) => s.glow > 0.5) || c.candy.bloom.opacity > 0.5 || c.candy.extrusion.glow > 0.5,
+        shadow: c.shadow.opacity > 0.5,
+      };
+      const innerG = employed.innerglow ? (c.candy.innerGlow.color ?? glow) : null;
       const hi = c.effects.Highlight ?? "#EAFBFF";
       const shadow = c.effects.Shadow ?? "#05070d";
       for (const pl of R.layerMeshes) {
@@ -556,19 +567,23 @@ export function HeroGL() {
       // soft light layers redraw in their role colors
       R.glowMat.map?.dispose();
       R.glowMat.map = blobTex(glow);
-      const igMesh = R.layerMeshes.find((m) => m.userData.key === "innerglow");
-      if (igMesh) igMesh.visible = !!innerG;
       if (innerG) {
         R.innerGlowMat.map?.dispose();
         R.innerGlowMat.map = blobTex(innerG);
       }
-      /* seven layers need seven slots: with the Inner Glow awake the stack
-         re-spaces evenly so the new light gets air instead of hiding
-         between the plates; asleep, the classic six positions return */
-      const ys = innerG
-        ? [1.45, 0.967, 0.483, 0, -0.483, -0.967, -1.45]
-        : [1.45, 0.87, 0.29, 0, -0.29, -0.87, -1.45];
-      R.layerMeshes.forEach((m, i) => { m.userData.baseY = ys[i]; m.position.y = ys[i]; });
+      /* however many layers are awake, they share the stack's span evenly —
+         a five-layer kit reads as five honest plates, a seven-layer kit
+         gets air for them all */
+      const awake = LAYERS.filter((L) => employed[L.key]);
+      const yFor = (vi: number) => awake.length < 2 ? 0 : 1.45 - (vi / (awake.length - 1)) * 2.9;
+      R.layerMeshes.forEach((m, i) => {
+        const key = LAYERS[i].key;
+        m.visible = employed[key];
+        const vi = awake.findIndex((L) => L.key === key);
+        const y = vi >= 0 ? yFor(vi) : 0;
+        m.userData.baseY = y;
+        m.position.y = y;
+      });
       R.shadowMat.map?.dispose();
       R.shadowMat.map = blobTex(hexMix(shadow, "#000000", 0.35));
       // the pattern plane carries the real face pattern
