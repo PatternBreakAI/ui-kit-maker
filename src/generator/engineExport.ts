@@ -119,6 +119,25 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
     _Pack ("Source packing", Float) = 1
     _SrcBlend ("Src blend", Float) = 1  // One
     _DstBlend ("Dst blend", Float) = 1  // One
+    // ── the LIVE FIELD (owner: "the glint should be one graphic, not a
+    // bunch of little letters"). 0 = draw the atlas as-is (old zips).
+    // 1 slab / 2 streak / 3 sheen / 4 stars: the atlas carries only the
+    // letterform mask; band AND stars are computed HERE, in the label's
+    // own space, so one sweep + one constellation cross the whole word
+    // at the kit's light angle — any text, any length, still typeable.
+    // _StarsOnly marks HeroLabel's full-word quad: stars may spill past
+    // the letterforms exactly like the app draws them.
+    _Style ("Field style", Float) = 0
+    _StarsOnly ("1 = this renderer draws only the stars", Float) = 0
+    _Op ("Glint opacity 0..1", Float) = 0.55
+    _Lx ("Kit light dir X (app space, y down)", Float) = 0.5
+    _Ly ("Kit light dir Y (app space, y down)", Float) = -0.86
+    _OxEm ("User glint nudge X in em", Float) = 0
+    _OyEm ("User glint nudge Y in em", Float) = 0
+    _Em ("Label em height (HeroLabel writes this)", Float) = 52
+    _Cx ("Word center X, label space (HeroLabel)", Float) = 0
+    _Cy ("Word center Y, label space (HeroLabel)", Float) = 0
+    _TextW ("Word width, label space (HeroLabel)", Float) = 200
   }
   SubShader {
     Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
@@ -128,19 +147,118 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       CGPROGRAM
       #pragma vertex vert
       #pragma fragment frag
+      #pragma target 2.5
       #include "UnityCG.cginc"
       struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
-      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; float2 lpos : TEXCOORD1; };
       sampler2D _MainTex; fixed4 _Color; float _Pack;
+      float _Style, _StarsOnly, _Op, _Lx, _Ly, _OxEm, _OyEm, _Em, _Cx, _Cy, _TextW;
+      /* the app's own star tables (bevel.ts): x fraction across the word,
+         y offset / size in em, tilt in degrees. slab rides rows 0-2,
+         stars rides rows 3-8; streak and sheen stay pure bands. */
+      static const float4 STAR_TAB[9] = {
+        float4(0.16, -0.24, 0.16, 0.0), float4(0.52, 0.16, 0.09, 18.0), float4(0.85, -0.1, 0.125, -14.0),
+        float4(0.06, -0.3, 0.15, 0.0), float4(0.28, 0.2, 0.09, 22.0), float4(0.48, -0.18, 0.135, -10.0),
+        float4(0.66, 0.26, 0.08, 14.0), float4(0.86, -0.08, 0.145, -18.0), float4(0.97, 0.28, 0.07, 30.0)
+      };
       v2f vert (appdata_t v) {
         v2f o;
         o.vertex = UnityObjectToClipPos(v.vertex);
         o.texcoord = v.texcoord;
         o.color = v.color * _Color;
+        o.lpos = v.vertex.xy; // the echo repaints the text's own mesh, so this IS label space
         return o;
       }
+      // anti-aliased rounded-rect coverage in a frame rotated to 'dir' around 'c'
+      float RectCov (float2 p, float2 c, float2 dir, float halfL, float halfH, float r) {
+        float2 d = p - c;
+        float2 q = float2(abs(dot(d, dir)), abs(dot(d, float2(-dir.y, dir.x)))) - float2(halfL - r, halfH - r);
+        float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+        float aa = max(fwidth(dist), 0.75);
+        return saturate(0.5 - dist / aa);
+      }
+      /* the app's own band recipes, verbatim geometry (bevel.ts glints):
+         slab   = wide pill + short chasing bar, tilted perpendicular to the light
+         streak = three thin sharp bands
+         sheen  = two horizontal cap-line pills, rotation-free by design
+         All in APP space: origin at the word's center, y DOWN, fs = one em. */
+      float Field (float2 p) {
+        float fs = _Em;
+        float2 L = float2(_Lx, _Ly);
+        float2 bc = float2(L.x * fs * 0.08 + _OxEm * fs, L.y * fs * 0.24 + _OyEm * fs);
+        float bandW = _TextW * 1.18, bandH = fs * 0.28;
+        if (_Style > 3.5) return 0.0; // stars: constellation only
+        if (_Style > 2.5) {           // sheen — anchored to the text box, not the light
+          float2 g = float2(_OxEm * fs, _OyEm * fs);
+          float2 dirH = float2(1, 0);
+          float a1 = RectCov(p, float2(0, -0.34 * fs) + g, dirH, _TextW * 0.5 + fs * 0.2, fs * 0.1, fs * 0.1);
+          float a2 = RectCov(p, float2(-0.165 * _TextW, -0.12 * fs) + g, dirH, _TextW * 0.275, fs * 0.04, fs * 0.04) * 0.55;
+          return max(a1, a2);
+        }
+        float rot = atan2(L.y, L.x) + 1.5707964; // the slab tilts perpendicular to the light
+        float2 dir = float2(cos(rot), sin(rot));
+        if (_Style > 1.5) {           // streak — each thin band around its own center
+          float s1 = RectCov(p, float2(bc.x, bc.y - 0.22 * fs), dir, bandW * 0.5, 0.045 * fs, 0.0);
+          float s2 = RectCov(p, float2(bc.x, bc.y + 0.02 * fs), dir, bandW * 0.5, 0.0225 * fs, 0.0) * 0.75;
+          float s3 = RectCov(p, float2(bc.x, bc.y + 0.21 * fs), dir, bandW * 0.5, 0.035 * fs, 0.0) * 0.5;
+          return max(s1, max(s2, s3));
+        }
+        // slab (the original): main pill, then the chaser rotated along with it
+        float m = RectCov(p, bc, dir, bandW * 0.5, bandH * 0.5, bandH * 0.5);
+        float2 perp = float2(-dir.y, dir.x);
+        float m2 = RectCov(p, bc + perp * (bandH * 0.96), dir, bandW * 0.19, bandH * 0.21, bandH * 0.21) * 0.7;
+        return max(m, m2);
+      }
+      // 4-point sparkle coverage, the app's star4 path as an SDF: fold into
+      // one octant, then one straight edge from tip (s,0) to waist (.22s,.22s)
+      float Star4 (float2 p, float2 c, float s, float rotDeg) {
+        float r = rotDeg * 0.017453293;
+        float2 d = p - c;
+        float cr = cos(r), sr = sin(r);
+        d = float2(cr * d.x + sr * d.y, -sr * d.x + cr * d.y);
+        d = abs(d);
+        if (d.y > d.x) d = d.yx;
+        float2 A = float2(s, 0.0), B = float2(0.22 * s, 0.22 * s);
+        float2 e = B - A;
+        float t = saturate(dot(d - A, e) / dot(e, e));
+        float2 q = A + e * t;
+        float side = e.x * (d.y - A.y) - e.y * (d.x - A.x);
+        float dist = length(d - q) * (side > 0.0 ? -1.0 : 1.0); // origin side = inside
+        float aa = max(fwidth(dist), 0.75);
+        return saturate(0.5 - dist / aa);
+      }
+      float Stars (float2 p) {
+        int i0 = 0, n = 0;
+        if (_Style < 1.5) { i0 = 0; n = 3; }        // slab
+        else if (_Style > 3.5) { i0 = 3; n = 6; }   // stars
+        if (n == 0) return 0.0;
+        float fs = _Em;
+        float2 g = float2(_Lx * fs * 0.06 + _OxEm * fs, _Ly * fs * 0.06 + _OyEm * fs);
+        float a = 0.0;
+        for (int k = 0; k < 6; k++) {
+          if (k >= n) break;
+          float4 st = STAR_TAB[i0 + k];
+          a = max(a, Star4(p, float2((st.x - 0.5) * _TextW, st.y * fs) + g, fs * st.z, st.w));
+        }
+        return a;
+      }
       fixed4 frag (v2f i) : SV_Target {
-        fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
+        fixed4 c;
+        if (_Style > 0.5) {
+          // app space: word center origin, y flipped DOWN — the app's frame
+          float2 p = float2(i.lpos.x - _Cx, -(i.lpos.y - _Cy));
+          float a;
+          if (_StarsOnly > 0.5) {
+            // HeroLabel's full-word quad: stars spill past letterforms, like the app
+            a = Stars(p) * saturate(_Op * 1.15);
+          } else {
+            // the glyph mesh: atlas alpha IS the letterform mask for the band
+            a = Field(p) * tex2D(_MainTex, i.texcoord).a * saturate(_Op);
+          }
+          c = fixed4(i.color.rgb, i.color.a * a);
+        } else {
+          c = tex2D(_MainTex, i.texcoord) * i.color; // old zips: bands live in the atlas
+        }
         if (_Pack > 2.5) c.rgb *= c.a * 0.6;            // 3: gentle light
         else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
         else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
@@ -766,6 +884,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
              ride their closest additive read). Everything else composites
              its blend INTO baked pixels and needs no runtime story. */
           glintBlend: base.type.glints?.on ? (base.type.glints.blend ?? "overlay") : null,
+          /* the LIVE FIELD recipe (owner: "one graphic, not a bunch of
+             little letters"): the GlintInk shader draws the band across the
+             whole word in label space; these are the knobs it needs — the
+             kit's style, opacity and nudges, plus the key light's direction
+             in app coordinates (y down). Bands never bake into glyphs. */
+          glintStyle: base.type.glints?.on ? (base.type.glints.style ?? "slab") : null,
+          glintOpacity: base.type.glints?.on ? (base.type.glints.opacity ?? 55) : 0,
+          glintOx: base.type.glints?.on ? (base.type.glints.ox ?? 0) : 0,
+          glintOy: base.type.glints?.on ? (base.type.glints.oy ?? 0) : 0,
+          glintLx: Math.cos((((base.lighting.angle % 360) + 360) % 360) * Math.PI / 180),
+          glintLy: -Math.sin((((base.lighting.angle % 360) + 360) % 360) * Math.PI / 180),
         },
         /* per-state text ink — the kit's OWN state recipes for live labels
            (owner field report: the face swaps on press but "the text isn't
@@ -1034,29 +1163,26 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     c.type.size = 52; c.type.fillOpacity = 0;
     c.type.stripes = undefined; c.type.glints = undefined; c.type.emboss.on = false;
   };
-  /* the glint FIELD (owner reference: streaks crossing the whole word):
-     fixed band offsets so every glyph's bands sit at the same heights —
-     adjacent letters' bands align into continuous streaks at type time */
-  const GLINT_FIELD = [
-    { dy: -0.3, h: 0.16, o: 0.55 },
-    { dy: -0.02, h: 0.26, o: 0.9 },
-    { dy: 0.34, h: 0.12, o: 0.4 },
-  ];
   type VKey = "full" | "fill" | "stroke" | "glints";
-  /* the GLINTS stay their own layer — one continuous field over the body
-     of text, exactly as the app draws them (owner: "keep the glints as a
-     mask, one big piece over the body of text as it was, and give it a
-     blending mode similar to overlay"). The importer dresses the Glints
-     ink in the additive GlintInk shader (shipped in the zip) — for bright
-     specular slabs, premultiplied additive reads as overlay does. Fill
-     stays the pure letterform: it is also the feather's reference box. */
-  const variants: { key: VKey; mutate: (c: GenConfig) => void; glinted: boolean }[] = [
-    { key: "full", mutate: (c) => { c.type.size = 52; }, glinted: true },
+  /* the GLINTS layer went LIVE (owner, field report with the app/Unity
+     side-by-side: "the glint should be one graphic, not a bunch of little
+     letters"). No band ever bakes into a glyph again: each glints cell
+     carries only (a) the letterform as a HALF-ALPHA white mask and (b) its
+     seeded star sparks at full alpha. The GlintInk shader decodes the two
+     by alpha level and draws the band itself — the kit's real recipe, one
+     sweep across the whole word in label space, tilted by the kit's light.
+     Fill stays the pure letterform: it is also the feather's reference box. */
+  const variants: { key: VKey; mutate: (c: GenConfig) => void }[] = [
+    { key: "full", mutate: (c) => { c.type.size = 52; } },
     // fill drops glints too — the dedicated Glints layer carries them in
     // the HeroLabel stack (baking them into Fill would double them)
-    { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.glints = undefined; }, glinted: false },
-    { key: "stroke", mutate: (c) => { strokeBase(c); c.type.shadow.on = false; }, glinted: false },
-    { key: "glints", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.emboss.on = false; c.type.stripes = undefined; }, glinted: true },
+    { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.glints = undefined; } },
+    { key: "stroke", mutate: (c) => { strokeBase(c); c.type.shadow.on = false; } },
+    /* solid-white letterform at FULL alpha = the mask, nothing else: the
+       shader multiplies its live band by this alpha, and the stars ride
+       HeroLabel's full-word quad (no texture at all). Glints OFF renders
+       nothing — no layer ships, exactly as before. */
+    { key: "glints", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.emboss.on = false; c.type.stripes = undefined; if (!c.type.glints?.on) { c.type.fillOpacity = 0; } else { c.type.fillMode = "solid"; c.type.fill = "#FFFFFF"; c.type.fillOpacity = 100; } c.type.glints = undefined; } },
   ];
   const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
   const hasShadow = !!base.type.shadow.on;
@@ -1085,11 +1211,11 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     }
     const u = ch.codePointAt(0)!;
     /* seeded glint variation (owner: stars on EVERY letter read as
-       repetition; the stripe should cross letterforms). Per-glyph seed:
-       ~1/3 of glyphs get one star at a scattered spot; the slab bakes
-       3x wide so its end-caps fall outside the glyph and neighboring
-       letters' stripes fuse into one continuous streak. Kits with
-       glints off are untouched (the knobs only shape an active glint). */
+       repetition). Per-glyph seed: ~1/3 of glyphs get one star at a
+       scattered spot — so typed words read sprinkled, not stamped. The
+       Glints layer's BAND never bakes here anymore (the shader draws it
+       across the whole word); the solo "full" face keeps its own 3x-wide
+       slab so it stays self-contained. Kits with glints off untouched. */
     const h32 = (u * 2654435761) >>> 0;
     const rnd = (k: number) => ((h32 >>> (k * 7)) & 127) / 127;
     const glintStars = rnd(0) < 0.36
@@ -1107,9 +1233,11 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
       const box = await rasterInk(
         renderTypeSpecimen(base, ch, {
           keepCase: true, highlight: "", mutate: v.mutate, fxPad,
-          glintBand: v.glinted ? 3 : undefined,
-          glintStars: v.glinted ? glintStars : undefined,
-          glintBands: v.key === "glints" ? GLINT_FIELD : undefined,
+          // the mask cell strips glints in its mutate — band and stars are
+          // the shader's job now, one field across the whole word. Only the
+          // self-contained solo face still normalizes its own per-glyph glint.
+          glintBand: v.key === "full" ? 3 : undefined,
+          glintStars: v.key === "full" ? glintStars : undefined,
         }),
         BAKE_S,
       );
@@ -1443,11 +1571,42 @@ namespace PatternBreak {
     public Material shadowInk;
     [Tooltip("Every stroke merged into one band behind every fill. Empty = no stroke layer.")]
     public Material strokeInk;
-    [Tooltip("Glint sparks in front of the fills. Empty = no glint layer.")]
+    [Tooltip("The glint layer in front of the fills: the kit's light band AND star sparks, both drawn LIVE across the whole word by the GlintInk shader. Empty = no glint layer.")]
     public Material glintsInk;
     string appliedText; float appliedSize; float appliedSpacing; float appliedWordSpacing; float appliedLineSpacing; float appliedK = 1f; Vector2 appliedNudge; Vector4 appliedMargins;
     TextMeshProUGUI tmp;
     CanvasRenderer shadowEcho, strokeEcho, glintsEcho;
+    /* the Glints ink draws its band AND stars LIVE across the whole word
+       (owner: "one graphic, not a bunch of little letters") — the shader
+       needs THIS label's em height, word center and word width, so the
+       shared kit material gets per-label understudies that carry them:
+       one for the band on the glyph mesh, one flagged _StarsOnly for the
+       full-word quad (stars spill past letterforms, like the app).
+       DontSave: rebuilt on load, never stales on disk. */
+    Material glintsLive, starsLive;
+    CanvasRenderer starsEcho;
+    Mesh starsMesh;
+    Vector3 starsB0, starsB1;
+    Material LiveCopy(ref Material live, float starsOnly) {
+      if (glintsInk == null) return null;
+      if (live == null || live.shader != glintsInk.shader) {
+        Retire(ref live);
+        live = new Material(glintsInk);
+        live.name = glintsInk.name + (starsOnly > 0.5f ? " (stars)" : " (live)");
+        live.hideFlags = HideFlags.DontSave;
+        if (live.HasProperty("_StarsOnly")) live.SetFloat("_StarsOnly", starsOnly);
+      }
+      return live;
+    }
+    static void Retire(ref Material m) {
+      if (m == null) return;
+      if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+      m = null;
+    }
+    void OnDestroy() {
+      Retire(ref glintsLive); Retire(ref starsLive);
+      if (starsMesh != null) { if (Application.isPlaying) Destroy(starsMesh); else DestroyImmediate(starsMesh); starsMesh = null; }
+    }
     float SizeK() {
       if (authoredHeight < 0.5f) return 1f;
       var p = transform.parent as RectTransform;
@@ -1482,6 +1641,7 @@ namespace PatternBreak {
       if (shadowEcho != null) shadowEcho.gameObject.SetActive(false);
       if (strokeEcho != null) strokeEcho.gameObject.SetActive(false);
       if (glintsEcho != null) glintsEcho.gameObject.SetActive(false);
+      if (starsEcho != null) starsEcho.gameObject.SetActive(false);
     }
     void Update() {
       var t = Tmp();
@@ -1525,21 +1685,94 @@ namespace PatternBreak {
        whatever mesh the text owns right now. SetMesh points the echo at
        the text's OWN mesh object — when TMP regenerates the word, the
        echoes are already holding the result. */
+    /* mirror the kit ink's dress (blend, recipe, atlas) onto a live copy —
+       a re-import or a hand-tweak on the kit material lands here live —
+       then stamp THIS label's geometry: em height, word center, word width */
+    void DressLive(Material m, TextMeshProUGUI t) {
+      if (m.mainTexture != glintsInk.mainTexture) m.mainTexture = glintsInk.mainTexture;
+      m.SetFloat("_Style", glintsInk.GetFloat("_Style")); m.SetFloat("_Op", glintsInk.GetFloat("_Op"));
+      m.SetFloat("_Lx", glintsInk.GetFloat("_Lx")); m.SetFloat("_Ly", glintsInk.GetFloat("_Ly"));
+      m.SetFloat("_OxEm", glintsInk.GetFloat("_OxEm")); m.SetFloat("_OyEm", glintsInk.GetFloat("_OyEm"));
+      m.SetFloat("_SrcBlend", glintsInk.GetFloat("_SrcBlend")); m.SetFloat("_DstBlend", glintsInk.GetFloat("_DstBlend"));
+      m.SetFloat("_Pack", glintsInk.GetFloat("_Pack"));
+      var b = t.textBounds;
+      if (!float.IsInfinity(b.size.x) && b.size.x > 0.01f) {
+        m.SetFloat("_Em", Mathf.Max(1f, t.fontSize));
+        m.SetFloat("_Cx", b.center.x); m.SetFloat("_Cy", b.center.y);
+        m.SetFloat("_TextW", b.size.x);
+      }
+    }
     void LateUpdate() {
       var t = Tmp();
       if (t == null) return;
       if (shadowInk != null) PaintEcho(ref shadowEcho, "Shadow (echo)", t, shadowInk);
       if (strokeInk != null) PaintEcho(ref strokeEcho, "Stroke (echo)", t, strokeInk);
-      if (glintsInk != null) PaintEcho(ref glintsEcho, "Glints (echo)", t, glintsInk);
-      // draw order is sibling order: shadow, stroke, the text, glints
+      var gi = LiveCopy(ref glintsLive, 0f);
+      bool field = gi != null && gi.HasProperty("_Em") && gi.GetFloat("_Style") > 0.5f;
+      if (gi != null) {
+        if (gi.HasProperty("_Em")) DressLive(gi, t);
+        PaintEcho(ref glintsEcho, "Glints (echo)", t, gi);
+      }
+      // the stars quad exists only for the live field (old zips bake stars)
+      if (field) {
+        var si = LiveCopy(ref starsLive, 1f);
+        if (si != null) { DressLive(si, t); PaintStars(t, si); }
+      } else if (starsEcho != null) starsEcho.gameObject.SetActive(false);
+      // draw order is sibling order: shadow, stroke, the text, glints, stars
       int i = 0;
       if (shadowEcho != null) Place(shadowEcho.transform, i++);
       if (strokeEcho != null) Place(strokeEcho.transform, i++);
       Place(t.transform, i++);
-      if (glintsEcho != null) Place(glintsEcho.transform, i);
+      if (glintsEcho != null) Place(glintsEcho.transform, i++);
+      if (starsEcho != null && starsEcho.gameObject.activeSelf) Place(starsEcho.transform, i);
     }
     static void Place(Transform tr, int idx) {
       if (tr.GetSiblingIndex() != idx) tr.SetSiblingIndex(idx);
+    }
+    /* the stars ride their OWN quad spanning the word plus a spill margin:
+       the app scatters sparkles across the whole word and lets them poke
+       past the letterforms — glyph quads can't show ink in the gaps
+       between letters, a full-word quad can. Rebuilt only when the word's
+       bounds change (the per-frame allocation lesson is learned). */
+    void PaintStars(TextMeshProUGUI t, Material ink) {
+      if (starsEcho == null) {
+        var prior = transform.Find("Glint stars (echo)");
+        var go = prior != null ? prior.gameObject : null;
+        if (go == null) {
+          go = new GameObject("Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer));
+          go.hideFlags = HideFlags.DontSave;
+          go.transform.SetParent(transform, false);
+        }
+        starsEcho = go.GetComponent<CanvasRenderer>();
+        if (starsEcho == null) starsEcho = go.AddComponent<CanvasRenderer>();
+      }
+      var b = t.textBounds;
+      if (float.IsInfinity(b.size.x) || b.size.x < 0.01f) { starsEcho.gameObject.SetActive(false); return; }
+      if (!starsEcho.gameObject.activeSelf) starsEcho.gameObject.SetActive(true);
+      var rt = (RectTransform)starsEcho.transform;
+      var src = t.rectTransform;
+      if (rt.anchorMin != src.anchorMin) rt.anchorMin = src.anchorMin;
+      if (rt.anchorMax != src.anchorMax) rt.anchorMax = src.anchorMax;
+      if (rt.pivot != src.pivot) rt.pivot = src.pivot;
+      if (rt.sizeDelta != src.sizeDelta) rt.sizeDelta = src.sizeDelta;
+      if (rt.anchoredPosition != src.anchoredPosition) rt.anchoredPosition = src.anchoredPosition;
+      if (rt.localRotation != src.localRotation) rt.localRotation = src.localRotation;
+      if (rt.localScale != src.localScale) rt.localScale = src.localScale;
+      float m = Mathf.Max(1f, t.fontSize) * 0.6f; // star tips may spill this far
+      var p0 = new Vector3(b.min.x - m, b.min.y - m, 0f);
+      var p1 = new Vector3(b.max.x + m, b.max.y + m, 0f);
+      if (starsMesh == null) { starsMesh = new Mesh(); starsMesh.hideFlags = HideFlags.DontSave; starsMesh.MarkDynamic(); }
+      if (p0 != starsB0 || p1 != starsB1) {
+        starsB0 = p0; starsB1 = p1;
+        starsMesh.Clear();
+        starsMesh.vertices = new Vector3[] { p0, new Vector3(p0.x, p1.y, 0f), p1, new Vector3(p1.x, p0.y, 0f) };
+        starsMesh.uv = new Vector2[] { Vector2.zero, Vector2.up, Vector2.one, Vector2.right };
+        starsMesh.colors32 = new Color32[] { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
+        starsMesh.triangles = new int[] { 0, 1, 2, 0, 2, 3 };
+        starsMesh.RecalculateBounds();
+      }
+      starsEcho.SetMesh(starsMesh);
+      starsEcho.SetMaterial(ink, null);
     }
     void PaintEcho(ref CanvasRenderer slot, string echoName, TextMeshProUGUI t, Material ink) {
       if (slot == null) {
@@ -2023,7 +2256,12 @@ sticker-overlap between tight letters)? That's the **HeroLabel** prefab,
 and it works like this: there is ONE real text — the **Fill** — and the
 other layers are **echoes**: invisible painters that redraw the very
 same letters wearing a different ink. Shadow and stroke echo behind the
-word (every stroke fusing into one silent band), glints echo in front.
+word (every stroke fusing into one silent band), glints echo in front —
+and the glint's light band isn't stamped into any letter: the GlintInk
+shader draws it live across the whole word, one sweep at the kit's own
+light angle, blended with the kit's own blend mode. Type anything, any
+length — the streak crosses the letterforms as one graphic, exactly as
+the app draws it.
 Because each layer is literally the same letters repainted — one
 geometry, one kerning table, one line-wrap — the layers **cannot**
 drift, lag, or wrap differently. Not "are kept in sync": there is
@@ -2376,7 +2614,7 @@ namespace PatternBreak {
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
-  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; }
+  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; public string glintStyle; public float glintOpacity; public float glintOx; public float glintOy; public float glintLx; public float glintLy; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
@@ -3172,7 +3410,7 @@ namespace PatternBreak {
           " glyphs — THE layered-label font, and the ONLY place hero type lays out: glyphs, kerning and the Glyph Adjustment Table all live here, once. Stroke, Shadow and Glints redraw this font's own mesh wearing the KitFace Ink materials beside it.");
         EnsureInkMaterial(root, "Stroke", m.typography.bakedFace.layerStroke, null);
         EnsureInkMaterial(root, "Shadow", m.typography.bakedFace.layerShadow, null);
-        EnsureInkMaterial(root, "Glints", m.typography.bakedFace.layerGlints, m.typography.style != null ? m.typography.style.glintBlend : null);
+        EnsureInkMaterial(root, "Glints", m.typography.bakedFace.layerGlints, m.typography.style);
         /* retire the two dead ends this system lived through: the
            per-layer material skins (TMP silently reverts a material whose
            texture isn't the font's own atlas) and the mirror font assets
@@ -3203,7 +3441,23 @@ namespace PatternBreak {
       else if (mode == "soft-light") { src = 1; dst = 6; pack = 3; }    // gentle screen
       mat.SetFloat("_SrcBlend", src); mat.SetFloat("_DstBlend", dst); mat.SetFloat("_Pack", pack);
     }
-    static void EnsureInkMaterial(string root, string layerName, string texFile, string glintBlend) {
+    /* the LIVE FIELD (owner: "one graphic, not a bunch of little letters"):
+       the kit's band recipe rides the material as shader constants and the
+       GlintInk shader draws ONE sweep across the whole word in label space.
+       Per-label geometry (_Em/_Cx/_Cy/_TextW) is HeroLabel's job. */
+    static void ApplyGlintField(Material mat, PBStyle st) {
+      if (st == null || !mat.HasProperty("_Style")) return;
+      float s = 0f;
+      var name = st.glintStyle != null ? st.glintStyle : "";
+      if (name == "slab") s = 1f; else if (name == "streak") s = 2f;
+      else if (name == "sheen") s = 3f; else if (name == "stars") s = 4f;
+      mat.SetFloat("_Style", s);
+      mat.SetFloat("_Op", Mathf.Clamp01(st.glintOpacity / 100f));
+      mat.SetFloat("_OxEm", Mathf.Clamp(st.glintOx, -100f, 100f) / 100f);
+      mat.SetFloat("_OyEm", Mathf.Clamp(st.glintOy, -100f, 100f) / 100f);
+      mat.SetFloat("_Lx", st.glintLx); mat.SetFloat("_Ly", st.glintLy);
+    }
+    static void EnsureInkMaterial(string root, string layerName, string texFile, PBStyle style) {
       var path = root + "/fonts/KitFace Ink " + layerName + ".mat";
       if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(path); return; }
       var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
@@ -3211,6 +3465,7 @@ namespace PatternBreak {
       /* the Glints ink wears the shipped GlintInk shader with the kit's own
          blend mode; UI/Default stands in until the shader compiles, and the
          next pass upgrades in place */
+      var glintBlend = style != null ? style.glintBlend : null;
       var glint = Shader.Find("UIKitMaker/GlintInk");
       var want = layerName == "Glints" && glint != null ? glint : Shader.Find("UI/Default");
       var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -3218,17 +3473,18 @@ namespace PatternBreak {
         if (want == null) { Debug.LogWarning("UI Kit Maker: UI/Default shader missing — the " + layerName + " ink is skipped."); return; }
         mat = new Material(want);
         mat.mainTexture = tex;
-        if (layerName == "Glints" && want == glint) ApplyGlintBlend(mat, string.IsNullOrEmpty(glintBlend) ? "overlay" : glintBlend);
+        if (layerName == "Glints" && want == glint) { ApplyGlintBlend(mat, string.IsNullOrEmpty(glintBlend) ? "overlay" : glintBlend); ApplyGlintField(mat, style); }
         AssetDatabase.CreateAsset(mat, path);
         return;
       }
       // re-imports retexture in place; the material file (and any tint a
-      // user set on it) stays theirs — but the Glints ink's shader and
-      // blend states DO re-apply, or a changed app blend never lands
+      // user set on it) stays theirs — but the Glints ink's shader, blend
+      // states and field recipe DO re-apply, or an app-side change never lands
       if (mat.mainTexture != tex) { mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
       if (layerName == "Glints" && glint != null) {
         if (mat.shader != glint) { mat.shader = glint; mat.mainTexture = tex; }
         ApplyGlintBlend(mat, string.IsNullOrEmpty(glintBlend) ? "overlay" : glintBlend);
+        ApplyGlintField(mat, style);
         EditorUtility.SetDirty(mat);
       }
     }

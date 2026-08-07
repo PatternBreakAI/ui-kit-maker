@@ -17,16 +17,17 @@ import type { GenConfig } from "@/generator/model";
 
 /* the Inner Glow layer joins the stack only when the kit lights the F2
    well with its OWN color (owner: "was hoping to add inner glow not get
-   rid of the outer glow") — standard kits keep the six-layer diagram */
+   rid of the outer glow"). The Shadow plate is RETIRED from the diagram
+   (owner: "too much going on, let's remove the shadow layer") — the kit
+   still ships its shadow; the schematic just stops charting it. */
 const LAYERS = [
   { key: "highlight", t: "Highlight", sub: "gloss & specular", y: 1.45 },
   { key: "bevel", t: "Bevel", sub: "shell & wall", y: 0.87 },
   { key: "pattern", t: "Pattern", sub: "face texture", y: 0.29 },
   // light rising over the candy face — it sits ON TOP of the fill (owner)
-  { key: "innerglow", t: "Inner Glow", sub: "candy light", y: 0 },
-  { key: "fill", t: "Inner Fill", sub: "candy face", y: -0.29 },
-  { key: "glow", t: "Glow", sub: "outer glow", y: -0.87 },
-  { key: "shadow", t: "Shadow", sub: "grounding", y: -1.45 },
+  { key: "innerglow", t: "Inner Glow", sub: "candy light", y: -0.29 },
+  { key: "fill", t: "Inner Fill", sub: "candy face", y: -0.87 },
+  { key: "glow", t: "Glow", sub: "outer glow", y: -1.45 },
 ] as const;
 
 const SATS = [
@@ -119,7 +120,6 @@ interface Rig {
   layerMeshes: THREE.Mesh[];
   glowMat: THREE.MeshBasicMaterial;
   innerGlowMat: THREE.MeshBasicMaterial;
-  shadowMat: THREE.MeshBasicMaterial;
   patternMat: THREE.MeshBasicMaterial;
   satGroup: THREE.Group;
   sats: THREE.Mesh[];
@@ -208,7 +208,6 @@ export function HeroGL() {
     const layerMeshes: THREE.Mesh[] = [];
     let glowMat: THREE.MeshBasicMaterial = null!;
     let innerGlowMat: THREE.MeshBasicMaterial = null!;
-    let shadowMat: THREE.MeshBasicMaterial = null!;
     let patternMat: THREE.MeshBasicMaterial = null!;
     for (const L of LAYERS) {
       let mesh: THREE.Mesh;
@@ -226,10 +225,6 @@ export function HeroGL() {
         mesh = new THREE.Mesh(blobGeo, innerGlowMat);
         mesh.scale.set(0.78, 1, 0.78); // inside the candy: a tighter light
         mesh.visible = false;
-      } else if (L.key === "shadow") {
-        shadowMat = new THREE.MeshBasicMaterial({ map: blobTex("#05070d"), transparent: true, opacity: 0.9, depthWrite: false });
-        disposables.push(shadowMat);
-        mesh = new THREE.Mesh(blobGeo, shadowMat);
       } else if (L.key === "pattern") {
         patternMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide });
         disposables.push(patternMat);
@@ -268,7 +263,7 @@ export function HeroGL() {
 
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     rig.current = {
-      renderer, scene, camera, group, layerMeshes, glowMat, innerGlowMat, shadowMat, patternMat,
+      renderer, scene, camera, group, layerMeshes, glowMat, innerGlowMat, patternMat,
       satGroup, sats, keyLight, still, renderOnce: () => {}, alignSats: () => {}, disposables,
     };
     wrap.dataset.gl = "on";
@@ -551,11 +546,9 @@ export function HeroGL() {
         innerglow: (c.candy.innerGlow.opacity ?? 0) > 0,
         fill: true,
         glow: Object.values(c.states).some((s) => s.glow > 0.5) || c.candy.bloom.opacity > 0.5 || c.candy.extrusion.glow > 0.5,
-        shadow: c.shadow.opacity > 0.5,
       };
       const innerG = employed.innerglow ? (c.candy.innerGlow.color ?? glow) : null;
       const hi = c.effects.Highlight ?? "#EAFBFF";
-      const shadow = c.effects.Shadow ?? "#05070d";
       for (const pl of R.layerMeshes) {
         const key = pl.userData.key as string;
         const rim2 = pl.userData.rim as THREE.LineBasicMaterial | undefined;
@@ -584,8 +577,6 @@ export function HeroGL() {
         m.userData.baseY = y;
         m.position.y = y;
       });
-      R.shadowMat.map?.dispose();
-      R.shadowMat.map = blobTex(hexMix(shadow, "#000000", 0.35));
       // the pattern plane carries the real face pattern
       svgTex(patternSvg(c), (tex) => {
         const R2 = rig.current;
