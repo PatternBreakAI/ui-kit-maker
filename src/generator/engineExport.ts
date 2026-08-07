@@ -925,6 +925,18 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
   const ascent = (fmRef.fontBoundingBoxAscent ?? 41) * BAKE_S;
   const descent = (fmRef.fontBoundingBoxDescent ?? 11) * BAKE_S;
 
+  /* the type effects' full blur reach, reserved on EVERY bake render — the
+     specimen svg says overflow:visible, but a raster clips at the canvas
+     edge, and a strong glow baked a hard-edged slab into each glyph cell
+     (owner, Unity: "any way to prevent this clipping on the glow?"). The
+     SAME pad goes to the calibration render too, so pen/baseline and every
+     variant stay in one coordinate frame. Reach mirrors the engine's own
+     margins (bevel: glow size*0.8*3; shadow |x|+|y|+blur*1.5). */
+  const fxPad = Math.ceil(Math.max(
+    base.type.glow.on ? base.type.glow.size * 0.8 * 3 : 0,
+    base.type.shadow.on ? Math.abs(base.type.shadow.x) + Math.abs(base.type.shadow.y) + base.type.shadow.blur * 1.5 : 0,
+  ));
+
   // calibration: ink-only H → pen x and baseline y in raster coordinates
   const strip = (c: GenConfig) => {
     c.type.size = 52;
@@ -932,7 +944,7 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     c.type.glow.on = false; c.type.emboss.on = false;
     c.type.stripes = undefined; c.type.glints = undefined;
   };
-  const calBox = await rasterInk(renderTypeSpecimen(base, "H", { keepCase: true, highlight: "", mutate: strip }), BAKE_S);
+  const calBox = await rasterInk(renderTypeSpecimen(base, "H", { keepCase: true, highlight: "", mutate: strip, fxPad }), BAKE_S);
   if (!calBox) return null;
   const hMet = mx.measureText("H");
   const penX = calBox.x0 + (hMet.actualBoundingBoxLeft ?? 0) * BAKE_S;
@@ -1018,7 +1030,7 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     for (const v of variants) {
       const box = await rasterInk(
         renderTypeSpecimen(base, ch, {
-          keepCase: true, highlight: "", mutate: v.mutate,
+          keepCase: true, highlight: "", mutate: v.mutate, fxPad,
           glintBand: v.glinted ? 3 : undefined,
           glintStars: v.glinted ? glintStars : undefined,
           glintBands: v.key === "glints" ? GLINT_FIELD : undefined,
@@ -1028,7 +1040,7 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
       if (v.key === "stroke" && box && hasShadow) {
         // shadow isolation: (stroke + shadow) minus (stroke) = the shadow
         const withSh = await rasterCanvas(
-          renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: strokeBase }),
+          renderTypeSpecimen(base, ch, { keepCase: true, highlight: "", mutate: strokeBase, fxPad }),
           BAKE_S,
         );
         const wcx = withSh.getContext("2d")!;

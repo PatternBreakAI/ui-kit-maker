@@ -2579,6 +2579,13 @@ export interface SpecimenOpts {
   glintBand?: number;
   glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Extra canvas on every side, in viewBox units. Atlas bakes pass the
+   *  type effects' full blur reach here: overflow:visible lets glyphs
+   *  paint past the viewBox in a BROWSER, but a raster clips at the
+   *  canvas edge — a strong glow baked a hard-edged band into each glyph
+   *  cell (owner's Unity report: "clipping on the glow"). One shared pad
+   *  across a bake keeps every variant in one coordinate frame. */
+  fxPad?: number;
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2606,9 +2613,10 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
   const slack = c.type.italic ? 64 : 28;
+  const fxP = Math.max(0, Math.ceil(opts.fxPad ?? 0));
   return out
-    .replace(/ width="([\d.]+)"/, (_m, w) => ` width="${(+w + slack).toFixed(0)}"`)
-    .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, x, y, vw, vh) => `viewBox="${x} ${y} ${(+vw + slack).toFixed(0)} ${vh}" style="overflow:visible"`);
+    .replace(/ width="([\d.]+)" height="([\d.]+)"/, (_m, w, h) => ` width="${(+w + slack + fxP * 2).toFixed(0)}" height="${(+h + fxP * 2).toFixed(0)}"`)
+    .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, x, y, vw, vh) => `viewBox="${(+x - fxP).toFixed(0)} ${(+y - fxP).toFixed(0)} ${(+vw + slack + fxP * 2).toFixed(0)} ${(+vh + fxP * 2).toFixed(0)}" style="overflow:visible"`);
 }
 
 /* ── kit components ────────────────────────────────────────────── */
