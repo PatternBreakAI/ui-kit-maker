@@ -10,7 +10,8 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont } from "./exportUtils";
+import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -428,14 +429,35 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      Organic shapes that never flatten fall to the caps below, as before. */
   /* the maker's own guides outrank the measurement — same respect the
      importer pays to hand-tuned borders on the Unity side */
-  const userSliceByFam = new Map<string, { left: number; right: number; top: number; bottom: number }>();
+  const userSliceByFam = new Map<string, { cid: KitComponentId; left: number; right: number; top: number; bottom: number }>();
   for (const [cid, fam] of Object.entries(KIT_SLICEABLE)) {
     const o = st.kitSlices?.[cid as KitComponentId];
     if (o && fam) userSliceByFam.set(fam, {
+      cid: cid as KitComponentId,
       left: Math.round(o.left * PNG_SCALE), right: Math.round(o.right * PNG_SCALE),
       top: Math.round(o.top * PNG_SCALE), bottom: Math.round(o.bottom * PNG_SCALE),
     });
   }
+  /* Hand-set borders are authored in the slicing workbench, which crops the
+     piece to its CALMED alpha box — default state, threshold 40, no margin
+     (sliceProbe.measureAutoSlice). The export crops to the swap group's
+     UNION box at threshold 8 plus margin: a bigger frame whenever a state
+     fork grows the ink. The numbers were right and the frame was wrong —
+     guides shipped offset by the whole delta (owner: "these slices aren't
+     anywhere near being close"). Both renders share one SVG frame, so the
+     cure is a translation: find the workbench box in that frame and shift
+     each border by the gap on its own side of the shipped crop. shell(cid)
+     with no extras IS the workbench render — same pieceCfg, same calming,
+     bloom and texture kept. */
+  const wbBoxCache = new Map<KitComponentId, CropBox | null>();
+  const workbenchBox = async (cid: KitComponentId): Promise<CropBox | null> => {
+    let b = wbBoxCache.get(cid);
+    if (b === undefined) {
+      try { b = await svgAlphaBox(shell(cid), PNG_SCALE, 40); } catch { b = null; }
+      wbBoxCache.set(cid, b);
+    }
+    return b;
+  };
   const SLICE_PAD = Math.round(3 * PNG_SCALE);
   const sliceMeasureCache = new Map<string, { left: number; right: number; top: number; bottom: number } | null>();
   const measureSlice = async (bytes: Uint8Array, w: number, h: number) => {
@@ -494,7 +516,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        progress bar honest. */
     const byGroup = new Map<string, number[]>();
     pngQueue.forEach((q, i) => { if (q.group) byGroup.set(q.group, [...(byGroup.get(q.group) ?? []), i]); });
-    const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number }>();
+    const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number; box?: CropBox }>();
     for (let qi = 0; qi < pngQueue.length; qi++) {
       const q = pngQueue[qi];
       onProgress?.(qi, total, q.path);
@@ -503,7 +525,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
-      const { bytes, w, h } = grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+      const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
+        grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+      const { bytes, w, h } = raster;
       // Last line of defence: whatever the cap math says, borders must leave
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
@@ -520,6 +544,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
              explicit numbers are the point, not a hazard. Only the
              engine-sanity guard below still applies. */
           s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom;
+          /* …exact, but in the WORKBENCH's frame. Shift each side by where
+             that frame sits inside this sprite's crop (see workbenchBox).
+             No box or no calmed render → ship the raw numbers, the old
+             behavior. */
+          const wb = raster.box ? await workbenchBox(uo.cid) : null;
+          if (wb && raster.box) {
+            s.left = Math.max(1, uo.left + (wb.x0 - raster.box.x0));
+            s.right = Math.max(1, uo.right + (raster.box.x1 - wb.x1));
+            s.top = Math.max(1, uo.top + (wb.y0 - raster.box.y0));
+            s.bottom = Math.max(1, uo.bottom + (raster.box.y1 - wb.y1));
+          }
+          const dbg = (globalThis as unknown as { __ukmSliceDebug?: unknown[] }).__ukmSliceDebug;
+          if (dbg) dbg.push({ path: q.path, component: q.meta.component, uo: { ...uo }, wb, crop: raster.box ?? null, shipped: { ...s } });
         }
         else {
           const mkey = q.group ?? q.path;
