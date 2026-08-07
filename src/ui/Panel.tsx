@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
+import type { SliceProbe } from "./sliceProbe";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, applyKitTextFill } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -250,81 +252,12 @@ function Well({ label, value, onChange }: { label: string; value: string; onChan
   );
 }
 
-/* the export's ground-truth slice measurement, run client-side so the
-   "Custom" editor seeds FROM what Auto would ship (owner: "so that the
-   computer doesn't have to guess and the user can adjust") — render the
-   calmed piece, walk each edge profile to where it flattens, pad. */
-async function measureAutoSlice(cid: KitComponentId): Promise<{ auto: KitSlice; cv: HTMLCanvasElement } | null> {
-  try {
-    const st = useGen.getState();
-    const c = JSON.parse(JSON.stringify(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]))) as GenConfig;
-    c.stateDesigns = {};
-    c.shadow.opacity = 0;
-    c.candy.contact.opacity = 0;
-    for (const g of Object.values(c.states)) g.glow = 0;
-    const svg = renderKit(c, cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { label: "", icon: null });
-    const cv = await new Promise<HTMLCanvasElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => { const k = document.createElement("canvas"); k.width = img.width; k.height = img.height; k.getContext("2d")!.drawImage(img, 0, 0); resolve(k); };
-      img.onerror = reject;
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-    });
-    const w = cv.width, h = cv.height;
-    const d = cv.getContext("2d")!.getImageData(0, 0, w, h).data;
-    const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
-    const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
-    for (let x = 0; x < w; x++) {
-      for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
-      for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
-    }
-    const cols: number[] = [];
-    for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
-    if (cols.length < 8) return null;
-    const x0 = cols[0], x1 = cols[cols.length - 1];
-    let yT = h, yB = -1;
-    for (const x of cols) { if (topAt[x] < yT) yT = topAt[x]; if (botAt[x] > yB) yB = botAt[x]; }
-    const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
-      for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
-    }
-    const rows: number[] = [];
-    for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
-    if (rows.length < 8) return null;
-    const ry0 = rows[0], ry1 = rows[rows.length - 1];
-    const T = 2;
-    let tl = x0; while (tl <= x1 && (topAt[tl] < 0 || topAt[tl] > yT + T)) tl++;
-    let tr = x1; while (tr >= x0 && (topAt[tr] < 0 || topAt[tr] > yT + T)) tr--;
-    let bl = x0; while (bl <= x1 && (botAt[bl] < 0 || botAt[bl] < yB - T)) bl++;
-    let br = x1; while (br >= x0 && (botAt[br] < 0 || botAt[br] < yB - T)) br--;
-    let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > x0 + T)) lt++;
-    let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > x0 + T)) lb--;
-    let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < x1 - T)) rt2++;
-    let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < x1 - T)) rb--;
-    const PAD = 3;
-    /* the tight-cropped sprite — the same crop the export ships, so the
-       preview and the measured numbers speak the same coordinates */
-    const tw = x1 - x0 + 1, th = ry1 - ry0 + 1;
-    const tight = document.createElement("canvas");
-    tight.width = tw; tight.height = th;
-    tight.getContext("2d")!.drawImage(cv, x0, ry0, tw, th, 0, 0, tw, th);
-    return {
-      auto: {
-        left: Math.max(tl, bl) - x0 + PAD,
-        right: x1 - Math.min(tr, br) + PAD,
-        top: Math.max(lt, rt2) - ry0 + PAD,
-        bottom: ry1 - Math.min(lb, rb) + PAD,
-      },
-      cv: tight,
-    };
-  } catch { return null; }
-}
-
 function SliceEditor({ cid }: { cid: KitComponentId }) {
   const kitSlices = useGen((s) => s.kitSlices);
   const setKitSlice = useGen((s) => s.setKitSlice);
+  const setSliceStage = useGen((s) => s.setSliceStage);
   const cur = kitSlices[cid] ?? null;
-  const [probe, setProbe] = useState<{ auto: KitSlice; cv: HTMLCanvasElement } | null>(null);
+  const [probe, setProbe] = useState<SliceProbe | null>(null);
   const prevRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let dead = false;
@@ -350,28 +283,33 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
     const off = document.createElement("canvas");
     off.width = W2; off.height = H2;
     const c2 = off.getContext("2d")!;
-    const xs = [0, l, w - r, w], dxs = [0, l, W2 - r, W2];
-    const ys = [0, t, h - b, h], dys = [0, t, H2 - b, H2];
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
-      const sw = xs[i + 1] - xs[i], sh = ys[j + 1] - ys[j];
-      const dw = dxs[i + 1] - dxs[i], dh = dys[j + 1] - dys[j];
-      if (sw > 0 && sh > 0 && dw > 0 && dh > 0) c2.drawImage(src, xs[i], ys[j], sw, sh, dxs[i], dys[j], dw, dh);
-    }
-    // the guides, drawn where the borders sit
-    c2.strokeStyle = "rgba(124,196,255,0.85)";
-    c2.setLineDash([5, 4]);
-    c2.lineWidth = Math.max(1, Math.round(w / 260));
-    c2.beginPath();
-    c2.moveTo(l + 0.5, 0); c2.lineTo(l + 0.5, H2);
-    c2.moveTo(W2 - r + 0.5, 0); c2.lineTo(W2 - r + 0.5, H2);
-    c2.moveTo(0, t + 0.5); c2.lineTo(W2, t + 0.5);
-    c2.moveTo(0, H2 - b + 0.5); c2.lineTo(W2, H2 - b + 0.5);
-    c2.stroke();
+    drawNineSlice(c2, src, vals, 0, 0, W2, H2);
     const fit = Math.min(1, 252 / W2);
     out.width = Math.round(W2 * fit); out.height = Math.round(H2 * fit);
     const oc = out.getContext("2d")!;
     oc.clearRect(0, 0, out.width, out.height);
     oc.drawImage(off, 0, 0, out.width, out.height);
+    /* guides go on AFTER the fit-scale, at screen resolution — a dark halo
+       under a bright dashed core, constant width no matter the sprite size
+       (owner: "the 9-slice lines are a little hard to see") */
+    const guide = (path: () => void) => {
+      oc.beginPath(); path();
+      oc.setLineDash([]);
+      oc.strokeStyle = "rgba(8,12,24,0.85)";
+      oc.lineWidth = 3;
+      oc.stroke();
+      oc.beginPath(); path();
+      oc.setLineDash([5, 4]);
+      oc.strokeStyle = "#9fe0ff";
+      oc.lineWidth = 1.4;
+      oc.stroke();
+    };
+    const gx = (v: number) => Math.round(v * fit) + 0.5, gy = gx;
+    const OW = out.width, OH = out.height;
+    guide(() => { oc.moveTo(gx(l), 0); oc.lineTo(gx(l), OH); });
+    guide(() => { oc.moveTo(gx(W2 - r), 0); oc.lineTo(gx(W2 - r), OH); });
+    guide(() => { oc.moveTo(0, gy(t)); oc.lineTo(OW, gy(t)); });
+    guide(() => { oc.moveTo(0, gy(H2 - b)); oc.lineTo(OW, gy(H2 - b)); });
   }, [probe, vals?.left, vals?.right, vals?.top, vals?.bottom]);
   const setField = (k: keyof KitSlice, v: number) => {
     const base = cur ?? seed ?? { left: 40, right: 40, top: 36, bottom: 36 };
@@ -384,10 +322,13 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
           onClick={() => setKitSlice(cid, null)}>Auto</button>
         <button className={`allstateschip${on ? " on" : ""}`} title="Set the nine-slice borders yourself — your numbers ship exactly."
           onClick={() => { if (!on) setKitSlice(cid, seed ?? { left: 40, right: 40, top: 36, bottom: 36 }); }}>Custom</button>
+        <button className="allstateschip slicebig" title="Open the big slicing workbench on the canvas — zoomed pixels, draggable guides."
+          onClick={() => setSliceStage(cid)}><Maximize2 size={11} strokeWidth={2.2} /> Big editor</button>
       </span>
       {probe && vals && (
         <canvas ref={prevRef} className="slicepreview"
-          title="Stretched to 1.9x width, drawn exactly as Unity's Sliced Image draws it — corners rigid, middle stretching. Dashed lines are the slice guides." />
+          title="Stretched to 1.9x width, drawn exactly as Unity's Sliced Image draws it — corners rigid, middle stretching. Dashed lines are the slice guides. Click for the big editor."
+          onClick={() => setSliceStage(cid)} />
       )}
       {on && vals && (
         <div className="slotgrid slicegrid">
@@ -894,6 +835,22 @@ export function Panel() {
           </button>
         )}
       </div>
+      {/* search concierge: "slicing" typed with no sliceable piece focused
+          used to answer NOTHING (owner hit this on the live preview) — the
+          control lives per piece, so the search hands over the pieces */}
+      {/slic|nine/i.test(panelQuery) && (!focus || !KIT_SLICEABLE[focus]) && (
+        <div className="searchpoint">
+          <b>Unity slicing is set on each piece</b>
+          <p>The master button ships as the Primary button — pick a piece and its slicing (measured borders, your numbers, the big pixel editor) opens in Component content.</p>
+          <div className="sp-chips">
+            {(Object.keys(KIT_SLICEABLE) as KitComponentId[]).map((cid) => (
+              <button key={cid} onClick={() => setFocus(cid)}>
+                {KIT_COMPONENTS.find((c) => c.id === cid)?.name ?? cid}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* ── the STATE FLAG: jumping pieces snaps back to Default, but while
            a non-default state is picked this sticky flag keeps saying so —
            deep in Typography the chip in Global is long scrolled away
