@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -211,13 +211,40 @@ function InfoNote({ summary, children }: { summary: React.ReactNode; children?: 
 }
 
 function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  /* saved swatches (field report: "I had to write down the RGB and enter
+     those values manually") — one shared rail on every color well: the
+     bookmark chip saves the current color, a dot applies it, x on hover
+     forgets it. Persisted locally, kit-independent. */
+  const swatches = useGen((s) => s.swatches);
+  const addSwatch = useGen((s) => s.addSwatch);
+  const rmSwatch = useGen((s) => s.rmSwatch);
+  const [open, setOpen] = useState(false);
+  const saved = swatches.includes(value.toUpperCase()) || swatches.includes(value);
   return (
-    <div className="ctl">
+    <div className="ctl wellrow">
       <label>{label}</label>
       <span className="chipwell sm" style={{ background: value }}>
         <input type="color" value={value} aria-label={`${label} color`} onChange={(e) => onChange(e.target.value)} />
       </span>
       <span className="mr-hint">{value.toUpperCase()}</span>
+      <button className={`swsave${saved ? " on" : ""}`} title={saved ? "Saved to your swatches" : "Save this color as a swatch"}
+        aria-label={saved ? `${value} is saved` : `Save ${value} as a swatch`}
+        onClick={() => (saved ? rmSwatch(value.toUpperCase()) : addSwatch(value.toUpperCase()))}>
+        <Bookmark size={12} strokeWidth={2.2} fill={saved ? "currentColor" : "none"} />
+      </button>
+      {swatches.length > 0 && (
+        <button className="swmore" title="Your saved swatches" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {swatches.slice(0, 3).map((h) => <i key={h} style={{ background: h }} />)}
+        </button>
+      )}
+      {open && swatches.length > 0 && (
+        <span className="swrail" role="listbox" aria-label="Saved swatches">
+          {swatches.map((h) => (
+            <button key={h} className="swdot" style={{ background: h }} title={h}
+              onClick={() => { onChange(h); setOpen(false); }} />
+          ))}
+        </span>
+      )}
     </div>
   );
 }
@@ -415,7 +442,7 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
 }
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -711,11 +738,22 @@ export function Panel() {
            a non-default state is picked this sticky flag keeps saying so —
            deep in Typography the chip in Global is long scrolled away
            (owner: "need a warning or something") ── */}
-      {selectedState !== "default" && (
-        <div className="stateflag" role="status">
+      {(selectedState !== "default" || allStates) && (
+        <div className={`stateflag${allStates ? " allstates" : ""}`} role="status">
           <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
-          <span>Styling <b>{STATE_LABEL[selectedState]}</b> — every edit lands on this state only.</span>
-          <button onClick={() => setSelectedState("default")}>Back to Default</button>
+          {allStates ? (
+            <span><b>All states</b> — every edit becomes the value for Default, Hover, Pressed and Disabled.</span>
+          ) : (
+            <span>Styling <b>{STATE_LABEL[selectedState]}</b> — every edit lands on this state only.</span>
+          )}
+          {/* one switch answers the field report: "set any one parameter for
+              all states without resetting all states to default" */}
+          <button className={`stateflag-all${allStates ? " on" : ""}`} aria-pressed={allStates}
+            title={allStates ? "Back to editing one state at a time" : "Every edit you make becomes the value for ALL states — existing state styling stays, only what you touch unifies."}
+            onClick={() => setAllStates(!allStates)}>
+            {allStates ? "One state" : "All states"}
+          </button>
+          {selectedState !== "default" && <button onClick={() => setSelectedState("default")}>Back to Default</button>}
         </div>
       )}
       {/* ── the SCOPE BAR: where edits land, answered before you edit.

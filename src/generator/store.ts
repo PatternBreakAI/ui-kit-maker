@@ -253,6 +253,15 @@ function load(): GenConfig {
 interface GenStore {
   cfg: GenConfig;
   selectedState: GenStateName;
+  /* ALL-STATES write-through (dev field report: "set any one parameter for
+     all states without resetting all states to default"): with this on,
+     whatever an edit changes becomes the value for EVERY state — the
+     changed design paths are written into each state fork. Session-scoped;
+     the state flag shows it loudly while it's armed. */
+  allStates: boolean;
+  /* saved color swatches (same report: "I had to write down the RGB") —
+     kit-independent, persisted locally */
+  swatches: string[];
   phase: "master" | "kit" | "board";
   kitSizes: Partial<Record<KitComponentId, KitSize>>;
   zoom: number;
@@ -474,6 +483,9 @@ interface GenStore {
   setPreset: (id: string) => void;
   randomize: () => void;
   setSelectedState: (s: GenStateName) => void;
+  setAllStates: (v: boolean) => void;
+  addSwatch: (hex: string) => void;
+  rmSwatch: (hex: string) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
   setKitSize: (id: KitComponentId, s: KitSize) => void;
   /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
@@ -774,6 +786,8 @@ function loadPanelW(): number {
 export const useGen = create<GenStore>((set, get) => ({
   cfg: load(),
   selectedState: "default",
+  allStates: false,
+  swatches: loadJson<string[]>("ui-generator-swatches", []),
   phase: "master",
   kitSizes: {},
   zoom: 1,
@@ -1501,6 +1515,10 @@ export const useGen = create<GenStore>((set, get) => ({
     const lockedId = focus0 && get().kitDesigns[focus0] ? focus0 : null;
     const work = lockedId ? clone2(applyKitDesign(cfg, get().kitDesigns[lockedId])) : cfg;
     const sel = get().selectedState;
+    const allStates = get().allStates;
+    /* pre-edit snapshot of the surface being edited — the all-states pass
+       diffs against it to learn exactly which design paths this edit moved */
+    const preSections = allStates ? clone2(work) : null;
     if (sel !== "default") {
       // editing a non-default state: fork its design on first touch, then
       // route all design-field edits into the fork — Default stays untouched
@@ -1552,6 +1570,44 @@ export const useGen = create<GenStore>((set, get) => ({
       work.canvas = t.canvas; work.presetId = t.presetId;
     } else {
       fn(work);
+    }
+    /* ── ALL-STATES write-through: the changed design paths become the value
+       for every state. Forks are FULL copies (not sparse masks), so the new
+       value is written into each one; a state edit pushes to the master
+       too, which the pre-fork states inherit. Content, canvas and the
+       states-adjustment sliders stay out of it — they are already shared. */
+    if (allStates && preSections) {
+      const SECTIONS = ["effects", "face", "bevel", "candy", "lighting", "shadow", "transparency", "type"] as const;
+      const edited = (sel !== "default" ? (work.stateDesigns?.[sel] ?? work) : work) as unknown as Record<string, unknown>;
+      const before = (sel !== "default"
+        ? (preSections.stateDesigns?.[sel] ?? pickDesign(preSections))
+        : preSections) as unknown as Record<string, unknown>;
+      const changes: { path: string[]; v: unknown }[] = [];
+      const walk = (a: unknown, b: unknown, path: string[]) => {
+        if (a === b) return;
+        const obj = (x: unknown) => x !== null && typeof x === "object" && !Array.isArray(x);
+        if (obj(a) && obj(b)) {
+          const keys = new Set([...Object.keys(a as object), ...Object.keys(b as object)]);
+          for (const k of keys) walk((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], [...path, k]);
+          return;
+        }
+        if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ path, v: b });
+      };
+      for (const sec of SECTIONS) walk(before[sec], edited[sec], [sec]);
+      if (changes.length) {
+        const setPath = (o: Record<string, unknown>, path: string[], v: unknown) => {
+          let t = o;
+          for (let i = 0; i < path.length - 1; i++) {
+            const k = path[i];
+            if (t[k] === null || typeof t[k] !== "object") return; // shape mismatch — skip, don't invent structure
+            t = t[k] as Record<string, unknown>;
+          }
+          t[path[path.length - 1]] = typeof v === "object" && v !== null ? JSON.parse(JSON.stringify(v)) : v;
+        };
+        const targets: Record<string, unknown>[] = [work as unknown as Record<string, unknown>];
+        for (const f2 of Object.values(work.stateDesigns ?? {})) if (f2) targets.push(f2 as unknown as Record<string, unknown>);
+        for (const t2 of targets) { if (t2 === (edited as unknown)) continue; for (const ch of changes) setPath(t2, ch.path, ch.v); }
+      }
     }
     if (lockedId) {
       // design fields → the piece's lock; everything shared → the master
@@ -1728,6 +1784,19 @@ export const useGen = create<GenStore>((set, get) => ({
     });
   },
   setSelectedState: (s) => set({ selectedState: s }),
+  setAllStates: (v) => set({ allStates: v }),
+  addSwatch: (hex) => {
+    const cur = get().swatches;
+    if (cur.includes(hex)) return;
+    const swatches = [hex, ...cur].slice(0, 12);
+    saveJson("ui-generator-swatches", swatches);
+    set({ swatches });
+  },
+  rmSwatch: (hex) => {
+    const swatches = get().swatches.filter((h) => h !== hex);
+    saveJson("ui-generator-swatches", swatches);
+    set({ swatches });
+  },
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
   // whatever zoom the editor or board was left at.
   // Leaving the editor also drops play mode: play hides the inspector by
