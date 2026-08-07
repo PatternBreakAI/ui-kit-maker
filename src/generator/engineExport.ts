@@ -98,20 +98,32 @@ const svgWrap = (w: number, h: number, inner: string) =>
 /** `licence` is issued by /api/export and rides inside the ZIP — it names
     the account the kit belongs to, so a redistributed bundle is traceable
     back to its source. Reached through guardedExport, never directly. */
-/* The Glints ink's blend (owner: "give it a blending mode similar to
-   overlay"): premultiplied additive — for bright specular slabs riding a
-   lit face, One/One-with-premultiply reads as overlay does, and it is the
-   strongest blend a portable UI shader can promise on every pipeline.
+/* The Glints ink's blend — the 1-1 SYSTEM for the app's six modes (owner:
+   "we need some kind of 1-1 system for the blending modes we are offering
+   in the app"). The blend states are material properties and the frag
+   packs the source per mode (_Pack):
+     normal     SrcAlpha/OneMinusSrcAlpha  pack 0 (plain)        EXACT
+     multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT
+     screen     One/OneMinusSrcColor       pack 1 (premultiply)  EXACT
+     overlay    One/One                    pack 1 (premultiply)  closest read
+     soft-light One/OneMinusSrcColor       pack 3 (premult·0.6)  closest read
+     hard-light One/One                    pack 1 (premultiply)  closest read
+   Exactness is bounded by fixed-function blending: multiply/screen/normal
+   are separable and land exactly; the light modes read the backdrop and
+   ship their brightening half, which is what specular glints exercise.
    Kit-independent, so it ships as a shared script beside the importer. */
 const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
   Properties {
     _MainTex ("Glints Atlas", 2D) = "white" {}
     _Color ("Tint", Color) = (1,1,1,1)
+    _Pack ("Source packing", Float) = 1
+    _SrcBlend ("Src blend", Float) = 1  // One
+    _DstBlend ("Dst blend", Float) = 1  // One
   }
   SubShader {
     Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
     Cull Off Lighting Off ZWrite Off ZTest [unity_GUIZTestMode]
-    Blend One One
+    Blend [_SrcBlend] [_DstBlend]
     Pass {
       CGPROGRAM
       #pragma vertex vert
@@ -119,7 +131,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       #include "UnityCG.cginc"
       struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
       struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; };
-      sampler2D _MainTex; fixed4 _Color;
+      sampler2D _MainTex; fixed4 _Color; float _Pack;
       v2f vert (appdata_t v) {
         v2f o;
         o.vertex = UnityObjectToClipPos(v.vertex);
@@ -129,7 +141,9 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       }
       fixed4 frag (v2f i) : SV_Target {
         fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
-        c.rgb *= c.a; // premultiply: transparent atlas air adds nothing
+        if (_Pack > 2.5) c.rgb *= c.a * 0.6;            // 3: gentle light
+        else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
+        else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
         return c;
       }
       ENDCG
@@ -745,6 +759,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           emboss: base.type.emboss.on ? { strength: base.type.emboss.strength, distance: base.type.emboss.distance, softness: base.type.emboss.softness } : null,
           lightAngle: base.lighting.angle,
           pattern: patternFile ? { file: patternFile, style: base.type.stripes?.style ?? "stripes", scale: base.type.stripes?.scale ?? 100, angle: patternAngle, reps: Math.round(patternReps * 100) / 100 } : null,
+          /* the ONE live-blended layer in the prefab: the Glints ink. Its
+             blend mode ships so the importer can pick the matching GlintInk
+             blend state — the app's six modes map 1-1 (multiply, screen and
+             normal are exact fixed-function; overlay, soft- and hard-light
+             ride their closest additive read). Everything else composites
+             its blend INTO baked pixels and needs no runtime story. */
+          glintBlend: base.type.glints?.on ? (base.type.glints.blend ?? "overlay") : null,
         },
         /* per-state text ink — the kit's OWN state recipes for live labels
            (owner field report: the face swaps on press but "the text isn't
@@ -2355,7 +2376,7 @@ namespace PatternBreak {
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
-  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; }
+  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
@@ -3149,9 +3170,9 @@ namespace PatternBreak {
         AssembleBakedFont(root, m, refresh, "KitFace Baked Layers", root + "/" + m.typography.bakedFace.layerFill,
           face.layerGlyphs, face.layersAtlasW, face.layersAtlasH, face,
           " glyphs — THE layered-label font, and the ONLY place hero type lays out: glyphs, kerning and the Glyph Adjustment Table all live here, once. Stroke, Shadow and Glints redraw this font's own mesh wearing the KitFace Ink materials beside it.");
-        EnsureInkMaterial(root, "Stroke", m.typography.bakedFace.layerStroke);
-        EnsureInkMaterial(root, "Shadow", m.typography.bakedFace.layerShadow);
-        EnsureInkMaterial(root, "Glints", m.typography.bakedFace.layerGlints);
+        EnsureInkMaterial(root, "Stroke", m.typography.bakedFace.layerStroke, null);
+        EnsureInkMaterial(root, "Shadow", m.typography.bakedFace.layerShadow, null);
+        EnsureInkMaterial(root, "Glints", m.typography.bakedFace.layerGlints, m.typography.style != null ? m.typography.style.glintBlend : null);
         /* retire the two dead ends this system lived through: the
            per-layer material skins (TMP silently reverts a material whose
            texture isn't the font's own atlas) and the mirror font assets
@@ -3168,28 +3189,48 @@ namespace PatternBreak {
        baked texture. No font, no table, no TMP jurisdiction — TMP's
        material validation never sees it, because it never sits on a TMP
        component. */
-    static void EnsureInkMaterial(string root, string layerName, string texFile) {
+    /* the 1-1 blend system for the app's glint blend menu — the states the
+       shipped GlintInk shader consumes. Ints are UnityEngine.Rendering.
+       BlendMode values; pack selects the frag's source packing.
+       normal/multiply/screen land EXACTLY (separable blends); the three
+       light modes ride their brightening half, which is what specular
+       glints exercise. */
+    static void ApplyGlintBlend(Material mat, string mode) {
+      float src = 1, dst = 1, pack = 1;                                 // overlay & hard-light: One/One premultiplied
+      if (mode == "normal") { src = 5; dst = 10; pack = 0; }            // SrcAlpha/OneMinusSrcAlpha
+      else if (mode == "multiply") { src = 2; dst = 0; pack = 2; }      // DstColor/Zero, empty air = white
+      else if (mode == "screen") { src = 1; dst = 6; pack = 1; }        // One/OneMinusSrcColor
+      else if (mode == "soft-light") { src = 1; dst = 6; pack = 3; }    // gentle screen
+      mat.SetFloat("_SrcBlend", src); mat.SetFloat("_DstBlend", dst); mat.SetFloat("_Pack", pack);
+    }
+    static void EnsureInkMaterial(string root, string layerName, string texFile, string glintBlend) {
       var path = root + "/fonts/KitFace Ink " + layerName + ".mat";
       if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(path); return; }
       var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
       if (tex == null) return; // atlas not imported yet — the next pass retries
-      /* the Glints ink blends ADDITIVELY (the kit's overlay glints, made
-         portable) — the shader ships in the zip; UI/Default stands in if
-         it hasn't compiled yet, and the next pass upgrades in place */
-      var want = layerName == "Glints" ? (Shader.Find("UIKitMaker/GlintInk") ?? Shader.Find("UI/Default")) : Shader.Find("UI/Default");
+      /* the Glints ink wears the shipped GlintInk shader with the kit's own
+         blend mode; UI/Default stands in until the shader compiles, and the
+         next pass upgrades in place */
+      var glint = Shader.Find("UIKitMaker/GlintInk");
+      var want = layerName == "Glints" && glint != null ? glint : Shader.Find("UI/Default");
       var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
       if (mat == null) {
         if (want == null) { Debug.LogWarning("UI Kit Maker: UI/Default shader missing — the " + layerName + " ink is skipped."); return; }
         mat = new Material(want);
         mat.mainTexture = tex;
+        if (layerName == "Glints" && want == glint) ApplyGlintBlend(mat, string.IsNullOrEmpty(glintBlend) ? "overlay" : glintBlend);
         AssetDatabase.CreateAsset(mat, path);
         return;
       }
       // re-imports retexture in place; the material file (and any tint a
-      // user set on it) stays theirs — but the Glints ink's shader upgrade
-      // does apply, or old imports would keep alpha-blending forever
+      // user set on it) stays theirs — but the Glints ink's shader and
+      // blend states DO re-apply, or a changed app blend never lands
       if (mat.mainTexture != tex) { mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
-      if (layerName == "Glints" && want != null && want.name == "UIKitMaker/GlintInk" && mat.shader != want) { mat.shader = want; mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
+      if (layerName == "Glints" && glint != null) {
+        if (mat.shader != glint) { mat.shader = glint; mat.mainTexture = tex; }
+        ApplyGlintBlend(mat, string.IsNullOrEmpty(glintBlend) ? "overlay" : glintBlend);
+        EditorUtility.SetDirty(mat);
+      }
     }
     static Material InkMaterial(string root, string layerName) {
       return AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Ink " + layerName + ".mat");
