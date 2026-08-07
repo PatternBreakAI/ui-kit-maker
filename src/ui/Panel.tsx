@@ -835,6 +835,22 @@ export function Panel() {
           </button>
         )}
       </div>
+      {/* search concierge: "slicing" typed with no sliceable piece focused
+          used to answer NOTHING (owner hit this on the live preview) — the
+          control lives per piece, so the search hands over the pieces */}
+      {/slic|nine/i.test(panelQuery) && (!focus || !KIT_SLICEABLE[focus]) && (
+        <div className="searchpoint">
+          <b>Unity slicing is set on each piece</b>
+          <p>The master button ships as the Primary button — pick a piece and its slicing (measured borders, your numbers, the big pixel editor) opens in Component content.</p>
+          <div className="sp-chips">
+            {(Object.keys(KIT_SLICEABLE) as KitComponentId[]).map((cid) => (
+              <button key={cid} onClick={() => setFocus(cid)}>
+                {KIT_COMPONENTS.find((c) => c.id === cid)?.name ?? cid}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* ── the STATE FLAG: jumping pieces snaps back to Default, but while
            a non-default state is picked this sticky flag keeps saying so —
            deep in Typography the chip in Global is long scrolled away
