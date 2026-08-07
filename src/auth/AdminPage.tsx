@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -386,6 +386,11 @@ export function AdminPage() {
         <a href="#/" onClick={(e) => { e.preventDefault(); navigate("#/"); }} className="fd-page__brand">
           <img src={logoUrl} alt="" width={24} height={24} /> UI Kit Maker
         </a>
+        {/* same door the Account page offers — the desk must never be a
+            dead end (owner: "should be able to get back to the generator") */}
+        <button className="fd-primary fd-page__open" onClick={() => navigate("#/app")}>
+          <Wand2 size={15} strokeWidth={1.9} /> Open the generator
+        </button>
       </header>
 
       <main className="fd-page__wrap">

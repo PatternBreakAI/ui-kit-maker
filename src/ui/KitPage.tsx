@@ -712,6 +712,165 @@ function InventoryScreen() {
   );
 }
 
+/* ── Playable Match-3 (owner: "show/fake the match 3 working… bonus points
+   for it actually being interactive") ────────────────────────────────────
+   Five categories, each tile wearing a color overlay for its lane; tapping
+   a connected group of 3+ fires the claim celebration — the same white-hot
+   ignition + particle burst the CLAIM pieces use — then survivors drop and
+   fresh tiles fall in from above. Cleared tiles pay the gem counter, fill
+   the level bar and bump the LEVEL chip. Left alone, the board plays a
+   move itself on a lazy beat so the card demos the loop hands-off; the
+   colors are the demo's own — this stage isn't an editable surface. */
+const M3N = 5;
+const M3CATS = [
+  { icon: "heart", c: "#FF5C8A" }, // hearts · rose candy
+  { icon: "gem", c: "#59C2FF" },   // gems · glacier blue
+  { icon: "star", c: "#FFC94D" },  // stars · arcade gold
+  { icon: "bag", c: "#69D96B" },   // bags · slime green
+  { icon: "zap", c: "#B98CFF" },   // bolts · hex violet
+] as const;
+/* a hand-set opening board: all five lanes on stage, one juicy heart trio
+   mid-board inviting the first tap */
+const M3START = [
+  1, 0, 2, 4, 3,
+  2, 0, 1, 3, 4,
+  0, 0, 3, 1, 2,
+  3, 4, 2, 0, 1,
+  4, 2, 1, 3, 0,
+];
+
+/** Connected same-category tiles (4-neighborhood flood) around `at`. */
+function m3Group(cats: number[], at: number): number[] {
+  const want = cats[at];
+  const seen = new Set<number>([at]);
+  const stack = [at];
+  while (stack.length) {
+    const i = stack.pop()!;
+    const r = Math.floor(i / M3N), c = i % M3N;
+    for (const [nr, nc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+      const j = nr * M3N + nc;
+      if (nr < 0 || nr >= M3N || nc < 0 || nc >= M3N || seen.has(j) || cats[j] !== want) continue;
+      seen.add(j); stack.push(j);
+    }
+  }
+  return [...seen];
+}
+
+type M3Fx = { kind: "burst" | "drop" | "nope"; drop?: number; wave: number };
+
+function Match3Board({ onScore }: { onScore: (cleared: number) => void }) {
+  const glowC = useGen((s) => s.cfg.effects.Glow ?? "#8FF0FF");
+  const [cats, setCats] = useState<number[]>(M3START);
+  const [fx, setFx] = useState<Record<number, M3Fx>>({});
+  const busy = useRef(false);
+  const lastTouch = useRef(0);
+  const board = useRef<HTMLDivElement>(null);
+  const inView = useRef(false);
+  // the auto-play interval lives outside React's render clock — refs keep it honest
+  const catsRef = useRef(cats); catsRef.current = cats;
+  const clearRef = useRef<(at: number) => void>(() => {});
+
+  const clear = (at: number) => {
+    if (busy.current) return;
+    const group = m3Group(catsRef.current, at);
+    if (group.length < 3) {
+      // a lone tap wiggles "no" — the board teaches by refusing politely
+      setFx((f) => ({ ...f, [at]: { kind: "nope", wave: Date.now() } }));
+      return;
+    }
+    busy.current = true;
+    const wave = Date.now();
+    setFx((f) => ({ ...f, ...Object.fromEntries(group.map((i) => [i, { kind: "burst", wave }])) }));
+    window.setTimeout(() => {
+      /* gravity: per column, survivors slide down into the cleared wells,
+         fresh tiles enter from above — every mover falls its own distance */
+      const prev = catsRef.current;
+      const next = prev.slice();
+      const nfx: Record<number, M3Fx> = {};
+      const gone = new Set(group);
+      for (let c = 0; c < M3N; c++) {
+        let write = M3N - 1;
+        for (let r = M3N - 1; r >= 0; r--) {
+          const i = r * M3N + c;
+          if (gone.has(i)) continue;
+          const j = write * M3N + c;
+          next[j] = prev[i];
+          if (write !== r) nfx[j] = { kind: "drop", drop: write - r, wave };
+          write--;
+        }
+        const entered = write + 1;
+        for (let r = write; r >= 0; r--) {
+          next[r * M3N + c] = Math.floor(Math.random() * M3CATS.length);
+          nfx[r * M3N + c] = { kind: "drop", drop: entered, wave };
+        }
+      }
+      setCats(next);
+      // merge, don't replace: untouched cells keep their keys (no remount churn)
+      setFx((f) => ({ ...f, ...nfx }));
+      onScore(group.length);
+      window.setTimeout(() => { busy.current = false; }, 430);
+    }, 460);
+  };
+  clearRef.current = clear;
+
+  useEffect(() => {
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const el = board.current;
+    if (!el) return;
+    const io = new IntersectionObserver((es) => { inView.current = es.some((e) => e.isIntersecting); }, { rootMargin: "80px" });
+    io.observe(el);
+    const t = window.setInterval(() => {
+      // self-demo only while visible, settled, and the user isn't mid-session
+      if (!inView.current || busy.current || Date.now() - lastTouch.current < 6500) return;
+      const done = new Set<number>();
+      const groups: number[][] = [];
+      for (let i = 0; i < M3N * M3N; i++) {
+        if (done.has(i)) continue;
+        const g = m3Group(catsRef.current, i);
+        g.forEach((x) => done.add(x));
+        if (g.length >= 3) groups.push(g);
+      }
+      if (groups.length) clearRef.current(groups[Math.floor(Math.random() * groups.length)][0]);
+    }, 3400);
+    return () => { io.disconnect(); window.clearInterval(t); };
+  }, []);
+
+  /* Tiles are the board's OWN candy — the InvSlot precedent: screen
+     patterns may draw their tile language directly (the kit's real pieces
+     still frame the stage). A live slot piece reserves its glow pad on the
+     canvas, which makes it structurally wrong for butted grid cells. */
+  return (
+    <div className="m3-wrap" ref={board}>
+      {cats.map((catIdx, i) => {
+        const cat = M3CATS[catIdx];
+        const f = fx[i];
+        return (
+          /* the wave in the key remounts only cells the wave touched,
+             restarting their one-shot animations */
+          <button key={`${i}:${f?.wave ?? 0}:${f?.kind ?? "s"}`} type="button"
+            className={`m3-cell${f?.kind === "burst" ? " m3-burst fx-igniting" : f?.kind === "drop" ? " m3-drop" : f?.kind === "nope" ? " m3-nope" : ""}`}
+            style={{ "--m3c": cat.c, "--m3drop": f?.kind === "drop" ? f.drop : 0 } as React.CSSProperties}
+            aria-label={`${cat.icon} tile — tap a group of three or more`}
+            onPointerUp={() => { lastTouch.current = Date.now(); clear(i); }}>
+            <span className="m3-tile"><InvIcon def={STOCK_ICONS[cat.icon]} size={26} /></span>
+            {f?.kind === "burst" && (
+              <span className="fx-burstwrap" aria-hidden="true">
+                {Array.from({ length: 12 }, (_, p) => {
+                  const a = (p / 12) * Math.PI * 2 + (p % 3) * 0.4;
+                  const d = 34 + ((p * 29) % 40);
+                  const s = 4 + ((p * 11) % 6);
+                  const col = p % 3 === 0 ? "#FFFFFF" : p % 3 === 1 ? cat.c : glowC;
+                  return <i key={p} style={{ "--dx": `${(Math.cos(a) * d).toFixed(0)}px`, "--dy": `${(Math.sin(a) * d).toFixed(0)}px`, width: s, height: s, background: col } as React.CSSProperties} />;
+                })}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** One screen-pattern specimen: identification above the viewport, the dark
  *  stage as the actual screen, quiet system metadata below. The viewport's
  *  aspect ratio is fixed and every nested piece reserves its largest state,
@@ -1076,6 +1235,12 @@ export function KitPage() {
   const [hiddenLays, setHiddenLays] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("ui-generator-hiddenlayouts") ?? "[]"); } catch { return []; }
   });
+  /* the Match-3 starter's session HUD — cleared tiles pay the gem counter,
+     fill the level bar, bump the LEVEL chip and spend a heart per move */
+  const [m3Score, setM3Score] = useState(0);
+  const [m3Moves, setM3Moves] = useState(0);
+  const [m3Prog, setM3Prog] = useState(0.44);
+  const [m3Level, setM3Level] = useState(12);
   const hideLay = (id: string) => setHiddenLays((h) => {
     const next = id === "*reset*" ? [] : [...h, id];
     try { localStorage.setItem("ui-generator-hiddenlayouts", JSON.stringify(next)); } catch { /* ignore */ }
@@ -3107,27 +3272,20 @@ const kitTier = useGen((s) => s.tier);
           {!hiddenLays.includes("match3") && (
             <LayoutCard id="match3" name="Match-3" device="Mobile portrait" onHide={hideLay}>
               <div className="lay-row lay-bar">
-                <SPiece id="resource" label="27" icon={STOCK_ICONS.heart} scale={0.34} />
-                <SPiece id="resource" label="900" icon={STOCK_ICONS.gem} scale={0.34} />
+                <SPiece id="resource" label={String(Math.max(1, 27 - m3Moves))} icon={STOCK_ICONS.heart} scale={0.34} />
+                <SPiece id="resource" label={(900 + m3Score).toLocaleString("en-US")} icon={STOCK_ICONS.gem} scale={0.34} />
               </div>
-              <div className="lay-boardwrap">
-                {([
-                  ["gem", "heart", "star", "gem", "bag"],
-                  ["star", "gem", "heart", "bag", "gem"],
-                  ["bag", "heart", "star", "gem", "heart"],
-                  ["gem", "star", "bag", "heart", "star"],
-                  ["heart", "gem", "star", "heart", "bag"],
-                ] as const).map((row, ri) => (
-                  <div className="lay-row lay-board" key={ri}>
-                    {row.map((ic, ci) => (
-                      <SPiece key={ci} id="slot" size="s" icon={STOCK_ICONS[ic]} iconScale={1.35} tight flat
-                        overlay={ri === 1 && ci === 2 ? "new" : undefined} scale={0.62} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <div className="sc-push"><SPiece id="progress" value={0.44} ambient scale={0.58} /></div>
-              <SPiece id="chip" label="LEVEL 12" icon={null} scale={0.34} />
+              <Match3Board onScore={(n) => {
+                setM3Score((s) => s + n * 10);
+                setM3Moves((m) => m + 1);
+                setM3Prog((p) => {
+                  const p2 = p + n * 0.045;
+                  if (p2 >= 1) { setM3Level((l) => l + 1); return p2 - 1; }
+                  return p2;
+                });
+              }} />
+              <div className="sc-push"><SPiece id="progress" value={m3Prog} scale={0.58} /></div>
+              <SPiece id="chip" label={`LEVEL ${m3Level}`} icon={null} scale={0.34} />
             </LayoutCard>
           )}
         </div>
