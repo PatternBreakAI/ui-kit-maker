@@ -511,26 +511,35 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         // the real pixels overrule the estimate — measured curvature is
         // where the guides go; the sliceOf math survives only as fallback
         const uo = userSliceByFam.get(q.meta.component);
-        if (uo) { s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom; }
+        if (uo) {
+          /* EXACT numbers, exactly (owner: "I don't think Unity is reading
+             my slices" — the organic-shape caps below were silently
+             crushing hand-set values; a 466px-wide sprite capped left/right
+             at 116 while the maker asked for 172). The caps exist to rein
+             in the MEASUREMENT on shapes that never flatten — a human's
+             explicit numbers are the point, not a hazard. Only the
+             engine-sanity guard below still applies. */
+          s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom;
+        }
         else {
           const mkey = q.group ?? q.path;
           let mz = sliceMeasureCache.get(mkey);
           if (mz === undefined) { mz = await measureSlice(bytes, w, h); sliceMeasureCache.set(mkey, mz); }
           if (mz) { s.left = mz.left; s.right = mz.right; s.top = mz.top; s.bottom = mz.bottom; }
+          /* organic silhouettes can push the cap math past reason — the wavy
+             button's slice guides nearly met in the middle, caps ate ~92% of
+             the sprite and the type area with it (owner: "this is clearly
+             off", then at 35%: "still off... lots more room for text in the
+             middle between the concave/convex"). A cap never takes more
+             than 25% of the width / 30% of the height per side — the
+             stretchable middle is at least HALF the width and 40% of the
+             height of every sprite. */
+          const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
+          if (s.left > maxLR) s.left = maxLR;
+          if (s.right > maxLR) s.right = maxLR;
+          if (s.top > maxTB) s.top = maxTB;
+          if (s.bottom > maxTB) s.bottom = maxTB;
         }
-        /* organic silhouettes can push the cap math past reason — the wavy
-           button's slice guides nearly met in the middle, caps ate ~92% of
-           the sprite and the type area with it (owner: "this is clearly
-           off", then at 35%: "still off... lots more room for text in the
-           middle between the concave/convex"). A cap never takes more
-           than 25% of the width / 30% of the height per side — the
-           stretchable middle is at least HALF the width and 40% of the
-           height of every sprite. */
-        const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
-        if (s.left > maxLR) s.left = maxLR;
-        if (s.right > maxLR) s.right = maxLR;
-        if (s.top > maxTB) s.top = maxTB;
-        if (s.bottom > maxTB) s.bottom = maxTB;
         const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
         if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }

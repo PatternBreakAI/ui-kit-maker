@@ -143,7 +143,10 @@ export function SliceStage() {
   }
 
   const { box } = probe;
-  const limX = Math.floor(box.w / 2) - 2, limY = Math.floor(box.h / 2) - 2;
+  /* −3 per side keeps l+r ≤ w−6 design px = w−12 exported px — exactly the
+     export's engine-sanity floor, so every value this bench permits ships
+     verbatim, never scaled */
+  const limX = Math.floor(box.w / 2) - 3, limY = Math.floor(box.h / 2) - 3;
   const setField = (k2: keyof KitSlice, v: number) => {
     const lim = k2 === "left" || k2 === "right" ? limX : limY;
     const base = cur ?? seed ?? { left: 40, right: 40, top: 36, bottom: 36 };
