@@ -334,7 +334,7 @@ function ExportMenu({ actions, preferId }: {
         <Download size={14} strokeWidth={2.2} />{" "}
         {primary.busy
           ? (primary.prog
-            ? (primary.prog.label === "catalog" ? "Packing the visual catalog…"
+            ? (primary.prog.label === "catalog" ? `Packing the visual catalog… ${primary.prog.total > 1 ? `${Math.min(primary.prog.done, primary.prog.total)} of ${primary.prog.total}` : ""}`
               : primary.prog.label === "zip" ? "Zipping…"
               : `Rendering ${Math.min(primary.prog.done + 1, primary.prog.total)} of ${primary.prog.total}…`)
             : "Working…")
@@ -1344,7 +1344,8 @@ export function KitPage() {
         const fdef2 = fontByName(st.cfg.type.font);
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name, slug: uslug, kitVersion, scope },
-          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null) : undefined,
+          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
+            (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
         );

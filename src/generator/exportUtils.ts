@@ -302,17 +302,23 @@ export async function buildSpriteSheetBytes(
   title: string,
   fontFamily: string,
   fontCss: string | null,
+  onStep?: (done: number, total: number) => void,
 ): Promise<Uint8Array | null> {
   const fontUri = await fontDataUri(fontFamily, fontCss);
   const faceCss = fontUri ? `<defs><style>@font-face{font-family:'${fontFamily}';src:url(${fontUri}) format('woff2');}</style></defs>` : "";
+  /* the catalogue is the export's silent long pole (dev field report: "it
+     hung mostly during Packing the visual catalogue") — every finished
+     entry reports, so the bar keeps moving through the whole pack */
+  let stepped = 0;
+  const step = () => onStep?.(++stepped, entries.length);
   const imgs = await Promise.all(entries.map((e) => new Promise<{ name: string; img: HTMLImageElement; w: number; h: number } | null>((resolve) => {
     const cropped = cropSheetPad(e.svg);
     const svg = faceCss ? cropped.replace(/(<svg[^>]*>)/, `$1${faceCss}`) : cropped;
     const w = +(/width="([\d.]+)"/.exec(svg)?.[1] ?? 200);
     const h = +(/height="([\d.]+)"/.exec(svg)?.[1] ?? 100);
     const img = new Image();
-    img.onload = () => resolve({ name: e.name, img, w, h });
-    img.onerror = () => resolve(null);
+    img.onload = () => { step(); resolve({ name: e.name, img, w, h }); };
+    img.onerror = () => { step(); resolve(null); };
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   })));
   const ok = imgs.filter((x): x is NonNullable<typeof x> => !!x);

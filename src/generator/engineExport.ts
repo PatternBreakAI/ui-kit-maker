@@ -359,12 +359,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (owner report, Unity 6.5). */
   const sliceOf = (id: KitComponentId, shellH: number) => {
     const shape = st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape;
+    const bare = shape.endsWith("~flip") ? shape.slice(0, -5) : shape;
     // user imports carry their caps in their drawn proportions — a wide
     // drawing has wide caps, and guessing from height alone put the slice
     // borders inside the decoration
     const met = silhouetteMeta(shape) ?? userShapeCaps(shape);
-    const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22);
-    const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8));
+    /* the LEFT/RIGHT borders must clear the shape's actual corner radius —
+       the default pill is a full capsule (corner radius = h/2), and the old
+       0.3h guess planted the guides mid-curve (dev field report: "original
+       slicing hits on part of the corner curves"). Corner cells own the
+       whole curve once capX ≥ r; the top/bottom edges between the caps are
+       flat, so capY keeps its tuning. Narrow sprites stay safe via the
+       center-strip clamp downstream. */
+    const cornerR = bare === "pill" ? shellH * 0.5
+      : bare === "round" ? 4 + (pieceCfg(id).bevel.softness ?? 0) * 0.52
+      : 0;
+    const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22, cornerR);
+    const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8, Math.min(cornerR, shellH * 0.38)));
     return {
       left: Math.round((capX + 10) * PNG_SCALE),
       right: Math.round((capX + 10) * PNG_SCALE),
@@ -460,6 +471,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the canonical shape at USE time so nothing traversal-shaped can ride
      in from a poisoned project doc or share link, wherever it was minted */
   const safeSlug = sanitizeUnitySlug(st.slug) ?? "ui-kit";
+  // measured inside the full-kit block, read by the manifest below it
+  let globeWell: { x0: number; y0: number; x1: number; y1: number } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -655,7 +668,28 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
   await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
   await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
-  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — use a Filled (Vertical) Image masked by the glass; fillAmount IS the health." });
+  /* the liquid ships CROPPED to its real ink, and the manifest records
+     where that band sits inside the glass frame — so the prefab can anchor
+     the fill to the visible well and fillAmount 0..1 means visually
+     empty..full (dev field report: full health read at 0.87, "dead" still
+     held 10%+ — a game gating an ability on health == 1 never fires). */
+  try {
+    /* the liquid is a full-bleed gradient panel — the padding lives in the
+       GLASS frame (structural air around the sphere). The visible well is
+       the glass sphere's own ink box; its fractions of the (uncropped)
+       glass frame are exactly where the fill must span. */
+    const glassBox = await rasterInk(shell("healthglobe", { part: "glass" }, undefined, 0), 1);
+    if (glassBox) {
+      const fw = glassBox.cv.width, fh = glassBox.cv.height;
+      globeWell = {
+        x0: Math.max(0, glassBox.x0 / fw),
+        x1: Math.min(1, (glassBox.x0 + glassBox.w) / fw),
+        y0: Math.max(0, (fh - (glassBox.y0 + glassBox.h)) / fh),
+        y1: Math.min(1, (fh - glassBox.y0) / fh),
+      };
+    }
+  } catch { /* measurement is an upgrade, not a dependency — prefab falls back to full stretch */ }
+  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — Filled (Vertical) Image masked by the glass. The prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
   await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
   await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
   await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
@@ -823,6 +857,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       tier: st.scope,
       exported: new Date().toISOString(),
       pngScale: PNG_SCALE,
+      /* the health globe's visible well as frame fractions (bottom-left
+         origin) — the prefab anchors the cropped liquid here so
+         Image.fillAmount 0..1 is visually empty..full, no padding lie */
+      globeWell,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
@@ -1465,6 +1503,7 @@ namespace PatternBreak {
     Selectable sel;
     bool over, down;
     float glowNow, glowTo, liftNow, liftTo, baseY;
+    float lastWroteY = float.NaN;
     bool settling;
 
     void OnEnable() {
@@ -1492,6 +1531,12 @@ namespace PatternBreak {
       glowRt = go.GetComponent<RectTransform>();
       glowRt.SetParent(rt.parent, false);
       glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
+      /* the halo is DECOR, not layout: without this, a Vertical/Horizontal
+         Layout Group counts the spawned sibling as a real child and spaces
+         the whole menu apart at runtime (dev field report: "glow objects
+         throw off layout groups") */
+      var le = go.AddComponent<LayoutElement>();
+      le.ignoreLayout = true;
       glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
       glowRt.pivot = rt.pivot;
       glowRt.localScale = rt.localScale;
@@ -1508,6 +1553,18 @@ namespace PatternBreak {
       glowImg.raycastTarget = false;
       glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
     }
+    /* a layout group repositions and resizes us AFTER OnEnable — adopt its
+       slot as the new resting base and re-seat the halo, or the press sink
+       measures from a stale home and the glow parks on the old spot. A
+       y we didn't write ourselves belongs to an outside owner (the layout);
+       one we did still carries the lift and stays ours. */
+    void OnRectTransformDimensionsChange() {
+      if (rt == null) return;
+      float cur = rt.anchoredPosition.y;
+      if (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f) baseY = cur;
+      if (glowRt != null) glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
+      Push(true);
+    }
     float Target(out float lift) {
       if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
       if (down) { lift = pressedLift; return pressedGlow; }
@@ -1518,7 +1575,19 @@ namespace PatternBreak {
     public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); }
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Retarget(); }
     public void OnPointerDown(PointerEventData e) { down = true; Retarget(); }
-    public void OnPointerUp(PointerEventData e) { down = false; Retarget(); }
+    public void OnPointerUp(PointerEventData e) {
+      down = false;
+      /* Unity parks a clicked Selectable in its SELECTED state, which
+         outranks Highlighted — after the first click the sprite swap goes
+         quiet while the pointer-driven text and glow keep answering (dev
+         field report: "only the text was moving, not the rest of the
+         button"). Releasing the click releases the selection: hover and
+         press read identically on every click after the first. Delete
+         this if your game drives menus by keyboard/gamepad selection. */
+      if (sel != null && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == gameObject)
+        EventSystem.current.SetSelectedGameObject(null);
+      Retarget();
+    }
 
     /* Update runs ONLY while a transition is in flight — a component that
        ticks forever is how the Playground got slow the first time. */
@@ -1535,9 +1604,13 @@ namespace PatternBreak {
     void Push(bool snap) {
       if (snap) { glowNow = glowTo; liftNow = liftTo; }
       if (glowImg != null) glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, Mathf.Clamp01(glowNow / 100f) * 0.85f);
-      if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
-      // the halo rides the lift with the piece, or it slides out from under it
-      if (glowRt != null) glowRt.anchoredPosition = new Vector2(glowRt.anchoredPosition.x, baseY + liftNow);
+      if (rt != null) {
+        rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+        lastWroteY = baseY + liftNow;
+      }
+      // the halo rides the lift with the piece — x too, in case a layout
+      // group re-flowed the column sideways
+      if (glowRt != null && rt != null) glowRt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
     }
   }
 }
@@ -2643,7 +2716,8 @@ namespace PatternBreak {
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
   [Serializable] class PBLabelSize { public string family; public float size; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -2685,9 +2759,29 @@ namespace PatternBreak {
       }
       if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0) {
         var border = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
-        if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
+        /* respect hand-tuned slices (dev field report: "the tool reset the
+           slices of the original asset whenever I tried to tweak them").
+           The stamp in userData records the border THIS importer last
+           wrote; if the current border no longer matches it, a human moved
+           the guides — theirs to keep, every pass after. Untouched assets
+           still receive genuine slice updates from new exports. */
+        string prevData = ti.userData ?? "";
+        string oldTok = null;
+        foreach (var tok in prevData.Split(' ')) if (tok.StartsWith("pbb:")) { oldTok = tok; break; }
+        bool touched = oldTok != null && oldTok != "pbb:" + BorderKey(ti.spriteBorder);
+        if (!touched) {
+          if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
+          string mine = "pbb:" + BorderKey(border);
+          string stamped = oldTok == null
+            ? (prevData.Length > 0 ? prevData + " " : "") + mine
+            : prevData.Replace(oldTok, mine);
+          if (stamped != prevData) { ti.userData = stamped; changed = true; }
+        }
       }
       return changed;
+    }
+    static string BorderKey(Vector4 v) {
+      return ((int)v.x) + "," + ((int)v.y) + "," + ((int)v.z) + "," + ((int)v.w);
     }
 
     /* One click, whole truth — the debugging loop this kit went through
@@ -4332,7 +4426,7 @@ namespace PatternBreak {
     }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
-    static bool GlobePrefab(string dir, string root, int pngScale) {
+    static bool GlobePrefab(string dir, string root, int pngScale, PBManifest m) {
       var glass = S(root + "/assets/globe/glass.png");
       var rim = S(root + "/assets/globe/rim.png");
       var liquid = S(root + "/assets/globe/liquid.png");
@@ -4359,7 +4453,14 @@ namespace PatternBreak {
       li.fillAmount = 0.72f; // drive this from your live health
       li.raycastTarget = false;
       var lrt = lq.GetComponent<RectTransform>();
-      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      /* anchor the cropped liquid to the VISIBLE WELL (manifest fractions):
+         fillAmount 0..1 becomes visually empty..full — a game gating on
+         health == 1 fires at the brim, not at 87% (dev field report).
+         Old zips without the measurement keep the full stretch. */
+      var wl = m != null ? m.globeWell : null;
+      bool measured = wl != null && (wl.x1 - wl.x0) > 0.01f && (wl.y1 - wl.y0) > 0.01f;
+      lrt.anchorMin = measured ? new Vector2(wl.x0, wl.y0) : Vector2.zero;
+      lrt.anchorMax = measured ? new Vector2(wl.x1, wl.y1) : Vector2.one;
       lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
       var rm = ImageObject("Rim", rim, pngScale);
       rm.transform.SetParent(go.transform, false);
@@ -4404,7 +4505,7 @@ namespace PatternBreak {
       if (ProgressPrefab(dir, root, pngScale)) any = true;
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale)) any = true;
-      if (GlobePrefab(dir, root, pngScale)) any = true;
+      if (GlobePrefab(dir, root, pngScale, m)) any = true;
       // the wide, stateless pieces also get a stretch-safe variant when
       // the kit wears a pattern (the plain Sliced prefab still ships)
       foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
