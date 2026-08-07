@@ -7,7 +7,7 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
@@ -34,6 +34,9 @@ export interface EngineExportState {
   kitTextFill: Partial<Record<KitComponentId, string>>;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitSizes: Partial<Record<KitComponentId, "s" | "m" | "l">>;
+  /** Per-piece 9-slice override from the app's slicing editor, design px —
+      absent = borders measured from the rendered pixels. */
+  kitSlices?: Partial<Record<KitComponentId, { left: number; right: number; top: number; bottom: number }>>;
   kitName: string;
   /** I1 — the kit's PERMANENT address inside the user's Unity project
       (Assets/UIKitMaker/<slug>/). Minted at first export, survives display
@@ -114,8 +117,8 @@ const svgWrap = (w: number, h: number, inner: string) =>
      normal     SrcAlpha/OneMinusSrcAlpha  pack 0 (plain)        EXACT
      multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT (white ink: no-op, as in the app)
      screen     One/OneMinusSrcColor       pack 1 (premultiply)  EXACT
-     overlay    DstColor/One               pack 4 (premult·0.85) EXACT shape for b ≤ ½, clamps above;
-                                                the ·0.85 is the owner's pull-back — dialed by eye on the real kit
+     overlay    DstColor/One               pack 4 (premult·0.9)  EXACT shape for b ≤ ½, clamps above;
+                                                the ·0.9 is the owner's dial — set by eye on the real kit
      hard-light One/OneMinusSrcColor       pack 1 (premultiply)  EXACT (hard-light with white IS screen)
      soft-light One/OneMinusSrcColor       pack 3 (premult·0.4)  fit of b + a(√b − b), mid-tone error < 0.03
    Single-pass fixed-function cannot branch on the backdrop per channel —
@@ -270,7 +273,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         } else {
           c = tex2D(_MainTex, i.texcoord) * i.color; // old zips: bands live in the atlas
         }
-        if (_Pack > 3.5) c.rgb *= c.a * 0.85;           // 4: candy gain at 85% (owner's dial)
+        if (_Pack > 3.5) c.rgb *= c.a * 0.9;            // 4: candy gain at 90% (owner's dial)
         else if (_Pack > 2.5) c.rgb *= c.a * 0.4;       // 3: gentle light — 0.4·(1−b) fits soft-light's a·(√b−b)
         else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
         else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
@@ -359,12 +362,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (owner report, Unity 6.5). */
   const sliceOf = (id: KitComponentId, shellH: number) => {
     const shape = st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape;
+    const bare = shape.endsWith("~flip") ? shape.slice(0, -5) : shape;
     // user imports carry their caps in their drawn proportions — a wide
     // drawing has wide caps, and guessing from height alone put the slice
     // borders inside the decoration
     const met = silhouetteMeta(shape) ?? userShapeCaps(shape);
-    const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22);
-    const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8));
+    /* the LEFT/RIGHT borders must clear the shape's actual corner radius —
+       the default pill is a full capsule (corner radius = h/2), and the old
+       0.3h guess planted the guides mid-curve (dev field report: "original
+       slicing hits on part of the corner curves"). Corner cells own the
+       whole curve once capX ≥ r; the top/bottom edges between the caps are
+       flat, so capY keeps its tuning. Narrow sprites stay safe via the
+       center-strip clamp downstream. */
+    const cornerR = bare === "pill" ? shellH * 0.5
+      : bare === "round" ? 4 + (pieceCfg(id).bevel.softness ?? 0) * 0.52
+      : 0;
+    const capX = Math.max(met ? met.capScale * shellH : shellH * 0.3, shellH * 0.22, cornerR);
+    const capY = Math.min(shellH * 0.42, Math.max(shellH * 0.28, capX * 0.8, Math.min(cornerR, shellH * 0.38)));
     return {
       left: Math.round((capX + 10) * PNG_SCALE),
       right: Math.round((capX + 10) * PNG_SCALE),
@@ -378,10 +392,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
   const pngQueue: { path: string; svg: string; crop: boolean; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
+     naming convention for everything makes some assets hard to find' —
+     Unity search showed sixteen identical "base" rows). Every filename now
+     carries its family: button-primary/button-primary-base.9.png. icons/
+     already have distinct names and stay put. The importer deletes the
+     legacy short-named twins on refresh (owner: no migration needed). */
+  const NAME_EXEMPT = new Set(["icons"]);
+  const famPath = (path: string): string => {
+    const i = path.indexOf("/");
+    if (i < 0) return path;
+    const dir = path.slice(0, i), file = path.slice(i + 1);
+    if (NAME_EXEMPT.has(dir) || file.startsWith(dir + "-")) return path;
+    return `${dir}/${dir}-${file}`;
+  };
   const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false, group?: string): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
-    pngQueue.push({ path, svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
+    pngQueue.push({ path: famPath(path), svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   /* families whose prefabs swap states, so they are the ones that get an
@@ -389,6 +417,73 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      runtime that fades it */
   const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
     "list-row", "item-slot", "iconbtn", "checkbox", "radio"]);
+  /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
+     borders kinked a stretched corner — his kit's face is not the
+     design-space shape, and extrusion regrows the crop box, so ANY formula
+     lies for some kit). The borders are now MEASURED from the rendered
+     alpha: walk each edge's silhouette profile to where it flattens
+     against its extreme — that is where curvature ends — and pad. Shape-,
+     extrusion- and kit-agnostic. A group (base + states + face layers)
+     measures ONCE from its first member, so Sprite Swap never pops.
+     Organic shapes that never flatten fall to the caps below, as before. */
+  /* the maker's own guides outrank the measurement — same respect the
+     importer pays to hand-tuned borders on the Unity side */
+  const userSliceByFam = new Map<string, { left: number; right: number; top: number; bottom: number }>();
+  for (const [cid, fam] of Object.entries(KIT_SLICEABLE)) {
+    const o = st.kitSlices?.[cid as KitComponentId];
+    if (o && fam) userSliceByFam.set(fam, {
+      left: Math.round(o.left * PNG_SCALE), right: Math.round(o.right * PNG_SCALE),
+      top: Math.round(o.top * PNG_SCALE), bottom: Math.round(o.bottom * PNG_SCALE),
+    });
+  }
+  const SLICE_PAD = Math.round(3 * PNG_SCALE);
+  const sliceMeasureCache = new Map<string, { left: number; right: number; top: number; bottom: number } | null>();
+  const measureSlice = async (bytes: Uint8Array, w: number, h: number) => {
+    try {
+      const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d")!;
+      cx.drawImage(bmp, 0, 0);
+      const d = cx.getImageData(0, 0, w, h).data;
+      const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
+      const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
+        for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
+      }
+      const cols: number[] = [];
+      for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
+      if (cols.length < 8) return null;
+      const cx0 = cols[0], cx1 = cols[cols.length - 1];
+      let yTop = h, yBot = -1;
+      for (const x of cols) { if (topAt[x] < yTop) yTop = topAt[x]; if (botAt[x] > yBot) yBot = botAt[x]; }
+      const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
+        for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
+      }
+      const rows: number[] = [];
+      for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
+      if (rows.length < 8) return null;
+      const ry0 = rows[0], ry1 = rows[rows.length - 1];
+      const T = 2 * PNG_SCALE; // close enough to the extreme = flat
+      let tl = cx0; while (tl <= cx1 && (topAt[tl] < 0 || topAt[tl] > yTop + T)) tl++;
+      let tr = cx1; while (tr >= cx0 && (topAt[tr] < 0 || topAt[tr] > yTop + T)) tr--;
+      let bl = cx0; while (bl <= cx1 && (botAt[bl] < 0 || botAt[bl] < yBot - T)) bl++;
+      let br = cx1; while (br >= cx0 && (botAt[br] < 0 || botAt[br] < yBot - T)) br--;
+      let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > cx0 + T)) lt++;
+      let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > cx0 + T)) lb--;
+      let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < cx1 - T)) rt2++;
+      let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < cx1 - T)) rb--;
+      return {
+        left: Math.max(tl, bl) + SLICE_PAD,
+        right: (w - 1 - Math.min(tr, br)) + SLICE_PAD,
+        top: Math.max(lt, rt2) + SLICE_PAD,
+        bottom: (h - 1 - Math.min(lb, rb)) + SLICE_PAD,
+      };
+    } catch { return null; }
+  };
   const rasterQueue = async () => {
     const total = pngQueue.length + (catalog ? 1 : 0);
     /* entries sharing a group (a family's rest + swap states) rasterize
@@ -413,6 +508,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
       if (s) {
+        // the real pixels overrule the estimate — measured curvature is
+        // where the guides go; the sliceOf math survives only as fallback
+        const uo = userSliceByFam.get(q.meta.component);
+        if (uo) { s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom; }
+        else {
+          const mkey = q.group ?? q.path;
+          let mz = sliceMeasureCache.get(mkey);
+          if (mz === undefined) { mz = await measureSlice(bytes, w, h); sliceMeasureCache.set(mkey, mz); }
+          if (mz) { s.left = mz.left; s.right = mz.right; s.top = mz.top; s.bottom = mz.bottom; }
+        }
         /* organic silhouettes can push the cap math past reason — the wavy
            button's slice guides nearly met in the middle, caps ate ~92% of
            the sprite and the type area with it (owner: "this is clearly
@@ -437,9 +542,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          families that swap: a panel has no hover to announce. */
       if (q.meta.part === "base" && GLOW_FAMS.has(q.meta.component)) {
         const g = await glowFromPng(bytes, PNG_SCALE);
-        files.push({ path: `assets/${q.meta.component}/glow.png`, data: g.bytes });
+        files.push({ path: `assets/${q.meta.component}/${q.meta.component}-glow.png`, data: g.bytes });
         manifest.push({
-          file: `assets/${q.meta.component}/glow.png`, nativeW: g.w, nativeH: g.h,
+          file: `assets/${q.meta.component}/${q.meta.component}-glow.png`, nativeW: g.w, nativeH: g.h,
           sha256: await sha256Hex(g.bytes), component: q.meta.component, part: "glow",
           nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
           usage: "This piece's aura — its silhouette, blurred the way the app blurs it. White, so it tints to any role; the hover glow uses it behind the piece.",
@@ -460,6 +565,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the canonical shape at USE time so nothing traversal-shaped can ride
      in from a poisoned project doc or share link, wherever it was minted */
   const safeSlug = sanitizeUnitySlug(st.slug) ?? "ui-kit";
+  // measured inside the full-kit block, read by the manifest below it
+  let globeWell: { x0: number; y0: number; x1: number; y1: number } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -504,7 +611,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
         await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts),
-          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/glow.png, a small translate).` }, true, n.family);
+          { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
   }
@@ -549,10 +656,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      shell()'s blanket null back to "as designed" */
   await addPng("checkbox/base.png", shell("checkbox", { icon: undefined }, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box, ghost mark included (as designed). The lit check is a separate tintable glyph (icons/check.png)." });
   await addPng("radio/base.png", shell("radio", { icon: undefined }, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell, ghost pip included (as designed). The lit dot is a separate tintable glyph (icons/dot.png)." });
+  /* the PLAIN twins (dev field report: "the checkbox base background has
+     the check baked on"; owner: "offer both types to cover all bases") —
+     bare wells with no ghost mark, so Unity's own Toggle can own the
+     checkmark. The importer wires CheckboxToggle / RadioToggle prefabs
+     from these; the designed ghost-mark bases keep shipping beside them. */
+  await addPng("checkbox/base-plain.png", shell("checkbox", { icon: null }, undefined, 0), { component: "checkbox", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Bare unchecked box, NO ghost mark — background for the wired CheckboxToggle prefab (Unity Toggle; icons/check.png is the checkmark)." });
+  await addPng("radio/base-plain.png", shell("radio", { icon: null }, undefined, 0), { component: "radio", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Bare radio well, NO ghost pip — background for the wired RadioToggle prefab (Unity Toggle + your ToggleGroup; icons/dot.png is the dot)." });
+  /* the SCROLL VIEW (dev field report: "especially useful would be the
+     scroll view components... the slider materials seem more geared toward
+     mixer volumes"): a vertical track in the kit's well, a candy handle,
+     and a wired ScrollView prefab the importer assembles around them. */
+  const vcap = (w: number, h: number, fill: string, extra = "") =>
+    svgWrap(w, h, `<path d="${rr(0.5, 0.5, w - 1, h - 1, (w - 1) / 2)}" fill="${fill}"/>` + extra);
+  const vSlice = (w: number) => ({ left: Math.round(w * 0.45), right: Math.round(w * 0.45), top: w, bottom: w });
+  await addPng("scrollview/track.9.png", vcap(44, 440, wellC), { component: "scrollview", part: "track", nineSlice: vSlice(44), pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Vertical scrollbar track in the kit's well. Stretch vertically." });
+  await addPng("scrollview/handle.9.png", vcap(36, 220, bevelC,
+    `<path d="${rr(5, 6, 8, 208, 4)}" fill="#FFFFFF" opacity="0.28"/>`),
+    { component: "scrollview", part: "handle", nineSlice: vSlice(36), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Scrollbar handle — the kit's bevel candy with an edge light. The ScrollView prefab wires it." });
   await addPng("orb/lit.png", shell("orb", {}, undefined, 1), { component: "orb", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, lit — streaks, statuses, day markers." });
   await addPng("orb/off.png", shell("orb", {}, undefined, 0), { component: "orb", part: "off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, off (dark glass)." });
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
   await addPng("iconbtn/base.png", shell("iconbtn", { icon: undefined }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
+  await addPng("iconbtn/base-plain.png", shell("iconbtn", { icon: null }), { component: "iconbtn", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell, NO glyph baked — drop any icons/* on top for close/X, back, settings buttons." });
 
   /* ── states for the OTHER controls people actually point at. Only the
      nine-slice buttons shipped hover/pressed/disabled, so an icon button,
@@ -655,7 +781,28 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
   await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
   await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
-  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — use a Filled (Vertical) Image masked by the glass; fillAmount IS the health." });
+  /* the liquid ships CROPPED to its real ink, and the manifest records
+     where that band sits inside the glass frame — so the prefab can anchor
+     the fill to the visible well and fillAmount 0..1 means visually
+     empty..full (dev field report: full health read at 0.87, "dead" still
+     held 10%+ — a game gating an ability on health == 1 never fires). */
+  try {
+    /* the liquid is a full-bleed gradient panel — the padding lives in the
+       GLASS frame (structural air around the sphere). The visible well is
+       the glass sphere's own ink box; its fractions of the (uncropped)
+       glass frame are exactly where the fill must span. */
+    const glassBox = await rasterInk(shell("healthglobe", { part: "glass" }, undefined, 0), 1);
+    if (glassBox) {
+      const fw = glassBox.cv.width, fh = glassBox.cv.height;
+      globeWell = {
+        x0: Math.max(0, glassBox.x0 / fw),
+        x1: Math.min(1, (glassBox.x0 + glassBox.w) / fw),
+        y0: Math.max(0, (fh - (glassBox.y0 + glassBox.h)) / fh),
+        y1: Math.min(1, (fh - glassBox.y0) / fh),
+      };
+    }
+  } catch { /* measurement is an upgrade, not a dependency — prefab falls back to full stretch */ }
+  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — Filled (Vertical) Image masked by the glass. The prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
   await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
   await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
   await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
@@ -670,8 +817,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      bytes when the kit actually wears a pattern. ── */
   const facePat = base.candy.pattern;
   if (facePat && facePat.type !== "none" && facePat.opacity > 1) {
-    for (const [fam, cid] of [["panel", "panel"], ["header", "header"]] as const) {
-      const sl = sliceOf(cid as KitComponentId, cid === "panel" ? 380 : 158);
+    /* buttons and rows joined the split-face set (owner: "the pattern gets
+       stretched out rather than a repeating pattern that is masked by
+       whatever shape") — the tiled-face prefab keeps the pattern's rhythm
+       at any width. Their sliced state-swap prefabs still ship beside it;
+       the README's Sliced-vs-Tiled trade-off section says when to reach
+       for which. */
+    const FACE_H: Record<string, number> = { panel: 380, header: 158, "button-primary": 136, "button-secondary": 136, "list-row": 128, "item-slot": 128 };
+    for (const [fam, cid] of [["panel", "panel"], ["header", "header"],
+      ["button-primary", "primary"], ["button-secondary", "secondary"],
+      ["list-row", "datarow"], ["item-slot", "slot"]] as const) {
+      const sl = sliceOf(cid as KitComponentId, FACE_H[fam]);
       /* ONE union crop box for the pair (same trick the swap states use):
          cropped apart, the over layer — which has no shell or shadow —
          lands in a tighter box and every gloss sits misplaced once the
@@ -702,7 +858,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
       `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
     await addPng("fx/face-tile.png", patTile,
-      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between base-under and base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
+      { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between -base-under and -base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
   }
   } // full scope
 
@@ -823,11 +979,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       tier: st.scope,
       exported: new Date().toISOString(),
       pngScale: PNG_SCALE,
+      /* the health globe's visible well as frame fractions (bottom-left
+         origin) — the prefab anchors the cropped liquid here so
+         Image.fillAmount 0..1 is visually empty..full, no padding lie */
+      globeWell,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
-        "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/drop-shadow.png, fx/glow.png, the states recipe).",
-        "base.9.png = full material (gloss baked); base-flat.9.png = tintable flat variant for independent effects.",
+        "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/fx-drop-shadow.png, fx/fx-glow.png, the states recipe).",
+        "<family>-base.9.png = full material (gloss baked); <family>-base-flat.9.png = tintable flat variant for independent effects. Every filename carries its family so search finds it.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
@@ -1004,7 +1164,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       bloom: { opacity: base.candy.bloom?.opacity ?? 0, size: base.candy.bloom?.size ?? 0 },
       ...(full ? {
         rarity: {
-          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/rarityframe-<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
           tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
         },
       } : {}),
@@ -1465,6 +1625,7 @@ namespace PatternBreak {
     Selectable sel;
     bool over, down;
     float glowNow, glowTo, liftNow, liftTo, baseY;
+    float lastWroteY = float.NaN;
     bool settling;
 
     void OnEnable() {
@@ -1492,6 +1653,12 @@ namespace PatternBreak {
       glowRt = go.GetComponent<RectTransform>();
       glowRt.SetParent(rt.parent, false);
       glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
+      /* the halo is DECOR, not layout: without this, a Vertical/Horizontal
+         Layout Group counts the spawned sibling as a real child and spaces
+         the whole menu apart at runtime (dev field report: "glow objects
+         throw off layout groups") */
+      var le = go.AddComponent<LayoutElement>();
+      le.ignoreLayout = true;
       glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
       glowRt.pivot = rt.pivot;
       glowRt.localScale = rt.localScale;
@@ -1508,6 +1675,18 @@ namespace PatternBreak {
       glowImg.raycastTarget = false;
       glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
     }
+    /* a layout group repositions and resizes us AFTER OnEnable — adopt its
+       slot as the new resting base and re-seat the halo, or the press sink
+       measures from a stale home and the glow parks on the old spot. A
+       y we didn't write ourselves belongs to an outside owner (the layout);
+       one we did still carries the lift and stays ours. */
+    void OnRectTransformDimensionsChange() {
+      if (rt == null) return;
+      float cur = rt.anchoredPosition.y;
+      if (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f) baseY = cur;
+      if (glowRt != null) glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
+      Push(true);
+    }
     float Target(out float lift) {
       if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
       if (down) { lift = pressedLift; return pressedGlow; }
@@ -1518,7 +1697,19 @@ namespace PatternBreak {
     public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); }
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Retarget(); }
     public void OnPointerDown(PointerEventData e) { down = true; Retarget(); }
-    public void OnPointerUp(PointerEventData e) { down = false; Retarget(); }
+    public void OnPointerUp(PointerEventData e) {
+      down = false;
+      /* Unity parks a clicked Selectable in its SELECTED state, which
+         outranks Highlighted — after the first click the sprite swap goes
+         quiet while the pointer-driven text and glow keep answering (dev
+         field report: "only the text was moving, not the rest of the
+         button"). Releasing the click releases the selection: hover and
+         press read identically on every click after the first. Delete
+         this if your game drives menus by keyboard/gamepad selection. */
+      if (sel != null && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == gameObject)
+        EventSystem.current.SetSelectedGameObject(null);
+      Retarget();
+    }
 
     /* Update runs ONLY while a transition is in flight — a component that
        ticks forever is how the Playground got slow the first time. */
@@ -1535,9 +1726,13 @@ namespace PatternBreak {
     void Push(bool snap) {
       if (snap) { glowNow = glowTo; liftNow = liftTo; }
       if (glowImg != null) glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, Mathf.Clamp01(glowNow / 100f) * 0.85f);
-      if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
-      // the halo rides the lift with the piece, or it slides out from under it
-      if (glowRt != null) glowRt.anchoredPosition = new Vector2(glowRt.anchoredPosition.x, baseY + liftNow);
+      if (rt != null) {
+        rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+        lastWroteY = baseY + liftNow;
+      }
+      // the halo rides the lift with the piece — x too, in case a layout
+      // group re-flowed the column sideways
+      if (glowRt != null && rt != null) glowRt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
     }
   }
 }
@@ -2068,7 +2263,7 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
       const s = Math.max(0.3, Math.min(1.05, 430 / sh.w));
       const padX = 40, padY = 34, colGap = 34, colW = 460;
       const rowsSrc: { at: [number, number]; head: string; body: string[] }[] = [
-        { at: [0.14, 0.22], head: "base.9 — the sprite",
+        { at: [0.14, 0.22], head: "the base sprite (family-base.9)",
           body: ["Nine-sliced: stretch it to any size and the", "corners stay crisp. Hover, pressed and", "disabled sprites swap in automatically."] },
         { at: [0.5, 0.5], head: "Label → one Fill text + echo layers",
           body: ["One real text; shadow, stroke and glints are", "echoes — the same letters repainted in the", "app's inks. One geometry, so nothing drifts."] },
@@ -2220,14 +2415,14 @@ base-pressed / base-disabled next to base), and the generated Button
 prefabs arrive with **Sprite Swap already wired** — nothing to
 reconnect. What a swapped sprite can't carry is composed in-engine by
 the small **StateFx** runtime on each prefab: the hover glow (the kit's
-own glow color over fx/glow.png, shaped to the piece) and the press
+own glow color over fx/fx-glow.png, shaped to the piece) and the press
 lift, driven by pointer events with the exact numbers you set on
 uikitmaker.com.
 
 > **The aura, in your own scenes.** The glow field around pieces in the
 > app is the kit's bloom, and an aura must overlap whatever sits behind
 > it — so it can't ship inside a cropped sprite. Compose it the way the
-> Playground does: fx/glow.png behind the piece, tinted the manifest's
+> Playground does: fx/fx-glow.png behind the piece, tinted the manifest's
 > palette.glow, sized by the bloom block. That's the full resting look.
 
 ---
@@ -2475,7 +2670,7 @@ layers**, and the importer builds them as ready prefabs:
 
 Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
 hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
-that clips a Tiled \`fx/face-tile.png\` to the exact silhouette — and
+that clips a Tiled \`fx/fx-face-tile.png\` to the exact silhouette — and
 \`base-over.9\` (gloss, grain, inner edge, specular — Sliced) laying the
 light back on top. The mask has to be its own hidden layer: Unity only
 alpha-clips a stencil when its graphic is hidden, so masking with
@@ -2643,7 +2838,8 @@ namespace PatternBreak {
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
   [Serializable] class PBLabelSize { public string family; public float size; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -2685,9 +2881,29 @@ namespace PatternBreak {
       }
       if (a.nineSlice != null && (a.nineSlice.left + a.nineSlice.right + a.nineSlice.top + a.nineSlice.bottom) > 0) {
         var border = new Vector4(a.nineSlice.left, a.nineSlice.bottom, a.nineSlice.right, a.nineSlice.top);
-        if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
+        /* respect hand-tuned slices (dev field report: "the tool reset the
+           slices of the original asset whenever I tried to tweak them").
+           The stamp in userData records the border THIS importer last
+           wrote; if the current border no longer matches it, a human moved
+           the guides — theirs to keep, every pass after. Untouched assets
+           still receive genuine slice updates from new exports. */
+        string prevData = ti.userData ?? "";
+        string oldTok = null;
+        foreach (var tok in prevData.Split(' ')) if (tok.StartsWith("pbb:")) { oldTok = tok; break; }
+        bool touched = oldTok != null && oldTok != "pbb:" + BorderKey(ti.spriteBorder);
+        if (!touched) {
+          if (ti.spriteBorder != border) { ti.spriteBorder = border; changed = true; }
+          string mine = "pbb:" + BorderKey(border);
+          string stamped = oldTok == null
+            ? (prevData.Length > 0 ? prevData + " " : "") + mine
+            : prevData.Replace(oldTok, mine);
+          if (stamped != prevData) { ti.userData = stamped; changed = true; }
+        }
       }
       return changed;
+    }
+    static string BorderKey(Vector4 v) {
+      return ((int)v.x) + "," + ((int)v.y) + "," + ((int)v.z) + "," + ((int)v.w);
     }
 
     /* One click, whole truth — the debugging loop this kit went through
@@ -2894,14 +3110,28 @@ namespace PatternBreak {
       }
 
       /* ── I3: anything the last receipt knew that this manifest dropped
-         stays on disk and gets named — deletion is a human's click ── */
+         stays on disk and gets named — deletion is a human's click. ONE
+         exception: the great renaming (dev field report: sixteen identical
+         "base" files in search — filenames now carry their family). A
+         dropped file whose family-prefixed twin IS in this manifest isn't
+         a design decision, it's the same asset renamed; it deletes itself
+         so the rename doesn't bury the report in false orphans. ── */
       var inManifest = new HashSet<string>();
       foreach (var a in manifest.assets) inManifest.Add(a.file);
       var orphans = new List<string>();
       if (prev != null && prev.files != null)
         foreach (var f in prev.files)
-          if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file))
+          if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file)) {
+            var slash = f.file.LastIndexOf('/');
+            if (slash > 0) {
+              var dirp = f.file.Substring(0, slash);
+              var dslash = dirp.LastIndexOf('/');
+              var dname = dslash >= 0 ? dirp.Substring(dslash + 1) : dirp;
+              var renamed = dirp + "/" + dname + "-" + f.file.Substring(slash + 1);
+              if (inManifest.Contains(renamed)) { AssetDatabase.DeleteAsset(root + "/" + f.file); continue; }
+            }
             orphans.Add(f.file);
+          }
       if (prev != null && prev.orphans != null)
         foreach (var o in prev.orphans)
           if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
@@ -3450,7 +3680,7 @@ namespace PatternBreak {
        overlay is headed anyway). Hard-light with white IS screen, so it
        ships as screen, exact. normal/multiply/screen were already exact. */
     static void ApplyGlintBlend(Material mat, string mode) {
-      float src = 2, dst = 1, pack = 4;                                 // overlay (default): DstColor/One candy gain at 85%
+      float src = 2, dst = 1, pack = 4;                                 // overlay (default): DstColor/One candy gain at 90%
       if (mode == "normal") { src = 5; dst = 10; pack = 0; }            // SrcAlpha/OneMinusSrcAlpha
       else if (mode == "multiply") { src = 2; dst = 0; pack = 2; }      // DstColor/Zero, empty air = white
       else if (mode == "screen") { src = 1; dst = 6; pack = 1; }        // One/OneMinusSrcColor
@@ -4223,7 +4453,7 @@ namespace PatternBreak {
          generic… very big and not as soft comparatively"). */
       var baseSp = S(basePath);
       var glowSp = S(Path.GetDirectoryName(basePath).Replace("\\\\", "/") + "/glow.png");
-      fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/glow.png");
+      fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/fx-glow.png");
       if (glowSp != null && baseSp != null && pngScale > 0)
         fx.glowPad = new Vector2(
           (glowSp.rect.width - baseSp.rect.width) * 0.5f / pngScale,
@@ -4246,10 +4476,10 @@ namespace PatternBreak {
       return "PLAY";
     }
     static bool ProgressPrefab(string dir, string root, int pngScale) {
-      var track = S(root + "/assets/progress/track.9.png");
+      var track = S(root + "/assets/progress/progress-track.9.png");
       if (track == null) return false;
       var go = ImageObject("ProgressBar", track, pngScale);
-      var fill = S(root + "/assets/progress/fill.9.png");
+      var fill = S(root + "/assets/progress/progress-fill.9.png");
       if (fill != null) {
         var f = ImageObject("Fill", fill, pngScale);
         f.transform.SetParent(go.transform, false);
@@ -4274,9 +4504,9 @@ namespace PatternBreak {
        and the frame stretches, the pattern tiles at constant scale, and
        the gloss stays one sweep — what the app shows, at any size. */
     static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
-      var under = S(root + "/assets/" + fam + "/base-under.9.png");
-      var over = S(root + "/assets/" + fam + "/base-over.9.png");
-      var tile = S(root + "/assets/fx/face-tile.png");
+      var under = S(root + "/assets/" + fam + "/" + fam + "-base-under.9.png");
+      var over = S(root + "/assets/" + fam + "/" + fam + "-base-over.9.png");
+      var tile = S(root + "/assets/fx/fx-face-tile.png");
       if (under == null || over == null || tile == null) return false;
       var goName = NiceName(fam) + " (tiled face)";
       var go = ImageObject(goName, under, pngScale);
@@ -4286,7 +4516,7 @@ namespace PatternBreak {
          Mask when Show Mask Graphic is OFF — masking with the visible art
          gives a rectangular stencil, and the pattern spills past the
          silhouette (field report). */
-      var maskSp = S(root + "/assets/" + fam + "/base-mask.9.png");
+      var maskSp = S(root + "/assets/" + fam + "/" + fam + "-base-mask.9.png");
       var maskGo = ImageObject("PatternMask", maskSp != null ? maskSp : under, pngScale);
       maskGo.transform.SetParent(go.transform, false);
       var mi = maskGo.GetComponent<Image>();
@@ -4314,8 +4544,8 @@ namespace PatternBreak {
     /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
        drop it on a Canvas, press Play, drag. Value is the direction. */
     static bool JoystickPrefab(string dir, string root, int pngScale) {
-      var baseSp = S(root + "/assets/joystick/base.png");
-      var thumbSp = S(root + "/assets/joystick/thumb.png");
+      var baseSp = S(root + "/assets/joystick/joystick-base.png");
+      var thumbSp = S(root + "/assets/joystick/joystick-thumb.png");
       if (baseSp == null || thumbSp == null) return false;
       var go = ImageObject("Joystick", baseSp, pngScale);
       var th = ImageObject("Thumb", thumbSp, pngScale);
@@ -4330,12 +4560,108 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* REAL Unity Toggles from the plain wells (dev field report: "Unity
+       has a Toggle component that is used for these kinds of binary state
+       switches"; owner: both flavors ship). Background = the bare box,
+       Checkmark = the kit's tintable glyph in the Glow role — Toggle shows
+       and hides it natively. The designed ghost-mark prefabs stay too. */
+    static bool TogglePrefabs(string dir, string root, int pngScale, PBManifest m) {
+      bool any = false;
+      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.34f)) any = true;
+      return any;
+    }
+    static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale) {
+      var bg = S(root + "/assets/" + bgPath);
+      var mark = S(root + "/assets/" + markPath);
+      if (bg == null || mark == null) return false;
+      var go = ImageObject(name, bg, pngScale);
+      var markGo = ImageObject("Checkmark", mark, pngScale);
+      markGo.transform.SetParent(go.transform, false);
+      var mi = markGo.GetComponent<Image>();
+      mi.raycastTarget = false;
+      // the mark wears the kit's Glow role, like the app's lit check
+      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) {
+        Color c;
+        if (ColorUtility.TryParseHtmlString(m.palette.glow, out c)) mi.color = c;
+      }
+      var bgRt = go.GetComponent<RectTransform>();
+      var mrt = markGo.GetComponent<RectTransform>();
+      mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
+      mrt.anchoredPosition = Vector2.zero;
+      mrt.sizeDelta = bgRt.sizeDelta * markScale; // the app's own mark proportion
+      var tog = go.AddComponent<Toggle>();
+      tog.targetGraphic = go.GetComponent<Image>();
+      tog.graphic = mi;
+      tog.isOn = true;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + name + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* a WIRED ScrollView (dev field report: scroll view assets missing and
+       "prefabs for some of the more involved objects would be an awesome
+       quality of life thing") — panel frame, RectMask2D viewport, empty
+       Content ready for children, kit-dressed vertical scrollbar. */
+    static bool ScrollViewPrefab(string dir, string root, int pngScale) {
+      var frame = S(root + "/assets/panel/panel-base.9.png");
+      var track = S(root + "/assets/scrollview/scrollview-track.9.png");
+      var handle = S(root + "/assets/scrollview/scrollview-handle.9.png");
+      if (frame == null || track == null || handle == null) return false;
+      var go = ImageObject("ScrollView", frame, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Sliced;
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(Mathf.Max(380f, rt.sizeDelta.x * 0.75f), 460f);
+      var sr = go.AddComponent<ScrollRect>();
+      var vp = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+      vp.transform.SetParent(go.transform, false);
+      var vrt = vp.GetComponent<RectTransform>();
+      vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
+      vrt.offsetMin = new Vector2(18f, 18f); vrt.offsetMax = new Vector2(-46f, -18f); // the right lane belongs to the scrollbar
+      vrt.pivot = new Vector2(0f, 1f);
+      var content = new GameObject("Content", typeof(RectTransform));
+      content.transform.SetParent(vp.transform, false);
+      var crt = content.GetComponent<RectTransform>();
+      crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f);
+      crt.pivot = new Vector2(0.5f, 1f);
+      crt.sizeDelta = new Vector2(0f, 640f); // taller than the frame so it scrolls out of the box
+      var sb = ImageObject("Scrollbar", track, pngScale);
+      sb.transform.SetParent(go.transform, false);
+      sb.GetComponent<Image>().type = Image.Type.Sliced;
+      var sbrt = sb.GetComponent<RectTransform>();
+      sbrt.anchorMin = new Vector2(1f, 0f); sbrt.anchorMax = new Vector2(1f, 1f);
+      sbrt.pivot = new Vector2(1f, 0.5f);
+      sbrt.sizeDelta = new Vector2(22f, -36f);
+      sbrt.anchoredPosition = new Vector2(-10f, 0f);
+      var bar = sb.AddComponent<Scrollbar>();
+      var slide = new GameObject("Sliding Area", typeof(RectTransform));
+      slide.transform.SetParent(sb.transform, false);
+      var srt = slide.GetComponent<RectTransform>();
+      srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
+      srt.offsetMin = new Vector2(3f, 7f); srt.offsetMax = new Vector2(-3f, -7f);
+      var hd = ImageObject("Handle", handle, pngScale);
+      hd.transform.SetParent(slide.transform, false);
+      var hi = hd.GetComponent<Image>();
+      hi.type = Image.Type.Sliced;
+      var hrt = hd.GetComponent<RectTransform>();
+      hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
+      hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
+      bar.handleRect = hrt;
+      bar.targetGraphic = hi;
+      bar.direction = Scrollbar.Direction.BottomToTop;
+      sr.viewport = vrt; sr.content = crt;
+      sr.verticalScrollbar = bar;
+      sr.horizontal = false;
+      sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
-    static bool GlobePrefab(string dir, string root, int pngScale) {
-      var glass = S(root + "/assets/globe/glass.png");
-      var rim = S(root + "/assets/globe/rim.png");
-      var liquid = S(root + "/assets/globe/liquid.png");
+    static bool GlobePrefab(string dir, string root, int pngScale, PBManifest m) {
+      var glass = S(root + "/assets/globe/globe-glass.png");
+      var rim = S(root + "/assets/globe/globe-rim.png");
+      var liquid = S(root + "/assets/globe/globe-liquid.png");
       if (glass == null || rim == null || liquid == null) return false;
       var go = ImageObject("HealthGlobe", glass, pngScale);
       /* the stencil is a HIDDEN copy of the glass: Unity only alpha-clips
@@ -4359,7 +4685,14 @@ namespace PatternBreak {
       li.fillAmount = 0.72f; // drive this from your live health
       li.raycastTarget = false;
       var lrt = lq.GetComponent<RectTransform>();
-      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      /* anchor the cropped liquid to the VISIBLE WELL (manifest fractions):
+         fillAmount 0..1 becomes visually empty..full — a game gating on
+         health == 1 fires at the brim, not at 87% (dev field report).
+         Old zips without the measurement keep the full stretch. */
+      var wl = m != null ? m.globeWell : null;
+      bool measured = wl != null && (wl.x1 - wl.x0) > 0.01f && (wl.y1 - wl.y0) > 0.01f;
+      lrt.anchorMin = measured ? new Vector2(wl.x0, wl.y0) : Vector2.zero;
+      lrt.anchorMax = measured ? new Vector2(wl.x1, wl.y1) : Vector2.one;
       lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
       var rm = ImageObject("Rim", rim, pngScale);
       rm.transform.SetParent(go.transform, false);
@@ -4373,7 +4706,7 @@ namespace PatternBreak {
        the CONTENT (lane names, level numbers, progress) as live text —
        its Inspector says so, prototypers edit there (owner). */
     static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
-      var baseSp = S(root + "/assets/seasontrack/base.png");
+      var baseSp = S(root + "/assets/seasontrack/seasontrack-base.png");
       if (baseSp == null) return false;
       var go = ImageObject("SeasonTrack", baseSp, pngScale);
       var trackC = go.AddComponent<SeasonTrack>();
@@ -4404,10 +4737,12 @@ namespace PatternBreak {
       if (ProgressPrefab(dir, root, pngScale)) any = true;
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale)) any = true;
-      if (GlobePrefab(dir, root, pngScale)) any = true;
+      if (GlobePrefab(dir, root, pngScale, m)) any = true;
+      if (TogglePrefabs(dir, root, pngScale, m)) any = true;
+      if (ScrollViewPrefab(dir, root, pngScale)) any = true;
       // the wide, stateless pieces also get a stretch-safe variant when
       // the kit wears a pattern (the plain Sliced prefab still ships)
-      foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
+      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
 #endif
@@ -4952,32 +5287,36 @@ in SliceMargins.csv in pixels).
 
 ## Button
 - Widget: Button (or Border + Button for flat-variant layering)
-- Style > Normal/Hovered/Pressed brush: assets/button-primary/base.9.png
+- Style > Normal/Hovered/Pressed brush: assets/button-primary/button-primary-base.9.png
   - Draw As: Box
   - Margin (px at export scale): __BTN_MARGIN__  -> divide by the PNG size per side
 - Child: TextBlock, font "__FONT__" (live text), plus an optional Image for the icon (assets/icons/*, tinted).
 
 ## Panel / window
-- Border widget, brush assets/panel/base.9.png, Draw As: Box
+- Border widget, brush assets/panel/panel-base.9.png, Draw As: Box
 - Margin (px): __PANEL_MARGIN__
 
 ## Progress bar
 - ProgressBar widget
-- Style > Background Image: assets/progress/track.9.png (Box)
-- Style > Fill Image: assets/progress/fill.9.png (Box)
+- Style > Background Image: assets/progress/progress-track.9.png (Box)
+- Style > Fill Image: assets/progress/progress-fill.9.png (Box)
 - Percent is bound to live data.
 
 ## Slider
 - Slider widget
-- Style > Normal Bar: assets/slider/track.9.png; Fill: assets/slider/fill.9.png
-- Style > Normal Thumb: assets/slider/thumb.png (Draw As: Image)
+- Style > Normal Bar: assets/slider/slider-track.9.png; Fill: assets/slider/slider-fill.9.png
+- Style > Normal Thumb: assets/slider/slider-thumb.png (Draw As: Image)
 
 ## Toggle
 - CheckBox widget styled as a switch:
-  Unchecked/Checked Image: assets/toggle/track.9.png (tint the checked state
+  Unchecked/Checked Image: assets/toggle/toggle-track.9.png (tint the checked state
   toward the palette glow), thumb via a child Image animated between ends.
 
 ## Checkbox / Radio
-- CheckBox widget: Unchecked Image assets/checkbox/base.png;
+- CheckBox widget: Unchecked Image assets/checkbox/checkbox-base.png;
   Checked = base + assets/icons/check.png (tinted) layered above.
+  Prefer Unity's own Toggle? **CheckboxToggle.prefab** and
+  **RadioToggle.prefab** are wired ones — bare well + the kit's mark as
+  the Toggle's graphic, isOn does the rest (group radios with a
+  ToggleGroup). Both flavors ship; pick per screen.
 `;

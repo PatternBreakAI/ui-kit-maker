@@ -334,7 +334,7 @@ function ExportMenu({ actions, preferId }: {
         <Download size={14} strokeWidth={2.2} />{" "}
         {primary.busy
           ? (primary.prog
-            ? (primary.prog.label === "catalog" ? "Packing the visual catalog…"
+            ? (primary.prog.label === "catalog" ? `Packing the visual catalog… ${primary.prog.total > 1 ? `${Math.min(primary.prog.done, primary.prog.total)} of ${primary.prog.total}` : ""}`
               : primary.prog.label === "zip" ? "Zipping…"
               : `Rendering ${Math.min(primary.prog.done + 1, primary.prog.total)} of ${primary.prog.total}…`)
             : "Working…")
@@ -1343,8 +1343,9 @@ export function KitPage() {
         const scope = grant.scope ?? (st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const);
         const fdef2 = fontByName(st.cfg.type.font);
         await downloadEngineExport(
-          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitName: name, slug: uslug, kitVersion, scope },
-          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null) : undefined,
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope },
+          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
+            (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
         );
@@ -1839,6 +1840,12 @@ const kitTier = useGen((s) => s.tier);
             </button>
           </div>
           {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+          {!viewer && (
+            <button className="kp-unitylink" onClick={() => { window.location.hash = "#/unity"; }}
+              title="What lands in your project, how the import works, and why re-exports never break a scene.">
+              How the Unity kit works →
+            </button>
+          )}
           {stampsOpen && (
             <div className="kp-stampsheet" role="dialog" aria-label="Type stamps">
               <b>Type Stamps</b>

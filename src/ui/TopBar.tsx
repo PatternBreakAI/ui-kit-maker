@@ -226,6 +226,14 @@ export function TopBar() {
               ) : (
                 <button className="lockedmi" title={`The game kit is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportGameKit"))}</button>
               )}
+              {/* the Unity download LIVES on the Kit page (it needs the whole
+                  kit, progress UI and the licence flow) — but people look for
+                  it HERE first (dev field report: "I expected the Unity Export
+                  in the Export menu"), so this row walks them there */}
+              <button onClick={() => { useGen.getState().setPhase("kit"); setMenuOpen(false); }}
+                title="Opens your kit page — the Unity ZIP is the big export button there.">
+                <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit — on the Kit page
+              </button>
               <button onClick={() => {
                 const st = useGen.getState();
                 downloadSettings(cfg, {

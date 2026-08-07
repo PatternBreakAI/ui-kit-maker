@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
+import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
 import { SILHOUETTES } from "./silhouettes";
@@ -253,6 +253,15 @@ function load(): GenConfig {
 interface GenStore {
   cfg: GenConfig;
   selectedState: GenStateName;
+  /* ALL-STATES write-through (dev field report: "set any one parameter for
+     all states without resetting all states to default"): with this on,
+     whatever an edit changes becomes the value for EVERY state — the
+     changed design paths are written into each state fork. Session-scoped;
+     the state flag shows it loudly while it's armed. */
+  allStates: boolean;
+  /* saved color swatches (same report: "I had to write down the RGB") —
+     kit-independent, persisted locally */
+  swatches: string[];
   phase: "master" | "kit" | "board";
   kitSizes: Partial<Record<KitComponentId, KitSize>>;
   zoom: number;
@@ -429,6 +438,10 @@ interface GenStore {
   applyCloudPreset: (id: string) => void;
   kitSlotVals: Partial<Record<KitComponentId, Record<string, string>>>;
   setKitSlot: (id: KitComponentId, slotId: string, val: string | null) => void;
+  /* per-piece Unity 9-slice override, design px — null/absent = the export
+     measures the borders from the rendered pixels (the default) */
+  kitSlices: Partial<Record<KitComponentId, KitSlice>>;
+  setKitSlice: (id: KitComponentId, v: KitSlice | null) => void;
   publishPreset: (name: string, publishAt?: string | null) => Promise<string | null>;
   schedulePreset: (id: string, publishAt: string | null) => Promise<string | null>;
   removeCloudPresetById: (id: string) => Promise<void>;
@@ -474,6 +487,9 @@ interface GenStore {
   setPreset: (id: string) => void;
   randomize: () => void;
   setSelectedState: (s: GenStateName) => void;
+  setAllStates: (v: boolean) => void;
+  addSwatch: (hex: string) => void;
+  rmSwatch: (hex: string) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
   setKitSize: (id: KitComponentId, s: KitSize) => void;
   /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
@@ -669,12 +685,13 @@ const KIT_STORE_KEY: Record<string, string> = {
   kitTextOx: "ui-generator-kittextox",
   kitBar: "ui-generator-kitbar",
   kitSlotVals: "ui-generator-kitslots",
+  kitSlices: "ui-generator-kitslices",
   kitVals: "ui-generator-kitvals",
   kitRow: "ui-generator-kitrow",
 };
 /** Record-shaped keys — a look that carries none of one means "none",
  *  so they reset rather than blending with whatever the user had. */
-const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes"] as const;
+const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -713,8 +730,8 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   useGen.setState(patch as Partial<GenStore>);
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow">;
-const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -774,6 +791,8 @@ function loadPanelW(): number {
 export const useGen = create<GenStore>((set, get) => ({
   cfg: load(),
   selectedState: "default",
+  allStates: false,
+  swatches: loadJson<string[]>("ui-generator-swatches", []),
   phase: "master",
   kitSizes: {},
   zoom: 1,
@@ -1123,6 +1142,15 @@ export const useGen = create<GenStore>((set, get) => ({
   /* Chosen slot values per component (unit choices etc). Same lifecycle
      as kitLabels: local, synced with the workspace, riding kit payloads. */
   kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
+  kitSlices: loadJson<Partial<Record<KitComponentId, KitSlice>>>("ui-generator-kitslices", {}),
+  setKitSlice: (id, v) => {
+    markTouched();
+    pushHistory(get());
+    const kitSlices = { ...get().kitSlices };
+    if (v) kitSlices[id] = v; else delete kitSlices[id];
+    saveJson("ui-generator-kitslices", kitSlices);
+    set({ kitSlices });
+  },
   setKitSlot: (id, slotId, val) => {
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
@@ -1501,6 +1529,10 @@ export const useGen = create<GenStore>((set, get) => ({
     const lockedId = focus0 && get().kitDesigns[focus0] ? focus0 : null;
     const work = lockedId ? clone2(applyKitDesign(cfg, get().kitDesigns[lockedId])) : cfg;
     const sel = get().selectedState;
+    const allStates = get().allStates;
+    /* pre-edit snapshot of the surface being edited — the all-states pass
+       diffs against it to learn exactly which design paths this edit moved */
+    const preSections = allStates ? clone2(work) : null;
     if (sel !== "default") {
       // editing a non-default state: fork its design on first touch, then
       // route all design-field edits into the fork — Default stays untouched
@@ -1552,6 +1584,44 @@ export const useGen = create<GenStore>((set, get) => ({
       work.canvas = t.canvas; work.presetId = t.presetId;
     } else {
       fn(work);
+    }
+    /* ── ALL-STATES write-through: the changed design paths become the value
+       for every state. Forks are FULL copies (not sparse masks), so the new
+       value is written into each one; a state edit pushes to the master
+       too, which the pre-fork states inherit. Content, canvas and the
+       states-adjustment sliders stay out of it — they are already shared. */
+    if (allStates && preSections) {
+      const SECTIONS = ["effects", "face", "bevel", "candy", "lighting", "shadow", "transparency", "type"] as const;
+      const edited = (sel !== "default" ? (work.stateDesigns?.[sel] ?? work) : work) as unknown as Record<string, unknown>;
+      const before = (sel !== "default"
+        ? (preSections.stateDesigns?.[sel] ?? pickDesign(preSections))
+        : preSections) as unknown as Record<string, unknown>;
+      const changes: { path: string[]; v: unknown }[] = [];
+      const walk = (a: unknown, b: unknown, path: string[]) => {
+        if (a === b) return;
+        const obj = (x: unknown) => x !== null && typeof x === "object" && !Array.isArray(x);
+        if (obj(a) && obj(b)) {
+          const keys = new Set([...Object.keys(a as object), ...Object.keys(b as object)]);
+          for (const k of keys) walk((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], [...path, k]);
+          return;
+        }
+        if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ path, v: b });
+      };
+      for (const sec of SECTIONS) walk(before[sec], edited[sec], [sec]);
+      if (changes.length) {
+        const setPath = (o: Record<string, unknown>, path: string[], v: unknown) => {
+          let t = o;
+          for (let i = 0; i < path.length - 1; i++) {
+            const k = path[i];
+            if (t[k] === null || typeof t[k] !== "object") return; // shape mismatch — skip, don't invent structure
+            t = t[k] as Record<string, unknown>;
+          }
+          t[path[path.length - 1]] = typeof v === "object" && v !== null ? JSON.parse(JSON.stringify(v)) : v;
+        };
+        const targets: Record<string, unknown>[] = [work as unknown as Record<string, unknown>];
+        for (const f2 of Object.values(work.stateDesigns ?? {})) if (f2) targets.push(f2 as unknown as Record<string, unknown>);
+        for (const t2 of targets) { if (t2 === (edited as unknown)) continue; for (const ch of changes) setPath(t2, ch.path, ch.v); }
+      }
     }
     if (lockedId) {
       // design fields → the piece's lock; everything shared → the master
@@ -1728,6 +1798,19 @@ export const useGen = create<GenStore>((set, get) => ({
     });
   },
   setSelectedState: (s) => set({ selectedState: s }),
+  setAllStates: (v) => set({ allStates: v }),
+  addSwatch: (hex) => {
+    const cur = get().swatches;
+    if (cur.includes(hex)) return;
+    const swatches = [hex, ...cur].slice(0, 12);
+    saveJson("ui-generator-swatches", swatches);
+    set({ swatches });
+  },
+  rmSwatch: (hex) => {
+    const swatches = get().swatches.filter((h) => h !== hex);
+    saveJson("ui-generator-swatches", swatches);
+    set({ swatches });
+  },
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
   // whatever zoom the editor or board was left at.
   // Leaving the editor also drops play mode: play hides the inspector by
