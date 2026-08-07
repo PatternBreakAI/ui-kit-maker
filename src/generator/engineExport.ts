@@ -100,24 +100,34 @@ const svgWrap = (w: number, h: number, inner: string) =>
     back to its source. Reached through guardedExport, never directly. */
 /* The Glints ink's blend — the 1-1 SYSTEM for the app's six modes (owner:
    "we need some kind of 1-1 system for the blending modes we are offering
-   in the app"). The blend states are material properties and the frag
-   packs the source per mode (_Pack):
+   in the app", then: "let's think through what overlay does and write
+   something completely custom"). The custom derivation: glint ink is
+   WHITE, and every blend formula collapses when s=1. True overlay with
+   white at coverage a over backdrop b:
+     b ≤ ½ : b·(1+a)     — multiplicative gain, hue-preserving
+     b > ½ : b + a·(1−b) — screen
+   The dark branch is EXACTLY what Blend DstColor One computes with a
+   premultiplied source (a·b + b), so overlay ships as the CANDY GAIN —
+   true overlay wherever the letters are mid-tone or darker, clamping to
+   white above (which is where overlay is headed anyway). No more flat
+   white addition washing the fill's hue.
      normal     SrcAlpha/OneMinusSrcAlpha  pack 0 (plain)        EXACT
-     multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT
+     multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT (white ink: no-op, as in the app)
      screen     One/OneMinusSrcColor       pack 1 (premultiply)  EXACT
-     overlay    One/One                    pack 1 (premultiply)  closest read
-     soft-light One/OneMinusSrcColor       pack 3 (premult·0.6)  closest read
-     hard-light One/One                    pack 1 (premultiply)  closest read
-   Exactness is bounded by fixed-function blending: multiply/screen/normal
-   are separable and land exactly; the light modes read the backdrop and
-   ship their brightening half, which is what specular glints exercise.
-   Kit-independent, so it ships as a shared script beside the importer. */
+     overlay    DstColor/One               pack 1 (premultiply)  EXACT for b ≤ ½, clamps above
+     hard-light One/OneMinusSrcColor       pack 1 (premultiply)  EXACT (hard-light with white IS screen)
+     soft-light One/OneMinusSrcColor       pack 3 (premult·0.4)  fit of b + a(√b − b), mid-tone error < 0.03
+   Single-pass fixed-function cannot branch on the backdrop per channel —
+   that is the only gap left, and it only shows on already-bright fills.
+   A tint darker than 50% gray cannot darken (the gain floor); glints ship
+   white so this stays theoretical. Kit-independent, so it ships as a
+   shared script beside the importer. */
 const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
   Properties {
     _MainTex ("Glints Atlas", 2D) = "white" {}
     _Color ("Tint", Color) = (1,1,1,1)
     _Pack ("Source packing", Float) = 1
-    _SrcBlend ("Src blend", Float) = 1  // One
+    _SrcBlend ("Src blend", Float) = 2  // DstColor — overlay's candy gain
     _DstBlend ("Dst blend", Float) = 1  // One
     // ── the LIVE FIELD (owner: "the glint should be one graphic, not a
     // bunch of little letters"). 0 = draw the atlas as-is (old zips).
@@ -259,7 +269,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         } else {
           c = tex2D(_MainTex, i.texcoord) * i.color; // old zips: bands live in the atlas
         }
-        if (_Pack > 2.5) c.rgb *= c.a * 0.6;            // 3: gentle light
+        if (_Pack > 2.5) c.rgb *= c.a * 0.4;            // 3: gentle light — 0.4·(1−b) fits soft-light's a·(√b−b)
         else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
         else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
         return c;
@@ -3429,16 +3439,21 @@ namespace PatternBreak {
        component. */
     /* the 1-1 blend system for the app's glint blend menu — the states the
        shipped GlintInk shader consumes. Ints are UnityEngine.Rendering.
-       BlendMode values; pack selects the frag's source packing.
-       normal/multiply/screen land EXACTLY (separable blends); the three
-       light modes ride their brightening half, which is what specular
-       glints exercise. */
+       BlendMode values; pack selects the frag's source packing. CUSTOM
+       derivation for the white glint ink (every formula collapses at s=1):
+       overlay's dark branch b(1+a) is exactly DstColor/One with a
+       premultiplied source — the CANDY GAIN: it scales the fill's own
+       color instead of adding flat white, so the glow keeps the kit's hue
+       and only genuinely bright fills clamp toward white (where true
+       overlay is headed anyway). Hard-light with white IS screen, so it
+       ships as screen, exact. normal/multiply/screen were already exact. */
     static void ApplyGlintBlend(Material mat, string mode) {
-      float src = 1, dst = 1, pack = 1;                                 // overlay & hard-light: One/One premultiplied
+      float src = 2, dst = 1, pack = 1;                                 // overlay (default): DstColor/One candy gain
       if (mode == "normal") { src = 5; dst = 10; pack = 0; }            // SrcAlpha/OneMinusSrcAlpha
       else if (mode == "multiply") { src = 2; dst = 0; pack = 2; }      // DstColor/Zero, empty air = white
       else if (mode == "screen") { src = 1; dst = 6; pack = 1; }        // One/OneMinusSrcColor
-      else if (mode == "soft-light") { src = 1; dst = 6; pack = 3; }    // gentle screen
+      else if (mode == "hard-light") { src = 1; dst = 6; pack = 1; }    // with white ink, hard-light IS screen
+      else if (mode == "soft-light") { src = 1; dst = 6; pack = 3; }    // gentle screen (0.4 fit of b + a(√b−b))
       mat.SetFloat("_SrcBlend", src); mat.SetFloat("_DstBlend", dst); mat.SetFloat("_Pack", pack);
     }
     /* the LIVE FIELD (owner: "one graphic, not a bunch of little letters"):
