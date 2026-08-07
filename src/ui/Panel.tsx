@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
+import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -256,6 +257,9 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
   const kitSlices = useGen((s) => s.kitSlices);
   const setKitSlice = useGen((s) => s.setKitSlice);
   const setSliceStage = useGen((s) => s.setSliceStage);
+  const sliceCfg = useGen((s) => s.cfg);
+  const sliceDesigns = useGen((s) => s.kitDesigns);
+  const patOn = useMemo(() => patternZones(sliceCfg, sliceDesigns[cid]).any, [sliceCfg, sliceDesigns, cid]);
   const cur = kitSlices[cid] ?? null;
   const [probe, setProbe] = useState<SliceProbe | null>(null);
   const prevRef = useRef<HTMLCanvasElement>(null);
@@ -346,6 +350,9 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
         : seed
           ? `Auto reads the corner curves off the real pixels — this piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).`
           : "Auto reads the corner curves off the real pixels at export."}</div>
+      {patOn && (
+        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. Keep the stretch modest, or size the piece near its final proportions before export.</div>
+      )}
     </div>
   );
 }

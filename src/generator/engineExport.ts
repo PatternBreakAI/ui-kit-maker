@@ -10,7 +10,8 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont } from "./exportUtils";
+import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
@@ -428,14 +429,35 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      Organic shapes that never flatten fall to the caps below, as before. */
   /* the maker's own guides outrank the measurement — same respect the
      importer pays to hand-tuned borders on the Unity side */
-  const userSliceByFam = new Map<string, { left: number; right: number; top: number; bottom: number }>();
+  const userSliceByFam = new Map<string, { cid: KitComponentId; left: number; right: number; top: number; bottom: number }>();
   for (const [cid, fam] of Object.entries(KIT_SLICEABLE)) {
     const o = st.kitSlices?.[cid as KitComponentId];
     if (o && fam) userSliceByFam.set(fam, {
+      cid: cid as KitComponentId,
       left: Math.round(o.left * PNG_SCALE), right: Math.round(o.right * PNG_SCALE),
       top: Math.round(o.top * PNG_SCALE), bottom: Math.round(o.bottom * PNG_SCALE),
     });
   }
+  /* Hand-set borders are authored in the slicing workbench, which crops the
+     piece to its CALMED alpha box — default state, threshold 40, no margin
+     (sliceProbe.measureAutoSlice). The export crops to the swap group's
+     UNION box at threshold 8 plus margin: a bigger frame whenever a state
+     fork grows the ink. The numbers were right and the frame was wrong —
+     guides shipped offset by the whole delta (owner: "these slices aren't
+     anywhere near being close"). Both renders share one SVG frame, so the
+     cure is a translation: find the workbench box in that frame and shift
+     each border by the gap on its own side of the shipped crop. shell(cid)
+     with no extras IS the workbench render — same pieceCfg, same calming,
+     bloom and texture kept. */
+  const wbBoxCache = new Map<KitComponentId, CropBox | null>();
+  const workbenchBox = async (cid: KitComponentId): Promise<CropBox | null> => {
+    let b = wbBoxCache.get(cid);
+    if (b === undefined) {
+      try { b = await svgAlphaBox(shell(cid), PNG_SCALE, 40); } catch { b = null; }
+      wbBoxCache.set(cid, b);
+    }
+    return b;
+  };
   const SLICE_PAD = Math.round(3 * PNG_SCALE);
   const sliceMeasureCache = new Map<string, { left: number; right: number; top: number; bottom: number } | null>();
   const measureSlice = async (bytes: Uint8Array, w: number, h: number) => {
@@ -494,7 +516,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        progress bar honest. */
     const byGroup = new Map<string, number[]>();
     pngQueue.forEach((q, i) => { if (q.group) byGroup.set(q.group, [...(byGroup.get(q.group) ?? []), i]); });
-    const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number }>();
+    const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number; box?: CropBox }>();
     for (let qi = 0; qi < pngQueue.length; qi++) {
       const q = pngQueue[qi];
       onProgress?.(qi, total, q.path);
@@ -503,7 +525,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
-      const { bytes, w, h } = grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+      const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
+        grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+      const { bytes, w, h } = raster;
       // Last line of defence: whatever the cap math says, borders must leave
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
@@ -511,26 +535,48 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         // the real pixels overrule the estimate — measured curvature is
         // where the guides go; the sliceOf math survives only as fallback
         const uo = userSliceByFam.get(q.meta.component);
-        if (uo) { s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom; }
+        if (uo) {
+          /* EXACT numbers, exactly (owner: "I don't think Unity is reading
+             my slices" — the organic-shape caps below were silently
+             crushing hand-set values; a 466px-wide sprite capped left/right
+             at 116 while the maker asked for 172). The caps exist to rein
+             in the MEASUREMENT on shapes that never flatten — a human's
+             explicit numbers are the point, not a hazard. Only the
+             engine-sanity guard below still applies. */
+          s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom;
+          /* …exact, but in the WORKBENCH's frame. Shift each side by where
+             that frame sits inside this sprite's crop (see workbenchBox).
+             No box or no calmed render → ship the raw numbers, the old
+             behavior. */
+          const wb = raster.box ? await workbenchBox(uo.cid) : null;
+          if (wb && raster.box) {
+            s.left = Math.max(1, uo.left + (wb.x0 - raster.box.x0));
+            s.right = Math.max(1, uo.right + (raster.box.x1 - wb.x1));
+            s.top = Math.max(1, uo.top + (wb.y0 - raster.box.y0));
+            s.bottom = Math.max(1, uo.bottom + (raster.box.y1 - wb.y1));
+          }
+          const dbg = (globalThis as unknown as { __ukmSliceDebug?: unknown[] }).__ukmSliceDebug;
+          if (dbg) dbg.push({ path: q.path, component: q.meta.component, uo: { ...uo }, wb, crop: raster.box ?? null, shipped: { ...s } });
+        }
         else {
           const mkey = q.group ?? q.path;
           let mz = sliceMeasureCache.get(mkey);
           if (mz === undefined) { mz = await measureSlice(bytes, w, h); sliceMeasureCache.set(mkey, mz); }
           if (mz) { s.left = mz.left; s.right = mz.right; s.top = mz.top; s.bottom = mz.bottom; }
+          /* organic silhouettes can push the cap math past reason — the wavy
+             button's slice guides nearly met in the middle, caps ate ~92% of
+             the sprite and the type area with it (owner: "this is clearly
+             off", then at 35%: "still off... lots more room for text in the
+             middle between the concave/convex"). A cap never takes more
+             than 25% of the width / 30% of the height per side — the
+             stretchable middle is at least HALF the width and 40% of the
+             height of every sprite. */
+          const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
+          if (s.left > maxLR) s.left = maxLR;
+          if (s.right > maxLR) s.right = maxLR;
+          if (s.top > maxTB) s.top = maxTB;
+          if (s.bottom > maxTB) s.bottom = maxTB;
         }
-        /* organic silhouettes can push the cap math past reason — the wavy
-           button's slice guides nearly met in the middle, caps ate ~92% of
-           the sprite and the type area with it (owner: "this is clearly
-           off", then at 35%: "still off... lots more room for text in the
-           middle between the concave/convex"). A cap never takes more
-           than 25% of the width / 30% of the height per side — the
-           stretchable middle is at least HALF the width and 40% of the
-           height of every sprite. */
-        const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
-        if (s.left > maxLR) s.left = maxLR;
-        if (s.right > maxLR) s.right = maxLR;
-        if (s.top > maxTB) s.top = maxTB;
-        if (s.bottom > maxTB) s.bottom = maxTB;
         const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
         if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
@@ -851,12 +897,34 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const K1 = 1; // component faces render at K=1 in the export sizes
     const ps = (8 + facePat.scale * 0.9) * K1;
     const ang = ((facePat.angle ?? 0) % 180 + 180) % 180;
-    const diag = ang % 90 !== 0;
-    const cellW = Math.max(8, Math.round(ps * (diag ? Math.SQRT2 : 1)));
+    /* an integer cell spanning WHOLE pattern periods with minimal drift —
+       a fractional period leaves a hairline at every Tiled repeat. The old
+       √2 square was only period-exact at 45°; stripes are invariant along
+       their own axis, so their true sample is p/|sin| across, p/|cos| down
+       at ANY angle (45° reduces to the √2 cell). */
+    const intFit = (period: number) => {
+      let best = Math.max(8, Math.round(period)), bestErr = Math.abs(best - period) / period;
+      for (let n = 2; n <= 8; n++) {
+        const w = period * n;
+        if (w > 600) break;
+        const r = Math.round(w);
+        const err = Math.abs(r - w) / w;
+        if (r >= 8 && err < bestErr - 1e-9) { best = r; bestErr = err; }
+      }
+      return best;
+    };
+    let cellW: number, cellH: number;
+    if (facePat.type === "stripes" && ang % 90 !== 0) {
+      const rad = (ang * Math.PI) / 180;
+      cellW = intFit(ps / Math.abs(Math.sin(rad)));
+      cellH = intFit(ps / Math.abs(Math.cos(rad)));
+    } else {
+      cellW = cellH = Math.max(8, Math.round(ps * (ang % 90 !== 0 ? Math.SQRT2 : 1)));
+    }
     const patC = facePat.color ? facePat.color : darken(innerC, 0.2);
-    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellW}" viewBox="0 0 ${cellW} ${cellW}">` +
+    const patTile = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${cellH}" viewBox="0 0 ${cellW} ${cellH}">` +
       `<defs><pattern id="fp" width="${ps.toFixed(3)}" height="${ps.toFixed(3)}" patternUnits="userSpaceOnUse"${ang ? ` patternTransform="rotate(${ang})"` : ""}>${textPatternCell(facePat.type, ps, patC)}</pattern></defs>` +
-      `<rect width="${cellW}" height="${cellW}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
+      `<rect width="${cellW}" height="${cellH}" fill="url(#fp)" opacity="${Math.max(0, Math.min(1, facePat.opacity / 100)).toFixed(2)}"/></svg>`;
     await addPng("fx/face-tile.png", patTile,
       { component: "fx", part: "face-tile", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The kit's face pattern as ONE seamless cell. Use on a Tiled Image between -base-under and -base-over — it keeps its angle and rhythm at any size, so stretching never shears it." });
   }

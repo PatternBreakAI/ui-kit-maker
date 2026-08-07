@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, X } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { KIT_COMPONENTS } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import { measureAutoSlice, renderSliceSprite, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
@@ -15,12 +15,27 @@ import type { SliceProbe } from "./sliceProbe";
 
 const ZOOMS = [1, 2, 3, 4];
 
+/** Does this piece's design wear a pattern (face or wall)? Mirrors the
+ *  renderer's resolution, legacy `zone` included. */
+export function patternZones(cfg: ReturnType<typeof useGen.getState>["cfg"], design: Parameters<typeof applyKitDesign>[1]): { face: boolean; wall: boolean; any: boolean } {
+  const d = applyKitDesign(cfg, design).candy.pattern;
+  const zone = d?.zone ?? "face";
+  const face = !!d && d.type !== "none" && d.opacity > 1 && zone !== "wall";
+  const wall = (!!d?.wall && d.wall.type !== "none" && d.wall.opacity > 1)
+    || (zone !== "face" && !!d && d.type !== "none" && d.opacity > 1);
+  return { face, wall, any: face || wall };
+}
+
 export function SliceStage() {
   const cid = useGen((s) => s.sliceStage)!;
   const setSliceStage = useGen((s) => s.setSliceStage);
   const focus = useGen((s) => s.focus);
   const kitSlices = useGen((s) => s.kitSlices);
   const setKitSlice = useGen((s) => s.setKitSlice);
+
+  const cfg = useGen((s) => s.cfg);
+  const kitDesigns = useGen((s) => s.kitDesigns);
+  const pat = useMemo(() => patternZones(cfg, kitDesigns[cid]), [cfg, kitDesigns, cid]);
 
   const cur = kitSlices[cid] ?? null;
   const [probe, setProbe] = useState<SliceProbe | null>(null);
@@ -128,7 +143,10 @@ export function SliceStage() {
   }
 
   const { box } = probe;
-  const limX = Math.floor(box.w / 2) - 2, limY = Math.floor(box.h / 2) - 2;
+  /* −3 per side keeps l+r ≤ w−6 design px = w−12 exported px — exactly the
+     export's engine-sanity floor, so every value this bench permits ships
+     verbatim, never scaled */
+  const limX = Math.floor(box.w / 2) - 3, limY = Math.floor(box.h / 2) - 3;
   const setField = (k2: keyof KitSlice, v: number) => {
     const lim = k2 === "left" || k2 === "right" ? limX : limY;
     const base = cur ?? seed ?? { left: 40, right: 40, top: 36, bottom: 36 };
@@ -211,6 +229,15 @@ export function SliceStage() {
           {(["left", "right", "top", "bottom"] as const).map(guide)}
         </div>
       </div>
+      {/* the honest bad news, said out loud (owner: "alert the user to the
+          noise in 9-slice scaling") — a baked pattern smears under Sliced
+          stretching, and the stretch test shows it truthfully */}
+      {pat.any && (
+        <div className="ss-warn" role="note">
+          <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
+          <span>This piece wears a {pat.wall && !pat.face ? "wall " : ""}pattern — Sliced stretching smears it, and the noise grows with the stretch (the test below is honest). Keep the stretch modest, or size the piece close to its final proportions in the app before exporting.</span>
+        </div>
+      )}
       <div className="ss-striprow">
         <span className="ss-striplabel">Stretch test</span>
         <input type="range" min={110} max={350} value={stretch} aria-label="Stretch test width"

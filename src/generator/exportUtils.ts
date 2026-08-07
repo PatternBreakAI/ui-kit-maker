@@ -114,12 +114,17 @@ export function svgToPngBytes(svg: string, scale = 2): Promise<{ bytes: Uint8Arr
   });
 }
 
+/** The crop rectangle a tight raster kept, in pre-crop frame coordinates —
+ *  the bridge between "where a border sits in the shipped sprite" and
+ *  "where it sits in the SVG frame". */
+export type CropBox = { x0: number; y0: number; x1: number; y1: number };
+
 /** Rasterize an SVG string to PNG bytes cropped to the art's alpha bounding
  *  box (+margin). Nine-slice sprites must hug their geometry: transparent
  *  canvas padding inside a sliced sprite becomes stretched dead air in every
  *  engine, and borders wide enough to span the pad can exceed the component's
  *  own size — Unity then draws caps of pure padding and no center at all. */
-export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }> {
   const full = await svgToPngBytes(svg, scale);
   const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
   const cv = document.createElement("canvas");
@@ -148,9 +153,33 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
   return new Promise((resolve, reject) => {
     out.toBlob(async (b) => {
       if (!b) { reject(new Error("crop raster failed")); return; }
-      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch });
+      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch, box: { x0, y0, x1, y1 } });
     }, "image/png");
   });
+}
+
+/** The alpha bounding box of an SVG's raster, in frame coordinates —
+ *  no crop, no margin. Threshold matches the slicing workbench's (>40),
+ *  so a caller can locate the workbench's editing frame inside a bigger
+ *  export crop and translate hand-set borders between the two. */
+export async function svgAlphaBox(svg: string, scale = 2, threshold = 40): Promise<CropBox | null> {
+  const full = await svgToPngBytes(svg, scale);
+  const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  for (let yy = 0; yy < cv.height; yy++)
+    for (let xx = 0; xx < cv.width; xx++)
+      if (px[(yy * cv.width + xx) * 4 + 3] > threshold) {
+        if (xx < x0) x0 = xx;
+        if (xx > x1) x1 = xx;
+        if (yy < y0) y0 = yy;
+        if (yy > y1) y1 = yy;
+      }
+  return x1 < 0 ? null : { x0, y0, x1, y1 };
 }
 
 /** Rasterize several SVGs sharing ONE canvas geometry (a component's rest +
@@ -160,7 +189,7 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
  *  loses its empty sky and the engine stretches it back over the same rect,
  *  cancelling the sink — and any per-state ink difference becomes a visible
  *  jump on swap. */
-export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number }[]> {
+export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }[]> {
   const canvases: HTMLCanvasElement[] = [];
   let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
   for (const svg of svgs) {
@@ -180,13 +209,13 @@ export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin
         }
   }
   const encode = (cv: HTMLCanvasElement, sx: number, sy: number, cw: number, ch: number) =>
-    new Promise<{ bytes: Uint8Array; w: number; h: number }>((resolve, reject) => {
+    new Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }>((resolve, reject) => {
       const out = document.createElement("canvas");
       out.width = cw; out.height = ch;
       out.getContext("2d")!.drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
       out.toBlob(async (b) => {
         if (!b) { reject(new Error("crop raster failed")); return; }
-        resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch });
+        resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch, box: { x0: sx, y0: sy, x1: sx + cw - 1, y1: sy + ch - 1 } });
       }, "image/png");
     });
   if (x1 < 0) return Promise.all(canvases.map((cv) => encode(cv, 0, 0, cv.width, cv.height)));
