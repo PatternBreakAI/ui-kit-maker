@@ -15,12 +15,17 @@ import type { GenConfig } from "@/generator/model";
    Everything reskins live from the config. Auto-animates, leans firmly
    into the pointer; prefers-reduced-motion renders a still frame. */
 
+/* the Inner Glow layer joins the stack only when the kit lights the F2
+   well with its OWN color (owner: "was hoping to add inner glow not get
+   rid of the outer glow") — standard kits keep the six-layer diagram */
 const LAYERS = [
   { key: "highlight", t: "Highlight", sub: "gloss & specular", y: 1.45 },
   { key: "bevel", t: "Bevel", sub: "shell & wall", y: 0.87 },
   { key: "pattern", t: "Pattern", sub: "face texture", y: 0.29 },
+  // light rising over the candy face — it sits ON TOP of the fill (owner)
+  { key: "innerglow", t: "Inner Glow", sub: "candy light", y: 0 },
   { key: "fill", t: "Inner Fill", sub: "candy face", y: -0.29 },
-  { key: "glow", t: "Glow", sub: "inner glow", y: -0.87 },
+  { key: "glow", t: "Glow", sub: "outer glow", y: -0.87 },
   { key: "shadow", t: "Shadow", sub: "grounding", y: -1.45 },
 ] as const;
 
@@ -113,6 +118,7 @@ interface Rig {
   group: THREE.Group;
   layerMeshes: THREE.Mesh[];
   glowMat: THREE.MeshBasicMaterial;
+  innerGlowMat: THREE.MeshBasicMaterial;
   shadowMat: THREE.MeshBasicMaterial;
   patternMat: THREE.MeshBasicMaterial;
   satGroup: THREE.Group;
@@ -201,6 +207,7 @@ export function HeroGL() {
 
     const layerMeshes: THREE.Mesh[] = [];
     let glowMat: THREE.MeshBasicMaterial = null!;
+    let innerGlowMat: THREE.MeshBasicMaterial = null!;
     let shadowMat: THREE.MeshBasicMaterial = null!;
     let patternMat: THREE.MeshBasicMaterial = null!;
     for (const L of LAYERS) {
@@ -209,6 +216,16 @@ export function HeroGL() {
         glowMat = new THREE.MeshBasicMaterial({ map: blobTex("#8FF0FF"), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
         disposables.push(glowMat);
         mesh = new THREE.Mesh(blobGeo, glowMat);
+      } else if (L.key === "innerglow") {
+        // sleeps until the retint pass finds a lit custom well. NORMAL
+        // blending on purpose: additive light over the bright fill plate
+        // washed the well's hue to white — this layer's job is to SHOW
+        // the color
+        innerGlowMat = new THREE.MeshBasicMaterial({ map: blobTex("#8FF0FF"), transparent: true, opacity: 0.85, depthWrite: false });
+        disposables.push(innerGlowMat);
+        mesh = new THREE.Mesh(blobGeo, innerGlowMat);
+        mesh.scale.set(0.78, 1, 0.78); // inside the candy: a tighter light
+        mesh.visible = false;
       } else if (L.key === "shadow") {
         shadowMat = new THREE.MeshBasicMaterial({ map: blobTex("#05070d"), transparent: true, opacity: 0.9, depthWrite: false });
         disposables.push(shadowMat);
@@ -251,7 +268,7 @@ export function HeroGL() {
 
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     rig.current = {
-      renderer, scene, camera, group, layerMeshes, glowMat, shadowMat, patternMat,
+      renderer, scene, camera, group, layerMeshes, glowMat, innerGlowMat, shadowMat, patternMat,
       satGroup, sats, keyLight, still, renderOnce: () => {}, alignSats: () => {}, disposables,
     };
     wrap.dataset.gl = "on";
@@ -372,9 +389,12 @@ export function HeroGL() {
         const lab = labelRefs.current[i];
         const lx = 2;
         // crowded anchors fade out — at extreme angles the stack compresses
-        // and only the labels that still have room stay readable
+        // and only the labels that still have room stay readable. A sleeping
+        // layer (Inner Glow on kits that don't light it) takes its label,
+        // dot and leader with it and claims no room.
+        const vis = layerMeshes[i].visible ? 1 : 0;
         const minD = placed.length ? Math.min(...placed.map((py) => Math.abs(p.y - py))) : 99;
-        const op = Math.max(0, Math.min(1, (minD - 14) / 18));
+        const op = Math.max(0, Math.min(1, (minD - 14) / 18)) * vis;
         if (op > 0.05) placed.push(p.y);
         if (lab) {
           lab.style.transform = `translate(${lx}px, ${(p.y - 15).toFixed(1)}px)`;
@@ -479,6 +499,7 @@ export function HeroGL() {
       group.rotation.x = BASE_PITCH + userPitch;
       layerMeshes.forEach((pl, i) => { pl.position.y = pl.userData.baseY * (1 + Math.sin(t * 0.5 + i * 0.9) * 0.045); });
       glowMat.opacity = 0.7 + Math.sin(t * 0.9) * 0.22;
+      innerGlowMat.opacity = 0.6 + Math.sin(t * 0.9 + 1.4) * 0.16; // its own breath, off the outer's beat
       sats.forEach((m2, i) => { m2.position.y = m2.userData.baseY + Math.sin(t * 0.42 + i * 1.9) * 0.05; });
       billboard();
       renderer.render(scene, camera);
@@ -517,10 +538,11 @@ export function HeroGL() {
       const c = cfgRef.current;
       const bevel = c.effects.Bevel ?? "#0E9CC9";
       const fill = c.effects["Inner Fill"] ?? "#12B2E2";
-      /* the Glow layer is the INNER glow's portrait (its subtitle says so) —
-         a custom F2 color is the kit's real light, not the Glow role
-         (owner: "this green color isn't showing up in the 3d") */
-      const glow = (c.candy.innerGlow.opacity > 0 ? c.candy.innerGlow.color : null) ?? c.effects.Glow ?? "#8FF0FF";
+      const glow = c.effects.Glow ?? "#8FF0FF";
+      /* the F2 well with its OWN color wakes the Inner Glow layer — an
+         ADDITION beside the outer glow, never a replacement (owner: "was
+         hoping to add inner glow not get rid of the outer glow") */
+      const innerG = c.candy.innerGlow.opacity > 0 ? c.candy.innerGlow.color : null;
       const hi = c.effects.Highlight ?? "#EAFBFF";
       const shadow = c.effects.Shadow ?? "#05070d";
       for (const pl of R.layerMeshes) {
@@ -534,6 +556,19 @@ export function HeroGL() {
       // soft light layers redraw in their role colors
       R.glowMat.map?.dispose();
       R.glowMat.map = blobTex(glow);
+      const igMesh = R.layerMeshes.find((m) => m.userData.key === "innerglow");
+      if (igMesh) igMesh.visible = !!innerG;
+      if (innerG) {
+        R.innerGlowMat.map?.dispose();
+        R.innerGlowMat.map = blobTex(innerG);
+      }
+      /* seven layers need seven slots: with the Inner Glow awake the stack
+         re-spaces evenly so the new light gets air instead of hiding
+         between the plates; asleep, the classic six positions return */
+      const ys = innerG
+        ? [1.45, 0.967, 0.483, 0, -0.483, -0.967, -1.45]
+        : [1.45, 0.87, 0.29, 0, -0.29, -0.87, -1.45];
+      R.layerMeshes.forEach((m, i) => { m.userData.baseY = ys[i]; m.position.y = ys[i]; });
       R.shadowMat.map?.dispose();
       R.shadowMat.map = blobTex(hexMix(shadow, "#000000", 0.35));
       // the pattern plane carries the real face pattern

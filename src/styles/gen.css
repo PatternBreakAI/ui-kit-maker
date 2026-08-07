@@ -1152,7 +1152,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 /* the stage — a composed screen with deliberate zones, not a pile.
    Stage pieces carry computed trim margins inline (LiveArt), so the CSS
    only neutralizes the generic pattern-piece rules. */
-.sc { display: flex; flex-direction: column; align-items: center; width: 76%; gap: 8px; }
+.sc { display: flex; flex-direction: column; align-items: center; width: 76%; gap: 8px; transform-origin: center; }
 .sc .gp-piece { margin: 0; }
 .sc .kp-art { margin: -14px 0 -18px; }
 /* only painted pixels are interactive on a stage — the trimmed invisible
@@ -1420,7 +1420,13 @@ button.kp-fact { cursor: pointer; }
 .m3-tile { position: absolute; inset: 3%; border-radius: 16%; display: grid; place-items: center; color: rgba(255, 255, 255, 0.94);
   background: linear-gradient(180deg, color-mix(in srgb, var(--m3c) 72%, #FFFFFF), var(--m3c) 46%, color-mix(in srgb, var(--m3c) 62%, #0A0C14));
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.42), inset 0 -3px 0 rgba(6, 10, 18, 0.3), 0 1px 3px rgba(6, 10, 18, 0.35); }
-.m3-tile svg { width: 52%; height: 52%; filter: drop-shadow(0 1.5px 0 rgba(6, 10, 18, 0.4)); }
+/* the kit's own tile as the ground (owner: "tint our existing squares"):
+   the flat slot render carries the material, the lane overlay carries the
+   category — hue and sat from the lane, luminosity from the kit */
+.m3-tile.m3-kittile { background: none; box-shadow: none; background-size: 100% 100%; background-repeat: no-repeat; }
+.m3-tile.m3-kittile .m3-lane { position: absolute; inset: 4%; border-radius: 14%; background: var(--m3c); mix-blend-mode: color; opacity: 0.92; pointer-events: none; }
+.m3-tile.m3-kittile::after { content: ""; position: absolute; inset: 4%; border-radius: 14%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--m3c) 55%, transparent), inset 0 0 12px color-mix(in srgb, var(--m3c) 30%, transparent); pointer-events: none; }
+.m3-tile svg { width: 52%; height: 52%; filter: drop-shadow(0 1.5px 0 rgba(6, 10, 18, 0.4)); position: relative; }
 /* clear = the claim celebration's arc writ small: white-hot, swell, gone */
 .m3-burst { animation: m3Vanish 0.46s ease-in forwards; z-index: 3; }
 @keyframes m3Vanish { 0% { transform: scale(1); opacity: 1; filter: brightness(1); } 45% { transform: scale(1.16); opacity: 1; filter: brightness(2.4) saturate(0.2); } 100% { transform: scale(1.3); opacity: 0; filter: brightness(3) saturate(0); } }

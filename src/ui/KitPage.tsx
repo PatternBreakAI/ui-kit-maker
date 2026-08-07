@@ -760,6 +760,24 @@ type M3Fx = { kind: "burst" | "drop" | "nope"; drop?: number; wave: number };
 
 function Match3Board({ onScore }: { onScore: (cleared: number) => void }) {
   const glowC = useGen((s) => s.cfg.effects.Glow ?? "#8FF0FF");
+  /* the tiles ARE the kit's own squares, tinted per lane (owner: "I thought
+     you were just going to tint our existing squares") — the flat slot
+     piece bakes once per look and rides as each cell's background, with the
+     lane color blended over it. Rendered flat + tight-cropped to the shell,
+     so the glow reserve never enters the board's box math. */
+  const { cfg: m3cfg, kitDesigns: m3kd, kitTextFill: m3tf, kitShapes: m3sh } = useGen();
+  const tileUrl = useMemo(() => {
+    const c = flatPiece(applyKitTextFill(applyKitDesign(m3cfg, m3kd.slot), m3tf.slot), true);
+    const svg = renderKit(c, "slot", "s", "default", undefined, m3sh.slot, { icon: null, label: "", overlay: "empty" });
+    const m = /data-shell="([-\d. ]+)"/.exec(svg);
+    if (!m) return null;
+    const [sx, sy, sw, sh] = m[1].split(" ").map(Number);
+    const pad = 2;
+    const cropped = svg
+      .replace(/ width="[\d.]+" height="[\d.]+"/, ` width="${(sw + pad * 2).toFixed(0)}" height="${(sh + pad * 2).toFixed(0)}"`)
+      .replace(/viewBox="[^"]*"/, `viewBox="${(sx - pad).toFixed(1)} ${(sy - pad).toFixed(1)} ${(sw + pad * 2).toFixed(1)} ${(sh + pad * 2).toFixed(1)}"`);
+    return `url("data:image/svg+xml,${encodeURIComponent(cropped)}")`;
+  }, [m3cfg, m3kd, m3tf, m3sh]);
   const [cats, setCats] = useState<number[]>(M3START);
   const [fx, setFx] = useState<Record<number, M3Fx>>({});
   const busy = useRef(false);
@@ -852,7 +870,10 @@ function Match3Board({ onScore }: { onScore: (cleared: number) => void }) {
             style={{ "--m3c": cat.c, "--m3drop": f?.kind === "drop" ? f.drop : 0 } as React.CSSProperties}
             aria-label={`${cat.icon} tile — tap a group of three or more`}
             onPointerUp={() => { lastTouch.current = Date.now(); clear(i); }}>
-            <span className="m3-tile"><InvIcon def={STOCK_ICONS[cat.icon]} size={26} /></span>
+            <span className={`m3-tile${tileUrl ? " m3-kittile" : ""}`} style={tileUrl ? ({ backgroundImage: tileUrl } as React.CSSProperties) : undefined}>
+              {tileUrl && <i className="m3-lane" aria-hidden="true" />}
+              <InvIcon def={STOCK_ICONS[cat.icon]} size={26} />
+            </span>
             {f?.kind === "burst" && (
               <span className="fx-burstwrap" aria-hidden="true">
                 {Array.from({ length: 12 }, (_, p) => {
@@ -883,6 +904,30 @@ function Pat({ n, name, cat, comps, asms, lead, wide, bare, children }: {
      compositions for now, so the header stays quiet. `lead` is kept in the
      signature for when editing returns. */
   void lead;
+  /* fit-to-stage: the compositions are approximate and some run taller than
+     the fixed viewport — the centered stage then clips BOTH ends (owner:
+     "couple of these patterns are getting cut off", edge pieces' halos
+     shorn). Measure and scale the stage to fit, with extra air when the kit
+     carries halos so glow completes inside the frame. */
+  const glowy = useGen((s) =>
+    Object.values(s.cfg.states).some((st) => st.glow > 0.5) || s.cfg.type.glow.on ||
+    s.cfg.candy.extrusion.glow > 5 || (s.cfg.candy.innerGlow?.opacity ?? 0) > 5);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const scRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const view = viewRef.current, sc = scRef.current;
+    if (!view || !sc) return;
+    const air = glowy ? 76 : 14;
+    const fit = () => {
+      sc.style.transform = "";
+      const k = Math.min(1, (view.clientHeight - air) / Math.max(1, sc.getBoundingClientRect().height));
+      if (k < 0.995) sc.style.transform = `scale(${k.toFixed(3)})`;
+    };
+    const ro = new ResizeObserver(fit);
+    ro.observe(view); ro.observe(sc);
+    fit();
+    return () => ro.disconnect();
+  }, [glowy]);
   return (
     <article className={`pat${wide ? " pat-wide" : ""}`}>
       <header className="pat-head">
@@ -890,7 +935,7 @@ function Pat({ n, name, cat, comps, asms, lead, wide, bare, children }: {
         <h4 className="pat-name">{name}</h4>
         <span className="pat-cat">{cat}</span>
       </header>
-      <div className={`pat-view${bare ? " pat-bare" : ""}`}><div className="sc">{children}</div></div>
+      <div className={`pat-view${bare ? " pat-bare" : ""}`} ref={viewRef}><div className="sc" ref={scRef}>{children}</div></div>
       <footer className="pat-foot">
         <span>{comps} registered components</span>
         <span>{asms} {asms === 1 ? "assembly" : "assemblies"}</span>

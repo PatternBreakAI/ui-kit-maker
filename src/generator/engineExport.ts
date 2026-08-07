@@ -912,7 +912,8 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
   return scanInk(await rasterCanvas(svg, scale));
 }
 
-async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } | null; metrics: string; pointSize: number } | null> {
+// exported for direct verification — the bake runs headless-testable this way
+export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } | null; metrics: string; pointSize: number } | null> {
   const family = base.type.font;
   const weight = base.type.weight;
   const italicPfx = base.type.italic ? "italic " : "";
@@ -1069,11 +1070,51 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     const AH = cy + rowH + PAD;
     return AH > 4096 ? null : AH; // absurd treatment size — bail rather than truncate
   };
-  const rasterAtlas = (list: Baked[], AH: number): Promise<Uint8Array> => {
+  /* Guaranteed fade-out: a glyph's glow/shadow slab must reach ZERO alpha
+     inside its own cell — quads butt in the mesh, and a slab still carrying
+     ink at the crop line renders as a hard-edged plate around the word
+     (owner: "the color has to fade out completely on the outside edge of
+     the first and last letters and the tops and bottoms of all letters").
+     The letterform's own box says how much of each cell is effect slab; the
+     slab's outer stretch (beyond KEEP, which shelters the outline and the
+     falloff's bright core) eases to zero with a smoothstep. Cells with no
+     slab — plain or outline-only faces — pass through untouched, and
+     between letters the neighbors' feathered slabs crossfade instead of
+     butting. No dial gets capped; the bake just finishes the fade. */
+  const FEATHER_KEEP = 12 * BAKE_S;
+  type Slab = { l: number; t: number; r: number; b: number };
+  const featherCell = (g: Baked, m: Slab): HTMLCanvasElement | null => {
+    const zl = Math.max(0, m.l - FEATHER_KEEP), zr = Math.max(0, m.r - FEATHER_KEEP);
+    const zt = Math.max(0, m.t - FEATHER_KEEP), zb = Math.max(0, m.b - FEATHER_KEEP);
+    const Z = 4 * BAKE_S; // a zone thinner than this can't fade convincingly
+    if (zl < Z && zr < Z && zt < Z && zb < Z) return null;
+    const out = document.createElement("canvas");
+    out.width = g.w; out.height = g.h;
+    const ox = out.getContext("2d")!;
+    ox.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, 0, 0, g.w, g.h);
+    const id = ox.getImageData(0, 0, g.w, g.h);
+    const px = id.data;
+    const ramp = (d: number, z: number) => { if (z < Z) return 1; const t = Math.min(1, d / z); return t * t * (3 - 2 * t); };
+    for (let y = 0; y < g.h; y++) {
+      const ay = Math.min(ramp(y, zt), ramp(g.h - 1 - y, zb));
+      for (let x = 0; x < g.w; x++) {
+        const a = Math.min(ay, ramp(x, zl), ramp(g.w - 1 - x, zr));
+        if (a < 1) px[(y * g.w + x) * 4 + 3] *= a;
+      }
+    }
+    ox.putImageData(id, 0, 0);
+    return out;
+  };
+  const rasterAtlas = (list: Baked[], AH: number, slabs?: Map<number, Slab>): Promise<Uint8Array> => {
     const atlas = document.createElement("canvas");
     atlas.width = AW; atlas.height = AH;
     const ax = atlas.getContext("2d")!;
-    for (const g of list) if (g.w > 0) ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
+    for (const g of list) if (g.w > 0) {
+      const m = slabs?.get(g.u);
+      const fc = m ? featherCell(g, m) : null;
+      if (fc) ax.drawImage(fc, g.x!, g.y!);
+      else ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
+    }
     return new Promise((resolve, reject) => {
       atlas.toBlob(async (b) => {
         if (!b) { reject(new Error("atlas raster failed")); return; }
@@ -1082,9 +1123,26 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     });
   };
 
+  /* the letterform's own ink boxes, captured BEFORE the union pass rewrites
+     them — each cell's slab margins = how far its effects reach past the
+     letter, and that is the room the feather may use */
+  const fillBox = new Map(sets.fill.filter((g) => g.w > 0 && g.cv).map((g) => [g.u, { sx: g.sx!, sy: g.sy!, w: g.w, h: g.h }]));
+  const slabsVs = (list: Baked[]): Map<number, Slab> => {
+    const m = new Map<number, Slab>();
+    for (const g of list) {
+      const f = fillBox.get(g.u);
+      if (!f || g.w <= 0) continue;
+      m.set(g.u, {
+        l: Math.max(0, f.sx - g.sx!), t: Math.max(0, f.sy - g.sy!),
+        r: Math.max(0, (g.sx! + g.w) - (f.sx + f.w)), b: Math.max(0, (g.sy! + g.h) - (f.sy + f.h)),
+      });
+    }
+    return m;
+  };
+
   const fullH = pack(sets.full);
   if (fullH == null) return null;
-  const png = await rasterAtlas(sets.full, fullH);
+  const png = await rasterAtlas(sets.full, fullH, slabsVs(sets.full));
 
   /* ── ONE SKELETON, FOUR SKINS (owner: "think about a foolproof way to
      bind these together"). Every glyph's four layer variants are packed
@@ -1121,8 +1179,11 @@ async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; lay
     for (const skel of skeleton)
       for (const k of LAYER_KEYS) { const g = maps[k].get(skel.u); if (g) { g.x = skel.x; g.y = skel.y; } }
     for (const k of LAYER_KEYS)
-      // a set with only the space entry means the kit has that layer OFF
-      if (sets[k].length > 5) layerPngs[k] = await rasterAtlas(sets[k], layersH);
+      // a set with only the space entry means the kit has that layer OFF.
+      // stroke (outline + glow) and shadow carry the blurred slabs — they
+      // feather; fill is the letterform and glints fuse across letters by
+      // design, so both pass through exact.
+      if (sets[k].length > 5) layerPngs[k] = await rasterAtlas(sets[k], layersH, k === "stroke" || k === "shadow" ? slabsVs(sets[k]) : undefined);
   }
   const layered = layersH != null && layerPngs.fill && layerPngs.stroke;
 
