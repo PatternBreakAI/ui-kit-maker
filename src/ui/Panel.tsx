@@ -422,6 +422,9 @@ export function Panel() {
   const [parentErr, setParentErr] = useState<string | null>(null);
   // the admin publishing desk inside Looks — folded away by default
   const [adminLooksOpen, setAdminLooksOpen] = useState(false);
+  // the Looks rack collapses to the freshest few (owner: "we are showing
+  // too many looks at once, they should be sorted by newest")
+  const [looksAll, setLooksAll] = useState(false);
   /* Shared presets published from the RELEASE DESK carry no stored
      thumbnail — that publish happens on the server, which can't run the SVG
      engine (api/admin.ts sends thumb: null), so the card came up blank
@@ -854,8 +857,22 @@ export function Panel() {
            The scattered "Publish current…" buttons live here now, behind
            one quiet admin row (owner: "we need to consolidate"). ── */}
       <Section id="shape" title={t("secLooks")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
+        {/* NEWEST FIRST, FEWEST SHOWN (owner): your latest saves lead (they
+            already store newest-first), pack drops sort by release date,
+            starters keep their curated order — and the rack folds to the
+            first dozen until Show all. */}
+        {(() => {
+          const cloudSorted = [...cloudPresets].sort((a, b) => String(b.publish_at ?? "").localeCompare(String(a.publish_at ?? "")));
+          const LOOKS_CAP = 12;
+          const total = userPresets.length + cloudSorted.length + presetArt().filter((p) => !hiddenStarters.includes(p.id)).length;
+          const capLeft = (used: number) => looksAll ? Infinity : Math.max(0, LOOKS_CAP - used);
+          const userShow = userPresets.slice(0, looksAll ? undefined : LOOKS_CAP);
+          const cloudShow = cloudSorted.slice(0, capLeft(userShow.length));
+          const starterCap = capLeft(userShow.length + cloudShow.length);
+          return (
+            <>
         <div className="presetgrid">
-          {userPresets.map((u) => (
+          {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
               onClick={() => applyUserPreset(u.id)}>
               {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: u.thumb }} /> : <span className="presetart" />}
@@ -867,7 +884,7 @@ export function Panel() {
           {/* The shared library is where the monthly preset packs land, so
               this lock is about the packs — not about capability. A student
               has the whole tool; what they don't have is the pack drops. */}
-          {cloudPresets.map((p) => tier !== "pro" ? (
+          {cloudShow.map((p) => tier !== "pro" ? (
             <button key={p.id} className="presetcard shared lockedp"
               title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
@@ -902,6 +919,7 @@ export function Panel() {
             </button>
           ))}
           {presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => {
+            // the tier gate follows the CURATED index, not the folded view
             const gated = pi >= capsOf(tier).presetLimit;
             return gated ? (
               <button key={p.id} className="presetcard lockedp" title={UPGRADE_LINES[tier]}
@@ -920,8 +938,16 @@ export function Panel() {
                 )}
               </button>
             );
-          })}
+          }).slice(0, starterCap === Infinity ? undefined : starterCap)}
         </div>
+        {total > LOOKS_CAP && (
+          <button className="pat-open" onClick={() => setLooksAll((v) => !v)}>
+            {looksAll ? "Show fewer looks ▴" : `Show all ${total} looks ▾`}
+          </button>
+        )}
+            </>
+          );
+        })()}
         <div className="helper">Each style is a different candy construction — shell, gloss and depth, not just a palette.</div>
         <div className="actionrow">
           <button className="resetstate" onClick={randomize}>

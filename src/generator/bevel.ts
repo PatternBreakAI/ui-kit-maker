@@ -4697,12 +4697,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vR9 = clamp(value ?? 0.6, 0, 1);
       const done = vR9 <= 0.015;
       const secsR = Math.ceil(vR9 * 10);
-      const READY = "#4ADE80";
-      // warm toward green across the final 40% of the wait
+      // the celebration ink is a SLOT now (owner: "I really need to be able
+      // to edit the color") — factory stays the arcade ready-green
+      const READY = opts.slots?.readycolor || "#4ADE80";
+      // warm toward the ready color across the final 40% of the wait
       const gMix = clamp((0.4 - vR9) / 0.4, 0, 1);
       const inkR = done ? READY : hexMix("#FFFFFF", READY, gMix * 0.85);
       const barC = hexMix(glow, READY, gMix);
-      const barW9 = w - inset * 2 - 40 * k, barH9 = 12 * k;
+      const barHMap: Record<string, number> = { Slim: 7, Standard: 12, Chunky: 20, Hidden: 0 };
+      const barH9 = (barHMap[opts.slots?.barheight ?? "Standard"] ?? 12) * k;
+      const barW9 = w - inset * 2 - 40 * k;
       const barX9 = cxR9 - barW9 / 2, barY9 = 30 + h - inset - 24 * k;
       const gidR9 = "rs" + UID++;
       const gR9 = 2.5 * k, mHR9 = barH9 - gR9 * 2;
@@ -4731,9 +4735,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           : bigNum(String(secsR), inkR, 58 * k, gMix > 0.3 && state !== "disabled" ? ` drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(READY, 0.5 * gMix)})` : "");
       const inner = contentText(done ? (opts.slots?.goheading || "REDEPLOY").slice(0, 24) : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
-        `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
-        `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
-        ((done ? 1 : vR9) > 0.03 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "");
+        (barH9 > 0.5
+          ? `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
+            `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
+            ((done ? 1 : vR9) > 0.03 && mHR9 > 0.5 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "")
+          : "");
       return inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
     }
     case "dmgarc": {
@@ -4942,7 +4948,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const lvl9 = (opts.label ?? "12").slice(0, 3);
       const locked9 = opts.overlay === "locked";
       const starsM = /^stars:(\d)/.exec(opts.overlay ?? "");
-      const shell = build(cfg, locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 54 * k, iconSize: 0 }, { label: locked9 ? "" : lvl9, iconDef: null, fixedW: s, shapeOverride: sov });
+      /* the numeral is build()'s own label — the Typography nudges must ride
+         along or the sliders go dead on this piece (owner report) */
+      const shell = build(cfg, locked9 ? "disabled" : state, { x: 39, y: 30, h: s, fs: 54 * k, iconSize: 0 }, { label: locked9 ? "" : lvl9, iconDef: null, fixedW: s, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
@@ -5253,11 +5261,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (i % 2 === 0) burst += `<circle cx="${(cxC0 + (r2 + 9 * k) * Math.cos(aR)).toFixed(1)}" cy="${(cyC0 + (r2 + 9 * k) * Math.sin(aR) * 0.78).toFixed(1)}" r="${((1.6 + ((i * 31) % 3)) * k).toFixed(1)}" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.6), 0.9)}"/>`;
       }
       const shimmer = state !== "disabled" ? `<animate attributeName="opacity" values="0.75;1;0.75" dur="2.2s" repeatCount="indefinite"/>` : "";
-      // the numeral — extruded copies behind, gradient face, dark armor
-      const numAttrs = `font-family="'${font}', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="900" font-style="italic" text-anchor="middle" dominant-baseline="central"`;
+      /* the numeral REINTERPRETS the kit's own type voice (owner: "style
+         whatever font they choose so it looks like this"): face, weight and
+         italic are the user's Typography choices; the celebration treatment
+         — extrusion, armor stroke, burst — stays the piece's. A custom fill
+         (solid or gradient) retints the lit face too; Auto keeps the
+         glow-lit recipe. */
+      const TWc = Math.max(400, cfg.type.weight || 900);
+      const numAttrs = `font-family="'${font}', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="${TWc}"${cfg.type.italic === false ? "" : ' font-style="italic"'} text-anchor="middle" dominant-baseline="central"`;
+      const numBase = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? cfg.type.fill2 : glow;
       const numeral = `<g transform="rotate(-4 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}>
-  <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(glow, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
-  <text x="${(cxC0 + 2.5 * k).toFixed(1)}" y="${(cyC0 + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(glow, 0.3)}">${esc(mult)}</text>
+  <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
+  <text x="${(cxC0 + 2.5 * k).toFixed(1)}" y="${(cyC0 + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.3)}">${esc(mult)}</text>
   <text x="${cxC0.toFixed(1)}" y="${cyC0.toFixed(1)}" ${numAttrs} fill="url(#${gidC9})" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(2 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
 </g>`;
       // the COMBO! plate — chamfered corners, dark well fill, glow trim
@@ -5268,7 +5283,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
 </g>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" role="img" aria-label="combo ${mult}">
-<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
+<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${
+        cfg.type.fillMode === "solid"
+          ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.55)}"/><stop offset="0.45" stop-color="${lighten(cfg.type.fill, 0.2)}"/><stop offset="1" stop-color="${cfg.type.fill}"/>`
+          : cfg.type.fillMode === "gradient"
+            ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.35)}"/><stop offset="0.5" stop-color="${cfg.type.fill}"/><stop offset="1" stop-color="${cfg.type.fill2}"/>`
+            : `<stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/>`
+      }</linearGradient></defs>
 <g opacity="${state === "disabled" ? 0.45 : 1}">
   <g>${shimmer}${burst}</g>
   ${numeral}

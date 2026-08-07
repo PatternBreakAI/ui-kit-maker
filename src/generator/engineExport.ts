@@ -128,9 +128,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   /* nine-slice renders drop the bloom halo too: it reaches past the shell,
      and a sliced sprite must hug its geometry — glows are engine-composed
-     (fx/glow.png, states recipe), same contract as shadows */
+     (fx/glow.png, states recipe), same contract as shadows. The micro
+     TEXTURE grain goes with it (owner: "how do we handle the issue of
+     noise in 9-slice scaling"): stretched grain reads as compression
+     artifacts, worse than none. Fixed-size sprites — badges, orbs,
+     tokens — never stretch and keep their grain. */
   const slim = (c: GenConfig) => {
     c.candy.bloom.opacity = 0;
+    c.candy.texture.amount = 0;
   };
   /* Designed state renders — unlike shell(), state forks are KEPT: the
      hover/pressed/disabled looks are the kit's own recipes, baked so the
@@ -152,6 +157,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       if (g.candy) {
         g.candy.contact.opacity = 0;
         g.candy.bloom.opacity = 0;
+        g.candy.texture.amount = 0; // sliced state sprites: no stretching grain
       }
     };
     calm(c);
@@ -974,16 +980,23 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     { dy: -0.02, h: 0.26, o: 0.9 },
     { dy: 0.34, h: 0.12, o: 0.4 },
   ];
-  type VKey = "full" | "fill" | "stroke" | "glints";
+  type VKey = "full" | "fill" | "fillg" | "stroke";
+  /* the GLINTS travel INSIDE the Fill ink now (owner: "the highlight glints
+     have an overlay blend mode but this isn't reflected in the unity
+     export"): an isolated glints layer rendered against transparency could
+     never carry its blend mode — overlay needs the fill underneath. So the
+     shipped Fill ink is the fill + glints COMPOSITE, blended by the same
+     renderer the app uses (blend mode, opacity, scale and nudges exact),
+     and the separate Glints echo retires. The PURE fill still bakes as the
+     letterform reference for the feather and never ships. */
+  const glintsOn = !!base.type.glints?.on;
   const variants: { key: VKey; mutate: (c: GenConfig) => void; glinted: boolean }[] = [
     { key: "full", mutate: (c) => { c.type.size = 52; }, glinted: true },
-    // fill drops glints too — the dedicated Glints layer carries them in
-    // the HeroLabel stack (baking them into Fill would double them)
     { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.glints = undefined; }, glinted: false },
+    ...(glintsOn ? [{ key: "fillg" as const, mutate: (c: GenConfig) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; }, glinted: true }] : []),
     { key: "stroke", mutate: (c) => { strokeBase(c); c.type.shadow.on = false; }, glinted: false },
-    { key: "glints", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.emboss.on = false; c.type.stripes = undefined; }, glinted: true },
   ];
-  const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
+  const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], fillg: [], stroke: [], shadow: [] };
   const hasShadow = !!base.type.shadow.on;
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
   /* KERNING PAIRS (owner: "look at how far away the Y is from the other
@@ -1004,7 +1017,7 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
     if (ch === " ") {
-      for (const k of ["full", "fill", "stroke", "glints", "shadow"] as const)
+      for (const k of ["full", "fill", "fillg", "stroke", "shadow"] as const)
         sets[k].push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 });
       continue;
     }
@@ -1034,7 +1047,7 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
           keepCase: true, highlight: "", mutate: v.mutate, fxPad,
           glintBand: v.glinted ? 3 : undefined,
           glintStars: v.glinted ? glintStars : undefined,
-          glintBands: v.key === "glints" ? GLINT_FIELD : undefined,
+          glintBands: v.key === "fillg" ? GLINT_FIELD : undefined,
         }),
         BAKE_S,
       );
@@ -1155,9 +1168,9 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
      to act on. All variants render on the same specimen grid, so the
      union is box arithmetic and each atlas crops from the variant's
      existing canvas — no re-rendering. */
-  const LAYER_KEYS = ["fill", "stroke", "shadow", "glints"] as const;
+  const LAYER_KEYS = ["fill", "fillg", "stroke", "shadow"] as const;
   const byU = (list: Baked[]) => new Map(list.map((g) => [g.u, g]));
-  const maps = { fill: byU(sets.fill), stroke: byU(sets.stroke), shadow: byU(sets.shadow), glints: byU(sets.glints) };
+  const maps = { fill: byU(sets.fill), fillg: byU(sets.fillg), stroke: byU(sets.stroke), shadow: byU(sets.shadow) };
   const skeleton: Baked[] = [];
   for (const ch of BAKE_GLYPHS + " ") {
     const u = ch.codePointAt(0)!;
@@ -1178,12 +1191,14 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   if (layersH != null) {
     for (const skel of skeleton)
       for (const k of LAYER_KEYS) { const g = maps[k].get(skel.u); if (g) { g.x = skel.x; g.y = skel.y; } }
-    for (const k of LAYER_KEYS)
-      // a set with only the space entry means the kit has that layer OFF.
-      // stroke (outline + glow) and shadow carry the blurred slabs — they
-      // feather; fill is the letterform and glints fuse across letters by
-      // design, so both pass through exact.
-      if (sets[k].length > 5) layerPngs[k] = await rasterAtlas(sets[k], layersH, k === "stroke" || k === "shadow" ? slabsVs(sets[k]) : undefined);
+    /* a set with only the space entry means the kit has that layer OFF.
+       stroke (outline + glow) and shadow carry the blurred slabs — they
+       feather; the fill ink (the glints-composited bake when glints are on)
+       is letterform + crisp bands and ships exact. */
+    const shipFill = glintsOn && sets.fillg.length > 5 ? sets.fillg : sets.fill;
+    if (shipFill.length > 5) layerPngs.fill = await rasterAtlas(shipFill, layersH);
+    if (sets.stroke.length > 5) layerPngs.stroke = await rasterAtlas(sets.stroke, layersH, slabsVs(sets.stroke));
+    if (sets.shadow.length > 5) layerPngs.shadow = await rasterAtlas(sets.shadow, layersH, slabsVs(sets.shadow));
   }
   const layered = layersH != null && layerPngs.fill && layerPngs.stroke;
 

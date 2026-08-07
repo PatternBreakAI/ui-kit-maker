@@ -1128,6 +1128,10 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The celebration word at zero. Drag the Value slider to 0 to stage the GO frame; the readout counts down to it." },
     { id: "goheading", name: "Ready heading", kind: "free", def: "REDEPLOY", maxLen: 24,
       note: "The heading the GO frame swaps in — the countdown heading is the piece's label in Typography." },
+    { id: "readycolor", name: "Ready color", kind: "color", def: "#4ADE80",
+      note: "The celebration ink — the GO word, its pulse, and the hue the countdown and bar warm toward. Factory is the arcade ready-green." },
+    { id: "barheight", name: "Bar height", kind: "choice", choices: ["Standard", "Slim", "Chunky", "Hidden"],
+      note: "The countdown strip's weight — Hidden drops it entirely for a pure readout." },
   ],
   streakmeter: [
     /* the ignition glyph is the meter's whole story (owner: "need to be
@@ -1341,8 +1345,20 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
 /* `staged: true` = in the staging bay — bundled but admin-only until the
    owner releases it (app_settings key "component_releases"). Every public
    surface must hide staged pieces that aren't released; the landing never
-   shows staged at all (its roster is filtered at the engine boundary). */
-export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true }[] = [
+   shows staged at all (its roster is filtered at the engine boundary).
+
+   `utility` — the owner's BACKGROUND ranking (2026-08-07, not surfaced in
+   any UI yet; "I may want to use it as a sort later on"). Ask of each
+   piece: a developer's "how can I use this?" and a designer's "how can I
+   customize this?"
+     1 = visually useful only (demo dressing, screen-pattern flavor)
+     2 = prototyper/designer-useful (mockups, boards, SVG exports)
+     3 = developer-useful in engine too (ships in the Unity kit) — implies
+         the previous two.
+   Unset reads as 3: most pieces are full engine citizens, and the honest
+   mechanical test for tier 3 is presence in the engine export. Tag only
+   deliberate exceptions. */
+export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; utility?: 1 | 2 | 3 }[] = [
   { id: "primary", name: "Primary button" },
   { id: "dialog", name: "Dialog" },
   { id: "toast", name: "Toast" },
