@@ -1840,6 +1840,12 @@ const kitTier = useGen((s) => s.tier);
             </button>
           </div>
           {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+          {!viewer && (
+            <button className="kp-unitylink" onClick={() => { window.location.hash = "#/unity"; }}
+              title="What lands in your project, how the import works, and why re-exports never break a scene.">
+              How the Unity kit works →
+            </button>
+          )}
           {stampsOpen && (
             <div className="kp-stampsheet" role="dialog" aria-label="Type stamps">
               <b>Type Stamps</b>

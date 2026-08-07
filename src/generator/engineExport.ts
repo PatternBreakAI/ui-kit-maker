@@ -562,10 +562,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      shell()'s blanket null back to "as designed" */
   await addPng("checkbox/base.png", shell("checkbox", { icon: undefined }, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box, ghost mark included (as designed). The lit check is a separate tintable glyph (icons/check.png)." });
   await addPng("radio/base.png", shell("radio", { icon: undefined }, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell, ghost pip included (as designed). The lit dot is a separate tintable glyph (icons/dot.png)." });
+  /* the PLAIN twins (dev field report: "the checkbox base background has
+     the check baked on"; owner: "offer both types to cover all bases") —
+     bare wells with no ghost mark, so Unity's own Toggle can own the
+     checkmark. The importer wires CheckboxToggle / RadioToggle prefabs
+     from these; the designed ghost-mark bases keep shipping beside them. */
+  await addPng("checkbox/base-plain.png", shell("checkbox", { icon: null }, undefined, 0), { component: "checkbox", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Bare unchecked box, NO ghost mark — background for the wired CheckboxToggle prefab (Unity Toggle; icons/check.png is the checkmark)." });
+  await addPng("radio/base-plain.png", shell("radio", { icon: null }, undefined, 0), { component: "radio", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Bare radio well, NO ghost pip — background for the wired RadioToggle prefab (Unity Toggle + your ToggleGroup; icons/dot.png is the dot)." });
+  /* the SCROLL VIEW (dev field report: "especially useful would be the
+     scroll view components... the slider materials seem more geared toward
+     mixer volumes"): a vertical track in the kit's well, a candy handle,
+     and a wired ScrollView prefab the importer assembles around them. */
+  const vcap = (w: number, h: number, fill: string, extra = "") =>
+    svgWrap(w, h, `<path d="${rr(0.5, 0.5, w - 1, h - 1, (w - 1) / 2)}" fill="${fill}"/>` + extra);
+  const vSlice = (w: number) => ({ left: Math.round(w * 0.45), right: Math.round(w * 0.45), top: w, bottom: w });
+  await addPng("scrollview/track.9.png", vcap(44, 440, wellC), { component: "scrollview", part: "track", nineSlice: vSlice(44), pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Vertical scrollbar track in the kit's well. Stretch vertically." });
+  await addPng("scrollview/handle.9.png", vcap(36, 220, bevelC,
+    `<path d="${rr(5, 6, 8, 208, 4)}" fill="#FFFFFF" opacity="0.28"/>`),
+    { component: "scrollview", part: "handle", nineSlice: vSlice(36), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Scrollbar handle — the kit's bevel candy with an edge light. The ScrollView prefab wires it." });
   await addPng("orb/lit.png", shell("orb", {}, undefined, 1), { component: "orb", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, lit — streaks, statuses, day markers." });
   await addPng("orb/off.png", shell("orb", {}, undefined, 0), { component: "orb", part: "off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, off (dark glass)." });
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell. Number or glyph is engine content." });
   await addPng("iconbtn/base.png", shell("iconbtn", { icon: undefined }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
+  await addPng("iconbtn/base-plain.png", shell("iconbtn", { icon: null }), { component: "iconbtn", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell, NO glyph baked — drop any icons/* on top for close/X, back, settings buttons." });
 
   /* ── states for the OTHER controls people actually point at. Only the
      nine-slice buttons shipped hover/pressed/disabled, so an icon button,
@@ -4424,6 +4443,102 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* REAL Unity Toggles from the plain wells (dev field report: "Unity
+       has a Toggle component that is used for these kinds of binary state
+       switches"; owner: both flavors ship). Background = the bare box,
+       Checkmark = the kit's tintable glyph in the Glow role — Toggle shows
+       and hides it natively. The designed ghost-mark prefabs stay too. */
+    static bool TogglePrefabs(string dir, string root, int pngScale, PBManifest m) {
+      bool any = false;
+      if (ToggleOne(dir, root, pngScale, m, "checkbox/base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "radio/base-plain.png", "icons/dot.png", "RadioToggle", 0.34f)) any = true;
+      return any;
+    }
+    static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale) {
+      var bg = S(root + "/assets/" + bgPath);
+      var mark = S(root + "/assets/" + markPath);
+      if (bg == null || mark == null) return false;
+      var go = ImageObject(name, bg, pngScale);
+      var markGo = ImageObject("Checkmark", mark, pngScale);
+      markGo.transform.SetParent(go.transform, false);
+      var mi = markGo.GetComponent<Image>();
+      mi.raycastTarget = false;
+      // the mark wears the kit's Glow role, like the app's lit check
+      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) {
+        Color c;
+        if (ColorUtility.TryParseHtmlString(m.palette.glow, out c)) mi.color = c;
+      }
+      var bgRt = go.GetComponent<RectTransform>();
+      var mrt = markGo.GetComponent<RectTransform>();
+      mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
+      mrt.anchoredPosition = Vector2.zero;
+      mrt.sizeDelta = bgRt.sizeDelta * markScale; // the app's own mark proportion
+      var tog = go.AddComponent<Toggle>();
+      tog.targetGraphic = go.GetComponent<Image>();
+      tog.graphic = mi;
+      tog.isOn = true;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + name + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* a WIRED ScrollView (dev field report: scroll view assets missing and
+       "prefabs for some of the more involved objects would be an awesome
+       quality of life thing") — panel frame, RectMask2D viewport, empty
+       Content ready for children, kit-dressed vertical scrollbar. */
+    static bool ScrollViewPrefab(string dir, string root, int pngScale) {
+      var frame = S(root + "/assets/panel/base.9.png");
+      var track = S(root + "/assets/scrollview/track.9.png");
+      var handle = S(root + "/assets/scrollview/handle.9.png");
+      if (frame == null || track == null || handle == null) return false;
+      var go = ImageObject("ScrollView", frame, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Sliced;
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(Mathf.Max(380f, rt.sizeDelta.x * 0.75f), 460f);
+      var sr = go.AddComponent<ScrollRect>();
+      var vp = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+      vp.transform.SetParent(go.transform, false);
+      var vrt = vp.GetComponent<RectTransform>();
+      vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
+      vrt.offsetMin = new Vector2(18f, 18f); vrt.offsetMax = new Vector2(-46f, -18f); // the right lane belongs to the scrollbar
+      vrt.pivot = new Vector2(0f, 1f);
+      var content = new GameObject("Content", typeof(RectTransform));
+      content.transform.SetParent(vp.transform, false);
+      var crt = content.GetComponent<RectTransform>();
+      crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f);
+      crt.pivot = new Vector2(0.5f, 1f);
+      crt.sizeDelta = new Vector2(0f, 640f); // taller than the frame so it scrolls out of the box
+      var sb = ImageObject("Scrollbar", track, pngScale);
+      sb.transform.SetParent(go.transform, false);
+      sb.GetComponent<Image>().type = Image.Type.Sliced;
+      var sbrt = sb.GetComponent<RectTransform>();
+      sbrt.anchorMin = new Vector2(1f, 0f); sbrt.anchorMax = new Vector2(1f, 1f);
+      sbrt.pivot = new Vector2(1f, 0.5f);
+      sbrt.sizeDelta = new Vector2(22f, -36f);
+      sbrt.anchoredPosition = new Vector2(-10f, 0f);
+      var bar = sb.AddComponent<Scrollbar>();
+      var slide = new GameObject("Sliding Area", typeof(RectTransform));
+      slide.transform.SetParent(sb.transform, false);
+      var srt = slide.GetComponent<RectTransform>();
+      srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
+      srt.offsetMin = new Vector2(3f, 7f); srt.offsetMax = new Vector2(-3f, -7f);
+      var hd = ImageObject("Handle", handle, pngScale);
+      hd.transform.SetParent(slide.transform, false);
+      var hi = hd.GetComponent<Image>();
+      hi.type = Image.Type.Sliced;
+      var hrt = hd.GetComponent<RectTransform>();
+      hrt.anchorMin = Vector2.zero; hrt.anchorMax = Vector2.one;
+      hrt.offsetMin = Vector2.zero; hrt.offsetMax = Vector2.zero;
+      bar.handleRect = hrt;
+      bar.targetGraphic = hi;
+      bar.direction = Scrollbar.Direction.BottomToTop;
+      sr.viewport = vrt; sr.content = crt;
+      sr.verticalScrollbar = bar;
+      sr.horizontal = false;
+      sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
     static bool GlobePrefab(string dir, string root, int pngScale, PBManifest m) {
@@ -4506,6 +4621,8 @@ namespace PatternBreak {
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale)) any = true;
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
+      if (TogglePrefabs(dir, root, pngScale, m)) any = true;
+      if (ScrollViewPrefab(dir, root, pngScale)) any = true;
       // the wide, stateless pieces also get a stretch-safe variant when
       // the kit wears a pattern (the plain Sliced prefab still ships)
       foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
@@ -5081,4 +5198,8 @@ in SliceMargins.csv in pixels).
 ## Checkbox / Radio
 - CheckBox widget: Unchecked Image assets/checkbox/base.png;
   Checked = base + assets/icons/check.png (tinted) layered above.
+  Prefer Unity's own Toggle? **CheckboxToggle.prefab** and
+  **RadioToggle.prefab** are wired ones — bare well + the kit's mark as
+  the Toggle's graphic, isOn does the rest (group radios with a
+  ToggleGroup). Both flavors ship; pick per screen.
 `;

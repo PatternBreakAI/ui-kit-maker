@@ -47,6 +47,9 @@ const AdminPage = lazy(() =>
 const FaqPage = lazy(() =>
   import("@/marketing/FaqPage").then((m) => ({ default: m.FaqPage })),
 );
+const UnityPage = lazy(() =>
+  import("@/marketing/UnityPage").then((m) => ({ default: m.UnityPage })),
+);
 
 // `?lab=silhouettes` is a boot-time dev harness, decided once and never at
 // runtime — it bypasses routing entirely, exactly as main.tsx did before.
@@ -231,6 +234,10 @@ export function Shell() {
       ) : route.name === "faq" ? (
         <Suspense fallback={<RouteLoading />}>
           <FaqPage />
+        </Suspense>
+      ) : route.name === "unity" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <UnityPage />
         </Suspense>
       ) : (
         <Landing />

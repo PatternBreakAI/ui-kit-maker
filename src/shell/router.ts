@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 
 export type RouteName =
   | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
-  | "community" | "studio" | "user" | "admin" | "faq";
+  | "community" | "studio" | "user" | "admin" | "faq" | "unity";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
@@ -50,6 +50,7 @@ export function parseHash(hash: string): Route {
   // the admin desk — linked only from the Account page's admin-only card
   if (path === "/admin") return { name: "admin", viewer: false };
   if (path === "/faq") return { name: "faq", viewer: false };
+  if (path === "/unity") return { name: "unity", viewer: false };
   // /u/<handle> — the one parameterized route: a maker's public page.
   const u = /^\/u\/([a-z0-9_]{3,20})$/.exec(path);
   if (u) return { name: "user", viewer: false, param: u[1] };
