@@ -1722,7 +1722,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const { x, y, h, iconSize: baseIcon } = g0;
   const T2 = D.type;
   const fontDef = fontByName(T2.font);
-  const fs = g0.fs * (T2.size / 52);
+  let fs = g0.fs * (T2.size / 52);
   const rawLabel = opts.label ?? cfg.content.label ?? "PLAY";
   const cased = T2.case === "upper" ? rawLabel.toUpperCase()
     : T2.case === "lower" ? rawLabel.toLowerCase()
@@ -1736,8 +1736,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : opts.iconDef ?? (ICONS_ENABLED && IC.show ? (IC.def ?? DEFAULT_ICON) : null);
   const iconOnly = opts.iconDef !== undefined ? !opts.label : (ICONS_ENABLED && IC.only && !!iconDef);
   const showText = !iconOnly && label.length > 0;
-  const iconSize = baseIcon * (IC.size / 100);
-  const gap = showText && iconDef ? IC.gap * K : 0;
+  let iconSize = baseIcon * (IC.size / 100);
+  let gap = showText && iconDef ? IC.gap * K : 0;
   const spacingEm = T2.spacing / 100;
   const weightK = 1 + Math.max(0, T2.weight - 700) * 0.0004;
   // width (`wdth`) axis — honored only for faces that really expose it; the
@@ -1750,10 +1750,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // left-anchored specimens carry extra right slack — the whole estimate
   // error lands on the ragged right edge instead of splitting across both
   const mW = showText ? measureLabel(label, T2.font, T2.weight, !!T2.italic) : null;
-  const textW = (showText ? (mW !== null
+  let textW = (showText ? (mW !== null
     ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
     : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
-  const contentW = textW + (iconDef ? iconSize : 0) + gap;
+  let contentW = textW + (iconDef ? iconSize : 0) + gap;
 
   /* text-safe area — the silhouette's authored content insets keep labels out
      of caps, tails and bevels, with breathing room that scales with the label
@@ -1801,6 +1801,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     .map((s) => cfg.stateDesigns?.[s]).filter(Boolean) as StateDesign[];
   const minW = opts.fixedW ?? Math.max(stateWidth(cfg), ...forks.map(stateWidth));
   const w = opts.fixedW ?? Math.min(g0.maxW ?? 980, minW);
+  /* a FIXED frame can't grow for its content, but the safe-area story must
+     still hold there (owner: the homepage hero ignored Content margin —
+     auto-width surfaces honored it, fixed frames spilled instead). When
+     content + margins outgrow the frame, the type FITS DOWN, uniformly:
+     every derived metric scales with fs, so placement math stays coherent.
+     Anything that already fits renders byte-identically. */
+  if (opts.fixedW && showText && contentW > 0) {
+    const availW = Math.max(24, w - padL - padR);
+    if (contentW > availW) {
+      const fitK = Math.max(0.45, availW / contentW);
+      fs *= fitK; iconSize *= fitK; gap *= fitK; textW *= fitK; contentW *= fitK;
+    }
+  }
 
   /* ── extrusion & lift ─────────────────────────────────────────── */
   const depth = C.extrusion.depth * K * (secondary ? 0.55 : 1);

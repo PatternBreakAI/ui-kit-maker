@@ -1723,7 +1723,10 @@ button.kp-fact { cursor: pointer; }
 .kp-wkdays::before { top: var(--rail-y, 44%); }
 
 /* ── v39: WebGL exploded-material hero ─────────────────────────── */
-.kp-glhero { position: relative; flex: 1 1 auto; min-width: 0; min-height: 540px; overflow: hidden; background: transparent; }
+/* the drag listeners live on the WRAP (labels included), so the gesture
+   claims belong here too — canvas-only touch-action left label-area drags
+   scrolling the page under the spin */
+.kp-glhero { position: relative; flex: 1 1 auto; min-width: 0; min-height: 540px; overflow: hidden; background: transparent; touch-action: none; user-select: none; }
 .kp-glhero .kp-glcanvas { cursor: grab; touch-action: none; }
 .kp-glhero.kp-gldrag .kp-glcanvas { cursor: grabbing; }
 .kp-glcanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

@@ -428,6 +428,10 @@ export function HeroGL() {
       }
     } catch { /* ignore */ }
     const onDown = (e: PointerEvent) => {
+      /* claim the gesture outright: without this the browser ALSO runs a
+         text-selection drag under the spin, and selection auto-scrolls the
+         page (owner: "it scrolls the page up and down along with it") */
+      e.preventDefault();
       dragging = true; lastX = e.clientX; lastY = e.clientY; velX = 0; velY = 0;
       wrap.classList.add("kp-gldrag");
       wrap.setPointerCapture?.(e.pointerId);
