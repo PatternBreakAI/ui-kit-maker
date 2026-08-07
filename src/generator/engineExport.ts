@@ -98,6 +98,46 @@ const svgWrap = (w: number, h: number, inner: string) =>
 /** `licence` is issued by /api/export and rides inside the ZIP — it names
     the account the kit belongs to, so a redistributed bundle is traceable
     back to its source. Reached through guardedExport, never directly. */
+/* The Glints ink's blend (owner: "give it a blending mode similar to
+   overlay"): premultiplied additive — for bright specular slabs riding a
+   lit face, One/One-with-premultiply reads as overlay does, and it is the
+   strongest blend a portable UI shader can promise on every pipeline.
+   Kit-independent, so it ships as a shared script beside the importer. */
+const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
+  Properties {
+    _MainTex ("Glints Atlas", 2D) = "white" {}
+    _Color ("Tint", Color) = (1,1,1,1)
+  }
+  SubShader {
+    Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
+    Cull Off Lighting Off ZWrite Off ZTest [unity_GUIZTestMode]
+    Blend One One
+    Pass {
+      CGPROGRAM
+      #pragma vertex vert
+      #pragma fragment frag
+      #include "UnityCG.cginc"
+      struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      sampler2D _MainTex; fixed4 _Color;
+      v2f vert (appdata_t v) {
+        v2f o;
+        o.vertex = UnityObjectToClipPos(v.vertex);
+        o.texcoord = v.texcoord;
+        o.color = v.color * _Color;
+        return o;
+      }
+      fixed4 frag (v2f i) : SV_Target {
+        fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
+        c.rgb *= c.a; // premultiply: transparent atlas air adds nothing
+        return c;
+      }
+      ENDCG
+    }
+  }
+}
+`;
+
 export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
@@ -827,6 +867,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
+  files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
   if (full) {
@@ -875,7 +916,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Editor/PatternBreakKitImporter.cs",
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
-    "Runtime/PatternBreakStateFx.cs",
+    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
   ]);
   const rooted = files.map((f) => ({
     ...f,
@@ -980,23 +1021,23 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     { dy: -0.02, h: 0.26, o: 0.9 },
     { dy: 0.34, h: 0.12, o: 0.4 },
   ];
-  type VKey = "full" | "fill" | "fillg" | "stroke";
-  /* the GLINTS travel INSIDE the Fill ink now (owner: "the highlight glints
-     have an overlay blend mode but this isn't reflected in the unity
-     export"): an isolated glints layer rendered against transparency could
-     never carry its blend mode — overlay needs the fill underneath. So the
-     shipped Fill ink is the fill + glints COMPOSITE, blended by the same
-     renderer the app uses (blend mode, opacity, scale and nudges exact),
-     and the separate Glints echo retires. The PURE fill still bakes as the
-     letterform reference for the feather and never ships. */
-  const glintsOn = !!base.type.glints?.on;
+  type VKey = "full" | "fill" | "stroke" | "glints";
+  /* the GLINTS stay their own layer — one continuous field over the body
+     of text, exactly as the app draws them (owner: "keep the glints as a
+     mask, one big piece over the body of text as it was, and give it a
+     blending mode similar to overlay"). The importer dresses the Glints
+     ink in the additive GlintInk shader (shipped in the zip) — for bright
+     specular slabs, premultiplied additive reads as overlay does. Fill
+     stays the pure letterform: it is also the feather's reference box. */
   const variants: { key: VKey; mutate: (c: GenConfig) => void; glinted: boolean }[] = [
     { key: "full", mutate: (c) => { c.type.size = 52; }, glinted: true },
+    // fill drops glints too — the dedicated Glints layer carries them in
+    // the HeroLabel stack (baking them into Fill would double them)
     { key: "fill", mutate: (c) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.glints = undefined; }, glinted: false },
-    ...(glintsOn ? [{ key: "fillg" as const, mutate: (c: GenConfig) => { c.type.size = 52; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; }, glinted: true }] : []),
     { key: "stroke", mutate: (c) => { strokeBase(c); c.type.shadow.on = false; }, glinted: false },
+    { key: "glints", mutate: (c) => { c.type.size = 52; c.type.fillOpacity = 0; c.type.outline.on = false; c.type.shadow.on = false; c.type.glow.on = false; c.type.emboss.on = false; c.type.stripes = undefined; }, glinted: true },
   ];
-  const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], fillg: [], stroke: [], shadow: [] };
+  const sets: Record<VKey | "shadow", Baked[]> = { full: [], fill: [], stroke: [], glints: [], shadow: [] };
   const hasShadow = !!base.type.shadow.on;
   const spacingPx = 52 * ((base.type.spacing ?? 0) / 100) * BAKE_S;
   /* KERNING PAIRS (owner: "look at how far away the Y is from the other
@@ -1017,7 +1058,7 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   for (const ch of BAKE_GLYPHS + " ") {
     const adv = mx.measureText(ch).width * BAKE_S + spacingPx;
     if (ch === " ") {
-      for (const k of ["full", "fill", "fillg", "stroke", "shadow"] as const)
+      for (const k of ["full", "fill", "stroke", "glints", "shadow"] as const)
         sets[k].push({ u: 32, adv, bx: 0, by: 0, w: 0, h: 0 });
       continue;
     }
@@ -1047,7 +1088,7 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
           keepCase: true, highlight: "", mutate: v.mutate, fxPad,
           glintBand: v.glinted ? 3 : undefined,
           glintStars: v.glinted ? glintStars : undefined,
-          glintBands: v.key === "fillg" ? GLINT_FIELD : undefined,
+          glintBands: v.key === "glints" ? GLINT_FIELD : undefined,
         }),
         BAKE_S,
       );
@@ -1168,9 +1209,9 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
      to act on. All variants render on the same specimen grid, so the
      union is box arithmetic and each atlas crops from the variant's
      existing canvas — no re-rendering. */
-  const LAYER_KEYS = ["fill", "fillg", "stroke", "shadow"] as const;
+  const LAYER_KEYS = ["fill", "stroke", "shadow", "glints"] as const;
   const byU = (list: Baked[]) => new Map(list.map((g) => [g.u, g]));
-  const maps = { fill: byU(sets.fill), fillg: byU(sets.fillg), stroke: byU(sets.stroke), shadow: byU(sets.shadow) };
+  const maps = { fill: byU(sets.fill), stroke: byU(sets.stroke), shadow: byU(sets.shadow), glints: byU(sets.glints) };
   const skeleton: Baked[] = [];
   for (const ch of BAKE_GLYPHS + " ") {
     const u = ch.codePointAt(0)!;
@@ -1193,12 +1234,12 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
       for (const k of LAYER_KEYS) { const g = maps[k].get(skel.u); if (g) { g.x = skel.x; g.y = skel.y; } }
     /* a set with only the space entry means the kit has that layer OFF.
        stroke (outline + glow) and shadow carry the blurred slabs — they
-       feather; the fill ink (the glints-composited bake when glints are on)
-       is letterform + crisp bands and ships exact. */
-    const shipFill = glintsOn && sets.fillg.length > 5 ? sets.fillg : sets.fill;
-    if (shipFill.length > 5) layerPngs.fill = await rasterAtlas(shipFill, layersH);
+       feather; fill is the letterform and glints fuse across letters by
+       design, so both ship exact. */
+    if (sets.fill.length > 5) layerPngs.fill = await rasterAtlas(sets.fill, layersH);
     if (sets.stroke.length > 5) layerPngs.stroke = await rasterAtlas(sets.stroke, layersH, slabsVs(sets.stroke));
     if (sets.shadow.length > 5) layerPngs.shadow = await rasterAtlas(sets.shadow, layersH, slabsVs(sets.shadow));
+    if (sets.glints.length > 5) layerPngs.glints = await rasterAtlas(sets.glints, layersH);
   }
   const layered = layersH != null && layerPngs.fill && layerPngs.stroke;
 
@@ -3132,18 +3173,23 @@ namespace PatternBreak {
       if (string.IsNullOrEmpty(texFile)) { AssetDatabase.DeleteAsset(path); return; }
       var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(root + "/" + texFile);
       if (tex == null) return; // atlas not imported yet — the next pass retries
+      /* the Glints ink blends ADDITIVELY (the kit's overlay glints, made
+         portable) — the shader ships in the zip; UI/Default stands in if
+         it hasn't compiled yet, and the next pass upgrades in place */
+      var want = layerName == "Glints" ? (Shader.Find("UIKitMaker/GlintInk") ?? Shader.Find("UI/Default")) : Shader.Find("UI/Default");
       var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
       if (mat == null) {
-        var shader = Shader.Find("UI/Default");
-        if (shader == null) { Debug.LogWarning("UI Kit Maker: UI/Default shader missing — the " + layerName + " ink is skipped."); return; }
-        mat = new Material(shader);
+        if (want == null) { Debug.LogWarning("UI Kit Maker: UI/Default shader missing — the " + layerName + " ink is skipped."); return; }
+        mat = new Material(want);
         mat.mainTexture = tex;
         AssetDatabase.CreateAsset(mat, path);
         return;
       }
       // re-imports retexture in place; the material file (and any tint a
-      // user set on it) stays theirs
+      // user set on it) stays theirs — but the Glints ink's shader upgrade
+      // does apply, or old imports would keep alpha-blending forever
       if (mat.mainTexture != tex) { mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
+      if (layerName == "Glints" && want != null && want.name == "UIKitMaker/GlintInk" && mat.shader != want) { mat.shader = want; mat.mainTexture = tex; EditorUtility.SetDirty(mat); }
     }
     static Material InkMaterial(string root, string layerName) {
       return AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Ink " + layerName + ".mat");
