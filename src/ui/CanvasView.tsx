@@ -12,13 +12,15 @@ import type { GenStateName } from "@/generator/model";
 import { KitPage } from "./KitPage";
 import { LiveArt, shellHit } from "./LiveArt";
 import { BoardView } from "./Board";
+import { SliceStage } from "./SliceStage";
+import { FirstVisitHints } from "./FirstVisit";
 
 /* state names resolve per render so the homepage's language choice wins */
 const capOf = (s: GenStateName) =>
   s === "default" ? t("stDefault") : s === "hover" ? t("stHover") : s === "pressed" ? t("stPressed") : t("stDisabled");
 
 export function CanvasView() {
-  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg } = useGen();
+  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg, sliceStage } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const [gridPop, setGridPop] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -303,6 +305,10 @@ export function CanvasView() {
             )}
           </div>
         )}
+        {/* the slicing workbench — the panel's 9-slice preview at working
+            size, over the canvas ("we need to be pixel accurate here") */}
+        {sliceStage && phase === "master" && <SliceStage />}
+        <FirstVisitHints />
         <div className="zoolbar" role="toolbar" aria-label="Canvas tools">
           {/* the Kit page is permanently alive — Design/Play only applies to
               the editor hero and the board */}

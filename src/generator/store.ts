@@ -271,6 +271,10 @@ interface GenStore {
   /** Live text filter over the editor tray — every control searchable. */
   panelQuery: string;
   setPanelQuery: (q: string) => void;
+  /** The big slicing workbench over the canvas (owner: "we need to be
+   *  pixel accurate here") — which piece it's open for. Session-only. */
+  sliceStage: KitComponentId | null;
+  setSliceStage: (cid: KitComponentId | null) => void;
   saveStatus: "saved" | "saving";
   open: Record<string, boolean>;
 
@@ -801,6 +805,8 @@ export const useGen = create<GenStore>((set, get) => ({
   sectionFilter: null,
   panelQuery: "",
   setPanelQuery: (q) => set({ panelQuery: q }),
+  sliceStage: null,
+  setSliceStage: (cid) => set({ sliceStage: cid }),
   saveStatus: "saved",
   open: { state: true, shape: true, mapping: true, gloss: true },
   panelW: loadPanelW(),
