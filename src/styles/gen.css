@@ -2502,3 +2502,8 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .allstateschip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 8px; border: 1px dashed color-mix(in srgb, currentColor 35%, transparent); background: none; color: inherit; font-size: 12px; cursor: pointer; opacity: 0.75; }
 .allstateschip:hover { opacity: 1; }
 .allstateschip.on { opacity: 1; border-style: solid; border-color: #7cc4ff; background: color-mix(in srgb, #7cc4ff 18%, transparent); color: #7cc4ff; }
+.slicebox { margin-top: 10px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.slicebox .fl { display: flex; align-items: center; gap: 8px; font-size: 12.5px; opacity: 0.9; }
+.slicegrid { margin-top: 6px; }
+.slicegrid .slotcell span { text-transform: capitalize; }
+.slicepreview { display: block; margin: 8px 0 2px; max-width: 100%; border-radius: 8px; background: color-mix(in srgb, currentColor 6%, transparent); padding: 6px; }

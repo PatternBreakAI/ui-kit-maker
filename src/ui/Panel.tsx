@@ -3,7 +3,8 @@ import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dic
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, applyKitTextFill } from "@/generator/model";
+import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont } from "@/generator/fonts";
@@ -245,6 +246,165 @@ function Well({ label, value, onChange }: { label: string; value: string; onChan
           ))}
         </span>
       )}
+    </div>
+  );
+}
+
+/* the export's ground-truth slice measurement, run client-side so the
+   "Custom" editor seeds FROM what Auto would ship (owner: "so that the
+   computer doesn't have to guess and the user can adjust") — render the
+   calmed piece, walk each edge profile to where it flattens, pad. */
+async function measureAutoSlice(cid: KitComponentId): Promise<{ auto: KitSlice; cv: HTMLCanvasElement } | null> {
+  try {
+    const st = useGen.getState();
+    const c = JSON.parse(JSON.stringify(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]))) as GenConfig;
+    c.stateDesigns = {};
+    c.shadow.opacity = 0;
+    c.candy.contact.opacity = 0;
+    for (const g of Object.values(c.states)) g.glow = 0;
+    const svg = renderKit(c, cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { label: "", icon: null });
+    const cv = await new Promise<HTMLCanvasElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => { const k = document.createElement("canvas"); k.width = img.width; k.height = img.height; k.getContext("2d")!.drawImage(img, 0, 0); resolve(k); };
+      img.onerror = reject;
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    });
+    const w = cv.width, h = cv.height;
+    const d = cv.getContext("2d")!.getImageData(0, 0, w, h).data;
+    const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
+    const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
+      for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
+    }
+    const cols: number[] = [];
+    for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
+    if (cols.length < 8) return null;
+    const x0 = cols[0], x1 = cols[cols.length - 1];
+    let yT = h, yB = -1;
+    for (const x of cols) { if (topAt[x] < yT) yT = topAt[x]; if (botAt[x] > yB) yB = botAt[x]; }
+    const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
+      for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
+    }
+    const rows: number[] = [];
+    for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
+    if (rows.length < 8) return null;
+    const ry0 = rows[0], ry1 = rows[rows.length - 1];
+    const T = 2;
+    let tl = x0; while (tl <= x1 && (topAt[tl] < 0 || topAt[tl] > yT + T)) tl++;
+    let tr = x1; while (tr >= x0 && (topAt[tr] < 0 || topAt[tr] > yT + T)) tr--;
+    let bl = x0; while (bl <= x1 && (botAt[bl] < 0 || botAt[bl] < yB - T)) bl++;
+    let br = x1; while (br >= x0 && (botAt[br] < 0 || botAt[br] < yB - T)) br--;
+    let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > x0 + T)) lt++;
+    let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > x0 + T)) lb--;
+    let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < x1 - T)) rt2++;
+    let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < x1 - T)) rb--;
+    const PAD = 3;
+    /* the tight-cropped sprite — the same crop the export ships, so the
+       preview and the measured numbers speak the same coordinates */
+    const tw = x1 - x0 + 1, th = ry1 - ry0 + 1;
+    const tight = document.createElement("canvas");
+    tight.width = tw; tight.height = th;
+    tight.getContext("2d")!.drawImage(cv, x0, ry0, tw, th, 0, 0, tw, th);
+    return {
+      auto: {
+        left: Math.max(tl, bl) - x0 + PAD,
+        right: x1 - Math.min(tr, br) + PAD,
+        top: Math.max(lt, rt2) - ry0 + PAD,
+        bottom: ry1 - Math.min(lb, rb) + PAD,
+      },
+      cv: tight,
+    };
+  } catch { return null; }
+}
+
+function SliceEditor({ cid }: { cid: KitComponentId }) {
+  const kitSlices = useGen((s) => s.kitSlices);
+  const setKitSlice = useGen((s) => s.setKitSlice);
+  const cur = kitSlices[cid] ?? null;
+  const [probe, setProbe] = useState<{ auto: KitSlice; cv: HTMLCanvasElement } | null>(null);
+  const prevRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let dead = false;
+    setProbe(null);
+    void measureAutoSlice(cid).then((m) => { if (!dead) setProbe(m); });
+    return () => { dead = true; };
+  }, [cid]);
+  const seed = probe?.auto ?? null;
+  const on = !!cur;
+  const vals = cur ?? seed;
+  /* LIVE PREVIEW (owner: "the scaling tool should have a live preview of
+     how Unity will interpret the file") — this IS Unity's Sliced Image
+     algorithm: nine regions, rigid corners, edges stretch one axis, the
+     middle both. Composited at full resolution, then fit to the panel. */
+  useEffect(() => {
+    const out = prevRef.current;
+    if (!out || !probe || !vals) return;
+    const src = probe.cv;
+    const w = src.width, h = src.height;
+    const l = Math.min(vals.left, Math.floor(w / 2) - 2), r = Math.min(vals.right, Math.floor(w / 2) - 2);
+    const t = Math.min(vals.top, Math.floor(h / 2) - 2), b = Math.min(vals.bottom, Math.floor(h / 2) - 2);
+    const W2 = Math.round(w * 1.9), H2 = h;
+    const off = document.createElement("canvas");
+    off.width = W2; off.height = H2;
+    const c2 = off.getContext("2d")!;
+    const xs = [0, l, w - r, w], dxs = [0, l, W2 - r, W2];
+    const ys = [0, t, h - b, h], dys = [0, t, H2 - b, H2];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      const sw = xs[i + 1] - xs[i], sh = ys[j + 1] - ys[j];
+      const dw = dxs[i + 1] - dxs[i], dh = dys[j + 1] - dys[j];
+      if (sw > 0 && sh > 0 && dw > 0 && dh > 0) c2.drawImage(src, xs[i], ys[j], sw, sh, dxs[i], dys[j], dw, dh);
+    }
+    // the guides, drawn where the borders sit
+    c2.strokeStyle = "rgba(124,196,255,0.85)";
+    c2.setLineDash([5, 4]);
+    c2.lineWidth = Math.max(1, Math.round(w / 260));
+    c2.beginPath();
+    c2.moveTo(l + 0.5, 0); c2.lineTo(l + 0.5, H2);
+    c2.moveTo(W2 - r + 0.5, 0); c2.lineTo(W2 - r + 0.5, H2);
+    c2.moveTo(0, t + 0.5); c2.lineTo(W2, t + 0.5);
+    c2.moveTo(0, H2 - b + 0.5); c2.lineTo(W2, H2 - b + 0.5);
+    c2.stroke();
+    const fit = Math.min(1, 252 / W2);
+    out.width = Math.round(W2 * fit); out.height = Math.round(H2 * fit);
+    const oc = out.getContext("2d")!;
+    oc.clearRect(0, 0, out.width, out.height);
+    oc.drawImage(off, 0, 0, out.width, out.height);
+  }, [probe, vals?.left, vals?.right, vals?.top, vals?.bottom]);
+  const setField = (k: keyof KitSlice, v: number) => {
+    const base = cur ?? seed ?? { left: 40, right: 40, top: 36, bottom: 36 };
+    setKitSlice(cid, { ...base, [k]: Math.max(1, Math.round(v || 1)) });
+  };
+  return (
+    <div className="slicebox">
+      <span className="fl">Unity slicing
+        <button className={`allstateschip${!on ? " on" : ""}`} title="Borders measured from this piece's rendered pixels at export — right for almost every kit."
+          onClick={() => setKitSlice(cid, null)}>Auto</button>
+        <button className={`allstateschip${on ? " on" : ""}`} title="Set the nine-slice borders yourself — your numbers ship exactly."
+          onClick={() => { if (!on) setKitSlice(cid, seed ?? { left: 40, right: 40, top: 36, bottom: 36 }); }}>Custom</button>
+      </span>
+      {probe && vals && (
+        <canvas ref={prevRef} className="slicepreview"
+          title="Stretched to 1.9x width, drawn exactly as Unity's Sliced Image draws it — corners rigid, middle stretching. Dashed lines are the slice guides." />
+      )}
+      {on && vals && (
+        <div className="slotgrid slicegrid">
+          {(["left", "right", "top", "bottom"] as const).map((k) => (
+            <label key={k} className="slotcell">
+              <span>{k}</span>
+              <input className="tinput" type="number" min={1} max={400} value={vals[k]}
+                onChange={(e) => setField(k, +e.target.value)} aria-label={`Slice border ${k}`} />
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="helper">{on
+        ? "Design px, all of this piece's sprites and states. Corners stay rigid inside the borders; only the middle stretches."
+        : seed
+          ? `Auto reads the corner curves off the real pixels — this piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).`
+          : "Auto reads the corner curves off the real pixels at export."}</div>
     </div>
   );
 }
@@ -1235,7 +1395,7 @@ export function Panel() {
           toggle, compass, dials…) carry no text or glyph but DO carry a
           value — without it their slider had no section to live in
           (owner: "I clicked the component editor and nothing"). ── */}
-      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus] || VALUE_DRIVEN.has(focus)))) && focus && (
+      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus] || VALUE_DRIVEN.has(focus) || KIT_SLICEABLE[focus]))) && focus && (
         <Section id="kiticon" title={t("secKitIcon")}
           summary={<span>{(iconSwappable || iconTogglable)
             ? (kitIcons[focus] === "none" ? "no icon" : ((kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"))
@@ -1270,6 +1430,7 @@ export function Panel() {
               <div className="helper">The resting pose — bars fill, needles point, rarity tiers pick, toggles flip. The kit page, the Board and exports all hold this frame.</div>
             )}
           </>)}
+          {KIT_SLICEABLE[focus] && <SliceEditor cid={focus} />}
           {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
             /* many options wear a dropdown — a 12-way radio row per slot
                would be a wall of chips (the emote wheel has eight slots) */

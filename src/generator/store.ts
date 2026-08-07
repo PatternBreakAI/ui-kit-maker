@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign } from "./model";
+import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
 import { SILHOUETTES } from "./silhouettes";
@@ -438,6 +438,10 @@ interface GenStore {
   applyCloudPreset: (id: string) => void;
   kitSlotVals: Partial<Record<KitComponentId, Record<string, string>>>;
   setKitSlot: (id: KitComponentId, slotId: string, val: string | null) => void;
+  /* per-piece Unity 9-slice override, design px — null/absent = the export
+     measures the borders from the rendered pixels (the default) */
+  kitSlices: Partial<Record<KitComponentId, KitSlice>>;
+  setKitSlice: (id: KitComponentId, v: KitSlice | null) => void;
   publishPreset: (name: string, publishAt?: string | null) => Promise<string | null>;
   schedulePreset: (id: string, publishAt: string | null) => Promise<string | null>;
   removeCloudPresetById: (id: string) => Promise<void>;
@@ -681,12 +685,13 @@ const KIT_STORE_KEY: Record<string, string> = {
   kitTextOx: "ui-generator-kittextox",
   kitBar: "ui-generator-kitbar",
   kitSlotVals: "ui-generator-kitslots",
+  kitSlices: "ui-generator-kitslices",
   kitVals: "ui-generator-kitvals",
   kitRow: "ui-generator-kitrow",
 };
 /** Record-shaped keys — a look that carries none of one means "none",
  *  so they reset rather than blending with whatever the user had. */
-const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes"] as const;
+const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -725,8 +730,8 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   useGen.setState(patch as Partial<GenStore>);
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow">;
-const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -1137,6 +1142,15 @@ export const useGen = create<GenStore>((set, get) => ({
   /* Chosen slot values per component (unit choices etc). Same lifecycle
      as kitLabels: local, synced with the workspace, riding kit payloads. */
   kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
+  kitSlices: loadJson<Partial<Record<KitComponentId, KitSlice>>>("ui-generator-kitslices", {}),
+  setKitSlice: (id, v) => {
+    markTouched();
+    pushHistory(get());
+    const kitSlices = { ...get().kitSlices };
+    if (v) kitSlices[id] = v; else delete kitSlices[id];
+    saveJson("ui-generator-kitslices", kitSlices);
+    set({ kitSlices });
+  },
   setKitSlot: (id, slotId, val) => {
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").

@@ -7,7 +7,7 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, glowFromPng, setEmbedFont } from "./exportUtils";
@@ -34,6 +34,9 @@ export interface EngineExportState {
   kitTextFill: Partial<Record<KitComponentId, string>>;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitSizes: Partial<Record<KitComponentId, "s" | "m" | "l">>;
+  /** Per-piece 9-slice override from the app's slicing editor, design px —
+      absent = borders measured from the rendered pixels. */
+  kitSlices?: Partial<Record<KitComponentId, { left: number; right: number; top: number; bottom: number }>>;
   kitName: string;
   /** I1 — the kit's PERMANENT address inside the user's Unity project
       (Assets/UIKitMaker/<slug>/). Minted at first export, survives display
@@ -114,8 +117,8 @@ const svgWrap = (w: number, h: number, inner: string) =>
      normal     SrcAlpha/OneMinusSrcAlpha  pack 0 (plain)        EXACT
      multiply   DstColor/Zero              pack 2 (lerp→white)   EXACT (white ink: no-op, as in the app)
      screen     One/OneMinusSrcColor       pack 1 (premultiply)  EXACT
-     overlay    DstColor/One               pack 4 (premult·0.85) EXACT shape for b ≤ ½, clamps above;
-                                                the ·0.85 is the owner's pull-back — dialed by eye on the real kit
+     overlay    DstColor/One               pack 4 (premult·0.9)  EXACT shape for b ≤ ½, clamps above;
+                                                the ·0.9 is the owner's dial — set by eye on the real kit
      hard-light One/OneMinusSrcColor       pack 1 (premultiply)  EXACT (hard-light with white IS screen)
      soft-light One/OneMinusSrcColor       pack 3 (premult·0.4)  fit of b + a(√b − b), mid-tone error < 0.03
    Single-pass fixed-function cannot branch on the backdrop per channel —
@@ -270,7 +273,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         } else {
           c = tex2D(_MainTex, i.texcoord) * i.color; // old zips: bands live in the atlas
         }
-        if (_Pack > 3.5) c.rgb *= c.a * 0.85;           // 4: candy gain at 85% (owner's dial)
+        if (_Pack > 3.5) c.rgb *= c.a * 0.9;            // 4: candy gain at 90% (owner's dial)
         else if (_Pack > 2.5) c.rgb *= c.a * 0.4;       // 3: gentle light — 0.4·(1−b) fits soft-light's a·(√b−b)
         else if (_Pack > 1.5) c.rgb = lerp(fixed3(1,1,1), c.rgb, c.a); // 2: multiply — empty air multiplies by 1
         else if (_Pack > 0.5) c.rgb *= c.a;             // 1: premultiply — empty air adds nothing
@@ -414,6 +417,73 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      runtime that fades it */
   const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
     "list-row", "item-slot", "iconbtn", "checkbox", "radio"]);
+  /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
+     borders kinked a stretched corner — his kit's face is not the
+     design-space shape, and extrusion regrows the crop box, so ANY formula
+     lies for some kit). The borders are now MEASURED from the rendered
+     alpha: walk each edge's silhouette profile to where it flattens
+     against its extreme — that is where curvature ends — and pad. Shape-,
+     extrusion- and kit-agnostic. A group (base + states + face layers)
+     measures ONCE from its first member, so Sprite Swap never pops.
+     Organic shapes that never flatten fall to the caps below, as before. */
+  /* the maker's own guides outrank the measurement — same respect the
+     importer pays to hand-tuned borders on the Unity side */
+  const userSliceByFam = new Map<string, { left: number; right: number; top: number; bottom: number }>();
+  for (const [cid, fam] of Object.entries(KIT_SLICEABLE)) {
+    const o = st.kitSlices?.[cid as KitComponentId];
+    if (o && fam) userSliceByFam.set(fam, {
+      left: Math.round(o.left * PNG_SCALE), right: Math.round(o.right * PNG_SCALE),
+      top: Math.round(o.top * PNG_SCALE), bottom: Math.round(o.bottom * PNG_SCALE),
+    });
+  }
+  const SLICE_PAD = Math.round(3 * PNG_SCALE);
+  const sliceMeasureCache = new Map<string, { left: number; right: number; top: number; bottom: number } | null>();
+  const measureSlice = async (bytes: Uint8Array, w: number, h: number) => {
+    try {
+      const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d")!;
+      cx.drawImage(bmp, 0, 0);
+      const d = cx.getImageData(0, 0, w, h).data;
+      const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
+      const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
+        for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
+      }
+      const cols: number[] = [];
+      for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
+      if (cols.length < 8) return null;
+      const cx0 = cols[0], cx1 = cols[cols.length - 1];
+      let yTop = h, yBot = -1;
+      for (const x of cols) { if (topAt[x] < yTop) yTop = topAt[x]; if (botAt[x] > yBot) yBot = botAt[x]; }
+      const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
+        for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
+      }
+      const rows: number[] = [];
+      for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
+      if (rows.length < 8) return null;
+      const ry0 = rows[0], ry1 = rows[rows.length - 1];
+      const T = 2 * PNG_SCALE; // close enough to the extreme = flat
+      let tl = cx0; while (tl <= cx1 && (topAt[tl] < 0 || topAt[tl] > yTop + T)) tl++;
+      let tr = cx1; while (tr >= cx0 && (topAt[tr] < 0 || topAt[tr] > yTop + T)) tr--;
+      let bl = cx0; while (bl <= cx1 && (botAt[bl] < 0 || botAt[bl] < yBot - T)) bl++;
+      let br = cx1; while (br >= cx0 && (botAt[br] < 0 || botAt[br] < yBot - T)) br--;
+      let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > cx0 + T)) lt++;
+      let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > cx0 + T)) lb--;
+      let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < cx1 - T)) rt2++;
+      let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < cx1 - T)) rb--;
+      return {
+        left: Math.max(tl, bl) + SLICE_PAD,
+        right: (w - 1 - Math.min(tr, br)) + SLICE_PAD,
+        top: Math.max(lt, rt2) + SLICE_PAD,
+        bottom: (h - 1 - Math.min(lb, rb)) + SLICE_PAD,
+      };
+    } catch { return null; }
+  };
   const rasterQueue = async () => {
     const total = pngQueue.length + (catalog ? 1 : 0);
     /* entries sharing a group (a family's rest + swap states) rasterize
@@ -438,6 +508,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
       if (s) {
+        // the real pixels overrule the estimate — measured curvature is
+        // where the guides go; the sliceOf math survives only as fallback
+        const uo = userSliceByFam.get(q.meta.component);
+        if (uo) { s.left = uo.left; s.right = uo.right; s.top = uo.top; s.bottom = uo.bottom; }
+        else {
+          const mkey = q.group ?? q.path;
+          let mz = sliceMeasureCache.get(mkey);
+          if (mz === undefined) { mz = await measureSlice(bytes, w, h); sliceMeasureCache.set(mkey, mz); }
+          if (mz) { s.left = mz.left; s.right = mz.right; s.top = mz.top; s.bottom = mz.bottom; }
+        }
         /* organic silhouettes can push the cap math past reason — the wavy
            button's slice guides nearly met in the middle, caps ate ~92% of
            the sprite and the type area with it (owner: "this is clearly
@@ -737,8 +817,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      bytes when the kit actually wears a pattern. ── */
   const facePat = base.candy.pattern;
   if (facePat && facePat.type !== "none" && facePat.opacity > 1) {
-    for (const [fam, cid] of [["panel", "panel"], ["header", "header"]] as const) {
-      const sl = sliceOf(cid as KitComponentId, cid === "panel" ? 380 : 158);
+    /* buttons and rows joined the split-face set (owner: "the pattern gets
+       stretched out rather than a repeating pattern that is masked by
+       whatever shape") — the tiled-face prefab keeps the pattern's rhythm
+       at any width. Their sliced state-swap prefabs still ship beside it;
+       the README's Sliced-vs-Tiled trade-off section says when to reach
+       for which. */
+    const FACE_H: Record<string, number> = { panel: 380, header: 158, "button-primary": 136, "button-secondary": 136, "list-row": 128, "item-slot": 128 };
+    for (const [fam, cid] of [["panel", "panel"], ["header", "header"],
+      ["button-primary", "primary"], ["button-secondary", "secondary"],
+      ["list-row", "datarow"], ["item-slot", "slot"]] as const) {
+      const sl = sliceOf(cid as KitComponentId, FACE_H[fam]);
       /* ONE union crop box for the pair (same trick the swap states use):
          cropped apart, the over layer — which has no shell or shadow —
          lands in a tighter box and every gloss sits misplaced once the
@@ -3591,7 +3680,7 @@ namespace PatternBreak {
        overlay is headed anyway). Hard-light with white IS screen, so it
        ships as screen, exact. normal/multiply/screen were already exact. */
     static void ApplyGlintBlend(Material mat, string mode) {
-      float src = 2, dst = 1, pack = 4;                                 // overlay (default): DstColor/One candy gain at 85%
+      float src = 2, dst = 1, pack = 4;                                 // overlay (default): DstColor/One candy gain at 90%
       if (mode == "normal") { src = 5; dst = 10; pack = 0; }            // SrcAlpha/OneMinusSrcAlpha
       else if (mode == "multiply") { src = 2; dst = 0; pack = 2; }      // DstColor/Zero, empty air = white
       else if (mode == "screen") { src = 1; dst = 6; pack = 1; }        // One/OneMinusSrcColor
@@ -4653,7 +4742,7 @@ namespace PatternBreak {
       if (ScrollViewPrefab(dir, root, pngScale)) any = true;
       // the wide, stateless pieces also get a stretch-safe variant when
       // the kit wears a pattern (the plain Sliced prefab still ships)
-      foreach (var tf in new string[] { "panel", "header" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
+      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
 #endif

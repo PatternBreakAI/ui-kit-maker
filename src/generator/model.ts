@@ -1766,6 +1766,18 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
 
 /* Stock glyphs for kit components — canonical Lucide paths, embedded so the
    renderer stays pure. */
+/* The pieces that ship as nine-sliced sprites, by their Unity family name.
+   Drives the "Unity slicing" editor in Component content and the export's
+   user-override lookup (owner: "maybe a manual setting in addition can't
+   hurt... you could edit it if need be"). Values are DESIGN-space px; the
+   export scales them to sprite px. */
+export const KIT_SLICEABLE: Partial<Record<KitComponentId, string>> = {
+  primary: "button-primary", secondary: "button-secondary", small: "button-small",
+  chip: "chip", tab: "tab", input: "input", panel: "panel", header: "header-banner",
+  datarow: "list-row", slot: "item-slot",
+};
+export interface KitSlice { left: number; right: number; top: number; bottom: number }
+
 export const STOCK_ICONS: Record<string, IconDef> = {
   star: { lib: "lucide", name: "Star", viewBox: "0 0 24 24", inner: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', mode: "stroke" },
   check: { lib: "lucide", name: "Check", viewBox: "0 0 24 24", inner: '<path d="M20 6 9 17l-5-5"/>', mode: "stroke" },
