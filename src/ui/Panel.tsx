@@ -858,8 +858,19 @@ export function Panel() {
             <button key={s} className={selectedState === s ? "on" : ""} role="radio" aria-checked={selectedState === s}
               onClick={() => setSelectedState(s)}>{STATE_LABEL[s]}</button>
           ))}
+          {/* the write-through switch lives WITH the state picker — its only
+              other home (the sticky flag) never shows on Default, which made
+              the feature invisible right where you'd look for it (owner:
+              "I can't find this") */}
+          <button className={`allstateschip${allStates ? " on" : ""}`} aria-pressed={allStates}
+            title={allStates ? "On: every edit becomes the value for ALL states. Click to go back to one-state editing." : "Every edit you make becomes the value for Default, Hover, Pressed and Disabled at once — existing state styling stays, only what you touch unifies."}
+            onClick={() => setAllStates(!allStates)}>
+            <Layers size={12} strokeWidth={2.2} /> All states
+          </button>
         </div>
-        <div className="helper">Hover or press the button on the canvas to feel the states live. These sliders shape only <b>{STATE_LABEL[selectedState]}</b>.</div>
+        <div className="helper">{allStates
+          ? <>Hover or press the button on the canvas to feel the states live. <b>All states</b> is on — every edit becomes the value for all four states.</>
+          : <>Hover or press the button on the canvas to feel the states live. These sliders shape only <b>{STATE_LABEL[selectedState]}</b>.</>}</div>
         <Slider label="Brightness" value={adj.brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
         <Slider label="Saturation" value={adj.saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
         <Slider label="Glow" value={adj.glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
