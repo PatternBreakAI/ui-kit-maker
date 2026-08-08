@@ -2373,12 +2373,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const un = `<feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/><feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feMerge result="dun"><feMergeNode in="SourceAlpha"/><feMergeNode in="dwl"/></feMerge>`;
     const dgy = cy + 1 + textOy * K;
     const dCover = clamp((DM!.glossCover ?? 38) / 100, 0.15, 0.7);
+    /* wrap geometry: feMorphology dilates with a BOX kernel — corners
+       square off and curves chamfer, which reads wrong on letterforms
+       (owner: "the stroke should just follow the letterform shapes"). In
+       vector-outline mode the source element carries the wrap as a
+       round-join STROKE on the compound path instead — a true parallel
+       offset of every curve — and the filters only sweep and tint it.
+       The <text> fallback keeps the dilate (no geometry to stroke). */
+    const dStkW = dRim > 0.05 ? dStick + dRim : dStick;
     dimDefs =
       (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
-      // the sticker dilate includes the rim width — the wrap must stay
-      // visible OUTSIDE the rim ring, not vanish underneath it
-      (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${(dRim > 0.05 ? dStick + dRim : dStick).toFixed(1)}" result="dstk"/><feFlood flood-color="${dStickC}"/><feComposite in2="dstk" operator="in"/></filter>` : "") +
-      (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="drim"/><feFlood flood-color="${dRimC}"/><feComposite in2="drim" operator="in"/></filter>` : "") +
+      // the sticker wrap includes the rim width — it must stay visible
+      // OUTSIDE the rim ring, not vanish underneath it
+      (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}${TP2 ? "" : `<feMorphology in="dun" operator="dilate" radius="${dStkW.toFixed(1)}" result="dun"/>`}<feFlood flood-color="${dStickC}"/><feComposite in2="dun" operator="in"/></filter>` : "") +
+      (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}${TP2 ? "" : `<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="dun"/>`}<feFlood flood-color="${dRimC}"/><feComposite in2="dun" operator="in"/></filter>` : "") +
       /* flat blob: wrap and body in ONE ink means the wall's depth-shading
          band would read as an extra stroke inside the shape (owner report)
          — the sweep paints as a single flat fill there */
@@ -2393,10 +2401,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         return `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${gy1}" x2="0" y2="${gy2}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
       })() : "");
     const dimText = fxText;
+    // path mode: the wrap rides the source as a round-join stroke — the
+    // filters sweep and tint an alpha that already follows the curves
+    const dimSrc = (r2: number) => TP2 && r2 > 0.05
+      ? dimText(`fill="#000" stroke="#000" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)
+      : dimText(`fill="#000"`);
     dimBack =
-      (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimText(`fill="#000"`)}</g>` : "") +
-      (dStick > 0.05 ? `<g filter="url(#${id}dst)">${dimText(`fill="#000"`)}</g>` : "") +
-      (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimText(`fill="#000"`)}</g>` : "") +
+      (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
+      (dStick > 0.05 ? `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>` : "") +
+      (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimSrc(dRim)}</g>` : "") +
       (dDepth > 0.05 ? `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>` : "");
     dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
   }
