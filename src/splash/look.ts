@@ -11,6 +11,9 @@ export type SplashLook = {
   /** multiline — Return is respected; the blob wraps the whole block */
   text: string;
   font: string;
+  /** weight — real for variable/multi-master faces (the outlines carry
+   *  the axis), optical fattening for single-master ones */
+  weight: number;
   customFonts: string[];
   /** letterform ink (+ optional vertical gradient) */
   fill: string;
@@ -35,6 +38,16 @@ export type SplashLook = {
   groove: number; // 0..100
   /** pattern inside the letterforms — UIKM's letterform pattern system */
   pattern: { on: boolean; style: string; scale: number; angle: number; opacity: number };
+  /** pattern inside the STROKE — the blob wears the seamless cell */
+  blobPattern: { on: boolean; style: string; scale: number; angle: number; opacity: number };
+  /** hard-candy gloss band over the letter faces */
+  gloss: number;      // 0..100 opacity
+  glossCover: number; // 20..60 — % of glyph height the band covers
+  glossBlend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
+  /** the master light — swings shine crescents and sparkle placement */
+  lightAngle: number; // 0..360
+  /** vector sparkles riding the letterforms, UIKM's glint system */
+  glints: { on: boolean; style: "slab" | "stars" | "streak" | "sheen"; opacity: number; blend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light" };
   /** per-letter tilt & bounce 0..100 — jaunty, still one sticker */
   bounce: number;
   /** ink shine — top-light crescents on each letterform */
@@ -62,6 +75,7 @@ export const SPLASH_STAGE_CHIPS = ["#EAD4B4", "#101318", "#F4F1EA", "#E8402A"] a
 /* The factory look — the approved GOOD DAY retro sticker. */
 const GOOD_DAY: SplashStyle = {
   font: "Modak",
+  weight: 400,
   fill: "#E8402A",
   inkGrad: false,
   fill2: "#B7231A",
@@ -76,6 +90,12 @@ const GOOD_DAY: SplashStyle = {
   posterFit: false,
   groove: 0,
   pattern: { on: false, style: "stripes", scale: 100, angle: 0, opacity: 30 },
+  blobPattern: { on: false, style: "dots", scale: 100, angle: 0, opacity: 30 },
+  gloss: 0,
+  glossCover: 38,
+  glossBlend: "normal",
+  lightAngle: 90,
+  glints: { on: false, style: "stars", opacity: 70, blend: "normal" },
   bounce: 30,
   shine: true,
   shineSize: 4,
@@ -144,7 +164,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   const t = c.type;
   t.font = look.font;
   t.customFonts = [...look.customFonts];
-  t.weight = 400;
+  t.weight = look.weight;
   t.size = 96;
   t.italic = false;
   t.case = "none";     // the text renders as typed
@@ -159,7 +179,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.shadow = { on: false, color: look.blob, x: 0, y: 3, blur: 2, opacity: 50 };
   t.emboss = { on: false, strength: 0, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
   t.glow = { on: false, color: look.fill, size: 10, opacity: 80 };
-  t.glints = { on: false, opacity: 85, style: "stars", blend: "normal" };
+  t.glints = { on: look.glints.on, opacity: look.glints.opacity, style: look.glints.style, blend: look.glints.blend };
   t.stripes = {
     on: look.pattern.on,
     angle: look.pattern.angle,
@@ -179,12 +199,14 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     rim: 0,
     rimColor: look.blob,
     shadow: look.shadow,
-    gloss: 0,
-    glossCover: 35,
+    gloss: look.gloss,
+    glossCover: look.glossCover,
+    glossBlend: look.glossBlend,
     tilt: look.bounce,
     drift: 55,               // the lean is part of the look itself
+    pattern: { ...look.blobPattern },
   };
-  c.lighting = { ...c.lighting, angle: 90, highlight: 70, lowlight: 50 };
+  c.lighting = { ...c.lighting, angle: look.lightAngle, highlight: 70, lowlight: 50 };
   c.effects = { ...c.effects, Bevel: look.fill, Glow: look.fill };
   return c;
 }

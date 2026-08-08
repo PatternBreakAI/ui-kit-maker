@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Hand, ImagePlus, Minus, PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
+import { Hand, ImagePlus, Minus, Plus, X } from "lucide-react";
 import { renderTypeSpecimen } from "@/generator/bevel";
 import { registerCustomFont, fontByName, GAME_FONTS, PATTERN_TYPES } from "@/generator/model";
 import { ensureFont } from "@/generator/fonts";
 import { fileToBgDataUrl } from "@/generator/store";
 import { downloadSvg, downloadPng, inlineKitFace } from "@/generator/exportUtils";
-import { Slider, FontPicker } from "@/ui/controls";
+import { Slider, FontPicker, AngleDial } from "@/ui/controls";
 import { loadOutlineFont, flatWordOutline } from "./outline";
+import { SPLASH_FONT_NAMES, registerSplashFonts, splashFontDef } from "./fonts";
 import type { Font } from "opentype.js";
 import { buildSplashCfg, SPLASH_DEFAULT, SPLASH_STAGE_CHIPS, SPLASH_STYLES } from "./look";
 import type { SplashLook, SplashStyle } from "./look";
@@ -20,7 +21,9 @@ import "@/styles/splash.css";
 
 const LS_KEY = "splash-v1";
 const STYLES_KEY = "splash-styles-v1";
-const TRAY_KEY = "splash-tray";
+const TRAY_W_KEY = "splash-trayw";
+
+registerSplashFonts(); // the fat shelf, with true caps — before first render
 
 /* Module scope, deliberately: defined inside the page component this was a
    NEW component type every render, so React remounted the native color
@@ -93,13 +96,13 @@ export function SplashPage() {
     ensureFont(look.font);
     let alive = true;
     setOState("loading");
-    void loadOutlineFont(look.font).then((f) => {
+    void loadOutlineFont(look.font, look.weight, splashFontDef(look.font)?.ttf).then((f) => {
       if (!alive) return;
       setOFont(f);
       setOState(f ? "ready" : "none");
     });
     return () => { alive = false; };
-  }, [look.font, look.customFonts]);
+  }, [look.font, look.weight, look.customFonts]);
   useEffect(() => {
     const onDone = () => setFontTick((v) => v + 1);
     document.fonts?.addEventListener?.("loadingdone", onDone);
@@ -170,14 +173,24 @@ export function SplashPage() {
     el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
   }, [oState]);
 
-  /* the tray is a drawer — pull it out to work, tuck it away to see the
-     poster full-bleed. The choice sticks. */
-  const [trayOpen, setTrayOpen] = useState(() => {
-    try { return localStorage.getItem(TRAY_KEY) !== "closed"; } catch { return true; }
+  /* the tray edge is a sash, exactly like UIKM's panel — pull it in the
+     browser to resize; the width sticks. Same clamp as the kit editor so
+     the two apps feel like one system. */
+  const [trayW, setTrayW] = useState(() => {
+    try { const v = Number(localStorage.getItem(TRAY_W_KEY)); return v >= 300 && v <= 560 ? v : 300; } catch { return 300; }
   });
-  useEffect(() => {
-    try { localStorage.setItem(TRAY_KEY, trayOpen ? "open" : "closed"); } catch { /* private mode */ }
-  }, [trayOpen]);
+  const sashFrom = useRef<{ x: number; w: number } | null>(null);
+  const onSashDown = (e: React.PointerEvent) => {
+    sashFrom.current = { x: e.clientX, w: trayW };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onSashMove = (e: React.PointerEvent) => {
+    if (!sashFrom.current) return;
+    const v = Math.max(300, Math.min(560, Math.round(sashFrom.current.w + (e.clientX - sashFrom.current.x))));
+    setTrayW(v);
+    try { localStorage.setItem(TRAY_W_KEY, String(v)); } catch { /* private mode */ }
+  };
+  const onSashUp = () => { sashFrom.current = null; };
 
   /* styles — the starter shelf plus the user's own saves. A style is the
      whole look minus the words: applying one restyles what's typed. */
@@ -275,8 +288,8 @@ export function SplashPage() {
   };
 
   return (
-    <div className={`sp-app${trayOpen ? "" : " sp-tray-closed"}`}>
-      <aside className="sp-side" aria-hidden={!trayOpen}>
+    <div className="sp-app" style={{ gridTemplateColumns: `${trayW}px 6px 1fr` }}>
+      <aside className="sp-side">
         <div className="sp-brand">
           <div className="sp-brand-row">
             <span className="sp-mark" style={{ fontFamily: "'Modak', 'Lilita One', Inter, sans-serif" }}>SPLASH TEXT</span>
@@ -343,7 +356,33 @@ export function SplashPage() {
 
         <div className="sp-group">
           <div className="sp-h">Font</div>
-          <FontPicker value={look.font} customFonts={look.customFonts} onPick={(n) => { ensureFont(n); up("font", n); }} />
+          <FontPicker value={look.font} customFonts={look.customFonts} fonts={SPLASH_FONT_NAMES}
+            onPick={(n) => {
+              ensureFont(n);
+              // land on the face's fat default — a variable serif opens at
+              // its heavy master, not at skinny 400
+              const caps = fontByName(n).caps;
+              patch({ font: n, weight: caps?.wght ? caps.wght[2] : caps?.weights?.includes(400) ? 400 : caps?.weights?.[0] ?? 400 });
+            }} />
+          {(() => {
+            /* weight follows the face's REAL capabilities, UIKM's rule:
+               variable axes get a true slider (the outlines carry the
+               axis), multi-master faces pick a cut, single masters fatten
+               optically in the engine */
+            const caps = fontByName(look.font).caps;
+            if (caps?.wght) {
+              return <Slider label="Weight" value={look.weight} min={caps.wght[0]} max={caps.wght[1]} step={10} unit="" onChange={(v) => up("weight", v)} />;
+            }
+            const ws = caps?.weights ?? [400];
+            if (ws.length > 1) {
+              return (
+                <div className="sp-row" role="radiogroup" aria-label="Weight">
+                  {ws.map((w) => <button key={w} className={`sp-btn${look.weight === w ? " on" : ""}`} onClick={() => up("weight", w)}>{w}</button>)}
+                </div>
+              );
+            }
+            return <Slider label="Weight" value={look.weight} min={400} max={900} step={25} unit="" onChange={(v) => up("weight", v)} />;
+          })()}
           <div className="sp-addfont">
             <input ref={addFontRef} className="sp-input" placeholder="Add any Google font…" onKeyDown={(e) => { if (e.key === "Enter") addFont(); }} />
             <button className="sp-btn" onClick={addFont}>Add</button>
@@ -369,6 +408,30 @@ export function SplashPage() {
             {look.blobGrad && <Well label="to" value={look.blob2} onChange={(v) => up("blob2", v)} />}
           </div>
           <Slider label="Width" value={look.strokeW} min={0} max={24} step={0.5} unit="" onChange={(v) => up("strokeW", v)} />
+          <div className="sp-wells">
+            <label className="sp-check"><input type="checkbox" checked={look.blobPattern.on} onChange={(e) => up("blobPattern", { ...look.blobPattern, on: e.target.checked })} /> Pattern</label>
+            {look.blobPattern.on && (
+              <select className="sp-input sp-select" value={look.blobPattern.style} aria-label="Stroke pattern style"
+                onChange={(e) => up("blobPattern", { ...look.blobPattern, style: e.target.value })}>
+                {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
+          </div>
+          {look.blobPattern.on && (
+            <>
+              <Slider label="Scale" value={look.blobPattern.scale} min={25} max={300} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, scale: v })} />
+              <Slider label="Angle" value={look.blobPattern.angle} min={0} max={180} unit="°" onChange={(v) => up("blobPattern", { ...look.blobPattern, angle: v })} />
+              <Slider label="Opacity" value={look.blobPattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, opacity: v })} />
+            </>
+          )}
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Light</div>
+          <div className="sp-lightrow">
+            <AngleDial value={look.lightAngle} onChange={(v) => up("lightAngle", v)} />
+            <div className="sp-note">The master light — shine crescents and sparkles swing with it.</div>
+          </div>
         </div>
 
         <div className="sp-group">
@@ -391,6 +454,26 @@ export function SplashPage() {
               <Slider label="Roundness" value={look.shineRound} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineRound", v)} />
             </>
           )}
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Sparkle</div>
+          <div className="sp-wells">
+            <label className="sp-check"><input type="checkbox" checked={look.glints.on} onChange={(e) => up("glints", { ...look.glints, on: e.target.checked })} /> On</label>
+            {look.glints.on && (
+              <select className="sp-input sp-select" value={look.glints.style} aria-label="Sparkle style"
+                onChange={(e) => up("glints", { ...look.glints, style: e.target.value as SplashLook["glints"]["style"] })}>
+                {(["slab", "stars", "streak", "sheen"] as const).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+            {look.glints.on && (
+              <select className="sp-input sp-select" value={look.glints.blend} aria-label="Sparkle blend"
+                onChange={(e) => up("glints", { ...look.glints, blend: e.target.value as SplashLook["glints"]["blend"] })}>
+                {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            )}
+          </div>
+          {look.glints.on && <Slider label="Opacity" value={look.glints.opacity} min={0} max={100} unit="%" onChange={(v) => up("glints", { ...look.glints, opacity: v })} />}
         </div>
 
         <div className="sp-group">
@@ -417,6 +500,18 @@ export function SplashPage() {
           <div className="sp-h">Body</div>
           <Slider label="Depth" value={look.depth} min={0} max={28} step={0.5} unit="" onChange={(v) => up("depth", v)} />
           <Slider label="Shadow" value={look.shadow} min={0} max={60} unit="%" onChange={(v) => up("shadow", v)} />
+          <Slider label="Gloss" value={look.gloss} min={0} max={100} unit="%" onChange={(v) => up("gloss", v)} />
+          {look.gloss > 0 && (
+            <>
+              <Slider label="Coverage" value={look.glossCover} min={20} max={60} unit="%" onChange={(v) => up("glossCover", v)} />
+              <div className="sp-wells">
+                <select className="sp-input sp-select" value={look.glossBlend} aria-label="Gloss blend"
+                  onChange={(e) => up("glossBlend", e.target.value as SplashLook["glossBlend"])}>
+                  {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="sp-group">
@@ -449,6 +544,10 @@ export function SplashPage() {
         <div className="sp-foot">build {__BUILD_STAMP__}</div>
       </aside>
 
+      <div className="sp-resize" role="separator" aria-orientation="vertical" aria-label="Resize tray"
+        onPointerDown={onSashDown} onPointerMove={onSashMove}
+        onPointerUp={onSashUp} onPointerCancel={onSashUp} />
+
       <main className={`sp-stage${look.stage.mode === "transparent" && !look.stage.image ? " sp-checker" : ""}${panMode ? " sp-panning" : ""}`}
         style={look.stage.image
           ? { backgroundImage: `url(${look.stage.image})`, backgroundSize: "cover", backgroundPosition: "center" }
@@ -458,11 +557,6 @@ export function SplashPage() {
             <div className="sp-art" dangerouslySetInnerHTML={{ __html: finalSvg }} />
           </div>
         </div>
-        <button className="sp-trayhandle" title={trayOpen ? "Tuck the controls away" : "Pull the controls out"}
-          aria-label={trayOpen ? "Hide controls" : "Show controls"} aria-expanded={trayOpen}
-          onClick={() => setTrayOpen((v) => !v)}>
-          {trayOpen ? <PanelLeftClose size={17} strokeWidth={1.8} /> : <PanelLeftOpen size={17} strokeWidth={1.8} />}
-        </button>
         <div className="sp-floater" role="toolbar" aria-label="Canvas">
           <button className={panMode ? "on" : ""} title="Pan (or drag with the middle button)" aria-pressed={panMode} onClick={() => setPanMode(!panMode)}>
             <Hand size={17} strokeWidth={1.8} />

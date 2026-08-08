@@ -2391,18 +2391,35 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
        rects live in LOCAL path coords, so the filters get their own
        locally-bounded regions. */
     const dGrad = !!TP2 && !!DM!.stickerColor2 && dStick > 0.05;
+    /* blob pattern — the letterform pattern system aimed at the STROKE:
+       a seamless cell tone-on-tone from the wrap color, painted through
+       the same blob mask the gradient uses. Path mode only (the mask is
+       built from the compound path). */
+    const dPat = DM!.pattern;
+    const dPatOn = !!TP2 && !!dPat?.on && (dPat.opacity ?? 0) > 0.5;
     const dgy1 = TP2 ? (TP2.gy1 ?? -fs * 0.55) : 0;
     const dgy2 = TP2 ? (TP2.gy2 ?? fs * 0.55) : 0;
     const dLR = `filterUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? textW) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
     const dMaskSrc = (r2: number) => `<path d="${TP2?.d ?? ""}" fill="#fff"${r2 > 0.05 ? ` stroke="#fff" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"` : ""}/>`;
-    const dGradRect = `<rect x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? 0) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" fill="url(#${id}dsg)"`;
+    const dRect = (fill: string) => `<rect x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? 0) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" fill="${fill}"`;
+    /* the extrusion's silhouette: the STROKE is the outer boundary — the
+       blob (face ∪ wrap) extrudes as one object, so the wall follows the
+       wrap's curves, not the bare letterforms. Path mode strokes the
+       source element; the <text> fallback dilates in-filter. */
+    const dwlSrc = !TP2 && dStkW > 0.05
+      ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${dStkW.toFixed(1)}" result="dsrc"/><feMorphology in="dsrc" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`
+      : `<feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`;
     dimDefs =
-      (dGrad ? `<linearGradient id="${id}dsg" gradientUnits="userSpaceOnUse" x1="0" y1="${dgy1.toFixed(1)}" x2="0" y2="${(dgy2 + dDepth).toFixed(1)}"><stop offset="0" stop-color="${dStickC}"/><stop offset="1" stop-color="${P(DM!.stickerColor2!)}"/></linearGradient>` +
-        `<filter id="${id}dstg" ${dLR}>${un}<feFlood flood-color="#fff"/><feComposite in2="dun" operator="in"/></filter>` +
-        `<mask id="${id}dsm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(dStkW)}</g></mask>` +
-        (dDepth > 0.05 && dStickC.toLowerCase() === dWall.toLowerCase()
-          ? `<mask id="${id}dwm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(0)}</g></mask>`
-          : "") : "") +
+      (dGrad || dPatOn
+        ? `<filter id="${id}dstg" ${dLR}>${un}<feFlood flood-color="#fff"/><feComposite in2="dun" operator="in"/></filter>` +
+          `<mask id="${id}dsm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(dStkW)}</g></mask>`
+        : "") +
+      (dGrad ? `<linearGradient id="${id}dsg" gradientUnits="userSpaceOnUse" x1="0" y1="${dgy1.toFixed(1)}" x2="0" y2="${(dgy2 + dDepth).toFixed(1)}"><stop offset="0" stop-color="${dStickC}"/><stop offset="1" stop-color="${P(DM!.stickerColor2!)}"/></linearGradient>` : "") +
+      (dPatOn ? (() => {
+        const dpc = fs * 0.3 * clamp((dPat!.scale ?? 100) / 100, 0.25, 4);
+        const tone = isDarkBg(dStickC) ? lighten(dStickC, 0.32) : darken(dStickC, 0.25);
+        return `<pattern id="${id}dpt" width="${dpc.toFixed(1)}" height="${dpc.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${dPat!.angle ?? 0})">${textPatternCell(dPat!.style ?? "dots", dpc, tone)}</pattern>`;
+      })() : "") +
       (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
       // the sticker wrap includes the rim width — it must stay visible
       // OUTSIDE the rim ring, not vanish underneath it
@@ -2411,7 +2428,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       /* flat blob: wrap and body in ONE ink means the wall's depth-shading
          band would read as an extra stroke inside the shape (owner report)
          — the sweep paints as a single flat fill there */
-      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}><feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/><feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/>${
+      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}>${dwlSrc}<feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/>${
         dStick > 0.05 && dStickC.toLowerCase() === dWall.toLowerCase()
           ? ""
           : `<feOffset in="dwl" dx="${(-dDx * 0.45).toFixed(1)}" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge>`
@@ -2427,15 +2444,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const dimSrc = (r2: number) => TP2 && r2 > 0.05
       ? dimText(`fill="#000" stroke="#000" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)
       : dimText(`fill="#000"`);
-    const dGradLayer = (maskId: string) => `<g transform="${tpXY}">${dGradRect} mask="url(#${id}${maskId})"/></g>`;
+    const dGradLayer = `<g transform="${tpXY}">${dRect(`url(#${id}dsg)`)} mask="url(#${id}dsm)"/></g>`;
+    const dPatLayer = dPatOn ? `<g transform="${tpXY}" opacity="${clamp((dPat!.opacity ?? 30) / 100, 0, 1).toFixed(2)}">${dRect(`url(#${id}dpt)`)} mask="url(#${id}dsm)"/></g>` : "";
     dimBack =
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
-      (dStick > 0.05 ? (dGrad ? dGradLayer("dsm") : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
+      (dStick > 0.05 ? (dGrad ? dGradLayer : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
       (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimSrc(dRim)}</g>` : "") +
+      /* the gradient blob needs no second wall pass when wrap and wall
+         share one ink — its mask already sweeps the stroked silhouette */
       (dDepth > 0.05 ? (dGrad && dStickC.toLowerCase() === dWall.toLowerCase()
-        ? dGradLayer("dwm")
-        : `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>`) : "");
+        ? ""
+        : `<g filter="url(#${id}dwl)">${dimSrc(dStkW)}</g>`) : "") +
+      dPatLayer;
     dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
+    if (dimGlossLayer && DM!.glossBlend && DM!.glossBlend !== "normal") dimGlossLayer = `<g style="mix-blend-mode:${DM!.glossBlend}">${dimGlossLayer}</g>`;
   }
 
   /* ── ink shine (Splash) — default-off. Per-letterform top-light

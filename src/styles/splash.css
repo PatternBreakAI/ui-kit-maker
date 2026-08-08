@@ -12,18 +12,20 @@
 }
 
 .sp-side {
-  width: 300px;
   overflow-y: auto;
   max-height: 100vh;
   padding: 16px 16px 22px;
   background: #101318;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex; flex-direction: column; gap: 16px;
-  transition: margin-left 0.28s ease;
 }
-/* the drawer: tucked away, the tray slides off-canvas and the stage takes
-   the full width; the handle in the stage pulls it back out */
-.sp-tray-closed .sp-side { margin-left: -300px; visibility: hidden; transition: margin-left 0.28s ease, visibility 0s 0.28s; }
+/* the tray edge is a sash — UIKM's panel-resize recipe verbatim, so the
+   two apps share one muscle memory */
+.sp-resize {
+  cursor: col-resize; background: transparent; position: relative; z-index: 5;
+  margin-left: -3px; touch-action: none;
+}
+.sp-resize:hover, .sp-resize:active { background: rgba(236, 237, 241, 0.1); }
 
 .sp-brand { display: flex; flex-direction: column; gap: 3px; }
 .sp-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -104,14 +106,7 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
 .sp-scroll::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.25); border-radius: 4px; }
 .sp-zoomwrap { margin: auto; padding: 10vh 6vw; width: max-content; }
 
-.sp-trayhandle {
-  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-  z-index: 5; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 46px; border-radius: 9px; cursor: pointer;
-  background: rgba(16, 19, 24, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #cfd3da; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-.sp-trayhandle:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+.sp-lightrow { display: flex; align-items: center; gap: 12px; }
 .sp-panning .sp-scroll { cursor: grab; }
 .sp-panning .sp-scroll:active { cursor: grabbing; }
 
@@ -143,7 +138,7 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
 .sp-art svg { display: block; width: min(82vw, 1500px); height: auto; }
 
 @media (max-width: 900px) {
-  .sp-app { grid-template-columns: 1fr; }
-  .sp-side { width: auto; max-height: none; }
-  .sp-tray-closed .sp-side { display: none; margin-left: 0; }
+  .sp-app { grid-template-columns: 1fr !important; } /* beats the inline sash width */
+  .sp-side { max-height: none; }
+  .sp-resize { display: none; }
 }

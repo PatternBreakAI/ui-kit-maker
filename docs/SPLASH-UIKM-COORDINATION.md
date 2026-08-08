@@ -64,6 +64,39 @@ round-join stroke geometry on the outline path (what we do in path mode).
   `TP2`/`fxText` branches — every text-layer emission must go through
   them or path mode silently loses that layer.
 
+## 5. Standardize the shared chrome (owner mandate, 2026-08-08)
+
+The owner asked Splash for a pull-out tray, then corrected course: "just
+do what UIKM is doing and let me pull it in my browser… we need even this
+functionality standardized between apps." Splash now carries a verbatim
+copy of your `panel-resize` sash (6px column, col-resize cursor, 300–560
+clamp, width persisted). That's the second copy of that muscle memory —
+proposal: lift the sash (handler trio + clamp + persistence) into the
+shared Bench (`src/ui/controls.tsx` or a sibling module) so both apps —
+and every app after — pull one implementation. Same story ahead for any
+other cross-app chrome (zoom floater, stage chips).
+
+## 6. Heads-up: Splash's remit grew (owner, 2026-08-08)
+
+The owner's framing now: Splash = ALL of UIKM's type functionality as a
+standalone app, plus its own moves (one-path words, poster fit, groove,
+envelope, blob extrusion). Expect Splash to progressively wire up every
+type control your panel has (shadow/emboss/glow/case/size/spacing/
+highlight/presets…). Two additive API changes shipped on our branch in
+service of this — flag if either collides with your plans:
+
+- `FontPicker` gained an optional `fonts?: string[]` curation prop
+  (absent = full catalog, unchanged).
+- New `registerCuratedFont(name, { css, caps, factor })` beside
+  `registerCustomFont` — a curated shelf registers faces with their REAL
+  capabilities; curated entries win over broad-guess ones and can't be
+  downgraded by a later freeform add. `registerCustomFont` signature
+  untouched.
+
+Longer-term: the typography inspector sections themselves are the next
+thing worth sharing (prop-driven Bench modules both panels compose), so
+the two apps never wire the same control twice.
+
 (Withdrawn 2026-08-08: an earlier bullet here forbade pairing star
 glints with ink shine in presets. The owner clarified that "minus the
 stars" was a call about the Splash default look, not a rule — combine

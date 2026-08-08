@@ -72,10 +72,15 @@ export function AngleDial({ value, onChange }: { value: number; onChange: (v: nu
 }
 
 /** Font dropdown with each family previewed in its own face. */
-export function FontPicker({ value, customFonts, onPick }: { value: string; customFonts: string[]; onPick: (name: string) => void }) {
+export function FontPicker({ value, customFonts, onPick, fonts }: {
+  value: string; customFonts: string[]; onPick: (name: string) => void;
+  /** Curated shelf — replaces the full catalog listing (user-added
+   *  customFonts still append). Absent = every catalog face, as before. */
+  fonts?: string[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const names = [...GAME_FONTS.map((f) => f.name), ...customFonts];
+  const names = [...(fonts ?? GAME_FONTS.map((f) => f.name)), ...customFonts.filter((n) => !fonts?.includes(n))];
   useEffect(() => {
     const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", close);

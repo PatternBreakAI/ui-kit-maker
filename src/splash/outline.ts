@@ -20,13 +20,26 @@ import { fetchKitFont } from "@/generator/engineExport";
 
 const FONT_CACHE = new Map<string, Promise<Font | null>>();
 
+/** Weight → google/fonts static filename fragment. */
+const WEIGHT_NAMES: Record<number, string> = {
+  100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular",
+  500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black",
+};
+
 /* Most google/fonts files follow two naming shapes — try those raw URLs
    first (no API call, no rate limit), and only fall back to the API
-   directory listing for the long tail. */
-async function fetchRawGuess(family: string): Promise<ArrayBuffer | null> {
+   directory listing for the long tail. A weight-specific static name is
+   tried first so multi-master families (Passion One) load the real cut;
+   a curated `ttfHint` (exact repo filename) beats all guessing. */
+async function fetchRawGuess(family: string, weight: number, ttfHint?: string): Promise<ArrayBuffer | null> {
   const base = family.replace(/[^A-Za-z0-9]/g, "");
   const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const names = [`${base}-Regular.ttf`, `${base}[wght].ttf`, `${base}[opsz,wght].ttf`, `${base}[wdth,wght].ttf`, `${base}-Bold.ttf`];
+  const wname = WEIGHT_NAMES[Math.round(weight / 100) * 100];
+  const names = [
+    ...(ttfHint ? [ttfHint] : []),
+    ...(weight !== 400 && wname ? [`${base}-${wname}.ttf`] : []),
+    `${base}-Regular.ttf`, `${base}[wght].ttf`, `${base}[opsz,wght].ttf`, `${base}[wdth,wght].ttf`, `${base}-Bold.ttf`,
+  ];
   for (const dir of ["ofl", "apache", "ufl"]) {
     for (const name of names) {
       try {
@@ -38,22 +51,37 @@ async function fetchRawGuess(family: string): Promise<ArrayBuffer | null> {
   return null;
 }
 
-export function loadOutlineFont(family: string): Promise<Font | null> {
-  let p = FONT_CACHE.get(family);
+/** Variable faces carry their weight for real: opentype.js 2 applies the
+ *  `wght` axis to the glyph paths. Static faces got the right file above;
+ *  faces without the axis ignore the call. */
+function applyWeight(font: Font, weight: number): Font {
+  try {
+    const axes = (font.tables as { fvar?: { axes?: { tag: string; minValue: number; maxValue: number }[] } }).fvar?.axes;
+    const wght = axes?.find((a) => a.tag === "wght");
+    // opentype.js 2 ships the variation manager without a type declaration
+    const vf = font as Font & { variation?: { set(coords: Record<string, number>): void } };
+    if (wght && vf.variation) vf.variation.set({ wght: Math.max(wght.minValue, Math.min(wght.maxValue, weight)) });
+  } catch { /* static face or unsupported tables — the default instance stands */ }
+  return font;
+}
+
+export function loadOutlineFont(family: string, weight = 400, ttfHint?: string): Promise<Font | null> {
+  const key = `${family}#${weight}`;
+  let p = FONT_CACHE.get(key);
   if (!p) {
     p = (async () => {
       try {
-        const raw = await fetchRawGuess(family);
-        if (raw) return parseFont(raw);
+        const raw = await fetchRawGuess(family, weight, ttfHint);
+        if (raw) return applyWeight(parseFont(raw), weight);
         const kf = await fetchKitFont(family);
         if (!kf) return null;
         const buf = kf.bytes.buffer.slice(kf.bytes.byteOffset, kf.bytes.byteOffset + kf.bytes.byteLength);
-        return parseFont(buf);
+        return applyWeight(parseFont(buf), weight);
       } catch {
         return null;
       }
     })();
-    FONT_CACHE.set(family, p);
+    FONT_CACHE.set(key, p);
   }
   return p;
 }

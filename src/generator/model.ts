@@ -307,6 +307,12 @@ export interface TypeCfg {
     /** Second wrap color — set = the blob wears a vertical gradient
      *  (vector-outline mode; the flat single color otherwise). */
     stickerColor2?: string | null;
+    /** Gloss band blend against the letter faces (default normal). */
+    glossBlend?: BlendMode;
+    /** Seamless pattern INSIDE the blob (wrap + body), tone-on-tone from
+     *  the wrap color — the letterform pattern system aimed at the
+     *  stroke. Vector-outline mode only; absent/off = untouched. */
+    pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number };
   };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
@@ -656,9 +662,24 @@ const customFontRegistry = new Map<string, { css: string; factor: number; caps: 
 export function registerCustomFont(name: string) {
   const clean = name.trim();
   if (!clean || GAME_FONTS.some((f) => f.name === clean)) return;
+  if (customFontRegistry.has(clean)) return; // never downgrade a curated entry
   customFontRegistry.set(clean, {
     css: clean.replace(/ /g, "+") + ":wght@400;500;600;700;800;900", factor: 0.62,
     caps: { weights: [400, 500, 600, 700, 800, 900] },
+  });
+}
+/** A curating surface (Splash's fat-font shelf) registers a face with its
+ *  REAL capabilities — correct css2 axis string and true caps — instead of
+ *  the broad-guess defaults `registerCustomFont` uses for freeform adds.
+ *  Curated entries win: they overwrite a broad-guess entry, and the guard
+ *  above keeps a later freeform add from downgrading them. */
+export function registerCuratedFont(name: string, opts: { css?: string; factor?: number; caps?: FontCaps }) {
+  const clean = name.trim();
+  if (!clean || GAME_FONTS.some((f) => f.name === clean)) return;
+  customFontRegistry.set(clean, {
+    css: opts.css ?? clean.replace(/ /g, "+") + ":wght@400;500;600;700;800;900",
+    factor: opts.factor ?? 0.62,
+    caps: opts.caps ?? { weights: [400, 500, 600, 700, 800, 900] },
   });
 }
 export function customFontNames(): string[] { return [...customFontRegistry.keys()]; }
