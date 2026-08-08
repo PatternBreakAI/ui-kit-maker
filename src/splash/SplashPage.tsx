@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Hand, ImagePlus, Minus, Plus, X } from "lucide-react";
+import { Hand, ImagePlus, Minus, PanelLeftClose, PanelLeftOpen, Plus, X } from "lucide-react";
 import { renderTypeSpecimen } from "@/generator/bevel";
-import { registerCustomFont, fontByName, PATTERN_TYPES } from "@/generator/model";
+import { registerCustomFont, fontByName, GAME_FONTS, PATTERN_TYPES } from "@/generator/model";
 import { ensureFont } from "@/generator/fonts";
 import { fileToBgDataUrl } from "@/generator/store";
 import { downloadSvg, downloadPng, inlineKitFace } from "@/generator/exportUtils";
 import { Slider, FontPicker } from "@/ui/controls";
 import { loadOutlineFont, flatWordOutline } from "./outline";
 import type { Font } from "opentype.js";
-import { buildSplashCfg, SPLASH_DEFAULT, SPLASH_STAGE_CHIPS } from "./look";
-import type { SplashLook } from "./look";
+import { buildSplashCfg, SPLASH_DEFAULT, SPLASH_STAGE_CHIPS, SPLASH_STYLES } from "./look";
+import type { SplashLook, SplashStyle } from "./look";
 import "@/styles/splash.css";
 
 /* SPLASH TEXT — super over-illustrated words. One look, nailed first:
@@ -19,6 +19,8 @@ import "@/styles/splash.css";
    depth is 2D trompe-l'œil. The UI carries only what this look needs. */
 
 const LS_KEY = "splash-v1";
+const STYLES_KEY = "splash-styles-v1";
+const TRAY_KEY = "splash-tray";
 
 /* Module scope, deliberately: defined inside the page component this was a
    NEW component type every render, so React remounted the native color
@@ -48,7 +50,7 @@ export function SplashPage() {
   const past = useRef<SplashLook[]>([]);
   const future = useRef<SplashLook[]>([]);
   const lastPush = useRef(0);
-  const up = useCallback(<K extends keyof SplashLook>(k: K, v: SplashLook[K]) => setLook((l) => {
+  const mark = useCallback((l: SplashLook) => {
     const now = Date.now();
     if (now - lastPush.current > 400) {
       past.current.push(l);
@@ -56,8 +58,9 @@ export function SplashPage() {
       future.current = [];
     }
     lastPush.current = now;
-    return { ...l, [k]: v };
-  }), []);
+  }, []);
+  const patch = useCallback((p: Partial<SplashLook>) => setLook((l) => { mark(l); return { ...l, ...p }; }), [mark]);
+  const up = useCallback(<K extends keyof SplashLook>(k: K, v: SplashLook[K]) => patch({ [k]: v }), [patch]);
   const undo = useCallback(() => setLook((l) => {
     const p = past.current.pop();
     if (!p) return l;
@@ -157,6 +160,62 @@ export function SplashPage() {
     return () => clearTimeout(t);
   }, [look]);
 
+  /* the words open big and centered — recenter the scrollport on boot and
+     again when the outlined art swaps in at its final size. Never on look
+     edits: that would fight the user's own panning. */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+  }, [oState]);
+
+  /* the tray is a drawer — pull it out to work, tuck it away to see the
+     poster full-bleed. The choice sticks. */
+  const [trayOpen, setTrayOpen] = useState(() => {
+    try { return localStorage.getItem(TRAY_KEY) !== "closed"; } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(TRAY_KEY, trayOpen ? "open" : "closed"); } catch { /* private mode */ }
+  }, [trayOpen]);
+
+  /* styles — the starter shelf plus the user's own saves. A style is the
+     whole look minus the words: applying one restyles what's typed. */
+  const [myStyles, setMyStyles] = useState<{ id: string; name: string; style: SplashStyle }[]>(() => {
+    try { return JSON.parse(localStorage.getItem(STYLES_KEY) ?? "[]") ?? []; } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(STYLES_KEY, JSON.stringify(myStyles)); } catch { /* private mode */ }
+  }, [myStyles]);
+  const styleNameRef = useRef<HTMLInputElement>(null);
+  const applyStyle = useCallback((s: SplashStyle) => {
+    registerCustomFont(s.font); // no-op for catalog faces
+    ensureFont(s.font);
+    setLook((l) => {
+      past.current.push(l);
+      future.current = [];
+      lastPush.current = 0;
+      return {
+        ...l, ...s,
+        customFonts: !GAME_FONTS.some((f) => f.name === s.font) && !l.customFonts.includes(s.font)
+          ? [...l.customFonts, s.font] : l.customFonts,
+        // an uploaded backdrop is content, not style — it survives the switch
+        stage: l.stage.image ? { ...s.stage, image: l.stage.image } : { ...s.stage, image: null },
+      };
+    });
+  }, []);
+  const saveStyle = () => {
+    const name = styleNameRef.current?.value.trim() || `My style ${myStyles.length + 1}`;
+    const { text: _t, customFonts: _cf, ...style } = look;
+    setMyStyles((arr) => [...arr, {
+      id: `u${Date.now().toString(36)}`, name,
+      // never bake an uploaded image into a saved style — data URLs would
+      // blow past the localStorage quota in a couple of saves
+      style: { ...style, stage: { mode: look.stage.mode, color: look.stage.color, image: null } },
+    }]);
+    if (styleNameRef.current) styleNameRef.current.value = "";
+  };
+
   const finalSvg = useMemo(() => {
     const cfg = buildSplashCfg(look);
     const t = cfg.type;
@@ -170,7 +229,7 @@ export function SplashPage() {
     const text = look.text || " ";
     if (oFont) {
       const tp = flatWordOutline(oFont, text, t.size, t.spacing / 100, look.bounce / 100, {
-        arc: look.arc / 100, bulge: look.bulge / 100,
+        arc: look.arc / 100, bulge: (look.bulgeOn ? look.bulge : 0) / 100,
         lineHeight: look.lineHeight / 100, align: look.align,
         fit: look.posterFit ? "column" : "none", groove: look.groove / 100,
       });
@@ -216,15 +275,17 @@ export function SplashPage() {
   };
 
   return (
-    <div className="sp-app">
-      <aside className="sp-side">
+    <div className={`sp-app${trayOpen ? "" : " sp-tray-closed"}`}>
+      <aside className="sp-side" aria-hidden={!trayOpen}>
         <div className="sp-brand">
           <div className="sp-brand-row">
             <span className="sp-mark" style={{ fontFamily: "'Modak', 'Lilita One', Inter, sans-serif" }}>SPLASH TEXT</span>
-            <button className="sp-btn sp-reset" title="Back to the factory look (Cmd+Z undoes this too)"
+            <button className="sp-btn sp-reset" title="Back to the factory look — your words stay (Cmd+Z undoes this too)"
               onClick={() => {
-                try { localStorage.removeItem(LS_KEY); } catch { /* private mode */ }
-                setLook((l) => { past.current.push(l); future.current = []; lastPush.current = 0; return { ...SPLASH_DEFAULT }; });
+                setLook((l) => {
+                  past.current.push(l); future.current = []; lastPush.current = 0;
+                  return { ...SPLASH_DEFAULT, text: l.text, customFonts: l.customFonts };
+                });
               }}>
               Reset
             </button>
@@ -251,6 +312,33 @@ export function SplashPage() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Styles</div>
+          <div className="sp-styles">
+            {SPLASH_STYLES.map((s) => (
+              <button key={s.id} className="sp-btn sp-style" onClick={() => applyStyle(s.style)}>
+                <span className="sp-style-dot" style={{ background: `linear-gradient(135deg, ${s.style.fill} 50%, ${s.style.blob} 50%)` }} />
+                {s.name}
+              </button>
+            ))}
+            {myStyles.map((s) => (
+              <span key={s.id} className="sp-style-mine">
+                <button className="sp-btn sp-style" onClick={() => applyStyle(s.style)}>
+                  <span className="sp-style-dot" style={{ background: `linear-gradient(135deg, ${s.style.fill} 50%, ${s.style.blob} 50%)` }} />
+                  {s.name}
+                </button>
+                <button className="sp-btn sp-style-x" aria-label={`Delete style ${s.name}`} title="Delete this saved style"
+                  onClick={() => setMyStyles((arr) => arr.filter((x) => x.id !== s.id))}>×</button>
+              </span>
+            ))}
+          </div>
+          <div className="sp-addfont">
+            <input ref={styleNameRef} className="sp-input" placeholder="Name this look…" maxLength={24}
+              onKeyDown={(e) => { if (e.key === "Enter") saveStyle(); }} />
+            <button className="sp-btn" title="Save the current look as your own style" onClick={saveStyle}>Save style</button>
+          </div>
         </div>
 
         <div className="sp-group">
@@ -299,6 +387,7 @@ export function SplashPage() {
             <>
               <Slider label="Size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
               <Slider label="Inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
+              <Slider label="Opacity" value={look.shineOpacity} min={0} max={100} unit="%" onChange={(v) => up("shineOpacity", v)} />
               <Slider label="Roundness" value={look.shineRound} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineRound", v)} />
             </>
           )}
@@ -334,7 +423,13 @@ export function SplashPage() {
           <div className="sp-h">Shape — the word is one object</div>
           <Slider label="Bounce" value={look.bounce} min={0} max={100} unit="%" onChange={(v) => up("bounce", v)} />
           <Slider label="Arch" value={look.arc} min={-100} max={100} unit="%" onChange={(v) => up("arc", v)} />
-          <Slider label="Bulge" value={look.bulge} min={-100} max={100} unit="%" onChange={(v) => up("bulge", v)} />
+          <div className="sp-bulge">
+            {/* dragging the slider always wakes the effect back up */}
+            <Slider label="Bulge" value={look.bulge} min={-100} max={100} unit="%" onChange={(v) => patch({ bulge: v, bulgeOn: true })} />
+            <button className={`sp-btn sp-mini${look.bulgeOn ? "" : " on"}`} aria-pressed={!look.bulgeOn}
+              title="Mute the bulge — the slider keeps its setting"
+              onClick={() => up("bulgeOn", !look.bulgeOn)}>Off</button>
+          </div>
         </div>
 
         <div className="sp-group">
@@ -363,6 +458,11 @@ export function SplashPage() {
             <div className="sp-art" dangerouslySetInnerHTML={{ __html: finalSvg }} />
           </div>
         </div>
+        <button className="sp-trayhandle" title={trayOpen ? "Tuck the controls away" : "Pull the controls out"}
+          aria-label={trayOpen ? "Hide controls" : "Show controls"} aria-expanded={trayOpen}
+          onClick={() => setTrayOpen((v) => !v)}>
+          {trayOpen ? <PanelLeftClose size={17} strokeWidth={1.8} /> : <PanelLeftOpen size={17} strokeWidth={1.8} />}
+        </button>
         <div className="sp-floater" role="toolbar" aria-label="Canvas">
           <button className={panMode ? "on" : ""} title="Pan (or drag with the middle button)" aria-pressed={panMode} onClick={() => setPanMode(!panMode)}>
             <Hand size={17} strokeWidth={1.8} />

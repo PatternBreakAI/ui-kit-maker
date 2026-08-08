@@ -4,7 +4,7 @@
 
 .sp-app {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: auto 1fr;
   min-height: 100vh;
   background: #14161b;
   color: #e7e9ee;
@@ -12,13 +12,18 @@
 }
 
 .sp-side {
+  width: 300px;
   overflow-y: auto;
   max-height: 100vh;
   padding: 16px 16px 22px;
   background: #101318;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex; flex-direction: column; gap: 16px;
+  transition: margin-left 0.28s ease;
 }
+/* the drawer: tucked away, the tray slides off-canvas and the stage takes
+   the full width; the handle in the stage pulls it back out */
+.sp-tray-closed .sp-side { margin-left: -300px; visibility: hidden; transition: margin-left 0.28s ease, visibility 0s 0.28s; }
 
 .sp-brand { display: flex; flex-direction: column; gap: 3px; }
 .sp-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -73,6 +78,20 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
 .sp-chip-custom input { position: absolute; inset: -6px; opacity: 0; cursor: pointer; }
 .sp-chip-clear { background: #14161b; color: #8a8f98; font-size: 13px; line-height: 1; }
 
+.sp-styles { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-style { display: inline-flex; align-items: center; gap: 7px; }
+.sp-style-dot {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.sp-style-mine { display: inline-flex; align-items: stretch; }
+.sp-style-mine .sp-style { border-radius: 8px 0 0 8px; }
+.sp-style-x { border-radius: 0 8px 8px 0; border-left: none; width: 24px; padding: 0; font-size: 14px; line-height: 1; }
+
+.sp-bulge { display: flex; align-items: center; gap: 8px; }
+.sp-bulge > .ctl { flex: 1; min-width: 0; }
+.sp-mini { flex: none; padding: 4px 9px; font-size: 11px; }
+
 .sp-note { font-size: 11.5px; color: #7c828c; }
 .sp-foot { margin-top: auto; padding-top: 10px; font-size: 11px; color: #6c727c; }
 
@@ -83,7 +102,16 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
 }
 .sp-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .sp-scroll::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.25); border-radius: 4px; }
-.sp-zoomwrap { margin: auto; padding: 12vh 8vw; width: max-content; }
+.sp-zoomwrap { margin: auto; padding: 10vh 6vw; width: max-content; }
+
+.sp-trayhandle {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  z-index: 5; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 46px; border-radius: 9px; cursor: pointer;
+  background: rgba(16, 19, 24, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cfd3da; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.sp-trayhandle:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
 .sp-panning .sp-scroll { cursor: grab; }
 .sp-panning .sp-scroll:active { cursor: grabbing; }
 
@@ -112,9 +140,10 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
   background-position: 0 0, 14px 14px;
   background-color: #14161b;
 }
-.sp-art svg { display: block; width: min(72vw, 1200px); height: auto; }
+.sp-art svg { display: block; width: min(82vw, 1500px); height: auto; }
 
 @media (max-width: 900px) {
   .sp-app { grid-template-columns: 1fr; }
-  .sp-side { max-height: none; }
+  .sp-side { width: auto; max-height: none; }
+  .sp-tray-closed .sp-side { display: none; margin-left: 0; }
 }

@@ -42,20 +42,26 @@ export type SplashLook = {
   shineSize: number;   // 1..10
   shineInset: number;  // 0..6
   shineRound: number;  // 0..6 — cap rounding, UIKM's knob semantics
+  shineOpacity: number; // 0..100 — ink strength
   shineColor: string;
   shineBlend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
   /** whole-word shape — one object, in-plane */
   arc: number;      // -100..100
   bulge: number;    // -100..100
+  /** bulge mute — the slider keeps its setting while the effect sits out */
+  bulgeOn: boolean;
   stage: { mode: "color" | "transparent"; color: string; image?: string | null };
 };
 
+/** A style is everything about a look EXCEPT the user's words and their
+ *  registered fonts — applying one restyles the words in place. */
+export type SplashStyle = Omit<SplashLook, "text" | "customFonts">;
+
 export const SPLASH_STAGE_CHIPS = ["#EAD4B4", "#101318", "#F4F1EA", "#E8402A"] as const;
 
-export const SPLASH_DEFAULT: SplashLook = {
-  text: "GOOD\nDAY",
+/* The factory look — the approved GOOD DAY retro sticker. */
+const GOOD_DAY: SplashStyle = {
   font: "Modak",
-  customFonts: [],
   fill: "#E8402A",
   inkGrad: false,
   fill2: "#B7231A",
@@ -75,11 +81,62 @@ export const SPLASH_DEFAULT: SplashLook = {
   shineSize: 4,
   shineInset: 2,
   shineRound: 2,
+  shineOpacity: 100,
   shineColor: "#FFFFFF",
   shineBlend: "normal",
   arc: 0,
   bulge: 0,
+  bulgeOn: true,
   stage: { mode: "color", color: "#EAD4B4" },
+};
+
+/* The starter shelf — each one owns a font, a palette and a stage so a
+   single click reads as a different poster, not a recolor. */
+export const SPLASH_STYLES: { id: string; name: string; style: SplashStyle }[] = [
+  { id: "good-day", name: "Good Day", style: GOOD_DAY },
+  {
+    id: "citrus-squeeze", name: "Citrus Squeeze",
+    style: {
+      ...GOOD_DAY,
+      font: "Luckiest Guy",
+      fill: "#FFD84D", inkGrad: true, fill2: "#FF8C1A",
+      blob: "#5B2B0F", blobGrad: false, blob2: "#8C4A1D",
+      strokeW: 7, depth: 12, shadow: 20, bounce: 45,
+      shineOpacity: 90,
+      stage: { mode: "color", color: "#F4F1EA" },
+    },
+  },
+  {
+    id: "grape-soda", name: "Grape Soda",
+    style: {
+      ...GOOD_DAY,
+      font: "Lilita One",
+      fill: "#FF7ABF", inkGrad: true, fill2: "#FF3E8E",
+      blob: "#5A2EE0", blobGrad: true, blob2: "#2A1670",
+      strokeW: 9, depth: 16, shadow: 35, bounce: 25,
+      shineColor: "#FFE9F7", shineBlend: "screen", shineOpacity: 80,
+      stage: { mode: "color", color: "#101318" },
+    },
+  },
+  {
+    id: "print-shop", name: "Print Shop",
+    style: {
+      ...GOOD_DAY,
+      font: "Bungee",
+      fill: "#F4F1EA", inkGrad: false,
+      blob: "#1C1917", blobGrad: false,
+      strokeW: 6, depth: 8, shadow: 15, bounce: 0, lineHeight: 100,
+      shine: false,
+      pattern: { on: true, style: "dots", scale: 120, angle: 0, opacity: 18 },
+      stage: { mode: "color", color: "#E8402A" },
+    },
+  },
+];
+
+export const SPLASH_DEFAULT: SplashLook = {
+  text: "GOOD\nDAY",
+  customFonts: [],
+  ...GOOD_DAY,
 };
 
 export function buildSplashCfg(look: SplashLook): GenConfig {
@@ -111,7 +168,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     scale: look.pattern.scale,
   };
   t.noise = { on: false, amount: 35, scale: 50 };
-  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: 100, color: look.shineColor, blend: look.shineBlend };
+  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: look.shineOpacity, color: look.shineColor, blend: look.shineBlend };
   t.dim = {
     on: true,
     depth: look.depth,
