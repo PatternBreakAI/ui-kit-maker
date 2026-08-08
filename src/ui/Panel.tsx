@@ -2209,6 +2209,31 @@ export function Panel() {
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
           <div className="helper">Unity export: glints are per-letter painting no live-text engine can replay — they ship baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
         </FxToggle>
+        <FxToggle label="Ink shine" on={T2.shine?.on ?? false}
+          onToggle={(v) => update((c) => { c.type.shine = { size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), on: v }; })}>
+          <Slider label="Size" value={T2.shine?.size ?? 4} min={1} max={10} step={0.5} unit="px"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), size: v }; })} />
+          <Slider label="Inset" value={T2.shine?.inset ?? 2} min={0} max={6} step={0.5} unit="px"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, round: 2, opacity: 100, ...(c.type.shine ?? {}), inset: v }; })} />
+          <Slider label="Opacity" value={T2.shine?.opacity ?? 100} min={0} max={100} unit="%"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, ...(c.type.shine ?? {}), opacity: v }; })} />
+          <label className="fieldbox" style={{ minWidth: 0 }}>
+            <span className="fl">Shine blend mode</span>
+            <select value={T2.shine?.blend ?? "normal"} aria-label="Shine blend mode"
+              onChange={(e) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), blend: e.target.value as BlendMode }; })}>
+              {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+          </label>
+          <Adv label="Shine fine-tuning" active={(T2.shine?.round ?? 2) !== 2 || (T2.shine?.color ?? "#FFFFFF") !== "#FFFFFF"}>
+            <Slider label="Cap rounding" value={T2.shine?.round ?? 2} min={0} max={6} step={0.5} unit="px"
+              onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, opacity: 100, ...(c.type.shine ?? {}), round: v }; })} />
+            <Well label="Shine color" value={T2.shine?.color ?? "#FFFFFF"}
+              onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), color: v }; })} />
+          </Adv>
+          <div className="helper">Hand-inked light crescents hugging each letterform's lit edges — bowls get shoulder sweeps, stems get caps, all derived from the glyph's own shape. Size is how far the light reaches; Inset floats the ink inside the letter. Follows the master Lighting angle. Blend `overlay` or `soft-light` reads as glassy lift on gradient fills.</div>
+          <div className="helper">Unity export: like glints, this is per-letter painting no live-text engine can replay — it ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
+        </FxToggle>
         <div className="helper">Some treatments read differently against light and dark grounds — a pale glint fades on a light canvas, a dark emboss sinks into a black one. Flip the canvas swatches in the stage toolbar to proof your type both ways.</div>
         {/* data-anchor: Dissect's "icon" deep link lands here — the parked
             standalone Icon section never mounts, so this block is the icon's
