@@ -2401,6 +2401,35 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
   }
 
+  /* ── ink shine (Splash) — default-off. Per-letterform top-light
+     crescents from the glyph's own topology: erode the alpha (so the
+     shine sits inset from the outline), subtract a copy offset AWAY from
+     the light, and the surviving slivers hug every lit edge — bowls get
+     shoulder crescents, stems get caps, automatically. A blur + steep
+     alpha threshold rounds the sliver caps into hand-inked shapes. */
+  const SH2 = T2.shine;
+  const shineOn = !!SH2?.on && showText && !disabled && (SH2!.size ?? 0) > 0.1;
+  let shineDef = "", shineLayer = "";
+  if (shineOn) {
+    const shK = fs / 52;
+    const shSize = Math.max(0.5, (SH2!.size ?? 4) * shK);
+    const shInset = Math.max(0, (SH2!.inset ?? 2) * shK);
+    const shRound = Math.max(0.4, (SH2!.round ?? 2) * shK * 0.6);
+    const shC = P(SH2!.color ?? "#FFFFFF");
+    const shOp2 = clamp((SH2!.opacity ?? 100) / 100, 0, 1);
+    // away from the key light — light overhead shifts the copy straight down
+    const shDx = (-lx * shSize).toFixed(1), shDy = (-ly * shSize).toFixed(1);
+    const shSpread = shSize + shInset + shRound * 4 + fs * 0.2 + textW * 0.25;
+    shineDef = `<filter id="${id}tsh" filterUnits="userSpaceOnUse" x="${(x - shSpread).toFixed(0)}" y="${(y - shSpread).toFixed(0)}" width="${(w + shSpread * 2).toFixed(0)}" height="${(h + shSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${shInset.toFixed(1)}" result="shs"/>` +
+      `<feOffset in="shs" dx="${shDx}" dy="${shDy}" result="sho"/>` +
+      `<feComposite in="shs" in2="sho" operator="out" result="shv"/>` +
+      `<feGaussianBlur in="shv" stdDeviation="${shRound.toFixed(1)}" result="shb"/>` +
+      `<feComponentTransfer in="shb" result="shh"><feFuncA type="linear" slope="14" intercept="-5.6"/></feComponentTransfer>` +
+      `<feFlood flood-color="${shC}" flood-opacity="${shOp2.toFixed(2)}"/><feComposite in2="shh" operator="in"/></filter>`;
+    shineLayer = `<g filter="url(#${id}tsh)">${fxText(`fill="#000"`)}</g>`;
+  }
+
   /* ── grain (Type Maker) — default-off: the shell micro-texture recipe
      composited into the glyph alpha. */
   const NZ2 = T2.noise;
@@ -2572,6 +2601,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${glintsDefs}
   ${textFxDef}
   ${dimDefs}
+  ${shineDef}
   ${tnzDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
@@ -2628,6 +2658,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>`) : ""}
       ${showText && hiIdx >= 0 && !disabled && !TP2 ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${dimGlossLayer}
+      ${shineLayer}
       ${tnzLayer}
       ${glintsLayer}
       ${showText ? `</g>` : ""}

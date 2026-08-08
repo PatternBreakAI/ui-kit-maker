@@ -59,14 +59,15 @@ export function SplashPage() {
     const cfg = buildSplashCfg(look);
     const t = cfg.type;
     const k = t.size / 52;
+    // 0.55 lean and 8 wrap are baked into the look (see buildSplashCfg)
     const fxPad = Math.ceil(
-      (look.depth + Math.abs((look.drift / 100) * look.depth) + look.wrap) * k +
+      (look.depth + look.depth * 0.55 + 8) * k +
       (look.shadow > 0 ? look.depth * k + 18 : 0) + t.size * (0.12 + (look.bounce / 100) * 0.14) + 24,
     );
     const text = look.text || " ";
     if (oFont) {
       const tp = flatWordOutline(oFont, text, t.size, t.spacing / 100, look.bounce / 100, {
-        arc: look.arc / 100, bulge: look.bulge / 100, rotate: look.rotate,
+        arc: look.arc / 100, bulge: look.bulge / 100,
       });
       const reach = Math.max(0, Math.max(Math.abs(tp.minY ?? 0), tp.maxY ?? 0) - t.size);
       return renderTypeSpecimen(cfg, text, { fxPad: fxPad + Math.ceil(reach), keepCase: true, textPath: tp });
@@ -142,21 +143,25 @@ export function SplashPage() {
             <Well label="Letters" value={look.fill} onChange={(v) => up("fill", v)} />
             <Well label="Blob" value={look.blob} onChange={(v) => up("blob", v)} />
             <label className="sp-check"><input type="checkbox" checked={look.sparkles} onChange={(e) => up("sparkles", e.target.checked)} /> Sparkles</label>
+            <label className="sp-check"><input type="checkbox" checked={look.shine} onChange={(e) => up("shine", e.target.checked)} /> Shine</label>
           </div>
+          {look.shine && (
+            <>
+              <Slider label="Shine size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
+              <Slider label="Shine inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
+            </>
+          )}
         </div>
 
         <div className="sp-group">
           <div className="sp-h">Body</div>
           <Slider label="Depth" value={look.depth} min={0} max={28} step={0.5} unit="" onChange={(v) => up("depth", v)} />
-          <Slider label="Lean" value={look.drift} min={-100} max={100} unit="%" onChange={(v) => up("drift", v)} />
-          <Slider label="Wrap" value={look.wrap} min={0} max={16} step={0.5} unit="" onChange={(v) => up("wrap", v)} />
           <Slider label="Shadow" value={look.shadow} min={0} max={60} unit="%" onChange={(v) => up("shadow", v)} />
         </div>
 
         <div className="sp-group">
           <div className="sp-h">Shape — the word is one object</div>
           <Slider label="Bounce" value={look.bounce} min={0} max={100} unit="%" onChange={(v) => up("bounce", v)} />
-          <Slider label="Turn" value={look.rotate} min={-30} max={30} unit="°" onChange={(v) => up("rotate", v)} />
           <Slider label="Arch" value={look.arc} min={-100} max={100} unit="%" onChange={(v) => up("arc", v)} />
           <Slider label="Bulge" value={look.bulge} min={-100} max={100} unit="%" onChange={(v) => up("bulge", v)} />
         </div>

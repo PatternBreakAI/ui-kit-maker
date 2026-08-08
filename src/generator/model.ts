@@ -316,6 +316,12 @@ export interface TypeCfg {
   /** Grain inside the letterforms — the shell micro-texture recipe clipped
    *  to the glyph alpha. Off/absent = untouched. */
   noise?: { on: boolean; amount: number; scale: number };
+  /** Ink shine — hand-illustrated top-light crescents, derived from each
+   *  letterform's own topology: the glyph minus a light-away offset copy
+   *  of itself leaves slivers hugging the lit edges; an inset keeps them
+   *  off the outline, a blur+threshold rounds their caps. Sizes are px at
+   *  the 52px master scale. Off/absent = untouched. */
+  shine?: { on: boolean; size: number; inset: number; round: number; opacity: number; color?: string };
   fillOpacity: number; // 0..100 — translucent fills read as glass
   /** color2 set = gradient stroke. `behind` renders the stroke as a separate
    *  under-layer for the whole word, so no glyph's stroke ever crosses a
@@ -360,11 +366,12 @@ export const TEXT_PRESETS: { id: string; name: string }[] = [
 export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string; glow: string }) {
   t.preset = id;
   t.fillOpacity = 100;
-  // presets define the complete treatment — dimensional body, metal bands
-  // and grain included
+  // presets define the complete treatment — dimensional body, metal bands,
+  // grain and ink shine included
   delete t.dim;
   delete t.fillStops;
   delete t.noise;
+  delete t.shine;
 
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };

@@ -17,18 +17,17 @@ export type SplashLook = {
   blob: string;
   /** block-extrusion reach, px at the 52px master scale */
   depth: number;
-  /** horizontal lean of the block, -100..100 % of depth */
-  drift: number;
-  /** blob wrap width around the letterforms */
-  wrap: number;
   /** soft ground-shadow opacity 0..100 */
   shadow: number;
   /** per-letter tilt & bounce 0..100 — jaunty, still one sticker */
   bounce: number;
   /** star sparkles riding the word */
   sparkles: boolean;
+  /** ink shine — top-light crescents on each letterform */
+  shine: boolean;
+  shineSize: number;   // 1..10
+  shineInset: number;  // 0..6
   /** whole-word shape — one object, in-plane */
-  rotate: number;   // degrees
   arc: number;      // -100..100
   bulge: number;    // -100..100
   stage: { mode: "color" | "transparent"; color: string };
@@ -43,12 +42,12 @@ export const SPLASH_DEFAULT: SplashLook = {
   fill: "#E8402A",
   blob: "#221E1F",
   depth: 14,
-  drift: 55,
-  wrap: 8,
   shadow: 25,
   bounce: 30,
   sparkles: true,
-  rotate: -4,
+  shine: true,
+  shineSize: 4,
+  shineInset: 2,
   arc: 0,
   bulge: 0,
   stage: { mode: "color", color: "#EAD4B4" },
@@ -76,19 +75,20 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.glints = { on: look.sparkles, opacity: 85, style: "stars", blend: "normal" };
   t.stripes = { on: false, angle: 0, opacity: 30, style: "stripes", scale: 100 };
   t.noise = { on: false, amount: 35, scale: 50 };
+  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: 2, opacity: 100, color: "#FFFFFF" };
   t.dim = {
     on: true,
     depth: look.depth,
     color: look.blob,
-    sticker: look.wrap,
-    stickerColor: look.blob,   // wrap and body are ONE blob — the reference look
+    sticker: 8,                // wrap and lean are part of the look itself,
+    stickerColor: look.blob,   // not knobs — one blob, reference-faithful
     rim: 0,
     rimColor: look.blob,
     shadow: look.shadow,
     gloss: 0,
     glossCover: 35,
     tilt: look.bounce,
-    drift: look.drift,
+    drift: 55,
   };
   c.lighting = { ...c.lighting, angle: 90, highlight: 70, lowlight: 50 };
   c.effects = { ...c.effects, Bevel: look.fill, Glow: look.fill };
