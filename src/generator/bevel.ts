@@ -2208,7 +2208,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const singleMaster = !!fcaps?.weights && fcaps.weights.length === 1 && !fcaps.wght;
   const synW = singleMaster ? clamp((T2.weight - (fcaps!.weights![0] ?? 400)) / 500, 0, 1) * fs * 0.055 : 0;
   const outlineW = T2.outline.width * (fs / 52);
-  const outlineAttrs = T2.outline.on
+  /* behind mode: the ring renders as one whole-word under-layer instead of
+     per-glyph paint-order, so a glyph's stroke can never cross the face of
+     an overlapping neighbor (tilted and posed words made this visible). */
+  const outlineBehind = T2.outline.on && !!T2.outline.behind && synW <= 0.05;
+  const outlineAttrs = T2.outline.on && !outlineBehind
     ? (synW > 0.05
       // the fattened glyph carries its own same-paint stroke; the ring moves
       // to an underlay so it still shows outside the grown letterform
@@ -2325,13 +2329,36 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     }
     tiltAttrs = ` rotate="${rots.join(" ")}" dy="${dys.join(" ")}"`;
   }
+  /* one glyph-run emitter shared by every expanded-type layer, so wall,
+     sticker, gloss, grain and the behind-outline always agree with the
+     main text's metrics, case, spacing and tilt */
+  const fxText = (paint: string) => `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
+  const outlineBehindNode = outlineBehind && showText
+    ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW * 2).toFixed(1)}" stroke-linejoin="round"`)
+    : "";
   let dimDefs = "", dimBack = "", dimGlossLayer = "";
   if (dimOn && (dDepth > 0.05 || dStick > 0.05 || dRim > 0.05 || dShOp > 0 || dGlOp > 0)) {
     // bounded like the text-fx region: absolute units, sized from this
     // label's own reach so Safari never sees an unbounded raster
     const dSpread = dDepth + dStick + dRim + (dShOp > 0 ? dDepth * 0.8 + 14 : 0) + fs * (0.35 + dTilt * 0.3) + textW * 0.25;
     const dR = `filterUnits="userSpaceOnUse" x="${(x - dSpread).toFixed(0)}" y="${(y - dSpread).toFixed(0)}" width="${(w + dSpread * 2).toFixed(0)}" height="${(h + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
-    const un = `<feMorphology in="SourceAlpha" operator="dilate" radius="0 ${(dDepth / 2).toFixed(1)}" result="dsw"/><feOffset in="dsw" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feMerge result="dun"><feMergeNode in="SourceAlpha"/><feMergeNode in="dwl"/></feMerge>`;
+    /* directional extrusion — an feOffset ladder along the extrude vector.
+       Unlike feMorphology (axis-aligned only), the ladder can aim anywhere,
+       which is what lets Type Maker point every letter's body at the
+       vanishing point when the word is posed. Pitch stays ≤1.2px so sharp
+       glyph terminals never serrate; step count is capped and the pitch
+       stretches for extreme depths. */
+    const dAngR = (((DM!.angle ?? 90) * Math.PI) / 180);
+    const dux = Math.cos(dAngR), duy = Math.sin(dAngR);
+    const dSteps = Math.max(1, Math.min(40, Math.ceil(dDepth / 1.2)));
+    let dLadder = "", dMergeAll = `<feMergeNode in="SourceAlpha"/>`, dMergeWall = "";
+    for (let s2 = 1; s2 <= dSteps; s2++) {
+      const dd = (dDepth * s2) / dSteps;
+      dLadder += `<feOffset in="SourceAlpha" dx="${(dux * dd).toFixed(2)}" dy="${(duy * dd).toFixed(2)}" result="dl${s2}"/>`;
+      dMergeAll += `<feMergeNode in="dl${s2}"/>`;
+      dMergeWall += `<feMergeNode in="dl${s2}"/>`;
+    }
+    const un = `${dLadder}<feMerge result="dun">${dMergeAll}</feMerge>`;
     const dgy = cy + 1 + textOy * K;
     const dCover = clamp((DM!.glossCover ?? 38) / 100, 0.15, 0.7);
     dimDefs =
@@ -2340,15 +2367,40 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       // visible OUTSIDE the rim ring, not vanish underneath it
       (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${(dRim > 0.05 ? dStick + dRim : dStick).toFixed(1)}" result="dstk"/><feFlood flood-color="${dStickC}"/><feComposite in2="dstk" operator="in"/></filter>` : "") +
       (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="drim"/><feFlood flood-color="${dRimC}"/><feComposite in2="drim" operator="in"/></filter>` : "") +
-      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}><feMorphology in="SourceAlpha" operator="dilate" radius="0 ${(dDepth / 2).toFixed(1)}" result="dsw"/><feOffset in="dsw" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/><feOffset in="dwl" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge></filter>` : "") +
+      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}>${dLadder}<feMerge result="dwl">${dMergeWall}</feMerge><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/><feOffset in="dwl" dx="${(-dux * Math.max(1, dDepth * 0.45)).toFixed(1)}" dy="${(-duy * Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge></filter>` : "") +
       (dGlOp > 0 ? `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${(dgy - fs * 0.52).toFixed(1)}" x2="0" y2="${(dgy + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>` : "");
-    const dimText = (paint: string) => `<text x="${tTextX.toFixed(1)}" y="${dgy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
+    const dimText = fxText;
     dimBack =
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimText(`fill="#000"`)}</g>` : "") +
       (dStick > 0.05 ? `<g filter="url(#${id}dst)">${dimText(`fill="#000"`)}</g>` : "") +
       (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimText(`fill="#000"`)}</g>` : "") +
       (dDepth > 0.05 ? `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>` : "");
     dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
+  }
+
+  /* ── warp & grain (Type Maker) — both default-off ─────────────────
+     Warp: turbulence-driven displacement over the WHOLE letter treatment
+     (body, sticker, gloss and glints ride along), so the distortion
+     survives rasterization anywhere. Grain: the shell micro-texture
+     recipe composited into the glyph alpha. */
+  const WP = T2.warp;
+  const warpOn = !!WP?.on && showText && !disabled && (WP!.amount ?? 0) > 0.5;
+  let warpDef = "", warpOpen = "", warpClose = "";
+  if (warpOn) {
+    const disp = (WP!.amount / 100) * fs * 0.35;
+    const wBf = (0.0025 + (1 - clamp((WP!.scale ?? 50) / 100, 0, 1)) * 0.014).toFixed(4);
+    const wSpread = disp + fs * 0.4 + (dimOn ? dDepth + dStick : 0) + textW * 0.25;
+    warpDef = `<filter id="${id}twp" filterUnits="userSpaceOnUse" x="${(x - wSpread).toFixed(0)}" y="${(y - wSpread).toFixed(0)}" width="${(w + wSpread * 2).toFixed(0)}" height="${(h + wSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"><feTurbulence type="${WP!.mode === "crumple" ? "fractalNoise" : "turbulence"}" baseFrequency="${wBf}" numOctaves="${WP!.mode === "crumple" ? 2 : 1}" seed="7" result="twn"/><feDisplacementMap in="SourceGraphic" in2="twn" scale="${disp.toFixed(1)}" xChannelSelector="R" yChannelSelector="G"/></filter>`;
+    warpOpen = `<g filter="url(#${id}twp)">`;
+    warpClose = `</g>`;
+  }
+  const NZ2 = T2.noise;
+  const tnzOn = !!NZ2?.on && showText && !disabled && (NZ2!.amount ?? 0) > 0.5;
+  let tnzDef = "", tnzLayer = "";
+  if (tnzOn) {
+    const nf = (0.3 + clamp((NZ2!.scale ?? 50) / 100, 0, 1) * 1.4).toFixed(2);
+    tnzDef = `<filter id="${id}tnz" filterUnits="userSpaceOnUse" x="${(x - fs).toFixed(0)}" y="${(y - fs).toFixed(0)}" width="${(w + fs * 2).toFixed(0)}" height="${(h + fs * 2).toFixed(0)}" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="${nf}" numOctaves="2" seed="7" stitchTiles="stitch" result="tnn"/><feColorMatrix in="tnn" type="saturate" values="0" result="tnd"/><feComponentTransfer in="tnd" result="tnc"><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer><feComposite in="tnc" in2="SourceAlpha" operator="in"/></filter>`;
+    tnzLayer = `<g style="mix-blend-mode:overlay" opacity="${(clamp(NZ2!.amount / 100, 0, 1) * 0.75).toFixed(2)}" filter="url(#${id}tnz)">${fxText(`fill="#808080"`)}</g>`;
   }
 
   /* vector glints — a crisp specular slab clipped to the glyphs plus star
@@ -2501,6 +2553,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${glintsDefs}
   ${textFxDef}
   ${dimDefs}
+  ${warpDef}
+  ${tnzDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
   ${(() => {
@@ -2546,14 +2600,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">${dimBack}` : ""}
+      ${showText ? `<g data-part="label">${warpOpen}${dimBack}${outlineBehindNode}` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text>` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>` : ""}
       ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${dimGlossLayer}
+      ${tnzLayer}
       ${glintsLayer}
-      ${showText ? `</g>` : ""}
+      ${showText ? `${warpClose}</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01

@@ -301,6 +301,10 @@ export interface TypeCfg {
     gloss: number;            // hard candy band opacity 0..100 (0 = off)
     glossCover: number;       // band coverage, % of glyph height (20..60)
     tilt: number;             // per-letter tilt & bounce 0..100
+    /** Extrusion direction in screen degrees — 90 (default) is straight
+     *  down; Type Maker aims it at the vanishing point per letter when the
+     *  word is posed in 3D. */
+    angle?: number;
   };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
@@ -310,8 +314,18 @@ export interface TypeCfg {
    *  fillMode is "gradient", these stops replace fill/fill2 in the letter
    *  gradient. Absent = the classic two-stop ramp, byte-identical. */
   fillStops?: { offset: number; color: string }[];
+  /** Wave/crumple distortion over the WHOLE letter treatment (body, sticker,
+   *  gloss and glints ride along) — turbulence-driven displacement, so the
+   *  warp survives rasterization anywhere. Off/absent = untouched. */
+  warp?: { on: boolean; amount: number; scale: number; mode?: "wave" | "crumple" };
+  /** Grain inside the letterforms — the shell micro-texture recipe clipped
+   *  to the glyph alpha. Off/absent = untouched. */
+  noise?: { on: boolean; amount: number; scale: number };
   fillOpacity: number; // 0..100 — translucent fills read as glass
-  outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
+  /** color2 set = gradient stroke. `behind` renders the stroke as a separate
+   *  under-layer for the whole word, so no glyph's stroke ever crosses a
+   *  neighboring letter's face (tilted/overlapping letters need this). */
+  outline: { on: boolean; color: string; color2: string | null; width: number; behind?: boolean };
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** Relief follows the master light: highlight toward it, shade away from it.
    *  strength -100..100 (negative = deboss/engrave); distance = offset px;
@@ -351,9 +365,12 @@ export const TEXT_PRESETS: { id: string; name: string }[] = [
 export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string; glow: string }) {
   t.preset = id;
   t.fillOpacity = 100;
-  // presets define the complete treatment — dimensional body and metal bands included
+  // presets define the complete treatment — dimensional body, metal bands,
+  // warp and grain included
   delete t.dim;
   delete t.fillStops;
+  delete t.warp;
+  delete t.noise;
 
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };

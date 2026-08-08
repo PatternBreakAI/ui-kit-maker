@@ -15,7 +15,19 @@ import { TM_PRESETS, tmPresetById } from "./presets";
 import type { TmBackdrop } from "./presets";
 import { POSE_IDENTITY, poseActive, projectLetters, placementBounds } from "./pose";
 import type { Pose } from "./pose";
+import boardFps from "@/marketing/assets/boards/fps.jpg";
+import boardTavern from "@/marketing/assets/boards/tavern.jpg";
+import boardValley from "@/marketing/assets/boards/valley.jpg";
+import boardStrategy from "@/marketing/assets/boards/strategy.jpg";
 import "@/styles/typemaker.css";
+
+/* Stage background — black by default like the kit editor's canvas, with
+   the same spirit of options: flat color, the style's mood wash, the UIKM
+   board scenes, or transparent for export checks. Full-bleed always; the
+   word is never boxed into a card. */
+export type TmBg = { mode: "black" | "mood" | "color" | "board" | "transparent"; color: string; board: keyof typeof BOARDS };
+export const BOARDS = { fps: boardFps, tavern: boardTavern, valley: boardValley, strategy: boardStrategy } as const;
+const DEFAULT_BG: TmBg = { mode: "black", color: "#101318", board: "fps" };
 
 /* Type Maker — the text-effects generator, built on the kit engine.
    Everything visual renders through renderTypeSpecimen (the same build()
@@ -39,6 +51,36 @@ const parseAnchor = (svg: string) => {
 /** Paint a styled backdrop card behind an svg's art by injecting a rect
  *  (plus rays/ambient) right after the opening tag — references resolve
  *  document-wide, so the defs can trail the rect. */
+/** Full-bleed export background — a rect (color, mood wash, or board photo)
+ *  behind the art, covering the whole canvas. No card, no rounded corners. */
+async function withStageBg(svg: string, bg: TmBg, mood: TmBackdrop): Promise<string> {
+  if (bg.mode === "transparent") return svg;
+  const vb = parseVb(svg);
+  const uid = "tmsb" + BD_UID++;
+  let fill = "";
+  let extras = "";
+  if (bg.mode === "black") fill = "#000000";
+  else if (bg.mode === "color") fill = bg.color;
+  else if (bg.mode === "mood") {
+    fill = `url(#${uid}g)`;
+    extras = `<defs><radialGradient id="${uid}g" cx="50%" cy="42%" r="80%"><stop offset="0%" stop-color="${mood.from}"/><stop offset="100%" stop-color="${mood.to}"/></radialGradient>` +
+      (mood.ambient ? `<radialGradient id="${uid}a"><stop offset="0%" stop-color="${mood.ambient}" stop-opacity="0.16"/><stop offset="100%" stop-color="${mood.ambient}" stop-opacity="0"/></radialGradient>` : "") +
+      `</defs>`;
+  } else if (bg.mode === "board") {
+    try {
+      const buf = await (await fetch(BOARDS[bg.board])).arrayBuffer();
+      let bin = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const inject = `<image href="data:image/jpeg;base64,${btoa(bin)}" x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" preserveAspectRatio="xMidYMid slice"/>`;
+      return svg.replace(/(<svg[^>]*>)/, `$1${inject}`);
+    } catch { fill = "#000000"; }
+  }
+  const rect = `<rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="${fill}"/>` +
+    (bg.mode === "mood" && mood.ambient ? `<ellipse cx="${vb.x + vb.w / 2}" cy="${vb.y + vb.h * 0.45}" rx="${vb.w * 0.5}" ry="${vb.h * 0.55}" fill="url(#${uid}a)"/>` : "");
+  return svg.replace(/(<svg[^>]*>)/, `$1${extras}${rect}`);
+}
+
 let BD_UID = 0; // several backdropped svgs share the document — ids must not collide
 function withBackdrop(svg: string, bd: TmBackdrop | null): string {
   if (!bd) return svg;
@@ -101,9 +143,24 @@ function composePosed(cfg: GenConfig, text: string, pose: Pose, fxPad: number): 
   const widths = chars.map((ch) => ctx.measureText(ch).width);
   const gap = (t.spacing / 100) * t.size;
 
-  const letters = chars.map((ch) =>
-    ch.trim() ? renderTypeSpecimen(cfg, ch, { fxPad, keepCase: true }) : null,
-  );
+  /* placements first: each letter's solid body aims at the vanishing point
+     (the projected card normal) and foreshortens as the card turns face-on —
+     that's the "perspective on the extrusion". */
+  const placedAll = projectLetters(widths, gap, pose, t.size);
+  const byIndex = new Map(placedAll.map((p) => [p.i, p]));
+  const letters = chars.map((ch, i) => {
+    if (!ch.trim()) return null;
+    const pl = byIndex.get(i);
+    return renderTypeSpecimen(cfg, ch, {
+      fxPad, keepCase: true,
+      mutate: (c) => {
+        if (c.type.dim?.on && pl) {
+          c.type.dim.angle = pl.extrudeDeg;
+          c.type.dim.depth = c.type.dim.depth * Math.max(0.12, pl.extrudeK);
+        }
+      },
+    });
+  });
   const boxes = letters.map((svg, i) => {
     if (!svg) return { w: 0, h: 0, cx: 0, cy: 0 };
     const vb = parseVb(svg);
@@ -111,7 +168,7 @@ function composePosed(cfg: GenConfig, text: string, pose: Pose, fxPad: number): 
     return { w: vb.w, h: vb.h, cx: a.x - vb.x + widths[i] / 2, cy: a.y - vb.y };
   });
 
-  const placed = projectLetters(widths, gap, pose, t.size).filter((p) => letters[p.i]);
+  const placed = placedAll.filter((p) => letters[p.i]);
   /* canvas bounds hug the GLYPHS, not each letter's full fx canvas — the
      specimen reserves generous blur padding per letter, and a union of
      those mostly-empty boxes buries the word in dead air. Effects may
@@ -176,26 +233,36 @@ export function TypeMakerPage() {
   const boot = useMemo(() => {
     const q = new URLSearchParams(window.location.search);
     const num = (k: string) => { const v = q.get(k); return v !== null && v !== "" && !Number.isNaN(+v) ? +v : null; };
-    return { style: q.get("style"), text: q.get("text"), ry: num("ry"), rx: num("rx"), rz: num("rz"), arc: num("arc"), persp: num("persp") };
+    return { style: q.get("style"), text: q.get("text"), bg: q.get("bg"), warp: num("warp"), ry: num("ry"), rx: num("rx"), rz: num("rz"), arc: num("arc"), persp: num("persp") };
   }, []);
   const bootPosed = boot.ry !== null || boot.rx !== null || boot.rz !== null || boot.arc !== null || boot.persp !== null;
   const [cfg, setCfg] = useState<GenConfig>(() => {
-    if (boot.style) { const c = defaultConfig(); tmPresetById(boot.style).apply(c); return c; }
-    if (saved?.cfg) { try { return hydrate(saved.cfg); } catch { /* fall through */ } }
+    const withBoot = (c: GenConfig) => {
+      if (boot.warp !== null) c.type.warp = { on: boot.warp > 0, amount: boot.warp, scale: 50, mode: "wave" };
+      return c;
+    };
+    if (boot.style) { const c = defaultConfig(); tmPresetById(boot.style).apply(c); return withBoot(c); }
+    if (saved?.cfg) { try { return withBoot(hydrate(saved.cfg)); } catch { /* fall through */ } }
     const c = defaultConfig();
     tmPresetById("juice-pop").apply(c);
-    return c;
+    return withBoot(c);
   });
   const [text, setText] = useState<string>(boot.text ?? (boot.style ? tmPresetById(boot.style).sampleText : saved?.text ?? "JUICY"));
   const [pose, setPose] = useState<Pose>(bootPosed
     ? { ...POSE_IDENTITY, ry: boot.ry ?? 0, rx: boot.rx ?? 0, rz: boot.rz ?? 0, arc: boot.arc ?? 0, persp: boot.persp ?? POSE_IDENTITY.persp }
     : saved?.pose ?? { ...POSE_IDENTITY });
-  const [backdropOn, setBackdropOn] = useState<boolean>(boot.style ? true : saved?.backdropOn ?? true);
+  const [bg, setBg] = useState<TmBg>(() => {
+    if (boot.bg && ["black", "mood", "color", "board", "transparent"].includes(boot.bg))
+      return { ...DEFAULT_BG, ...(saved?.bg ?? {}), mode: boot.bg as TmBg["mode"] };
+    return saved?.bg ?? { ...DEFAULT_BG };
+  });
   const [presetId, setPresetId] = useState<string>(boot.style ?? saved?.presetId ?? "juice-pop");
   const [pngScale, setPngScale] = useState<number>(2);
   const [busy, setBusy] = useState<string | null>(null);
   const [fontTick, setFontTick] = useState(0);
-  const [open, setOpen] = useState<Record<string, boolean>>({ styles: true, text: true, font: true, dim: true, pose: true, export: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({
+    styles: true, text: true, font: true, fill: true, fx: true, dim: true, warp: true, pose: true, light: true, bg: true, export: true,
+  });
   const toggle = useCallback((id: string) => setOpen((o) => ({ ...o, [id]: !o[id] })), []);
 
   const update = useCallback((fn: (c: GenConfig) => void) => {
@@ -216,24 +283,33 @@ export function TypeMakerPage() {
   // persistence — typemaker-scoped, never the ui-generator* keyspace
   useEffect(() => {
     const t = setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ cfg, text, pose, backdropOn, presetId })); } catch { /* full/private */ }
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ cfg, text, pose, bg, presetId })); } catch { /* full/private */ }
     }, 500);
     return () => clearTimeout(t);
-  }, [cfg, text, pose, backdropOn, presetId]);
+  }, [cfg, text, pose, bg, presetId]);
 
   const preset = tmPresetById(presetId);
   const T = cfg.type;
   const caps = fontByName(T.font)?.caps;
 
+  // art only — the stage paints the background full-bleed, exports compose it
   const finalSvg = useMemo(() => {
     const fxPad = fxPadOf(cfg);
-    const art = poseActive(pose)
+    return poseActive(pose)
       ? composePosed(cfg, text || " ", pose, fxPad)
       : renderTypeSpecimen(cfg, text || " ", { fxPad });
-    return withBackdrop(art, backdropOn ? preset.backdrop : null);
     // fontTick: glyph metrics and specimen text widths change when faces land
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, text, pose, backdropOn, preset, fontTick]);
+  }, [cfg, text, pose, fontTick]);
+
+  const stageStyle = useMemo((): React.CSSProperties => {
+    const mood = preset.backdrop;
+    if (bg.mode === "black") return { background: "#000000" };
+    if (bg.mode === "color") return { background: bg.color };
+    if (bg.mode === "mood") return { background: `radial-gradient(120% 100% at 50% 42%, ${mood.from} 0%, ${mood.to} 100%)` };
+    if (bg.mode === "board") return { backgroundImage: `url(${BOARDS[bg.board]})`, backgroundSize: "cover", backgroundPosition: "center" };
+    return {}; // transparent → checker class
+  }, [bg, preset]);
 
   // style cards — each preset rendered by the real engine at card scale
   const cards = useMemo(() =>
@@ -256,7 +332,6 @@ export function TypeMakerPage() {
     update((c) => p.apply(c));
     setPresetId(id);
     setText(p.sampleText);
-    setBackdropOn(true);
   };
 
   // drag to spin — the flagship gesture. Shift-drag rolls.
@@ -278,7 +353,7 @@ export function TypeMakerPage() {
 
   // exports — TopBar's svgWithFace recipe, pointed at the Type Maker scene
   const svgForExport = async (): Promise<string> => {
-    const s = finalSvg;
+    const s = await withStageBg(finalSvg, bg, preset.backdrop);
     const fam = T.font;
     const fdef = fontByName(fam);
     const css = fdef.name === fam ? fdef.css : null;
@@ -452,6 +527,10 @@ export function TypeMakerPage() {
               </select></label>
             <Slider label="Opacity" value={T.glints?.opacity ?? 50} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { on: true }), opacity: v }; })} />
           </FxToggle>
+          <FxToggle label="Grain" on={!!T.noise?.on} onToggle={(v) => update((c) => { c.type.noise = { ...(c.type.noise ?? { amount: 40, scale: 50 }), on: v }; })}>
+            <Slider label="Amount" value={T.noise?.amount ?? 40} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.noise = { ...(c.type.noise ?? { on: true, scale: 50 }), amount: v }; })} />
+            <Slider label="Grain size" value={T.noise?.scale ?? 50} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.noise = { ...(c.type.noise ?? { on: true, amount: 40 }), scale: v }; })} />
+          </FxToggle>
           <FxToggle label="Pattern fill" on={!!T.stripes?.on} onToggle={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { angle: 0, opacity: 30 }), on: v }; })}>
             <label className="fieldbox"><span className="fl">Pattern</span>
               <select value={T.stripes?.style ?? "stripes"} onChange={(e) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 0, opacity: 30 }), style: e.target.value as never }; })}>
@@ -471,12 +550,28 @@ export function TypeMakerPage() {
             <Slider label="Candy gloss" value={dim?.gloss ?? 0} min={0} max={100} unit="%" onChange={(v) => setDim((d) => { d.gloss = v; })} />
             {(dim?.gloss ?? 0) > 0 && <Slider label="Gloss cover" value={dim?.glossCover ?? 35} min={15} max={70} unit="%" onChange={(v) => setDim((d) => { d.glossCover = v; })} />}
             <Slider label="Letter tilt" value={dim?.tilt ?? 0} min={0} max={100} unit="%" onChange={(v) => setDim((d) => { d.tilt = v; })} />
+            <Slider label="Extrude angle" value={dim?.angle ?? 90} min={0} max={360} unit="°" onChange={(v) => setDim((d) => { d.angle = v; })} />
+            <div className="helper">In a 3D pose the bodies aim themselves at the vanishing point — the angle drives the flat word.</div>
             <label className="check">
               <input type="checkbox" checked={!dim?.color} onChange={(e) => setDim((d) => { d.color = e.target.checked ? null : darken(T.fillMode === "gradient" ? T.fill2 : T.fill, 0.42); })} />
               Body color from fill
             </label>
             {dim?.color && <Well label="Body" value={dim.color} onChange={(v) => setDim((d) => { d.color = v; })} />}
             {(dim?.sticker ?? 0) > 0 && <Well label="Sticker" value={dim?.stickerColor ?? "#FFFFFF"} onChange={(v) => setDim((d) => { d.stickerColor = v; })} />}
+          </FxToggle>
+        </Sec>
+
+        <Sec title="Warp" id="warp" open={!!open.warp} onToggle={toggle}>
+          <FxToggle label="Warp" on={!!T.warp?.on} onToggle={(v) => update((c) => { c.type.warp = { ...(c.type.warp ?? { amount: 30, scale: 50 }), on: v }; })}>
+            <div className="segmini" role="radiogroup" aria-label="Warp mode">
+              {(["wave", "crumple"] as const).map((wm) => (
+                <button key={wm} className={(T.warp?.mode ?? "wave") === wm ? "on" : ""}
+                  onClick={() => update((c) => { c.type.warp = { ...(c.type.warp ?? { on: true, amount: 30, scale: 50 }), mode: wm }; })}>{wm}</button>
+              ))}
+            </div>
+            <Slider label="Amount" value={T.warp?.amount ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.warp = { ...(c.type.warp ?? { on: true, scale: 50 }), amount: v }; })} />
+            <Slider label="Wave size" value={T.warp?.scale ?? 50} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.warp = { ...(c.type.warp ?? { on: true, amount: 30 }), scale: v }; })} />
+            <div className="helper">Distorts the whole treatment — body, sticker, gloss and glints ride the wave.</div>
           </FxToggle>
         </Sec>
 
@@ -499,11 +594,28 @@ export function TypeMakerPage() {
           <Slider label="Lowlights" value={cfg.lighting.lowlight} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.lighting.lowlight = v; })} />
         </Sec>
 
-        <Sec title="Backdrop & export" id="export" open={!!open.export} onToggle={toggle}>
-          <label className="check">
-            <input type="checkbox" checked={backdropOn} onChange={(e) => setBackdropOn(e.target.checked)} />
-            Backdrop card (off = transparent art)
-          </label>
+        <Sec title="Background" id="bg" open={!!open.bg} onToggle={toggle}>
+          <div className="segmini" role="radiogroup" aria-label="Background">
+            {(["black", "mood", "color", "board", "transparent"] as const).map((bm) => (
+              <button key={bm} className={bg.mode === bm ? "on" : ""} onClick={() => setBg({ ...bg, mode: bm })}>
+                {bm === "transparent" ? "clear" : bm}
+              </button>
+            ))}
+          </div>
+          {bg.mode === "color" && <Well label="Stage color" value={bg.color} onChange={(v) => setBg({ ...bg, color: v })} />}
+          {bg.mode === "board" && (
+            <div className="tm-boards">
+              {(Object.keys(BOARDS) as (keyof typeof BOARDS)[]).map((b) => (
+                <button key={b} className={`tm-board${bg.board === b ? " on" : ""}`} title={b}
+                  onClick={() => setBg({ ...bg, board: b })}
+                  style={{ backgroundImage: `url(${BOARDS[b]})` }} aria-label={`Board ${b}`} />
+              ))}
+            </div>
+          )}
+          <div className="helper">Full bleed, always — exports carry the same background; clear exports transparent art.</div>
+        </Sec>
+
+        <Sec title="Export" id="export" open={!!open.export} onToggle={toggle}>
           <div className="segmini" role="radiogroup" aria-label="PNG scale">
             {[1, 2, 4].map((s) => (
               <button key={s} className={pngScale === s ? "on" : ""} onClick={() => setPngScale(s)}>{s}x</button>
@@ -519,7 +631,7 @@ export function TypeMakerPage() {
         <div className="tm-foot">build {__BUILD_STAMP__}</div>
       </aside>
 
-      <main className={`tm-stage-wrap${backdropOn ? "" : " tm-checker"}`}
+      <main className={`tm-stage-wrap${bg.mode === "transparent" ? " tm-checker" : ""}`} style={stageStyle}
         onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp}>
         <div className="tm-stage" dangerouslySetInnerHTML={{ __html: finalSvg }} />
       </main>

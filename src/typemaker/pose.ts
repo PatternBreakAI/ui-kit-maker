@@ -30,6 +30,12 @@ export type LetterPlacement = {
   m: [number, number, number, number, number, number];
   /** camera-space depth of the letter center — sort desc, far first */
   z: number;
+  /** screen direction (degrees) of the letter card's back-normal — the
+   *  extrusion aims here so every body recedes to the vanishing point */
+  extrudeDeg: number;
+  /** how much of the normal survives projection (0..~1) — extrusion depth
+   *  scales with this so a face-on letter shows no wall */
+  extrudeK: number;
   i: number;
 };
 
@@ -93,7 +99,15 @@ export function projectLetters(widths: number[], gap: number, pose: Pose, em: nu
       v[1] * s - (P[1] * v[2] * s * s) / f,
     ];
     const ex = j(EX), ey = j(EY);
-    out.push({ m: [ex[0], ex[1], ey[0], ey[1], P[0] * s, P[1] * s], z: zc, i });
+    /* where does +z (away from camera) land on screen at this letter?
+       That's the vanishing direction — the letter's extrusion vector. The
+       projected z-axis shrinks to ~nothing when the word faces the camera
+       square-on; fall back to straight down there. */
+    const EZ = rot([0, 0, 1]);
+    const ez = j(EZ);
+    const ezLen = Math.hypot(ez[0], ez[1]);
+    const extrudeDeg = ezLen > 0.02 ? (Math.atan2(ez[1], ez[0]) * 180) / Math.PI : 90;
+    out.push({ m: [ex[0], ex[1], ey[0], ey[1], P[0] * s, P[1] * s], z: zc, extrudeDeg, extrudeK: Math.min(1, ezLen * 1.5), i });
   }
   // painter's order — far letters first so near letters overlap them
   return out.sort((a, b) => b.z - a.z);
