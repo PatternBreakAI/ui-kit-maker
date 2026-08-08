@@ -2638,9 +2638,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   </filter>`; })() : ""}
   ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
+  ${shineDef}
   ${textFxDef}
   ${dimDefs}
-  ${shineDef}
   ${tnzDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
@@ -3317,9 +3317,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 
   switch (id) {
     case "primary":
-      return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { label: opts.label, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      /* faceLayer rides through — without it the stretch-safe split assets
+         silently rendered as three copies of the FULL sprite */
+      return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { label: opts.label, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "secondary":
-      return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { secondary: true, label: opts.label ?? "Secondary", shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { secondary: true, label: opts.label ?? "Secondary", shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "small":
       return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "ghost":
@@ -6444,7 +6446,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const lineAdv = Math.max(24 * k, fsT * 0.55 + fsS * 0.78 + 4 * k);
       const needH = titleBase + (subOn ? lineAdv + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
       const h = Math.max(128 * k, needH);
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 128 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 128 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov, faceLayer: opts.faceLayer });
       const slotS = h - inset * 2 - 8;
       const sx = 39 + inset + 6, sy2 = 30 + inset + 4 + 2;
       const icon = opts.icon ?? STOCK_ICONS.user;
@@ -6570,7 +6572,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* Portrait / item slot — square frame with stackable status overlays.
          The icon is the replaceable media slot. */
       const s2 = ({ s: 104, m: 128, l: 168 } as Record<KitSize, number>)[size] * k;
-      const track = build(cfg, state, { x: 33, y: 27, h: s2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: s2, shapeOverride: sov });
+      const track = build(cfg, state, { x: 33, y: 27, h: s2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: s2, shapeOverride: sov, faceLayer: opts.faceLayer });
       const inset = bw + 5;
       const cx2 = 33 + s2 / 2, cy2 = 27 + s2 / 2;
       const inner = s2 - inset * 2;
