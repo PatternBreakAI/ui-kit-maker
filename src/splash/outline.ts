@@ -60,9 +60,13 @@ export function loadOutlineFont(family: string): Promise<Font | null> {
 
 export type WordOutline = { d: string; w: number; dy: number; minY?: number; maxY?: number };
 
-/** Whole-word envelope distortion — the word bends as ONE object.
- *  arc/bulge are -1..1, rotate is degrees; all default 0. */
-export type WordFx = { arc?: number; bulge?: number; rotate?: number };
+/** Whole-word shape — envelope distortion (the block bends as ONE
+ *  object; arc/bulge -1..1, rotate degrees) plus multiline layout:
+ *  lineHeight in em (default 1.1) and per-line alignment. */
+export type WordFx = {
+  arc?: number; bulge?: number; rotate?: number;
+  lineHeight?: number; align?: "left" | "center" | "right";
+};
 
 // the engine's letter-tilt pattern, mirrored so the slider means the same
 // thing in outline mode and text mode
@@ -151,38 +155,66 @@ function layout(font: Font, text: string, size: number, spacingEm: number): { gl
 export const centralShift = (font: Font, size: number): number =>
   ((font.ascender + font.descender) / 2) * (size / font.unitsPerEm);
 
-/** The word as one compound path: letter tilt baked into the glyphs, then
- *  the whole-word envelope (arc/bulge) and in-plane rotation baked into
- *  the geometry — the word bends and turns as a single object. */
-export function flatWordOutline(font: Font, text: string, size: number, spacingEm: number, tiltK: number, fx?: WordFx): WordOutline {
-  const { glyphs, w } = layout(font, text, size, spacingEm);
-  const co = centralShift(font, size);
-  let all: Cmd[] = [];
-  glyphs.forEach((g, i) => {
-    let cmds = g.cmds;
-    if (tiltK > 0) {
-      const a = (ROTS[i % 10] * tiltK * 1.6 * Math.PI) / 180;
-      const dy = BOB[i % 10] * size * tiltK * 1.4;
-      const cs = Math.cos(a), sn = Math.sin(a);
-      const cx = g.center;
-      cmds = mapCmds(cmds, (px, py) => {
-        const lx = px - cx, ly = py;
-        return [cx + lx * cs - ly * sn, dy + lx * sn + ly * cs];
-      });
+const boundsOf = (cmds: Cmd[]) => {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of cmds) {
+    if (c.x !== undefined) {
+      if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x;
+      if (c.y! < minY) minY = c.y!; if (c.y! > maxY) maxY = c.y!;
     }
-    all.push(...cmds);
+  }
+  if (!Number.isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
+  return { minX, maxX, minY, maxY };
+};
+
+/** The whole block — one word or many lines (Return respected) — as ONE
+ *  compound path: per-glyph tilt baked in, then the envelope (arc/bulge)
+ *  and in-plane rotation over the entire block, which bends and turns as
+ *  a single object. Normalized to x from 0 and vertical CENTER at y=0
+ *  (dy 0), so the engine's central anchor lands the block correctly at
+ *  any line count. */
+export function flatWordOutline(font: Font, text: string, size: number, spacingEm: number, tiltK: number, fx?: WordFx): WordOutline {
+  const lines = text.split("\n");
+  const lh = (fx?.lineHeight ?? 1.1) * size;
+  const align = fx?.align ?? "center";
+  const laid = lines.map((ln) => layout(font, ln, size, spacingEm));
+  const blockW = Math.max(...laid.map((l) => l.w), 1);
+
+  let all: Cmd[] = [];
+  let gi = 0; // tilt pattern runs across the whole block
+  laid.forEach((line, li) => {
+    const xOff = align === "left" ? 0 : align === "right" ? blockW - line.w : (blockW - line.w) / 2;
+    const yOff = li * lh;
+    for (const g of line.glyphs) {
+      let cmds = g.cmds;
+      if (tiltK > 0) {
+        const a = (ROTS[gi % 10] * tiltK * 1.6 * Math.PI) / 180;
+        const dy = BOB[gi % 10] * size * tiltK * 1.4;
+        const cs = Math.cos(a), sn = Math.sin(a);
+        const cx = g.center;
+        cmds = mapCmds(cmds, (px, py) => {
+          const lx = px - cx, ly = py;
+          return [cx + lx * cs - ly * sn, dy + lx * sn + ly * cs];
+        });
+      }
+      all.push(...mapCmds(cmds, (px, py) => [px + xOff, py + yOff]));
+      gi++;
+    }
+    if (!line.glyphs.length) gi++; // blank lines still advance the pattern
   });
 
   const arc = fx?.arc ?? 0, bulge = fx?.bulge ?? 0, rot = fx?.rotate ?? 0;
+  const b0 = boundsOf(all);
   if (Math.abs(arc) > 0.005 || Math.abs(bulge) > 0.005) {
-    // nonlinear envelope — flatten first so segments bend true
+    // nonlinear envelope over the whole block — flatten so segments bend true
     all = flatten(all, size / 22);
-    const c0 = -co; // the word's central line in baseline coords
+    const midY = (b0.minY + b0.maxY) / 2;
+    const span = Math.max(1, b0.maxX - b0.minX);
     all = mapCmds(all, (px, py) => {
-      const u = (2 * px) / w - 1; // -1 at word start, +1 at word end
+      const u = (2 * (px - b0.minX)) / span - 1; // -1 block start, +1 block end
       const env = 1 - u * u;
       let y2 = py;
-      if (bulge) y2 = c0 + (y2 - c0) * (1 + bulge * 0.55 * env);
+      if (bulge) y2 = midY + (y2 - midY) * (1 + bulge * 0.55 * env);
       if (arc) y2 -= arc * size * 0.75 * env;
       return [px, y2];
     });
@@ -190,23 +222,16 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   if (Math.abs(rot) > 0.05) {
     const a = (rot * Math.PI) / 180;
     const cs = Math.cos(a), sn = Math.sin(a);
-    const cx = w / 2, cy0 = -co;
+    const cx = (b0.minX + b0.maxX) / 2, cy0 = (b0.minY + b0.maxY) / 2;
     all = mapCmds(all, (px, py) => {
       const lx = px - cx, ly = py - cy0;
       return [cx + lx * cs - ly * sn, cy0 + lx * sn + ly * cs];
     });
   }
 
-  // normalize: pen-start back to x=0 after bends, and report the vertical
-  // reach so the canvas can reserve room
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of all) {
-    if (c.x !== undefined) {
-      if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x;
-      if (c.y! < minY) minY = c.y!; if (c.y! > maxY) maxY = c.y!;
-    }
-  }
-  if (!Number.isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
-  if (minX !== 0) all = mapCmds(all, (px, py) => [px - minX, py]);
-  return { d: cmdToD(all), w: maxX - minX, dy: co, minY, maxY };
+  // normalize: x from 0, vertical center at 0; report the reach
+  const b = boundsOf(all);
+  const cy = (b.minY + b.maxY) / 2;
+  all = mapCmds(all, (px, py) => [px - b.minX, py - cy]);
+  return { d: cmdToD(all), w: b.maxX - b.minX, dy: 0, minY: b.minY - cy, maxY: b.maxY - cy };
 }

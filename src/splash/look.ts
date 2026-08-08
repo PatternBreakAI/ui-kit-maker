@@ -8,23 +8,35 @@ import type { GenConfig } from "@/generator/model";
    maps the look onto the same renderer everything else uses. */
 
 export type SplashLook = {
+  /** multiline — Return is respected; the blob wraps the whole block */
   text: string;
   font: string;
   customFonts: string[];
-  /** letterform ink */
+  /** letterform ink (+ optional vertical gradient) */
   fill: string;
-  /** the blob: wrap + body + everything behind the ink, one color */
+  inkGrad: boolean;
+  fill2: string;
+  /** the blob: wrap + body + everything behind the ink (+ optional gradient) */
   blob: string;
+  blobGrad: boolean;
+  blob2: string;
+  /** blob wrap width around the letterforms, px at the 52px master scale */
+  strokeW: number;
   /** block-extrusion reach, px at the 52px master scale */
   depth: number;
   /** soft ground-shadow opacity 0..100 */
   shadow: number;
+  /** line height % (multiline) and block alignment */
+  lineHeight: number;
+  align: "left" | "center" | "right";
   /** per-letter tilt & bounce 0..100 — jaunty, still one sticker */
   bounce: number;
   /** ink shine — top-light crescents on each letterform */
   shine: boolean;
   shineSize: number;   // 1..10
   shineInset: number;  // 0..6
+  shineColor: string;
+  shineBlend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
   /** whole-word shape — one object, in-plane */
   arc: number;      // -100..100
   bulge: number;    // -100..100
@@ -34,17 +46,26 @@ export type SplashLook = {
 export const SPLASH_STAGE_CHIPS = ["#EAD4B4", "#101318", "#F4F1EA", "#E8402A"] as const;
 
 export const SPLASH_DEFAULT: SplashLook = {
-  text: "GOOD DAY",
+  text: "GOOD\nDAY",
   font: "Modak",
   customFonts: [],
   fill: "#E8402A",
+  inkGrad: false,
+  fill2: "#B7231A",
   blob: "#221E1F",
+  blobGrad: false,
+  blob2: "#3E3357",
+  strokeW: 8,
   depth: 14,
   shadow: 25,
+  lineHeight: 105,
+  align: "center",
   bounce: 30,
   shine: true,
   shineSize: 4,
   shineInset: 2,
+  shineColor: "#FFFFFF",
+  shineBlend: "normal",
   arc: 0,
   bulge: 0,
   stage: { mode: "color", color: "#EAD4B4" },
@@ -60,8 +81,9 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.italic = false;
   t.case = "none";     // the text renders as typed
   t.spacing = 2;
-  t.fillMode = "solid";
+  t.fillMode = look.inkGrad ? "gradient" : "solid";
   t.fill = look.fill;
+  t.fill2 = look.fill2;
   t.fillOpacity = 100;
   t.highlight = "";
   delete t.fillStops;
@@ -72,20 +94,21 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.glints = { on: false, opacity: 85, style: "stars", blend: "normal" };
   t.stripes = { on: false, angle: 0, opacity: 30, style: "stripes", scale: 100 };
   t.noise = { on: false, amount: 35, scale: 50 };
-  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: 2, opacity: 100, color: "#FFFFFF" };
+  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: 2, opacity: 100, color: look.shineColor, blend: look.shineBlend };
   t.dim = {
     on: true,
     depth: look.depth,
     color: look.blob,
-    sticker: 8,                // wrap and lean are part of the look itself,
-    stickerColor: look.blob,   // not knobs — one blob, reference-faithful
+    sticker: look.strokeW,
+    stickerColor: look.blob,   // wrap and body are ONE blob unless the
+    stickerColor2: look.blobGrad ? look.blob2 : null, // gradient splits it
     rim: 0,
     rimColor: look.blob,
     shadow: look.shadow,
     gloss: 0,
     glossCover: 35,
     tilt: look.bounce,
-    drift: 55,
+    drift: 55,               // the lean is part of the look itself
   };
   c.lighting = { ...c.lighting, angle: 90, highlight: 70, lowlight: 50 };
   c.effects = { ...c.effects, Bevel: look.fill, Glow: look.fill };

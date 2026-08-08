@@ -59,20 +59,26 @@ export function SplashPage() {
     const cfg = buildSplashCfg(look);
     const t = cfg.type;
     const k = t.size / 52;
-    // 0.55 lean and 8 wrap are baked into the look (see buildSplashCfg)
+    // pad grows with the wrap — a big stroke must never clip flat against
+    // the canvas or the filter region (0.55 lean baked into the look)
     const fxPad = Math.ceil(
-      (look.depth + look.depth * 0.55 + 8) * k +
+      (look.depth + look.depth * 0.55 + look.strokeW) * k +
       (look.shadow > 0 ? look.depth * k + 18 : 0) + t.size * (0.12 + (look.bounce / 100) * 0.14) + 24,
     );
     const text = look.text || " ";
     if (oFont) {
       const tp = flatWordOutline(oFont, text, t.size, t.spacing / 100, look.bounce / 100, {
         arc: look.arc / 100, bulge: look.bulge / 100,
+        lineHeight: look.lineHeight / 100, align: look.align,
       });
-      const reach = Math.max(0, Math.max(Math.abs(tp.minY ?? 0), tp.maxY ?? 0) - t.size);
-      return renderTypeSpecimen(cfg, text, { fxPad: fxPad + Math.ceil(reach), keepCase: true, textPath: tp });
+      const reach = Math.max(0, Math.max(Math.abs(tp.minY ?? 0), tp.maxY ?? 0) - t.size * 0.7);
+      return renderTypeSpecimen(cfg, text.replace(/\n/g, " "), {
+        fxPad: fxPad + Math.ceil(reach), keepCase: true,
+        textPath: { ...tp, gy1: tp.minY, gy2: tp.maxY },
+      });
     }
-    return renderTypeSpecimen(cfg, text, { fxPad }); // live text while outlines load
+    // live text while outlines load — single line only, so fold the returns
+    return renderTypeSpecimen(cfg, text.replace(/\n+/g, " "), { fxPad });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [look, oFont, fontTick]);
 
@@ -122,8 +128,17 @@ export function SplashPage() {
         </div>
 
         <div className="sp-group">
-          <input className="sp-text" value={look.text} maxLength={32} aria-label="Text"
+          <textarea className="sp-text" value={look.text} maxLength={96} rows={Math.min(5, Math.max(2, look.text.split("\n").length))}
+            aria-label="Text" spellCheck={false}
             onChange={(e) => up("text", e.target.value)} />
+          <div className="sp-row">
+            <Slider label="Line height" value={look.lineHeight} min={80} max={160} unit="%" onChange={(v) => up("lineHeight", v)} />
+          </div>
+          <div className="sp-row" role="radiogroup" aria-label="Alignment">
+            {(["left", "center", "right"] as const).map((a) => (
+              <button key={a} className={`sp-btn${look.align === a ? " on" : ""}`} onClick={() => up("align", a)}>{a}</button>
+            ))}
+          </div>
         </div>
 
         <div className="sp-group">
@@ -141,13 +156,37 @@ export function SplashPage() {
           <div className="sp-h">Ink</div>
           <div className="sp-wells">
             <Well label="Letters" value={look.fill} onChange={(v) => up("fill", v)} />
+            <label className="sp-check"><input type="checkbox" checked={look.inkGrad} onChange={(e) => up("inkGrad", e.target.checked)} /> Gradient</label>
+            {look.inkGrad && <Well label="to" value={look.fill2} onChange={(v) => up("fill2", v)} />}
+          </div>
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Stroke</div>
+          <div className="sp-wells">
             <Well label="Blob" value={look.blob} onChange={(v) => up("blob", v)} />
-            <label className="sp-check"><input type="checkbox" checked={look.shine} onChange={(e) => up("shine", e.target.checked)} /> Shine</label>
+            <label className="sp-check"><input type="checkbox" checked={look.blobGrad} onChange={(e) => up("blobGrad", e.target.checked)} /> Gradient</label>
+            {look.blobGrad && <Well label="to" value={look.blob2} onChange={(v) => up("blob2", v)} />}
+          </div>
+          <Slider label="Width" value={look.strokeW} min={0} max={24} step={0.5} unit="" onChange={(v) => up("strokeW", v)} />
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Shine</div>
+          <div className="sp-wells">
+            <label className="sp-check"><input type="checkbox" checked={look.shine} onChange={(e) => up("shine", e.target.checked)} /> On</label>
+            {look.shine && <Well label="Color" value={look.shineColor} onChange={(v) => up("shineColor", v)} />}
+            {look.shine && (
+              <select className="sp-input sp-select" value={look.shineBlend} aria-label="Shine blend"
+                onChange={(e) => up("shineBlend", e.target.value as SplashLook["shineBlend"])}>
+                {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            )}
           </div>
           {look.shine && (
             <>
-              <Slider label="Shine size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
-              <Slider label="Shine inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
+              <Slider label="Size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
+              <Slider label="Inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
             </>
           )}
         </div>

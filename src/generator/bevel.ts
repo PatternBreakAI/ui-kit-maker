@@ -1640,8 +1640,11 @@ export function textPatternCell(style: string, ps: number, color: string): strin
 /** Core builder — the candy stack. Width grows with the content. */
 /** A label pre-converted to vector outlines (Type Maker). Local coords:
  *  pen starts at x=0 on the baseline; `w` = true advance width; `dy` =
- *  shift from the dominant-central anchor down to the baseline. */
-export interface TextPathOpt { d: string; w: number; dy?: number }
+ *  shift from the dominant-central anchor down to the baseline. gy1/gy2
+ *  give the block's true vertical span in local coords — multiline
+ *  blocks need word gradients stretched over the whole lockup, not one
+ *  line's em box. */
+export interface TextPathOpt { d: string; w: number; dy?: number; gy1?: number; gy2?: number }
 
 function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   label?: string; iconDef?: IconDef | null; secondary?: boolean; shapeOverride?: Shape; fixedW?: number;
@@ -2381,7 +2384,25 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
        offset of every curve — and the filters only sweep and tint it.
        The <text> fallback keeps the dilate (no geometry to stroke). */
     const dStkW = dRim > 0.05 ? dStick + dRim : dStick;
+    /* gradient blob (vector-outline mode): the sweep filters can only
+       flood flat color, so a gradient body routes through the shell's
+       mask discipline instead — the filtered white alpha becomes a
+       luminance mask, and a gradient rect paints through it. Masks and
+       rects live in LOCAL path coords, so the filters get their own
+       locally-bounded regions. */
+    const dGrad = !!TP2 && !!DM!.stickerColor2 && dStick > 0.05;
+    const dgy1 = TP2 ? (TP2.gy1 ?? -fs * 0.55) : 0;
+    const dgy2 = TP2 ? (TP2.gy2 ?? fs * 0.55) : 0;
+    const dLR = `filterUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? textW) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
+    const dMaskSrc = (r2: number) => `<path d="${TP2?.d ?? ""}" fill="#fff"${r2 > 0.05 ? ` stroke="#fff" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"` : ""}/>`;
+    const dGradRect = `<rect x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? 0) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" fill="url(#${id}dsg)"`;
     dimDefs =
+      (dGrad ? `<linearGradient id="${id}dsg" gradientUnits="userSpaceOnUse" x1="0" y1="${dgy1.toFixed(1)}" x2="0" y2="${(dgy2 + dDepth).toFixed(1)}"><stop offset="0" stop-color="${dStickC}"/><stop offset="1" stop-color="${P(DM!.stickerColor2!)}"/></linearGradient>` +
+        `<filter id="${id}dstg" ${dLR}>${un}<feFlood flood-color="#fff"/><feComposite in2="dun" operator="in"/></filter>` +
+        `<mask id="${id}dsm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(dStkW)}</g></mask>` +
+        (dDepth > 0.05 && dStickC.toLowerCase() === dWall.toLowerCase()
+          ? `<mask id="${id}dwm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(0)}</g></mask>`
+          : "") : "") +
       (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
       // the sticker wrap includes the rim width — it must stay visible
       // OUTSIDE the rim ring, not vanish underneath it
@@ -2406,11 +2427,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const dimSrc = (r2: number) => TP2 && r2 > 0.05
       ? dimText(`fill="#000" stroke="#000" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)
       : dimText(`fill="#000"`);
+    const dGradLayer = (maskId: string) => `<g transform="${tpXY}">${dGradRect} mask="url(#${id}${maskId})"/></g>`;
     dimBack =
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
-      (dStick > 0.05 ? `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>` : "") +
+      (dStick > 0.05 ? (dGrad ? dGradLayer("dsm") : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
       (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimSrc(dRim)}</g>` : "") +
-      (dDepth > 0.05 ? `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>` : "");
+      (dDepth > 0.05 ? (dGrad && dStickC.toLowerCase() === dWall.toLowerCase()
+        ? dGradLayer("dwm")
+        : `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>`) : "");
     dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
   }
 
@@ -2578,8 +2602,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
        and userSpaceOnUse resolves where the element is USED — so the text
        gradients anchor in LOCAL coords there (central line = -dy). */
     const gx1 = TP2 ? "0" : tTextX.toFixed(1);
-    const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.55).toFixed(1) : (cy + 1 + textOy * K - fs * 0.55).toFixed(1);
-    const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (cy + 1 + textOy * K + fs * 0.55).toFixed(1);
+    const gy1 = TP2 ? (TP2.gy1 ?? (-(TP2.dy ?? 0) - fs * 0.55)).toFixed(1) : (cy + 1 + textOy * K - fs * 0.55).toFixed(1);
+    const gy2 = TP2 ? (TP2.gy2 ?? (-(TP2.dy ?? 0) + fs * 0.55)).toFixed(1) : (cy + 1 + textOy * K + fs * 0.55).toFixed(1);
     return (T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${gx1}" y1="${gy1}" x2="${gx1}" y2="${gy2}">${
       T2.fillStops?.length
         ? T2.fillStops.map((s) => `<stop offset="${clamp(s.offset, 0, 1).toFixed(3)}" stop-color="${P(s.color)}"/>`).join("")

@@ -35,6 +35,8 @@
   border-radius: 10px; padding: 10px 12px;
 }
 .sp-text:focus { outline: 2px solid #e8402a; border-color: transparent; }
+textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-family: inherit; }
+.sp-select { flex: 0 1 auto; min-width: 92px; }
 
 .sp-input {
   flex: 1; font-size: 13px; color: #e7e9ee;

@@ -304,6 +304,9 @@ export interface TypeCfg {
     /** Horizontal lean of the body, -100..100 % of depth — the flat
      *  block-shadow look extrudes down-right, not straight down. */
     drift?: number;
+    /** Second wrap color — set = the blob wears a vertical gradient
+     *  (vector-outline mode; the flat single color otherwise). */
+    stickerColor2?: string | null;
   };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
