@@ -18,6 +18,16 @@ import "@/styles/splash.css";
 
 const LS_KEY = "splash-v1";
 
+/* Module scope, deliberately: defined inside the page component this was a
+   NEW component type every render, so React remounted the native color
+   input on each change and the browser's picker dialog snapped shut
+   (owner report: "click on it anywhere and it disappears"). */
+function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="sp-well"><input type="color" value={value} onChange={(e) => onChange(e.target.value)} /><span>{label}</span></label>
+  );
+}
+
 export function SplashPage() {
   const saved = useMemo(() => {
     try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "null") as SplashLook | null; } catch { return null; }
@@ -30,7 +40,47 @@ export function SplashPage() {
   const [oState, setOState] = useState<"loading" | "ready" | "none">("loading");
   const [fontTick, setFontTick] = useState(0);
 
-  const up = useCallback(<K extends keyof SplashLook>(k: K, v: SplashLook[K]) => setLook((l) => ({ ...l, [k]: v })), []);
+  /* look-level undo — Cmd+Z / Shift+Cmd+Z, UIKM-style coalescing so a
+     slider drag lands as one step. The text field keeps the browser's own
+     text undo; everything else routes here. */
+  const past = useRef<SplashLook[]>([]);
+  const future = useRef<SplashLook[]>([]);
+  const lastPush = useRef(0);
+  const up = useCallback(<K extends keyof SplashLook>(k: K, v: SplashLook[K]) => setLook((l) => {
+    const now = Date.now();
+    if (now - lastPush.current > 400) {
+      past.current.push(l);
+      if (past.current.length > 60) past.current.shift();
+      future.current = [];
+    }
+    lastPush.current = now;
+    return { ...l, [k]: v };
+  }), []);
+  const undo = useCallback(() => setLook((l) => {
+    const p = past.current.pop();
+    if (!p) return l;
+    future.current.push(l);
+    lastPush.current = 0;
+    return p;
+  }), []);
+  const redo = useCallback(() => setLook((l) => {
+    const f = future.current.pop();
+    if (!f) return l;
+    past.current.push(l);
+    lastPush.current = 0;
+    return f;
+  }), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const tag = (e.target as HTMLElement)?.tagName ?? "";
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return; // native field undo wins there
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   // the live face for the text fallback + glyph outlines for the real thing
   useEffect(() => {
@@ -109,18 +159,17 @@ export function SplashPage() {
     if (addFontRef.current) addFontRef.current.value = "";
   };
 
-  const Well = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
-    <label className="sp-well"><input type="color" value={value} onChange={(e) => onChange(e.target.value)} /><span>{label}</span></label>
-  );
-
   return (
     <div className="sp-app">
       <aside className="sp-side">
         <div className="sp-brand">
           <div className="sp-brand-row">
             <span className="sp-mark" style={{ fontFamily: "'Modak', 'Lilita One', Inter, sans-serif" }}>SPLASH TEXT</span>
-            <button className="sp-btn sp-reset" title="Back to the factory look"
-              onClick={() => { try { localStorage.removeItem(LS_KEY); } catch { /* private mode */ } setLook({ ...SPLASH_DEFAULT }); }}>
+            <button className="sp-btn sp-reset" title="Back to the factory look (Cmd+Z undoes this too)"
+              onClick={() => {
+                try { localStorage.removeItem(LS_KEY); } catch { /* private mode */ }
+                setLook((l) => { past.current.push(l); future.current = []; lastPush.current = 0; return { ...SPLASH_DEFAULT }; });
+              }}>
               Reset
             </button>
           </div>
@@ -187,6 +236,7 @@ export function SplashPage() {
             <>
               <Slider label="Size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
               <Slider label="Inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
+              <Slider label="Roundness" value={look.shineRound} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineRound", v)} />
             </>
           )}
         </div>

@@ -35,6 +35,7 @@ export type SplashLook = {
   shine: boolean;
   shineSize: number;   // 1..10
   shineInset: number;  // 0..6
+  shineRound: number;  // 0..6 — cap rounding, UIKM's knob semantics
   shineColor: string;
   shineBlend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light";
   /** whole-word shape — one object, in-plane */
@@ -64,6 +65,7 @@ export const SPLASH_DEFAULT: SplashLook = {
   shine: true,
   shineSize: 4,
   shineInset: 2,
+  shineRound: 2,
   shineColor: "#FFFFFF",
   shineBlend: "normal",
   arc: 0,
@@ -94,7 +96,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.glints = { on: false, opacity: 85, style: "stars", blend: "normal" };
   t.stripes = { on: false, angle: 0, opacity: 30, style: "stripes", scale: 100 };
   t.noise = { on: false, amount: 35, scale: 50 };
-  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: 2, opacity: 100, color: look.shineColor, blend: look.shineBlend };
+  t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: 100, color: look.shineColor, blend: look.shineBlend };
   t.dim = {
     on: true,
     depth: look.depth,

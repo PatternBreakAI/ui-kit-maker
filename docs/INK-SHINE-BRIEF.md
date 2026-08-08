@@ -41,6 +41,18 @@ All SVG 1.1 primitives in one filter, applied to ONE extra glyph-run copy
 mode — both work). Region is a bounded `userSpaceOnUse` rect sized from
 the label (the Safari discipline every text filter here follows).
 
+## MERGE COORDINATION (added 2026-08-08, after the app session shipped)
+
+The app session's `claude/app-tweaks` branch (commit `8253a6c`) ported
+this engine block onto main-based code and wired the panel — including
+the Cap rounding knob (0–6 px, step 0.5, default 2), whose semantics the
+Splash surface now mirrors. **Both branches therefore carry the engine
+block.** Whichever PR merges second will conflict in `bevel.ts`/
+`model.ts`: resolve by keeping the **text-effects branch's version** —
+it is the superset (identical recipe, plus vector-outline `textPath`
+support via `fxText`). The panel wiring from `app-tweaks` is the keeper
+on the UI side.
+
 ## Where it already lives (engine is DONE, shared)
 
 - **Model**: `TypeCfg.shine` in `src/generator/model.ts` —
