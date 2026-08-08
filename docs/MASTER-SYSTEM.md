@@ -57,6 +57,14 @@ Each app chooses what to expose and how it reads. App code is routing,
 layout, copy, and which Engine/Bench/Desk pieces it mounts — nothing
 more.
 
+### L1½ · The Bridge (optional, per app)
+The Unity export machinery — Smart Zip, importer C#, prefab wiring, the
+README deck — is its own module riding beside the Engine, mounted ONLY
+by apps that target engines (owner, 2026-08-08: "Splash Text doesn't
+need any of the Unity export stuff"). Splash ships SVG/PNG only. When
+the packages are carved (§6 Phase 2), the Bridge splits out first —
+it's megabytes of embedded C# no other app should ever bundle.
+
 ## 3. Prime directives (all sessions, all apps)
 
 1. **Search before you build.** Anything vector, type, export, control,
@@ -146,7 +154,15 @@ Additions to this list: append here in the same PR that starts importing.
   rebases, keeps its superset engine block + main's panel wiring.
 - 2026-08-08 · API registry v1 frozen (§4).
 - 2026-08-08 · Direction set: per-app ExportKind; single preset system
-  with `kind`. (Owner bless pending with this doc.)
+  with `kind`. Preset PLUMBING is shared; preset STYLES never travel
+  between apps (owner: each app keeps its own voice).
+- 2026-08-08 · Unity Bridge declared an optional per-app module (L1½) —
+  Splash never bundles it.
+- 2026-08-08 · Owner note for the backlog: "randomize all produces
+  really unpleasing results... maybe we can develop some aesthetic
+  guardrails over time." Direction sketch lives in the task backlog —
+  harmony-derived palettes, one-statement-per-roll co-constraints, and a
+  legibility floor with internal re-rolls.
 
 ## 8. Open questions for the owner
 
