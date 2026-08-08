@@ -2190,12 +2190,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const tfSpread = Math.max(
     T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
     T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
-    8) + fs
+    8) + fs * 1.5
     // engines disagree on display-face advances by up to ~25% (Safari
-    // especially, with synthesized italics) — the region carries that
-    // slack so real glyphs never hit the raster boundary. Still bounded:
-    // proportional to this label, nowhere near the Safari buffer cap.
-    + textW * 0.25;
+    // especially, with synthesized italics) — the region carries nearly
+    // half the label again as slack so real glyphs never hit the raster
+    // boundary (owner: "main problem in safari is cut-off text"). Still
+    // bounded: proportional to this label, far from Safari's buffer cap.
+    + textW * 0.45;
   const textFxDef = prims.length
     ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
@@ -2302,7 +2303,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const shOp2 = clamp((SH2!.opacity ?? 100) / 100, 0, 1);
     // away from the key light — light overhead shifts the copy straight down
     const shDx = (-lx * shSize).toFixed(1), shDy = (-ly * shSize).toFixed(1);
-    const shSpread = shSize + shInset + shRound * 4 + fs * 0.2 + textW * 0.25;
+    // same Safari advance slack as the text-fx region above
+    const shSpread = shSize + shInset + shRound * 4 + fs * 0.5 + textW * 0.45;
     shineDef = `<filter id="${id}tsh" filterUnits="userSpaceOnUse" x="${(x - shSpread).toFixed(0)}" y="${(y - shSpread).toFixed(0)}" width="${(w + shSpread * 2).toFixed(0)}" height="${(h + shSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
       `<feMorphology in="SourceAlpha" operator="erode" radius="${shInset.toFixed(1)}" result="shs"/>` +
       `<feOffset in="shs" dx="${shDx}" dy="${shDy}" result="sho"/>` +
@@ -2371,7 +2373,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">
+  /* overflow=visible: the canvas frame is sized from the SHELL, while
+     text layout rides estimated per-font advances — Safari draws the
+     same faces up to ~25% wider (synthesized italics especially), so a
+     label that fits Chromium's estimate can poke past the frame and get
+     guillotined ("cut-off text", the recurring Safari family: gallery
+     descenders, SHADOW KNIGHT's right edge). Live inline rendering now
+     lets those glyphs draw past the frame instead of clipping; raster
+     paths keep the frame, and in Chromium nothing pokes, so exports are
+     pixel-identical. */
+  return `<svg xmlns="http://www.w3.org/2000/svg" overflow="visible" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">
 <defs>
   <linearGradient id="${id}band" ${axis}>
     <stop offset="0" stop-color="${darken(bevelC, clamp(0.3 * lowK, 0, 0.7))}"/>
