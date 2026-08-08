@@ -2284,6 +2284,73 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       })()
     : label;
 
+  /* ── dimensional type (Type Maker) — the glyphs grow a solid body ──
+     All geometry derives from the glyph alpha inside filters: a vertical
+     feMorphology dilate + offset sweeps the extrusion wall (the shell
+     extrusion's serration-free trick applied to letterforms), uniform
+     dilates of the face∪wall union wrap the sticker and rim, and a blur
+     of the union grounds the shadow. One text copy per layer — depth
+     never multiplies node count, and any face at any size qualifies. */
+  const DM = T2.dim;
+  const dimOn = !!DM?.on && showText && !disabled;
+  const dimK = fs / 52;
+  const dDepth = dimOn ? Math.max(0, DM!.depth) * dimK : 0;
+  const dStick = dimOn ? Math.max(0, DM!.sticker) * dimK : 0;
+  const dRim = dimOn ? Math.max(0, DM!.rim) * dimK : 0;
+  const dShOp = dimOn ? clamp((DM!.shadow ?? 0) / 100, 0, 1) : 0;
+  const dGlOp = dimOn ? clamp((DM!.gloss ?? 0) / 100, 0, 1) : 0;
+  const dTilt = dimOn ? clamp((DM!.tilt ?? 0) / 100, 0, 1) : 0;
+  // wall paint — explicit, or derived from the letter fill so the body
+  // always reads as the same material as the face
+  const dFillBase = T2.fillMode === "gradient" ? P(T2.fill2) : T2.fillMode === "solid" ? P(T2.fill) : autoLabel;
+  const dWall = DM?.color ? P(DM.color) : darken(dFillBase, 0.42);
+  const dRimC = DM?.rimColor ? P(DM.rimColor) : darken(dWall, 0.55);
+  const dStickC = P(DM?.stickerColor ?? "#FFFFFF");
+  /* per-letter tilt & bounce — per-glyph rotate/dy lists on the SAME text
+     nodes, so every layer (wall, sticker, gloss, glints clip) tilts in
+     lockstep. dy entries are deltas — the list is cumulative by spec.
+     Stacked multi-line labels sit this out; the lists address glyphs
+     across the whole node and would smear over line breaks. */
+  let tiltAttrs = "";
+  if (dTilt > 0 && !cased.includes("\n")) {
+    const ROTS = [-5, 4, -3, 5, -4, 3, -6, 4, -3, 5];
+    const BOB = [0, -0.045, 0.03, -0.04, 0.045, -0.03, 0.04, -0.045, 0.03, -0.04];
+    const rots: string[] = [], dys: string[] = [];
+    let prevDy = 0;
+    for (let i = 0; i < cased.length; i++) {
+      rots.push((ROTS[i % 10] * dTilt * 1.6).toFixed(1));
+      const t = BOB[i % 10] * fs * dTilt * 1.4;
+      dys.push((t - prevDy).toFixed(1));
+      prevDy = t;
+    }
+    tiltAttrs = ` rotate="${rots.join(" ")}" dy="${dys.join(" ")}"`;
+  }
+  let dimDefs = "", dimBack = "", dimGlossLayer = "";
+  if (dimOn && (dDepth > 0.05 || dStick > 0.05 || dRim > 0.05 || dShOp > 0 || dGlOp > 0)) {
+    // bounded like the text-fx region: absolute units, sized from this
+    // label's own reach so Safari never sees an unbounded raster
+    const dSpread = dDepth + dStick + dRim + (dShOp > 0 ? dDepth * 0.8 + 14 : 0) + fs * (0.35 + dTilt * 0.3) + textW * 0.25;
+    const dR = `filterUnits="userSpaceOnUse" x="${(x - dSpread).toFixed(0)}" y="${(y - dSpread).toFixed(0)}" width="${(w + dSpread * 2).toFixed(0)}" height="${(h + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
+    const un = `<feMorphology in="SourceAlpha" operator="dilate" radius="0 ${(dDepth / 2).toFixed(1)}" result="dsw"/><feOffset in="dsw" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feMerge result="dun"><feMergeNode in="SourceAlpha"/><feMergeNode in="dwl"/></feMerge>`;
+    const dgy = cy + 1 + textOy * K;
+    const dCover = clamp((DM!.glossCover ?? 38) / 100, 0.15, 0.7);
+    dimDefs =
+      (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
+      // the sticker dilate includes the rim width — the wrap must stay
+      // visible OUTSIDE the rim ring, not vanish underneath it
+      (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${(dRim > 0.05 ? dStick + dRim : dStick).toFixed(1)}" result="dstk"/><feFlood flood-color="${dStickC}"/><feComposite in2="dstk" operator="in"/></filter>` : "") +
+      (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="drim"/><feFlood flood-color="${dRimC}"/><feComposite in2="drim" operator="in"/></filter>` : "") +
+      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}><feMorphology in="SourceAlpha" operator="dilate" radius="0 ${(dDepth / 2).toFixed(1)}" result="dsw"/><feOffset in="dsw" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/><feOffset in="dwl" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge></filter>` : "") +
+      (dGlOp > 0 ? `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${(dgy - fs * 0.52).toFixed(1)}" x2="0" y2="${(dgy + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>` : "");
+    const dimText = (paint: string) => `<text x="${tTextX.toFixed(1)}" y="${dgy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
+    dimBack =
+      (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimText(`fill="#000"`)}</g>` : "") +
+      (dStick > 0.05 ? `<g filter="url(#${id}dst)">${dimText(`fill="#000"`)}</g>` : "") +
+      (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimText(`fill="#000"`)}</g>` : "") +
+      (dDepth > 0.05 ? `<g filter="url(#${id}dwl)">${dimText(`fill="#000"`)}</g>` : "");
+    dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
+  }
+
   /* vector glints — a crisp specular slab clipped to the glyphs plus star
      sparkles riding the letter faces. Placement follows the master light,
      exactly like the emboss relief and the shell gloss. */
@@ -2304,7 +2371,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const rot = Math.atan2(ly, lx) * 180 / Math.PI + 90;
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
-    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text></clipPath>`;
     /* style picks the clipped body + which stars ride along; the bake knobs
        (glintBands/glintStars, alphabet-face export) keep overriding — they
        normalize per-glyph treatment and always speak slab. */
@@ -2399,7 +2466,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0" stop-color="${hiC}" stop-opacity="1"/>
     <stop offset="1" stop-color="${hiC}" stop-opacity="0"/>
   </radialGradient>
-  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
+  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">${
+    T2.fillStops?.length
+      ? T2.fillStops.map((s) => `<stop offset="${clamp(s.offset, 0, 1).toFixed(3)}" stop-color="${P(s.color)}"/>`).join("")
+      : `<stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/>`
+  }</linearGradient>` : ""}
   ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
   ${hiIdx >= 0 ? (() => {
     const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1);
@@ -2429,6 +2500,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
   ${textFxDef}
+  ${dimDefs}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
   ${(() => {
@@ -2474,11 +2546,12 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">` : ""}
-      ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
-      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
-      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
-      ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central">${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${showText ? `<g data-part="label">${dimBack}` : ""}
+      ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text>` : ""}
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
+      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>` : ""}
+      ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${dimGlossLayer}
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo

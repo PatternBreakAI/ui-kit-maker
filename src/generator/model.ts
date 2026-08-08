@@ -282,9 +282,34 @@ export interface TypeCfg {
    *  the letter faces exactly like the shell gloss/specular blends.
    *  ox/oy nudge the whole treatment in % of the letter height. */
   glints?: { on: boolean; opacity: number; ox?: number; oy?: number; style?: GlintStyle; blend?: BlendMode };
+  /** Dimensional type (Type Maker) — the glyphs themselves grow a solid
+   *  body: extrusion sweep, sticker wrap, contour rim, ground shadow, hard
+   *  candy gloss and per-letter tilt. All geometry derives from the glyph
+   *  alpha via filter morphology (the shell extrusion's sweep trick), so
+   *  any face at any size carries the treatment without stacked copies.
+   *  Absent/off = byte-identical output for every existing kit. Sizes are
+   *  px at the 52px master scale, like outline.width. */
+  dim?: {
+    on: boolean;
+    depth: number;            // extrusion reach 0..28
+    color: string | null;     // wall paint — null derives from the fill
+    sticker: number;          // white-wrap width 0..16 (0 = off)
+    stickerColor: string;
+    rim: number;              // dark contour width 0..8 (0 = off)
+    rimColor: string | null;  // null derives from the wall
+    shadow: number;           // ground-shadow opacity 0..100 (0 = off)
+    gloss: number;            // hard candy band opacity 0..100 (0 = off)
+    glossCover: number;       // band coverage, % of glyph height (20..60)
+    tilt: number;             // per-letter tilt & bounce 0..100
+  };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
   fill2: string;       // gradient bottom
+  /** Multi-stop gradient fill — banded metals (gold, chrome, silver) need
+   *  the hard horizon stops a two-color ramp can't hold. When present and
+   *  fillMode is "gradient", these stops replace fill/fill2 in the letter
+   *  gradient. Absent = the classic two-stop ramp, byte-identical. */
+  fillStops?: { offset: number; color: string }[];
   fillOpacity: number; // 0..100 — translucent fills read as glass
   outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
@@ -326,6 +351,10 @@ export const TEXT_PRESETS: { id: string; name: string }[] = [
 export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string; glow: string }) {
   t.preset = id;
   t.fillOpacity = 100;
+  // presets define the complete treatment — dimensional body and metal bands included
+  delete t.dim;
+  delete t.fillStops;
+
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };
   t.emboss = { on: false, strength: 55, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
