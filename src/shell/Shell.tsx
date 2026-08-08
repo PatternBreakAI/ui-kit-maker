@@ -38,6 +38,9 @@ const CommunityPage = lazy(() =>
 const TypeProofPage = lazy(() =>
   import("@/ui/TypeProofPage").then((m) => ({ default: m.TypeProofPage })),
 );
+const ItalicProbePage = lazy(() =>
+  import("@/ui/ItalicProbePage").then((m) => ({ default: m.ItalicProbePage })),
+);
 const StudioPage = lazy(() =>
   import("@/ui/StudioPage").then((m) => ({ default: m.StudioPage })),
 );
@@ -245,6 +248,10 @@ export function Shell() {
       ) : route.name === "typeproof" ? (
         <Suspense fallback={<RouteLoading />}>
           <TypeProofPage />
+        </Suspense>
+      ) : route.name === "italicprobe" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <ItalicProbePage />
         </Suspense>
       ) : (
         <Landing />
