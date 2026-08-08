@@ -2190,7 +2190,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const tfEnv = Math.max(
     T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
     T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
-    8) + fs * 1.5;
+    8) + fs * 1.5
+    // italic head-room rides the UNCAPPED envelope (owner: "make sure the
+    // italicized type is not cut off" — above all else): Safari synthesizes
+    // the slant for faces with no italic cut and leans glyph tops right of
+    // the measured advance, so italic gets its own guaranteed reach that
+    // the buffer cap can never squeeze.
+    + (T2.italic ? fs * 0.6 : 0);
   /* engines disagree on display-face advances by up to ~25% (Safari
      especially, with synthesized italics) — the region carries nearly
      half the label again as slack so real glyphs never hit the raster
@@ -2309,8 +2315,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const shOp2 = clamp((SH2!.opacity ?? 100) / 100, 0, 1);
     // away from the key light — light overhead shifts the copy straight down
     const shDx = (-lx * shSize).toFixed(1), shDy = (-ly * shSize).toFixed(1);
-    // same Safari advance slack + the same buffer-cap clamp as tfSpread
-    const shEnv = shSize + shInset + shRound * 4 + fs * 0.5;
+    // same Safari advance slack + buffer-cap clamp as tfSpread, with the
+    // same uncapped italic head-room
+    const shEnv = shSize + shInset + shRound * 4 + fs * 0.5 + (T2.italic ? fs * 0.6 : 0);
     const shSpread = shEnv + Math.min(textW * 0.45, Math.max(0, 1100 - shEnv));
     shineDef = `<filter id="${id}tsh" filterUnits="userSpaceOnUse" x="${(x - shSpread).toFixed(0)}" y="${(y - shSpread).toFixed(0)}" width="${(w + shSpread * 2).toFixed(0)}" height="${(h + shSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
       `<feMorphology in="SourceAlpha" operator="erode" radius="${shInset.toFixed(1)}" result="shs"/>` +
