@@ -21,8 +21,6 @@ export type SplashLook = {
   shadow: number;
   /** per-letter tilt & bounce 0..100 — jaunty, still one sticker */
   bounce: number;
-  /** star sparkles riding the word */
-  sparkles: boolean;
   /** ink shine — top-light crescents on each letterform */
   shine: boolean;
   shineSize: number;   // 1..10
@@ -44,7 +42,6 @@ export const SPLASH_DEFAULT: SplashLook = {
   depth: 14,
   shadow: 25,
   bounce: 30,
-  sparkles: true,
   shine: true,
   shineSize: 4,
   shineInset: 2,
@@ -72,7 +69,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.shadow = { on: false, color: look.blob, x: 0, y: 3, blur: 2, opacity: 50 };
   t.emboss = { on: false, strength: 0, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
   t.glow = { on: false, color: look.fill, size: 10, opacity: 80 };
-  t.glints = { on: look.sparkles, opacity: 85, style: "stars", blend: "normal" };
+  t.glints = { on: false, opacity: 85, style: "stars", blend: "normal" };
   t.stripes = { on: false, angle: 0, opacity: 30, style: "stripes", scale: 100 };
   t.noise = { on: false, amount: 35, scale: 50 };
   t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: 2, opacity: 100, color: "#FFFFFF" };

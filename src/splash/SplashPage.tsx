@@ -142,7 +142,6 @@ export function SplashPage() {
           <div className="sp-wells">
             <Well label="Letters" value={look.fill} onChange={(v) => up("fill", v)} />
             <Well label="Blob" value={look.blob} onChange={(v) => up("blob", v)} />
-            <label className="sp-check"><input type="checkbox" checked={look.sparkles} onChange={(e) => up("sparkles", e.target.checked)} /> Sparkles</label>
             <label className="sp-check"><input type="checkbox" checked={look.shine} onChange={(e) => up("shine", e.target.checked)} /> Shine</label>
           </div>
           {look.shine && (
