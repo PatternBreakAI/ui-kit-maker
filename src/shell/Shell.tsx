@@ -54,10 +54,17 @@ const UnityPage = lazy(() =>
   import("@/marketing/UnityPage").then((m) => ({ default: m.UnityPage })),
 );
 
-// `?lab=silhouettes` is a boot-time dev harness, decided once and never at
-// runtime — it bypasses routing entirely, exactly as main.tsx did before.
-const IS_LAB =
-  new URLSearchParams(window.location.search).get("lab") === "silhouettes";
+// `?lab=…` boot params are dev/experiment harnesses, decided once and never
+// at runtime — they bypass routing entirely, exactly as main.tsx did before.
+// `silhouettes` is the shape lab; `splash` is Splash Text, the
+// over-illustrated-words experiment (unlinked from all navigation until the
+// owner releases it; `typemaker` stays as an alias for older links).
+const LAB_PARAM = new URLSearchParams(window.location.search).get("lab");
+const IS_LAB = LAB_PARAM === "silhouettes";
+const IS_SPLASH = LAB_PARAM === "splash" || LAB_PARAM === "typemaker";
+const SplashPage = lazy(() =>
+  import("@/splash/SplashPage").then((m) => ({ default: m.SplashPage })),
+);
 
 // The editor is desktop-only for now: small screens and small touch devices
 // get a polite gate instead. The rest of the site stays fully mobile.
@@ -183,6 +190,18 @@ export function Shell() {
       <Suspense fallback={<RouteLoading />}>
         <SilhouetteLab />
       </Suspense>
+    );
+  }
+
+  // Unlike the silhouette lab, Splash Text gets the RouteBoundary: a stale
+  // chunk after a redeploy should show the reload card, not a blank page.
+  if (IS_SPLASH) {
+    return (
+      <RouteBoundary>
+        <Suspense fallback={<RouteLoading />}>
+          <SplashPage />
+        </Suspense>
+      </RouteBoundary>
     );
   }
 

@@ -282,17 +282,60 @@ export interface TypeCfg {
    *  the letter faces exactly like the shell gloss/specular blends.
    *  ox/oy nudge the whole treatment in % of the letter height. */
   glints?: { on: boolean; opacity: number; ox?: number; oy?: number; style?: GlintStyle; blend?: BlendMode };
+  /** Dimensional type (Type Maker) — the glyphs themselves grow a solid
+   *  body: extrusion sweep, sticker wrap, contour rim, ground shadow, hard
+   *  candy gloss and per-letter tilt. All geometry derives from the glyph
+   *  alpha via filter morphology (the shell extrusion's sweep trick), so
+   *  any face at any size carries the treatment without stacked copies.
+   *  Absent/off = byte-identical output for every existing kit. Sizes are
+   *  px at the 52px master scale, like outline.width. */
+  dim?: {
+    on: boolean;
+    depth: number;            // extrusion reach 0..28
+    color: string | null;     // wall paint — null derives from the fill
+    sticker: number;          // white-wrap width 0..16 (0 = off)
+    stickerColor: string;
+    rim: number;              // dark contour width 0..8 (0 = off)
+    rimColor: string | null;  // null derives from the wall
+    shadow: number;           // ground-shadow opacity 0..100 (0 = off)
+    gloss: number;            // hard candy band opacity 0..100 (0 = off)
+    glossCover: number;       // band coverage, % of glyph height (20..60)
+    tilt: number;             // per-letter tilt & bounce 0..100
+    /** Horizontal lean of the body, -100..100 % of depth — the flat
+     *  block-shadow look extrudes down-right, not straight down. */
+    drift?: number;
+    /** Second wrap color — set = the blob wears a vertical gradient
+     *  (vector-outline mode; the flat single color otherwise). */
+    stickerColor2?: string | null;
+    /** Gloss band blend against the letter faces (default normal). */
+    glossBlend?: BlendMode;
+    /** Seamless pattern INSIDE the blob (wrap + body), tone-on-tone from
+     *  the wrap color — the letterform pattern system aimed at the
+     *  stroke. Vector-outline mode only; absent/off = untouched. */
+    pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number };
+  };
+  fillMode: "auto" | "solid" | "gradient";
+  fill: string;
+  fill2: string;       // gradient bottom
+  /** Multi-stop gradient fill — banded metals (gold, chrome, silver) need
+   *  the hard horizon stops a two-color ramp can't hold. When present and
+   *  fillMode is "gradient", these stops replace fill/fill2 in the letter
+   *  gradient. Absent = the classic two-stop ramp, byte-identical. */
+  fillStops?: { offset: number; color: string }[];
+  /** Grain inside the letterforms — the shell micro-texture recipe clipped
+   *  to the glyph alpha. Off/absent = untouched. */
+  noise?: { on: boolean; amount: number; scale: number };
   /** Ink shine — hand-illustrated top-light crescents, derived from each
    *  letterform's own topology: the glyph minus a light-away offset copy
    *  of itself leaves slivers hugging the lit edges; an inset keeps them
    *  off the outline, a blur+threshold rounds their caps. Sizes are px at
    *  the 52px master scale. Off/absent = untouched. */
   shine?: { on: boolean; size: number; inset: number; round: number; opacity: number; color?: string; blend?: BlendMode };
-  fillMode: "auto" | "solid" | "gradient";
-  fill: string;
-  fill2: string;       // gradient bottom
   fillOpacity: number; // 0..100 — translucent fills read as glass
-  outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
+  /** color2 set = gradient stroke. `behind` renders the stroke as a separate
+   *  under-layer for the whole word, so no glyph's stroke ever crosses a
+   *  neighboring letter's face (tilted/overlapping letters need this). */
+  outline: { on: boolean; color: string; color2: string | null; width: number; behind?: boolean };
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** Relief follows the master light: highlight toward it, shade away from it.
    *  strength -100..100 (negative = deboss/engrave); distance = offset px;
@@ -332,8 +375,13 @@ export const TEXT_PRESETS: { id: string; name: string }[] = [
 export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string; glow: string }) {
   t.preset = id;
   t.fillOpacity = 100;
-  // presets define the complete treatment — ink shine included
+  // presets define the complete treatment — dimensional body, metal bands,
+  // grain and ink shine included
+  delete t.dim;
+  delete t.fillStops;
+  delete t.noise;
   delete t.shine;
+
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };
   t.emboss = { on: false, strength: 55, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
@@ -614,9 +662,24 @@ const customFontRegistry = new Map<string, { css: string; factor: number; caps: 
 export function registerCustomFont(name: string) {
   const clean = name.trim();
   if (!clean || GAME_FONTS.some((f) => f.name === clean)) return;
+  if (customFontRegistry.has(clean)) return; // never downgrade a curated entry
   customFontRegistry.set(clean, {
     css: clean.replace(/ /g, "+") + ":wght@400;500;600;700;800;900", factor: 0.62,
     caps: { weights: [400, 500, 600, 700, 800, 900] },
+  });
+}
+/** A curating surface (Splash's fat-font shelf) registers a face with its
+ *  REAL capabilities — correct css2 axis string and true caps — instead of
+ *  the broad-guess defaults `registerCustomFont` uses for freeform adds.
+ *  Curated entries win: they overwrite a broad-guess entry, and the guard
+ *  above keeps a later freeform add from downgrading them. */
+export function registerCuratedFont(name: string, opts: { css?: string; factor?: number; caps?: FontCaps }) {
+  const clean = name.trim();
+  if (!clean || GAME_FONTS.some((f) => f.name === clean)) return;
+  customFontRegistry.set(clean, {
+    css: opts.css ?? clean.replace(/ /g, "+") + ":wght@400;500;600;700;800;900",
+    factor: opts.factor ?? 0.62,
+    caps: opts.caps ?? { weights: [400, 500, 600, 700, 800, 900] },
   });
 }
 export function customFontNames(): string[] { return [...customFontRegistry.keys()]; }
