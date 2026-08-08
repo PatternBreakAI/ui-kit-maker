@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
@@ -1747,7 +1747,10 @@ export const useGen = create<GenStore>((set, get) => ({
     set(presetKitPatch(id, get().cfg)); // after update(), so its snapshot still holds the old maps
   },
   randomize: () => {
-    const next = randomizeConfig(get().cfg, get().hiddenStarters);
+    // one statement per roll — shared with randomizeConfig so the app
+    // button and the homepage speak the same taste rules
+    const statement = rollStatement();
+    const next = randomizeConfig(get().cfg, get().hiddenStarters, statement);
     const roll = (n: number) => Math.floor(Math.random() * n);
     get().update((c) => {
       c.effects = next.effects; // lighting stays put — rolled light angles tilted the speculars askew
@@ -1762,13 +1765,14 @@ export const useGen = create<GenStore>((set, get) => ({
         c.bevel = { ...pr.bevel };
         applyPresetCandy(c.candy, pr);
       } else {
-        // every roll changes the cut, drawn from the BUTTON rack plus the
-        // Gothic drop (owner: "make sure the new silhouettes appear in the
-        // relevant random generators"). The banners, plaques and HUD rails
-        // still read wrong as a button. Other components inherit the
-        // language downstream. Preset jumps above may still wear a
-        // preset's own theatrical cut — those outfits are curated.
-        const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape);
+        // every roll changes the cut. A "cut" statement draws from the
+        // full rack including the Gothic drop (owner: "make sure the new
+        // silhouettes appear in the relevant random generators"); other
+        // statements keep the cut classic so the roll makes ONE loud
+        // move. Preset jumps above keep their curated theatrical cuts.
+        const rack = statement === "cut"
+          ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+          : classicRack(c.shape);
         c.shape = rack[roll(rack.length)].id;
       }
       /* the wardrobe includes the voice now — every roll picks a fresh
@@ -1778,7 +1782,14 @@ export const useGen = create<GenStore>((set, get) => ({
          rule), weight clamped into what the face can show */
       // registry hygiene: users paste specimen URLs into the custom box and
       // the registry keeps them — the roll only wears plausible family names
-      const faces = [...GAME_FONTS.map((f) => f.name), ...customFontNames().filter((n2) => !/[:/]/.test(n2) && n2.length < 40)].filter((f2) => f2 !== c.type.font);
+      /* the voice still changes EVERY roll (owner rule) — but only a
+         "font" statement draws from the whole wild rack; other rolls draw
+         from the faces the blessed presets wear, so the type stays sturdy
+         while something else makes the statement */
+      const allFaces = [...GAME_FONTS.map((f) => f.name), ...customFontNames().filter((n2) => !/[:/]/.test(n2) && n2.length < 40)];
+      const presetFaces = [...new Set(PRESETS.map((p) => p.font).filter((f2): f2 is string => !!f2))];
+      const pool = (statement === "font" ? allFaces : presetFaces.length ? presetFaces : allFaces).filter((f2) => f2 !== c.type.font);
+      const faces = pool.length ? pool : allFaces.filter((f2) => f2 !== c.type.font);
       const face = faces[roll(faces.length)];
       ensureFont(face);
       c.type.font = face;
@@ -1793,11 +1804,20 @@ export const useGen = create<GenStore>((set, get) => ({
          hardcoded to the original five, so the second pattern wave
          (houndstooth, chevron, waves…) never came up (owner: "is
          randomize everything picking up all the new content?") */
+      /* pattern discipline: a "pattern" statement wears it proudly; any
+         other roll wears it as quiet texture or not at all — 88% of the
+         old rolls wore a pattern, half of them LOUD (owner: "really
+         unpleasing"). Angles snap to 15° so diagonals read deliberate. */
       const pats = PATTERN_TYPES.filter((t) => t.id !== "none").map((t) => t.id);
-      c.candy.pattern.type = Math.random() < 0.12 ? "none" : pats[roll(pats.length)];
+      c.candy.pattern.type = (statement === "pattern" ? false : Math.random() < 0.3) ? "none" : pats[roll(pats.length)];
       c.candy.pattern.color = null;
-      c.candy.pattern.opacity = 26 + roll(42);
-      c.candy.pattern.scale = 20 + roll(70);
+      c.candy.pattern.opacity = statement === "pattern" ? 36 + roll(23) : 10 + roll(15);
+      c.candy.pattern.scale = statement === "pattern" ? 35 + roll(46) : 50 + roll(46);
+      c.candy.pattern.angle = roll(13) * 15;
+      // glass is its own statement, never a side effect on a busy roll
+      c.transparency = statement === "glass"
+        ? { frame: 100, interior: 74 + roll(19), content: 100 }
+        : { frame: 100, interior: 100, content: 100 };
       // gloss gradient re-tints from the new palette
       const bevel = c.effects.Bevel ?? "#0E9CC9";
       c.candy.gloss.tint = darken(bevel, 0.15);

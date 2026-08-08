@@ -916,7 +916,23 @@ export function hslHex(h: number, s: number, l: number): string {
    accent temperature. */
 type Harmony = "analogous" | "complementary" | "split" | "triadic" | "monochrome";
 
-export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): GenConfig {
+/* One statement per roll (owner: "randomize all produces really
+   unpleasing results... aesthetic guardrails") — uniform dice on every
+   dial land in the ugly parts of the space: 88% of rolls wore a pattern,
+   half of them LOUD, over a wild cut in a wild face. A styled outfit
+   makes one move. Each roll picks a single hero dimension; everything
+   else stays in tasteful bands. "quiet" rolls make no statement at all. */
+export type RollStatement = "pattern" | "cut" | "font" | "glass" | "quiet";
+export function rollStatement(): RollStatement {
+  const r0 = Math.random();
+  return r0 < 0.28 ? "pattern" : r0 < 0.5 ? "cut" : r0 < 0.72 ? "font" : r0 < 0.82 ? "glass" : "quiet";
+}
+/** The classic button rack — cuts calm enough to carry any palette. */
+export function classicRack(exceptShape?: string) {
+  return SILHOUETTES.filter((m) => m.category === "Buttons" && !m.gothicCut && !m.preview && m.id !== exceptShape);
+}
+
+export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], statement: RollStatement = rollStatement()): GenConfig {
   const r = (min: number, max: number) => Math.round(min + Math.random() * (max - min));
   // v67: a third of rolls jump to a different preset CONSTRUCTION first
   // (shape, bevel, candy build) so randomize explores the whole wardrobe,
@@ -929,12 +945,14 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
     applyPresetCandy(nc, pr);
     c = { ...c, candy: nc };
   } else {
-    // non-jump rolls change the CUT too — from the BUTTON rack plus the
-    // Gothic drop (owner: "make sure the new silhouettes appear in the
-    // relevant random generators"); banners, plaques and HUD rails still
-    // read wrong as a master button shape, and preset jumps above keep
-    // their curated cuts
-    const rack = SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape);
+    // non-jump rolls change the CUT too. A "cut" statement draws from the
+    // full rack including the Gothic drop (owner: "make sure the new
+    // silhouettes appear in the relevant random generators"); any other
+    // statement keeps the cut classic so the roll's one loud move stays
+    // the only loud move. Preset jumps above keep their curated cuts.
+    const rack = statement === "cut"
+      ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+      : classicRack(c.shape);
     c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
@@ -956,18 +974,23 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = []): 
      skulls…) never reached the homepage's RANDOMIZE, which takes this config
      wholesale. "none" stays the rare roll, same odds as the app's button. */
   const pats = PATTERN_TYPES.filter((t) => t.id !== "none");
-  const patType: PatternType = Math.random() < 0.12 ? "none" : pats[Math.floor(Math.random() * pats.length)].id;
+  /* pattern discipline: a "pattern" statement wears it proudly; any other
+     roll wears it as texture (low opacity, larger cells) or not at all.
+     Angles snap to 15° — arbitrary diagonals read as accidents. */
+  const patType: PatternType = (statement === "pattern" ? false : Math.random() < 0.3)
+    ? "none" : pats[Math.floor(Math.random() * pats.length)].id;
   const candy = JSON.parse(JSON.stringify(c.candy)) as CandyTokens;
   candy.pattern = {
     type: patType,
-    scale: r(30, 100),
-    angle: r(0, 180),
-    opacity: patType === "none" ? c.candy.pattern.opacity : r(24, 68),
+    scale: statement === "pattern" ? r(35, 80) : r(50, 95),
+    angle: r(0, 12) * 15,
+    opacity: patType === "none" ? c.candy.pattern.opacity : statement === "pattern" ? r(36, 58) : r(10, 24),
     color: Math.random() < 0.5 ? null : hslHex(shellHue, r(55, 80), r(24, 40)),
   };
   candy.gloss = { ...candy.gloss, layer: Math.random() < 0.5 ? "above" : "below" };
-  const transparency = Math.random() < 0.25
-    ? { frame: 100, interior: r(72, 96), content: 100 }
+  // glass is its own statement now, never a side effect on a busy roll
+  const transparency = statement === "glass"
+    ? { frame: 100, interior: r(74, 92), content: 100 }
     : { frame: 100, interior: 100, content: 100 };
   return {
     ...c,
