@@ -62,10 +62,20 @@ export type WordOutline = { d: string; w: number; dy: number; minY?: number; max
 
 /** Whole-word shape — envelope distortion (the block bends as ONE
  *  object; arc/bulge -1..1, rotate degrees) plus multiline layout:
- *  lineHeight in em (default 1.1) and per-line alignment. */
+ *  lineHeight in em (default 1.1) and per-line alignment.
+ *
+ *  fit "column": the instant typography poster — every line scales
+ *  UNIFORMLY to one shared measure (the wood-type rule: width grows with
+ *  height), so short words go huge and the stack packs into a brick.
+ *
+ *  groove 0..1: the 60s move (Wilson school) — lines swell and squeeze
+ *  vertically while the measure stays pinned; adjacent lines share wavy
+ *  boundary curves so they nest into each other, block edges straight. */
 export type WordFx = {
   arc?: number; bulge?: number; rotate?: number;
   lineHeight?: number; align?: "left" | "center" | "right";
+  fit?: "none" | "column";
+  groove?: number;
 };
 
 // the engine's letter-tilt pattern, mirrored so the slider means the same
@@ -178,30 +188,89 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   const lh = (fx?.lineHeight ?? 1.1) * size;
   const align = fx?.align ?? "center";
   const laid = lines.map((ln) => layout(font, ln, size, spacingEm));
+  const nonEmpty = laid.filter((l) => l.glyphs.length).length;
+  const fit = fx?.fit === "column" && nonEmpty > 1;
+  const groove = Math.min(1, Math.max(0, fx?.groove ?? 0));
+
+  // the shared measure: widest line as set (fit scales the others up to it)
   const blockW = Math.max(...laid.map((l) => l.w), 1);
 
-  let all: Cmd[] = [];
-  let gi = 0; // tilt pattern runs across the whole block
-  laid.forEach((line, li) => {
-    const xOff = align === "left" ? 0 : align === "right" ? blockW - line.w : (blockW - line.w) / 2;
-    const yOff = li * lh;
+  /* per-line assembly at local baseline 0 — glyph tilt first (it scales
+     with the line, like everything hand-lettered), then the column fit's
+     uniform per-line scale, capped so a lone punctuation line can't
+     explode the block */
+  let gi = 0;
+  const placed: Cmd[][] = [];
+  const scales: number[] = [];
+  laid.forEach((line) => {
+    let cmds: Cmd[] = [];
     for (const g of line.glyphs) {
-      let cmds = g.cmds;
+      let gc = g.cmds;
       if (tiltK > 0) {
         const a = (ROTS[gi % 10] * tiltK * 1.6 * Math.PI) / 180;
         const dy = BOB[gi % 10] * size * tiltK * 1.4;
         const cs = Math.cos(a), sn = Math.sin(a);
         const cx = g.center;
-        cmds = mapCmds(cmds, (px, py) => {
+        gc = mapCmds(gc, (px, py) => {
           const lx = px - cx, ly = py;
           return [cx + lx * cs - ly * sn, dy + lx * sn + ly * cs];
         });
       }
-      all.push(...mapCmds(cmds, (px, py) => [px + xOff, py + yOff]));
+      cmds.push(...gc);
       gi++;
     }
     if (!line.glyphs.length) gi++; // blank lines still advance the pattern
+    const s = fit && line.glyphs.length && line.w > 1 ? Math.min(8, blockW / line.w) : 1;
+    if (s !== 1) cmds = mapCmds(cmds, (px, py) => [px * s, py * s]);
+    placed.push(cmds);
+    scales.push(s);
   });
+
+  // vertical stacking — each line advances by its OWN scaled body, so the
+  // fitted block packs like a wood-type brick; horizontal placement per
+  // alignment (fit lines all span the measure already)
+  let baseline = 0;
+  placed.forEach((cmds, li) => {
+    if (li > 0) baseline += lh * scales[li];
+    const lw = laid[li].w * scales[li];
+    const xOff = fit ? 0 : align === "left" ? 0 : align === "right" ? blockW - lw : (blockW - lw) / 2;
+    placed[li] = mapCmds(cmds, (px, py) => [px + xOff, py + baseline]);
+  });
+
+  /* the groove: per-line vertical remap between shared boundary curves.
+     Boundary j (between lines j-1 and j) bows by A_j·(1−u²), directions
+     alternating, so one line's swell IS the next line's squeeze — they
+     nest. Outer block edges stay pinned: the container is the point. */
+  if (groove > 0.005 && nonEmpty > 1) {
+    const lb = placed.map((c) => boundsOf(c));
+    const n = placed.length;
+    const T: number[] = [], B: number[] = [];
+    for (let i = 0; i < n; i++) {
+      T[i] = i === 0 ? lb[0].minY : (lb[i - 1].maxY + lb[i].minY) / 2;
+      B[i] = i === n - 1 ? lb[n - 1].maxY : (lb[i].maxY + lb[i + 1].minY) / 2;
+    }
+    const amp: number[] = [];
+    for (let j = 0; j <= n; j++) {
+      if (j === 0 || j === n) { amp[j] = 0; continue; } // block edges pinned
+      const above = B[j - 1] - T[j - 1], below = B[j] - T[j];
+      amp[j] = groove * 0.42 * Math.min(above, below) * (j % 2 ? 1 : -1);
+    }
+    for (let i = 0; i < n; i++) {
+      if (!placed[i].length) continue;
+      const span = Math.max(1, B[i] - T[i]);
+      placed[i] = mapCmds(flatten(placed[i], size / 22), (px, py) => {
+        const u = Math.max(-1, Math.min(1, (2 * px) / blockW - 1));
+        const env = 1 - u * u;
+        const top = T[i] + amp[i] * env;
+        const bot = B[i] + amp[i + 1] * env;
+        const v = (py - T[i]) / span;
+        return [px, top + v * (bot - top)];
+      });
+    }
+  }
+
+  let all: Cmd[] = [];
+  for (const cmds of placed) all.push(...cmds);
 
   const arc = fx?.arc ?? 0, bulge = fx?.bulge ?? 0, rot = fx?.rotate ?? 0;
   const b0 = boundsOf(all);

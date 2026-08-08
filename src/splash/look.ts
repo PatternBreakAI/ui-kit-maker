@@ -29,6 +29,12 @@ export type SplashLook = {
   /** line height % (multiline) and block alignment */
   lineHeight: number;
   align: "left" | "center" | "right";
+  /** instant typography poster — every line scales to one shared measure */
+  posterFit: boolean;
+  /** the 60s move — lines swell/squeeze into each other, measure pinned */
+  groove: number; // 0..100
+  /** pattern inside the letterforms — UIKM's letterform pattern system */
+  pattern: { on: boolean; style: string; scale: number; angle: number; opacity: number };
   /** per-letter tilt & bounce 0..100 — jaunty, still one sticker */
   bounce: number;
   /** ink shine — top-light crescents on each letterform */
@@ -41,7 +47,7 @@ export type SplashLook = {
   /** whole-word shape — one object, in-plane */
   arc: number;      // -100..100
   bulge: number;    // -100..100
-  stage: { mode: "color" | "transparent"; color: string };
+  stage: { mode: "color" | "transparent"; color: string; image?: string | null };
 };
 
 export const SPLASH_STAGE_CHIPS = ["#EAD4B4", "#101318", "#F4F1EA", "#E8402A"] as const;
@@ -61,6 +67,9 @@ export const SPLASH_DEFAULT: SplashLook = {
   shadow: 25,
   lineHeight: 105,
   align: "center",
+  posterFit: false,
+  groove: 0,
+  pattern: { on: false, style: "stripes", scale: 100, angle: 0, opacity: 30 },
   bounce: 30,
   shine: true,
   shineSize: 4,
@@ -94,7 +103,13 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.emboss = { on: false, strength: 0, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
   t.glow = { on: false, color: look.fill, size: 10, opacity: 80 };
   t.glints = { on: false, opacity: 85, style: "stars", blend: "normal" };
-  t.stripes = { on: false, angle: 0, opacity: 30, style: "stripes", scale: 100 };
+  t.stripes = {
+    on: look.pattern.on,
+    angle: look.pattern.angle,
+    opacity: look.pattern.opacity,
+    style: look.pattern.style as NonNullable<GenConfig["type"]["stripes"]>["style"],
+    scale: look.pattern.scale,
+  };
   t.noise = { on: false, amount: 35, scale: 50 };
   t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: 100, color: look.shineColor, blend: look.shineBlend };
   t.dim = {
