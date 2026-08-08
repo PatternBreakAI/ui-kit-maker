@@ -35,6 +35,9 @@ const ReviewPage = lazy(() =>
 const CommunityPage = lazy(() =>
   import("@/ui/CommunityPage").then((m) => ({ default: m.CommunityPage })),
 );
+const TypeProofPage = lazy(() =>
+  import("@/ui/TypeProofPage").then((m) => ({ default: m.TypeProofPage })),
+);
 const StudioPage = lazy(() =>
   import("@/ui/StudioPage").then((m) => ({ default: m.StudioPage })),
 );
@@ -238,6 +241,10 @@ export function Shell() {
       ) : route.name === "unity" ? (
         <Suspense fallback={<RouteLoading />}>
           <UnityPage />
+        </Suspense>
+      ) : route.name === "typeproof" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <TypeProofPage />
         </Suspense>
       ) : (
         <Landing />
