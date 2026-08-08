@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
 import { patternZones } from "./SliceStage";
@@ -214,19 +214,17 @@ function InfoNote({ summary, children }: { summary: React.ReactNode; children?: 
   );
 }
 
-/* Color memory (field report: "I had to write down the RGB and enter those
-   values manually") — the bookmark remembers the current color, the chip
-   cluster opens a rail, a dot applies a color, its × forgets it. Saved
-   colors persist locally and are kit-independent.
-
-   Split out of `Well` so EVERY color control carries it. It first shipped
-   living inside `Well`, which covered the secondary colors (gloss, glow,
-   type) but not the two racks a maker actually builds a palette in — the
-   Colors roles and the rarity tiers — so the feature read as missing
-   (owner: "I don't think the color chips (memory) made it into the
-   build"). The rail also offers the kit's own role colors, so it has
-   something to hand you before you have saved anything: copying a hex
-   from one control to another was the original complaint. */
+/* The palette pill (Jimi: "As I didn't see a way to save a swatch, I had
+   to write down the RGB and enter those values manually") — one cluster
+   button beside each working color choice, a quick pick from the palette:
+   the kit's own role colors under "In this kit", plus chips you save
+   yourself — the labeled "+ Save #HEX" chip remembers the row's current
+   color, a hover × forgets it. Saving lives INSIDE the rail as words — a
+   first pass used a separate bookmark icon beside the cluster and the
+   owner couldn't parse it ("these controls don't make a lot of sense").
+   Saved chips persist locally and are kit-independent. The pill rides
+   `Well` rows only — the Colors section's rows DEFINE the palette, so a
+   pick-from-the-palette pill there read as circular (owner). */
 function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const swatches = useGen((s) => s.swatches);
   const addSwatch = useGen((s) => s.addSwatch);
@@ -235,7 +233,7 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
   const [open, setOpen] = useState(false);
   const hex = (value || "#000000").toUpperCase();
   const saved = swatches.includes(hex);
-  // the kit's live palette, minus anything already bookmarked
+  // the kit's live palette, minus anything already saved as a chip
   const kitHues = useMemo(() => {
     const seen = new Set(swatches);
     const out: { hex: string; role: string }[] = [];
@@ -248,32 +246,31 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
   const peek = [...swatches, ...kitHues.map((k) => k.hex)].slice(0, 3);
   return (
     <>
-      <button className={`swsave${saved ? " on" : ""}`}
-        title={saved ? "Remembered — click to forget" : "Remember this color"}
-        aria-label={saved ? `${hex} is remembered` : `Remember ${hex}`}
-        onClick={() => (saved ? rmSwatch(hex) : addSwatch(hex))}>
-        <Bookmark size={12} strokeWidth={2.2} fill={saved ? "currentColor" : "none"} />
+      <button className="swmore" title="Pick from the palette" aria-expanded={open}
+        aria-label="Pick from the palette" onClick={() => setOpen(!open)}>
+        {peek.length === 0
+          ? <span className="swplus">+</span>
+          : peek.map((h) => <i key={h} style={{ background: h }} />)}
       </button>
-      {peek.length > 0 && (
-        <button className="swmore" title="Colors you can reuse" aria-expanded={open}
-          aria-label="Colors you can reuse" onClick={() => setOpen(!open)}>
-          {peek.map((h) => <i key={h} style={{ background: h }} />)}
-        </button>
-      )}
       {open && (
-        <span className="swrail" role="listbox" aria-label="Colors you can reuse">
-          {swatches.length > 0 && kitHues.length > 0 && <span className="swcap">Remembered</span>}
+        <span className="swrail" role="listbox" aria-label="Pick from the palette">
+          {swatches.length > 0 && <span className="swcap">Saved</span>}
           {swatches.map((h) => (
             <span key={h} className="swdotwrap">
-              <button className="swdot" style={{ background: h }} title={`Use ${h}`}
+              <button className={`swdot${h === hex ? " cur" : ""}`} style={{ background: h }} title={`Use ${h}`}
                 onClick={() => { onChange(h); setOpen(false); }} />
               <button className="swx" title={`Forget ${h}`} aria-label={`Forget ${h}`}
                 onClick={() => rmSwatch(h)}>×</button>
             </span>
           ))}
+          {!saved && (
+            <button className="swadd" onClick={() => addSwatch(hex)}>
+              <i style={{ background: hex }} /> Save {hex}
+            </button>
+          )}
           {kitHues.length > 0 && <span className="swcap">In this kit</span>}
           {kitHues.map((k) => (
-            <button key={k.hex} className="swdot" style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
+            <button key={k.hex} className={`swdot${k.hex === hex ? " cur" : ""}`} style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
               onClick={() => { onChange(k.hex); setOpen(false); }} />
           ))}
         </span>
@@ -1597,7 +1594,6 @@ export function Panel() {
               <span className="mr-role">{r}</span>
               <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--ink3)" }} />
               <span className="mr-hint">{ROLE_HINT[r]}</span>
-              <SwatchMem value={D.effects[r] ?? "#888888"} onChange={(v) => update((c) => { c.effects[r] = v; })} />
             </div>
           ))}
         </div>
@@ -1642,7 +1638,6 @@ export function Panel() {
               </span>
               <input className="tinput" value={ov?.name ?? f.name} maxLength={14} aria-label={`Tier ${i + 1} name`}
                 placeholder={f.name} onChange={(e) => setTier({ name: e.target.value })} />
-              <SwatchMem value={ov?.c ?? f.c} onChange={(v) => setTier({ c: v })} />
             </div>
           );
         })}
