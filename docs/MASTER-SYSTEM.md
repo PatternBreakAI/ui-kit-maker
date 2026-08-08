@@ -96,6 +96,11 @@ it's megabytes of embedded C# no other app should ever bundle.
    - Post-#236: every text-layer emission in `bevel.ts` goes through the
      `fxText`/`TP2` branch, or path mode silently loses that layer.
    - No preset ever pairs star glints with ink shine (owner rule).
+   - Label layout reads BAKED font metrics (`fontMetricsData.ts` — real
+     per-glyph advances, same numbers in every browser, valid before the
+     face loads). Never lay text out from per-browser measurement or
+     factor estimates for registry faces. After changing `GAME_FONTS`,
+     regenerate with `npm run metrics:fonts`.
 7. **Verify on the real thing.** Headless proofs run the actual app and
    the actual export, and read the actual bytes back. Claims without a
    probe are hopes.
@@ -158,6 +163,10 @@ Additions to this list: append here in the same PR that starts importing.
   between apps (owner: each app keeps its own voice).
 - 2026-08-08 · Unity Bridge declared an optional per-app module (L1½) —
   Splash never bundles it.
+- 2026-08-08 · Font metrics baked as engine data: the Safari cut-off
+  family (estimate window + per-browser measureText drift) ended by
+  shipping measured per-glyph advances as static data. Live measurement
+  survives only for custom uploads and the Chinese faces' han glyphs.
 - 2026-08-08 · Owner note for the backlog: "randomize all produces
   really unpleasing results... maybe we can develop some aesthetic
   guardrails over time." Direction sketch lives in the task backlog —
