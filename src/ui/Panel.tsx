@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Bookmark, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
 import { patternZones } from "./SliceStage";
@@ -214,41 +214,88 @@ function InfoNote({ summary, children }: { summary: React.ReactNode; children?: 
   );
 }
 
-function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  /* saved swatches (field report: "I had to write down the RGB and enter
-     those values manually") — one shared rail on every color well: the
-     bookmark chip saves the current color, a dot applies it, x on hover
-     forgets it. Persisted locally, kit-independent. */
-  const swatches = useGen((s) => s.swatches);
-  const addSwatch = useGen((s) => s.addSwatch);
-  const rmSwatch = useGen((s) => s.rmSwatch);
+/* The palette pill (Jimi: "As I didn't see a way to save a swatch, I had
+   to write down the RGB and enter those values manually") — one cluster
+   button beside each working color choice, a quick pick from the palette:
+   RECENT — the last colors used anywhere, captured automatically, like
+   every other design app (owner) — plus the kit's own role colors under
+   "In this kit". Nothing to save or manage; a hover × drops a recent.
+   The native color popup is the browser's, so this rail is our "bottom
+   of the picker". Recents persist locally and are kit-independent. The
+   pill rides `Well` rows only — the Colors section's rows DEFINE the
+   palette, so a pick-from-the-palette pill there read as circular
+   (owner). */
+/* A color counts as "used" once a hand-picked value has sat still for a
+   beat — recording every tick while the picker drags would flood the rail
+   with intermediate hues, and recording from a value-watching effect
+   would swallow preset and project loads too. Handlers call this; only
+   real edits record. */
+let recentTimer: ReturnType<typeof setTimeout> | undefined;
+function recordRecent(hex: string) {
+  clearTimeout(recentTimer);
+  recentTimer = setTimeout(() => useGen.getState().pushRecentColor(hex), 900);
+}
+
+function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const recent = useGen((s) => s.recentColors);
+  const pushRecent = useGen((s) => s.pushRecentColor);
+  const rmRecent = useGen((s) => s.rmRecentColor);
+  const effects = useGen((s) => s.cfg.effects);
   const [open, setOpen] = useState(false);
-  const saved = swatches.includes(value.toUpperCase()) || swatches.includes(value);
+  const hex = (value || "#000000").toUpperCase();
+  // the kit's live palette, minus anything already in the recents
+  const kitHues = useMemo(() => {
+    const seen = new Set(recent);
+    const out: { hex: string; role: string }[] = [];
+    for (const [role, c] of Object.entries(effects ?? {})) {
+      const u = String(c).toUpperCase();
+      if (!seen.has(u)) { seen.add(u); out.push({ hex: u, role }); }
+    }
+    return out;
+  }, [effects, recent]);
+  const peek = [...recent, ...kitHues.map((k) => k.hex)].slice(0, 3);
+  const pick = (h: string) => { onChange(h); pushRecent(h); setOpen(false); };
+  return (
+    <>
+      <button className="swmore" title="Recent + kit colors" aria-expanded={open}
+        aria-label="Recent and kit colors" onClick={() => setOpen(!open)}>
+        {peek.length === 0
+          ? <span className="swplus">+</span>
+          : peek.map((h) => <i key={h} style={{ background: h }} />)}
+      </button>
+      {open && (
+        <span className="swrail" role="listbox" aria-label="Recent and kit colors">
+          {recent.length > 0 && <span className="swcap">Recent</span>}
+          {recent.map((h) => (
+            <span key={h} className="swdotwrap">
+              <button className={`swdot${h === hex ? " cur" : ""}`} style={{ background: h }} title={`Use ${h}`}
+                onClick={() => pick(h)} />
+              <button className="swx" title={`Remove ${h}`} aria-label={`Remove ${h}`}
+                onClick={() => rmRecent(h)}>×</button>
+            </span>
+          ))}
+          {kitHues.length > 0 && <span className="swcap">In this kit</span>}
+          {kitHues.map((k) => (
+            <button key={k.hex} className={`swdot${k.hex === hex ? " cur" : ""}`} style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
+              onClick={() => pick(k.hex)} />
+          ))}
+        </span>
+      )}
+    </>
+  );
+}
+
+
+function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="ctl wellrow">
       <label>{label}</label>
       <span className="chipwell sm" style={{ background: value }}>
-        <input type="color" value={value} aria-label={`${label} color`} onChange={(e) => onChange(e.target.value)} />
+        <input type="color" value={value} aria-label={`${label} color`}
+          onChange={(e) => { onChange(e.target.value); recordRecent(e.target.value); }} />
       </span>
       <span className="mr-hint">{value.toUpperCase()}</span>
-      <button className={`swsave${saved ? " on" : ""}`} title={saved ? "Saved to your swatches" : "Save this color as a swatch"}
-        aria-label={saved ? `${value} is saved` : `Save ${value} as a swatch`}
-        onClick={() => (saved ? rmSwatch(value.toUpperCase()) : addSwatch(value.toUpperCase()))}>
-        <Bookmark size={12} strokeWidth={2.2} fill={saved ? "currentColor" : "none"} />
-      </button>
-      {swatches.length > 0 && (
-        <button className="swmore" title="Your saved swatches" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {swatches.slice(0, 3).map((h) => <i key={h} style={{ background: h }} />)}
-        </button>
-      )}
-      {open && swatches.length > 0 && (
-        <span className="swrail" role="listbox" aria-label="Saved swatches">
-          {swatches.map((h) => (
-            <button key={h} className="swdot" style={{ background: h }} title={h}
-              onClick={() => { onChange(h); setOpen(false); }} />
-          ))}
-        </span>
-      )}
+      <SwatchMem value={value} onChange={onChange} />
     </div>
   );
 }
@@ -1550,7 +1597,7 @@ export function Panel() {
             <div className="maprow" key={r}>
               <span className="chipwell sm" style={{ background: D.effects[r] }}>
                 <input type="color" value={D.effects[r]} aria-label={`${r} color`}
-                  onChange={(e) => update((c) => { c.effects[r] = e.target.value; })} />
+                  onChange={(e) => { update((c) => { c.effects[r] = e.target.value; }); recordRecent(e.target.value); }} />
               </span>
               <span className="mr-role">{r}</span>
               <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--ink3)" }} />
@@ -1595,7 +1642,8 @@ export function Panel() {
           return (
             <div className="rarityrow" key={f.name}>
               <span className="chipwell sm" style={{ background: ov?.c ?? f.c }}>
-                <input type="color" value={ov?.c ?? f.c} aria-label={`Tier ${i + 1} color`} onChange={(e) => setTier({ c: e.target.value })} />
+                <input type="color" value={ov?.c ?? f.c} aria-label={`Tier ${i + 1} color`}
+                  onChange={(e) => { setTier({ c: e.target.value }); recordRecent(e.target.value); }} />
               </span>
               <input className="tinput" value={ov?.name ?? f.name} maxLength={14} aria-label={`Tier ${i + 1} name`}
                 placeholder={f.name} onChange={(e) => setTier({ name: e.target.value })} />
@@ -2208,6 +2256,31 @@ export function Panel() {
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
           <div className="helper">Unity export: glints are per-letter painting no live-text engine can replay — they ship baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
+        </FxToggle>
+        <FxToggle label="Ink shine" on={T2.shine?.on ?? false}
+          onToggle={(v) => update((c) => { c.type.shine = { size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), on: v }; })}>
+          <Slider label="Size" value={T2.shine?.size ?? 4} min={1} max={10} step={0.5} unit="px"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), size: v }; })} />
+          <Slider label="Inset" value={T2.shine?.inset ?? 2} min={0} max={6} step={0.5} unit="px"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, round: 2, opacity: 100, ...(c.type.shine ?? {}), inset: v }; })} />
+          <Slider label="Opacity" value={T2.shine?.opacity ?? 100} min={0} max={100} unit="%"
+            onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, ...(c.type.shine ?? {}), opacity: v }; })} />
+          <label className="fieldbox" style={{ minWidth: 0 }}>
+            <span className="fl">Shine blend mode</span>
+            <select value={T2.shine?.blend ?? "normal"} aria-label="Shine blend mode"
+              onChange={(e) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), blend: e.target.value as BlendMode }; })}>
+              {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+          </label>
+          <Adv label="Shine fine-tuning" active={(T2.shine?.round ?? 2) !== 2 || (T2.shine?.color ?? "#FFFFFF") !== "#FFFFFF"}>
+            <Slider label="Cap rounding" value={T2.shine?.round ?? 2} min={0} max={6} step={0.5} unit="px"
+              onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, opacity: 100, ...(c.type.shine ?? {}), round: v }; })} />
+            <Well label="Shine color" value={T2.shine?.color ?? "#FFFFFF"}
+              onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), color: v }; })} />
+          </Adv>
+          <div className="helper">Hand-inked light crescents hugging each letterform's lit edges — bowls get shoulder sweeps, stems get caps, all derived from the glyph's own shape. Size is how far the light reaches; Inset floats the ink inside the letter. Follows the master Lighting angle. Blend `overlay` or `soft-light` reads as glassy lift on gradient fills.</div>
+          <div className="helper">Unity export: like glints, this is per-letter painting no live-text engine can replay — it ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
         </FxToggle>
         <div className="helper">Some treatments read differently against light and dark grounds — a pale glint fades on a light canvas, a dark emboss sinks into a black one. Flip the canvas swatches in the stage toolbar to proof your type both ways.</div>
         {/* data-anchor: Dissect's "icon" deep link lands here — the parked

@@ -259,9 +259,11 @@ interface GenStore {
      changed design paths are written into each state fork. Session-scoped;
      the state flag shows it loudly while it's armed. */
   allStates: boolean;
-  /* saved color swatches (same report: "I had to write down the RGB") —
+  /* recent colors (Jimi: "I had to write down the RGB"; owner: "the
+     latest colors you've been using... like every other design app") —
+     captured automatically as colors are used, newest first,
      kit-independent, persisted locally */
-  swatches: string[];
+  recentColors: string[];
   phase: "master" | "kit" | "board";
   kitSizes: Partial<Record<KitComponentId, KitSize>>;
   zoom: number;
@@ -492,8 +494,8 @@ interface GenStore {
   randomize: () => void;
   setSelectedState: (s: GenStateName) => void;
   setAllStates: (v: boolean) => void;
-  addSwatch: (hex: string) => void;
-  rmSwatch: (hex: string) => void;
+  pushRecentColor: (hex: string) => void;
+  rmRecentColor: (hex: string) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
   setKitSize: (id: KitComponentId, s: KitSize) => void;
   /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
@@ -796,7 +798,8 @@ export const useGen = create<GenStore>((set, get) => ({
   cfg: load(),
   selectedState: "default",
   allStates: false,
-  swatches: loadJson<string[]>("ui-generator-swatches", []),
+  // hand-saved swatches from the earlier design seed the recents once
+  recentColors: loadJson<string[]>("ui-generator-recent-colors", loadJson<string[]>("ui-generator-swatches", [])),
   phase: "master",
   kitSizes: {},
   zoom: 1,
@@ -1805,17 +1808,23 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setSelectedState: (s) => set({ selectedState: s }),
   setAllStates: (v) => set({ allStates: v }),
-  addSwatch: (hex) => {
-    const cur = get().swatches;
-    if (cur.includes(hex)) return;
-    const swatches = [hex, ...cur].slice(0, 12);
-    saveJson("ui-generator-swatches", swatches);
-    set({ swatches });
+  pushRecentColor: (hex) => {
+    // one canonical casing — <input type="color"> emits lowercase while
+    // presets and hand-typed values arrive either way, and two spellings
+    // of one color would sit in the rail as duplicates
+    const h = (hex || "").toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(h)) return;
+    const cur = get().recentColors;
+    if (cur[0] === h) return;
+    const recentColors = [h, ...cur.filter((s) => s.toUpperCase() !== h)].slice(0, 10);
+    saveJson("ui-generator-recent-colors", recentColors);
+    set({ recentColors });
   },
-  rmSwatch: (hex) => {
-    const swatches = get().swatches.filter((h) => h !== hex);
-    saveJson("ui-generator-swatches", swatches);
-    set({ swatches });
+  rmRecentColor: (hex) => {
+    const h = (hex || "").toUpperCase();
+    const recentColors = get().recentColors.filter((s) => s.toUpperCase() !== h);
+    saveJson("ui-generator-recent-colors", recentColors);
+    set({ recentColors });
   },
   // the kit is a guidelines DOCUMENT — it always opens at reading scale,
   // whatever zoom the editor or board was left at.

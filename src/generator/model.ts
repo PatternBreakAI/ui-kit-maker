@@ -282,6 +282,12 @@ export interface TypeCfg {
    *  the letter faces exactly like the shell gloss/specular blends.
    *  ox/oy nudge the whole treatment in % of the letter height. */
   glints?: { on: boolean; opacity: number; ox?: number; oy?: number; style?: GlintStyle; blend?: BlendMode };
+  /** Ink shine — hand-illustrated top-light crescents, derived from each
+   *  letterform's own topology: the glyph minus a light-away offset copy
+   *  of itself leaves slivers hugging the lit edges; an inset keeps them
+   *  off the outline, a blur+threshold rounds their caps. Sizes are px at
+   *  the 52px master scale. Off/absent = untouched. */
+  shine?: { on: boolean; size: number; inset: number; round: number; opacity: number; color?: string; blend?: BlendMode };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
   fill2: string;       // gradient bottom
@@ -326,6 +332,8 @@ export const TEXT_PRESETS: { id: string; name: string }[] = [
 export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string; glow: string }) {
   t.preset = id;
   t.fillOpacity = 100;
+  // presets define the complete treatment — ink shine included
+  delete t.shine;
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };
   t.emboss = { on: false, strength: 55, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
