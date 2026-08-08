@@ -110,7 +110,13 @@ export function SplashPage() {
     <div className="sp-app">
       <aside className="sp-side">
         <div className="sp-brand">
-          <span className="sp-mark" style={{ fontFamily: "'Modak', 'Lilita One', Inter, sans-serif" }}>SPLASH TEXT</span>
+          <div className="sp-brand-row">
+            <span className="sp-mark" style={{ fontFamily: "'Modak', 'Lilita One', Inter, sans-serif" }}>SPLASH TEXT</span>
+            <button className="sp-btn sp-reset" title="Back to the factory look"
+              onClick={() => { try { localStorage.removeItem(LS_KEY); } catch { /* private mode */ } setLook({ ...SPLASH_DEFAULT }); }}>
+              Reset
+            </button>
+          </div>
           <span className="sp-sub">super over-illustrated words · one shape, still editable</span>
         </div>
 

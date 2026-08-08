@@ -2379,7 +2379,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       // visible OUTSIDE the rim ring, not vanish underneath it
       (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${(dRim > 0.05 ? dStick + dRim : dStick).toFixed(1)}" result="dstk"/><feFlood flood-color="${dStickC}"/><feComposite in2="dstk" operator="in"/></filter>` : "") +
       (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="drim"/><feFlood flood-color="${dRimC}"/><feComposite in2="drim" operator="in"/></filter>` : "") +
-      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}><feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/><feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/><feOffset in="dwl" dx="${(-dDx * 0.45).toFixed(1)}" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge></filter>` : "") +
+      /* flat blob: wrap and body in ONE ink means the wall's depth-shading
+         band would read as an extra stroke inside the shape (owner report)
+         — the sweep paints as a single flat fill there */
+      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}><feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/><feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/>${
+        dStick > 0.05 && dStickC.toLowerCase() === dWall.toLowerCase()
+          ? ""
+          : `<feOffset in="dwl" dx="${(-dDx * 0.45).toFixed(1)}" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge>`
+      }</filter>` : "") +
       (dGlOp > 0 ? (() => {
         const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.52).toFixed(1) : (dgy - fs * 0.52).toFixed(1);
         const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (dgy + fs * 0.55).toFixed(1);
