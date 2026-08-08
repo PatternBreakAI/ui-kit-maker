@@ -9,6 +9,7 @@
     "prebuild": "node scripts/check-landing-fonts.mjs && node scripts/check-unity-importer.mjs",
     "build": "tsc -b && vite build",
     "check:fonts": "node scripts/check-landing-fonts.mjs",
+    "metrics:fonts": "NODE_USE_ENV_PROXY=1 node scripts/measure-font-metrics.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },

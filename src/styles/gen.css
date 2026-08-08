@@ -264,7 +264,9 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .scard-title { font-size: 10px; font-weight: 600; color: var(--ink2); margin-bottom: 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .01em; }
 /* fixed-size thumbnail: the preview scales to fit a stable box, so switching
    component or shape never reflows the states column (kills the layout jump) */
-.scard-body { height: 56px; display: grid; place-items: center; overflow: hidden; }
+/* overflow visible for the same Safari reason as .gp-card — the svg is
+   scale-to-fit, so only glyph overhang ever escapes, a few px at most */
+.scard-body { height: 56px; display: grid; place-items: center; overflow: visible; }
 .scard-body svg { width: auto; height: auto; max-width: 100%; max-height: 100%; display: block; }
 
 .zoolbar {
@@ -524,7 +526,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 /* ── v15: library grid, sketch board ─────────────────────────── */
 .libgrid { display: flex; flex-direction: column; gap: 12px; }
 .libcard { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px; }
-.libthumb { width: 100%; border: 0; background: none; cursor: pointer; padding: 0; border-radius: 8px; overflow: hidden; }
+.libthumb { width: 100%; border: 0; background: none; cursor: pointer; padding: 0; border-radius: 8px; overflow: visible; }
 .libthumb svg { width: 100%; height: auto; display: block; }
 .libthumb:hover { outline: 2px solid var(--line2); }
 .librow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
@@ -615,7 +617,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .presetcard.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .presetcard.shared { border-color: color-mix(in srgb, var(--accent, #6366f1) 45%, var(--line2)); }
 .presetcard.shared .presetname { color: var(--accent, #6366f1); }
-.presetcard .presetart { width: 100%; display: grid; place-items: center; overflow: hidden; }
+.presetcard .presetart { width: 100%; display: grid; place-items: center; overflow: visible; }
 .presetcard .presetart svg { width: 100%; height: auto; max-height: 74px; display: block; }
 .presetcard .presetname { font-size: 12px; font-weight: 600; color: var(--ink2); }
 
@@ -784,7 +786,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-patterns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
 .gp-card {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0; padding: 36px 12px 12px; height: 396px; overflow: hidden;
+  /* overflow stays visible: the card's gradient already clips to its own
+     border-radius, and hiding overflow guillotined italic/wide glyph
+     overhang that Safari draws past the SVG frame (owner: "italicized
+     text is cut-off still"). The engine pre-pads its canvas, so in
+     Chromium nothing pokes and this changes no pixels. */
+  gap: 0; padding: 36px 12px 12px; height: 396px; overflow: visible;
   border-radius: 18px; border: 1px solid rgba(235,238,255,.14);
   background: linear-gradient(168deg, var(--st-bg1), var(--st-bg2) 68%); box-shadow: 0 14px 34px rgba(0,0,0,.18);
 }
@@ -1124,7 +1131,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .pat-open { margin-left: auto; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--kp-ink2); cursor: pointer; white-space: nowrap; }
 .pat-open:hover { color: var(--kp-ink); }
 .pat-view {
-  position: relative; aspect-ratio: 1.52 / 1; overflow: hidden;
+  /* overflow visible: Safari draws italic/wide glyphs past the SVG frame;
+     hiding overflow guillotined them (owner). Backgrounds still round. */
+  position: relative; aspect-ratio: 1.52 / 1; overflow: visible;
   display: flex; align-items: center; justify-content: center;
   border-radius: 16px; border: 1px solid var(--st-line);
   background: linear-gradient(170deg, var(--st-bg1), var(--st-bg2) 70%);
@@ -1263,7 +1272,7 @@ button.kp-fact { cursor: pointer; }
 .kp-about:hover { color: var(--kp-ink); }
 .kp-aboutbody { max-width: 480px; }
 .kp-herostage {
-  position: relative; aspect-ratio: 1.14 / 1; border-radius: 20px; overflow: hidden;
+  position: relative; aspect-ratio: 1.14 / 1; border-radius: 20px; overflow: visible;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid rgba(235,238,255,.13); background: linear-gradient(170deg, #171923, #0c0d15 70%);
   box-shadow: 0 14px 40px rgba(9,10,18,.22);
@@ -1389,7 +1398,7 @@ button.kp-fact { cursor: pointer; }
 .lay.mobile-l { width: calc(50% - 13px); }
 .lay.mobile-p { width: 310px; }
 .lay-view {
-  border-radius: 18px; overflow: hidden; border: 1px solid var(--st-line);
+  border-radius: 18px; overflow: visible; border: 1px solid var(--st-line);
   background: linear-gradient(170deg, var(--st-bg1), var(--st-bg2) 70%);
   box-shadow: 0 10px 26px rgba(9,10,18,.15);
   display: flex; align-items: stretch; justify-content: center;

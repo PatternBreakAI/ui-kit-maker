@@ -57,6 +57,14 @@ Each app chooses what to expose and how it reads. App code is routing,
 layout, copy, and which Engine/Bench/Desk pieces it mounts — nothing
 more.
 
+### L1½ · The Bridge (optional, per app)
+The Unity export machinery — Smart Zip, importer C#, prefab wiring, the
+README deck — is its own module riding beside the Engine, mounted ONLY
+by apps that target engines (owner, 2026-08-08: "Splash Text doesn't
+need any of the Unity export stuff"). Splash ships SVG/PNG only. When
+the packages are carved (§6 Phase 2), the Bridge splits out first —
+it's megabytes of embedded C# no other app should ever bundle.
+
 ## 3. Prime directives (all sessions, all apps)
 
 1. **Search before you build.** Anything vector, type, export, control,
@@ -88,6 +96,11 @@ more.
    - Post-#236: every text-layer emission in `bevel.ts` goes through the
      `fxText`/`TP2` branch, or path mode silently loses that layer.
    - No preset ever pairs star glints with ink shine (owner rule).
+   - Label layout reads BAKED font metrics (`fontMetricsData.ts` — real
+     per-glyph advances, same numbers in every browser, valid before the
+     face loads). Never lay text out from per-browser measurement or
+     factor estimates for registry faces. After changing `GAME_FONTS`,
+     regenerate with `npm run metrics:fonts`.
 7. **Verify on the real thing.** Headless proofs run the actual app and
    the actual export, and read the actual bytes back. Claims without a
    probe are hopes.
@@ -146,7 +159,19 @@ Additions to this list: append here in the same PR that starts importing.
   rebases, keeps its superset engine block + main's panel wiring.
 - 2026-08-08 · API registry v1 frozen (§4).
 - 2026-08-08 · Direction set: per-app ExportKind; single preset system
-  with `kind`. (Owner bless pending with this doc.)
+  with `kind`. Preset PLUMBING is shared; preset STYLES never travel
+  between apps (owner: each app keeps its own voice).
+- 2026-08-08 · Unity Bridge declared an optional per-app module (L1½) —
+  Splash never bundles it.
+- 2026-08-08 · Font metrics baked as engine data: the Safari cut-off
+  family (estimate window + per-browser measureText drift) ended by
+  shipping measured per-glyph advances as static data. Live measurement
+  survives only for custom uploads and the Chinese faces' han glyphs.
+- 2026-08-08 · Owner note for the backlog: "randomize all produces
+  really unpleasing results... maybe we can develop some aesthetic
+  guardrails over time." Direction sketch lives in the task backlog —
+  harmony-derived palettes, one-statement-per-roll co-constraints, and a
+  legibility floor with internal re-rolls.
 
 ## 8. Open questions for the owner
 
