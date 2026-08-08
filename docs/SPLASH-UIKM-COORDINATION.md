@@ -60,8 +60,11 @@ round-join stroke geometry on the outline path (what we do in path mode).
 
 ## 4. Standing requests
 
-- Nothing in either lane should pair star glints with ink shine in a
-  preset (owner approved shine explicitly without stars).
 - If you touch label rendering in `bevel.ts`'s type layer, mind the
   `TP2`/`fxText` branches — every text-layer emission must go through
   them or path mode silently loses that layer.
+
+(Withdrawn 2026-08-08: an earlier bullet here forbade pairing star
+glints with ink shine in presets. The owner clarified that "minus the
+stars" was a call about the Splash default look, not a rule — combine
+them freely where a look wants both.)

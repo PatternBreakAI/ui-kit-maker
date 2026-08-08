@@ -3,8 +3,10 @@
 Owner-approved treatment (2026-08-08, Splash Text experiment): highlights
 that mimic light falling on the letterforms — hand-inked white crescents
 on each glyph's lit edges. **The owner wants this in UI Kit Maker too.**
-No stars with it: the star glints are a separate treatment and the owner
-approved shine explicitly WITHOUT them.
+Shine and the star glints are independent treatments — combine them or
+not as a look calls for it (correction 2026-08-08: an earlier note here
+read "never pair them"; the owner clarified that was only about the
+Splash default look, not a rule).
 
 ## What it looks like
 
@@ -81,7 +83,8 @@ on the UI side.
 3. **Exports**: nothing to do — the filter rasterizes correctly through
    the sealed-`<img>` PNG path and ships in SVG singles/packs as-is.
 4. **Optional, owner call**: a "Shine" entry (or shine-on variants) in
-   `TEXT_PRESETS`. Do not pair it with star glints in any preset.
+   `TEXT_PRESETS`. Pairing with glints is a taste call per preset, not a
+   constraint.
 5. **Verify at extremes** per working agreements: max size on a thin face
    (Silkscreen), long label, hero scale, and a Safari pass alongside the
    other new type filters on the branch.
