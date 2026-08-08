@@ -6,12 +6,25 @@ export function ensureFont(name: string) {
   const def = fontByName(name);
   if (!def.css) return; // Inter ships bundled
   const id = "gf-" + def.css.replace(/[^a-z0-9]/gi, "");
-  if (document.getElementById(id)) return;
+  if (document.getElementById(id)) {
+    kickLoad(name);
+    return;
+  }
   const link = document.createElement("link");
   link.id = id;
   link.rel = "stylesheet";
   link.href = `https://fonts.googleapis.com/css2?family=${def.css}&display=swap`;
+  // a stylesheet alone doesn't fetch the FACE until something styled with
+  // it lays out — and Safari defers that fetch longer than any engine, so
+  // the renderer's estimate-fallback window (wrong widths, cut-off text,
+  // layout pops on the kit page) stretches for seconds there. Ask for the
+  // face bytes the moment the css arrives.
+  link.onload = () => kickLoad(name);
   document.head.appendChild(link);
+}
+
+function kickLoad(family: string) {
+  try { void document.fonts?.load?.(`16px "${family.replace(/"/g, "")}"`); } catch { /* older engines: the lazy path still works */ }
 }
 
 /* Every family a saved kit document speaks: the master face + list face,

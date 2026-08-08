@@ -264,7 +264,9 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .scard-title { font-size: 10px; font-weight: 600; color: var(--ink2); margin-bottom: 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .01em; }
 /* fixed-size thumbnail: the preview scales to fit a stable box, so switching
    component or shape never reflows the states column (kills the layout jump) */
-.scard-body { height: 56px; display: grid; place-items: center; overflow: hidden; }
+/* overflow visible for the same Safari reason as .gp-card — the svg is
+   scale-to-fit, so only glyph overhang ever escapes, a few px at most */
+.scard-body { height: 56px; display: grid; place-items: center; overflow: visible; }
 .scard-body svg { width: auto; height: auto; max-width: 100%; max-height: 100%; display: block; }
 
 .zoolbar {
@@ -784,7 +786,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-patterns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
 .gp-card {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0; padding: 36px 12px 12px; height: 396px; overflow: hidden;
+  /* overflow stays visible: the card's gradient already clips to its own
+     border-radius, and hiding overflow guillotined italic/wide glyph
+     overhang that Safari draws past the SVG frame (owner: "italicized
+     text is cut-off still"). The engine pre-pads its canvas, so in
+     Chromium nothing pokes and this changes no pixels. */
+  gap: 0; padding: 36px 12px 12px; height: 396px; overflow: visible;
   border-radius: 18px; border: 1px solid rgba(235,238,255,.14);
   background: linear-gradient(168deg, var(--st-bg1), var(--st-bg2) 68%); box-shadow: 0 14px 34px rgba(0,0,0,.18);
 }

@@ -2187,16 +2187,22 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      region blew that cap at hero scale — thumbnails survived, the big
      canvas text vanished, Chrome tiled and never showed it. Sized here
      from the shell the label lives in plus the largest effect spread. */
-  const tfSpread = Math.max(
+  const tfEnv = Math.max(
     T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
     T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
-    8) + fs * 1.5
-    // engines disagree on display-face advances by up to ~25% (Safari
-    // especially, with synthesized italics) — the region carries nearly
-    // half the label again as slack so real glyphs never hit the raster
-    // boundary (owner: "main problem in safari is cut-off text"). Still
-    // bounded: proportional to this label, far from Safari's buffer cap.
-    + textW * 0.45;
+    8) + fs * 1.5;
+  /* engines disagree on display-face advances by up to ~25% (Safari
+     especially, with synthesized italics) — the region carries nearly
+     half the label again as slack so real glyphs never hit the raster
+     boundary (owner: "main problem in safari is cut-off text"). The
+     slack alone is CAPPED so the total spread never passes ~1100 user
+     units: a monster label (long × display face × max size/weight/
+     spacing) at kit-page scale on a Retina display otherwise rasterizes
+     past Safari's filter buffer and the piece silently never paints —
+     the July-25 failure, rediscovered as "some items don't render at
+     all". The cap squeezes only the advance slack, never the glow/shadow
+     envelope existing documents rely on. */
+  const tfSpread = tfEnv + Math.min(textW * 0.45, Math.max(0, 1100 - tfEnv));
   const textFxDef = prims.length
     ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
@@ -2303,8 +2309,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const shOp2 = clamp((SH2!.opacity ?? 100) / 100, 0, 1);
     // away from the key light — light overhead shifts the copy straight down
     const shDx = (-lx * shSize).toFixed(1), shDy = (-ly * shSize).toFixed(1);
-    // same Safari advance slack as the text-fx region above
-    const shSpread = shSize + shInset + shRound * 4 + fs * 0.5 + textW * 0.45;
+    // same Safari advance slack + the same buffer-cap clamp as tfSpread
+    const shEnv = shSize + shInset + shRound * 4 + fs * 0.5;
+    const shSpread = shEnv + Math.min(textW * 0.45, Math.max(0, 1100 - shEnv));
     shineDef = `<filter id="${id}tsh" filterUnits="userSpaceOnUse" x="${(x - shSpread).toFixed(0)}" y="${(y - shSpread).toFixed(0)}" width="${(w + shSpread * 2).toFixed(0)}" height="${(h + shSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
       `<feMorphology in="SourceAlpha" operator="erode" radius="${shInset.toFixed(1)}" result="shs"/>` +
       `<feOffset in="shs" dx="${shDx}" dy="${shDy}" result="sho"/>` +
