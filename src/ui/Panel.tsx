@@ -217,61 +217,67 @@ function InfoNote({ summary, children }: { summary: React.ReactNode; children?: 
 /* The palette pill (Jimi: "As I didn't see a way to save a swatch, I had
    to write down the RGB and enter those values manually") — one cluster
    button beside each working color choice, a quick pick from the palette:
-   the kit's own role colors under "In this kit", plus chips you save
-   yourself — the labeled "+ Save #HEX" chip remembers the row's current
-   color, a hover × forgets it. Saving lives INSIDE the rail as words — a
-   first pass used a separate bookmark icon beside the cluster and the
-   owner couldn't parse it ("these controls don't make a lot of sense").
-   Saved chips persist locally and are kit-independent. The pill rides
-   `Well` rows only — the Colors section's rows DEFINE the palette, so a
-   pick-from-the-palette pill there read as circular (owner). */
+   RECENT — the last colors used anywhere, captured automatically, like
+   every other design app (owner) — plus the kit's own role colors under
+   "In this kit". Nothing to save or manage; a hover × drops a recent.
+   The native color popup is the browser's, so this rail is our "bottom
+   of the picker". Recents persist locally and are kit-independent. The
+   pill rides `Well` rows only — the Colors section's rows DEFINE the
+   palette, so a pick-from-the-palette pill there read as circular
+   (owner). */
+/* A color counts as "used" once a hand-picked value has sat still for a
+   beat — recording every tick while the picker drags would flood the rail
+   with intermediate hues, and recording from a value-watching effect
+   would swallow preset and project loads too. Handlers call this; only
+   real edits record. */
+let recentTimer: ReturnType<typeof setTimeout> | undefined;
+function recordRecent(hex: string) {
+  clearTimeout(recentTimer);
+  recentTimer = setTimeout(() => useGen.getState().pushRecentColor(hex), 900);
+}
+
 function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const swatches = useGen((s) => s.swatches);
-  const addSwatch = useGen((s) => s.addSwatch);
-  const rmSwatch = useGen((s) => s.rmSwatch);
+  const recent = useGen((s) => s.recentColors);
+  const pushRecent = useGen((s) => s.pushRecentColor);
+  const rmRecent = useGen((s) => s.rmRecentColor);
   const effects = useGen((s) => s.cfg.effects);
   const [open, setOpen] = useState(false);
   const hex = (value || "#000000").toUpperCase();
-  const saved = swatches.includes(hex);
-  // the kit's live palette, minus anything already saved as a chip
+  // the kit's live palette, minus anything already in the recents
   const kitHues = useMemo(() => {
-    const seen = new Set(swatches);
+    const seen = new Set(recent);
     const out: { hex: string; role: string }[] = [];
     for (const [role, c] of Object.entries(effects ?? {})) {
       const u = String(c).toUpperCase();
       if (!seen.has(u)) { seen.add(u); out.push({ hex: u, role }); }
     }
     return out;
-  }, [effects, swatches]);
-  const peek = [...swatches, ...kitHues.map((k) => k.hex)].slice(0, 3);
+  }, [effects, recent]);
+  const peek = [...recent, ...kitHues.map((k) => k.hex)].slice(0, 3);
+  const pick = (h: string) => { onChange(h); pushRecent(h); setOpen(false); };
   return (
     <>
-      <button className="swmore" title="Pick from the palette" aria-expanded={open}
-        aria-label="Pick from the palette" onClick={() => setOpen(!open)}>
+      <button className="swmore" title="Recent + kit colors" aria-expanded={open}
+        aria-label="Recent and kit colors" onClick={() => setOpen(!open)}>
         {peek.length === 0
           ? <span className="swplus">+</span>
           : peek.map((h) => <i key={h} style={{ background: h }} />)}
       </button>
       {open && (
-        <span className="swrail" role="listbox" aria-label="Pick from the palette">
-          {swatches.length > 0 && <span className="swcap">Saved</span>}
-          {swatches.map((h) => (
+        <span className="swrail" role="listbox" aria-label="Recent and kit colors">
+          {recent.length > 0 && <span className="swcap">Recent</span>}
+          {recent.map((h) => (
             <span key={h} className="swdotwrap">
               <button className={`swdot${h === hex ? " cur" : ""}`} style={{ background: h }} title={`Use ${h}`}
-                onClick={() => { onChange(h); setOpen(false); }} />
-              <button className="swx" title={`Forget ${h}`} aria-label={`Forget ${h}`}
-                onClick={() => rmSwatch(h)}>×</button>
+                onClick={() => pick(h)} />
+              <button className="swx" title={`Remove ${h}`} aria-label={`Remove ${h}`}
+                onClick={() => rmRecent(h)}>×</button>
             </span>
           ))}
-          {!saved && (
-            <button className="swadd" onClick={() => addSwatch(hex)}>
-              <i style={{ background: hex }} /> Save {hex}
-            </button>
-          )}
           {kitHues.length > 0 && <span className="swcap">In this kit</span>}
           {kitHues.map((k) => (
             <button key={k.hex} className={`swdot${k.hex === hex ? " cur" : ""}`} style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
-              onClick={() => { onChange(k.hex); setOpen(false); }} />
+              onClick={() => pick(k.hex)} />
           ))}
         </span>
       )}
@@ -279,12 +285,14 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
+
 function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="ctl wellrow">
       <label>{label}</label>
       <span className="chipwell sm" style={{ background: value }}>
-        <input type="color" value={value} aria-label={`${label} color`} onChange={(e) => onChange(e.target.value)} />
+        <input type="color" value={value} aria-label={`${label} color`}
+          onChange={(e) => { onChange(e.target.value); recordRecent(e.target.value); }} />
       </span>
       <span className="mr-hint">{value.toUpperCase()}</span>
       <SwatchMem value={value} onChange={onChange} />
@@ -1589,7 +1597,7 @@ export function Panel() {
             <div className="maprow" key={r}>
               <span className="chipwell sm" style={{ background: D.effects[r] }}>
                 <input type="color" value={D.effects[r]} aria-label={`${r} color`}
-                  onChange={(e) => update((c) => { c.effects[r] = e.target.value; })} />
+                  onChange={(e) => { update((c) => { c.effects[r] = e.target.value; }); recordRecent(e.target.value); }} />
               </span>
               <span className="mr-role">{r}</span>
               <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--ink3)" }} />
@@ -1634,7 +1642,8 @@ export function Panel() {
           return (
             <div className="rarityrow" key={f.name}>
               <span className="chipwell sm" style={{ background: ov?.c ?? f.c }}>
-                <input type="color" value={ov?.c ?? f.c} aria-label={`Tier ${i + 1} color`} onChange={(e) => setTier({ c: e.target.value })} />
+                <input type="color" value={ov?.c ?? f.c} aria-label={`Tier ${i + 1} color`}
+                  onChange={(e) => { setTier({ c: e.target.value }); recordRecent(e.target.value); }} />
               </span>
               <input className="tinput" value={ov?.name ?? f.name} maxLength={14} aria-label={`Tier ${i + 1} name`}
                 placeholder={f.name} onChange={(e) => setTier({ name: e.target.value })} />
