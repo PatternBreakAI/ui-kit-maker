@@ -161,6 +161,29 @@ export function SlantLab() {
     });
     mark("roots expanded"); scan();
   };
+  /* the counter-theory switch: Safari CLAMPS filter regions it can't
+     afford to rasterize, and a clamped region lands near the text bbox —
+     shearing the last italic glyph's lean. If TIGHT regions heal what
+     huge regions couldn't, oversized rasters are the disease. */
+  const tightenRegions = () => {
+    let count = 0;
+    engineSvgs().forEach((svg) => {
+      const t = labelText(svg);
+      if (!t) return;
+      let bb: DOMRect | { x: number; y: number; width: number; height: number };
+      try { bb = t.getBBox(); } catch { return; }
+      const fs = parseFloat(t.getAttribute("font-size") ?? "40");
+      svg.querySelectorAll("filter").forEach((f) => {
+        if (!/(?:tf|thf|tsh)$/.test(f.id)) return;
+        f.setAttribute("x", (bb.x - fs).toFixed(0));
+        f.setAttribute("y", (bb.y - fs).toFixed(0));
+        f.setAttribute("width", (bb.width + fs * 2).toFixed(0));
+        f.setAttribute("height", (bb.height + fs * 2).toFixed(0));
+        count++;
+      });
+    });
+    mark(`regions TIGHT (${count})`); scan();
+  };
   const flatten = () => {
     const hits: string[] = [];
     engineSvgs().forEach((svg) => {
@@ -186,6 +209,7 @@ export function SlantLab() {
       <button style={btn} onClick={unclip}>3 · force ancestors overflow:visible</button>
       <button style={btn} onClick={expandRoots}>4 · expand svg roots +4 font-sizes</button>
       <button style={btn} onClick={flatten}>5 · flatten CSS zoom / transforms</button>
+      <button style={btn} onClick={tightenRegions}>6 · SHRINK filter regions to tight</button>
       {applied.length > 0 && (
         <div style={{ fontSize: 11, margin: "7px 0 2px", color: "#FBBF24" }}>APPLIED: {applied.join(" · ")}</div>
       )}
