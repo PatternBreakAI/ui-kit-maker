@@ -321,7 +321,7 @@ export interface TypeCfg {
    *  of itself leaves slivers hugging the lit edges; an inset keeps them
    *  off the outline, a blur+threshold rounds their caps. Sizes are px at
    *  the 52px master scale. Off/absent = untouched. */
-  shine?: { on: boolean; size: number; inset: number; round: number; opacity: number; color?: string };
+  shine?: { on: boolean; size: number; inset: number; round: number; opacity: number; color?: string; blend?: BlendMode };
   fillOpacity: number; // 0..100 — translucent fills read as glass
   /** color2 set = gradient stroke. `behind` renders the stroke as a separate
    *  under-layer for the whole word, so no glyph's stroke ever crosses a

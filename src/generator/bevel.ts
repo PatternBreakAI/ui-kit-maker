@@ -2428,6 +2428,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       `<feComponentTransfer in="shb" result="shh"><feFuncA type="linear" slope="14" intercept="-5.6"/></feComponentTransfer>` +
       `<feFlood flood-color="${shC}" flood-opacity="${shOp2.toFixed(2)}"/><feComposite in2="shh" operator="in"/></filter>`;
     shineLayer = `<g filter="url(#${id}tsh)">${fxText(`fill="#000"`)}</g>`;
+    // blend composites the ink against the letter faces, glints-style
+    if (SH2!.blend && SH2!.blend !== "normal") shineLayer = `<g style="mix-blend-mode:${SH2!.blend}">${shineLayer}</g>`;
   }
 
   /* ── grain (Type Maker) — default-off: the shell micro-texture recipe

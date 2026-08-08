@@ -58,8 +58,11 @@ the label (the Safari discipline every text filter here follows).
 
 1. **Panel wiring only** — typography section (`src/ui/Panel.tsx`), an
    `FxToggle` "Shine" following the Glow block's pattern:
-   - Size slider 1–10 (step 0.5), Inset 0–6 (step 0.5), and behind an
-     `Adv` fold: Round 0–6, Opacity 0–100, color `Well` (default white).
+   - Size slider 1–10 (step 0.5), Inset 0–6 (step 0.5), **Opacity
+     0–100**, and a **Blend `fieldbox` select over `BLEND_MODES`**
+     (owner-required, glints-style — the engine wraps the layer in
+     `mix-blend-mode` for anything but `normal`). Behind an `Adv` fold:
+     Round 0–6 and the color `Well` (default white).
    - Writes via the usual `update((c) => { c.type.shine = … })`.
 2. **State forks**: nothing special — `shine` rides `type`, which already
    forks per state via `stateDesigns`.
@@ -80,6 +83,7 @@ the label (the Safari discipline every text filter here follows).
 | round | 0–6 | cap rounding (blur+threshold strength) |
 | opacity | 0–100 | ink strength |
 | color | hex | shine ink, default `#FFFFFF` |
+| blend | BLEND_MODES | composite against the faces — `normal` (flat ink), `overlay`/`soft-light` (glassy lift on gradients) |
 
 Splash Text's surface exposes only size + inset (fixed round 2, opacity
 100, white) — a reasonable default set if the kit panel wants to start
