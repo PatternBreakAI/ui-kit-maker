@@ -53,13 +53,14 @@ const UnityPage = lazy(() =>
 
 // `?lab=…` boot params are dev/experiment harnesses, decided once and never
 // at runtime — they bypass routing entirely, exactly as main.tsx did before.
-// `silhouettes` is the shape lab; `typemaker` is the text-effects generator
-// experiment (unlinked from all navigation until the owner releases it).
+// `silhouettes` is the shape lab; `splash` is Splash Text, the
+// over-illustrated-words experiment (unlinked from all navigation until the
+// owner releases it; `typemaker` stays as an alias for older links).
 const LAB_PARAM = new URLSearchParams(window.location.search).get("lab");
 const IS_LAB = LAB_PARAM === "silhouettes";
-const IS_TYPEMAKER = LAB_PARAM === "typemaker";
-const TypeMakerPage = lazy(() =>
-  import("@/typemaker/TypeMakerPage").then((m) => ({ default: m.TypeMakerPage })),
+const IS_SPLASH = LAB_PARAM === "splash" || LAB_PARAM === "typemaker";
+const SplashPage = lazy(() =>
+  import("@/splash/SplashPage").then((m) => ({ default: m.SplashPage })),
 );
 
 // The editor is desktop-only for now: small screens and small touch devices
@@ -189,13 +190,13 @@ export function Shell() {
     );
   }
 
-  // Unlike the silhouette lab, Type Maker gets the RouteBoundary: a stale
+  // Unlike the silhouette lab, Splash Text gets the RouteBoundary: a stale
   // chunk after a redeploy should show the reload card, not a blank page.
-  if (IS_TYPEMAKER) {
+  if (IS_SPLASH) {
     return (
       <RouteBoundary>
         <Suspense fallback={<RouteLoading />}>
-          <TypeMakerPage />
+          <SplashPage />
         </Suspense>
       </RouteBoundary>
     );

@@ -1,15 +1,22 @@
-/* Vector outlines for Type Maker — the fundamental move: the word becomes
+/* Vector outlines for Splash Text — the fundamental move: the word becomes
    ONE compound glyph path, so every stroke, body and wrap paints once
-   behind the entire word, and posed words keep true letterforms. The text
-   stays editable upstream; outlines regenerate on every edit.
+   behind the entire word, and distortions bend the word as a single
+   object. The text stays editable upstream; outlines regenerate on every
+   edit.
 
    Font bytes ride the SAME pipeline engine exports use (fetchKitFont →
-   real TTF/OTF from the google/fonts repo, licence and all); opentype.js
-   only parses. Faces we can't fetch fall back to the <text> pipeline. */
+   real TTF/OTF from the google/fonts repo, licence and all), with direct
+   raw-URL guesses first so no API rate limit ever gates a render;
+   opentype.js only parses. Faces we can't fetch fall back to the <text>
+   pipeline.
+
+   Distortion follows the Warp.js approach (MIT) — subdivide curves until
+   they're locally flat, then push every point through an envelope
+   function — implemented directly on the glyph command list so it needs
+   no DOM, works in exports, and stays testable headless. */
 
 import { parse as parseFont, type Font, type Glyph } from "opentype.js";
 import { fetchKitFont } from "@/generator/engineExport";
-import type { LetterPlacement } from "./pose";
 
 const FONT_CACHE = new Map<string, Promise<Font | null>>();
 
@@ -53,6 +60,10 @@ export function loadOutlineFont(family: string): Promise<Font | null> {
 
 export type WordOutline = { d: string; w: number; dy: number; minY?: number; maxY?: number };
 
+/** Whole-word envelope distortion — the word bends as ONE object.
+ *  arc/bulge are -1..1, rotate is degrees; all default 0. */
+export type WordFx = { arc?: number; bulge?: number; rotate?: number };
+
 // the engine's letter-tilt pattern, mirrored so the slider means the same
 // thing in outline mode and text mode
 const ROTS = [-5, 4, -3, 5, -4, 3, -6, 4, -3, 5];
@@ -78,10 +89,45 @@ const mapCmds = (cmds: Cmd[], fn: (x: number, y: number) => [number, number]): C
     return o;
   });
 
+/** Flatten curve commands to polyline points at roughly `step` chord
+ *  length — envelope functions are nonlinear, so control points alone
+ *  would distort wrongly; locally-flat segments bend true. */
+function flatten(cmds: Cmd[], step: number): Cmd[] {
+  const out: Cmd[] = [];
+  let px = 0, py = 0;
+  const emit = (x: number, y: number) => out.push({ type: "L", x, y });
+  for (const c of cmds) {
+    if (c.type === "M") { out.push({ ...c }); px = c.x!; py = c.y!; continue; }
+    if (c.type === "Z") { out.push({ type: "Z" }); continue; }
+    if (c.type === "L") { emit(c.x!, c.y!); px = c.x!; py = c.y!; continue; }
+    // sample curves by control-net length
+    const pts: [number, number][] = c.type === "C"
+      ? [[px, py], [c.x1!, c.y1!], [c.x2!, c.y2!], [c.x!, c.y!]]
+      : [[px, py], [c.x1!, c.y1!], [c.x!, c.y!]];
+    let net = 0;
+    for (let i = 1; i < pts.length; i++) net += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    const n = Math.max(2, Math.ceil(net / step));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      if (c.type === "C") {
+        const mt = 1 - t;
+        emit(
+          mt * mt * mt * px + 3 * mt * mt * t * c.x1! + 3 * mt * t * t * c.x2! + t * t * t * c.x!,
+          mt * mt * mt * py + 3 * mt * mt * t * c.y1! + 3 * mt * t * t * c.y2! + t * t * t * c.y!,
+        );
+      } else {
+        const mt = 1 - t;
+        emit(mt * mt * px + 2 * mt * t * c.x1! + t * t * c.x!, mt * mt * py + 2 * mt * t * c.y1! + t * t * c.y!);
+      }
+    }
+    px = c.x!; py = c.y!;
+  }
+  return out;
+}
+
 type LaidGlyph = { cmds: Cmd[]; penX: number; adv: number; center: number };
 
-/** Kerned glyph layout at baseline y=0, pen from x=0 — the shared ground
- *  truth for the flat word, the posed word, and pose placement widths. */
+/** Kerned glyph layout at baseline y=0, pen from x=0. */
 function layout(font: Font, text: string, size: number, spacingEm: number): { glyphs: LaidGlyph[]; w: number } {
   const scale = size / font.unitsPerEm;
   const glyphs = font.stringToGlyphs(text);
@@ -105,10 +151,13 @@ function layout(font: Font, text: string, size: number, spacingEm: number): { gl
 export const centralShift = (font: Font, size: number): number =>
   ((font.ascender + font.descender) / 2) * (size / font.unitsPerEm);
 
-/** The flat word as one compound path, letter tilt baked into the glyphs. */
-export function flatWordOutline(font: Font, text: string, size: number, spacingEm: number, tiltK: number): WordOutline {
+/** The word as one compound path: letter tilt baked into the glyphs, then
+ *  the whole-word envelope (arc/bulge) and in-plane rotation baked into
+ *  the geometry — the word bends and turns as a single object. */
+export function flatWordOutline(font: Font, text: string, size: number, spacingEm: number, tiltK: number, fx?: WordFx): WordOutline {
   const { glyphs, w } = layout(font, text, size, spacingEm);
-  const all: Cmd[] = [];
+  const co = centralShift(font, size);
+  let all: Cmd[] = [];
   glyphs.forEach((g, i) => {
     let cmds = g.cmds;
     if (tiltK > 0) {
@@ -123,55 +172,41 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
     }
     all.push(...cmds);
   });
-  return { d: cmdToD(all), w, dy: centralShift(font, size) };
-}
 
-/** Advance widths for pose placement — same layout as the outlines, so
- *  the projected frames and the baked geometry always agree. */
-export function outlineWidths(font: Font, text: string, size: number, spacingEm: number): number[] {
-  return layout(font, text, size, spacingEm).glyphs.map((g) => g.adv);
-}
-
-/** The posed word: every glyph's outline pushed through its letter's
- *  projected affine, merged into ONE path normalized to pen-start x=0 and
- *  word-center y=0. One path in → the whole engine treatment (stroke
- *  behind, body, sticker, gloss, glints) wraps the posed word as a unit. */
-export function posedWordOutline(font: Font, text: string, size: number, spacingEm: number, tiltK: number, placements: LetterPlacement[]): WordOutline {
-  const { glyphs } = layout(font, text, size, spacingEm);
-  const co = centralShift(font, size);
-  const all: Cmd[] = [];
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  // placements arrive painter-sorted (far first) — keep that order so the
-  // near letters' fills sit above far letters inside the compound path
-  for (const p of placements) {
-    const g = glyphs[p.i];
-    if (!g || !g.cmds.length) continue;
-    let cmds = g.cmds;
-    if (tiltK > 0) {
-      const a = (ROTS[p.i % 10] * tiltK * 1.6 * Math.PI) / 180;
-      const dy = BOB[p.i % 10] * size * tiltK * 1.4;
-      const cs = Math.cos(a), sn = Math.sin(a);
-      const cx = g.center;
-      cmds = mapCmds(cmds, (px, py) => {
-        const lx = px - cx, ly = py;
-        return [cx + lx * cs - ly * sn, dy + lx * sn + ly * cs];
-      });
-    }
-    const [a2, b2, c2, d2, e2, f2] = p.m;
-    cmds = mapCmds(cmds, (px, py) => {
-      // glyph local frame: advance center on x, central line on y
-      const lx = px - g.center, ly = py - co;
-      return [a2 * lx + c2 * ly + e2, b2 * lx + d2 * ly + f2];
+  const arc = fx?.arc ?? 0, bulge = fx?.bulge ?? 0, rot = fx?.rotate ?? 0;
+  if (Math.abs(arc) > 0.005 || Math.abs(bulge) > 0.005) {
+    // nonlinear envelope — flatten first so segments bend true
+    all = flatten(all, size / 22);
+    const c0 = -co; // the word's central line in baseline coords
+    all = mapCmds(all, (px, py) => {
+      const u = (2 * px) / w - 1; // -1 at word start, +1 at word end
+      const env = 1 - u * u;
+      let y2 = py;
+      if (bulge) y2 = c0 + (y2 - c0) * (1 + bulge * 0.55 * env);
+      if (arc) y2 -= arc * size * 0.75 * env;
+      return [px, y2];
     });
-    for (const c of cmds) {
-      if (c.x !== undefined) {
-        if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x;
-        if (c.y! < minY) minY = c.y!; if (c.y! > maxY) maxY = c.y!;
-      }
+  }
+  if (Math.abs(rot) > 0.05) {
+    const a = (rot * Math.PI) / 180;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    const cx = w / 2, cy0 = -co;
+    all = mapCmds(all, (px, py) => {
+      const lx = px - cx, ly = py - cy0;
+      return [cx + lx * cs - ly * sn, cy0 + lx * sn + ly * cs];
+    });
+  }
+
+  // normalize: pen-start back to x=0 after bends, and report the vertical
+  // reach so the canvas can reserve room
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of all) {
+    if (c.x !== undefined) {
+      if (c.x < minX) minX = c.x; if (c.x > maxX) maxX = c.x;
+      if (c.y! < minY) minY = c.y!; if (c.y! > maxY) maxY = c.y!;
     }
-    all.push(...cmds);
   }
   if (!Number.isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
-  const shifted = mapCmds(all, (px, py) => [px - minX, py]);
-  return { d: cmdToD(shifted), w: maxX - minX, dy: 0, minY, maxY };
+  if (minX !== 0) all = mapCmds(all, (px, py) => [px - minX, py]);
+  return { d: cmdToD(all), w: maxX - minX, dy: co, minY, maxY };
 }
