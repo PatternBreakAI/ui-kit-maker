@@ -5,7 +5,7 @@ import { registerCustomFont, fontByName, GAME_FONTS, PATTERN_TYPES } from "@/gen
 import { ensureFont } from "@/generator/fonts";
 import { fileToBgDataUrl } from "@/generator/store";
 import { downloadSvg, downloadPng, inlineKitFace } from "@/generator/exportUtils";
-import { Slider, FontPicker, AngleDial } from "@/ui/controls";
+import { Slider, FontPicker, AngleDial, FxToggle } from "@/ui/controls";
 import { loadOutlineFont, flatWordOutline } from "./outline";
 import { SPLASH_FONT_NAMES, registerSplashFonts, splashFontDef } from "./fonts";
 import type { Font } from "opentype.js";
@@ -111,7 +111,15 @@ export function SplashPage() {
   useEffect(() => {
     const prev = document.title;
     document.title = "Splash Text";
-    return () => { document.title = prev; };
+    // Splash chrome is dark — flip the shared Bench widgets (fx chips,
+    // sliders, font picker) to their dark set while this page holds the DOM
+    const prevTheme = document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = "dark";
+    return () => {
+      document.title = prev;
+      if (prevTheme === undefined) delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = prevTheme;
+    };
   }, []);
 
   /* canvas zoom + pan — the kit editor's floater recipe: CSS `zoom` on an
@@ -408,22 +416,17 @@ export function SplashPage() {
             {look.blobGrad && <Well label="to" value={look.blob2} onChange={(v) => up("blob2", v)} />}
           </div>
           <Slider label="Width" value={look.strokeW} min={0} max={24} step={0.5} unit="" onChange={(v) => up("strokeW", v)} />
-          <div className="sp-wells">
-            <label className="sp-check"><input type="checkbox" checked={look.blobPattern.on} onChange={(e) => up("blobPattern", { ...look.blobPattern, on: e.target.checked })} /> Pattern</label>
-            {look.blobPattern.on && (
+          <FxToggle label="Pattern" on={look.blobPattern.on} onToggle={(v) => up("blobPattern", { ...look.blobPattern, on: v })}>
+            <div className="sp-wells">
               <select className="sp-input sp-select" value={look.blobPattern.style} aria-label="Stroke pattern style"
                 onChange={(e) => up("blobPattern", { ...look.blobPattern, style: e.target.value })}>
                 {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-            )}
-          </div>
-          {look.blobPattern.on && (
-            <>
-              <Slider label="Scale" value={look.blobPattern.scale} min={25} max={300} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, scale: v })} />
-              <Slider label="Angle" value={look.blobPattern.angle} min={0} max={180} unit="°" onChange={(v) => up("blobPattern", { ...look.blobPattern, angle: v })} />
-              <Slider label="Opacity" value={look.blobPattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, opacity: v })} />
-            </>
-          )}
+            </div>
+            <Slider label="Scale" value={look.blobPattern.scale} min={25} max={300} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, scale: v })} />
+            <Slider label="Angle" value={look.blobPattern.angle} min={0} max={180} unit="°" onChange={(v) => up("blobPattern", { ...look.blobPattern, angle: v })} />
+            <Slider label="Opacity" value={look.blobPattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, opacity: v })} />
+          </FxToggle>
         </div>
 
         <div className="sp-group">
@@ -435,65 +438,44 @@ export function SplashPage() {
         </div>
 
         <div className="sp-group">
-          <div className="sp-h">Shine</div>
-          <div className="sp-wells">
-            <label className="sp-check"><input type="checkbox" checked={look.shine} onChange={(e) => up("shine", e.target.checked)} /> On</label>
-            {look.shine && <Well label="Color" value={look.shineColor} onChange={(v) => up("shineColor", v)} />}
-            {look.shine && (
+          <div className="sp-h">Effects</div>
+          <FxToggle label="Ink shine" on={look.shine} onToggle={(v) => up("shine", v)}>
+            <div className="sp-wells">
+              <Well label="Color" value={look.shineColor} onChange={(v) => up("shineColor", v)} />
               <select className="sp-input sp-select" value={look.shineBlend} aria-label="Shine blend"
                 onChange={(e) => up("shineBlend", e.target.value as SplashLook["shineBlend"])}>
                 {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
-            )}
-          </div>
-          {look.shine && (
-            <>
-              <Slider label="Size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
-              <Slider label="Inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
-              <Slider label="Opacity" value={look.shineOpacity} min={0} max={100} unit="%" onChange={(v) => up("shineOpacity", v)} />
-              <Slider label="Roundness" value={look.shineRound} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineRound", v)} />
-            </>
-          )}
-        </div>
-
-        <div className="sp-group">
-          <div className="sp-h">Sparkle</div>
-          <div className="sp-wells">
-            <label className="sp-check"><input type="checkbox" checked={look.glints.on} onChange={(e) => up("glints", { ...look.glints, on: e.target.checked })} /> On</label>
-            {look.glints.on && (
+            </div>
+            <Slider label="Size" value={look.shineSize} min={1} max={10} step={0.5} unit="" onChange={(v) => up("shineSize", v)} />
+            <Slider label="Inset" value={look.shineInset} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineInset", v)} />
+            <Slider label="Opacity" value={look.shineOpacity} min={0} max={100} unit="%" onChange={(v) => up("shineOpacity", v)} />
+            <Slider label="Roundness" value={look.shineRound} min={0} max={6} step={0.5} unit="" onChange={(v) => up("shineRound", v)} />
+          </FxToggle>
+          <FxToggle label="Sparkle" on={look.glints.on} onToggle={(v) => up("glints", { ...look.glints, on: v })}>
+            <div className="sp-wells">
               <select className="sp-input sp-select" value={look.glints.style} aria-label="Sparkle style"
                 onChange={(e) => up("glints", { ...look.glints, style: e.target.value as SplashLook["glints"]["style"] })}>
                 {(["slab", "stars", "streak", "sheen"] as const).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
-            )}
-            {look.glints.on && (
               <select className="sp-input sp-select" value={look.glints.blend} aria-label="Sparkle blend"
                 onChange={(e) => up("glints", { ...look.glints, blend: e.target.value as SplashLook["glints"]["blend"] })}>
                 {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
-            )}
-          </div>
-          {look.glints.on && <Slider label="Opacity" value={look.glints.opacity} min={0} max={100} unit="%" onChange={(v) => up("glints", { ...look.glints, opacity: v })} />}
-        </div>
-
-        <div className="sp-group">
-          <div className="sp-h">Pattern</div>
-          <div className="sp-wells">
-            <label className="sp-check"><input type="checkbox" checked={look.pattern.on} onChange={(e) => up("pattern", { ...look.pattern, on: e.target.checked })} /> On</label>
-            {look.pattern.on && (
+            </div>
+            <Slider label="Opacity" value={look.glints.opacity} min={0} max={100} unit="%" onChange={(v) => up("glints", { ...look.glints, opacity: v })} />
+          </FxToggle>
+          <FxToggle label="Pattern" on={look.pattern.on} onToggle={(v) => up("pattern", { ...look.pattern, on: v })}>
+            <div className="sp-wells">
               <select className="sp-input sp-select" value={look.pattern.style} aria-label="Pattern style"
                 onChange={(e) => up("pattern", { ...look.pattern, style: e.target.value })}>
                 {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-            )}
-          </div>
-          {look.pattern.on && (
-            <>
-              <Slider label="Scale" value={look.pattern.scale} min={25} max={300} unit="%" onChange={(v) => up("pattern", { ...look.pattern, scale: v })} />
-              <Slider label="Angle" value={look.pattern.angle} min={0} max={180} unit="°" onChange={(v) => up("pattern", { ...look.pattern, angle: v })} />
-              <Slider label="Opacity" value={look.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("pattern", { ...look.pattern, opacity: v })} />
-            </>
-          )}
+            </div>
+            <Slider label="Scale" value={look.pattern.scale} min={25} max={300} unit="%" onChange={(v) => up("pattern", { ...look.pattern, scale: v })} />
+            <Slider label="Angle" value={look.pattern.angle} min={0} max={180} unit="°" onChange={(v) => up("pattern", { ...look.pattern, angle: v })} />
+            <Slider label="Opacity" value={look.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("pattern", { ...look.pattern, opacity: v })} />
+          </FxToggle>
         </div>
 
         <div className="sp-group">
