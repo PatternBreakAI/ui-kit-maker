@@ -15,6 +15,8 @@ import { TM_PRESETS, tmPresetById } from "./presets";
 import type { TmBackdrop } from "./presets";
 import { POSE_IDENTITY, poseActive, projectLetters, placementBounds } from "./pose";
 import type { Pose } from "./pose";
+import { loadOutlineFont, flatWordOutline, posedWordOutline, outlineWidths } from "./outline";
+import type { Font } from "opentype.js";
 import boardFps from "@/marketing/assets/boards/fps.jpg";
 import boardTavern from "@/marketing/assets/boards/tavern.jpg";
 import boardValley from "@/marketing/assets/boards/valley.jpg";
@@ -260,6 +262,13 @@ export function TypeMakerPage() {
   const [pngScale, setPngScale] = useState<number>(2);
   const [busy, setBusy] = useState<string | null>(null);
   const [fontTick, setFontTick] = useState(0);
+  /* vector outlines — the fundamental mode: the word renders as ONE glyph
+     path, strokes and bodies behind every letter. Text stays editable;
+     the face falls back to live <text> while bytes load or when a face
+     isn't fetchable. */
+  const [outlineOn, setOutlineOn] = useState<boolean>(saved?.outlineOn ?? true);
+  const [oFont, setOFont] = useState<Font | null>(null);
+  const [oState, setOState] = useState<"loading" | "ready" | "none">("loading");
   const [open, setOpen] = useState<Record<string, boolean>>({
     styles: true, text: true, font: true, fill: true, fx: true, dim: true, warp: true, pose: true, light: true, bg: true, export: true,
   });
@@ -275,6 +284,18 @@ export function TypeMakerPage() {
     ensureFont(cfg.type.font);
   }, [cfg.type.font, cfg.type.customFonts]);
   useEffect(() => {
+    if (!outlineOn) return;
+    let alive = true;
+    setOState("loading");
+    setOFont(null);
+    void loadOutlineFont(cfg.type.font).then((f) => {
+      if (!alive) return;
+      setOFont(f);
+      setOState(f ? "ready" : "none");
+    });
+    return () => { alive = false; };
+  }, [cfg.type.font, outlineOn]);
+  useEffect(() => {
     const onDone = () => setFontTick((v) => v + 1);
     document.fonts?.addEventListener?.("loadingdone", onDone);
     return () => document.fonts?.removeEventListener?.("loadingdone", onDone);
@@ -283,10 +304,10 @@ export function TypeMakerPage() {
   // persistence — typemaker-scoped, never the ui-generator* keyspace
   useEffect(() => {
     const t = setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ cfg, text, pose, bg, presetId })); } catch { /* full/private */ }
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ cfg, text, pose, bg, presetId, outlineOn })); } catch { /* full/private */ }
     }, 500);
     return () => clearTimeout(t);
-  }, [cfg, text, pose, bg, presetId]);
+  }, [cfg, text, pose, bg, presetId, outlineOn]);
 
   const preset = tmPresetById(presetId);
   const T = cfg.type;
@@ -295,12 +316,40 @@ export function TypeMakerPage() {
   // art only — the stage paints the background full-bleed, exports compose it
   const finalSvg = useMemo(() => {
     const fxPad = fxPadOf(cfg);
-    return poseActive(pose)
+    const posed = poseActive(pose);
+    if (outlineOn && oFont) {
+      const shown = caseText(text || " ", T.case);
+      const spacingEm = T.spacing / 100;
+      const tiltK = T.dim?.on ? Math.min(1, Math.max(0, (T.dim.tilt ?? 0) / 100)) : 0;
+      if (posed) {
+        const widths = outlineWidths(oFont, shown, T.size, spacingEm);
+        const placements = projectLetters(widths, spacingEm * T.size, pose, T.size);
+        const tp = posedWordOutline(oFont, shown, T.size, spacingEm, tiltK, placements);
+        // the word body recedes toward the word-center vanishing direction
+        const mid = placements.find((p) => p.i === Math.floor(widths.length / 2)) ?? placements[0];
+        const reach = Math.max(Math.abs(tp.minY ?? 0), Math.abs(tp.maxY ?? 0));
+        return renderTypeSpecimen(cfg, shown, {
+          fxPad: fxPad + Math.max(0, Math.ceil(reach - T.size * 0.6)),
+          keepCase: true,
+          textPath: tp,
+          mutate: (c) => {
+            if (c.type.dim?.on && mid) {
+              c.type.dim.angle = mid.extrudeDeg;
+              c.type.dim.depth = c.type.dim.depth * Math.max(0.12, mid.extrudeK);
+            }
+          },
+        });
+      }
+      const tp = flatWordOutline(oFont, shown, T.size, spacingEm, tiltK);
+      return renderTypeSpecimen(cfg, shown, { fxPad, keepCase: true, textPath: tp });
+    }
+    // live-text fallback — while outlines load, or for unfetchable faces
+    return posed
       ? composePosed(cfg, text || " ", pose, fxPad)
       : renderTypeSpecimen(cfg, text || " ", { fxPad });
     // fontTick: glyph metrics and specimen text widths change when faces land
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, text, pose, fontTick]);
+  }, [cfg, text, pose, fontTick, outlineOn, oFont]);
 
   const stageStyle = useMemo((): React.CSSProperties => {
     const mood = preset.backdrop;
@@ -436,6 +485,12 @@ export function TypeMakerPage() {
             <input ref={addFontRef} className="tinput" placeholder="Add any Google font…" onKeyDown={(e) => { if (e.key === "Enter") addFont(); }} />
             <button className="chipbtn" onClick={addFont}>Add</button>
           </div>
+          <label className="check">
+            <input type="checkbox" checked={outlineOn} onChange={(e) => setOutlineOn(e.target.checked)} />
+            Vector outlines — the word is one shape, strokes behind every letter
+          </label>
+          {outlineOn && oState === "loading" && <div className="helper">Outlining the face…</div>}
+          {outlineOn && oState === "none" && <div className="helper">Couldn't fetch this face's outlines — using live text for now.</div>}
           <Slider label="Size" value={T.size} min={28} max={160} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
           {caps?.wght
             ? <Slider label="Weight" value={T.weight} min={caps.wght[0]} max={caps.wght[1]} step={10} unit="" onChange={(v) => update((c) => { c.type.weight = v; })} />

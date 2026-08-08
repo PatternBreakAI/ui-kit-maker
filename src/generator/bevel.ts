@@ -1638,6 +1638,11 @@ export function textPatternCell(style: string, ps: number, color: string): strin
 }
 
 /** Core builder — the candy stack. Width grows with the content. */
+/** A label pre-converted to vector outlines (Type Maker). Local coords:
+ *  pen starts at x=0 on the baseline; `w` = true advance width; `dy` =
+ *  shift from the dominant-central anchor down to the baseline. */
+export interface TextPathOpt { d: string; w: number; dy?: number }
+
 function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   label?: string; iconDef?: IconDef | null; secondary?: boolean; shapeOverride?: Shape; fixedW?: number;
   /** Explicit per-component vertical text adjustment — overrides the theme's. */
@@ -1679,6 +1684,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  so adjacent letters' bands align into streaks crossing the word
    *  (owner reference: the MIAMI glint field). */
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Vector-outline mode (Type Maker): the label pre-converted to a glyph
+   *  path — laid out in local coords (pen starts at x=0), `w` its true
+   *  advance width, `dy` the central-baseline shift. Every text-layer
+   *  emission (outline, fills, stripes, glints clip, dimensional body)
+   *  swaps to this ONE compound path, so strokes and bodies paint once
+   *  behind the whole word — no glyph can cross a neighbor's face. The
+   *  source text stays editable upstream; outlines regenerate per edit. */
+  textPath?: TextPathOpt;
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -1729,6 +1742,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : T2.case === "title" ? rawLabel.replace(/\b\w/g, (m) => m.toUpperCase())
     : rawLabel;
   const label = esc(cased);
+  const TP2 = opts.textPath;
 
   // Config-driven icons are parked behind ICONS_ENABLED; explicit kit icons
   // (opts.iconDef) still render so the icon-button component keeps working.
@@ -1750,9 +1764,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // left-anchored specimens carry extra right slack — the whole estimate
   // error lands on the ragged right edge instead of splitting across both
   const mW = showText ? measureLabel(label, T2.font, T2.weight, !!T2.italic) : null;
-  let textW = (showText ? (mW !== null
-    ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
-    : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
+  let textW = (showText ? TP2
+    ? TP2.w * (opts.anchorLeft ? 1.02 : 1)
+    : (mW !== null
+      ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
+      : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
   let contentW = textW + (iconDef ? iconSize : 0) + gap;
 
   /* text-safe area — the silhouette's authored content insets keep labels out
@@ -2316,7 +2332,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      Stacked multi-line labels sit this out; the lists address glyphs
      across the whole node and would smear over line breaks. */
   let tiltAttrs = "";
-  if (dTilt > 0 && !cased.includes("\n")) {
+  if (dTilt > 0 && !cased.includes("\n") && !TP2) { // path mode bakes tilt into the outlines
     const ROTS = [-5, 4, -3, 5, -4, 3, -6, 4, -3, 5];
     const BOB = [0, -0.045, 0.03, -0.04, 0.045, -0.03, 0.04, -0.045, 0.03, -0.04];
     const rots: string[] = [], dys: string[] = [];
@@ -2331,8 +2347,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   }
   /* one glyph-run emitter shared by every expanded-type layer, so wall,
      sticker, gloss, grain and the behind-outline always agree with the
-     main text's metrics, case, spacing and tilt */
-  const fxText = (paint: string) => `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
+     main text's metrics, case, spacing and tilt. In vector-outline mode
+     the same emitter places the ONE compound word path instead. */
+  const tpDx = TP2 && tAnchor === "middle" ? -TP2.w / 2 : 0;
+  const tpXY = TP2 ? `translate(${(tTextX + tpDx).toFixed(1)} ${(cy + 1 + textOy * K + (TP2.dy ?? 0)).toFixed(1)})` : "";
+  const fxText = (paint: string) => TP2
+    ? `<g transform="${tpXY}"><path d="${TP2.d}" ${paint}/></g>`
+    : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
   const outlineBehindNode = outlineBehind && showText
     ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW * 2).toFixed(1)}" stroke-linejoin="round"`)
     : "";
@@ -2368,7 +2389,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${(dRim > 0.05 ? dStick + dRim : dStick).toFixed(1)}" result="dstk"/><feFlood flood-color="${dStickC}"/><feComposite in2="dstk" operator="in"/></filter>` : "") +
       (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="drim"/><feFlood flood-color="${dRimC}"/><feComposite in2="drim" operator="in"/></filter>` : "") +
       (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}>${dLadder}<feMerge result="dwl">${dMergeWall}</feMerge><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/><feOffset in="dwl" dx="${(-dux * Math.max(1, dDepth * 0.45)).toFixed(1)}" dy="${(-duy * Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge></filter>` : "") +
-      (dGlOp > 0 ? `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${(dgy - fs * 0.52).toFixed(1)}" x2="0" y2="${(dgy + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>` : "");
+      (dGlOp > 0 ? (() => {
+        const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.52).toFixed(1) : (dgy - fs * 0.52).toFixed(1);
+        const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (dgy + fs * 0.55).toFixed(1);
+        return `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${gy1}" x2="0" y2="${gy2}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
+      })() : "");
     const dimText = fxText;
     dimBack =
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimText(`fill="#000"`)}</g>` : "") +
@@ -2423,7 +2448,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const rot = Math.atan2(ly, lx) * 180 / Math.PI + 90;
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
-    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text></clipPath>`;
+    glintsDefs = TP2
+      ? `<clipPath id="${id}tgc"><path d="${TP2.d}" transform="${tpXY}"/></clipPath>`
+      : `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text></clipPath>`;
     /* style picks the clipped body + which stars ride along; the bake knobs
        (glintBands/glintStars, alphabet-face export) keep overriding — they
        normalize per-glyph treatment and always speak slab. */
@@ -2518,12 +2545,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0" stop-color="${hiC}" stop-opacity="1"/>
     <stop offset="1" stop-color="${hiC}" stop-opacity="0"/>
   </radialGradient>
-  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}">${
-    T2.fillStops?.length
-      ? T2.fillStops.map((s) => `<stop offset="${clamp(s.offset, 0, 1).toFixed(3)}" stop-color="${P(s.color)}"/>`).join("")
-      : `<stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/>`
-  }</linearGradient>` : ""}
-  ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
+  ${(() => {
+    /* vector-outline mode: the word path lives inside a translated group,
+       and userSpaceOnUse resolves where the element is USED — so the text
+       gradients anchor in LOCAL coords there (central line = -dy). */
+    const gx1 = TP2 ? "0" : tTextX.toFixed(1);
+    const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.55).toFixed(1) : (cy + 1 + textOy * K - fs * 0.55).toFixed(1);
+    const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (cy + 1 + textOy * K + fs * 0.55).toFixed(1);
+    return (T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${gx1}" y1="${gy1}" x2="${gx1}" y2="${gy2}">${
+      T2.fillStops?.length
+        ? T2.fillStops.map((s) => `<stop offset="${clamp(s.offset, 0, 1).toFixed(3)}" stop-color="${P(s.color)}"/>`).join("")
+        : `<stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/>`
+    }</linearGradient>` : "") +
+    (T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${gx1}" y1="${gy1}" x2="${gx1}" y2="${gy2}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : "");
+  })()}
   ${hiIdx >= 0 ? (() => {
     const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1);
     /* intensity sweeps from the BASE ink (0 = the phrase melts into the
@@ -2601,10 +2636,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
       ${showText ? `<g data-part="label">${warpOpen}${dimBack}${outlineBehindNode}` : ""}
-      ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text>` : ""}
-      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
-      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>` : ""}
-      ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${showText && outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${TP2
+        ? fxText(`fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs}`)
+        : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>`}${textFilter ? `</g>` : ""}` : ""}
+      ${showText && T2.stripes?.on ? (TP2
+        ? fxText(`fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}"`)
+        : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>`) : ""}
+      ${showText && hiIdx >= 0 && !disabled && !TP2 ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${dimGlossLayer}
       ${tnzLayer}
       ${glintsLayer}
@@ -2714,6 +2753,8 @@ export interface SpecimenOpts {
    *  cell (owner's Unity report: "clipping on the glow"). One shared pad
    *  across a bake keeps every variant in one coordinate frame. */
   fxPad?: number;
+  /** Vector-outline mode — see build()'s textPath. */
+  textPath?: TextPathOpt;
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2736,7 +2777,7 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands, textPath: opts.textPath });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
