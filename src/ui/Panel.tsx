@@ -214,16 +214,75 @@ function InfoNote({ summary, children }: { summary: React.ReactNode; children?: 
   );
 }
 
-function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  /* saved swatches (field report: "I had to write down the RGB and enter
-     those values manually") — one shared rail on every color well: the
-     bookmark chip saves the current color, a dot applies it, x on hover
-     forgets it. Persisted locally, kit-independent. */
+/* Color memory (field report: "I had to write down the RGB and enter those
+   values manually") — the bookmark remembers the current color, the chip
+   cluster opens a rail, a dot applies a color, its × forgets it. Saved
+   colors persist locally and are kit-independent.
+
+   Split out of `Well` so EVERY color control carries it. It first shipped
+   living inside `Well`, which covered the secondary colors (gloss, glow,
+   type) but not the two racks a maker actually builds a palette in — the
+   Colors roles and the rarity tiers — so the feature read as missing
+   (owner: "I don't think the color chips (memory) made it into the
+   build"). The rail also offers the kit's own role colors, so it has
+   something to hand you before you have saved anything: copying a hex
+   from one control to another was the original complaint. */
+function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const swatches = useGen((s) => s.swatches);
   const addSwatch = useGen((s) => s.addSwatch);
   const rmSwatch = useGen((s) => s.rmSwatch);
+  const effects = useGen((s) => s.cfg.effects);
   const [open, setOpen] = useState(false);
-  const saved = swatches.includes(value.toUpperCase()) || swatches.includes(value);
+  const hex = (value || "#000000").toUpperCase();
+  const saved = swatches.includes(hex);
+  // the kit's live palette, minus anything already bookmarked
+  const kitHues = useMemo(() => {
+    const seen = new Set(swatches);
+    const out: { hex: string; role: string }[] = [];
+    for (const [role, c] of Object.entries(effects ?? {})) {
+      const u = String(c).toUpperCase();
+      if (!seen.has(u)) { seen.add(u); out.push({ hex: u, role }); }
+    }
+    return out;
+  }, [effects, swatches]);
+  const peek = [...swatches, ...kitHues.map((k) => k.hex)].slice(0, 3);
+  return (
+    <>
+      <button className={`swsave${saved ? " on" : ""}`}
+        title={saved ? "Remembered — click to forget" : "Remember this color"}
+        aria-label={saved ? `${hex} is remembered` : `Remember ${hex}`}
+        onClick={() => (saved ? rmSwatch(hex) : addSwatch(hex))}>
+        <Bookmark size={12} strokeWidth={2.2} fill={saved ? "currentColor" : "none"} />
+      </button>
+      {peek.length > 0 && (
+        <button className="swmore" title="Colors you can reuse" aria-expanded={open}
+          aria-label="Colors you can reuse" onClick={() => setOpen(!open)}>
+          {peek.map((h) => <i key={h} style={{ background: h }} />)}
+        </button>
+      )}
+      {open && (
+        <span className="swrail" role="listbox" aria-label="Colors you can reuse">
+          {swatches.length > 0 && kitHues.length > 0 && <span className="swcap">Remembered</span>}
+          {swatches.map((h) => (
+            <span key={h} className="swdotwrap">
+              <button className="swdot" style={{ background: h }} title={`Use ${h}`}
+                onClick={() => { onChange(h); setOpen(false); }} />
+              <button className="swx" title={`Forget ${h}`} aria-label={`Forget ${h}`}
+                onClick={() => rmSwatch(h)}>×</button>
+            </span>
+          ))}
+          {kitHues.length > 0 && <span className="swcap">In this kit</span>}
+          {kitHues.map((k) => (
+            <button key={k.hex} className="swdot" style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
+              onClick={() => { onChange(k.hex); setOpen(false); }} />
+          ))}
+        </span>
+      )}
+    </>
+  );
+}
+
+function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="ctl wellrow">
       <label>{label}</label>
@@ -231,24 +290,7 @@ function Well({ label, value, onChange }: { label: string; value: string; onChan
         <input type="color" value={value} aria-label={`${label} color`} onChange={(e) => onChange(e.target.value)} />
       </span>
       <span className="mr-hint">{value.toUpperCase()}</span>
-      <button className={`swsave${saved ? " on" : ""}`} title={saved ? "Saved to your swatches" : "Save this color as a swatch"}
-        aria-label={saved ? `${value} is saved` : `Save ${value} as a swatch`}
-        onClick={() => (saved ? rmSwatch(value.toUpperCase()) : addSwatch(value.toUpperCase()))}>
-        <Bookmark size={12} strokeWidth={2.2} fill={saved ? "currentColor" : "none"} />
-      </button>
-      {swatches.length > 0 && (
-        <button className="swmore" title="Your saved swatches" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {swatches.slice(0, 3).map((h) => <i key={h} style={{ background: h }} />)}
-        </button>
-      )}
-      {open && swatches.length > 0 && (
-        <span className="swrail" role="listbox" aria-label="Saved swatches">
-          {swatches.map((h) => (
-            <button key={h} className="swdot" style={{ background: h }} title={h}
-              onClick={() => { onChange(h); setOpen(false); }} />
-          ))}
-        </span>
-      )}
+      <SwatchMem value={value} onChange={onChange} />
     </div>
   );
 }
@@ -1555,6 +1597,7 @@ export function Panel() {
               <span className="mr-role">{r}</span>
               <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--ink3)" }} />
               <span className="mr-hint">{ROLE_HINT[r]}</span>
+              <SwatchMem value={D.effects[r] ?? "#888888"} onChange={(v) => update((c) => { c.effects[r] = v; })} />
             </div>
           ))}
         </div>
@@ -1599,6 +1642,7 @@ export function Panel() {
               </span>
               <input className="tinput" value={ov?.name ?? f.name} maxLength={14} aria-label={`Tier ${i + 1} name`}
                 placeholder={f.name} onChange={(e) => setTier({ name: e.target.value })} />
+              <SwatchMem value={ov?.c ?? f.c} onChange={(v) => setTier({ c: v })} />
             </div>
           );
         })}

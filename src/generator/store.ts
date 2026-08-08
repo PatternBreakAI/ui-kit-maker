@@ -1806,14 +1806,20 @@ export const useGen = create<GenStore>((set, get) => ({
   setSelectedState: (s) => set({ selectedState: s }),
   setAllStates: (v) => set({ allStates: v }),
   addSwatch: (hex) => {
+    // one canonical casing — <input type="color"> emits lowercase while
+    // presets and hand-typed values arrive either way, and two spellings
+    // of one color would sit in the rail as duplicates
+    const h = (hex || "").toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(h)) return;
     const cur = get().swatches;
-    if (cur.includes(hex)) return;
-    const swatches = [hex, ...cur].slice(0, 12);
+    if (cur.includes(h)) return;
+    const swatches = [h, ...cur].slice(0, 12);
     saveJson("ui-generator-swatches", swatches);
     set({ swatches });
   },
   rmSwatch: (hex) => {
-    const swatches = get().swatches.filter((h) => h !== hex);
+    const h = (hex || "").toUpperCase();
+    const swatches = get().swatches.filter((s) => s.toUpperCase() !== h);
     saveJson("ui-generator-swatches", swatches);
     set({ swatches });
   },
