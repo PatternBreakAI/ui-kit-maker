@@ -157,16 +157,56 @@ export interface CompiledTreatment {
   w: number; h: number;
 }
 
-/** TEXT INTERPRETATION: split the user's words into roles. One word →
- *  hero alone. Two → support + hero. Three or more → first word is the
- *  support kicker, the rest join as the hero line. Explicit newlines win. */
-function interpret(text: string): { support: string | null; hero: string } {
+/** Connective language — articles, conjunctions, common prepositions.
+ *  A lettering artist subordinates these by default; they become kicker
+ *  and support roles, never the dominant word, unless a recipe (or a
+ *  manual override) deliberately says otherwise. */
+const STOPWORDS = new Set(["THE", "A", "AN", "OF", "AND", "&", "TO", "FOR", "IN", "ON", "WITH", "BY", "AT"]);
+const isStop = (w: string) => STOPWORDS.has(w.toUpperCase());
+
+/** TEXT INTERPRETATION — semantic, not just arithmetic. Candidate role
+ *  assignments are generated (every support/hero split, plus hero-only)
+ *  and SCORED: connective tokens want the support slot and penalize a
+ *  hero that leads with them; the hero should carry the principal
+ *  phrase; splits balance better than one overlong line; supports
+ *  shouldn't out-bulk heroes. Explicit newlines remain the strongest
+ *  instruction, and callers may override roles outright (the manual
+ *  reassignment path — data model only, no UI yet). */
+function interpret(text: string, override?: { support?: string | null; hero: string }): { support: string | null; hero: string; supportIsStop: boolean } {
+  if (override) return { support: override.support ?? null, hero: override.hero, supportIsStop: !!override.support && isStop(override.support) };
   const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
-  if (lines.length >= 2) return { support: lines[0], hero: lines.slice(1).join(" ") };
+  if (lines.length >= 2) {
+    const support = lines[0];
+    return { support, hero: lines.slice(1).join(" "), supportIsStop: support.split(/\s+/).every(isStop) };
+  }
   const words = (lines[0] ?? "").split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return { support: null, hero: words[0] ?? "" };
-  if (words.length === 2) return { support: words[0], hero: words[1] };
-  return { support: words[0], hero: words.slice(1).join(" ") };
+  if (words.length <= 1) return { support: null, hero: words[0] ?? "", supportIsStop: false };
+
+  type Cand = { support: string | null; hero: string; score: number };
+  const cands: Cand[] = [];
+  const scoreOf = (support: string[], hero: string[]): number => {
+    if (!hero.length) return -1e9;
+    let s = 0;
+    // semantic importance: connectives belong in the support slot
+    if (support.length && support.every(isStop)) s += 30;
+    if (support.some((w) => !isStop(w)) && hero.length && hero.every(isStop)) s -= 100;
+    if (isStop(hero[0]) && hero.length > 1) s -= 25;           // hero led by "THE …"
+    if (support.length && !support.some(isStop) && support.join(" ").length > hero.join(" ").length) s -= 12; // support out-bulks hero
+    // compactness & balance: neither line should sprawl
+    const hl = hero.join(" ").length, sl = support.join(" ").length;
+    s -= Math.max(0, hl - 12) * 2;
+    s -= Math.max(0, sl - 10) * 2;
+    if (support.length) s += 6;                                 // two lines compose better than one long one
+    if (support.length && sl <= hl) s += 6;                     // kicker over hero reads as a lockup
+    return s;
+  };
+  for (let k = 0; k <= Math.min(words.length - 1, 3); k++) {
+    const support = words.slice(0, k), hero = words.slice(k);
+    cands.push({ support: k ? support.join(" ") : null, hero: hero.join(" "), score: scoreOf(support, hero) });
+  }
+  cands.sort((x, y) => y.score - x.score);
+  const best = cands[0];
+  return { support: best.support, hero: best.hero, supportIsStop: !!best.support && best.support.split(/\s+/).every(isStop) };
 }
 
 /** RESPONSIVE VARIANT: long heroes calm down — tighter tracking, gentler
