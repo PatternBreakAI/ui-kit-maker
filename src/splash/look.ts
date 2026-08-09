@@ -10,6 +10,10 @@ import type { GenConfig } from "@/generator/model";
 export type SplashLook = {
   /** multiline — Return is respected; the blob wraps the whole block */
   text: string;
+  /** per-letter size multipliers (1 = as set), indexed by the global
+   *  glyph counter — CONTENT, like the words themselves: styles never
+   *  touch it, reset keeps it */
+  letterScales: number[];
   font: string;
   /** weight — real for variable/multi-master faces (the outlines carry
    *  the axis), optical fattening for single-master ones */
@@ -19,12 +23,22 @@ export type SplashLook = {
   fill: string;
   inkGrad: boolean;
   fill2: string;
-  /** the blob: wrap + body + everything behind the ink (+ optional gradient) */
+  /** the BACKSPLASH: the blob wrapping the whole word-block behind
+   *  everything (+ optional gradient). Off = no wrap; the body extrusion
+   *  then grows straight from the letterforms. */
+  backsplash: boolean;
   blob: string;
   blobGrad: boolean;
   blob2: string;
-  /** blob wrap width around the letterforms, px at the 52px master scale */
+  /** backsplash wrap width around the letterforms, px at the 52px master scale */
   strokeW: number;
+  /** the TRUE stroke — a traditional contour hugging each letterform,
+   *  painted above the drop shadow and backsplash, below the ink */
+  stroke: { on: boolean; color: string; width: number };
+  /** drop shadow of letters + stroke — behind both, in FRONT of the backsplash */
+  dropShadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
+  /** wall bevel — the chiseled hard-candy edge on the letterforms */
+  wall: { on: boolean; width: number; soft: number; strength: number };
   /** block-extrusion reach, px at the 52px master scale */
   depth: number;
   /** soft ground-shadow opacity 0..100 */
@@ -36,10 +50,11 @@ export type SplashLook = {
   posterFit: boolean;
   /** the 60s move — lines swell/squeeze into each other, measure pinned */
   groove: number; // 0..100
-  /** pattern inside the letterforms — UIKM's letterform pattern system */
-  pattern: { on: boolean; style: string; scale: number; angle: number; opacity: number };
-  /** pattern inside the STROKE — the blob wears the seamless cell */
-  blobPattern: { on: boolean; style: string; scale: number; angle: number; opacity: number };
+  /** pattern inside the letterforms — UIKM's letterform pattern system.
+   *  color null = tone-on-tone auto; blend composites against the ink. */
+  pattern: { on: boolean; style: string; scale: number; angle: number; opacity: number; color: string | null; blend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light" };
+  /** pattern inside the BACKSPLASH — the blob wears the seamless cell */
+  blobPattern: { on: boolean; style: string; scale: number; angle: number; opacity: number; color: string | null; blend: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "hard-light" };
   /** hard-candy gloss band over the letter faces */
   gloss: number;      // 0..100 opacity
   glossCover: number; // 20..60 — % of glyph height the band covers
@@ -66,9 +81,10 @@ export type SplashLook = {
   stage: { mode: "color" | "transparent"; color: string; image?: string | null };
 };
 
-/** A style is everything about a look EXCEPT the user's words and their
- *  registered fonts — applying one restyles the words in place. */
-export type SplashStyle = Omit<SplashLook, "text" | "customFonts">;
+/** A style is everything about a look EXCEPT the user's words, their
+ *  per-letter size edits, and their registered fonts — applying one
+ *  restyles the words in place. */
+export type SplashStyle = Omit<SplashLook, "text" | "customFonts" | "letterScales">;
 
 export const SPLASH_STAGE_CHIPS = ["#EAD4B4", "#101318", "#F4F1EA", "#E8402A"] as const;
 
@@ -79,18 +95,22 @@ const GOOD_DAY: SplashStyle = {
   fill: "#E8402A",
   inkGrad: false,
   fill2: "#B7231A",
+  backsplash: true,
   blob: "#221E1F",
   blobGrad: false,
   blob2: "#3E3357",
   strokeW: 8,
+  stroke: { on: false, color: "#FFFFFF", width: 3 },
+  dropShadow: { on: false, color: "#1A1A1A", x: 0, y: 6, blur: 4, opacity: 45 },
+  wall: { on: false, width: 3, soft: 30, strength: 70 },
   depth: 14,
   shadow: 25,
   lineHeight: 105,
   align: "center",
   posterFit: false,
   groove: 0,
-  pattern: { on: false, style: "stripes", scale: 100, angle: 0, opacity: 30 },
-  blobPattern: { on: false, style: "dots", scale: 100, angle: 0, opacity: 30 },
+  pattern: { on: false, style: "stripes", scale: 100, angle: 0, opacity: 30, color: null, blend: "normal" },
+  blobPattern: { on: false, style: "dots", scale: 100, angle: 0, opacity: 30, color: null, blend: "normal" },
   gloss: 0,
   glossCover: 38,
   glossBlend: "normal",
@@ -147,7 +167,7 @@ export const SPLASH_STYLES: { id: string; name: string; style: SplashStyle }[] =
       blob: "#1C1917", blobGrad: false,
       strokeW: 6, depth: 8, shadow: 15, bounce: 0, lineHeight: 100,
       shine: false,
-      pattern: { on: true, style: "dots", scale: 120, angle: 0, opacity: 18 },
+      pattern: { on: true, style: "dots", scale: 120, angle: 0, opacity: 18, color: null, blend: "normal" },
       stage: { mode: "color", color: "#E8402A" },
     },
   },
@@ -155,6 +175,7 @@ export const SPLASH_STYLES: { id: string; name: string; style: SplashStyle }[] =
 
 export const SPLASH_DEFAULT: SplashLook = {
   text: "GOOD\nDAY",
+  letterScales: [],
   customFonts: [],
   ...GOOD_DAY,
 };
@@ -175,8 +196,12 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
   t.fillOpacity = 100;
   t.highlight = "";
   delete t.fillStops;
-  t.outline = { on: false, color: look.blob, color2: null, width: 2, behind: true };
-  t.shadow = { on: false, color: look.blob, x: 0, y: 3, blur: 2, opacity: 50 };
+  // the TRUE stroke — behind-mode contour of the whole word, so no
+  // glyph's stroke ever crosses an overlapping neighbor's face
+  t.outline = { on: look.stroke.on, color: look.stroke.color, color2: null, width: look.stroke.width, behind: true };
+  // drop shadow of letters + stroke — the engine paints it inside the
+  // text-fx filter group: above the backsplash, behind stroke and ink
+  t.shadow = { on: look.dropShadow.on, color: look.dropShadow.color, x: look.dropShadow.x, y: look.dropShadow.y, blur: look.dropShadow.blur, opacity: look.dropShadow.opacity };
   t.emboss = { on: false, strength: 0, softness: 30, distance: 2, hiOpacity: 70, shOpacity: 60, hiColor: "#FFFFFF", shColor: "#04080E" };
   t.glow = { on: false, color: look.fill, size: 10, opacity: 80 };
   t.glints = { on: look.glints.on, opacity: look.glints.opacity, style: look.glints.style, blend: look.glints.blend };
@@ -186,16 +211,20 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     opacity: look.pattern.opacity,
     style: look.pattern.style as NonNullable<GenConfig["type"]["stripes"]>["style"],
     scale: look.pattern.scale,
+    color: look.pattern.color,
+    blend: look.pattern.blend,
   };
+  t.wall = { on: look.wall.on, width: look.wall.width, soft: look.wall.soft, strength: look.wall.strength };
   t.noise = { on: false, amount: 35, scale: 50 };
   t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: look.shineOpacity, color: look.shineColor, blend: look.shineBlend };
   t.dim = {
     on: true,
     depth: look.depth,
     color: look.blob,
-    sticker: look.strokeW,
+    // backsplash off = no wrap; the body then extrudes the letters directly
+    sticker: look.backsplash ? look.strokeW : 0,
     stickerColor: look.blob,   // wrap and body are ONE blob unless the
-    stickerColor2: look.blobGrad ? look.blob2 : null, // gradient splits it
+    stickerColor2: look.backsplash && look.blobGrad ? look.blob2 : null, // gradient splits it
     rim: 0,
     rimColor: look.blob,
     shadow: look.shadow,
@@ -204,7 +233,7 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     glossBlend: look.glossBlend,
     tilt: look.bounce,
     drift: 55,               // the lean is part of the look itself
-    pattern: { ...look.blobPattern },
+    pattern: look.backsplash ? { ...look.blobPattern } : { ...look.blobPattern, on: false },
   };
   c.lighting = { ...c.lighting, angle: look.lightAngle, highlight: 70, lowlight: 50 };
   c.effects = { ...c.effects, Bevel: look.fill, Glow: look.fill };

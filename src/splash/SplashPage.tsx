@@ -227,7 +227,7 @@ export function SplashPage() {
   }, []);
   const saveStyle = () => {
     const name = styleNameRef.current?.value.trim() || `My style ${myStyles.length + 1}`;
-    const { text: _t, customFonts: _cf, ...style } = look;
+    const { text: _t, customFonts: _cf, letterScales: _ls, ...style } = look;
     setMyStyles((arr) => [...arr, {
       id: `u${Date.now().toString(36)}`, name,
       // never bake an uploaded image into a saved style — data URLs would
@@ -236,6 +236,13 @@ export function SplashPage() {
     }]);
     if (styleNameRef.current) styleNameRef.current.value = "";
   };
+
+  /* per-letter selection: the outline pipeline reports each glyph's box
+     in path-local coords; the engine places that path with one translate
+     we read back out of the emitted SVG. A canvas click maps through
+     viewBox → translate → boxes and lands on ONE letter. */
+  const glyphBoxes = useRef<{ gi: number; x1: number; y1: number; x2: number; y2: number }[]>([]);
+  const [selGi, setSelGi] = useState<number | null>(null);
 
   const finalSvg = useMemo(() => {
     const cfg = buildSplashCfg(look);
@@ -253,7 +260,9 @@ export function SplashPage() {
         arc: look.arc / 100, bulge: (look.bulgeOn ? look.bulge : 0) / 100,
         lineHeight: look.lineHeight / 100, align: look.align,
         fit: look.posterFit ? "column" : "none", groove: look.groove / 100,
+        letterScales: look.letterScales,
       });
+      glyphBoxes.current = tp.glyphs ?? [];
       const reach = Math.max(0, Math.max(Math.abs(tp.minY ?? 0), tp.maxY ?? 0) - t.size * 0.7);
       return renderTypeSpecimen(cfg, text.replace(/\n/g, " "), {
         fxPad: fxPad + Math.ceil(reach), keepCase: true,
@@ -261,9 +270,44 @@ export function SplashPage() {
       });
     }
     // live text while outlines load — single line only, so fold the returns
+    glyphBoxes.current = [];
     return renderTypeSpecimen(cfg, text.replace(/\n+/g, " "), { fxPad });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [look, oFont, fontTick]);
+
+  /* local ⇄ screen mapping via the live DOM: every glyph-path layer sits
+     in the same translate group, and getScreenCTM folds in EVERY ancestor
+     transform (the shell's lift/rise translates, CSS zoom) — string-
+     parsing one translate out of the SVG missed those. */
+  const artRef = useRef<HTMLDivElement>(null);
+  const artCTM = useCallback(() => {
+    const g = artRef.current?.querySelector('[data-part="label"] g[transform^="translate("]') as SVGGElement | null;
+    return g?.getScreenCTM?.() ?? null;
+  }, []);
+  const onArtClick = useCallback((e: React.MouseEvent) => {
+    if (panMode || !glyphBoxes.current.length) return;
+    const m = artCTM();
+    if (!m) return;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    const pad = 3;
+    const hit = glyphBoxes.current.find((g) => pt.x >= g.x1 - pad && pt.x <= g.x2 + pad && pt.y >= g.y1 - pad && pt.y <= g.y2 + pad);
+    setSelGi(hit ? hit.gi : null);
+  }, [panMode, artCTM]);
+  // the selection frame, measured after each render of the art
+  const [selRect, setSelRect] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
+  useEffect(() => {
+    if (selGi === null) { setSelRect(null); return; }
+    const box = glyphBoxes.current.find((g) => g.gi === selGi);
+    const host = artRef.current;
+    const m = artCTM();
+    if (!box || !host || !m) { setSelRect(null); return; }
+    const hr = host.getBoundingClientRect();
+    const p1 = new DOMPoint(box.x1, box.y1).matrixTransform(m);
+    const p2 = new DOMPoint(box.x2, box.y2).matrixTransform(m);
+    // rects are viewport px; the host lives inside the CSS zoom, so its
+    // local coordinate space is viewport ÷ zoom
+    setSelRect({ l: (p1.x - hr.left) / zoom, t: (p1.y - hr.top) / zoom, w: (p2.x - p1.x) / zoom, h: (p2.y - p1.y) / zoom });
+  }, [selGi, finalSvg, zoom, artCTM]);
 
   // exports — outlined SVGs need no font at all; the text fallback embeds one
   const svgForExport = async (): Promise<string> => {
@@ -305,7 +349,7 @@ export function SplashPage() {
               onClick={() => {
                 setLook((l) => {
                   past.current.push(l); future.current = []; lastPush.current = 0;
-                  return { ...SPLASH_DEFAULT, text: l.text, customFonts: l.customFonts };
+                  return { ...SPLASH_DEFAULT, text: l.text, customFonts: l.customFonts, letterScales: l.letterScales };
                 });
               }}>
               Reset
@@ -410,22 +454,54 @@ export function SplashPage() {
 
         <div className="sp-group">
           <div className="sp-h">Stroke</div>
-          <div className="sp-wells">
-            <Well label="Blob" value={look.blob} onChange={(v) => up("blob", v)} />
-            <label className="sp-check"><input type="checkbox" checked={look.blobGrad} onChange={(e) => up("blobGrad", e.target.checked)} /> Gradient</label>
-            {look.blobGrad && <Well label="to" value={look.blob2} onChange={(v) => up("blob2", v)} />}
-          </div>
-          <Slider label="Width" value={look.strokeW} min={0} max={24} step={0.5} unit="" onChange={(v) => up("strokeW", v)} />
-          <FxToggle label="Pattern" on={look.blobPattern.on} onToggle={(v) => up("blobPattern", { ...look.blobPattern, on: v })}>
+          <FxToggle label="Stroke" on={look.stroke.on} onToggle={(v) => up("stroke", { ...look.stroke, on: v })}>
             <div className="sp-wells">
-              <select className="sp-input sp-select" value={look.blobPattern.style} aria-label="Stroke pattern style"
-                onChange={(e) => up("blobPattern", { ...look.blobPattern, style: e.target.value })}>
-                {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <Well label="Color" value={look.stroke.color} onChange={(v) => up("stroke", { ...look.stroke, color: v })} />
             </div>
-            <Slider label="Scale" value={look.blobPattern.scale} min={25} max={300} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, scale: v })} />
-            <Slider label="Angle" value={look.blobPattern.angle} min={0} max={180} unit="°" onChange={(v) => up("blobPattern", { ...look.blobPattern, angle: v })} />
-            <Slider label="Opacity" value={look.blobPattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, opacity: v })} />
+            <Slider label="Width" value={look.stroke.width} min={0.5} max={12} step={0.5} unit="" onChange={(v) => up("stroke", { ...look.stroke, width: v })} />
+            <div className="sp-note">A true contour hugging each letterform — crisp at any size.</div>
+          </FxToggle>
+          <FxToggle label="Shadow" on={look.dropShadow.on} onToggle={(v) => up("dropShadow", { ...look.dropShadow, on: v })}>
+            <div className="sp-wells">
+              <Well label="Color" value={look.dropShadow.color} onChange={(v) => up("dropShadow", { ...look.dropShadow, color: v })} />
+            </div>
+            <Slider label="X" value={look.dropShadow.x} min={-20} max={20} unit="" onChange={(v) => up("dropShadow", { ...look.dropShadow, x: v })} />
+            <Slider label="Y" value={look.dropShadow.y} min={-20} max={20} unit="" onChange={(v) => up("dropShadow", { ...look.dropShadow, y: v })} />
+            <Slider label="Blur" value={look.dropShadow.blur} min={0} max={20} unit="" onChange={(v) => up("dropShadow", { ...look.dropShadow, blur: v })} />
+            <Slider label="Opacity" value={look.dropShadow.opacity} min={0} max={100} unit="%" onChange={(v) => up("dropShadow", { ...look.dropShadow, opacity: v })} />
+            <div className="sp-note">Falls behind the letters and stroke, in front of the backsplash.</div>
+          </FxToggle>
+        </div>
+
+        <div className="sp-group">
+          <div className="sp-h">Backsplash</div>
+          <FxToggle label="Backsplash" on={look.backsplash} onToggle={(v) => up("backsplash", v)}>
+            <div className="sp-wells">
+              <Well label="Blob" value={look.blob} onChange={(v) => up("blob", v)} />
+              <label className="sp-check"><input type="checkbox" checked={look.blobGrad} onChange={(e) => up("blobGrad", e.target.checked)} /> Gradient</label>
+              {look.blobGrad && <Well label="to" value={look.blob2} onChange={(v) => up("blob2", v)} />}
+            </div>
+            <Slider label="Width" value={look.strokeW} min={0} max={24} step={0.5} unit="" onChange={(v) => up("strokeW", v)} />
+            <FxToggle label="Pattern" on={look.blobPattern.on} onToggle={(v) => up("blobPattern", { ...look.blobPattern, on: v })}>
+              <div className="sp-wells">
+                <select className="sp-input sp-select" value={look.blobPattern.style} aria-label="Backsplash pattern style"
+                  onChange={(e) => up("blobPattern", { ...look.blobPattern, style: e.target.value })}>
+                  {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="sp-wells">
+                <Well label="Color" value={look.blobPattern.color ?? "#9AA0AA"} onChange={(v) => up("blobPattern", { ...look.blobPattern, color: v })} />
+                <button className={`sp-btn sp-mini${look.blobPattern.color === null ? " on" : ""}`} title="Tone-on-tone from the blob color"
+                  onClick={() => up("blobPattern", { ...look.blobPattern, color: null })}>Auto</button>
+                <select className="sp-input sp-select" value={look.blobPattern.blend} aria-label="Backsplash pattern blend"
+                  onChange={(e) => up("blobPattern", { ...look.blobPattern, blend: e.target.value as SplashLook["blobPattern"]["blend"] })}>
+                  {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <Slider label="Scale" value={look.blobPattern.scale} min={25} max={300} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, scale: v })} />
+              <Slider label="Angle" value={look.blobPattern.angle} min={0} max={180} unit="°" onChange={(v) => up("blobPattern", { ...look.blobPattern, angle: v })} />
+              <Slider label="Opacity" value={look.blobPattern.opacity} min={0} max={100} unit="%" onChange={(v) => up("blobPattern", { ...look.blobPattern, opacity: v })} />
+            </FxToggle>
           </FxToggle>
         </div>
 
@@ -439,6 +515,12 @@ export function SplashPage() {
 
         <div className="sp-group">
           <div className="sp-h">Effects</div>
+          <FxToggle label="Wall bevel" on={look.wall.on} onToggle={(v) => up("wall", { ...look.wall, on: v })}>
+            <Slider label="Width" value={look.wall.width} min={0.5} max={8} step={0.5} unit="" onChange={(v) => up("wall", { ...look.wall, width: v })} />
+            <Slider label="Softness" value={look.wall.soft} min={0} max={100} unit="%" onChange={(v) => up("wall", { ...look.wall, soft: v })} />
+            <Slider label="Strength" value={look.wall.strength} min={0} max={100} unit="%" onChange={(v) => up("wall", { ...look.wall, strength: v })} />
+            <div className="sp-note">The chiseled candy edge — slopes light and shade with the master light.</div>
+          </FxToggle>
           <FxToggle label="Ink shine" on={look.shine} onToggle={(v) => up("shine", v)}>
             <div className="sp-wells">
               <Well label="Color" value={look.shineColor} onChange={(v) => up("shineColor", v)} />
@@ -470,6 +552,15 @@ export function SplashPage() {
               <select className="sp-input sp-select" value={look.pattern.style} aria-label="Pattern style"
                 onChange={(e) => up("pattern", { ...look.pattern, style: e.target.value })}>
                 {PATTERN_TYPES.filter((p) => p.id !== "none").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="sp-wells">
+              <Well label="Color" value={look.pattern.color ?? "#9AA0AA"} onChange={(v) => up("pattern", { ...look.pattern, color: v })} />
+              <button className={`sp-btn sp-mini${look.pattern.color === null ? " on" : ""}`} title="Tone-on-tone from the ink color"
+                onClick={() => up("pattern", { ...look.pattern, color: null })}>Auto</button>
+              <select className="sp-input sp-select" value={look.pattern.blend} aria-label="Pattern blend"
+                onChange={(e) => up("pattern", { ...look.pattern, blend: e.target.value as SplashLook["pattern"]["blend"] })}>
+                {(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <Slider label="Scale" value={look.pattern.scale} min={25} max={300} unit="%" onChange={(v) => up("pattern", { ...look.pattern, scale: v })} />
@@ -536,9 +627,32 @@ export function SplashPage() {
           : look.stage.mode === "color" ? { background: look.stage.color } : undefined}>
         <div ref={scrollRef} className="sp-scroll" onPointerDown={onPanDown} onPointerMove={onPanMove} onPointerUp={onPanUp}>
           <div className="sp-zoomwrap" style={{ zoom }}>
-            <div className="sp-art" dangerouslySetInnerHTML={{ __html: finalSvg }} />
+            <div ref={artRef} className="sp-art" onClick={onArtClick} title={glyphBoxes.current.length ? "Click a letter to size it" : undefined}>
+              <div dangerouslySetInnerHTML={{ __html: finalSvg }} />
+              {selRect && (
+                <span className="sp-letterbox" style={{
+                  left: `${selRect.l.toFixed(1)}px`, top: `${selRect.t.toFixed(1)}px`,
+                  width: `${selRect.w.toFixed(1)}px`, height: `${selRect.h.toFixed(1)}px`,
+                }} />
+              )}
+            </div>
           </div>
         </div>
+        {selGi !== null && (
+          <div className="sp-letterbar" role="toolbar" aria-label="Letter size">
+            <span className="sp-lb-name">Letter size</span>
+            <input type="range" min={40} max={250} step={5} aria-label="Letter size"
+              value={Math.round((look.letterScales[selGi] ?? 1) * 100)}
+              onChange={(e) => { const arr = [...look.letterScales]; arr[selGi] = +e.target.value / 100; up("letterScales", arr); }} />
+            <span className="sp-lb-val">{Math.round((look.letterScales[selGi] ?? 1) * 100)}%</span>
+            <button className="sp-btn sp-mini" title="Back to the set size"
+              onClick={() => { const arr = [...look.letterScales]; arr[selGi] = 1; up("letterScales", arr); }}>100%</button>
+            {look.letterScales.some((s) => s && s !== 1) && (
+              <button className="sp-btn sp-mini" title="Clear every per-letter size" onClick={() => up("letterScales", [])}>Clear all</button>
+            )}
+            <button className="sp-btn sp-mini" aria-label="Done sizing this letter" onClick={() => setSelGi(null)}>✕</button>
+          </div>
+        )}
         <div className="sp-floater" role="toolbar" aria-label="Canvas">
           <button className={panMode ? "on" : ""} title="Pan (or drag with the middle button)" aria-pressed={panMode} onClick={() => setPanMode(!panMode)}>
             <Hand size={17} strokeWidth={1.8} />

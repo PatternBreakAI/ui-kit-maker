@@ -135,7 +135,22 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
   background-position: 0 0, 14px 14px;
   background-color: #14161b;
 }
+.sp-art { position: relative; }
 .sp-art svg { display: block; width: min(82vw, 1500px); height: auto; }
+.sp-letterbox {
+  position: absolute; pointer-events: none; border-radius: 4px;
+  border: 2px dashed #e8402a; box-shadow: 0 0 0 2px rgba(232, 64, 42, 0.25);
+}
+.sp-letterbar {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; z-index: 6;
+  background: rgba(16, 19, 24, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px; padding: 8px 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.sp-letterbar input[type="range"] { width: 140px; }
+.sp-lb-name { font-size: 12px; color: #b9bec8; white-space: nowrap; }
+.sp-lb-val { font-size: 12px; color: #fff; min-width: 42px; text-align: right; }
 
 @media (max-width: 900px) {
   .sp-app { grid-template-columns: 1fr !important; } /* beats the inline sash width */

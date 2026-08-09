@@ -2417,7 +2417,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       (dGrad ? `<linearGradient id="${id}dsg" gradientUnits="userSpaceOnUse" x1="0" y1="${dgy1.toFixed(1)}" x2="0" y2="${(dgy2 + dDepth).toFixed(1)}"><stop offset="0" stop-color="${dStickC}"/><stop offset="1" stop-color="${P(DM!.stickerColor2!)}"/></linearGradient>` : "") +
       (dPatOn ? (() => {
         const dpc = fs * 0.3 * clamp((dPat!.scale ?? 100) / 100, 0.25, 4);
-        const tone = isDarkBg(dStickC) ? lighten(dStickC, 0.32) : darken(dStickC, 0.25);
+        const tone = dPat!.color ? P(dPat!.color) : isDarkBg(dStickC) ? lighten(dStickC, 0.32) : darken(dStickC, 0.25);
         return `<pattern id="${id}dpt" width="${dpc.toFixed(1)}" height="${dpc.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${dPat!.angle ?? 0})">${textPatternCell(dPat!.style ?? "dots", dpc, tone)}</pattern>`;
       })() : "") +
       (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
@@ -2445,7 +2445,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ? dimText(`fill="#000" stroke="#000" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)
       : dimText(`fill="#000"`);
     const dGradLayer = `<g transform="${tpXY}">${dRect(`url(#${id}dsg)`)} mask="url(#${id}dsm)"/></g>`;
-    const dPatLayer = dPatOn ? `<g transform="${tpXY}" opacity="${clamp((dPat!.opacity ?? 30) / 100, 0, 1).toFixed(2)}">${dRect(`url(#${id}dpt)`)} mask="url(#${id}dsm)"/></g>` : "";
+    let dPatLayer = dPatOn ? `<g transform="${tpXY}" opacity="${clamp((dPat!.opacity ?? 30) / 100, 0, 1).toFixed(2)}">${dRect(`url(#${id}dpt)`)} mask="url(#${id}dsm)"/></g>` : "";
+    if (dPatLayer && dPat!.blend && dPat!.blend !== "normal") dPatLayer = `<g style="mix-blend-mode:${dPat!.blend}">${dPatLayer}</g>`;
     dimBack =
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
       (dStick > 0.05 ? (dGrad ? dGradLayer : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
@@ -2489,6 +2490,52 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     shineLayer = `<g filter="url(#${id}tsh)">${fxText(`fill="#000"`)}</g>`;
     // blend composites the ink against the letter faces, glints-style
     if (SH2!.blend && SH2!.blend !== "normal") shineLayer = `<g style="mix-blend-mode:${SH2!.blend}">${shineLayer}</g>`;
+  }
+
+  /* ── wall bevel — default-off: the hard-candy chiseled edge ON the
+     letterforms. The glyph alpha erodes to a plateau; the slope ring
+     between plateau and edge splits into a lit band (facing the master
+     light) and a shaded band (facing away): offset the plateau away from
+     the light and what it fails to cover of the original is the light-side
+     slope, and vice versa. Soft blur models the chamfer's curvature; a
+     final composite clips everything back inside the glyph. */
+  const WL2 = T2.wall;
+  const wallOn = !!WL2?.on && showText && !disabled && (WL2!.width ?? 0) > 0.1 && (WL2!.strength ?? 0) > 1;
+  let wallDef = "", wallLayer = "";
+  if (wallOn) {
+    const wK = fs / 52;
+    const wW = Math.max(0.5, WL2!.width * wK);
+    const wSoft = ((0.2 + clamp((WL2!.soft ?? 30) / 100, 0, 1) * 1.6) * wK).toFixed(1);
+    const wStr = clamp((WL2!.strength ?? 70) / 100, 0, 1);
+    const wHi = P(WL2!.hi ?? "#FFFFFF"), wSh = P(WL2!.sh ?? "#04080E");
+    const wDx = (lx * wW * 0.85).toFixed(1), wDy = (ly * wW * 0.85).toFixed(1);
+    const wSpread = wW * 2 + Number(wSoft) * 4 + fs * 0.2 + textW * 0.25;
+    /* Two constraints keep the chisel CRISP on fat display faces:
+       every band lives inside the chamfer RING (A minus the eroded
+       plateau) — never the whole glyph, even where thin features erode
+       away entirely — and the softening blur is re-clipped to the ring
+       so the plateau face stays untouched. The directional split comes
+       from offsetting the glyph itself: what its away-shifted copy fails
+       to cover is the light-facing edge band, and vice versa. */
+    wallDef = `<filter id="${id}twl" filterUnits="userSpaceOnUse" x="${(x - wSpread).toFixed(0)}" y="${(y - wSpread).toFixed(0)}" width="${(w + wSpread * 2).toFixed(0)}" height="${(h + wSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${wW.toFixed(1)}" result="wcore"/>` +
+      `<feComposite in="SourceAlpha" in2="wcore" operator="out" result="wring"/>` +
+      `<feOffset in="SourceAlpha" dx="${(-lx * wW * 0.9).toFixed(1)}" dy="${(-ly * wW * 0.9).toFixed(1)}" result="waa"/>` +
+      `<feComposite in="SourceAlpha" in2="waa" operator="out" result="whi0"/>` +
+      `<feComposite in="whi0" in2="wring" operator="in" result="whi1"/>` +
+      `<feGaussianBlur in="whi1" stdDeviation="${wSoft}" result="whib"/>` +
+      `<feComposite in="whib" in2="wring" operator="in" result="whi2"/>` +
+      `<feFlood flood-color="${wHi}" flood-opacity="${(wStr * 0.9).toFixed(2)}" result="whif"/>` +
+      `<feComposite in="whif" in2="whi2" operator="in" result="whic"/>` +
+      `<feOffset in="SourceAlpha" dx="${wDx}" dy="${wDy}" result="wab"/>` +
+      `<feComposite in="SourceAlpha" in2="wab" operator="out" result="wsh0"/>` +
+      `<feComposite in="wsh0" in2="wring" operator="in" result="wsh1"/>` +
+      `<feGaussianBlur in="wsh1" stdDeviation="${wSoft}" result="wshb"/>` +
+      `<feComposite in="wshb" in2="wring" operator="in" result="wsh2"/>` +
+      `<feFlood flood-color="${wSh}" flood-opacity="${(wStr * 0.75).toFixed(2)}" result="wshf"/>` +
+      `<feComposite in="wshf" in2="wsh2" operator="in" result="wshc"/>` +
+      `<feMerge><feMergeNode in="wshc"/><feMergeNode in="whic"/></feMerge></filter>`;
+    wallLayer = `<g filter="url(#${id}twl)">${fxText(`fill="#000"`)}</g>`;
   }
 
   /* ── grain (Type Maker) — default-off: the shell micro-texture recipe
@@ -2658,9 +2705,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <feComposite in2="thb" operator="in" result="thh"/>
     <feMerge><feMergeNode in="thh"/><feMergeNode in="thh"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>`; })() : ""}
-  ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
+  ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, T2.stripes!.color ? P(T2.stripes!.color) : darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
   ${shineDef}
+  ${wallDef}
   ${textFxDef}
   ${dimDefs}
   ${tnzDef}
@@ -2709,15 +2757,19 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">${dimBack}${outlineBehindNode}` : ""}
-      ${showText && outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}
-      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${TP2
+      ${showText ? `<g data-part="label">${dimBack}` : ""}
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${outlineBehindNode}${outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}${TP2
         ? fxText(`fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs}`)
         : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>`}${textFilter ? `</g>` : ""}` : ""}
-      ${showText && T2.stripes?.on ? (TP2
-        ? fxText(`fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}"`)
-        : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>`) : ""}
+      ${showText && T2.stripes?.on ? (() => {
+        const sOp = clamp((T2.stripes!.opacity ?? 30) / 100, 0, 1).toFixed(2);
+        const node = TP2
+          ? fxText(`fill="url(#${id}tst)" opacity="${sOp}"`)
+          : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${sOp}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>`;
+        return T2.stripes!.blend && T2.stripes!.blend !== "normal" ? `<g style="mix-blend-mode:${T2.stripes!.blend}">${node}</g>` : node;
+      })() : ""}
       ${showText && hiIdx >= 0 && !disabled && !TP2 ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${wallLayer}
       ${dimGlossLayer}
       ${shineLayer}
       ${tnzLayer}

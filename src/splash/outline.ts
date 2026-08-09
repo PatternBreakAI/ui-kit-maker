@@ -86,7 +86,13 @@ export function loadOutlineFont(family: string, weight = 400, ttfHint?: string):
   return p;
 }
 
-export type WordOutline = { d: string; w: number; dy: number; minY?: number; maxY?: number };
+export type WordOutline = {
+  d: string; w: number; dy: number; minY?: number; maxY?: number;
+  /** per-glyph hit boxes in the SAME local coords as `d`, each carrying
+   *  its global glyph index (the letterScales/tilt counter) — the canvas
+   *  hit-tests these so a click lands on ONE letter */
+  glyphs?: { gi: number; x1: number; y1: number; x2: number; y2: number }[];
+};
 
 /** Whole-word shape — envelope distortion (the block bends as ONE
  *  object; arc/bulge -1..1, rotate degrees) plus multiline layout:
@@ -104,6 +110,11 @@ export type WordFx = {
   lineHeight?: number; align?: "left" | "center" | "right";
   fit?: "none" | "column";
   groove?: number;
+  /** per-letter size multipliers, indexed by the global glyph counter
+   *  (same indexing as tilt: blank lines advance it by one). Scaling is
+   *  baseline-anchored and feeds the advances, so neighbors flow around
+   *  a resized letter instead of overlapping it. */
+  letterScales?: number[];
 };
 
 // the engine's letter-tilt pattern, mirrored so the slider means the same
@@ -169,18 +180,21 @@ function flatten(cmds: Cmd[], step: number): Cmd[] {
 
 type LaidGlyph = { cmds: Cmd[]; penX: number; adv: number; center: number };
 
-/** Kerned glyph layout at baseline y=0, pen from x=0. */
-function layout(font: Font, text: string, size: number, spacingEm: number): { glyphs: LaidGlyph[]; w: number } {
-  const scale = size / font.unitsPerEm;
+/** Kerned glyph layout at baseline y=0, pen from x=0. Per-glyph size
+ *  multipliers (letterScales, addressed from `gi0`) scale the glyph AND
+ *  its advance, baseline-anchored, so the line reflows around edits. */
+function layout(font: Font, text: string, size: number, spacingEm: number, scales?: number[], gi0 = 0): { glyphs: LaidGlyph[]; w: number } {
   const glyphs = font.stringToGlyphs(text);
   const track = spacingEm * size;
   const out: LaidGlyph[] = [];
   let pen = 0;
   let prev: Glyph | null = null;
-  glyphs.forEach((g) => {
-    if (prev) pen += font.getKerningValue(prev, g) * scale;
+  glyphs.forEach((g, i) => {
+    const sc = Math.max(0.2, Math.min(4, scales?.[gi0 + i] ?? 1));
+    const scale = (size * sc) / font.unitsPerEm;
+    if (prev) pen += font.getKerningValue(prev, g) * (size / font.unitsPerEm);
     const adv = (g.advanceWidth ?? font.unitsPerEm * 0.5) * scale;
-    const cmds = (g.getPath(pen, 0, size).commands as Cmd[]) ?? [];
+    const cmds = (g.getPath(pen, 0, size * sc).commands as Cmd[]) ?? [];
     out.push({ cmds, penX: pen, adv, center: pen + adv / 2 });
     pen += adv + track;
     prev = g;
@@ -215,7 +229,14 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   const lines = text.split("\n");
   const lh = (fx?.lineHeight ?? 1.1) * size;
   const align = fx?.align ?? "center";
-  const laid = lines.map((ln) => layout(font, ln, size, spacingEm));
+  // the global glyph counter starts where each line starts — blank lines
+  // advance it by one so letterScales/tilt indexing survives empty rows
+  const giStarts: number[] = [];
+  {
+    let g0 = 0;
+    for (const ln of lines) { giStarts.push(g0); g0 += Math.max(1, font.stringToGlyphs(ln).length); }
+  }
+  const laid = lines.map((ln, li) => layout(font, ln, size, spacingEm, fx?.letterScales, giStarts[li]));
   const nonEmpty = laid.filter((l) => l.glyphs.length).length;
   const fit = fx?.fit === "column" && nonEmpty > 1;
   const groove = Math.min(1, Math.max(0, fx?.groove ?? 0));
@@ -223,15 +244,19 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   // the shared measure: widest line as set (fit scales the others up to it)
   const blockW = Math.max(...laid.map((l) => l.w), 1);
 
-  /* per-line assembly at local baseline 0 — glyph tilt first (it scales
-     with the line, like everything hand-lettered), then the column fit's
-     uniform per-line scale, capped so a lone punctuation line can't
-     explode the block */
-  let gi = 0;
-  const placed: Cmd[][] = [];
+  /* per-line assembly at local baseline 0, kept PER GLYPH the whole way
+     (every later op is a point map, so glyph identity survives — that's
+     what makes the canvas click land on one letter). Glyph tilt first
+     (it scales with the line, like everything hand-lettered), then the
+     column fit's uniform per-line scale, capped so a lone punctuation
+     line can't explode the block */
+  const placed: Cmd[][][] = [];  // lines → glyphs → cmds
+  const gis: number[][] = [];    // parallel global glyph indices
   const scales: number[] = [];
-  laid.forEach((line) => {
-    let cmds: Cmd[] = [];
+  laid.forEach((line, li) => {
+    let gi = giStarts[li];
+    const lineGlyphs: Cmd[][] = [];
+    const lineGis: number[] = [];
     for (const g of line.glyphs) {
       let gc = g.cmds;
       if (tiltK > 0) {
@@ -244,13 +269,13 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
           return [cx + lx * cs - ly * sn, dy + lx * sn + ly * cs];
         });
       }
-      cmds.push(...gc);
+      lineGlyphs.push(gc);
+      lineGis.push(gi);
       gi++;
     }
-    if (!line.glyphs.length) gi++; // blank lines still advance the pattern
     const s = fit && line.glyphs.length && line.w > 1 ? Math.min(8, blockW / line.w) : 1;
-    if (s !== 1) cmds = mapCmds(cmds, (px, py) => [px * s, py * s]);
-    placed.push(cmds);
+    placed.push(s !== 1 ? lineGlyphs.map((gc) => mapCmds(gc, (px, py) => [px * s, py * s])) : lineGlyphs);
+    gis.push(lineGis);
     scales.push(s);
   });
 
@@ -258,11 +283,12 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   // fitted block packs like a wood-type brick; horizontal placement per
   // alignment (fit lines all span the measure already)
   let baseline = 0;
-  placed.forEach((cmds, li) => {
+  placed.forEach((lineGlyphs, li) => {
     if (li > 0) baseline += lh * scales[li];
     const lw = laid[li].w * scales[li];
     const xOff = fit ? 0 : align === "left" ? 0 : align === "right" ? blockW - lw : (blockW - lw) / 2;
-    placed[li] = mapCmds(cmds, (px, py) => [px + xOff, py + baseline]);
+    const b2 = baseline;
+    placed[li] = lineGlyphs.map((gc) => mapCmds(gc, (px, py) => [px + xOff, py + b2]));
   });
 
   /* the groove: per-line vertical remap between shared boundary curves.
@@ -270,7 +296,7 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
      alternating, so one line's swell IS the next line's squeeze — they
      nest. Outer block edges stay pinned: the container is the point. */
   if (groove > 0.005 && nonEmpty > 1) {
-    const lb = placed.map((c) => boundsOf(c));
+    const lb = placed.map((lg) => boundsOf(lg.flat()));
     const n = placed.length;
     const T: number[] = [], B: number[] = [];
     for (let i = 0; i < n; i++) {
@@ -286,49 +312,56 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
     for (let i = 0; i < n; i++) {
       if (!placed[i].length) continue;
       const span = Math.max(1, B[i] - T[i]);
-      placed[i] = mapCmds(flatten(placed[i], size / 22), (px, py) => {
+      const remap = (px: number, py: number): [number, number] => {
         const u = Math.max(-1, Math.min(1, (2 * px) / blockW - 1));
         const env = 1 - u * u;
         const top = T[i] + amp[i] * env;
         const bot = B[i] + amp[i + 1] * env;
         const v = (py - T[i]) / span;
         return [px, top + v * (bot - top)];
-      });
+      };
+      placed[i] = placed[i].map((gc) => mapCmds(flatten(gc, size / 22), remap));
     }
   }
 
-  let all: Cmd[] = [];
-  for (const cmds of placed) all.push(...cmds);
+  // flatten line structure → one glyph list with global indices
+  let glyphCmds: Cmd[][] = placed.flat();
+  const glyphGis: number[] = gis.flat();
 
   const arc = fx?.arc ?? 0, bulge = fx?.bulge ?? 0, rot = fx?.rotate ?? 0;
-  const b0 = boundsOf(all);
+  const b0 = boundsOf(glyphCmds.flat());
   if (Math.abs(arc) > 0.005 || Math.abs(bulge) > 0.005) {
     // nonlinear envelope over the whole block — flatten so segments bend true
-    all = flatten(all, size / 22);
     const midY = (b0.minY + b0.maxY) / 2;
     const span = Math.max(1, b0.maxX - b0.minX);
-    all = mapCmds(all, (px, py) => {
+    const env2 = (px: number, py: number): [number, number] => {
       const u = (2 * (px - b0.minX)) / span - 1; // -1 block start, +1 block end
       const env = 1 - u * u;
       let y2 = py;
       if (bulge) y2 = midY + (y2 - midY) * (1 + bulge * 0.55 * env);
       if (arc) y2 -= arc * size * 0.75 * env;
       return [px, y2];
-    });
+    };
+    glyphCmds = glyphCmds.map((gc) => mapCmds(flatten(gc, size / 22), env2));
   }
   if (Math.abs(rot) > 0.05) {
     const a = (rot * Math.PI) / 180;
     const cs = Math.cos(a), sn = Math.sin(a);
     const cx = (b0.minX + b0.maxX) / 2, cy0 = (b0.minY + b0.maxY) / 2;
-    all = mapCmds(all, (px, py) => {
+    glyphCmds = glyphCmds.map((gc) => mapCmds(gc, (px, py) => {
       const lx = px - cx, ly = py - cy0;
       return [cx + lx * cs - ly * sn, cy0 + lx * sn + ly * cs];
-    });
+    }));
   }
 
-  // normalize: x from 0, vertical center at 0; report the reach
-  const b = boundsOf(all);
+  // normalize: x from 0, vertical center at 0; report the reach and the
+  // per-glyph boxes (same coords as d) for canvas hit-testing
+  const b = boundsOf(glyphCmds.flat());
   const cy = (b.minY + b.maxY) / 2;
-  all = mapCmds(all, (px, py) => [px - b.minX, py - cy]);
-  return { d: cmdToD(all), w: b.maxX - b.minX, dy: 0, minY: b.minY - cy, maxY: b.maxY - cy };
+  glyphCmds = glyphCmds.map((gc) => mapCmds(gc, (px, py) => [px - b.minX, py - cy]));
+  const glyphs = glyphCmds.map((gc, i) => {
+    const gb = boundsOf(gc);
+    return { gi: glyphGis[i], x1: gb.minX, y1: gb.minY, x2: gb.maxX, y2: gb.maxY };
+  });
+  return { d: glyphCmds.map(cmdToD).join(""), w: b.maxX - b.minX, dy: 0, minY: b.minY - cy, maxY: b.maxY - cy, glyphs };
 }

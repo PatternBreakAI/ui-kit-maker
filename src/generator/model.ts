@@ -270,7 +270,12 @@ export interface TypeCfg {
   /** Pattern fill inside the letterforms (off by default) — any face
    *  pattern style, tone-on-tone from the shell color. scale is a percent
    *  of the natural cell size (100 = default density). */
-  stripes?: { on: boolean; angle: number; opacity: number; style?: Exclude<PatternType, "none">; scale?: number };
+  stripes?: { on: boolean; angle: number; opacity: number; style?: Exclude<PatternType, "none">; scale?: number;
+    /** null/absent = tone-on-tone from the shell color (the classic);
+     *  set = the pattern ink is chosen outright. */
+    color?: string | null;
+    /** composite against the letter fill, glints-style (default normal) */
+    blend?: BlendMode };
   /** Balloon highlight following the key light — the closest the shell gets
    *  to an inflate effect without touching the glyph geometry. */
   inflate?: { on: boolean; strength: number };
@@ -311,9 +316,17 @@ export interface TypeCfg {
     glossBlend?: BlendMode;
     /** Seamless pattern INSIDE the blob (wrap + body), tone-on-tone from
      *  the wrap color — the letterform pattern system aimed at the
-     *  stroke. Vector-outline mode only; absent/off = untouched. */
-    pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number };
+     *  stroke. Vector-outline mode only; absent/off = untouched.
+     *  color set = chosen ink instead of the auto tone; blend composites
+     *  against the blob paint. */
+    pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number; color?: string | null; blend?: BlendMode };
   };
+  /** Wall bevel — the hard-candy chiseled edge ON the letterforms: the
+   *  glyph alpha erodes to a plateau, and the slope ring between plateau
+   *  and edge is lit directionally from the master light (lit slope
+   *  toward it, shaded slope away). width/soft in px at the 52px master
+   *  scale; strength drives both slopes' ink. Absent/off = untouched. */
+  wall?: { on: boolean; width: number; soft: number; strength: number; hi?: string; sh?: string };
   fillMode: "auto" | "solid" | "gradient";
   fill: string;
   fill2: string;       // gradient bottom
