@@ -221,7 +221,7 @@ export interface MaterialRecipe {
   metallic?: number;
 }
 
-const resolveDiffuse = (d: DiffuseSpec, p: Palette, rig: LightRig): GradientSpec => ({
+export const resolveDiffuse = (d: DiffuseSpec, p: Palette, rig: LightRig): GradientSpec => ({
   type: d.type,
   stops: d.stops.map((s) => ({ color: tok(p, s.tok), position: s.position, opacity: s.opacity })),
   angle: (d.linkToLight === false ? (d.angle ?? 90) : rig.key.angle + (d.lightOffset ?? 0)),
