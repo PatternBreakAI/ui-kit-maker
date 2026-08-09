@@ -596,12 +596,33 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
   );
 }
 
+/* the sticky state flag can be silenced for good — the Global badge still
+   always names the state being styled */
+const STATEFLAG_HUSH_KEY = "ui-generator-stateflag-hush";
+
 export function Panel() {
   const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
   const [parentErr, setParentErr] = useState<string | null>(null);
+  /* the state flag announces itself, then gets out of the way (owner:
+     "['Styling Pressed'] needs to disappear after a few seconds and you
+     should be able to turn it off — from right there"). Every state switch
+     revives it for one read, hovering holds it open, and the × on the flag
+     silences it forever. */
+  const [flagHush, setFlagHush] = useState(() => { try { return localStorage.getItem(STATEFLAG_HUSH_KEY) === "1"; } catch { return false; } });
+  const [flagFade, setFlagFade] = useState(false);
+  const flagHov = useRef(false);
+  const flagOn = (selectedState !== "default" || allStates) && !flagHush;
+  useEffect(() => {
+    if (!flagOn) return;
+    setFlagFade(false);
+    let t = 0;
+    const arm = () => { t = window.setTimeout(() => (flagHov.current ? arm() : setFlagFade(true)), 6000); };
+    arm();
+    return () => window.clearTimeout(t);
+  }, [flagOn, selectedState, allStates]);
   // the admin publishing desk inside Looks — folded away by default
   const [adminLooksOpen, setAdminLooksOpen] = useState(false);
   // the Looks rack collapses to the freshest few (owner: "we are showing
@@ -909,8 +930,10 @@ export function Panel() {
            a non-default state is picked this sticky flag keeps saying so —
            deep in Typography the chip in Global is long scrolled away
            (owner: "need a warning or something") ── */}
-      {(selectedState !== "default" || allStates) && (
-        <div className={`stateflag${allStates ? " allstates" : ""}`} role="status">
+      {flagOn && (
+        <div className={`stateflag${allStates ? " allstates" : ""}${flagFade ? " hushed" : ""}`} role="status"
+          onMouseEnter={() => { flagHov.current = true; }}
+          onMouseLeave={() => { flagHov.current = false; }}>
           <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
           {allStates ? (
             <span><b>All states</b> — every edit becomes the value for Default, Hover, Pressed and Disabled.</span>
@@ -925,6 +948,11 @@ export function Panel() {
             {allStates ? "One state" : "All states"}
           </button>
           {selectedState !== "default" && <button onClick={() => setSelectedState("default")}>Back to Default</button>}
+          <button className="stateflag-x" aria-label="Turn this reminder off for good"
+            title="Turn this reminder off for good — the badge in Global always shows which state you're styling"
+            onClick={() => { try { localStorage.setItem(STATEFLAG_HUSH_KEY, "1"); } catch { /* private mode: hushed for the session */ } setFlagHush(true); }}>
+            <X size={13} strokeWidth={2.6} />
+          </button>
         </div>
       )}
       {/* ── the SCOPE BAR: where edits land, answered before you edit.

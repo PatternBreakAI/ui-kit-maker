@@ -1258,19 +1258,7 @@ export function KitPage() {
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load
   const [bayOpen, setBayOpen] = useState(false);
-  /* coming back from the editor lands on the piece you were editing, not
-     the top of the page (owner: "when I come back to the kit, I'd like to
-     come back to THAT spot"). focus IS the last-edited piece; a beat for
-     the cells to mount, then jump — instant, no smooth crawl down a long
-     page. */
   const focusRet = useGen((s) => s.focus);
-  useEffect(() => {
-    if (!focusRet) return;
-    const t = window.setTimeout(() => {
-      document.querySelector(`[data-kp="${focusRet}"]`)?.scrollIntoView({ block: "center" });
-    }, 60);
-    return () => window.clearTimeout(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
@@ -1381,6 +1369,20 @@ export function KitPage() {
     const t = window.setTimeout(() => setCurtain("gone"), 450);
     return () => window.clearTimeout(t);
   }, [curtain]);
+  /* coming back from the editor lands on the piece you were editing, not
+     the top of the page (owner: "when I come back to the kit, I'd like to
+     come back to THAT spot"). focus IS the last-edited piece. The jump
+     waits for the CURTAIN — a fixed beat used to fire before the deferred
+     chapters existed, finding nothing — because by the time it starts
+     leaving, every chapter is force-mounted: the scroll lands behind the
+     fade and the reader arrives already in place. A second pass once the
+     curtain is gone corrects any late reflow. */
+  const retDone = useRef(false);
+  useEffect(() => {
+    if (!focusRet || retDone.current || curtain === "on") return;
+    document.querySelector(`[data-kp="${focusRet}"]`)?.scrollIntoView({ block: "center" });
+    if (curtain === "gone") retDone.current = true;
+  }, [curtain, focusRet]);
   const bootProg = (bootN + (fontsReady ? 1 : 0)) / (BOOT_DONE + 1);
   const bootStage = !fontsReady && bootN === 0 ? "Loading typefaces"
     : ["Laying foundations", "Building components", "Assembling build parts", "Composing screens", "Collecting resources", "Polishing"][Math.min(bootN, 5)];
