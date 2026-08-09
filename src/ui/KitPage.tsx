@@ -1014,9 +1014,14 @@ function Chapter({ n, id, label, blurb }: { n: string; id: string; label: string
  *  as a THUNK so React never evaluates a dormant chapter's render work.
  *  The Chapter divider above each Deferred stays mounted, so tab anchors
  *  and deep links keep working; the ghost reserves honest scroll room. */
-function Deferred({ estH, children }: { estH: number; children: () => React.ReactNode }) {
+function Deferred({ estH, eager, onLive, children }: { estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
+  useEffect(() => { if (eager && !live) setLive(true); }, [eager, live]);
+  // fires AFTER the chapter's content commits — the boot curtain sequences
+  // the next chapter on it, so the bar ticks on real completions
+  const announced = useRef(false);
+  useEffect(() => { if (live && !announced.current) { announced.current = true; onLive?.(); } }, [live, onLive]);
   useEffect(() => {
     if (live) return;
     const el = ref.current;
@@ -1328,6 +1333,48 @@ export function KitPage() {
   useShellRail(trackRailRef, ".kp-tnodezone");
   useShellRail(weekRailRef, ".kp-wkday");
   useShellRail(mapRailRef, ".kp-node");
+
+  /* ── the generating curtain ─────────────────────────────────────────
+     The kit page is a GENERATOR's output — hundreds of freshly rendered,
+     effect-heavy graphics. Rather than let the assembly show (owner:
+     "still unacceptable in the professional sense... maybe some kind of
+     loading animation — generating kit"), a curtain covers the build:
+     chapters force-mount IN ORDER behind it, the bar ticks on REAL
+     completions (never theater), and the page reveals whole. Same show
+     in every browser; fast machines just see it briefly. */
+  /* bootN counts real completions: 1 = foundations painted (the kick),
+     then one per deferred chapter as it commits — 5 = the whole book. */
+  const BOOT_DONE = 5;
+  const [bootN, setBootN] = useState(0);
+  const [fontsReady, setFontsReady] = useState(false);
+  const [curtain, setCurtain] = useState<"on" | "leaving" | "gone">("on");
+  const bootT0 = useRef(Date.now());
+  useEffect(() => { document.fonts?.ready?.then(() => setFontsReady(true)).catch(() => setFontsReady(true)); }, []);
+  // let each chapter's commit PAINT before the next begins — the curtain
+  // hides the work, the double-rAF keeps the bar honest and the page alive
+  const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
+  useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  useEffect(() => {
+    if (curtain !== "on") return;
+    if (bootN >= BOOT_DONE && fontsReady) {
+      // whole page + real glyphs are in — hold a beat so the bar is seen
+      // finishing, then fade (min display keeps warm re-entries flickerless)
+      const wait = Math.max(420, 900 - (Date.now() - bootT0.current));
+      const t = window.setTimeout(() => setCurtain("leaving"), wait);
+      return () => window.clearTimeout(t);
+    }
+    // failsafe: a stalled stage never traps the reader behind the curtain
+    const f = window.setTimeout(() => setCurtain("leaving"), 12000);
+    return () => window.clearTimeout(f);
+  }, [bootN, fontsReady, curtain]);
+  useEffect(() => {
+    if (curtain !== "leaving") return;
+    const t = window.setTimeout(() => setCurtain("gone"), 450);
+    return () => window.clearTimeout(t);
+  }, [curtain]);
+  const bootProg = (bootN + (fontsReady ? 1 : 0)) / (BOOT_DONE + 1);
+  const bootStage = !fontsReady && bootN === 0 ? "Loading typefaces"
+    : ["Laying foundations", "Building components", "Assembling build parts", "Composing screens", "Collecting resources", "Polishing"][Math.min(bootN, 5)];
 
   // hero disclosure + sticky-nav orientation
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -1847,6 +1894,16 @@ const kitTier = useGen((s) => s.tier);
 
   return (
     <div className={`kitpage${dark ? " dark" : ""}`} style={{ "--kp-pattile": patternTileUrl(cfg) } as React.CSSProperties}>
+      {curtain !== "gone" && (
+        <div className={`kp-curtain${curtain === "leaving" ? " leaving" : ""}`} role="status" aria-live="polite">
+          <div className="kp-curtainbox">
+            <span className="kp-curtainkicker">UI Kit Maker</span>
+            <h2 className="kp-curtaintitle">Generating {kitName ?? `The ${preset?.name ?? "Custom"} Kit`}</h2>
+            <div className="kp-curtainbar" aria-hidden="true"><i style={{ width: `${Math.round(bootProg * 100)}%`, background: cfg.effects.Bevel ?? "#0E9CC9" }} /></div>
+            <span className="kp-curtainstage">{bootStage}…</span>
+          </div>
+        </div>
+      )}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
@@ -2157,7 +2214,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       <Chapter n="02" id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
-      <Deferred estH={5200}>{() => <>
+      <Deferred estH={5200} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
 
       {/* ── 03 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
@@ -2687,7 +2744,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
-      <Deferred estH={6400}>{() => <>
+      <Deferred estH={6400} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
 
       {/* ── 14 · build parts ── */}
       <Sec n="01" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
@@ -3162,7 +3219,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n="04" id="patterns" label="Screen Patterns" blurb="Complete screens composed from the system." />
-      <Deferred estH={5200}>{() => <>
+      <Deferred estH={5200} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
 
       {/* ── 16 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
@@ -3413,7 +3470,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n="05" id="resources" label="Resources" blurb="Files, formats and integration notes." />
-      <Deferred estH={1600}>{() => <>
+      <Deferred estH={1600} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
