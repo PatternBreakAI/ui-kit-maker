@@ -240,6 +240,12 @@ export interface IROp {
   /** paint each glyph's path separately (glyph-space patterns; gradients
    *  with space:"glyph" imply this on their own) */
   perGlyph?: boolean;
+  /** clip this op to a region derived from the SAME geometry — offset by
+   *  `expand`, translated by dx/dy. The crescent-sandwich guard: a
+   *  shifted contraction can never escape the layer beneath it (sharp
+   *  apexes bottom out under contraction, so shift alone would poke
+   *  spikes past the parent ring). */
+  clip?: { expand: number; dx: number; dy: number };
 }
 
 export interface IRRole { geom: Geom; ops: IROp[]; idp: string }
@@ -363,6 +369,12 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
     out = `<g filter="url(#${fid})">${out}</g>`;
   }
   if (silhouette && op.blur) return ""; // shadows don't belong in a silhouette
+  if (op.clip) {
+    const cd = op.clip.expand < -0.01 ? inflateOutline(geom.polys, op.clip.expand, geom.groups) : geom.d;
+    const tr = op.clip.dx || op.clip.dy ? ` transform="translate(${op.clip.dx.toFixed(2)} ${op.clip.dy.toFixed(2)})"` : "";
+    defs.push(`<clipPath id="${oid}cl"><path d="${cd}"${tr}/></clipPath>`);
+    out = `<g clip-path="url(#${oid}cl)">${out}</g>`;
+  }
   if (!silhouette && op.mask) out = `<g mask="url(#${op.mask})">${out}</g>`;
   if (!silhouette && op.opacity !== undefined && op.opacity < 1) out = `<g opacity="${op.opacity.toFixed(2)}">${out}</g>`;
   return out;

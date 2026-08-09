@@ -103,12 +103,21 @@ function inflatePoly(poly: Pt[], r: number, cw: boolean, hole: boolean): Pt[] {
     const vl = Math.hypot(vx, vy);
     if (vl < 1e-3) { vx = b[0]; vy = b[1]; } // 180° spike — fall back to one side
     else { vx /= vl; vy /= vl; }
-    /* NO miter compensation: the contour bands above render with round
-       joins, so a mitered wall origin would overshoot the border cap at
-       sharp corners and poke out as detached horns (review finding).
-       The averaged normal undershoots slightly instead, which tucks the
-       wall's corner under the border — invisible, and safe. */
-    out[i] = [poly[i][0] + vx * r, poly[i][1] + vy * r];
+    /* Outward (r > 0): NO miter compensation — the contour bands above
+       render with round joins, so a mitered wall origin would overshoot
+       the border cap at sharp corners and poke out as detached horns
+       (review finding). The averaged normal undershoots instead, which
+       tucks the wall's corner under the border — invisible, and safe.
+       Inward (r < 0): the OPPOSITE is required — an undershot apex stays
+       ahead of the properly offset sides and pokes out of the contracted
+       shape as a spike, so sharp corners take the miter length (capped;
+       over-deep corners are absorbed by the collapse guard). */
+    let rr = r;
+    if (r < 0) {
+      const dot = Math.abs(vx * b[0] + vy * b[1]); // cos(v̂, edge normal)
+      rr = r / Math.max(0.34, dot);
+    }
+    out[i] = [poly[i][0] + vx * rr, poly[i][1] + vy * rr];
   }
   return out;
 }

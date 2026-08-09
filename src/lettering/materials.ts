@@ -79,11 +79,12 @@ export const MATERIALS: MaterialFixture[] = [
     },
     material: {
       id: "candy-plastic", profile: "rounded",
-      // the soft three-stop candy ramp
+      // the soft three-stop candy ramp; bevel stays a light kiss — candy
+      // is gloss-first, never deep-embossed
       diffuse: { type: "linear", balance: 0.45, stops: [{ tok: "f0", position: 0 }, { tok: "f1", position: 0.5 }, { tok: "f2", position: 1 }] },
-      bevel: { width: 6, contrast: 0.42, profile: "rounded" },
+      bevel: { width: 3.2, contrast: 0.26, profile: "rounded" },
       specular: { strength: 0.9, width: 0.24, hardness: 0.9, balance: 0.13, tok: "gloss", space: "glyph" },
-      rim: { strength: 0.8, width: 4.2, tok: "rimc" },
+      rim: { strength: 0.7, width: 3, tok: "rimc" },
     },
     depth: NEUTRAL_DEPTH,
   },
@@ -137,11 +138,12 @@ export const MATERIALS: MaterialFixture[] = [
     },
     material: {
       id: "ice-water", profile: "pillow",
-      // the cool aquatic ramp with an internal light (pillow = radial plateau)
+      // the cool aquatic ramp with an internal light (pillow = radial
+      // plateau); ice edges are a thin frost line, not a stamped emboss
       diffuse: { type: "multi-radial", space: "glyph", stops: [{ tok: "f0", position: 0 }, { tok: "f1", position: 0.55 }, { tok: "f2", position: 1 }] },
-      bevel: { width: 5.5, contrast: 0.4, profile: "rounded" },
+      bevel: { width: 3, contrast: 0.24, profile: "rounded" },
       specular: { strength: 0.55, width: 0.3, hardness: 0.35, balance: 0.16, tok: "gloss", space: "glyph" },
-      rim: { strength: 0.85, width: 4.6, tok: "rimc" },
+      rim: { strength: 0.7, width: 3.2, tok: "rimc" },
       roughness: 0.15,
     },
     depth: NEUTRAL_DEPTH,
