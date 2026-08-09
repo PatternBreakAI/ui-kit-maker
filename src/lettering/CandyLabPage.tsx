@@ -29,7 +29,8 @@ const S: Record<string, React.CSSProperties> = {
   slider: { width: "100%" },
   readout: { font: "600 10px Inter, sans-serif", color: "#8F8199" },
   stage: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 28, overflow: "auto" },
-  svgWrap: { maxWidth: "100%", maxHeight: "100%", boxShadow: "0 18px 60px rgba(0,0,0,0.45)", borderRadius: 10, overflow: "hidden", lineHeight: 0 },
+  svgWrap: { width: "min(96%, 1700px)", lineHeight: 0 },
+  svgCard: { boxShadow: "0 18px 60px rgba(0,0,0,0.45)", borderRadius: 10, overflow: "hidden" },
   btn: { padding: "9px 12px", borderRadius: 8, border: "none", background: "#EDE7F0", color: "#1D1622", font: "700 12px Inter, sans-serif", cursor: "pointer", width: "100%", marginTop: 8 },
   btn2: { padding: "9px 12px", borderRadius: 8, border: "1px solid #3A2F42", background: "transparent", color: "#EDE7F0", font: "700 12px Inter, sans-serif", cursor: "pointer", width: "100%", marginTop: 8 },
   note: { font: "500 10px/1.5 Inter, sans-serif", color: "#8F8199", marginTop: 12 },
@@ -52,6 +53,7 @@ export function CandyLabPage(): React.ReactElement {
   const [gloss, setGloss] = useState(0.9);
   const [bounce, setBounce] = useState(false);
   const [sparkles, setSparkles] = useState(true);
+  const [backdrop, setBackdrop] = useState<"card" | "dark" | "light">("card");
   const [font, setFont] = useState<Font | null>(null);
   const [fontLoading, setFontLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -80,7 +82,8 @@ export function CandyLabPage(): React.ReactElement {
     bounce,
     gloss,
     sparkles,
-  }), [debouncedText, paletteName, bevel, profile, bounce, gloss, sparkles]);
+    background: backdrop === "card",
+  }), [debouncedText, paletteName, bevel, profile, bounce, gloss, sparkles, backdrop]);
 
   const tile = useMemo(() => {
     if (!font) return null;
@@ -157,6 +160,14 @@ export function CandyLabPage(): React.ReactElement {
         <label style={S.label}>Gloss — {Math.round(gloss * 100)}%</label>
         <input style={S.slider} type="range" min={0} max={1} step={0.05} value={gloss} onChange={(e) => setGloss(Number(e.target.value))} />
 
+        <label style={S.label}>Backdrop</label>
+        <div style={S.row}>
+          {(["card", "dark", "light"] as const).map((b) => (
+            <button key={b} style={{ ...S.chip, ...(b === backdrop ? S.chipOn : {}) }} onClick={() => setBackdrop(b)}>{b}</button>
+          ))}
+        </div>
+        <div style={S.readout}>dark/light preview big and unboxed — downloads are transparent there</div>
+
         <label style={S.label}>Extras</label>
         <div style={S.row}>
           <button style={{ ...S.chip, ...(sparkles ? S.chipOn : {}) }} onClick={() => setSparkles(!sparkles)}>sparkles</button>
@@ -173,14 +184,14 @@ export function CandyLabPage(): React.ReactElement {
         </p>
       </div>
 
-      <div style={S.stage}>
+      <div style={{ ...S.stage, background: backdrop === "light" ? "#F2EEE6" : undefined }}>
         {fontLoading || !tile ? (
           <div style={{ color: "#8F8199", font: "600 13px Inter, sans-serif" }}>
             {fontLoading ? "Loading font…" : "Type something to begin"}
           </div>
         ) : (
           <div
-            style={S.svgWrap}
+            style={{ ...S.svgWrap, ...(backdrop === "card" ? S.svgCard : {}) }}
             dangerouslySetInnerHTML={{
               __html: tile.svg.replace(/width="\d+" height="\d+"/, `width="100%" height="auto"`),
             }}

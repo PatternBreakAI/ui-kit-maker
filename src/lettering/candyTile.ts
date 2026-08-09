@@ -27,6 +27,8 @@ export interface CandyOpts {
   sparkles: boolean;
   /** 4 for live preview, 16 for export */
   masterScale: number;
+  /** paint the stage card behind the lettering (false = transparent) */
+  background?: boolean;
   seed?: number;
 }
 
@@ -111,9 +113,12 @@ export function renderCandyTile(font: Font, o: CandyOpts): CandyTile {
   }
 
   const w = Math.round(frame.x2 - frame.x1), h = Math.round(frame.y2 - frame.y1);
+  const bgRect = o.background === false
+    ? ""
+    : `<rect x="${frame.x1.toFixed(0)}" y="${frame.y1.toFixed(0)}" width="${w}" height="${h}" fill="${o.palette.stage}"/>`;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${frame.x1.toFixed(0)} ${frame.y1.toFixed(0)} ${w} ${h}">` +
-    `<rect x="${frame.x1.toFixed(0)}" y="${frame.y1.toFixed(0)}" width="${w}" height="${h}" fill="${o.palette.stage}"/>` +
+    bgRect +
     (defs.length ? `<defs>${defs.join("")}</defs>` : "") + depth + face.body + fore + `</svg>`;
   return { svg, w, h, effWidth: face.width / S };
 }
