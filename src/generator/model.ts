@@ -320,7 +320,20 @@ export interface TypeCfg {
      *  color set = chosen ink instead of the auto tone; blend composites
      *  against the blob paint. */
     pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number; color?: string | null; blend?: BlendMode };
+    /** TRUE extrusion walls — real vector planes built per boundary edge
+     *  (src/generator/extrude.ts) instead of the morphology sweep:
+     *  orientation-classified strips (downward-facing darker, lateral
+     *  lighter) plus a rear silhouette and a geometric cast shadow. Takes
+     *  effect in vector-outline mode with per-line geometry present and
+     *  the wrap off; the sweep remains the fallback everywhere else.
+     *  Tones null = derived from the wall color. */
+    trueWall?: { on: boolean; color?: string | null; downColor?: string | null; sideColor?: string | null };
   };
+  /** Per-line construction overrides (vector-outline mode) — the locked
+   *  globals stay in the main config (light, extrusion direction, stage);
+   *  a line may override its face fill and its extrusion depth so a
+   *  support line can sit shallow under a deep hero word. Index = line. */
+  lineStyles?: { fill?: string | null; depth?: number | null }[];
   /** Nested contour bands around the letterforms — the display-lettering
    *  construction (face → keyline → border): band 0 sits against the
    *  face, each further band rings the previous. True stroke geometry on
@@ -409,6 +422,7 @@ export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string;
   delete t.contours;
   delete t.inline;
   delete t.wall;
+  delete t.lineStyles;
 
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };

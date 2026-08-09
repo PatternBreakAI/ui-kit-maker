@@ -248,11 +248,13 @@ export function SplashPage() {
     const cfg = buildSplashCfg(look);
     const t = cfg.type;
     const k = t.size / 52;
-    // pad grows with the wrap — a big stroke must never clip flat against
-    // the canvas or the filter region (0.55 lean baked into the look)
+    // pad grows with the wrap, contours and the DEEPEST line — nothing may
+    // clip flat against the canvas or the filter region (0.55 lean baked in)
+    const maxDepth = Math.max(look.depth, ...look.lineStyles.map((ls) => ls?.depth ?? 0));
+    const ctrW = look.contours.reduce((a, c) => a + c.width, 0);
     const fxPad = Math.ceil(
-      (look.depth + look.depth * 0.55 + look.strokeW) * k +
-      (look.shadow > 0 ? look.depth * k + 18 : 0) + t.size * (0.12 + (look.bounce / 100) * 0.14) + 24,
+      (maxDepth + maxDepth * 0.55 + look.strokeW + ctrW) * k +
+      (look.shadow > 0 ? maxDepth * k + 18 : 0) + t.size * (0.12 + (look.bounce / 100) * 0.14) + 24,
     );
     const text = look.text || " ";
     if (oFont) {

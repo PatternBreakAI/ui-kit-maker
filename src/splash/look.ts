@@ -45,6 +45,12 @@ export type SplashLook = {
   dropShadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** wall bevel — the chiseled hard-candy edge on the letterforms */
   wall: { on: boolean; width: number; soft: number; strength: number };
+  /** TRUE extrusion walls — real vector planes with orientation tones
+   *  instead of the flooded morphology sweep (backsplash-off looks) */
+  trueWalls: boolean;
+  /** per-line construction — face fill and extrusion depth may differ per
+   *  line (direction, light and stage stay locked). Index = line. */
+  lineStyles: { fill: string | null; depth: number | null }[];
   /** block-extrusion reach, px at the 52px master scale */
   depth: number;
   /** soft ground-shadow opacity 0..100 */
@@ -111,6 +117,8 @@ const GOOD_DAY: SplashStyle = {
   inline: { on: false, inset: 2.5, width: 1.8, color: "#1F2A44" },
   dropShadow: { on: false, color: "#1A1A1A", x: 0, y: 6, blur: 4, opacity: 45 },
   wall: { on: false, width: 3, soft: 30, strength: 70 },
+  trueWalls: false,
+  lineStyles: [],
   depth: 14,
   shadow: 25,
   lineHeight: 105,
@@ -168,6 +176,24 @@ export const SPLASH_STYLES: { id: string; name: string; style: SplashStyle }[] =
   },
   /* construction recipes — the letters do the work, no backsplash:
      contour bands + directional extrusion make the silhouette */
+  {
+    /* the reviewer's diagnostic: construction ONLY — true vector walls,
+       per-line depth hierarchy, everything decorative off */
+    id: "construction-test", name: "Construction Test",
+    style: {
+      ...GOOD_DAY,
+      font: "Bangers",
+      fill: "#FFE24D", inkGrad: false,
+      backsplash: false,
+      blob: "#A64A17",           // primary wall tone; down/lateral derive
+      contours: [{ width: 2.5, color: "#FFF3D6" }, { width: 5, color: "#3B1D10" }],
+      trueWalls: true,
+      lineStyles: [{ fill: "#FFE24D", depth: 6 }, { fill: "#FF9D2E", depth: 13 }],
+      depth: 6, shadow: 30, bounce: 0, lineHeight: 104,
+      shine: false,
+      stage: { mode: "color", color: "#F2ECE0" },
+    },
+  },
   {
     id: "comic-pop", name: "Comic Pop",
     style: {
@@ -275,7 +301,9 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     tilt: look.bounce,
     drift: 55,               // the lean is part of the look itself
     pattern: look.backsplash ? { ...look.blobPattern } : { ...look.blobPattern, on: false },
+    trueWall: { on: look.trueWalls },
   };
+  t.lineStyles = look.lineStyles.map((ls) => ({ fill: ls?.fill ?? null, depth: ls?.depth ?? null }));
   c.lighting = { ...c.lighting, angle: look.lightAngle, highlight: 70, lowlight: 50 };
   c.effects = { ...c.effects, Bevel: look.fill, Glow: look.fill };
   return c;

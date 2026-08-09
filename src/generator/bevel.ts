@@ -1,5 +1,6 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
 import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isDarkBg, userShapes } from "./model";
+import { extrudeWalls } from "./extrude";
 import { iconGroup } from "./icons";
 import { silhouetteMeta } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -1644,7 +1645,13 @@ export function textPatternCell(style: string, ps: number, color: string): strin
  *  give the block's true vertical span in local coords — multiline
  *  blocks need word gradients stretched over the whole lockup, not one
  *  line's em box. */
-export interface TextPathOpt { d: string; w: number; dy?: number; gy1?: number; gy2?: number }
+/** Per-line construction geometry crossing the renderer boundary — the
+ *  line's compound path plus its flattened boundary polygons for true
+ *  extrusion-wall building. Glyph/line identity no longer dies at this
+ *  interface; the whole-composition `d` stays alongside for genuine
+ *  outer-silhouette operations. */
+export interface TextLineGeom { d: string; polys?: [number, number][][]; gy1?: number; gy2?: number }
+export interface TextPathOpt { d: string; w: number; dy?: number; gy1?: number; gy2?: number; lines?: TextLineGeom[] }
 
 function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   label?: string; iconDef?: IconDef | null; secondary?: boolean; shapeOverride?: Shape; fixedW?: number;
@@ -2367,6 +2374,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const outlineBehindNode = outlineBehind && showText
     ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW * 2).toFixed(1)}" stroke-linejoin="round"`)
     : "";
+  /* per-line FACE fill — when line geometry crossed the boundary and any
+     line overrides its fill, the face emits one path per line instead of
+     the merged composition path. Same translate, same attrs otherwise. */
+  const faceOpacityAttr = (T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : "";
+  const faceNode = (tFillPaint: string) => {
+    if (TP2?.lines?.length && T2.lineStyles?.some((ls) => ls?.fill)) {
+      return `<g transform="${tpXY}">${TP2.lines.map((L, li) => {
+        if (!L.d) return ""; // blank source lines hold their index slot
+        const lf = T2.lineStyles?.[li]?.fill;
+        return `<path d="${L.d}" fill="${lf ? P(lf) : tFillPaint}"${faceOpacityAttr}${outlineAttrs}/>`;
+      }).join("")}</g>`;
+    }
+    return fxText(`fill="${tFillPaint}"${faceOpacityAttr}${outlineAttrs}`);
+  };
   // contour bands paint outermost-first, each a filled+stroked copy of the
   // word path — the fill closes the interior so bands never show seams
   const ctrLayers = showText && CTRS.length ? (() => {
@@ -2426,7 +2447,59 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const dwlSrc = !TP2 && dStkW > 0.05
       ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${dStkW.toFixed(1)}" result="dsrc"/><feMorphology in="dsrc" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`
       : `<feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`;
-    dimDefs =
+    /* ── TRUE WALLS — real vector planes (src/generator/extrude.ts)
+       replace the flooded sweep entirely when per-line geometry crossed
+       the boundary and the wrap is off. Each line extrudes along the
+       SHARED direction at its OWN depth; strips are toned by orientation
+       (downward-facing darker, lateral lighter), a rear silhouette
+       backstops seams, and the cast shadow is the same geometry nudged
+       further along V under one subtle blur. The morphology sweep stays
+       as the fallback for text mode and wrapped (backsplash) bodies. */
+    const TW = DM!.trueWall;
+    const twLines = TP2?.lines?.filter((L) => (L.polys?.length ?? 0) > 0) ?? [];
+    const useTrueWall = !!TW?.on && dStick <= 0.05 && twLines.length > 0 && dDepth > 0.05;
+    let trueWallBack = "";
+    let twMaxD = 0;
+    if (useTrueWall) {
+      const twPrimary = TW!.color ? P(TW!.color) : dWall;
+      const twDown = TW!.downColor ? P(TW!.downColor) : darken(twPrimary, 0.3);
+      const twSide = TW!.sideColor ? P(TW!.sideColor) : lighten(twPrimary, 0.14);
+      const shadowParts: string[] = [];
+      const wallParts: string[] = [];
+      TP2!.lines!.forEach((L, li) => {
+        if (!L.polys?.length) return;
+        const lDepth = Math.max(0, T2.lineStyles?.[li]?.depth ?? DM!.depth) * dimK;
+        if (lDepth < 0.05) return;
+        twMaxD = Math.max(twMaxD, lDepth);
+        const vX = ((DM!.drift ?? 0) / 100) * lDepth, vY = lDepth;
+        const wg = extrudeWalls(L.polys as [number, number][][], vX, vY, ctrReach);
+        shadowParts.push(`<path d="${wg.back}" transform="translate(${(vX * 0.55).toFixed(1)} ${(lDepth * 0.55).toFixed(1)})"/>`);
+        // back → grazing side planes → oblique PRIMARY planes → dark undersides
+        wallParts.push(
+          `<path d="${wg.back}" fill="${twPrimary}"/>` +
+          (wg.side ? `<path d="${wg.side}" fill="${twSide}"/>` : "") +
+          (wg.mid ? `<path d="${wg.mid}" fill="${twPrimary}"/>` : "") +
+          (wg.down ? `<path d="${wg.down}" fill="${twDown}"/>` : ""),
+        );
+      });
+      const twShadow = dShOp > 0
+        ? `<g filter="url(#${id}dtws)" fill="${darken(twPrimary, 0.72)}" fill-opacity="${(dShOp * 0.9).toFixed(2)}">${shadowParts.join("")}</g>`
+        : "";
+      trueWallBack = `<g transform="${tpXY}">${twShadow}${wallParts.join("")}</g>`;
+    }
+    /* the gloss band gradient serves the FACE — it must exist in both
+       branches (review finding: the trueWall arm dropped it and the
+       still-emitted gloss layer referenced a missing paint server) */
+    const dGlossDef = dGlOp > 0 ? (() => {
+      const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.52).toFixed(1) : (dgy - fs * 0.52).toFixed(1);
+      const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (dgy + fs * 0.55).toFixed(1);
+      return `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${gy1}" x2="0" y2="${gy2}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
+    })() : "";
+    /* the cast-shadow filter lives INSIDE the tpXY translate, so its
+       userSpaceOnUse region must be in LOCAL path coordinates (review
+       finding: reusing the absolute-frame dR clipped tall blocks) */
+    const twShadowRegion = `filterUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? textW) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + twMaxD * 1.7 + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
+    dimDefs = useTrueWall ? ((dShOp > 0 ? `<filter id="${id}dtws" ${twShadowRegion}><feGaussianBlur stdDeviation="2.2"/></filter>` : "") + dGlossDef) :
       (dGrad || dPatOn
         ? `<filter id="${id}dstg" ${dLR}>${un}<feFlood flood-color="#fff"/><feComposite in2="dun" operator="in"/></filter>` +
           `<mask id="${id}dsm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(dStkW)}</g></mask>`
@@ -2450,11 +2523,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
           ? ""
           : `<feOffset in="dwl" dx="${(-dDx * 0.45).toFixed(1)}" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge>`
       }</filter>` : "") +
-      (dGlOp > 0 ? (() => {
-        const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.52).toFixed(1) : (dgy - fs * 0.52).toFixed(1);
-        const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (dgy + fs * 0.55).toFixed(1);
-        return `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${gy1}" x2="0" y2="${gy2}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
-      })() : "");
+      dGlossDef;
     const dimText = fxText;
     // path mode: the wrap rides the source as a round-join stroke — the
     // filters sweep and tint an alpha that already follows the curves
@@ -2464,7 +2533,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const dGradLayer = `<g transform="${tpXY}">${dRect(`url(#${id}dsg)`)} mask="url(#${id}dsm)"/></g>`;
     let dPatLayer = dPatOn ? `<g transform="${tpXY}" opacity="${clamp((dPat!.opacity ?? 30) / 100, 0, 1).toFixed(2)}">${dRect(`url(#${id}dpt)`)} mask="url(#${id}dsm)"/></g>` : "";
     if (dPatLayer && dPat!.blend && dPat!.blend !== "normal") dPatLayer = `<g style="mix-blend-mode:${dPat!.blend}">${dPatLayer}</g>`;
-    dimBack =
+    dimBack = useTrueWall ? trueWallBack :
       (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
       (dStick > 0.05 ? (dGrad ? dGradLayer : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
       (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimSrc(dRim)}</g>` : "") +
@@ -2800,7 +2869,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
       ${showText ? `<g data-part="label">${dimBack}` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${ctrLayers}${outlineBehindNode}${outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}${TP2
-        ? fxText(`fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs}`)
+        ? faceNode(tFill)
         : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>`}${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? (() => {
         const sOp = clamp((T2.stripes!.opacity ?? 30) / 100, 0, 1).toFixed(2);

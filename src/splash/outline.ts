@@ -86,12 +86,26 @@ export function loadOutlineFont(family: string, weight = 400, ttfHint?: string):
   return p;
 }
 
+/** One line's construction geometry — the line's own compound path plus
+ *  its flattened closed boundary polygons (font winding preserved,
+ *  counters as their own polygons) for TRUE extrusion-wall building. */
+export type OutlineLine = {
+  d: string;
+  polys: [number, number][][];
+  gy1: number; gy2: number;
+  glyphs: { gi: number; x1: number; y1: number; x2: number; y2: number }[];
+};
+
 export type WordOutline = {
   d: string; w: number; dy: number; minY?: number; maxY?: number;
   /** per-glyph hit boxes in the SAME local coords as `d`, each carrying
    *  its global glyph index (the letterScales/tilt counter) — the canvas
    *  hit-tests these so a click lands on ONE letter */
   glyphs?: { gi: number; x1: number; y1: number; x2: number; y2: number }[];
+  /** per-line geometry — glyph and line identity SURVIVE the renderer
+   *  boundary now; the whole-composition `d` above remains for outer-
+   *  silhouette operations. Both representations, by design. */
+  lines?: OutlineLine[];
 };
 
 /** Whole-word shape — envelope distortion (the block bends as ONE
@@ -374,5 +388,37 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
     const gb = boundsOf(gc);
     return { gi: glyphGis[i], x1: gb.minX, y1: gb.minY, x2: gb.maxX, y2: gb.maxY };
   });
-  return { d: glyphCmds.map(cmdToD).join(""), w: b.maxX - b.minX, dy: 0, minY: b.minY - cy, maxY: b.maxY - cy, glyphs };
+
+  /* regroup by line — glyph order was preserved through every transform,
+     so line membership is just the original per-line glyph counts. Each
+     line gets its own compound d AND its flattened boundary polygons
+     (subpaths split at M…Z) for true extrusion-wall construction. */
+  const outLines: OutlineLine[] = [];
+  let gIdx = 0;
+  placed.forEach((lineGlyphs) => {
+    const count = lineGlyphs.length;
+    if (!count) {
+      // blank source lines keep their slot — lineStyles is documented as
+      // source-line-indexed, so the array must never compact
+      outLines.push({ d: "", polys: [], gy1: 0, gy2: 0, glyphs: [] });
+      return;
+    }
+    const gcs = glyphCmds.slice(gIdx, gIdx + count);
+    const boxes = glyphs.slice(gIdx, gIdx + count);
+    gIdx += count;
+    const lb = boundsOf(gcs.flat());
+    const polys: [number, number][][] = [];
+    for (const gc of gcs) {
+      let cur: [number, number][] = [];
+      for (const c of flatten(gc, size / 22)) {
+        if (c.type === "M") { if (cur.length >= 3) polys.push(cur); cur = [[c.x!, c.y!]]; }
+        else if (c.type === "L") cur.push([c.x!, c.y!]);
+        else if (c.type === "Z") { if (cur.length >= 3) polys.push(cur); cur = []; }
+      }
+      if (cur.length >= 3) polys.push(cur);
+    }
+    outLines.push({ d: gcs.map(cmdToD).join(""), polys, gy1: lb.minY, gy2: lb.maxY, glyphs: boxes });
+  });
+
+  return { d: glyphCmds.map(cmdToD).join(""), w: b.maxX - b.minX, dy: 0, minY: b.minY - cy, maxY: b.maxY - cy, glyphs, lines: outLines };
 }
