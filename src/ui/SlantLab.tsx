@@ -128,7 +128,11 @@ export function SlantLab() {
   }, [overlay, scan]);
 
   const italicOff = () => {
-    engineSvgs().forEach((svg) => svg.querySelectorAll('[font-style="italic"]').forEach((n) => n.removeAttribute("font-style")));
+    engineSvgs().forEach((svg) => {
+      svg.querySelectorAll('[font-style="italic"]').forEach((n) => n.removeAttribute("font-style"));
+      // the skew-based synthetic italics (post-fix engine) un-slant here too
+      svg.querySelectorAll('g[transform*="skewX(-14)"]').forEach((g) => g.removeAttribute("transform"));
+    });
     mark("italic OFF"); scan();
   };
   const filtersOff = () => {

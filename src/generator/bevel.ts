@@ -2278,7 +2278,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const textOy = opts.textOy ?? T2.oy ?? 0;
 
   const T = D.transparency;
-  const fontStyle = T2.italic ? ` font-style="italic"` : "";
+  /* Synthetic italics are drawn UPRIGHT and slanted with an explicit skew
+     on the whole finished label stack. Safari crops font-style-synthesized
+     obliques at the glyph run's layout bounds when it captures text for
+     filtering — the last glyph's lean shears off mid-stroke (the owner's
+     cut Y; convicted in the field by the slant lab: same boxes, italic
+     attribute removed in place, cut healed). A skew applied OUTSIDE the
+     filter never leans during capture, and the slant angle stops depending
+     on which browser is improvising it. skewX(-14) ≈ the oblique Chromium
+     drew, so existing kits keep their look. Faces with true italic files
+     keep font-style — real glyphs, real advances (the metrics table
+     carries them). */
+  const realItal = !!capsF?.italic && !!fontDef.css?.includes("ital");
+  const synthItal = !!T2.italic && !realItal;
+  const fontStyle = T2.italic && !synthItal ? ` font-style="italic"` : "";
   // style attr builder — carries the width axis plus any per-layer extras
   const tStyle = (extra = "") => (wdthV !== undefined || extra)
     ? ` style="${wdthV !== undefined ? `font-stretch:${wdthV}%;` : ""}${extra}"` : "";
@@ -2542,14 +2555,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">` : ""}
+      ${showText ? `<g data-part="label">${synthItal ? `<g transform="translate(${tTextX.toFixed(1)} ${(cy + 1 + textOy * K).toFixed(1)}) skewX(-14) translate(${(-tTextX).toFixed(1)} ${(-(cy + 1 + textOy * K)).toFixed(1)})">` : ""}` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
       ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central">${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${shineLayer}
       ${glintsLayer}
-      ${showText ? `</g>` : ""}
+      ${showText ? `${synthItal ? `</g>` : ""}</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
