@@ -88,6 +88,30 @@ function useDocumentFonts() {
   }, [cfg, kitDesigns]);
 }
 
+/* Safari runs the app — the rendering is correct since the italic cure —
+   but its filter pipeline makes the heavy pages take longer. One polite,
+   dismissed-forever nudge toward Chromium, industry-standard for tools
+   this graphics-heavy (owner decision: support Safari, recommend Chrome;
+   the front door stays universal and never sees this). */
+function ChromeNudge() {
+  const [show, setShow] = useState(() => {
+    try { if (localStorage.getItem("ui-generator-chrome-nudge") === "done") return false; } catch { /* private mode */ }
+    const ua = navigator.userAgent;
+    return /safari/i.test(ua) && !/chrome|crios|chromium|edg|android/i.test(ua);
+  });
+  if (!show) return null;
+  const dismiss = () => {
+    try { localStorage.setItem("ui-generator-chrome-nudge", "done"); } catch { /* private mode */ }
+    setShow(false);
+  };
+  return (
+    <div className="chrome-nudge" role="status">
+      <span>UI Kit Maker runs smoothest in <b>Chrome</b> or <b>Edge</b> — Safari works, but the heavy pages take a little longer.</span>
+      <button onClick={dismiss}>Got it</button>
+    </div>
+  );
+}
+
 /* When something inside a handler throws, React can leave the UI looking fine
    while every click silently dies — the "app craps out" report. Surface it. */
 function useCrashBanner() {
@@ -154,6 +178,7 @@ export function App() {
       <TopBar />
       <LootModal />
       <TutorTip />
+      <ChromeNudge />
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}
