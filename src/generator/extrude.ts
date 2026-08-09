@@ -229,20 +229,45 @@ export function extrudeWalls(polys: Pt[][], vx: number, vy: number, inflate = 0,
 
 /** The inflated front silhouette itself (no extrusion) — the cast-shadow
  *  and debug consumers want the same boundary the walls grew from. */
+/** One corner-cutting pass (Chaikin): straight runs stay straight,
+ *  corners round — the round-join look Offset Path gives inward offsets,
+ *  and it melts the tiny bowtie lobes normal-averaging leaves at
+ *  crossings down to sub-pixel. */
+function chaikin(poly: Pt[]): Pt[] {
+  const out: Pt[] = [];
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n];
+    out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+    out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+  }
+  return out;
+}
+
 export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]): string {
   const holes = holeFlags(polys, groups);
   return polys
     .map((raw, pi) => {
       if (raw.length < 3) return "";
       const aRaw = signedArea(raw);
-      const poly = inflatePoly(raw, inflate, aRaw > 0, holes[pi]);
-      if (Math.abs(inflate) > 0.01) {
-        const aInf = signedArea(poly);
-        // collapsed contours vanish instead of re-growing as phantoms —
-        // filled counters under expansion, swallowed thin strokes under
-        // contraction (negative inflate = Offset Path inward)
-        if (Math.abs(aInf) < Math.abs(aRaw) * 0.02 || Math.sign(aInf) !== Math.sign(aRaw)) return "";
-      }
+      const attempt = (r: number): Pt[] | null => {
+        const poly = inflatePoly(raw, r, aRaw > 0, holes[pi]);
+        if (Math.abs(r) > 0.01) {
+          const aInf = signedArea(poly);
+          // collapsed contours vanish instead of re-growing as phantoms —
+          // filled counters under expansion, swallowed thin strokes under
+          // contraction (negative inflate = Offset Path inward)
+          if (Math.abs(aInf) < Math.abs(aRaw) * 0.02 || Math.sign(aInf) !== Math.sign(aRaw)) return null;
+        }
+        return poly;
+      };
+      let poly = attempt(inflate);
+      // graceful degradation for inward offsets: a feature too thin for
+      // the full depth keeps a SHALLOWER offset instead of vanishing, so
+      // heavy bevel weights never break the letter apart
+      if (!poly && inflate < -0.01) poly = attempt(inflate * 0.6) ?? attempt(inflate * 0.35);
+      if (!poly) return "";
+      if (inflate < -0.01) poly = chaikin(poly);
       return "M" + poly.map(([x, y]) => `${F(x)} ${F(y)}`).join("L") + "Z";
     })
     .join("");

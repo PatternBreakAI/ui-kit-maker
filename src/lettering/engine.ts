@@ -166,7 +166,9 @@ export function toGeom(cmds: Cmd[][], size: number): Geom {
   cmds.forEach((gc, gi) => {
     const mine: [number, number][][] = [];
     let cur: [number, number][] = [];
-    for (const c of flatten(gc, size / 22)) {
+    // offset geometry needs REAL resolution: ~2.5px sampling instead of
+    // the display-coarse size/22, or contractions read as faceted chords
+    for (const c of flatten(gc, Math.min(2.5, size / 64))) {
       if (c.type === "M") { if (cur.length >= 3) mine.push(cur); cur = [[c.x!, c.y!]]; }
       else if (c.type === "L") cur.push([c.x!, c.y!]);
       else if (c.type === "Z") { if (cur.length >= 3) mine.push(cur); cur = []; }
