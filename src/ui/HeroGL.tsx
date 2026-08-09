@@ -61,21 +61,30 @@ function cropPad(svg: string, keep = 0.4): string {
     .replace(/height="([\d.]+)"/, `height="${nh.toFixed(1)}"`);
 }
 
-/** Rasterize an SVG string into a THREE texture (async — image decode). */
-function svgTex(svg: string, cb: (tex: THREE.Texture, w: number, h: number) => void) {
+/** Rasterize an SVG string into a THREE texture (async — image decode).
+ *  onFail fires if the decode errors or stalls — Safari can reject a
+ *  data-URI SVG silently, and without this the material never gets its
+ *  map and the whole hero reads as a black void (owner report). */
+function svgTex(svg: string, cb: (tex: THREE.Texture, w: number, h: number) => void, onFail?: () => void) {
   const w = +(/width="([\d.]+)"/.exec(svg)?.[1] ?? 300);
   const h = +(/height="([\d.]+)"/.exec(svg)?.[1] ?? 150);
   const img = new Image();
+  let settled = false;
+  const stall = window.setTimeout(() => { if (!settled) { settled = true; onFail?.(); } }, 6000);
   img.onload = () => {
+    if (settled) return;
+    settled = true;
+    window.clearTimeout(stall);
     const cv = document.createElement("canvas");
     cv.width = Math.round(w * 2); cv.height = Math.round(h * 2);
     const ctx = cv.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) { onFail?.(); return; }
     ctx.drawImage(img, 0, 0, cv.width, cv.height);
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
     cb(tex, w, h);
   };
+  img.onerror = () => { if (!settled) { settled = true; window.clearTimeout(stall); onFail?.(); } };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
@@ -146,6 +155,17 @@ export function HeroGL() {
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
   const [failed, setFailed] = useState(false);
+
+  /* Safari watchdog: if no texture has EVER decoded shortly after mount,
+     the scene is a black void — show the designed text fallback instead
+     of pretending to render. Chromium decodes in milliseconds, so this
+     never fires there. */
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (!(window as unknown as { __heroTex?: string }).__heroTex) setFailed(true);
+    }, 9000);
+    return () => window.clearTimeout(t);
+  }, []);
 
   /* mount: build the whole scene once */
   useEffect(() => {
@@ -577,14 +597,20 @@ export function HeroGL() {
         m.userData.baseY = y;
         m.position.y = y;
       });
-      // the pattern plane carries the real face pattern
+      // the pattern plane carries the real face pattern. If ITS texture
+      // can't decode, the scene is effectively blank — surface the
+      // designed text fallback instead of a silent black hero.
       svgTex(patternSvg(c), (tex) => {
+        (window as unknown as { __heroTex?: string }).__heroTex = "ok";
         const R2 = rig.current;
         if (!R2) { tex.dispose(); return; }
         R2.patternMat.map?.dispose();
         R2.patternMat.map = tex;
         R2.patternMat.needsUpdate = true;
         if (R2.still) R2.renderOnce();
+      }, () => {
+        (window as unknown as { __heroTex?: string }).__heroTex = "fail";
+        setFailed(true);
       });
       const kf = useGen.getState().kitTextFill;
       const svgs = [
@@ -593,6 +619,8 @@ export function HeroGL() {
         renderKit(applyKitTextFill(c, kf.panel), "panel", "m"),
       ];
       svgs.forEach((svg, i) => {
+        // a failed satellite stays hidden (its label div still shows) —
+        // only note it for the ?kitdebug strip
         svgTex(cropPad(svg), (tex, w, h) => {
           const R2 = rig.current;
           if (!R2) { tex.dispose(); return; }

@@ -1198,6 +1198,35 @@ function patternTileUrl(cfg: GenConfig): string {
   return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${s}' height='${s}'>`)}${inner.replace(/'/g, "%27").replace(/</g, "%3C").replace(/>/g, "%3E").replace(/#/g, "%23")}${encodeURIComponent("</svg>")}")`;
 }
 
+/* ?kitdebug — a field-diagnosis strip for browsers we can't run ourselves
+   (Safari): collects window errors, unhandled rejections and the hero's
+   texture status into a visible card, so an owner screenshot carries the
+   actual failure instead of a black void. Renders NOTHING without the
+   flag in the URL. */
+function KitDebugStrip() {
+  const [lines, setLines] = useState<string[]>([]);
+  useEffect(() => {
+    if (!/kitdebug/.test(window.location.search + window.location.hash)) return;
+    const push = (m: string) => setLines((l) => [...l.slice(-7), m]);
+    const onErr = (e: ErrorEvent) => push(`err: ${e.message} @ ${(e.filename ?? "").split("/").pop()}:${e.lineno}`);
+    const onRej = (e: PromiseRejectionEvent) => push(`rejection: ${String(e.reason).slice(0, 200)}`);
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    push(`kitdebug · dpr=${window.devicePixelRatio} · ${navigator.userAgent.includes("Safari") && !navigator.userAgent.includes("Chrome") ? "safari" : "other"}`);
+    const t = window.setTimeout(() => {
+      const w = window as unknown as { __heroTex?: string };
+      push(`hero: gl=${document.querySelector('[data-gl="on"]') ? "on" : "OFF"} tex=${w.__heroTex ?? "NEVER LOADED"}`);
+    }, 5000);
+    return () => { window.removeEventListener("error", onErr); window.removeEventListener("unhandledrejection", onRej); window.clearTimeout(t); };
+  }, []);
+  if (!lines.length) return null;
+  return (
+    <div style={{ position: "fixed", bottom: 10, left: 10, zIndex: 999, maxWidth: 560, background: "rgba(60,10,10,.94)", color: "#ffd9a8", font: "11px/1.5 monospace", padding: "10px 12px", borderRadius: 10, whiteSpace: "pre-wrap", pointerEvents: "none" }}>
+      {lines.join("\n")}
+    </div>
+  );
+}
+
 export function KitPage() {
   const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
@@ -3378,6 +3407,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
+      <KitDebugStrip />
     </div>
   );
 }

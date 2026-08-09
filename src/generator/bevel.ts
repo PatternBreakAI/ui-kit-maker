@@ -4,22 +4,33 @@ import { iconGroup } from "./icons";
 import { silhouetteMeta } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
 import { innerOffsetLoops } from "./offsetKernel";
+import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
 import rough from "roughjs";
 
-/* ── real glyph advances beat any per-face estimate ──────────────────────
-   Char-count × factor guesses lose badly on extreme display faces (Chango
-   runs ~0.93em/cap against a 0.62 registry factor — 50% wide), and every
-   layout decision downstream (canvas width, shell width, centering, filter
-   regions) inherits the error as cropped labels. Canvas measureText is
-   synchronous, so the renderer measures the EXACT label with the loaded
-   font. Returns em units, or null while the face hasn't loaded — callers
-   fall back to the registry factor, and the store re-renders everything
-   the moment fonts land (loadingdone), so estimates only ever paint for
-   the first frames. Memoized: renders re-measure identical labels often. */
+/* ── label widths come from BAKED metrics, not the browser ───────────────
+   Registry faces sum real per-glyph advances shipped as data (fontMetrics),
+   so every browser — Safari included — lays labels out from the SAME,
+   CORRECT numbers, before the face even loads. This retired two eras of
+   cut-off text: the factor-estimate window (Chango ran ~0.93em/cap against
+   a 0.62 guess) and the per-browser measureText disagreements that survived
+   every boundary patch. Live canvas measurement remains for what data can't
+   cover: user-uploaded faces, and the Chinese faces' han glyphs (cursive
+   advances genuinely vary per glyph — the table only carries their safe
+   ceiling, so the loaded face refines it). */
 let _measureCtx: CanvasRenderingContext2D | null | undefined;
 const _measureCache = new Map<string, number>();
 export function measureLabel(label: string, font: string, weight: number, italic: boolean): number | null {
+  const zh = fontByName(font).lang === "zh";
+  if (!zh) {
+    const baked = tableLabelEm(label, font, weight, italic);
+    if (baked !== null) return baked;
+  }
+  const live = measureLive(label, font, weight, italic);
+  if (live !== null) return live;
+  return zh ? tableLabelEm(label, font, weight, italic) : null;
+}
+function measureLive(label: string, font: string, weight: number, italic: boolean): number | null {
   try {
     if (typeof document === "undefined" || !label) return null;
     const spec = `${italic ? "italic " : ""}${weight || 400} 100px "${font}"`;
@@ -2187,15 +2198,28 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      region blew that cap at hero scale — thumbnails survived, the big
      canvas text vanished, Chrome tiled and never showed it. Sized here
      from the shell the label lives in plus the largest effect spread. */
-  const tfSpread = Math.max(
+  const tfEnv = Math.max(
     T2.glow.on && !disabled ? T2.glow.size * 0.8 * 3 : 0,
     T2.shadow.on ? (Math.abs(T2.shadow.x) + Math.abs(T2.shadow.y) + T2.shadow.blur * 1.5) * fsc : 0,
-    8) + fs
-    // engines disagree on display-face advances by up to ~25% (Safari
-    // especially, with synthesized italics) — the region carries that
-    // slack so real glyphs never hit the raster boundary. Still bounded:
-    // proportional to this label, nowhere near the Safari buffer cap.
-    + textW * 0.25;
+    8) + fs * 1.5
+    // italic head-room rides the UNCAPPED envelope (owner: "make sure the
+    // italicized type is not cut off" — above all else): Safari synthesizes
+    // the slant for faces with no italic cut and leans glyph tops right of
+    // the measured advance, so italic gets its own guaranteed reach that
+    // the buffer cap can never squeeze.
+    + (T2.italic ? fs * 0.6 : 0);
+  /* engines disagree on display-face advances by up to ~25% (Safari
+     especially, with synthesized italics) — the region carries nearly
+     half the label again as slack so real glyphs never hit the raster
+     boundary (owner: "main problem in safari is cut-off text"). The
+     slack alone is CAPPED so the total spread never passes ~1100 user
+     units: a monster label (long × display face × max size/weight/
+     spacing) at kit-page scale on a Retina display otherwise rasterizes
+     past Safari's filter buffer and the piece silently never paints —
+     the July-25 failure, rediscovered as "some items don't render at
+     all". The cap squeezes only the advance slack, never the glow/shadow
+     envelope existing documents rely on. */
+  const tfSpread = tfEnv + Math.min(textW * 0.45, Math.max(0, 1100 - tfEnv));
   const textFxDef = prims.length
     ? `<filter id="${id}tf" filterUnits="userSpaceOnUse" x="${(x - tfSpread).toFixed(0)}" y="${(y - tfSpread).toFixed(0)}" width="${(w + tfSpread * 2).toFixed(0)}" height="${(h + tfSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">${shadowChain11(prims)}</filter>`
     : "";
@@ -2254,7 +2278,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const textOy = opts.textOy ?? T2.oy ?? 0;
 
   const T = D.transparency;
-  const fontStyle = T2.italic ? ` font-style="italic"` : "";
+  /* Synthetic italics are drawn UPRIGHT and slanted with an explicit skew
+     on the whole finished label stack. Safari crops font-style-synthesized
+     obliques at the glyph run's layout bounds when it captures text for
+     filtering — the last glyph's lean shears off mid-stroke (the owner's
+     cut Y; convicted in the field by the slant lab: same boxes, italic
+     attribute removed in place, cut healed). A skew applied OUTSIDE the
+     filter never leans during capture, and the slant angle stops depending
+     on which browser is improvising it. skewX(-14) ≈ the oblique Chromium
+     drew, so existing kits keep their look. Faces with true italic files
+     keep font-style — real glyphs, real advances (the metrics table
+     carries them). */
+  const realItal = !!capsF?.italic && !!fontDef.css?.includes("ital");
+  const synthItal = !!T2.italic && !realItal;
+  const fontStyle = T2.italic && !synthItal ? ` font-style="italic"` : "";
   // style attr builder — carries the width axis plus any per-layer extras
   const tStyle = (extra = "") => (wdthV !== undefined || extra)
     ? ` style="${wdthV !== undefined ? `font-stretch:${wdthV}%;` : ""}${extra}"` : "";
@@ -2302,7 +2339,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const shOp2 = clamp((SH2!.opacity ?? 100) / 100, 0, 1);
     // away from the key light — light overhead shifts the copy straight down
     const shDx = (-lx * shSize).toFixed(1), shDy = (-ly * shSize).toFixed(1);
-    const shSpread = shSize + shInset + shRound * 4 + fs * 0.2 + textW * 0.25;
+    // same Safari advance slack + buffer-cap clamp as tfSpread, with the
+    // same uncapped italic head-room
+    const shEnv = shSize + shInset + shRound * 4 + fs * 0.5 + (T2.italic ? fs * 0.6 : 0);
+    const shSpread = shEnv + Math.min(textW * 0.45, Math.max(0, 1100 - shEnv));
     shineDef = `<filter id="${id}tsh" filterUnits="userSpaceOnUse" x="${(x - shSpread).toFixed(0)}" y="${(y - shSpread).toFixed(0)}" width="${(w + shSpread * 2).toFixed(0)}" height="${(h + shSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
       `<feMorphology in="SourceAlpha" operator="erode" radius="${shInset.toFixed(1)}" result="shs"/>` +
       `<feOffset in="shs" dx="${shDx}" dy="${shDy}" result="sho"/>` +
@@ -2371,7 +2411,16 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">
+  /* overflow=visible: the canvas frame is sized from the SHELL, while
+     text layout rides estimated per-font advances — Safari draws the
+     same faces up to ~25% wider (synthesized italics especially), so a
+     label that fits Chromium's estimate can poke past the frame and get
+     guillotined ("cut-off text", the recurring Safari family: gallery
+     descenders, SHADOW KNIGHT's right edge). Live inline rendering now
+     lets those glyphs draw past the frame instead of clipping; raster
+     paths keep the frame, and in Chromium nothing pokes, so exports are
+     pixel-identical. */
+  return `<svg xmlns="http://www.w3.org/2000/svg" overflow="visible" width="${vw + pad * 2}" height="${vh + pad * 2}" viewBox="${-pad} ${-pad} ${vw + pad * 2} ${vh + pad * 2}" font-family="'${T2.font}', 'Inter Variable', Inter, sans-serif" data-shell="${x.toFixed(1)} ${(y + riseDy + lift).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="${label || "component"}, ${state} state">
 <defs>
   <linearGradient id="${id}band" ${axis}>
     <stop offset="0" stop-color="${darken(bevelC, clamp(0.3 * lowK, 0, 0.7))}"/>
@@ -2506,14 +2555,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">` : ""}
+      ${showText ? `<g data-part="label">${synthItal ? `<g transform="translate(${tTextX.toFixed(1)} ${(cy + 1 + textOy * K).toFixed(1)}) skewX(-14) translate(${(-tTextX).toFixed(1)} ${(-(cy + 1 + textOy * K)).toFixed(1)})">` : ""}` : ""}
       ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
       ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
       ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central">${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
       ${shineLayer}
       ${glintsLayer}
-      ${showText ? `</g>` : ""}
+      ${showText ? `${synthItal ? `</g>` : ""}</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
@@ -2993,7 +3042,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // labels — vertical used to be per-callsite and read as dead elsewhere
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
@@ -3387,7 +3436,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const ph = opts.label
         ? contentText(opts.label, 39 + inset + 20 * k, tyIn, 32 * k * typeK, { keepCase: true })
         : opts.placeholder === false ? ""
-        : `<text x="${39 + inset + 20 * k}" y="${tyIn.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${30 * k}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.55)" dominant-baseline="central">${esc("Type something…")}</text>`;
+        : `<text x="${39 + inset + 20 * k}" y="${tyIn.toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${30 * k}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.55)" dominant-baseline="central">${esc("Type something…")}</text>`;
       const caret = state === "hover"
         ? `<rect x="${(39 + inset + 20 * k + (opts.label ? Math.min(opts.label.length, maxChars) * charW : 0)).toFixed(1)}" y="${(tyIn - 17 * k * typeK).toFixed(1)}" width="${(2.5 * k).toFixed(1)}" height="${(34 * k * typeK).toFixed(1)}" fill="${hexMix(glow, "#FFFFFF", 0.4)}"><animate attributeName="opacity" values="1;0;1" dur="1.1s" repeatCount="indefinite"/></rect>`
         : "";
@@ -3474,7 +3523,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           })() : ""}
         </g>` +
         candyKnob(cxV, 30 + h / 2, h * 0.46, knobC) +
-        `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;
+        `<text x="${(cxV + typeOxK * k).toFixed(1)}" y="${(30 + h / 2 + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text>`;
       return stampTrack(inject(track, parts), bx, trackW);
     }
     case "dialog": {
@@ -3522,7 +3571,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <g transform="translate(0 ${dy3.toFixed(1)})">
           <rect x="${bx3.toFixed(1)}" y="${btnY.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hot ? hexRgba(glow, 0.9) : darkFace ? "rgba(8,14,24,0.55)" : "rgba(255,255,255,0.35)"}" stroke-width="${hot ? 2.2 : 1.4}"${state !== "disabled" && (primaryB || hot) ? ` style="filter: drop-shadow(0 0 ${((hot ? 11 : 6) * k).toFixed(1)}px ${hexRgba(glow, hot ? 0.8 : 0.55)})"` : ""}/>
           <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(btnY + btnH * 0.14).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.24).toFixed(1)}" rx="${(btnH * 0.12).toFixed(1)}" fill="#FFFFFF" opacity="${press ? 0.06 : primaryB ? (hot ? 0.24 : 0.15) : 0.08}"/>
-          <text x="${(bx3 + btnW / 2 + (cfg.type.italic ? -23 * k * typeK * 0.07 : 0)).toFixed(1)}" y="${(btnY + btnH / 2 + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(23 * k * typeK).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.04em" fill="${ink3}" fill-opacity="${inkOp}" text-anchor="middle" dominant-baseline="central">${esc(lbl3)}</text>
+          <text x="${(bx3 + btnW / 2 + (cfg.type.italic ? -23 * k * typeK * 0.07 : 0)).toFixed(1)}" y="${(btnY + btnH / 2 + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(23 * k * typeK).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.04em" fill="${ink3}" fill-opacity="${inkOp}" text-anchor="middle" dominant-baseline="central">${esc(lbl3)}</text>
           </g>`;
       };
       const bx0 = 42 + inset + 8 * k;
@@ -3780,7 +3829,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const q = opts.label;
       const txt = q
         ? contentText(q, 39 + inset + 72 * k, cy + 1, 28 * k * typeK, { keepCase: true })
-        : `<text x="${(39 + inset + 72 * k).toFixed(1)}" y="${cy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(27 * k).toFixed(1)}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc("Search inventory…")}</text>`;
+        : `<text x="${(39 + inset + 72 * k).toFixed(1)}" y="${cy.toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(27 * k).toFixed(1)}" font-style="italic" font-weight="500" fill="rgba(255,255,255,0.5)" dominant-baseline="central">${esc("Search inventory…")}</text>`;
       const parts = `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.9"/>` +
         (STOCK_ICONS.search ? themedIcon(STOCK_ICONS.search, 39 + inset + 22 * k, cy - 17 * k, 34 * k, glow, 2.4) : "") +
         txt +
@@ -3970,7 +4019,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     : /* readout contract: AUTO ink, no shadow — an instrument dial, not a
          display face. Editing Typography (or the per-piece text color)
          while focused re-themes it via opts.themedText. */
-      `<text x="${cC}" y="${cC + 1}" font-family="'${font}', Inter, sans-serif" font-size="${(dC * 0.22).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${secs}s</text>`}
+      `<text x="${cC}" y="${cC + 1}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(dC * 0.22).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${secs}s</text>`}
 </g>
 </svg>`;
     }
@@ -4756,7 +4805,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `drop-shadow(${(T9.shadow.x * 0.6).toFixed(1)}px ${(T9.shadow.y * 0.6).toFixed(1)}px ${(T9.shadow.blur * 0.4).toFixed(1)}px ${hexRgba(T9.shadow.color, T9.shadow.opacity / 100)})`
         : `drop-shadow(0 ${(2 * k).toFixed(1)}px ${(2 * k).toFixed(1)}px rgba(6,10,18,0.55))`;
       const bigNum = (txt9: string, fill9: string, fs9: number, glowFx9 = "") =>
-        `<g style="filter: ${shFx9}${glowFx9}"><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${fs9.toFixed(1)}" font-weight="${Math.max(800, T9.weight)}"${T9.italic ? ' font-style="italic"' : ""} fill="${fill9}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${strokeC9}; stroke-width: ${strokeW9.toFixed(1)}px; stroke-linejoin: round">${esc(txt9)}</text></g>`;
+        `<g style="filter: ${shFx9}${glowFx9}"><text x="${cxR9.toFixed(1)}" y="${secCy.toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${fs9.toFixed(1)}" font-weight="${Math.max(800, T9.weight)}"${T9.italic ? ' font-style="italic"' : ""} fill="${fill9}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${strokeC9}; stroke-width: ${strokeW9.toFixed(1)}px; stroke-linejoin: round">${esc(txt9)}</text></g>`;
       const secsTxt = done
         ? bigNum((opts.slots?.goword || "GO").slice(0, 10), READY, 54 * k, state !== "disabled" ? ` drop-shadow(0 0 ${(8 * k).toFixed(1)}px ${hexRgba(READY, 0.8)})` : "") +
           (state !== "disabled"
@@ -5303,7 +5352,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          (solid or gradient) retints the lit face too; Auto keeps the
          glow-lit recipe. */
       const TWc = Math.max(400, cfg.type.weight || 900);
-      const numAttrs = `font-family="'${font}', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="${TWc}"${cfg.type.italic === false ? "" : ' font-style="italic"'} text-anchor="middle" dominant-baseline="central"`;
+      const numAttrs = `font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="${TWc}"${cfg.type.italic === false ? "" : ' font-style="italic"'} text-anchor="middle" dominant-baseline="central"`;
       const numBase = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? cfg.type.fill2 : glow;
       const numeral = `<g transform="rotate(-4 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}>
   <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
@@ -5315,7 +5364,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const pcy = cyC0 + fsC * 0.72 + 30 * k;
       const plate = `<g transform="rotate(-3 ${cxC0.toFixed(1)} ${pcy.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 4px rgba(6,10,18,0.5))"` : ""}>
   <path d="M ${(cxC0 - pW / 2 + ch9).toFixed(1)} ${(pcy - pH / 2).toFixed(1)} h ${(pW - ch9 * 2).toFixed(1)} l ${ch9.toFixed(1)} ${ch9.toFixed(1)} v ${(pH - ch9 * 2).toFixed(1)} l ${(-ch9).toFixed(1)} ${ch9.toFixed(1)} h ${(-(pW - ch9 * 2)).toFixed(1)} l ${(-ch9).toFixed(1)} ${(-ch9).toFixed(1)} v ${(-(pH - ch9 * 2)).toFixed(1)} Z" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.78)}" stroke="${hexMix(glow, "#FFFFFF", 0.4)}" stroke-width="${(2 * k).toFixed(1)}" stroke-linejoin="round"/>
-  <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
+  <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
 </g>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" role="img" aria-label="combo ${mult}">
 <defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${
@@ -5358,7 +5407,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          them inside contentText */
       const num = opts.themedText
         ? contentText(String(moves), ccx, numY, 58 * k * typeK, { anchor: "middle", keepCase: true, autoInk: inkM })
-        : `<text x="${(ccx + typeOxK * k).toFixed(1)}" y="${(numY + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
+        : `<text x="${(ccx + typeOxK * k).toFixed(1)}" y="${(numY + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(58 * k).toFixed(1)}" font-weight="${Math.max(800, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} fill="${inkM}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: ${armorM}; stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${moves}${pulse}</text>`;
       const over = infoText((opts.slots?.caption ?? "MOVES").slice(0, 12), ccx + typeOxK * k, sy + sh - 20 * k + typeOyK * k, 15 * k, "middle", 800) + num;
       return inject(shell.replace("<svg ", '<svg data-movecounter="1" '), over);
     }
@@ -6141,7 +6190,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (opts.label) {
         const py = 30 + h - 76 * k;
         parts += `<g data-part="label"><path d="${roundRect(39 + w * 0.12, py, w * 0.76, 46 * k, 12 * k)}" fill="${wellFill}" opacity="0.94" stroke="${hexRgba(darken(bevel, 0.35), 0.6)}" stroke-width="1"/>` +
-          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text></g>`;
+          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text></g>`;
       }
       return inject(track.replace("<svg ", '<svg data-cardback="1" '), parts);
     }
@@ -6178,7 +6227,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the text controls") */
       parts += `<g data-part="label">${opts.themedText
         ? contentText(opts.label ?? "12 CARDS", cxP, 30 + h * 0.72, 19 * k * typeK, { anchor: "middle", keepCase: true, track: 2, autoInk: hexMix(glow, "#FFFFFF", 0.4) })
-        : `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`}</g>`;
+        : `<text x="${cxP.toFixed(1)}" y="${(30 + h * 0.72).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(19 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="2" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label ?? "12 CARDS")}</text>`}</g>`;
       parts += crimp(30 - 2 * k) + crimp(30 + h - 32 * k);
       return inject(track.replace("<svg ", '<svg data-pack="1" '), parts);
     }
@@ -6211,7 +6260,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
                italic faces overhang) plus a 0.36em gap — and no leading space
                in the <text>, since SVG collapses it and the slash would kiss
                the last digit (the visual gate caught exactly that) */
-            (maxTxt ? `<text x="${(39 + 20 * k + medR * 2 + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="650" fill="${infoInk}" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
+            (maxTxt ? `<text x="${(39 + 20 * k + medR * 2 + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="650" fill="${infoInk}" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
         (opts.addBtn ? candyKnob(39 + w - 8 * k - h * 0.32, cy, h * 0.32, glow) +
           `<text x="${(39 + w - 8 * k - h * 0.32).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${26 * k}" font-weight="800" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">+</text>` : "");
       return inject(track, parts);
@@ -6407,7 +6456,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (dimmed) parts.push(`<path d="${wellPath}" fill="rgba(6,8,16,0.62)"/>`);
       if (ov === "locked") parts.push(iconGroup(STOCK_ICONS.lock, cx2 - 13, cy2 - 13, 26, "rgba(255,255,255,0.85)", { strokeWidth: 2.2 * iconWK }));
       if (ov.startsWith("cooldown")) {
-        parts.push(`<text x="${cx2.toFixed(1)}" y="${(cy2 + 1).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${inner * 0.32}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(ov.split(":")[1] ?? "12s")}</text>`);
+        parts.push(`<text x="${cx2.toFixed(1)}" y="${(cy2 + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${inner * 0.32}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(ov.split(":")[1] ?? "12s")}</text>`);
       }
       if (ov.startsWith("count")) {
         const n = ov.split(":")[1] ?? "1";
@@ -6418,7 +6467,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         // the level IS the content — big number in the kit's own type
         const n = ov.split(":")[1] ?? "1";
         parts.push(`<text x="${cx2}" y="${(27 + inset + 13).toFixed(1)}" font-family="Inter, sans-serif" font-size="11" font-weight="800" letter-spacing=".2em" fill="rgba(255,255,255,0.55)" text-anchor="middle" dominant-baseline="central">LV</text>`);
-        parts.push(`<text x="${cx2}" y="${(cy2 + 8).toFixed(1)}" font-family="'${font}', Inter, sans-serif" font-size="${(inner * 0.48).toFixed(1)}" font-weight="800" fill="${hexMix(glow, "#FFFFFF", 0.3)}" stroke="${darken(bevel, 0.5)}" stroke-width="${(inner * 0.03).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(n)}</text>`);
+        parts.push(`<text x="${cx2}" y="${(cy2 + 8).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(inner * 0.48).toFixed(1)}" font-weight="800" fill="${hexMix(glow, "#FFFFFF", 0.3)}" stroke="${darken(bevel, 0.5)}" stroke-width="${(inner * 0.03).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(n)}</text>`);
       }
       if (ov === "new") {
         parts.push(`<circle cx="${33 + s2 - inset - 2}" cy="${27 + inset + 2}" r="13" fill="${glow}" stroke="${darken(bevel, 0.45)}" stroke-width="1.5"/><text x="${33 + s2 - inset - 2}" y="${27 + inset + 3}" font-family="Inter, sans-serif" font-size="15" font-weight="900" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">!</text>`);
@@ -7170,7 +7219,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          speaks here when one is set */
       const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
         `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
-         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
+         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', 'Inter Variable', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
       const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component

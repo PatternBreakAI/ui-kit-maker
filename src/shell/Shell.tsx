@@ -38,6 +38,14 @@ const CommunityPage = lazy(() =>
 const TypeProofPage = lazy(() =>
   import("@/ui/TypeProofPage").then((m) => ({ default: m.TypeProofPage })),
 );
+const ItalicProbePage = lazy(() =>
+  import("@/ui/ItalicProbePage").then((m) => ({ default: m.ItalicProbePage })),
+);
+// in-place Safari instrumentation — mounts on ANY route when the URL
+// carries `slantlab` (e.g. /#/app?slantlab); see src/ui/SlantLab.tsx
+const SlantLab = lazy(() =>
+  import("@/ui/SlantLab").then((m) => ({ default: m.SlantLab })),
+);
 const StudioPage = lazy(() =>
   import("@/ui/StudioPage").then((m) => ({ default: m.StudioPage })),
 );
@@ -246,12 +254,21 @@ export function Shell() {
         <Suspense fallback={<RouteLoading />}>
           <TypeProofPage />
         </Suspense>
+      ) : route.name === "italicprobe" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <ItalicProbePage />
+        </Suspense>
       ) : (
         <Landing />
       )}
       {overlay.open && (
         <Suspense fallback={null}>
           <AuthOverlay />
+        </Suspense>
+      )}
+      {/slantlab/.test(window.location.search + window.location.hash) && (
+        <Suspense fallback={null}>
+          <SlantLab />
         </Suspense>
       )}
     </RouteBoundary>

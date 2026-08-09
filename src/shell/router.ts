@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 
 export type RouteName =
   | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
-  | "community" | "studio" | "user" | "admin" | "faq" | "unity" | "typeproof";
+  | "community" | "studio" | "user" | "admin" | "faq" | "unity" | "typeproof" | "italicprobe";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
@@ -54,6 +54,9 @@ export function parseHash(hash: string): Route {
   // QA sheet for real-browser (read: Safari) type-filter passes — public
   // but unlinked; humans reach it by being told the URL
   if (path === "/typeproof") return { name: "typeproof", viewer: false };
+  // the Safari italic-clip experiment (ChatGPT-designed variant grid) —
+  // same public-but-unlinked deal as typeproof
+  if (path === "/italicprobe") return { name: "italicprobe", viewer: false };
   // /u/<handle> — the one parameterized route: a maker's public page.
   const u = /^\/u\/([a-z0-9_]{3,20})$/.exec(path);
   if (u) return { name: "user", viewer: false, param: u[1] };
