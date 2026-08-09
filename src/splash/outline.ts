@@ -136,9 +136,9 @@ export type WordFx = {
 const ROTS = [-5, 4, -3, 5, -4, 3, -6, 4, -3, 5];
 const BOB = [0, -0.045, 0.03, -0.04, 0.045, -0.03, 0.04, -0.045, 0.03, -0.04];
 
-type Cmd = { type: string; x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number };
+export type Cmd = { type: string; x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number };
 
-const cmdToD = (cmds: Cmd[]): string =>
+export const cmdToD = (cmds: Cmd[]): string =>
   cmds.map((c) =>
     c.type === "M" ? `M${c.x!.toFixed(2)} ${c.y!.toFixed(2)}`
     : c.type === "L" ? `L${c.x!.toFixed(2)} ${c.y!.toFixed(2)}`
@@ -147,7 +147,7 @@ const cmdToD = (cmds: Cmd[]): string =>
     : "Z",
   ).join("");
 
-const mapCmds = (cmds: Cmd[], fn: (x: number, y: number) => [number, number]): Cmd[] =>
+export const mapCmds = (cmds: Cmd[], fn: (x: number, y: number) => [number, number]): Cmd[] =>
   cmds.map((c) => {
     const o: Cmd = { type: c.type };
     if (c.x !== undefined) [o.x, o.y] = fn(c.x, c.y!);
@@ -159,7 +159,7 @@ const mapCmds = (cmds: Cmd[], fn: (x: number, y: number) => [number, number]): C
 /** Flatten curve commands to polyline points at roughly `step` chord
  *  length — envelope functions are nonlinear, so control points alone
  *  would distort wrongly; locally-flat segments bend true. */
-function flatten(cmds: Cmd[], step: number): Cmd[] {
+export function flatten(cmds: Cmd[], step: number): Cmd[] {
   const out: Cmd[] = [];
   let px = 0, py = 0;
   const emit = (x: number, y: number) => out.push({ type: "L", x, y });
@@ -197,7 +197,7 @@ type LaidGlyph = { cmds: Cmd[]; penX: number; adv: number; center: number };
 /** Some faces' GSUB lookups crash opentype.js 2's shaper outright
  *  (Bangers: "lookupType 6 substFormat 2 is not yet supported"). Fall
  *  back to 1:1 charToGlyph — ligatures are lost, the word is not. */
-function toGlyphs(font: Font, text: string): Glyph[] {
+export function toGlyphs(font: Font, text: string): Glyph[] {
   try {
     return font.stringToGlyphs(text);
   } catch {
@@ -208,7 +208,7 @@ function toGlyphs(font: Font, text: string): Glyph[] {
 /** Kerned glyph layout at baseline y=0, pen from x=0. Per-glyph size
  *  multipliers (letterScales, addressed from `gi0`) scale the glyph AND
  *  its advance, baseline-anchored, so the line reflows around edits. */
-function layout(font: Font, text: string, size: number, spacingEm: number, scales?: number[], gi0 = 0): { glyphs: LaidGlyph[]; w: number } {
+export function layout(font: Font, text: string, size: number, spacingEm: number, scales?: number[], gi0 = 0): { glyphs: LaidGlyph[]; w: number } {
   const glyphs = toGlyphs(font, text);
   const track = spacingEm * size;
   const out: LaidGlyph[] = [];
@@ -232,7 +232,7 @@ function layout(font: Font, text: string, size: number, spacingEm: number, scale
 export const centralShift = (font: Font, size: number): number =>
   ((font.ascender + font.descender) / 2) * (size / font.unitsPerEm);
 
-const boundsOf = (cmds: Cmd[]) => {
+export const boundsOf = (cmds: Cmd[]) => {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const c of cmds) {
     if (c.x !== undefined) {
