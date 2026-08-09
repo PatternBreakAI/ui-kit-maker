@@ -35,6 +35,12 @@ export type SplashLook = {
   /** the TRUE stroke — a traditional contour hugging each letterform,
    *  painted above the drop shadow and backsplash, below the ink */
   stroke: { on: boolean; color: string; width: number };
+  /** nested contour bands (face → keyline → border, max 3) — the
+   *  display-lettering construction; the body extrudes and wraps from
+   *  the OUTERMOST band */
+  contours: { width: number; color: string }[];
+  /** inline/inset ring inside the face — varsity, marquee, engraved */
+  inline: { on: boolean; inset: number; width: number; color: string };
   /** drop shadow of letters + stroke — behind both, in FRONT of the backsplash */
   dropShadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** wall bevel — the chiseled hard-candy edge on the letterforms */
@@ -101,6 +107,8 @@ const GOOD_DAY: SplashStyle = {
   blob2: "#3E3357",
   strokeW: 8,
   stroke: { on: false, color: "#FFFFFF", width: 3 },
+  contours: [],
+  inline: { on: false, inset: 2.5, width: 1.8, color: "#1F2A44" },
   dropShadow: { on: false, color: "#1A1A1A", x: 0, y: 6, blur: 4, opacity: 45 },
   wall: { on: false, width: 3, soft: 30, strength: 70 },
   depth: 14,
@@ -156,6 +164,37 @@ export const SPLASH_STYLES: { id: string; name: string; style: SplashStyle }[] =
       strokeW: 9, depth: 16, shadow: 35, bounce: 25,
       shineColor: "#FFE9F7", shineBlend: "screen", shineOpacity: 80,
       stage: { mode: "color", color: "#101318" },
+    },
+  },
+  /* construction recipes — the letters do the work, no backsplash:
+     contour bands + directional extrusion make the silhouette */
+  {
+    id: "comic-pop", name: "Comic Pop",
+    style: {
+      ...GOOD_DAY,
+      font: "Bangers",
+      fill: "#FFE24D", inkGrad: true, fill2: "#FFA400",
+      backsplash: false,
+      blob: "#8F2600",           // the extrusion wall's ink
+      contours: [{ width: 2.5, color: "#FFF3D6" }, { width: 5.5, color: "#26120B" }],
+      depth: 14, shadow: 20, bounce: 12, lineHeight: 100,
+      shine: false,
+      stage: { mode: "color", color: "#F4F1EA" },
+    },
+  },
+  {
+    id: "varsity", name: "Varsity",
+    style: {
+      ...GOOD_DAY,
+      font: "Archivo Black",
+      fill: "#F2E7CC", inkGrad: false,
+      backsplash: false,
+      blob: "#0E1830",
+      inline: { on: true, inset: 2.5, width: 2, color: "#1C2B4A" },
+      contours: [{ width: 4, color: "#1C2B4A" }, { width: 2.5, color: "#F2E7CC" }, { width: 2.5, color: "#1C2B4A" }],
+      depth: 5, shadow: 12, bounce: 0, lineHeight: 102,
+      shine: false,
+      stage: { mode: "color", color: "#B9352E" },
     },
   },
   {
@@ -215,6 +254,8 @@ export function buildSplashCfg(look: SplashLook): GenConfig {
     blend: look.pattern.blend,
   };
   t.wall = { on: look.wall.on, width: look.wall.width, soft: look.wall.soft, strength: look.wall.strength };
+  t.contours = look.contours.filter((c) => c.width > 0.05).slice(0, 3);
+  t.inline = { ...look.inline };
   t.noise = { on: false, amount: 35, scale: 50 };
   t.shine = { on: look.shine, size: look.shineSize, inset: look.shineInset, round: look.shineRound, opacity: look.shineOpacity, color: look.shineColor, blend: look.shineBlend };
   t.dim = {

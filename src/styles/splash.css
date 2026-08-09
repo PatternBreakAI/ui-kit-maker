@@ -92,6 +92,9 @@ textarea.sp-text { resize: vertical; min-height: 58px; line-height: 1.35; font-f
 
 .sp-bulge { display: flex; align-items: center; gap: 8px; }
 .sp-bulge > .ctl { flex: 1; min-width: 0; }
+.sp-ctr { display: flex; align-items: center; gap: 8px; }
+.sp-ctr > .ctl { flex: 1; min-width: 0; }
+.sp-ctr .sp-well { flex: none; }
 .sp-mini { flex: none; padding: 4px 9px; font-size: 11px; }
 
 .sp-note { font-size: 11.5px; color: #7c828c; }

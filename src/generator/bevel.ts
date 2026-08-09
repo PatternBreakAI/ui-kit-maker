@@ -2239,6 +2239,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       : ` stroke="${outlineStroke}" stroke-width="${outlineW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`)
     : (synW > 0.05 ? ` stroke="${tFill}" stroke-width="${synW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"` : "");
   const outlineUnder = T2.outline.on && synW > 0.05;
+  /* nested contour bands — the display-lettering construction. Band k's
+     paint reaches (w1+…+wk) past the letter edge; painting outermost
+     first stacks them face-out. All true stroke geometry on the same
+     compound path, so no band ever crosses a neighboring letter's face
+     wrongly — the word is contoured as one object. */
+  const CTRS = (T2.contours ?? []).filter((c) => (c.width ?? 0) > 0.05).slice(0, 3);
+  const ctrReach = CTRS.reduce((a, c) => a + c.width, 0) * (fs / 52);
 
   const iFx = IC.fx;
   const iFilters: string[] = [];
@@ -2360,6 +2367,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const outlineBehindNode = outlineBehind && showText
     ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW * 2).toFixed(1)}" stroke-linejoin="round"`)
     : "";
+  // contour bands paint outermost-first, each a filled+stroked copy of the
+  // word path — the fill closes the interior so bands never show seams
+  const ctrLayers = showText && CTRS.length ? (() => {
+    let acc = 0;
+    const bands = CTRS.map((c) => { acc += c.width; return { r: acc * (fs / 52), color: P(c.color) }; });
+    return bands.reverse().map((b) => fxText(`fill="${b.color}" stroke="${b.color}" stroke-width="${(b.r * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)).join("");
+  })() : "";
   let dimDefs = "", dimBack = "", dimGlossLayer = "";
   if (dimOn && (dDepth > 0.05 || dStick > 0.05 || dRim > 0.05 || dShOp > 0 || dGlOp > 0)) {
     // bounded like the text-fx region: absolute units, sized from this
@@ -2383,7 +2397,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
        round-join STROKE on the compound path instead — a true parallel
        offset of every curve — and the filters only sweep and tint it.
        The <text> fallback keeps the dilate (no geometry to stroke). */
-    const dStkW = dRim > 0.05 ? dStick + dRim : dStick;
+    /* the OUTER silhouette the body derives from: wrap + rim + every
+       contour band — extrusion, wrap, shadow and masks all treat the
+       outermost contour as the letter's edge (the construction rule) */
+    const dStkW = (dRim > 0.05 ? dStick + dRim : dStick) + ctrReach;
     /* gradient blob (vector-outline mode): the sweep filters can only
        flood flat color, so a gradient body routes through the shell's
        mask discipline instead — the filtered white alpha becomes a
@@ -2536,6 +2553,29 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       `<feComposite in="wshf" in2="wsh2" operator="in" result="wshc"/>` +
       `<feMerge><feMergeNode in="wshc"/><feMergeNode in="whic"/></feMerge></filter>`;
     wallLayer = `<g filter="url(#${id}twl)">${fxText(`fill="#000"`)}</g>`;
+  }
+
+  /* ── inline/inset ring — default-off: the varsity/marquee/engraved
+     band INSIDE the face, `inset` px in from the edge, `width` px thick.
+     Two erosions of the glyph alpha differenced — follows any face at
+     any size, and thin features narrower than ~2×inset drop the ring
+     naturally, which is exactly what a sign painter would do. */
+  const IL2 = T2.inline;
+  const inlineOn = !!IL2?.on && showText && !disabled && (IL2!.width ?? 0) > 0.05;
+  let inlineDef = "", inlineLayer = "";
+  if (inlineOn) {
+    const iK = fs / 52;
+    const iIn = Math.max(0.3, (IL2!.inset ?? 2) * iK);
+    const iW = Math.max(0.3, (IL2!.width ?? 1.5) * iK);
+    const iC = P(IL2!.color ?? "#FFFFFF");
+    const iOp = clamp((IL2!.opacity ?? 100) / 100, 0, 1);
+    const iSpread = fs * 0.2 + textW * 0.25;
+    inlineDef = `<filter id="${id}til" filterUnits="userSpaceOnUse" x="${(x - iSpread).toFixed(0)}" y="${(y - iSpread).toFixed(0)}" width="${(w + iSpread * 2).toFixed(0)}" height="${(h + iSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${iIn.toFixed(1)}" result="i1"/>` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${(iIn + iW).toFixed(1)}" result="i2"/>` +
+      `<feComposite in="i1" in2="i2" operator="out" result="ir"/>` +
+      `<feFlood flood-color="${iC}" flood-opacity="${iOp.toFixed(2)}"/><feComposite in2="ir" operator="in"/></filter>`;
+    inlineLayer = `<g filter="url(#${id}til)">${fxText(`fill="#000"`)}</g>`;
   }
 
   /* ── grain (Type Maker) — default-off: the shell micro-texture recipe
@@ -2709,6 +2749,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   ${glintsDefs}
   ${shineDef}
   ${wallDef}
+  ${inlineDef}
   ${textFxDef}
   ${dimDefs}
   ${tnzDef}
@@ -2758,7 +2799,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
       ${showText ? `<g data-part="label">${dimBack}` : ""}
-      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${outlineBehindNode}${outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}${TP2
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${ctrLayers}${outlineBehindNode}${outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}${TP2
         ? fxText(`fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs}`)
         : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>`}${textFilter ? `</g>` : ""}` : ""}
       ${showText && T2.stripes?.on ? (() => {
@@ -2769,6 +2810,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         return T2.stripes!.blend && T2.stripes!.blend !== "normal" ? `<g style="mix-blend-mode:${T2.stripes!.blend}">${node}</g>` : node;
       })() : ""}
       ${showText && hiIdx >= 0 && !disabled && !TP2 ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${inlineLayer}
       ${wallLayer}
       ${dimGlossLayer}
       ${shineLayer}

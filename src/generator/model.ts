@@ -321,6 +321,18 @@ export interface TypeCfg {
      *  against the blob paint. */
     pattern?: { on: boolean; style: string; scale: number; angle: number; opacity: number; color?: string | null; blend?: BlendMode };
   };
+  /** Nested contour bands around the letterforms — the display-lettering
+   *  construction (face → keyline → border): band 0 sits against the
+   *  face, each further band rings the previous. True stroke geometry on
+   *  the compound path (path mode) / text stroke fallback. Widths are px
+   *  at the 52px master scale. The dimensional body (dim) treats the
+   *  OUTERMOST band as the silhouette it extrudes and wraps. Max 3. */
+  contours?: { width: number; color: string }[];
+  /** Inline/inset ring INSIDE the face — varsity, marquee, engraved,
+   *  sign-painter lettering: a band of `width` starting `inset` px in
+   *  from the letter edge. Derived from glyph alpha (erode difference),
+   *  so it follows any face at any size. */
+  inline?: { on: boolean; inset: number; width: number; color: string; opacity?: number };
   /** Wall bevel — the hard-candy chiseled edge ON the letterforms: the
    *  glyph alpha erodes to a plateau, and the slope ring between plateau
    *  and edge is lit directionally from the master light (lit slope
@@ -394,6 +406,9 @@ export function applyTextPreset(t: TypeCfg, id: string, palette: { dark: string;
   delete t.fillStops;
   delete t.noise;
   delete t.shine;
+  delete t.contours;
+  delete t.inline;
+  delete t.wall;
 
   t.outline = { on: false, color: palette.dark, color2: null, width: 2.5 };
   t.shadow = { on: false, color: palette.dark, x: 0, y: 3, blur: 2, opacity: 50 };

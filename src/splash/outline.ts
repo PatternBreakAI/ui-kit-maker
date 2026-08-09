@@ -180,11 +180,22 @@ function flatten(cmds: Cmd[], step: number): Cmd[] {
 
 type LaidGlyph = { cmds: Cmd[]; penX: number; adv: number; center: number };
 
+/** Some faces' GSUB lookups crash opentype.js 2's shaper outright
+ *  (Bangers: "lookupType 6 substFormat 2 is not yet supported"). Fall
+ *  back to 1:1 charToGlyph — ligatures are lost, the word is not. */
+function toGlyphs(font: Font, text: string): Glyph[] {
+  try {
+    return font.stringToGlyphs(text);
+  } catch {
+    return [...text].map((ch) => font.charToGlyph(ch));
+  }
+}
+
 /** Kerned glyph layout at baseline y=0, pen from x=0. Per-glyph size
  *  multipliers (letterScales, addressed from `gi0`) scale the glyph AND
  *  its advance, baseline-anchored, so the line reflows around edits. */
 function layout(font: Font, text: string, size: number, spacingEm: number, scales?: number[], gi0 = 0): { glyphs: LaidGlyph[]; w: number } {
-  const glyphs = font.stringToGlyphs(text);
+  const glyphs = toGlyphs(font, text);
   const track = spacingEm * size;
   const out: LaidGlyph[] = [];
   let pen = 0;
@@ -234,7 +245,7 @@ export function flatWordOutline(font: Font, text: string, size: number, spacingE
   const giStarts: number[] = [];
   {
     let g0 = 0;
-    for (const ln of lines) { giStarts.push(g0); g0 += Math.max(1, font.stringToGlyphs(ln).length); }
+    for (const ln of lines) { giStarts.push(g0); g0 += Math.max(1, toGlyphs(font, ln).length); }
   }
   const laid = lines.map((ln, li) => layout(font, ln, size, spacingEm, fx?.letterScales, giStarts[li]));
   const nonEmpty = laid.filter((l) => l.glyphs.length).length;

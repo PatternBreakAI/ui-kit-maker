@@ -29,6 +29,9 @@ export const SPLASH_FONTS: SplashFontDef[] = [
   { name: "Baloo 2", ttf: "Baloo2[wght].ttf" },                       // variable 400..800
   { name: "Grandstander", ttf: "Grandstander[wght].ttf", css: "Grandstander:wght@100..900", caps: { wght: [100, 900, 800] } },
   { name: "Archivo Black", css: "Archivo+Black", caps: { weights: [400] } },
+  // script — the sticker/street lettering direction
+  { name: "Pacifico", css: "Pacifico", caps: { weights: [400] } },
+  { name: "Lobster", css: "Lobster", caps: { weights: [400] } },
   // serif / slab
   { name: "Ultra", serif: true, css: "Ultra", caps: { weights: [400] } },
   { name: "Alfa Slab One", serif: true, css: "Alfa+Slab+One", caps: { weights: [400] } },

@@ -453,7 +453,32 @@ export function SplashPage() {
         </div>
 
         <div className="sp-group">
-          <div className="sp-h">Stroke</div>
+          <div className="sp-h">Construction</div>
+          {look.contours.map((c, i) => (
+            <div key={i} className="sp-ctr">
+              <Well label={`Band ${i + 1}`} value={c.color} onChange={(v) => up("contours", look.contours.map((x, j) => (j === i ? { ...x, color: v } : x)))} />
+              <Slider label="Width" value={c.width} min={0.5} max={12} step={0.5} unit=""
+                onChange={(v) => up("contours", look.contours.map((x, j) => (j === i ? { ...x, width: v } : x)))} />
+              <button className="sp-btn sp-mini" aria-label={`Remove contour band ${i + 1}`} title="Remove this band"
+                onClick={() => up("contours", look.contours.filter((_, j) => j !== i))}>×</button>
+            </div>
+          ))}
+          {look.contours.length < 3 && (
+            <div className="sp-row">
+              <button className="sp-btn" title="Nested outline bands — face, keyline, border. The body extrudes from the outermost band."
+                onClick={() => up("contours", [...look.contours, { width: 3, color: look.contours.length % 2 ? "#F4F1EA" : "#221E1F" }])}>
+                + Contour band
+              </button>
+            </div>
+          )}
+          <FxToggle label="Inline" on={look.inline.on} onToggle={(v) => up("inline", { ...look.inline, on: v })}>
+            <div className="sp-wells">
+              <Well label="Color" value={look.inline.color} onChange={(v) => up("inline", { ...look.inline, color: v })} />
+            </div>
+            <Slider label="Inset" value={look.inline.inset} min={0.5} max={8} step={0.5} unit="" onChange={(v) => up("inline", { ...look.inline, inset: v })} />
+            <Slider label="Width" value={look.inline.width} min={0.5} max={6} step={0.5} unit="" onChange={(v) => up("inline", { ...look.inline, width: v })} />
+            <div className="sp-note">A band inside the face — varsity, marquee, engraved lettering.</div>
+          </FxToggle>
           <FxToggle label="Stroke" on={look.stroke.on} onToggle={(v) => up("stroke", { ...look.stroke, on: v })}>
             <div className="sp-wells">
               <Well label="Color" value={look.stroke.color} onChange={(v) => up("stroke", { ...look.stroke, color: v })} />
