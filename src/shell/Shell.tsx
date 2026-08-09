@@ -62,6 +62,12 @@ const IS_SPLASH = LAB_PARAM === "splash" || LAB_PARAM === "typemaker";
 const SplashPage = lazy(() =>
   import("@/splash/SplashPage").then((m) => ({ default: m.SplashPage })),
 );
+// `candy` is the Candy Lab — the owner-testable surface for the new
+// lettering engine's Model B2 material (unlinked until released).
+const IS_CANDY = LAB_PARAM === "candy";
+const CandyLabPage = lazy(() =>
+  import("@/lettering/CandyLabPage").then((m) => ({ default: m.CandyLabPage })),
+);
 
 // The editor is desktop-only for now: small screens and small touch devices
 // get a polite gate instead. The rest of the site stays fully mobile.
@@ -197,6 +203,16 @@ export function Shell() {
       <RouteBoundary>
         <Suspense fallback={<RouteLoading />}>
           <SplashPage />
+        </Suspense>
+      </RouteBoundary>
+    );
+  }
+
+  if (IS_CANDY) {
+    return (
+      <RouteBoundary>
+        <Suspense fallback={<RouteLoading />}>
+          <CandyLabPage />
         </Suspense>
       </RouteBoundary>
     );
