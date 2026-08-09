@@ -89,16 +89,37 @@ function edgeNormal(poly: Pt[], i: number, cw: boolean, hole: boolean): Pt | nul
  *  emanate from the OUTERMOST contour band instead of the bare glyph.
  *  Sharp concave self-crossings paint over themselves in the same ink,
  *  which is invisible; good enough for round-joined display lettering. */
-function inflatePoly(poly: Pt[], r: number, cw: boolean, hole: boolean): Pt[] {
+/** Corner-preserving decimation: for offset work, boundary detail finer
+ *  than the offset radius is geometrically meaningless — it only costs
+ *  time and bytes. Sharp corners always survive (the bevel-join and
+ *  apex logic need them). */
+function decimate(poly: Pt[], spacing: number): Pt[] {
+  if (poly.length < 8) return poly;
+  const n = poly.length;
+  const out: Pt[] = [];
+  let acc = spacing;
+  for (let i = 0; i < n; i++) {
+    const p = poly[i], prev = poly[(i - 1 + n) % n], next = poly[(i + 1) % n];
+    acc += Math.hypot(p[0] - prev[0], p[1] - prev[1]);
+    const a1 = Math.atan2(p[1] - prev[1], p[0] - prev[0]);
+    const a2 = Math.atan2(next[1] - p[1], next[0] - p[0]);
+    let da = Math.abs(a2 - a1);
+    if (da > Math.PI) da = 2 * Math.PI - da;
+    if (acc >= spacing || da > 0.35) { out.push(p); acc = 0; }
+  }
+  return out.length >= 3 ? out : poly;
+}
+
+function inflatePoly(poly: Pt[], r: number, cw: boolean, hole: boolean, probe?: Pt[]): Pt[] {
   // magnitude test: negative r is a real INWARD offset, not a no-op
   if (Math.abs(r) <= 0.01 || poly.length < 3) return poly;
   const n = poly.length;
-  const out: Pt[] = new Array(n);
+  const out: Pt[] = [];
   for (let i = 0; i < n; i++) {
     const prev = edgeNormal(poly, (i - 1 + n) % n, cw, hole);
     const next = edgeNormal(poly, i, cw, hole);
     const a = prev ?? next, b = next ?? prev;
-    if (!a || !b) { out[i] = poly[i]; continue; }
+    if (!a || !b) { out.push(poly[i]); continue; }
     let vx = a[0] + b[0], vy = a[1] + b[1];
     const vl = Math.hypot(vx, vy);
     if (vl < 1e-3) { vx = b[0]; vy = b[1]; } // 180° spike — fall back to one side
@@ -108,18 +129,28 @@ function inflatePoly(poly: Pt[], r: number, cw: boolean, hole: boolean): Pt[] {
        the border cap at sharp corners and poke out as detached horns
        (review finding). The averaged normal undershoots instead, which
        tucks the wall's corner under the border — invisible, and safe.
-       Inward (r < 0): the OPPOSITE is required — an undershot apex stays
-       ahead of the properly offset sides and pokes out of the contracted
-       shape as a spike, so sharp corners take the miter length (capped;
-       over-deep corners are absorbed by the collapse guard). */
+       Inward (r < 0): a BEVEL JOIN — at a needle apex no finite miter
+       survives the offset (the side edges cross before reaching it and
+       the crossing paints as a fleck), so the apex vertex is DROPPED and
+       the neighbors' offsets bridge it with a flat cut, exactly like
+       Offset Path's bevel join. Moderate corners take the miter. */
     let rr = r;
     if (r < 0) {
       const dot = Math.abs(vx * b[0] + vy * b[1]); // cos(v̂, edge normal)
-      rr = r / Math.max(0.34, dot);
+      if (dot < 0.34) continue; // needle apex: bevel-join it away
+      rr = r / dot;
     }
-    out[i] = [poly[i][0] + vx * rr, poly[i][1] + vy * rr];
+    const cand: Pt = [poly[i][0] + vx * rr, poly[i][1] + vy * rr];
+    /* Inward-offset VALIDITY: where the feature is thinner than the
+       offset depth, the moved point crosses the opposite boundary and
+       the crossed strip would fill as a detached flake. A valid inward
+       point stays inside the ink (outside the cavity, for holes) —
+       invalid points are dropped, and if that guts the contour the
+       caller's shallower-depth fallback takes over. */
+    if (r < 0 && pointInPoly(cand, probe ?? poly) === hole) continue;
+    out.push(cand);
   }
-  return out;
+  return r < 0 ? out : (out.length >= 3 ? out : poly);
 }
 
 /** Classify by how squarely the plane faces the travel direction. */
@@ -268,7 +299,11 @@ export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]
       if (raw.length < 3) return "";
       const aRaw = signedArea(raw);
       const attempt = (r: number): Pt[] | null => {
-        const poly = inflatePoly(raw, r, aRaw > 0, holes[pi]);
+        // deep inward offsets work on decimated geometry and validate
+        // against a coarse probe — same result, a fraction of the cost
+        const src = r < -0.01 ? decimate(raw, Math.min(30, Math.max(1.5, -r / 6))) : raw;
+        const probe = r < -0.01 ? decimate(raw, Math.min(80, Math.max(4, -r / 2))) : undefined;
+        const poly = inflatePoly(src, r, aRaw > 0, holes[pi], probe);
         if (Math.abs(r) > 0.01) {
           const aInf = signedArea(poly);
           // collapsed contours vanish instead of re-growing as phantoms —
@@ -284,7 +319,7 @@ export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]
       // heavy bevel weights never break the letter apart
       if (!poly && inflate < -0.01) poly = attempt(inflate * 0.6) ?? attempt(inflate * 0.35);
       if (!poly) return "";
-      if (inflate < -0.01) poly = prune(chaikin(poly), 0.12);
+      if (inflate < -0.01) poly = prune(chaikin(poly), Math.max(0.12, Math.abs(inflate) * 0.02));
       return "M" + poly.map(([x, y]) => `${F(x)} ${F(y)}`).join("L") + "Z";
     })
     .join("");

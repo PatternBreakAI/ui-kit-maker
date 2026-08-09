@@ -171,7 +171,7 @@ export function compileLockup(
 ): CompiledLockup {
   resetPatternIds();
   /* compile HUGE by default — see scaleRecipe */
-  const recipe = scaleRecipe(authored, opts?.masterScale ?? 4);
+  const recipe = scaleRecipe(authored, opts?.masterScale ?? 16);
 
   /* deterministic id namespace — several compiled lockups can share one
    *  HTML document (galleries, sheets) without def collisions */

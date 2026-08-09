@@ -239,6 +239,9 @@ export function resolveMaterial(m: MaterialRecipe, p: Palette, rig: LightRig): I
 
   const hasBevel = m.profile !== "flat" && m.bevel && m.bevel.width > 0.05;
   const rim = m.rim && m.rim.strength > 0.01 && m.rim.width > 0.05 ? m.rim : undefined;
+  /** where the FACE proper lives — speculars are gloss on the face, so
+   *  they clip here instead of smearing across rim/bevel rings */
+  let faceRegion: { expand: number; dx: number; dy: number } = { expand: 0, dx: 0, dy: 0 };
 
   if (m.glow) {
     ops.push({
@@ -269,8 +272,11 @@ export function resolveMaterial(m: MaterialRecipe, p: Palette, rig: LightRig): I
       const bevelShade = darken(shadeTok, con * 0.6);
       // every layer clips to the one beneath it — the sandwich guard
       const litRegion = { expand: -inset || 0, dx: shiftX, dy: shiftY };
-      // lit slope: the whole (rim-inset) silhouette, bounded by the face
-      ops.push({ expand: -inset || undefined, paint: bevelLit, dx: shiftX, dy: shiftY, blur: soft || undefined, pass: "face", clip: rim ? { expand: 0, dx: 0, dy: 0 } : undefined });
+      // lit slope: the whole (rim-inset) silhouette. With a rim, it is
+      // bounded by an UNSHIFTED half-inset — at needle apexes the layers
+      // converge, and this hands the tip cap to the rim instead of
+      // letting the shifted slope ride into it as a fleck
+      ops.push({ expand: -inset || undefined, paint: bevelLit, dx: shiftX, dy: shiftY, blur: soft || undefined, pass: "face", clip: rim ? { expand: -inset * 0.5, dx: 0, dy: 0 } : undefined });
       // shade crescent: shifted off the light so the lit side stays open
       ops.push({
         expand: -(inset + bw * 0.45), paint: bevelShade,
@@ -278,14 +284,16 @@ export function resolveMaterial(m: MaterialRecipe, p: Palette, rig: LightRig): I
         blur: soft || undefined, pass: "face", clip: litRegion,
       });
       // plateau: the diffuse ramp re-painted, nudged toward the light
+      faceRegion = { expand: -(inset + bw), dx: shiftX + lx * bw * 0.25, dy: shiftY + ly * bw * 0.25 };
       ops.push({
-        expand: -(inset + bw), paint: diffuse,
-        dx: shiftX + lx * bw * 0.25, dy: shiftY + ly * bw * 0.25,
+        expand: faceRegion.expand, paint: diffuse,
+        dx: faceRegion.dx, dy: faceRegion.dy,
         pass: "face", clip: litRegion,
       });
     } else {
       // rim without bevel: diffuse contracted off the rim crescent,
       // never past the silhouette
+      faceRegion = { expand: -inset || 0, dx: shiftX, dy: shiftY };
       ops.push({ expand: -inset || undefined, paint: diffuse, dx: shiftX, dy: shiftY, pass: "face", clip: { expand: 0, dx: 0, dy: 0 } });
     }
   }
@@ -318,6 +326,7 @@ export function resolveMaterial(m: MaterialRecipe, p: Palette, rig: LightRig): I
         ],
       },
       pass: "highlight",
+      clip: faceRegion,
     });
   }
   return ops;
