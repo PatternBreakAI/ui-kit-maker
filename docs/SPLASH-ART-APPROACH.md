@@ -138,6 +138,25 @@ within the constraints, none yet built:
    corners globally (blur+threshold on the source path) so any font
    reads more hand-pressed.
 
+## Round 2 — progress report sent back to the reviewer (2026-08-08)
+
+After the reviewer's construction-tier diagnosis, the same day we
+shipped: multi-contour bands (≤3, cumulative stroke reaches, painted
+outermost-first, with the OUTERMOST band now the silhouette the body
+extrudes/wraps/shadows/masks from); inline/inset rings (erode
+difference); backsplash as a toggle so directional extrusion carries
+the silhouette alone; hard graphic shadows (blur-0 drop shadow of the
+whole construction); and two construction-recipe starters (Comic Pop,
+Varsity) with the backsplash off. Queued in the reviewer's order:
+per-line styling, occlusion, alpha-height form profiles
+(FLAT/ROUNDED/CHAMFER/PILLOW — the existing wall bevel becomes
+CHAMFER), halftone scoped to extrusion walls, misregistration/wear as
+style families, visual budgets + material-responsive shine. Follow-up
+questions posed: which properties vary vs lock in per-line styling;
+preferred silhouette-only occlusion recipe; feDiffuseLighting height-
+field practice; a concrete starter budget matrix; and what to grade
+first against the POW!/SUPER BOXING targets.
+
 ## Questions for the reviewer
 
 1. Rank the seven directions above by perceived-craft-per-complexity —
