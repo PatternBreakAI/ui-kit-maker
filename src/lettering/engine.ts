@@ -18,7 +18,7 @@
 import type { Font } from "opentype.js";
 import { layout, flatten, mapCmds, cmdToD, boundsOf, toGlyphs } from "@/splash/outline";
 import type { Cmd } from "@/splash/outline";
-import { inflateOutline } from "@/generator/extrude";
+import { inflateOutline, extrudeWalls } from "@/generator/extrude";
 
 /* ── deterministic variance ─────────────────────────────────────── */
 export function mulberry32(seed: number): () => number {
@@ -147,21 +147,28 @@ export interface Geom {
   x1: number; y1: number; x2: number; y2: number;
   /** per-glyph paths — glyph-scoped ops address single letters */
   glyphDs: string[];
+  /** per-glyph flattened contours — glyph-scoped CONTRACT ops keep their
+   *  per-letter identity instead of degrading to the union offset */
+  glyphPolys: [number, number][][][];
 }
 
 export function toGeom(cmds: Cmd[][], size: number): Geom {
   const polys: [number, number][][] = [];
+  const glyphPolys: [number, number][][][] = [];
   for (const gc of cmds) {
+    const mine: [number, number][][] = [];
     let cur: [number, number][] = [];
     for (const c of flatten(gc, size / 22)) {
-      if (c.type === "M") { if (cur.length >= 3) polys.push(cur); cur = [[c.x!, c.y!]]; }
+      if (c.type === "M") { if (cur.length >= 3) mine.push(cur); cur = [[c.x!, c.y!]]; }
       else if (c.type === "L") cur.push([c.x!, c.y!]);
-      else if (c.type === "Z") { if (cur.length >= 3) polys.push(cur); cur = []; }
+      else if (c.type === "Z") { if (cur.length >= 3) mine.push(cur); cur = []; }
     }
-    if (cur.length >= 3) polys.push(cur);
+    if (cur.length >= 3) mine.push(cur);
+    glyphPolys.push(mine);
+    polys.push(...mine);
   }
   const b = boundsOf(cmds.flat());
-  return { d: cmds.map(cmdToD).join(""), polys, x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY, glyphDs: cmds.map(cmdToD) };
+  return { d: cmds.map(cmdToD).join(""), polys, x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY, glyphDs: cmds.map(cmdToD), glyphPolys };
 }
 
 export const translateCmds = (cmds: Cmd[][], dx: number, dy: number): Cmd[][] =>
@@ -177,13 +184,28 @@ export const PASS_ORDER: RenderPass[] = [
   "keyline", "face", "inline", "material", "highlight",
 ];
 
+/** The full Gradient IR from the material study. Everything resolves to
+ *  plain SVG 1.1 gradients:
+ *  - balance/spread position the ramp VECTOR (so repeat/mirror get real
+ *    spreadMethod semantics)
+ *  - hardness snaps stop transitions into graphic bands ("banded" is
+ *    linear with hardness defaulting to 1)
+ *  - multi-radial = radial with its focal point pulled toward the light
+ *  - space picks the coordinate frame: per-letter, per-role geometry, or
+ *    the whole composition */
 export interface GradientSpec {
-  type: "linear" | "radial";
+  type: "linear" | "radial" | "banded" | "multi-radial";
   stops: { color: string; position: number; opacity?: number }[];
-  /** degrees; 90 = light from above (top stop first) */
+  /** degrees; 90 = light from above (first stop faces the light) */
   angle?: number;
-  /** glyph = per-letter mini gradients; role = across the geometry */
-  space?: "glyph" | "role";
+  /** 0..1 — where the ramp's center sits along the span (default 0.5) */
+  balance?: number;
+  /** 0..1 — fraction of the span the ramp occupies (default 1) */
+  spread?: number;
+  /** 0..1 — 0 blends smoothly, 1 snaps into hard bands */
+  hardness?: number;
+  repeat?: "none" | "repeat" | "mirror";
+  space?: "glyph" | "role" | "composition";
 }
 
 export type Paint = string | GradientSpec;
@@ -198,48 +220,123 @@ export interface IROp {
   opacity?: number;
   blur?: number;
   pass: RenderPass;
+  /** raw defs this op depends on (pattern tiles, mask geometry) —
+   *  registered once with the op */
+  rawDefs?: string[];
+  /** id of a mask (in rawDefs) wrapping this op's output — surface
+   *  modulation only, dropped in silhouette mode */
+  mask?: string;
+  /** true vector extrusion: orientation-classed wall strips instead of a
+   *  fill of the outline (colors pre-resolved by MATERIALIZE) */
+  walls?: { dx: number; dy: number; inflate?: number; down: string; mid: string; side: string; back: string };
+  /** paint each glyph's path separately (glyph-space patterns; gradients
+   *  with space:"glyph" imply this on their own) */
+  perGlyph?: boolean;
 }
 
 export interface IRRole { geom: Geom; ops: IROp[]; idp: string }
 
-const gradientDef = (g: GradientSpec, id: string, gm: { x1: number; y1: number; x2: number; y2: number }, obb: boolean): string => {
-  const ang = ((g.angle ?? 90) * Math.PI) / 180;
-  const stops = g.stops.map((s) => `<stop offset="${s.position.toFixed(3)}" stop-color="${s.color}"${s.opacity !== undefined && s.opacity < 1 ? ` stop-opacity="${s.opacity.toFixed(2)}"` : ""}/>`).join("");
-  if (g.type === "radial") {
-    return obb
-      ? `<radialGradient id="${id}" cx="0.5" cy="0.42" r="0.75">${stops}</radialGradient>`
-      : `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${((gm.x1 + gm.x2) / 2).toFixed(1)}" cy="${((gm.y1 + gm.y2) / 2).toFixed(1)}" r="${(Math.max(gm.x2 - gm.x1, gm.y2 - gm.y1) * 0.72).toFixed(1)}">${stops}</radialGradient>`;
+export interface Frame { x1: number; y1: number; x2: number; y2: number }
+
+/** hardness: between each stop pair, hold the earlier color for `hard`
+ *  of the gap so the transition compresses toward a hard band */
+const bandStops = (stops: GradientSpec["stops"], hard: number): GradientSpec["stops"] => {
+  if (hard <= 0.001 || stops.length < 2) return stops;
+  const out = [stops[0]];
+  for (let i = 1; i < stops.length; i++) {
+    const prev = stops[i - 1], cur = stops[i];
+    const gap = cur.position - prev.position;
+    if (gap > 0.0001) out.push({ ...prev, position: prev.position + hard * gap });
+    out.push(cur);
   }
-  // light from `angle`: the FIRST stop faces the light, so the gradient
-  // STARTS at the lit side (center + lightDir) and runs away from it
+  return out;
+};
+
+const gradientDef = (g: GradientSpec, id: string, gm: Frame, obb: boolean): string => {
+  const ang = ((g.angle ?? 90) * Math.PI) / 180;
+  const hard = g.hardness ?? (g.type === "banded" ? 1 : 0);
+  const stops = bandStops(g.stops, hard)
+    .map((s) => `<stop offset="${s.position.toFixed(3)}" stop-color="${s.color}"${s.opacity !== undefined && s.opacity < 1 ? ` stop-opacity="${s.opacity.toFixed(2)}"` : ""}/>`).join("");
+  const bal = g.balance ?? 0.5, spr = Math.max(0.02, g.spread ?? 1);
+  const sm = g.repeat === "repeat" ? ` spreadMethod="repeat"` : g.repeat === "mirror" ? ` spreadMethod="reflect"` : "";
   const dx = Math.cos(ang), dy = -Math.sin(ang);
+  if (g.type === "radial" || g.type === "multi-radial") {
+    const focal = g.type === "multi-radial" ? 0.28 : 0;
+    if (obb) {
+      const r = 0.75 * spr;
+      const cx = 0.5, cy = 0.42;
+      const fx = cx + dx * r * focal, fy = cy + dy * r * focal;
+      return `<radialGradient id="${id}" cx="${cx}" cy="${cy}" r="${r.toFixed(3)}"${focal ? ` fx="${fx.toFixed(3)}" fy="${fy.toFixed(3)}"` : ""}${sm}>${stops}</radialGradient>`;
+    }
+    const cx = (gm.x1 + gm.x2) / 2, cy = (gm.y1 + gm.y2) / 2;
+    const r = Math.max(gm.x2 - gm.x1, gm.y2 - gm.y1) * 0.72 * spr;
+    const fx = cx + dx * r * focal, fy = cy + dy * r * focal;
+    return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}"${focal ? ` fx="${fx.toFixed(1)}" fy="${fy.toFixed(1)}"` : ""}${sm}>${stops}</radialGradient>`;
+  }
+  // linear/banded — light from `angle`: the FIRST stop faces the light.
+  // The ramp VECTOR runs from `balance - spread/2` to `balance + spread/2`
+  // along the lit→shade span, so spreadMethod governs the rest.
   if (obb) {
-    const x1 = 0.5 + dx / 2, y1 = 0.5 + dy / 2;
-    return `<linearGradient id="${id}" x1="${x1.toFixed(3)}" y1="${y1.toFixed(3)}" x2="${(x1 - dx).toFixed(3)}" y2="${(y1 - dy).toFixed(3)}">${stops}</linearGradient>`;
+    const lx = 0.5 + dx / 2, ly = 0.5 + dy / 2;   // lit corner of the box
+    const sx = 0.5 - dx / 2, sy = 0.5 - dy / 2;   // shade corner
+    const t0 = bal - spr / 2, t1 = bal + spr / 2;
+    const x1 = lx + (sx - lx) * t0, y1 = ly + (sy - ly) * t0;
+    const x2 = lx + (sx - lx) * t1, y2 = ly + (sy - ly) * t1;
+    return `<linearGradient id="${id}" x1="${x1.toFixed(3)}" y1="${y1.toFixed(3)}" x2="${x2.toFixed(3)}" y2="${y2.toFixed(3)}"${sm}>${stops}</linearGradient>`;
   }
   const cx = (gm.x1 + gm.x2) / 2, cy = (gm.y1 + gm.y2) / 2;
   const rx = (gm.x2 - gm.x1) / 2, ry = (gm.y2 - gm.y1) / 2;
   const ex = Math.abs(dx) * rx + Math.abs(dy) * ry;
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${(cx + dx * ex).toFixed(1)}" y1="${(cy + dy * ex).toFixed(1)}" x2="${(cx - dx * ex).toFixed(1)}" y2="${(cy - dy * ex).toFixed(1)}">${stops}</linearGradient>`;
+  const lpx = cx + dx * ex, lpy = cy + dy * ex;   // lit end of the span
+  const spx = cx - dx * ex, spy = cy - dy * ex;   // shade end
+  const t0 = bal - spr / 2, t1 = bal + spr / 2;
+  const x1 = lpx + (spx - lpx) * t0, y1 = lpy + (spy - lpy) * t0;
+  const x2 = lpx + (spx - lpx) * t1, y2 = lpy + (spy - lpy) * t1;
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"${sm}>${stops}</linearGradient>`;
 };
 
-function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: boolean): string {
+function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: boolean, frame?: Frame): string {
   if (!geom.d) return "";
   const ex = op.expand ?? 0;
+
+  // walls: true extrusion strips, orientation-classed by MATERIALIZE
+  if (op.walls) {
+    const w = op.walls;
+    const wg = extrudeWalls(geom.polys, w.dx, w.dy, w.inflate ?? 0);
+    const c = silhouette
+      ? { down: "#111111", mid: "#111111", side: "#111111", back: "#111111" }
+      : w;
+    return (
+      (wg.back ? `<path d="${wg.back}" fill="${c.back}"/>` : "") +
+      (wg.down ? `<path d="${wg.down}" fill="${c.down}"/>` : "") +
+      (wg.mid ? `<path d="${wg.mid}" fill="${c.mid}"/>` : "") +
+      (wg.side ? `<path d="${wg.side}" fill="${c.side}"/>` : "")
+    );
+  }
+
   let fillRef: string;
   const paint = silhouette ? "#111111" : op.paint;
   if (typeof paint === "string") fillRef = paint;
   else {
     const gid = `${oid}g`;
-    defs.push(gradientDef(paint, gid, geom, paint.space === "glyph"));
+    const gm = paint.space === "composition" && frame ? frame : geom;
+    defs.push(gradientDef(paint, gid, gm, paint.space === "glyph"));
     fillRef = `url(#${gid})`;
   }
-  const perGlyph = typeof paint !== "string" && paint.space === "glyph";
+  if (!silhouette && op.rawDefs) defs.push(...op.rawDefs);
+  const perGlyph = op.perGlyph === true || (typeof paint !== "string" && paint.space === "glyph");
   const body = (d: string) =>
-    ex < -0.01 ? `<path d="${inflateOutline(geom.polys, ex)}" fill="${fillRef}"/>`
-    : ex > 0.01 ? `<path d="${d}" fill="${fillRef}" stroke="${fillRef}" stroke-width="${(ex * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"/>`
+    ex > 0.01 ? `<path d="${d}" fill="${fillRef}" stroke="${fillRef}" stroke-width="${(ex * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"/>`
     : `<path d="${d}" fill="${fillRef}"/>`;
-  const node = perGlyph && ex >= -0.01 ? geom.glyphDs.map((gd) => body(gd)).join("") : body(geom.d);
+  let node: string;
+  if (ex < -0.01) {
+    // contraction: per-glyph offsets when the paint lives in glyph space
+    node = perGlyph
+      ? geom.glyphPolys.map((gp) => { const d = inflateOutline(gp, ex); return d ? `<path d="${d}" fill="${fillRef}"/>` : ""; }).join("")
+      : `<path d="${inflateOutline(geom.polys, ex)}" fill="${fillRef}"/>`;
+  } else {
+    node = perGlyph ? geom.glyphDs.map((gd) => body(gd)).join("") : body(geom.d);
+  }
   const baseDx = op.dx ?? 0, baseDy = op.dy ?? 0;
   const em: string[] = [];
   if (op.repeat?.count) {
@@ -258,6 +355,7 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
     out = `<g filter="url(#${fid})">${out}</g>`;
   }
   if (silhouette && op.blur) return ""; // shadows don't belong in a silhouette
+  if (!silhouette && op.mask) out = `<g mask="url(#${op.mask})">${out}</g>`;
   if (!silhouette && op.opacity !== undefined && op.opacity < 1) out = `<g opacity="${op.opacity.toFixed(2)}">${out}</g>`;
   return out;
 }
@@ -267,13 +365,13 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
 /** Every rearward layer for every role paints before any face; the
  *  composition-scoped geometry paints first within each pass (it is the
  *  outermost silhouette); roles paint rear → front. */
-export function emitPassMajor(roles: IRRole[], composition: IRRole | null, defs: string[], silhouette = false): string {
+export function emitPassMajor(roles: IRRole[], composition: IRRole | null, defs: string[], silhouette = false, frame?: Frame): string {
   let out = "";
   PASS_ORDER.forEach((pass, pi) => {
     for (const r of [composition, ...roles]) {
       if (!r) continue;
       r.ops.forEach((op, oi) => {
-        if (op.pass === pass) out += opNode(r.geom, op, defs, `${r.idp}${pi}_${oi}`, silhouette);
+        if (op.pass === pass) out += opNode(r.geom, op, defs, `${r.idp}${pi}_${oi}`, silhouette, frame);
       });
     }
   });
