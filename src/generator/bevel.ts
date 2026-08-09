@@ -1638,6 +1638,14 @@ export function textPatternCell(style: string, ps: number, color: string): strin
 }
 
 /** Core builder — the candy stack. Width grows with the content. */
+/** A label pre-converted to vector outlines (Type Maker). Local coords:
+ *  pen starts at x=0 on the baseline; `w` = true advance width; `dy` =
+ *  shift from the dominant-central anchor down to the baseline. gy1/gy2
+ *  give the block's true vertical span in local coords — multiline
+ *  blocks need word gradients stretched over the whole lockup, not one
+ *  line's em box. */
+export interface TextPathOpt { d: string; w: number; dy?: number; gy1?: number; gy2?: number }
+
 function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   label?: string; iconDef?: IconDef | null; secondary?: boolean; shapeOverride?: Shape; fixedW?: number;
   /** Explicit per-component vertical text adjustment — overrides the theme's. */
@@ -1679,6 +1687,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  so adjacent letters' bands align into streaks crossing the word
    *  (owner reference: the MIAMI glint field). */
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Vector-outline mode (Type Maker): the label pre-converted to a glyph
+   *  path — laid out in local coords (pen starts at x=0), `w` its true
+   *  advance width, `dy` the central-baseline shift. Every text-layer
+   *  emission (outline, fills, stripes, glints clip, dimensional body)
+   *  swaps to this ONE compound path, so strokes and bodies paint once
+   *  behind the whole word — no glyph can cross a neighbor's face. The
+   *  source text stays editable upstream; outlines regenerate per edit. */
+  textPath?: TextPathOpt;
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -1729,6 +1745,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     : T2.case === "title" ? rawLabel.replace(/\b\w/g, (m) => m.toUpperCase())
     : rawLabel;
   const label = esc(cased);
+  const TP2 = opts.textPath;
 
   // Config-driven icons are parked behind ICONS_ENABLED; explicit kit icons
   // (opts.iconDef) still render so the icon-button component keeps working.
@@ -1750,9 +1767,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   // left-anchored specimens carry extra right slack — the whole estimate
   // error lands on the ragged right edge instead of splitting across both
   const mW = showText ? measureLabel(label, T2.font, T2.weight, !!T2.italic) : null;
-  let textW = (showText ? (mW !== null
-    ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
-    : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
+  let textW = (showText ? TP2
+    ? TP2.w * (opts.anchorLeft ? 1.02 : 1)
+    : (mW !== null
+      ? (mW + label.length * spacingEm) * fs * widthK * weightK * (opts.anchorLeft ? 1.04 : 1.02)
+      : label.length * fs * fontDef.factor * widthK * (1 + spacingEm) * weightK * (opts.anchorLeft ? 1.13 : 1.06)) : 0) + italicPad;
   let contentW = textW + (iconDef ? iconSize : 0) + gap;
 
   /* text-safe area — the silhouette's authored content insets keep labels out
@@ -2208,7 +2227,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const singleMaster = !!fcaps?.weights && fcaps.weights.length === 1 && !fcaps.wght;
   const synW = singleMaster ? clamp((T2.weight - (fcaps!.weights![0] ?? 400)) / 500, 0, 1) * fs * 0.055 : 0;
   const outlineW = T2.outline.width * (fs / 52);
-  const outlineAttrs = T2.outline.on
+  /* behind mode: the ring renders as one whole-word under-layer instead of
+     per-glyph paint-order, so a glyph's stroke can never cross the face of
+     an overlapping neighbor (tilted and posed words made this visible). */
+  const outlineBehind = T2.outline.on && !!T2.outline.behind && synW <= 0.05;
+  const outlineAttrs = T2.outline.on && !outlineBehind
     ? (synW > 0.05
       // the fattened glyph carries its own same-paint stroke; the ring moves
       // to an underlay so it still shows outside the grown letterform
@@ -2216,6 +2239,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       : ` stroke="${outlineStroke}" stroke-width="${outlineW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"`)
     : (synW > 0.05 ? ` stroke="${tFill}" stroke-width="${synW.toFixed(1)}" stroke-linejoin="round" paint-order="stroke"` : "");
   const outlineUnder = T2.outline.on && synW > 0.05;
+  /* nested contour bands — the display-lettering construction. Band k's
+     paint reaches (w1+…+wk) past the letter edge; painting outermost
+     first stacks them face-out. All true stroke geometry on the same
+     compound path, so no band ever crosses a neighboring letter's face
+     wrongly — the word is contoured as one object. */
+  const CTRS = (T2.contours ?? []).filter((c) => (c.width ?? 0) > 0.05).slice(0, 3);
+  const ctrReach = CTRS.reduce((a, c) => a + c.width, 0) * (fs / 52);
 
   const iFx = IC.fx;
   const iFilters: string[] = [];
@@ -2284,6 +2314,170 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       })()
     : label;
 
+  /* ── dimensional type (Type Maker) — the glyphs grow a solid body ──
+     All geometry derives from the glyph alpha inside filters: a vertical
+     feMorphology dilate + offset sweeps the extrusion wall (the shell
+     extrusion's serration-free trick applied to letterforms), uniform
+     dilates of the face∪wall union wrap the sticker and rim, and a blur
+     of the union grounds the shadow. One text copy per layer — depth
+     never multiplies node count, and any face at any size qualifies. */
+  const DM = T2.dim;
+  const dimOn = !!DM?.on && showText && !disabled;
+  const dimK = fs / 52;
+  const dDepth = dimOn ? Math.max(0, DM!.depth) * dimK : 0;
+  const dStick = dimOn ? Math.max(0, DM!.sticker) * dimK : 0;
+  const dRim = dimOn ? Math.max(0, DM!.rim) * dimK : 0;
+  const dShOp = dimOn ? clamp((DM!.shadow ?? 0) / 100, 0, 1) : 0;
+  const dGlOp = dimOn ? clamp((DM!.gloss ?? 0) / 100, 0, 1) : 0;
+  const dTilt = dimOn ? clamp((DM!.tilt ?? 0) / 100, 0, 1) : 0;
+  // wall paint — explicit, or derived from the letter fill so the body
+  // always reads as the same material as the face
+  const dFillBase = T2.fillMode === "gradient" ? P(T2.fill2) : T2.fillMode === "solid" ? P(T2.fill) : autoLabel;
+  const dWall = DM?.color ? P(DM.color) : darken(dFillBase, 0.42);
+  const dRimC = DM?.rimColor ? P(DM.rimColor) : darken(dWall, 0.55);
+  const dStickC = P(DM?.stickerColor ?? "#FFFFFF");
+  /* per-letter tilt & bounce — per-glyph rotate/dy lists on the SAME text
+     nodes, so every layer (wall, sticker, gloss, glints clip) tilts in
+     lockstep. dy entries are deltas — the list is cumulative by spec.
+     Stacked multi-line labels sit this out; the lists address glyphs
+     across the whole node and would smear over line breaks. */
+  let tiltAttrs = "";
+  if (dTilt > 0 && !cased.includes("\n") && !TP2) { // path mode bakes tilt into the outlines
+    const ROTS = [-5, 4, -3, 5, -4, 3, -6, 4, -3, 5];
+    const BOB = [0, -0.045, 0.03, -0.04, 0.045, -0.03, 0.04, -0.045, 0.03, -0.04];
+    const rots: string[] = [], dys: string[] = [];
+    let prevDy = 0;
+    for (let i = 0; i < cased.length; i++) {
+      rots.push((ROTS[i % 10] * dTilt * 1.6).toFixed(1));
+      const t = BOB[i % 10] * fs * dTilt * 1.4;
+      dys.push((t - prevDy).toFixed(1));
+      prevDy = t;
+    }
+    tiltAttrs = ` rotate="${rots.join(" ")}" dy="${dys.join(" ")}"`;
+  }
+  /* one glyph-run emitter shared by every expanded-type layer, so wall,
+     sticker, gloss, grain and the behind-outline always agree with the
+     main text's metrics, case, spacing and tilt. In vector-outline mode
+     the same emitter places the ONE compound word path instead. */
+  const tpDx = TP2 && tAnchor === "middle" ? -TP2.w / 2 : 0;
+  const tpXY = TP2 ? `translate(${(tTextX + tpDx).toFixed(1)} ${(cy + 1 + textOy * K + (TP2.dy ?? 0)).toFixed(1)})` : "";
+  const fxText = (paint: string) => TP2
+    ? `<g transform="${tpXY}"><path d="${TP2.d}" ${paint}/></g>`
+    : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs} ${paint}>${label}</text>`;
+  const outlineBehindNode = outlineBehind && showText
+    ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW * 2).toFixed(1)}" stroke-linejoin="round"`)
+    : "";
+  // contour bands paint outermost-first, each a filled+stroked copy of the
+  // word path — the fill closes the interior so bands never show seams
+  const ctrLayers = showText && CTRS.length ? (() => {
+    let acc = 0;
+    const bands = CTRS.map((c) => { acc += c.width; return { r: acc * (fs / 52), color: P(c.color) }; });
+    return bands.reverse().map((b) => fxText(`fill="${b.color}" stroke="${b.color}" stroke-width="${(b.r * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)).join("");
+  })() : "";
+  let dimDefs = "", dimBack = "", dimGlossLayer = "";
+  if (dimOn && (dDepth > 0.05 || dStick > 0.05 || dRim > 0.05 || dShOp > 0 || dGlOp > 0)) {
+    // bounded like the text-fx region: absolute units, sized from this
+    // label's own reach so Safari never sees an unbounded raster
+    const dSpread = dDepth + Math.abs(((DM!.drift ?? 0) / 100) * dDepth) + dStick + dRim + (dShOp > 0 ? dDepth * 0.8 + 14 : 0) + fs * (0.35 + dTilt * 0.3) + textW * 0.25;
+    const dR = `filterUnits="userSpaceOnUse" x="${(x - dSpread).toFixed(0)}" y="${(y - dSpread).toFixed(0)}" width="${(w + dSpread * 2).toFixed(0)}" height="${(h + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
+    /* extrusion — the shell's serration-free technique: a feMorphology
+       dilate + offset sweeps the exact silhouette in ONE smooth pass
+       (never a ladder of blended steps). Drift leans the sweep sideways
+       for the flat block-shadow look; the dilate covers the horizontal
+       reach and the offset re-centers it. */
+    const dDx = dimOn ? ((DM!.drift ?? 0) / 100) * dDepth : 0;
+    const dRx = (Math.abs(dDx) / 2).toFixed(1), dRy = (dDepth / 2).toFixed(1);
+    const un = `<feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/><feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feMerge result="dun"><feMergeNode in="SourceAlpha"/><feMergeNode in="dwl"/></feMerge>`;
+    const dgy = cy + 1 + textOy * K;
+    const dCover = clamp((DM!.glossCover ?? 38) / 100, 0.15, 0.7);
+    /* wrap geometry: feMorphology dilates with a BOX kernel — corners
+       square off and curves chamfer, which reads wrong on letterforms
+       (owner: "the stroke should just follow the letterform shapes"). In
+       vector-outline mode the source element carries the wrap as a
+       round-join STROKE on the compound path instead — a true parallel
+       offset of every curve — and the filters only sweep and tint it.
+       The <text> fallback keeps the dilate (no geometry to stroke). */
+    /* the OUTER silhouette the body derives from: wrap + rim + every
+       contour band — extrusion, wrap, shadow and masks all treat the
+       outermost contour as the letter's edge (the construction rule) */
+    const dStkW = (dRim > 0.05 ? dStick + dRim : dStick) + ctrReach;
+    /* gradient blob (vector-outline mode): the sweep filters can only
+       flood flat color, so a gradient body routes through the shell's
+       mask discipline instead — the filtered white alpha becomes a
+       luminance mask, and a gradient rect paints through it. Masks and
+       rects live in LOCAL path coords, so the filters get their own
+       locally-bounded regions. */
+    const dGrad = !!TP2 && !!DM!.stickerColor2 && dStick > 0.05;
+    /* blob pattern — the letterform pattern system aimed at the STROKE:
+       a seamless cell tone-on-tone from the wrap color, painted through
+       the same blob mask the gradient uses. Path mode only (the mask is
+       built from the compound path). */
+    const dPat = DM!.pattern;
+    const dPatOn = !!TP2 && !!dPat?.on && (dPat.opacity ?? 0) > 0.5;
+    const dgy1 = TP2 ? (TP2.gy1 ?? -fs * 0.55) : 0;
+    const dgy2 = TP2 ? (TP2.gy2 ?? fs * 0.55) : 0;
+    const dLR = `filterUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? textW) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB"`;
+    const dMaskSrc = (r2: number) => `<path d="${TP2?.d ?? ""}" fill="#fff"${r2 > 0.05 ? ` stroke="#fff" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"` : ""}/>`;
+    const dRect = (fill: string) => `<rect x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2?.w ?? 0) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}" fill="${fill}"`;
+    /* the extrusion's silhouette: the STROKE is the outer boundary — the
+       blob (face ∪ wrap) extrudes as one object, so the wall follows the
+       wrap's curves, not the bare letterforms. Path mode strokes the
+       source element; the <text> fallback dilates in-filter. */
+    const dwlSrc = !TP2 && dStkW > 0.05
+      ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${dStkW.toFixed(1)}" result="dsrc"/><feMorphology in="dsrc" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`
+      : `<feMorphology in="SourceAlpha" operator="dilate" radius="${dRx} ${dRy}" result="dsw"/>`;
+    dimDefs =
+      (dGrad || dPatOn
+        ? `<filter id="${id}dstg" ${dLR}>${un}<feFlood flood-color="#fff"/><feComposite in2="dun" operator="in"/></filter>` +
+          `<mask id="${id}dsm" maskUnits="userSpaceOnUse" x="${(-dSpread).toFixed(0)}" y="${(dgy1 - dSpread).toFixed(0)}" width="${((TP2!.w) + dSpread * 2).toFixed(0)}" height="${(dgy2 - dgy1 + dDepth + dSpread * 2).toFixed(0)}"><g filter="url(#${id}dstg)">${dMaskSrc(dStkW)}</g></mask>`
+        : "") +
+      (dGrad ? `<linearGradient id="${id}dsg" gradientUnits="userSpaceOnUse" x1="0" y1="${dgy1.toFixed(1)}" x2="0" y2="${(dgy2 + dDepth).toFixed(1)}"><stop offset="0" stop-color="${dStickC}"/><stop offset="1" stop-color="${P(DM!.stickerColor2!)}"/></linearGradient>` : "") +
+      (dPatOn ? (() => {
+        const dpc = fs * 0.3 * clamp((dPat!.scale ?? 100) / 100, 0.25, 4);
+        const tone = dPat!.color ? P(dPat!.color) : isDarkBg(dStickC) ? lighten(dStickC, 0.32) : darken(dStickC, 0.25);
+        return `<pattern id="${id}dpt" width="${dpc.toFixed(1)}" height="${dpc.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${dPat!.angle ?? 0})">${textPatternCell(dPat!.style ?? "dots", dpc, tone)}</pattern>`;
+      })() : "") +
+      (dShOp > 0 ? `<filter id="${id}dsh" ${dR}>${un}<feGaussianBlur in="dun" stdDeviation="${(dDepth * 0.3 + 2.5).toFixed(1)}" result="dshb"/><feOffset in="dshb" dy="${(dDepth * 0.45 + 3).toFixed(1)}" result="dsho"/><feFlood flood-color="${darken(dWall, 0.7)}" flood-opacity="${dShOp.toFixed(2)}"/><feComposite in2="dsho" operator="in"/></filter>` : "") +
+      // the sticker wrap includes the rim width — it must stay visible
+      // OUTSIDE the rim ring, not vanish underneath it
+      (dStick > 0.05 ? `<filter id="${id}dst" ${dR}>${un}${TP2 ? "" : `<feMorphology in="dun" operator="dilate" radius="${dStkW.toFixed(1)}" result="dun"/>`}<feFlood flood-color="${dStickC}"/><feComposite in2="dun" operator="in"/></filter>` : "") +
+      (dRim > 0.05 ? `<filter id="${id}drm" ${dR}>${un}${TP2 ? "" : `<feMorphology in="dun" operator="dilate" radius="${dRim.toFixed(1)}" result="dun"/>`}<feFlood flood-color="${dRimC}"/><feComposite in2="dun" operator="in"/></filter>` : "") +
+      /* flat blob: wrap and body in ONE ink means the wall's depth-shading
+         band would read as an extra stroke inside the shape (owner report)
+         — the sweep paints as a single flat fill there */
+      (dDepth > 0.05 ? `<filter id="${id}dwl" ${dR}>${dwlSrc}<feOffset in="dsw" dx="${(dDx / 2).toFixed(1)}" dy="${(dDepth / 2).toFixed(1)}" result="dwl"/><feFlood flood-color="${dWall}" result="dwf"/><feComposite in="dwf" in2="dwl" operator="in" result="dwc"/>${
+        dStick > 0.05 && dStickC.toLowerCase() === dWall.toLowerCase()
+          ? ""
+          : `<feOffset in="dwl" dx="${(-dDx * 0.45).toFixed(1)}" dy="${(-Math.max(1, dDepth * 0.45)).toFixed(1)}" result="dwu"/><feComposite in="dwl" in2="dwu" operator="out" result="dlo"/><feFlood flood-color="${darken(dWall, 0.35)}" result="dwf2"/><feComposite in="dwf2" in2="dlo" operator="in" result="dlc"/><feMerge><feMergeNode in="dwc"/><feMergeNode in="dlc"/></feMerge>`
+      }</filter>` : "") +
+      (dGlOp > 0 ? (() => {
+        const gy1 = TP2 ? (-(TP2.dy ?? 0) - fs * 0.52).toFixed(1) : (dgy - fs * 0.52).toFixed(1);
+        const gy2 = TP2 ? (-(TP2.dy ?? 0) + fs * 0.55).toFixed(1) : (dgy + fs * 0.55).toFixed(1);
+        return `<linearGradient id="${id}dgl" gradientUnits="userSpaceOnUse" x1="0" y1="${gy1}" x2="0" y2="${gy2}"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="${dCover.toFixed(2)}" stop-color="#FFFFFF" stop-opacity="0.5"/><stop offset="${(dCover + 0.012).toFixed(3)}" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
+      })() : "");
+    const dimText = fxText;
+    // path mode: the wrap rides the source as a round-join stroke — the
+    // filters sweep and tint an alpha that already follows the curves
+    const dimSrc = (r2: number) => TP2 && r2 > 0.05
+      ? dimText(`fill="#000" stroke="#000" stroke-width="${(r2 * 2).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`)
+      : dimText(`fill="#000"`);
+    const dGradLayer = `<g transform="${tpXY}">${dRect(`url(#${id}dsg)`)} mask="url(#${id}dsm)"/></g>`;
+    let dPatLayer = dPatOn ? `<g transform="${tpXY}" opacity="${clamp((dPat!.opacity ?? 30) / 100, 0, 1).toFixed(2)}">${dRect(`url(#${id}dpt)`)} mask="url(#${id}dsm)"/></g>` : "";
+    if (dPatLayer && dPat!.blend && dPat!.blend !== "normal") dPatLayer = `<g style="mix-blend-mode:${dPat!.blend}">${dPatLayer}</g>`;
+    dimBack =
+      (dShOp > 0 ? `<g filter="url(#${id}dsh)">${dimSrc(dStkW)}</g>` : "") +
+      (dStick > 0.05 ? (dGrad ? dGradLayer : `<g filter="url(#${id}dst)">${dimSrc(dStkW)}</g>`) : "") +
+      (dRim > 0.05 ? `<g filter="url(#${id}drm)">${dimSrc(dRim)}</g>` : "") +
+      /* the gradient blob needs no second wall pass when wrap and wall
+         share one ink — its mask already sweeps the stroked silhouette */
+      (dDepth > 0.05 ? (dGrad && dStickC.toLowerCase() === dWall.toLowerCase()
+        ? ""
+        : `<g filter="url(#${id}dwl)">${dimSrc(dStkW)}</g>`) : "") +
+      dPatLayer;
+    dimGlossLayer = dGlOp > 0 ? dimText(`fill="url(#${id}dgl)" opacity="${dGlOp.toFixed(2)}"`) : "";
+    if (dimGlossLayer && DM!.glossBlend && DM!.glossBlend !== "normal") dimGlossLayer = `<g style="mix-blend-mode:${DM!.glossBlend}">${dimGlossLayer}</g>`;
+  }
+
   /* ── ink shine (Splash) — default-off. Per-letterform top-light
      crescents from the glyph's own topology: erode the alpha (so the
      shine sits inset from the outline), subtract a copy offset AWAY from
@@ -2310,9 +2504,89 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       `<feGaussianBlur in="shv" stdDeviation="${shRound.toFixed(1)}" result="shb"/>` +
       `<feComponentTransfer in="shb" result="shh"><feFuncA type="linear" slope="14" intercept="-5.6"/></feComponentTransfer>` +
       `<feFlood flood-color="${shC}" flood-opacity="${shOp2.toFixed(2)}"/><feComposite in2="shh" operator="in"/></filter>`;
-    shineLayer = `<g filter="url(#${id}tsh)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="#000" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></g>`;
+    shineLayer = `<g filter="url(#${id}tsh)">${fxText(`fill="#000"`)}</g>`;
     // blend composites the ink against the letter faces, glints-style
     if (SH2!.blend && SH2!.blend !== "normal") shineLayer = `<g style="mix-blend-mode:${SH2!.blend}">${shineLayer}</g>`;
+  }
+
+  /* ── wall bevel — default-off: the hard-candy chiseled edge ON the
+     letterforms. The glyph alpha erodes to a plateau; the slope ring
+     between plateau and edge splits into a lit band (facing the master
+     light) and a shaded band (facing away): offset the plateau away from
+     the light and what it fails to cover of the original is the light-side
+     slope, and vice versa. Soft blur models the chamfer's curvature; a
+     final composite clips everything back inside the glyph. */
+  const WL2 = T2.wall;
+  const wallOn = !!WL2?.on && showText && !disabled && (WL2!.width ?? 0) > 0.1 && (WL2!.strength ?? 0) > 1;
+  let wallDef = "", wallLayer = "";
+  if (wallOn) {
+    const wK = fs / 52;
+    const wW = Math.max(0.5, WL2!.width * wK);
+    const wSoft = ((0.2 + clamp((WL2!.soft ?? 30) / 100, 0, 1) * 1.6) * wK).toFixed(1);
+    const wStr = clamp((WL2!.strength ?? 70) / 100, 0, 1);
+    const wHi = P(WL2!.hi ?? "#FFFFFF"), wSh = P(WL2!.sh ?? "#04080E");
+    const wDx = (lx * wW * 0.85).toFixed(1), wDy = (ly * wW * 0.85).toFixed(1);
+    const wSpread = wW * 2 + Number(wSoft) * 4 + fs * 0.2 + textW * 0.25;
+    /* Two constraints keep the chisel CRISP on fat display faces:
+       every band lives inside the chamfer RING (A minus the eroded
+       plateau) — never the whole glyph, even where thin features erode
+       away entirely — and the softening blur is re-clipped to the ring
+       so the plateau face stays untouched. The directional split comes
+       from offsetting the glyph itself: what its away-shifted copy fails
+       to cover is the light-facing edge band, and vice versa. */
+    wallDef = `<filter id="${id}twl" filterUnits="userSpaceOnUse" x="${(x - wSpread).toFixed(0)}" y="${(y - wSpread).toFixed(0)}" width="${(w + wSpread * 2).toFixed(0)}" height="${(h + wSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${wW.toFixed(1)}" result="wcore"/>` +
+      `<feComposite in="SourceAlpha" in2="wcore" operator="out" result="wring"/>` +
+      `<feOffset in="SourceAlpha" dx="${(-lx * wW * 0.9).toFixed(1)}" dy="${(-ly * wW * 0.9).toFixed(1)}" result="waa"/>` +
+      `<feComposite in="SourceAlpha" in2="waa" operator="out" result="whi0"/>` +
+      `<feComposite in="whi0" in2="wring" operator="in" result="whi1"/>` +
+      `<feGaussianBlur in="whi1" stdDeviation="${wSoft}" result="whib"/>` +
+      `<feComposite in="whib" in2="wring" operator="in" result="whi2"/>` +
+      `<feFlood flood-color="${wHi}" flood-opacity="${(wStr * 0.9).toFixed(2)}" result="whif"/>` +
+      `<feComposite in="whif" in2="whi2" operator="in" result="whic"/>` +
+      `<feOffset in="SourceAlpha" dx="${wDx}" dy="${wDy}" result="wab"/>` +
+      `<feComposite in="SourceAlpha" in2="wab" operator="out" result="wsh0"/>` +
+      `<feComposite in="wsh0" in2="wring" operator="in" result="wsh1"/>` +
+      `<feGaussianBlur in="wsh1" stdDeviation="${wSoft}" result="wshb"/>` +
+      `<feComposite in="wshb" in2="wring" operator="in" result="wsh2"/>` +
+      `<feFlood flood-color="${wSh}" flood-opacity="${(wStr * 0.75).toFixed(2)}" result="wshf"/>` +
+      `<feComposite in="wshf" in2="wsh2" operator="in" result="wshc"/>` +
+      `<feMerge><feMergeNode in="wshc"/><feMergeNode in="whic"/></feMerge></filter>`;
+    wallLayer = `<g filter="url(#${id}twl)">${fxText(`fill="#000"`)}</g>`;
+  }
+
+  /* ── inline/inset ring — default-off: the varsity/marquee/engraved
+     band INSIDE the face, `inset` px in from the edge, `width` px thick.
+     Two erosions of the glyph alpha differenced — follows any face at
+     any size, and thin features narrower than ~2×inset drop the ring
+     naturally, which is exactly what a sign painter would do. */
+  const IL2 = T2.inline;
+  const inlineOn = !!IL2?.on && showText && !disabled && (IL2!.width ?? 0) > 0.05;
+  let inlineDef = "", inlineLayer = "";
+  if (inlineOn) {
+    const iK = fs / 52;
+    const iIn = Math.max(0.3, (IL2!.inset ?? 2) * iK);
+    const iW = Math.max(0.3, (IL2!.width ?? 1.5) * iK);
+    const iC = P(IL2!.color ?? "#FFFFFF");
+    const iOp = clamp((IL2!.opacity ?? 100) / 100, 0, 1);
+    const iSpread = fs * 0.2 + textW * 0.25;
+    inlineDef = `<filter id="${id}til" filterUnits="userSpaceOnUse" x="${(x - iSpread).toFixed(0)}" y="${(y - iSpread).toFixed(0)}" width="${(w + iSpread * 2).toFixed(0)}" height="${(h + iSpread * 2).toFixed(0)}" color-interpolation-filters="sRGB">` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${iIn.toFixed(1)}" result="i1"/>` +
+      `<feMorphology in="SourceAlpha" operator="erode" radius="${(iIn + iW).toFixed(1)}" result="i2"/>` +
+      `<feComposite in="i1" in2="i2" operator="out" result="ir"/>` +
+      `<feFlood flood-color="${iC}" flood-opacity="${iOp.toFixed(2)}"/><feComposite in2="ir" operator="in"/></filter>`;
+    inlineLayer = `<g filter="url(#${id}til)">${fxText(`fill="#000"`)}</g>`;
+  }
+
+  /* ── grain (Type Maker) — default-off: the shell micro-texture recipe
+     composited into the glyph alpha. */
+  const NZ2 = T2.noise;
+  const tnzOn = !!NZ2?.on && showText && !disabled && (NZ2!.amount ?? 0) > 0.5;
+  let tnzDef = "", tnzLayer = "";
+  if (tnzOn) {
+    const nf = (0.3 + clamp((NZ2!.scale ?? 50) / 100, 0, 1) * 1.4).toFixed(2);
+    tnzDef = `<filter id="${id}tnz" filterUnits="userSpaceOnUse" x="${(x - fs).toFixed(0)}" y="${(y - fs).toFixed(0)}" width="${(w + fs * 2).toFixed(0)}" height="${(h + fs * 2).toFixed(0)}" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="${nf}" numOctaves="2" seed="7" stitchTiles="stitch" result="tnn"/><feColorMatrix in="tnn" type="saturate" values="0" result="tnd"/><feComponentTransfer in="tnd" result="tnc"><feFuncR type="linear" slope="2.6" intercept="-0.8"/><feFuncG type="linear" slope="2.6" intercept="-0.8"/><feFuncB type="linear" slope="2.6" intercept="-0.8"/></feComponentTransfer><feComposite in="tnc" in2="SourceAlpha" operator="in"/></filter>`;
+    tnzLayer = `<g style="mix-blend-mode:overlay" opacity="${(clamp(NZ2!.amount / 100, 0, 1) * 0.75).toFixed(2)}" filter="url(#${id}tnz)">${fxText(`fill="#808080"`)}</g>`;
   }
 
   /* vector glints — a crisp specular slab clipped to the glyphs plus star
@@ -2335,7 +2609,9 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const rot = Math.atan2(ly, lx) * 180 / Math.PI + 90;
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
-    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+    glintsDefs = TP2
+      ? `<clipPath id="${id}tgc"><path d="${TP2.d}" transform="${tpXY}"/></clipPath>`
+      : `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${label}</text></clipPath>`;
     /* style picks the clipped body + which stars ride along; the bake knobs
        (glintBands/glintStars, alphabet-face export) keep overriding — they
        normalize per-glyph treatment and always speak slab. */
@@ -2430,8 +2706,20 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <stop offset="0" stop-color="${hiC}" stop-opacity="1"/>
     <stop offset="1" stop-color="${hiC}" stop-opacity="0"/>
   </radialGradient>
-  ${T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/></linearGradient>` : ""}
-  ${T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${tTextX.toFixed(1)}" y1="${(cy + 1 + textOy * K - fs * 0.55).toFixed(1)}" x2="${tTextX.toFixed(1)}" y2="${(cy + 1 + textOy * K + fs * 0.55).toFixed(1)}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : ""}
+  ${(() => {
+    /* vector-outline mode: the word path lives inside a translated group,
+       and userSpaceOnUse resolves where the element is USED — so the text
+       gradients anchor in LOCAL coords there (central line = -dy). */
+    const gx1 = TP2 ? "0" : tTextX.toFixed(1);
+    const gy1 = TP2 ? (TP2.gy1 ?? (-(TP2.dy ?? 0) - fs * 0.55)).toFixed(1) : (cy + 1 + textOy * K - fs * 0.55).toFixed(1);
+    const gy2 = TP2 ? (TP2.gy2 ?? (-(TP2.dy ?? 0) + fs * 0.55)).toFixed(1) : (cy + 1 + textOy * K + fs * 0.55).toFixed(1);
+    return (T2.fillMode === "gradient" ? `<linearGradient id="${id}tg" gradientUnits="userSpaceOnUse" x1="${gx1}" y1="${gy1}" x2="${gx1}" y2="${gy2}">${
+      T2.fillStops?.length
+        ? T2.fillStops.map((s) => `<stop offset="${clamp(s.offset, 0, 1).toFixed(3)}" stop-color="${P(s.color)}"/>`).join("")
+        : `<stop offset="0" stop-color="${P(T2.fill)}"/><stop offset="1" stop-color="${P(T2.fill2)}"/>`
+    }</linearGradient>` : "") +
+    (T2.outline.on && T2.outline.color2 ? `<linearGradient id="${id}og" gradientUnits="userSpaceOnUse" x1="${gx1}" y1="${gy1}" x2="${gx1}" y2="${gy2}"><stop offset="0" stop-color="${P(T2.outline.color)}"/><stop offset="1" stop-color="${P(T2.outline.color2)}"/></linearGradient>` : "");
+  })()}
   ${hiIdx >= 0 ? (() => {
     const hb = clamp((T2.highlightBoost ?? 70) / 100, 0, 1);
     /* intensity sweeps from the BASE ink (0 = the phrase melts into the
@@ -2457,10 +2745,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     <feComposite in2="thb" operator="in" result="thh"/>
     <feMerge><feMergeNode in="thh"/><feMergeNode in="thh"/><feMergeNode in="SourceGraphic"/></feMerge>
   </filter>`; })() : ""}
-  ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, darken(bevelC, 0.25))}</pattern>`; })() : ""}
+  ${showText && T2.stripes?.on ? (() => { const pcell = fs * 0.3 * clamp((T2.stripes!.scale ?? 100) / 100, 0.25, 4); return `<pattern id="${id}tst" width="${pcell.toFixed(1)}" height="${pcell.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${T2.stripes!.angle})">${textPatternCell(T2.stripes!.style ?? "stripes", pcell, T2.stripes!.color ? P(T2.stripes!.color) : darken(bevelC, 0.25))}</pattern>`; })() : ""}
   ${glintsDefs}
   ${shineDef}
+  ${wallDef}
+  ${inlineDef}
   ${textFxDef}
+  ${dimDefs}
+  ${tnzDef}
   <clipPath id="${id}fc"><path d="${faceP}"/></clipPath>
   <clipPath id="${id}oc"><path d="${outer}"/></clipPath>
   ${(() => {
@@ -2506,12 +2798,23 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     </g>
     <g id="${id}_content" data-part="content" opacity="${(T.content / 100).toFixed(2)}">
-      ${showText ? `<g data-part="label">` : ""}
-      ${showText && outlineUnder ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text>` : ""}
-      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central">${textInner}</text>${textFilter ? `</g>` : ""}` : ""}
-      ${showText && T2.stripes?.on ? `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${clamp((T2.stripes.opacity ?? 30) / 100, 0, 1).toFixed(2)}" text-anchor="${tAnchor}" dominant-baseline="central">${stripesInner}</text>` : ""}
-      ${showText && hiIdx >= 0 && !disabled ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central">${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${showText ? `<g data-part="label">${dimBack}` : ""}
+      ${showText ? `${textFilter ? `<g${textFilter}>` : ""}${ctrLayers}${outlineBehindNode}${outlineUnder ? fxText(`fill="none" stroke="${outlineStroke}" stroke-width="${(outlineW + synW).toFixed(1)}" stroke-linejoin="round"`) : ""}${TP2
+        ? fxText(`fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs}`)
+        : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="${tFill}"${(T2.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T2.fillOpacity / 100).toFixed(2)}"` : ""}${outlineAttrs} text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${textInner}</text>`}${textFilter ? `</g>` : ""}` : ""}
+      ${showText && T2.stripes?.on ? (() => {
+        const sOp = clamp((T2.stripes!.opacity ?? 30) / 100, 0, 1).toFixed(2);
+        const node = TP2
+          ? fxText(`fill="url(#${id}tst)" opacity="${sOp}"`)
+          : `<text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="url(#${id}tst)" opacity="${sOp}" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${stripesInner}</text>`;
+        return T2.stripes!.blend && T2.stripes!.blend !== "normal" ? `<g style="mix-blend-mode:${T2.stripes!.blend}">${node}</g>` : node;
+      })() : ""}
+      ${showText && hiIdx >= 0 && !disabled && !TP2 ? `<g filter="url(#${id}thf)"><text x="${tTextX.toFixed(1)}" y="${(cy + 1 + textOy * K).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" fill="none" text-anchor="${tAnchor}" dominant-baseline="central"${tiltAttrs}>${esc(cased.slice(0, hiIdx))}<tspan fill="url(#${id}thl)">${esc(cased.slice(hiIdx, hiIdx + hiLen))}</tspan>${esc(cased.slice(hiIdx + hiLen))}</text></g>` : ""}
+      ${inlineLayer}
+      ${wallLayer}
+      ${dimGlossLayer}
       ${shineLayer}
+      ${tnzLayer}
       ${glintsLayer}
       ${showText ? `</g>` : ""}
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
@@ -2619,6 +2922,8 @@ export interface SpecimenOpts {
    *  cell (owner's Unity report: "clipping on the glow"). One shared pad
    *  across a bake keeps every variant in one coordinate frame. */
   fxPad?: number;
+  /** Vector-outline mode — see build()'s textPath. */
+  textPath?: TextPathOpt;
 }
 export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenOpts = {}): string {
   const c = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -2641,7 +2946,7 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands, textPath: opts.textPath });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
