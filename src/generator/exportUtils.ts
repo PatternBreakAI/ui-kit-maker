@@ -474,6 +474,75 @@ export function downloadSettings(cfg: GenConfig, workspace?: Record<string, unkn
   download("ui-generator-settings.json", new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }));
 }
 
+/* ── GROUND-TRUTH SLICE MEASUREMENT ──────────────────────────────────
+   Walk each edge's silhouette profile to where it flattens against its
+   extreme — that is where curvature ends — and pad. Works on raw RGBA;
+   shape-, extrusion- and kit-agnostic. Shared by the engine zip AND the
+   gamekit sheet so no export path guesses borders (Jimi's field notes,
+   then his actual export: the formula's uniform caps landed in the
+   transparent padding, leaving the pill's rounded caps inside the
+   stretchable bands). Returns null when there's too little silhouette
+   to trust — callers keep their formula as the fallback. */
+export function measureSliceRGBA(
+  d: Uint8ClampedArray, w: number, h: number, scale: number,
+): { left: number; right: number; top: number; bottom: number } | null {
+  try {
+    const pad = Math.round(3 * scale);
+    const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
+    const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
+      for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
+    }
+    const cols: number[] = [];
+    for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
+    if (cols.length < 8) return null;
+    const cx0 = cols[0], cx1 = cols[cols.length - 1];
+    let yTop = h, yBot = -1;
+    for (const x of cols) { if (topAt[x] < yTop) yTop = topAt[x]; if (botAt[x] > yBot) yBot = botAt[x]; }
+    const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
+      for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
+    }
+    const rows: number[] = [];
+    for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
+    if (rows.length < 8) return null;
+    const ry0 = rows[0], ry1 = rows[rows.length - 1];
+    const T = 2 * scale; // close enough to the extreme = flat
+    let tl = cx0; while (tl <= cx1 && (topAt[tl] < 0 || topAt[tl] > yTop + T)) tl++;
+    let tr = cx1; while (tr >= cx0 && (topAt[tr] < 0 || topAt[tr] > yTop + T)) tr--;
+    let bl = cx0; while (bl <= cx1 && (botAt[bl] < 0 || botAt[bl] < yBot - T)) bl++;
+    let br = cx1; while (br >= cx0 && (botAt[br] < 0 || botAt[br] < yBot - T)) br--;
+    let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > cx0 + T)) lt++;
+    let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > cx0 + T)) lb--;
+    let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < cx1 - T)) rt2++;
+    let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < cx1 - T)) rb--;
+    return {
+      left: Math.max(tl, bl) + pad,
+      right: (w - 1 - Math.min(tr, br)) + pad,
+      top: Math.max(lt, rt2) + pad,
+      bottom: (h - 1 - Math.min(lb, rb)) + pad,
+    };
+  } catch { return null; }
+}
+
+/** The clamp the measurement always rides with: caps never eat more than a
+ *  quarter of the width / 30% of the height per side, and a real center
+ *  strip always survives — engines render nothing without one. */
+export function clampSlice(
+  s: { left: number; right: number; top: number; bottom: number }, w: number, h: number,
+): void {
+  const maxLR = Math.floor(w * 0.25), maxTB = Math.floor(h * 0.3);
+  if (s.left > maxLR) s.left = maxLR;
+  if (s.right > maxLR) s.right = maxLR;
+  if (s.top > maxTB) s.top = maxTB;
+  if (s.bottom > maxTB) s.bottom = maxTB;
+  const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
+  if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
+  if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
+}
+
 /** Game-engine kit: one sprite sheet PNG @2x (states stacked vertically) plus
  *  a JSON manifest with per-state rects and suggested 9-slice insets — the
  *  shape Unity's Sprite Editor and Unreal's UMG box-draw both ingest. */
@@ -505,16 +574,26 @@ export async function downloadGameKit(cfg: GenConfig, licence?: string): Promise
     rects.push({ name: l.s, x: Math.round((w - sw) / 2), y: yy, width: sw, height: sh });
     yy += sh;
   });
-  // conservative 9-slice caps: wall + rim + corner sweep + the glow viewport
-  // pad the sprites now carry, at sheet scale
+  /* borders come from the PIXELS, not a formula: Jimi's real export showed
+     the old cap estimate (wall + rim + sweep + glow pad) landing entirely
+     in the transparent padding — Unity then stretched the pill's rounded
+     caps. Measure the default state's silhouette; the formula survives
+     only as the fallback for silhouettes too sparse to walk. */
   const cap = Math.round((cfg.bevel.width + cfg.candy.rim.width + 34 + glowPadOf(cfg)) * scale);
+  const slice = { left: cap, right: cap, top: cap, bottom: cap };
+  try {
+    const r0 = rects[0];
+    const m = measureSliceRGBA(ctx.getImageData(r0.x, r0.y, r0.width, r0.height).data, r0.width, r0.height, scale);
+    if (m) { slice.left = m.left; slice.right = m.right; slice.top = m.top; slice.bottom = m.bottom; }
+  } catch { /* same-origin data URIs never taint; keep the formula if anything else fails */ }
+  clampSlice(slice, rects[0].width, rects[0].height);
   const manifest = {
     generator: "UI Kit Maker (PatternBreak)",
     sheet: `ui-${cfg.presetId}-sheet@${scale}x.png`,
     scale,
     label: cfg.content.label,
     states: rects,
-    nineSlice: { left: cap, right: cap, top: cap, bottom: cap,
+    nineSlice: { ...slice,
       note: "Suggested border insets in sheet pixels. Unity: Sprite Editor > Border. Unreal: Brush > Margin (divide by width/height for 0–1 values)." },
     engines: {
       unity: "Import sheet as Sprite (2D and UI), Sprite Mode: Multiple, slice with the state rects, set Border for 9-slice, use on UI Image (Sliced).",
