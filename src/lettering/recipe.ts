@@ -167,7 +167,18 @@ export function compileLockup(
   if (support && supportR) {
     const raw = toGeom(support.cmds, supportSize);
     const dx = (heroGeom.x1 + heroGeom.x2) / 2 - (raw.x1 + raw.x2) / 2;
-    const dy = heroGeom.y1 - recipe.composition.lineGap - raw.y2;
+    /* a connective kicker never tucks INTO the hero: its painted outline
+       must clear the hero's expanded cap-line, so stop-word supports get
+       daylight past the widest hero ring even when the recipe tucks */
+    const heroRing = Math.max(
+      recipe.hero.depth.cap?.expand ?? 0,
+      recipe.hero.depth.keyline?.expand ?? 0,
+      recipe.hero.depth.deep?.expand ?? 0,
+    );
+    const gap = plan.supportIsStop
+      ? Math.max(recipe.composition.lineGap, heroRing + 5)
+      : recipe.composition.lineGap;
+    const dy = heroGeom.y1 - gap - raw.y2;
     supportCmdsPlaced = translateCmds(support.cmds, dx, dy);
     supportGeom = toGeom(supportCmdsPlaced, supportSize);
   }
@@ -241,7 +252,7 @@ export function compileLockup(
   const gpal = grayPalette(pal);
   const gDefs: string[] = [];
   const gBuilt = buildOps(gpal);
-  const gBody = emitPassMajor(gBuilt.roles.map((r) => ({ ...r, idp: `g${r.idp}` })), gBuilt.composition ? { ...gBuilt.composition, idp: "gc" } : null, gDefs, false, frame);
+  const gBody = emitPassMajor(gBuilt.roles.map((r) => ({ ...r, idp: `g${r.idp}` })), gBuilt.composition ? { ...gBuilt.composition, idp: `g${ns}c` } : null, gDefs, false, frame);
   const gScene = recipe.scene
     ? buildScene(recipe.scene, frame, heroBox, lockupBox, gpal, seed, gDefs, `g${ns}`)
     : { far: "", behind: "", fore: "" };

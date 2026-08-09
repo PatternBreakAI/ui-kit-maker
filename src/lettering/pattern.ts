@@ -132,7 +132,7 @@ function maskDef(
     const w = spec.maskWidth ?? 6;
     return open + `${bg} fill="#000"/>` +
       `<path d="${geom.d}" fill="#FFF"/>` +
-      `<path d="${inflateOutline(geom.polys, -w)}" fill="#000"/></mask>`;
+      `<path d="${inflateOutline(geom.polys, -w, geom.groups)}" fill="#000"/></mask>`;
   }
   if (kind === "wall") {
     // the depth band: silhouette swept along the travel, minus the front

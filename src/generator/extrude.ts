@@ -55,12 +55,16 @@ function pointInPoly(pt: Pt, poly: Pt[]): boolean {
  *  number of the OTHER polygons bounds a counter (hole) — its ink-outward
  *  normal is its standalone-INWARD one. Containment by parity is robust
  *  against the differing winding conventions fonts actually ship. */
-function holeFlags(polys: Pt[][]): boolean[] {
+function holeFlags(polys: Pt[][], groups?: number[]): boolean[] {
   return polys.map((poly, i) => {
     if (!poly.length) return false;
     const probe = poly[0];
     let depth = 0;
     polys.forEach((other, j) => {
+      // with groups, parity is judged per glyph: an overlapping NEIGHBOR
+      // glyph's contour must not flip this contour into a hole (script
+      // joins, tucked lockups, union badge geometry)
+      if (groups && groups[j] !== groups[i]) return;
       if (j !== i && other.length >= 3 && pointInPoly(probe, other)) depth++;
     });
     return depth % 2 === 1;
@@ -86,7 +90,8 @@ function edgeNormal(poly: Pt[], i: number, cw: boolean, hole: boolean): Pt | nul
  *  Sharp concave self-crossings paint over themselves in the same ink,
  *  which is invisible; good enough for round-joined display lettering. */
 function inflatePoly(poly: Pt[], r: number, cw: boolean, hole: boolean): Pt[] {
-  if (r <= 0.01 || poly.length < 3) return poly;
+  // magnitude test: negative r is a real INWARD offset, not a no-op
+  if (Math.abs(r) <= 0.01 || poly.length < 3) return poly;
   const n = poly.length;
   const out: Pt[] = new Array(n);
   for (let i = 0; i < n; i++) {
@@ -118,8 +123,8 @@ const classify = (nx: number, ny: number, ux: number, uy: number): WallClass => 
  *  V=(vx,vy). `inflate` grows the front contour first (ink-outward) so the
  *  body emanates from the outermost contour band, matching the renderer's
  *  construction rule. Returns path data per orientation class + back face. */
-export function extrudeWalls(polys: Pt[][], vx: number, vy: number, inflate = 0): WallGeom {
-  const holes = holeFlags(polys);
+export function extrudeWalls(polys: Pt[][], vx: number, vy: number, inflate = 0, groups?: number[]): WallGeom {
+  const holes = holeFlags(polys, groups);
   const out: Record<WallClass, string[]> = { down: [], mid: [], side: [] };
   const back: string[] = [];
   const vLen = Math.hypot(vx, vy) || 1;
@@ -215,8 +220,8 @@ export function extrudeWalls(polys: Pt[][], vx: number, vy: number, inflate = 0)
 
 /** The inflated front silhouette itself (no extrusion) — the cast-shadow
  *  and debug consumers want the same boundary the walls grew from. */
-export function inflateOutline(polys: Pt[][], inflate: number): string {
-  const holes = holeFlags(polys);
+export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]): string {
+  const holes = holeFlags(polys, groups);
   return polys
     .map((raw, pi) => {
       if (raw.length < 3) return "";

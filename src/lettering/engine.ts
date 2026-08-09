@@ -121,8 +121,11 @@ export function typesetRole(text: string, spec: RoleType, seed: number): RoleGeo
   const A = (rh.arch ?? 0) * spec.size;
   const R = (rh.rise ?? 0) * spec.size;
   const shearT = Math.tan(((spec.shear ?? 0) * Math.PI) / 180);
-  const cmds = laid.glyphs.map((g, i) => {
-    const ui = u(i);
+  const cmds = laid.glyphs.map((g) => {
+    // the arc is parametrized by each glyph's REAL x-center, not its
+    // index, so end letters sit on the same curve as the middle ones
+    // and junction tangents agree with actual letter positions
+    const ui = n > 1 ? Math.max(-1, Math.min(1, (2 * g.center) / W - 1)) : 0;
     const base = -A * (1 - ui * ui) - R * ((ui + 1) / 2) + jit * spec.size * 0.03 * (r() * 2 - 1);
     const slope = (4 * A * ui) / W - R / W;
     const rot = (rh.rotFollow ?? 0) * Math.atan(slope) + jit * 0.05 * (r() * 2 - 1);
@@ -150,12 +153,17 @@ export interface Geom {
   /** per-glyph flattened contours — glyph-scoped CONTRACT ops keep their
    *  per-letter identity instead of degrading to the union offset */
   glyphPolys: [number, number][][][];
+  /** glyph index per contour in `polys` — hole parity is judged within a
+   *  glyph, so overlapping neighbors (script joins, tucked lockups)
+   *  never flip a contour into a hole */
+  groups: number[];
 }
 
 export function toGeom(cmds: Cmd[][], size: number): Geom {
   const polys: [number, number][][] = [];
   const glyphPolys: [number, number][][][] = [];
-  for (const gc of cmds) {
+  const groups: number[] = [];
+  cmds.forEach((gc, gi) => {
     const mine: [number, number][][] = [];
     let cur: [number, number][] = [];
     for (const c of flatten(gc, size / 22)) {
@@ -165,10 +173,10 @@ export function toGeom(cmds: Cmd[][], size: number): Geom {
     }
     if (cur.length >= 3) mine.push(cur);
     glyphPolys.push(mine);
-    polys.push(...mine);
-  }
+    for (const p of mine) { polys.push(p); groups.push(gi); }
+  });
   const b = boundsOf(cmds.flat());
-  return { d: cmds.map(cmdToD).join(""), polys, x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY, glyphDs: cmds.map(cmdToD), glyphPolys };
+  return { d: cmds.map(cmdToD).join(""), polys, x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY, glyphDs: cmds.map(cmdToD), glyphPolys, groups };
 }
 
 export const translateCmds = (cmds: Cmd[][], dx: number, dy: number): Cmd[][] =>
@@ -302,7 +310,7 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
   // walls: true extrusion strips, orientation-classed by MATERIALIZE
   if (op.walls) {
     const w = op.walls;
-    const wg = extrudeWalls(geom.polys, w.dx, w.dy, w.inflate ?? 0);
+    const wg = extrudeWalls(geom.polys, w.dx, w.dy, w.inflate ?? 0, geom.groups);
     const c = silhouette
       ? { down: "#111111", mid: "#111111", side: "#111111", back: "#111111" }
       : w;
@@ -333,7 +341,7 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
     // contraction: per-glyph offsets when the paint lives in glyph space
     node = perGlyph
       ? geom.glyphPolys.map((gp) => { const d = inflateOutline(gp, ex); return d ? `<path d="${d}" fill="${fillRef}"/>` : ""; }).join("")
-      : `<path d="${inflateOutline(geom.polys, ex)}" fill="${fillRef}"/>`;
+      : `<path d="${inflateOutline(geom.polys, ex, geom.groups)}" fill="${fillRef}"/>`;
   } else {
     node = perGlyph ? geom.glyphDs.map((gd) => body(gd)).join("") : body(geom.d);
   }
@@ -364,10 +372,17 @@ function opNode(geom: Geom, op: IROp, defs: string[], oid: string, silhouette: b
 
 /** Every rearward layer for every role paints before any face; the
  *  composition-scoped geometry paints first within each pass (it is the
- *  outermost silhouette); roles paint rear → front. */
+ *  outermost silhouette); roles paint rear → front.
+ *
+ *  Silhouette mode tests the DESIGNED lettering mass — contour, keyline,
+ *  face, inline — so the depth machinery (shadows, strata sweeps, walls)
+ *  is excluded; a strata tail is presentation, not letterform. */
+const SIL_SKIP: Set<RenderPass> = new Set(["castShadow", "deepStrata", "shallowStrata"]);
+
 export function emitPassMajor(roles: IRRole[], composition: IRRole | null, defs: string[], silhouette = false, frame?: Frame): string {
   let out = "";
   PASS_ORDER.forEach((pass, pi) => {
+    if (silhouette && SIL_SKIP.has(pass)) return;
     for (const r of [composition, ...roles]) {
       if (!r) continue;
       r.ops.forEach((op, oi) => {

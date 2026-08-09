@@ -188,9 +188,9 @@ export const SPORTS_ARENA: TreatmentRecipe = {
     ornament: "plaque + triple rules + corner studs frame the lockup; glow pools behind the crest",
   },
   palette: {
-    stage: "#DED8CA",
+    stage: "#CFC7B4",
     glow: "#F5E9C8",
-    plaque: "#F2E7CC",
+    plaque: "#E4D6B4",
     plaqueLine: "#152A4E",
     rule: "#B9352E",
     ink: "#10121A",
@@ -232,7 +232,7 @@ export const SPORTS_ARENA: TreatmentRecipe = {
     },
   },
   support: {
-    fontFamily: "Anton",
+    fontFamily: "Archivo Black",
     casePolicy: "upper",
     size: 140,
     tracking: 0.02,

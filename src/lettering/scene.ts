@@ -131,7 +131,11 @@ function starField(frame: Frame, fill: string, fill2: string, count: number, r: 
   let out = "";
   let placed = 0, guard = 0;
   while (placed < count && guard++ < count * 8) {
-    const x = frame.x1 + r() * w, y = frame.y1 + r() * h;
+    // alternate halves so the sparks counterweight the composition
+    // instead of clustering on one side
+    const half = placed % 2;
+    const x = frame.x1 + (half ? 0.5 + r() * 0.5 : r() * 0.5) * w;
+    const y = frame.y1 + r() * h;
     if (avoid && x > avoid.x1 - 20 && x < avoid.x2 + 20 && y > avoid.y1 - 20 && y < avoid.y2 + 20) continue;
     const big = r() > 0.62;
     if (big) out += `<path d="${star5(x, y, 4 + r() * 9, r() * Math.PI)}" fill="${fill}"/>`;
@@ -157,35 +161,47 @@ function printField(frame: Frame, fill: string, r: () => number): string {
   return `<g opacity="0.3">${out}</g>`;
 }
 
-function ornamentalRules(hero: HeroBox, fill: string): string {
-  const cx = (hero.x1 + hero.x2) / 2;
-  const halfW = (hero.x2 - hero.x1) * 0.34;
+/** rules bracket the WHOLE lockup (kicker's ascenders included), so the
+ *  finials can never land inside a letterform */
+function ornamentalRules(lockup: HeroBox, fill: string): string {
+  const cx = (lockup.x1 + lockup.x2) / 2;
+  const halfW = (lockup.x2 - lockup.x1) * 0.3;
   const mk = (y: number): string =>
     `<path d="M${(cx - halfW).toFixed(1)} ${y.toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="2.4"/>` +
     `<path d="M${(cx - halfW).toFixed(1)} ${(y + 6).toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="1.1"/>` +
     `<path d="M${cx.toFixed(2)} ${(y - 5).toFixed(1)}l7 8-7 8-7-8Z" fill="${fill}"/>`;
-  return mk(hero.y1 - hero.size * 0.5) + mk(hero.y2 + hero.size * 0.34);
+  return mk(lockup.y1 - lockup.size * 0.34) + mk(lockup.y2 + lockup.size * 0.42);
 }
 
 /** ribbon swash under the hero, derived from its bounds — border tone
- *  under a face tone, treated like the lettering, never hand-drawn */
+ *  under a face tone, plus a cast shadow on the SAME down-right travel
+ *  as the lettering so the ornament lives under the lockup's one light */
 function underlineSwash(hero: HeroBox, faceTok: string, keyTok: string): { behind: string; fore: string } {
   const wSpan = hero.x2 - hero.x1;
   const y0 = hero.y2 + hero.size * 0.14;
   const d = `M${(hero.x1 + wSpan * 0.06).toFixed(1)} ${(y0 - hero.size * 0.02).toFixed(1)} C${(hero.x1 + wSpan * 0.3).toFixed(1)} ${(y0 + hero.size * 0.16).toFixed(1)} ${(hero.x1 + wSpan * 0.62).toFixed(1)} ${(y0 + hero.size * 0.16).toFixed(1)} ${(hero.x2 - wSpan * 0.04).toFixed(1)} ${(y0 - hero.size * 0.06).toFixed(1)}`;
   const wSw = hero.size * 0.085;
+  const sh = hero.size * 0.045;
   return {
-    behind: `<path d="${d}" fill="none" stroke="${keyTok}" stroke-width="${(wSw * 2.6).toFixed(1)}" stroke-linecap="round"/>`,
+    behind:
+      `<g transform="translate(${sh.toFixed(1)} ${(sh * 1.4).toFixed(1)})" opacity="0.5"><path d="${d}" fill="none" stroke="${keyTok}" stroke-width="${(wSw * 2.6).toFixed(1)}" stroke-linecap="round"/></g>` +
+      `<path d="${d}" fill="none" stroke="${keyTok}" stroke-width="${(wSw * 2.6).toFixed(1)}" stroke-linecap="round"/>`,
     fore: `<path d="${d}" fill="none" stroke="${faceTok}" stroke-width="${wSw.toFixed(1)}" stroke-linecap="round"/>`,
   };
 }
 
 /* ── arena: glow pool + plaque + rules ──────────────────────────── */
 
-function arenaGlow(frame: Frame, fill: string, defs: string[], id: string): string {
+function arenaGlow(frame: Frame, fill: string, dark: string, defs: string[], id: string): string {
+  // a spotlight pool + darkened corners — the glow must SHOW at tile
+  // size, so both ends of the value move, not just the highlight
   const w = frame.x2 - frame.x1, h = frame.y2 - frame.y1;
   const cx = frame.x1 + w / 2, cy = frame.y1 + h * 0.4;
-  defs.push(`<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(Math.max(w, h) * 0.62).toFixed(1)}"><stop offset="0" stop-color="${fill}" stop-opacity="0.55"/><stop offset="0.55" stop-color="${fill}" stop-opacity="0.18"/><stop offset="1" stop-color="${fill}" stop-opacity="0"/></radialGradient>`);
+  defs.push(
+    `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(Math.max(w, h) * 0.68).toFixed(1)}">` +
+    `<stop offset="0" stop-color="${fill}" stop-opacity="0.85"/><stop offset="0.45" stop-color="${fill}" stop-opacity="0.35"/><stop offset="0.75" stop-color="${fill}" stop-opacity="0"/>` +
+    `<stop offset="1" stop-color="${dark}" stop-opacity="0.4"/></radialGradient>`,
+  );
   return `<rect x="${frame.x1.toFixed(0)}" y="${frame.y1.toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="url(#${id})"/>`;
 }
 
@@ -236,7 +252,7 @@ export function buildScene(
       return { far: starField(frame, tok(p, spec.tok), tok(p, spec.tok2 ?? spec.tok), spec.count ?? 26, r, { ...lockup, size: 0 }), behind: "", fore: "" };
     case "retro-print": {
       const far = printField(frame, tok(p, spec.dot), r);
-      let behind = ornamentalRules(hero, tok(p, spec.rule));
+      let behind = ornamentalRules(lockup, tok(p, spec.rule));
       if (spec.swash) {
         // both swash strokes sit behind the lettering (the hero's own
         // construction tucks over the ribbon where they meet)
@@ -246,7 +262,7 @@ export function buildScene(
       return { far, behind, fore: "" };
     }
     case "arena": {
-      const far = arenaGlow(frame, tok(p, spec.glow), defs, `${ns}ar`);
+      const far = arenaGlow(frame, tok(p, spec.glow), tok(p, spec.plaqueLine), defs, `${ns}ar`);
       const behind = plaque(lockup, tok(p, spec.plaque), tok(p, spec.plaqueLine), tok(p, spec.rule));
       return { far, behind, fore: "" };
     }
