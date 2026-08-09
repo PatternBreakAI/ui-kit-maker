@@ -222,9 +222,11 @@ export function inflateOutline(polys: Pt[][], inflate: number): string {
       if (raw.length < 3) return "";
       const aRaw = signedArea(raw);
       const poly = inflatePoly(raw, inflate, aRaw > 0, holes[pi]);
-      if (inflate > 0.01) {
+      if (Math.abs(inflate) > 0.01) {
         const aInf = signedArea(poly);
-        // filled counters vanish instead of re-growing as phantoms
+        // collapsed contours vanish instead of re-growing as phantoms —
+        // filled counters under expansion, swallowed thin strokes under
+        // contraction (negative inflate = Offset Path inward)
         if (Math.abs(aInf) < Math.abs(aRaw) * 0.02 || Math.sign(aInf) !== Math.sign(aRaw)) return "";
       }
       return "M" + poly.map(([x, y]) => `${F(x)} ${F(y)}`).join("L") + "Z";
