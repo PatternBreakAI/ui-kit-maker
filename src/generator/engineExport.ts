@@ -10,7 +10,7 @@ import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
@@ -458,8 +458,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     }
     return b;
   };
-  const SLICE_PAD = Math.round(3 * PNG_SCALE);
   const sliceMeasureCache = new Map<string, { left: number; right: number; top: number; bottom: number } | null>();
+  /* the walk itself lives in exportUtils (measureSliceRGBA) — shared with
+     the gamekit sheet so BOTH export paths measure instead of guess */
   const measureSlice = async (bytes: Uint8Array, w: number, h: number) => {
     try {
       const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
@@ -467,43 +468,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       cv.width = w; cv.height = h;
       const cx = cv.getContext("2d")!;
       cx.drawImage(bmp, 0, 0);
-      const d = cx.getImageData(0, 0, w, h).data;
-      const solid = (x: number, y: number) => d[(y * w + x) * 4 + 3] > 40;
-      const topAt = new Int32Array(w).fill(-1), botAt = new Int32Array(w).fill(-1);
-      for (let x = 0; x < w; x++) {
-        for (let y = 0; y < h; y++) if (solid(x, y)) { topAt[x] = y; break; }
-        for (let y = h - 1; y >= 0; y--) if (solid(x, y)) { botAt[x] = y; break; }
-      }
-      const cols: number[] = [];
-      for (let x = 0; x < w; x++) if (topAt[x] >= 0) cols.push(x);
-      if (cols.length < 8) return null;
-      const cx0 = cols[0], cx1 = cols[cols.length - 1];
-      let yTop = h, yBot = -1;
-      for (const x of cols) { if (topAt[x] < yTop) yTop = topAt[x]; if (botAt[x] > yBot) yBot = botAt[x]; }
-      const leftAt = new Int32Array(h).fill(-1), rightAt = new Int32Array(h).fill(-1);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) if (solid(x, y)) { leftAt[y] = x; break; }
-        for (let x = w - 1; x >= 0; x--) if (solid(x, y)) { rightAt[y] = x; break; }
-      }
-      const rows: number[] = [];
-      for (let y = 0; y < h; y++) if (leftAt[y] >= 0) rows.push(y);
-      if (rows.length < 8) return null;
-      const ry0 = rows[0], ry1 = rows[rows.length - 1];
-      const T = 2 * PNG_SCALE; // close enough to the extreme = flat
-      let tl = cx0; while (tl <= cx1 && (topAt[tl] < 0 || topAt[tl] > yTop + T)) tl++;
-      let tr = cx1; while (tr >= cx0 && (topAt[tr] < 0 || topAt[tr] > yTop + T)) tr--;
-      let bl = cx0; while (bl <= cx1 && (botAt[bl] < 0 || botAt[bl] < yBot - T)) bl++;
-      let br = cx1; while (br >= cx0 && (botAt[br] < 0 || botAt[br] < yBot - T)) br--;
-      let lt = ry0; while (lt <= ry1 && (leftAt[lt] < 0 || leftAt[lt] > cx0 + T)) lt++;
-      let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > cx0 + T)) lb--;
-      let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < cx1 - T)) rt2++;
-      let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < cx1 - T)) rb--;
-      return {
-        left: Math.max(tl, bl) + SLICE_PAD,
-        right: (w - 1 - Math.min(tr, br)) + SLICE_PAD,
-        top: Math.max(lt, rt2) + SLICE_PAD,
-        bottom: (h - 1 - Math.min(lb, rb)) + SLICE_PAD,
-      };
+      return measureSliceRGBA(cx.getImageData(0, 0, w, h).data, w, h, PNG_SCALE);
     } catch { return null; }
   };
   const rasterQueue = async () => {

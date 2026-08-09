@@ -465,12 +465,14 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   );
 }
 
-/** A piece inside a pattern or assembly mock — no caption rail, tighter scale. */
+/** A piece inside a pattern or assembly mock — no caption rail, tighter scale.
+ *  Compositions show the REAL kit to every tier: the screens are the
+ *  brochure, and lock cards inside them read as wreckage (owner, logged-out
+ *  Safari FTUE). The sell stays where the value is — grid teasers, exports,
+ *  the editor. */
 function PPiece(p: PieceOpts & { ambient?: boolean }) {
-  const tier = useGen((s) => s.tier);
   const stagedHidden = useStagedHidden(p.id);
   if (stagedHidden) return null;
-  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
   return <PPieceInner {...p} />;
 }
 function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
@@ -485,10 +487,8 @@ function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
 /** A piece on a screen-pattern stage — same live plumbing, but the invisible
  *  render canvas is trimmed away so pieces stack at interface rhythm. */
 function SPiece(p: PieceOpts & { ambient?: boolean }) {
-  const tier = useGen((s) => s.tier);
   const stagedHidden = useStagedHidden(p.id);
   if (stagedHidden) return null;
-  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={pieceName(p.id)} />;
   return <SPieceInner {...p} />;
 }
 function SPieceInner(p: PieceOpts & { ambient?: boolean }) {

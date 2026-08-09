@@ -1052,6 +1052,11 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kitpage :hover > .kp-ringpulse { animation-play-state: running; }
 /* dormant chapter placeholder — honest scroll room, no paint */
 .kp-ghost { contain: strict; }
+/* the one-time Safari → Chromium nudge — a quiet pill, never a wall */
+.chrome-nudge { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 14px; max-width: min(92vw, 560px); padding: 10px 14px 10px 18px; border-radius: 999px; background: rgba(16, 18, 28, 0.94); border: 1px solid rgba(255, 255, 255, 0.16); color: #E8E9F0; font-size: 12.5px; line-height: 1.45; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45); }
+.chrome-nudge b { font-weight: 800; }
+.chrome-nudge button { flex: none; padding: 6px 13px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.chrome-nudge button:hover { background: rgba(255, 255, 255, 0.18); }
 /* The generating curtain — the kit page assembles behind it and reveals
    whole (owner: partial paint-in read as broken; a generator generating
    reads as intended). The bar ticks on REAL chapter completions. */
