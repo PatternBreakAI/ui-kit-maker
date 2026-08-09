@@ -1008,6 +1008,26 @@ function Chapter({ n, id, label, blurb }: { n: string; id: string; label: string
   );
 }
 
+/** Below-fold chapters mount as the reader approaches. The page used to
+ *  build every chapter's hundreds of filtered SVGs before first paint —
+ *  Safari's long blank window on the logged-out first visit. Children come
+ *  as a THUNK so React never evaluates a dormant chapter's render work.
+ *  The Chapter divider above each Deferred stays mounted, so tab anchors
+ *  and deep links keep working; the ghost reserves honest scroll room. */
+function Deferred({ estH, children }: { estH: number; children: () => React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (live) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setLive(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setLive(true); }, { rootMargin: "1600px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [live]);
+  return live ? <>{children()}</> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
+}
+
 /** Small annotation line under a Build Part — plain editorial text, not pills. */
 function Meta({ items }: { items: string[] }) {
   return <div className="kp-meta">{items.map((m) => <span key={m}>{m}</span>)}</div>;
@@ -2137,6 +2157,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       <Chapter n="02" id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
+      <Deferred estH={5200}>{() => <>
 
       {/* ── 03 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
@@ -2664,7 +2685,9 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
+      <Deferred estH={6400}>{() => <>
 
       {/* ── 14 · build parts ── */}
       <Sec n="01" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
@@ -3137,7 +3160,9 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="04" id="patterns" label="Screen Patterns" blurb="Complete screens composed from the system." />
+      <Deferred estH={5200}>{() => <>
 
       {/* ── 16 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
@@ -3386,7 +3411,9 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="05" id="resources" label="Resources" blurb="Files, formats and integration notes." />
+      <Deferred estH={1600}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
@@ -3406,6 +3433,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
       <KitDebugStrip />
     </div>
