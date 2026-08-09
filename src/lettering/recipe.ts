@@ -101,15 +101,77 @@ function calm(role: RoleRecipe, chars: number): RoleRecipe {
   };
 }
 
+/* ── master scale ───────────────────────────────────────────────── */
+
+/** Recipes are AUTHORED at size ~150 for readable numbers, but the
+ *  engine COMPILES at a much larger master size: offsets, bevels and
+ *  walls are carved into big geometry (the ~2.5px sampling cap becomes
+ *  proportionally finer), so a heavy bevel weight has room to render
+ *  gracefully — and the emitted document is natively huge, which is the
+ *  high-resolution-download promise. This scales every px-authored
+ *  field; em-relative and fractional fields stay put. */
+export function scaleRecipe(t: TreatmentRecipe, k: number): TreatmentRecipe {
+  if (k === 1) return t;
+  const depth = (d: DepthPlan): DepthPlan => ({
+    shadow: d.shadow && { ...d.shadow, expand: d.shadow.expand * k },
+    contact: d.contact && { ...d.contact, expand: d.contact.expand * k },
+    deep: d.deep && { ...d.deep, expand: d.deep.expand * k },
+    accent: d.accent && { ...d.accent, expand: d.accent.expand * k },
+    walls: d.walls && { ...d.walls, depth: d.walls.depth * k, inflate: (d.walls.inflate ?? 0) * k },
+    cap: d.cap && { ...d.cap, expand: d.cap.expand * k },
+    keyline: d.keyline && { ...d.keyline, expand: d.keyline.expand * k },
+  });
+  const material = (m: MaterialRecipe): MaterialRecipe => ({
+    ...m,
+    bevel: m.bevel && { ...m.bevel, width: m.bevel.width * k },
+    rim: m.rim && { ...m.rim, width: m.rim.width * k },
+    inlines: m.inlines?.map((i) => ({ ...i, inset: i.inset * k, blur: i.blur === undefined ? undefined : i.blur * k })),
+    glow: m.glow && { ...m.glow, width: m.glow.width * k },
+  });
+  const role = (r: RoleRecipe): RoleRecipe => ({
+    ...r,
+    size: r.size * k,
+    depth: depth(r.depth),
+    material: material(r.material),
+    patterns: r.patterns?.map((ps) => ({
+      ...ps,
+      // glyph-space tiles are bbox FRACTIONS — only canvas-space scales
+      scale: ps.space === "glyph" ? ps.scale : ps.scale * k,
+      offsetX: ps.offsetX === undefined ? undefined : ps.offsetX * k,
+      offsetY: ps.offsetY === undefined ? undefined : ps.offsetY * k,
+      maskWidth: ps.maskWidth === undefined ? undefined : ps.maskWidth * k,
+      inset: ps.inset === undefined ? undefined : ps.inset * k,
+    })),
+  });
+  return {
+    ...t,
+    light: {
+      ...t.light,
+      depth: { ...t.light.depth, step: t.light.depth.step * k },
+      shadow: { ...t.light.shadow, len: t.light.shadow.len * k, blur: t.light.shadow.blur * k },
+    },
+    hero: role(t.hero),
+    support: t.support && role(t.support),
+    composition: {
+      ...t.composition,
+      lineGap: t.composition.lineGap * k,
+      badge: t.composition.badge && depth(t.composition.badge),
+    },
+  };
+}
+
 /* ── the compiler ───────────────────────────────────────────────── */
 
 export function compileLockup(
   text: string,
-  recipe: TreatmentRecipe,
+  authored: TreatmentRecipe,
   fonts: { hero: Font; support?: Font },
   seed = 7,
+  opts?: { masterScale?: number },
 ): CompiledLockup {
   resetPatternIds();
+  /* compile HUGE by default — see scaleRecipe */
+  const recipe = scaleRecipe(authored, opts?.masterScale ?? 4);
 
   /* deterministic id namespace — several compiled lockups can share one
    *  HTML document (galleries, sheets) without def collisions */
@@ -176,7 +238,7 @@ export function compileLockup(
       recipe.hero.depth.deep?.expand ?? 0,
     );
     const gap = plan.supportIsStop
-      ? Math.max(recipe.composition.lineGap, heroRing + 5)
+      ? Math.max(recipe.composition.lineGap, heroRing + heroR.size / 30)
       : recipe.composition.lineGap;
     const dy = heroGeom.y1 - gap - raw.y2;
     supportCmdsPlaced = translateCmds(support.cmds, dx, dy);
@@ -192,7 +254,7 @@ export function compileLockup(
   const x2 = Math.max(...geoms.map((g) => g.x2));
   const y1 = Math.min(...geoms.map((g) => g.y1));
   const y2 = Math.max(...geoms.map((g) => g.y2));
-  const pad = 90;
+  const pad = heroR.size * 0.6;
   const fx1 = x1 - pad, fy1 = y1 - pad;
   const fw = x2 - x1 + pad * 2, fh = y2 - y1 + pad * 2.2;
   const vb = `${fx1.toFixed(0)} ${fy1.toFixed(0)} ${fw.toFixed(0)} ${fh.toFixed(0)}`;

@@ -110,12 +110,13 @@ function halftoneRays(frame: Frame, fill: string, n: number, opacity: number, r:
 
 function speedLines(frame: Frame, fill: string, count: number, opacity: number, r: () => number): string {
   const w = frame.x2 - frame.x1, h = frame.y2 - frame.y1;
+  const u = Math.min(w, h) / 450; // scale-free stroke unit
   let out = "";
   for (let i = 0; i < count; i++) {
     const left = i % 2 === 0;
     const y = frame.y1 + h * (0.08 + r() * 0.84);
     const len = w * (0.12 + r() * 0.22);
-    const th = 1.6 + r() * 3.4;
+    const th = (1.6 + r() * 3.4) * u;
     const x0 = left ? frame.x1 : frame.x2;
     const dir = left ? 1 : -1;
     // tapered streak: thick at the frame edge, pointed inward
@@ -128,6 +129,7 @@ function speedLines(frame: Frame, fill: string, count: number, opacity: number, 
 
 function starField(frame: Frame, fill: string, fill2: string, count: number, r: () => number, avoid?: HeroBox): string {
   const w = frame.x2 - frame.x1, h = frame.y2 - frame.y1;
+  const u = Math.min(w, h) / 450; // scale-free ornament unit
   let out = "";
   let placed = 0, guard = 0;
   while (placed < count && guard++ < count * 8) {
@@ -136,10 +138,11 @@ function starField(frame: Frame, fill: string, fill2: string, count: number, r: 
     const half = placed % 2;
     const x = frame.x1 + (half ? 0.5 + r() * 0.5 : r() * 0.5) * w;
     const y = frame.y1 + r() * h;
-    if (avoid && x > avoid.x1 - 20 && x < avoid.x2 + 20 && y > avoid.y1 - 20 && y < avoid.y2 + 20) continue;
+    const m = 20 * u;
+    if (avoid && x > avoid.x1 - m && x < avoid.x2 + m && y > avoid.y1 - m && y < avoid.y2 + m) continue;
     const big = r() > 0.62;
-    if (big) out += `<path d="${star5(x, y, 4 + r() * 9, r() * Math.PI)}" fill="${fill}"/>`;
-    else out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(1 + r() * 2.2).toFixed(1)}" fill="${fill2}"/>`;
+    if (big) out += `<path d="${star5(x, y, (4 + r() * 9) * u, r() * Math.PI)}" fill="${fill}"/>`;
+    else out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${((1 + r() * 2.2) * u).toFixed(1)}" fill="${fill2}"/>`;
     placed++;
   }
   return out;
@@ -166,10 +169,11 @@ function printField(frame: Frame, fill: string, r: () => number): string {
 function ornamentalRules(lockup: HeroBox, fill: string): string {
   const cx = (lockup.x1 + lockup.x2) / 2;
   const halfW = (lockup.x2 - lockup.x1) * 0.3;
+  const u = lockup.size / 150; // authored at 150 — everything rides size
   const mk = (y: number): string =>
-    `<path d="M${(cx - halfW).toFixed(1)} ${y.toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="2.4"/>` +
-    `<path d="M${(cx - halfW).toFixed(1)} ${(y + 6).toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="1.1"/>` +
-    `<path d="M${cx.toFixed(2)} ${(y - 5).toFixed(1)}l7 8-7 8-7-8Z" fill="${fill}"/>`;
+    `<path d="M${(cx - halfW).toFixed(1)} ${y.toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="${(2.4 * u).toFixed(1)}"/>` +
+    `<path d="M${(cx - halfW).toFixed(1)} ${(y + 6 * u).toFixed(1)}H${(cx + halfW).toFixed(1)}" stroke="${fill}" stroke-width="${(1.1 * u).toFixed(1)}"/>` +
+    `<path d="M${cx.toFixed(2)} ${(y - 5 * u).toFixed(1)}l${(7 * u).toFixed(1)} ${(8 * u).toFixed(1)}-${(7 * u).toFixed(1)} ${(8 * u).toFixed(1)}-${(7 * u).toFixed(1)}-${(8 * u).toFixed(1)}Z" fill="${fill}"/>`;
   return mk(lockup.y1 - lockup.size * 0.34) + mk(lockup.y2 + lockup.size * 0.42);
 }
 
@@ -214,12 +218,13 @@ function plaque(box: HeroBox, fill: string, line: string, rule: string): string 
   const midY = y + h / 2;
   const ruleY = midY;
   const ruleW = box.size * 0.9;
+  const ro = box.size * 0.057, rsw = box.size * 0.021;
   return (
     `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rx.toFixed(1)}" fill="${fill}"/>` +
     `<rect x="${(x + inset).toFixed(1)}" y="${(y + inset).toFixed(1)}" width="${(w - inset * 2).toFixed(1)}" height="${(h - inset * 2).toFixed(1)}" rx="${(rx * 0.6).toFixed(1)}" fill="none" stroke="${line}" stroke-width="${(box.size * 0.03).toFixed(1)}"/>` +
     // side rules running out from the plaque
-    `<path d="M${(x - ruleW).toFixed(1)} ${(ruleY - 8).toFixed(1)}H${x.toFixed(1)}M${(x - ruleW * 0.8).toFixed(1)} ${ruleY.toFixed(1)}H${x.toFixed(1)}M${(x - ruleW).toFixed(1)} ${(ruleY + 8).toFixed(1)}H${x.toFixed(1)}" stroke="${rule}" stroke-width="3"/>` +
-    `<path d="M${(x + w).toFixed(1)} ${(ruleY - 8).toFixed(1)}H${(x + w + ruleW).toFixed(1)}M${(x + w).toFixed(1)} ${ruleY.toFixed(1)}H${(x + w + ruleW * 0.8).toFixed(1)}M${(x + w).toFixed(1)} ${(ruleY + 8).toFixed(1)}H${(x + w + ruleW).toFixed(1)}" stroke="${rule}" stroke-width="3"/>` +
+    `<path d="M${(x - ruleW).toFixed(1)} ${(ruleY - ro).toFixed(1)}H${x.toFixed(1)}M${(x - ruleW * 0.8).toFixed(1)} ${ruleY.toFixed(1)}H${x.toFixed(1)}M${(x - ruleW).toFixed(1)} ${(ruleY + ro).toFixed(1)}H${x.toFixed(1)}" stroke="${rule}" stroke-width="${rsw.toFixed(1)}"/>` +
+    `<path d="M${(x + w).toFixed(1)} ${(ruleY - ro).toFixed(1)}H${(x + w + ruleW).toFixed(1)}M${(x + w).toFixed(1)} ${ruleY.toFixed(1)}H${(x + w + ruleW * 0.8).toFixed(1)}M${(x + w).toFixed(1)} ${(ruleY + ro).toFixed(1)}H${(x + w + ruleW).toFixed(1)}" stroke="${rule}" stroke-width="${rsw.toFixed(1)}"/>` +
     // corner studs
     [[x + inset * 2, y + inset * 2], [x + w - inset * 2, y + inset * 2], [x + inset * 2, y + h - inset * 2], [x + w - inset * 2, y + h - inset * 2]]
       .map(([sx, sy]) => `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(box.size * 0.035).toFixed(1)}" fill="${line}"/>`)

@@ -244,6 +244,23 @@ function chaikin(poly: Pt[]): Pt[] {
   return out;
 }
 
+/** Drop points whose removal deviates the path by less than `tol` —
+ *  the corner-cut + fine sampling above earn their smoothness, this
+ *  keeps them from paying for it in path bytes. */
+function prune(poly: Pt[], tol: number): Pt[] {
+  if (poly.length < 8) return poly;
+  const out: Pt[] = [poly[0]];
+  for (let i = 1; i < poly.length - 1; i++) {
+    const a = out[out.length - 1], p = poly[i], b = poly[i + 1];
+    const ex = b[0] - a[0], ey = b[1] - a[1];
+    const len = Math.hypot(ex, ey) || 1;
+    const dev = Math.abs((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / len;
+    if (dev > tol || Math.hypot(p[0] - a[0], p[1] - a[1]) > 60) out.push(p);
+  }
+  out.push(poly[poly.length - 1]);
+  return out.length >= 3 ? out : poly;
+}
+
 export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]): string {
   const holes = holeFlags(polys, groups);
   return polys
@@ -267,7 +284,7 @@ export function inflateOutline(polys: Pt[][], inflate: number, groups?: number[]
       // heavy bevel weights never break the letter apart
       if (!poly && inflate < -0.01) poly = attempt(inflate * 0.6) ?? attempt(inflate * 0.35);
       if (!poly) return "";
-      if (inflate < -0.01) poly = chaikin(poly);
+      if (inflate < -0.01) poly = prune(chaikin(poly), 0.12);
       return "M" + poly.map(([x, y]) => `${F(x)} ${F(y)}`).join("L") + "Z";
     })
     .join("");
