@@ -1311,16 +1311,25 @@ export function KitPage() {
     c.type.glow.on = false; c.type.stripes = { on: false, angle: 45, opacity: 30 };
     c.type.glints = { on: false, opacity: 55 }; c.type.highlight = "";
   };
-  const splashArt = useMemo(() => tightenV(renderTypeSpecimen(cfg, splash, {
+  /* The typography constructions (~100 filtered specimens: alphabets,
+     digits, scale ramp, layer/construction sheets) used to compute in the
+     FIRST render pass — before even the generating curtain could paint,
+     which is why the type section still felt slow behind it. `heavy`
+     flips one breath after mount: the same work runs invisibly behind
+     the curtain instead of blocking its entrance. */
+  const [heavy, setHeavy] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setHeavy(true), 50); return () => window.clearTimeout(t); }, []);
+
+  const splashArt = useMemo(() => !heavy ? "" : tightenV(renderTypeSpecimen(cfg, splash, {
     highlight: treatOn ? splashHi : undefined,
     mutate: (c) => { c.type.size = 84; if (!treatOn) typeOff(c); },
-  }), 84, cfg.type.oy ?? 0), [cfg, splash, splashHi, treatOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), 84, cfg.type.oy ?? 0), [cfg, splash, splashHi, treatOn, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // accessibility read — friendly, hidden behind a disclosure
   const [a11yOpen, setA11yOpen] = useState(false);
   const audit = useMemo(() => assess(cfg), [cfg]);
   // objective rewards render as real display-text specimens, not chips
-  const xpArts = useMemo(() => new Map((["+250 XP", "+400 XP", "+350 XP", "+300 XP"] as const).map((x) => [x as string, renderTypeSpecimen(cfg, x)])), [cfg]);
+  const xpArts = useMemo(() => new Map((["+250 XP", "+400 XP", "+350 XP", "+300 XP"] as const).map((x) => [x as string, heavy ? renderTypeSpecimen(cfg, x) : ""])), [cfg, heavy]);
 
   // screen-pattern group filter — restrained text nav, not capsules
   const [patTab, setPatTab] = useState<"all" | "core" | "outcome" | "state">("all");
@@ -1783,16 +1792,17 @@ const kitTier = useGen((s) => s.tier);
     }
   };
   // main-menu title — the game's name (preset), not the master button label
-  const menuArt = useMemo(() => renderTypeSpecimen(cfg, (preset?.name ?? "CANDY").toUpperCase()), [cfg, preset]);
-  const loadingArt = useMemo(() => renderTypeSpecimen(cfg, "LOADING"), [cfg]);
+  const menuArt = useMemo(() => !heavy ? "" : renderTypeSpecimen(cfg, (preset?.name ?? "CANDY").toUpperCase()), [cfg, preset, heavy]);
+  const loadingArt = useMemo(() => !heavy ? "" : renderTypeSpecimen(cfg, "LOADING"), [cfg, heavy]);
   const charRow = (txt: string) => tightenV(renderTypeSpecimen(cfg, txt, { keepCase: true, mutate: (c) => { c.type.size = 52; } }), 52, T.oy ?? 0);
-  const alphaUp = useMemo(() => charRow("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
-  const alphaLo = useMemo(() => charRow("abcdefghijklmnopqrstuvwxyz"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
-  const digits = useMemo(() => charRow("0123456789 ! ? & % + × / : . , ’ “ ” ( ) [ ]"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alphaUp = useMemo(() => !heavy ? "" : charRow("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alphaLo = useMemo(() => !heavy ? "" : charRow("abcdefghijklmnopqrstuvwxyz"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const digits = useMemo(() => !heavy ? "" : charRow("0123456789 ! ? & % + × / : . , ’ “ ” ( ) [ ]"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // display construction — the treatment built up in four inspectable stages
   const conWord = (splash.trim().split(/\s+/)[0] || "LEVEL").slice(0, 8).toUpperCase();
   const conStages = useMemo(() => {
+    if (!heavy) return [];
     const base = (c: GenConfig) => { typeOff(c); c.type.size = 62; };
     // the outline stage must SHOW an outline even when the master's outline
     // width is zeroed — the construction sheet demos the layer, not the
@@ -1815,11 +1825,11 @@ const kitTier = useGen((s) => s.tier);
       }],
     ];
     return defs.map(([name, mutate]) => ({ name, svg: tightenV(renderTypeSpecimen(cfg, conWord, { mutate }), 62, T.oy ?? 0) }));
-  }, [cfg, conWord]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cfg, conWord, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scale reference — the same phrase down the whole ramp
-  const scaleArts = useMemo(() => ([["Display XL", 128], ["Display L", 96], ["Display M", 64], ["Display S", 40], ["Label", 18]] as const)
-    .map(([nm, px]) => ({ nm, px, svg: tightenV(renderTypeSpecimen(cfg, "LEVEL UP", { mutate: (c) => { c.type.size = px; } }), Math.max(px, 16), T.oy ?? 0) })), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scaleArts = useMemo(() => !heavy ? [] : ([["Display XL", 128], ["Display L", 96], ["Display M", 64], ["Display S", 40], ["Label", 18]] as const)
+    .map(([nm, px]) => ({ nm, px, svg: tightenV(renderTypeSpecimen(cfg, "LEVEL UP", { mutate: (c) => { c.type.size = px; } }), Math.max(px, 16), T.oy ?? 0) })), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // caps-only faces map lowercase onto the uppercase forms — detect for real
   const [fontsTick, setFontsTick] = useState(0);
@@ -1865,6 +1875,7 @@ const kitTier = useGen((s) => s.tier);
 
   // build-part layer isolation — each card is one layer of the real stack
   const layerCards = useMemo(() => {
+    if (!heavy) return [];
     const zero = (c: GenConfig) => {
       c.shadow.opacity = 0; c.candy.contact.opacity = 0; c.candy.extrusion.depth = 0;
       c.transparency = { frame: 0, interior: 0, content: 0 };
@@ -1890,7 +1901,7 @@ const kitTier = useGen((s) => s.tier);
       { name: "Contact shadow", sec: "depth", meta: ["Stretch X", "grounding", "fades on lift"], svg: iso((c) => { c.transparency.frame = 100; c.candy.contact.opacity = 60; }) },
       { name: "Live text treatment", sec: "typography", meta: ["Editable text", "never rasterized", "full recipe below"], svg: iso((c) => { c.transparency.content = 100; }) },
     ];
-  }, [cfg]);
+  }, [cfg, heavy]);
 
   return (
     <div className={`kitpage${dark ? " dark" : ""}`} style={{ "--kp-pattile": patternTileUrl(cfg) } as React.CSSProperties}>
