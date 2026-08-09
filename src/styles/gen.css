@@ -1037,6 +1037,33 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   .kp-mostage, .mo-pulse, .mo-bounce, .mo-glow, .mo-shake, .mo-pop, .mo-press, .mo-slidein, .mo-rise, .kp-ringpulse, .kit-shine, .kp-tnodezone.current::after { animation: none !important; }
   .kit-shine { opacity: 0; }
 }
+/* The kit page rests: gallery sweeps play under the POINTER, not forever
+   (owner: "would it be more helpful if things only animated on
+   interaction?" — hundreds of filtered svgs animating in perpetuity kept
+   Safari re-rastering the whole gallery, idle). Hovering a piece fires one
+   quick sweep; the hero keeps its ambient loop — one element, the page's
+   crown. The editor canvas is untouched (no .kitpage ancestor). The
+   infinite motion demos and attention pulses rest the same way. */
+.kitpage .kit-shine { animation-play-state: paused; }
+.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-shine { animation: kit-shine 1.5s cubic-bezier(.33,.1,.3,1) .05s 1 both; }
+.kitpage .kp-herostage .kit-shine { animation-play-state: running; }
+.kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
+.kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }
+.kitpage :hover > .kp-ringpulse { animation-play-state: running; }
+/* dormant chapter placeholder — honest scroll room, no paint */
+.kp-ghost { contain: strict; }
+/* The generating curtain — the kit page assembles behind it and reveals
+   whole (owner: partial paint-in read as broken; a generator generating
+   reads as intended). The bar ticks on REAL chapter completions. */
+.kp-curtain { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #f2f4f9; transition: opacity .42s ease; }
+.kitpage.dark .kp-curtain { background: #0d0f16; }
+.kp-curtain.leaving { opacity: 0; pointer-events: none; }
+.kp-curtainbox { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 24px; text-align: center; }
+.kp-curtainkicker { font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; opacity: .45; }
+.kp-curtaintitle { font-size: 21px; font-weight: 800; margin: 0; letter-spacing: .01em; }
+.kp-curtainbar { width: 230px; height: 4px; border-radius: 999px; background: rgba(128, 136, 160, .22); overflow: hidden; }
+.kp-curtainbar i { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
+.kp-curtainstage { font-size: 12.5px; opacity: .6; min-height: 1.2em; }
 .kp-motion { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 10px; }
 @media (max-width: 1400px) { .kp-motion { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kp-motion .kp-mostage { min-height: 168px; width: 100%; align-items: center; justify-content: center; }

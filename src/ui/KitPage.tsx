@@ -1008,6 +1008,31 @@ function Chapter({ n, id, label, blurb }: { n: string; id: string; label: string
   );
 }
 
+/** Below-fold chapters mount as the reader approaches. The page used to
+ *  build every chapter's hundreds of filtered SVGs before first paint —
+ *  Safari's long blank window on the logged-out first visit. Children come
+ *  as a THUNK so React never evaluates a dormant chapter's render work.
+ *  The Chapter divider above each Deferred stays mounted, so tab anchors
+ *  and deep links keep working; the ghost reserves honest scroll room. */
+function Deferred({ estH, eager, onLive, children }: { estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (eager && !live) setLive(true); }, [eager, live]);
+  // fires AFTER the chapter's content commits — the boot curtain sequences
+  // the next chapter on it, so the bar ticks on real completions
+  const announced = useRef(false);
+  useEffect(() => { if (live && !announced.current) { announced.current = true; onLive?.(); } }, [live, onLive]);
+  useEffect(() => {
+    if (live) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setLive(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setLive(true); }, { rootMargin: "1600px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [live]);
+  return live ? <>{children()}</> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
+}
+
 /** Small annotation line under a Build Part — plain editorial text, not pills. */
 function Meta({ items }: { items: string[] }) {
   return <div className="kp-meta">{items.map((m) => <span key={m}>{m}</span>)}</div>;
@@ -1286,16 +1311,25 @@ export function KitPage() {
     c.type.glow.on = false; c.type.stripes = { on: false, angle: 45, opacity: 30 };
     c.type.glints = { on: false, opacity: 55 }; c.type.highlight = "";
   };
-  const splashArt = useMemo(() => tightenV(renderTypeSpecimen(cfg, splash, {
+  /* The typography constructions (~100 filtered specimens: alphabets,
+     digits, scale ramp, layer/construction sheets) used to compute in the
+     FIRST render pass — before even the generating curtain could paint,
+     which is why the type section still felt slow behind it. `heavy`
+     flips one breath after mount: the same work runs invisibly behind
+     the curtain instead of blocking its entrance. */
+  const [heavy, setHeavy] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setHeavy(true), 50); return () => window.clearTimeout(t); }, []);
+
+  const splashArt = useMemo(() => !heavy ? "" : tightenV(renderTypeSpecimen(cfg, splash, {
     highlight: treatOn ? splashHi : undefined,
     mutate: (c) => { c.type.size = 84; if (!treatOn) typeOff(c); },
-  }), 84, cfg.type.oy ?? 0), [cfg, splash, splashHi, treatOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), 84, cfg.type.oy ?? 0), [cfg, splash, splashHi, treatOn, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // accessibility read — friendly, hidden behind a disclosure
   const [a11yOpen, setA11yOpen] = useState(false);
   const audit = useMemo(() => assess(cfg), [cfg]);
   // objective rewards render as real display-text specimens, not chips
-  const xpArts = useMemo(() => new Map((["+250 XP", "+400 XP", "+350 XP", "+300 XP"] as const).map((x) => [x as string, renderTypeSpecimen(cfg, x)])), [cfg]);
+  const xpArts = useMemo(() => new Map((["+250 XP", "+400 XP", "+350 XP", "+300 XP"] as const).map((x) => [x as string, heavy ? renderTypeSpecimen(cfg, x) : ""])), [cfg, heavy]);
 
   // screen-pattern group filter — restrained text nav, not capsules
   const [patTab, setPatTab] = useState<"all" | "core" | "outcome" | "state">("all");
@@ -1308,6 +1342,48 @@ export function KitPage() {
   useShellRail(trackRailRef, ".kp-tnodezone");
   useShellRail(weekRailRef, ".kp-wkday");
   useShellRail(mapRailRef, ".kp-node");
+
+  /* ── the generating curtain ─────────────────────────────────────────
+     The kit page is a GENERATOR's output — hundreds of freshly rendered,
+     effect-heavy graphics. Rather than let the assembly show (owner:
+     "still unacceptable in the professional sense... maybe some kind of
+     loading animation — generating kit"), a curtain covers the build:
+     chapters force-mount IN ORDER behind it, the bar ticks on REAL
+     completions (never theater), and the page reveals whole. Same show
+     in every browser; fast machines just see it briefly. */
+  /* bootN counts real completions: 1 = foundations painted (the kick),
+     then one per deferred chapter as it commits — 5 = the whole book. */
+  const BOOT_DONE = 5;
+  const [bootN, setBootN] = useState(0);
+  const [fontsReady, setFontsReady] = useState(false);
+  const [curtain, setCurtain] = useState<"on" | "leaving" | "gone">("on");
+  const bootT0 = useRef(Date.now());
+  useEffect(() => { document.fonts?.ready?.then(() => setFontsReady(true)).catch(() => setFontsReady(true)); }, []);
+  // let each chapter's commit PAINT before the next begins — the curtain
+  // hides the work, the double-rAF keeps the bar honest and the page alive
+  const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
+  useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  useEffect(() => {
+    if (curtain !== "on") return;
+    if (bootN >= BOOT_DONE && fontsReady) {
+      // whole page + real glyphs are in — hold a beat so the bar is seen
+      // finishing, then fade (min display keeps warm re-entries flickerless)
+      const wait = Math.max(420, 900 - (Date.now() - bootT0.current));
+      const t = window.setTimeout(() => setCurtain("leaving"), wait);
+      return () => window.clearTimeout(t);
+    }
+    // failsafe: a stalled stage never traps the reader behind the curtain
+    const f = window.setTimeout(() => setCurtain("leaving"), 12000);
+    return () => window.clearTimeout(f);
+  }, [bootN, fontsReady, curtain]);
+  useEffect(() => {
+    if (curtain !== "leaving") return;
+    const t = window.setTimeout(() => setCurtain("gone"), 450);
+    return () => window.clearTimeout(t);
+  }, [curtain]);
+  const bootProg = (bootN + (fontsReady ? 1 : 0)) / (BOOT_DONE + 1);
+  const bootStage = !fontsReady && bootN === 0 ? "Loading typefaces"
+    : ["Laying foundations", "Building components", "Assembling build parts", "Composing screens", "Collecting resources", "Polishing"][Math.min(bootN, 5)];
 
   // hero disclosure + sticky-nav orientation
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -1716,16 +1792,17 @@ const kitTier = useGen((s) => s.tier);
     }
   };
   // main-menu title — the game's name (preset), not the master button label
-  const menuArt = useMemo(() => renderTypeSpecimen(cfg, (preset?.name ?? "CANDY").toUpperCase()), [cfg, preset]);
-  const loadingArt = useMemo(() => renderTypeSpecimen(cfg, "LOADING"), [cfg]);
+  const menuArt = useMemo(() => !heavy ? "" : renderTypeSpecimen(cfg, (preset?.name ?? "CANDY").toUpperCase()), [cfg, preset, heavy]);
+  const loadingArt = useMemo(() => !heavy ? "" : renderTypeSpecimen(cfg, "LOADING"), [cfg, heavy]);
   const charRow = (txt: string) => tightenV(renderTypeSpecimen(cfg, txt, { keepCase: true, mutate: (c) => { c.type.size = 52; } }), 52, T.oy ?? 0);
-  const alphaUp = useMemo(() => charRow("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
-  const alphaLo = useMemo(() => charRow("abcdefghijklmnopqrstuvwxyz"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
-  const digits = useMemo(() => charRow("0123456789 ! ? & % + × / : . , ’ “ ” ( ) [ ]"), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alphaUp = useMemo(() => !heavy ? "" : charRow("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const alphaLo = useMemo(() => !heavy ? "" : charRow("abcdefghijklmnopqrstuvwxyz"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const digits = useMemo(() => !heavy ? "" : charRow("0123456789 ! ? & % + × / : . , ’ “ ” ( ) [ ]"), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // display construction — the treatment built up in four inspectable stages
   const conWord = (splash.trim().split(/\s+/)[0] || "LEVEL").slice(0, 8).toUpperCase();
   const conStages = useMemo(() => {
+    if (!heavy) return [];
     const base = (c: GenConfig) => { typeOff(c); c.type.size = 62; };
     // the outline stage must SHOW an outline even when the master's outline
     // width is zeroed — the construction sheet demos the layer, not the
@@ -1748,11 +1825,11 @@ const kitTier = useGen((s) => s.tier);
       }],
     ];
     return defs.map(([name, mutate]) => ({ name, svg: tightenV(renderTypeSpecimen(cfg, conWord, { mutate }), 62, T.oy ?? 0) }));
-  }, [cfg, conWord]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cfg, conWord, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scale reference — the same phrase down the whole ramp
-  const scaleArts = useMemo(() => ([["Display XL", 128], ["Display L", 96], ["Display M", 64], ["Display S", 40], ["Label", 18]] as const)
-    .map(([nm, px]) => ({ nm, px, svg: tightenV(renderTypeSpecimen(cfg, "LEVEL UP", { mutate: (c) => { c.type.size = px; } }), Math.max(px, 16), T.oy ?? 0) })), [cfg]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scaleArts = useMemo(() => !heavy ? [] : ([["Display XL", 128], ["Display L", 96], ["Display M", 64], ["Display S", 40], ["Label", 18]] as const)
+    .map(([nm, px]) => ({ nm, px, svg: tightenV(renderTypeSpecimen(cfg, "LEVEL UP", { mutate: (c) => { c.type.size = px; } }), Math.max(px, 16), T.oy ?? 0) })), [cfg, heavy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // caps-only faces map lowercase onto the uppercase forms — detect for real
   const [fontsTick, setFontsTick] = useState(0);
@@ -1798,6 +1875,7 @@ const kitTier = useGen((s) => s.tier);
 
   // build-part layer isolation — each card is one layer of the real stack
   const layerCards = useMemo(() => {
+    if (!heavy) return [];
     const zero = (c: GenConfig) => {
       c.shadow.opacity = 0; c.candy.contact.opacity = 0; c.candy.extrusion.depth = 0;
       c.transparency = { frame: 0, interior: 0, content: 0 };
@@ -1823,10 +1901,20 @@ const kitTier = useGen((s) => s.tier);
       { name: "Contact shadow", sec: "depth", meta: ["Stretch X", "grounding", "fades on lift"], svg: iso((c) => { c.transparency.frame = 100; c.candy.contact.opacity = 60; }) },
       { name: "Live text treatment", sec: "typography", meta: ["Editable text", "never rasterized", "full recipe below"], svg: iso((c) => { c.transparency.content = 100; }) },
     ];
-  }, [cfg]);
+  }, [cfg, heavy]);
 
   return (
     <div className={`kitpage${dark ? " dark" : ""}`} style={{ "--kp-pattile": patternTileUrl(cfg) } as React.CSSProperties}>
+      {curtain !== "gone" && (
+        <div className={`kp-curtain${curtain === "leaving" ? " leaving" : ""}`} role="status" aria-live="polite">
+          <div className="kp-curtainbox">
+            <span className="kp-curtainkicker">UI Kit Maker</span>
+            <h2 className="kp-curtaintitle">Generating {kitName ?? `The ${preset?.name ?? "Custom"} Kit`}</h2>
+            <div className="kp-curtainbar" aria-hidden="true"><i style={{ width: `${Math.round(bootProg * 100)}%`, background: cfg.effects.Bevel ?? "#0E9CC9" }} /></div>
+            <span className="kp-curtainstage">{bootStage}…</span>
+          </div>
+        </div>
+      )}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
@@ -2137,6 +2225,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       <Chapter n="02" id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
+      <Deferred estH={5200} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
 
       {/* ── 03 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
@@ -2664,7 +2753,9 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
+      <Deferred estH={6400} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
 
       {/* ── 14 · build parts ── */}
       <Sec n="01" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
@@ -3137,7 +3228,9 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="04" id="patterns" label="Screen Patterns" blurb="Complete screens composed from the system." />
+      <Deferred estH={5200} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
 
       {/* ── 16 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
@@ -3386,7 +3479,9 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <Chapter n="05" id="resources" label="Resources" blurb="Files, formats and integration notes." />
+      <Deferred estH={1600} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
@@ -3406,6 +3501,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      </>}</Deferred>
       <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
       <KitDebugStrip />
     </div>
