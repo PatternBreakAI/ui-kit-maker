@@ -80,6 +80,11 @@ export function CardArt({ card }: { card: { id: string } }) {
   const paint3 = useRef<HTMLDivElement>(null);
   const slidesEl = useRef<HTMLDivElement>(null);
   const [slide, setSlide] = useState(0);
+  /* animation is a HOVER reward, not ambient noise — a wall of cards all
+     sweeping shine and revving gauges at once read as chaos (owner: "way
+     too many concurrent animations"). The hovered card comes alive; the
+     rest hold a still. */
+  const [hov, setHov] = useState(false);
   const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
   const goTo = (i: number) => {
     const el = slidesEl.current;
@@ -160,14 +165,25 @@ export function CardArt({ card }: { card: { id: string } }) {
     return () => io.disconnect();
   }, [card.id, state]);
 
+  /* SMIL loops in the injected slides (damage numbers, alarm pulses) don't
+     answer to React props — pause the documents themselves while unhovered */
+  useEffect(() => {
+    if (state !== "done") return;
+    host.current?.querySelectorAll("svg").forEach((s) => {
+      const el = s as SVGSVGElement;
+      try { if (hov) el.unpauseAnimations(); else el.pauseAnimations(); } catch { /* older engines: stay live */ }
+    });
+  }, [hov, state]);
+
   return (
-    <div ref={host} className="cg-art" aria-hidden="true">
+    <div ref={host} className="cg-art" aria-hidden="true"
+      onPointerEnter={() => setHov(true)} onPointerLeave={() => setHov(false)}>
       <div ref={slidesEl} className="cg-slides"
         onScroll={(e) => { const el = e.currentTarget; setSlide(Math.round(el.scrollLeft / Math.max(1, el.clientWidth))); }}>
         <div className="cg-slide">
           {liveHero && (
             <div className="cg-hero">
-              <LiveArt cfg={liveHero.cfg} playing ambient shine
+              <LiveArt cfg={liveHero.cfg} playing={hov} ambient={hov} shine={hov}
                 kit={{ id: liveHero.cid, size: "l", label: liveHero.label, slots: liveHero.slots }} />
             </div>
           )}
