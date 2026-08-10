@@ -97,16 +97,26 @@ developer's field notes.
 Target size: 200+ sprites, 25+ prefabs, 3 scenes, fonts, docs — larger than
 any free kit in the category, smaller and more curated than the $80 kings.
 
-## 6. Owner decisions needed before code
+## 6. Owner decisions
 
-1. **The style.** Grape Jelly (already a blessed whole-kit starter), the
-   Hard Candy aqua the owner works in, or a new signature style for the
-   store debut?
-2. **The name.** Kit-branded ("Grape Jelly UI Kit — Free") vs
-   maker-branded ("UI Kit Maker: Starter Kit").
+1. **The style — DECIDED 2026-08-10: "Lizard, lizard."** Tavern silhouette,
+   Titan One, acid lime over deep green with a waves face pattern. Judged
+   against "Spin & Win" on real composited menu mockups: the green candy
+   reads cleanly on a dusk backdrop at every level of the stack, where the
+   gold kit's secondaries went pale. Two consequences worth carrying:
+   - It shows off the **patterned face**, so the tiled-faces option and the
+     Sliced-vs-Tiled note earn their place in the README.
+   - **Titan One is a Google/OFL face** — it goes in `Third-Party Notices.txt`
+     with the notice line in the store description, exactly as §2.3 planned.
+   - Backdrop plates go **cool** (teal / indigo / slate, no green) per
+     `FREE-KIT-BACKDROP-SPEC.md`. The Plate A candidates already do.
+2. **The name.** Kit-branded ("Lizard, lizard UI Kit — Free") vs
+   maker-branded ("UI Kit Maker: Starter Kit"). *Open.*
 3. **Publisher identity** (PatternBreak) — account setup is owner-side:
-   publisher profile, support email, the site link.
-4. Bless the component list in §5 (add/cut).
+   publisher profile, support email, the site link. *Open.*
+4. Bless the component list in §5 (add/cut). *Open.*
+5. Pick the Plate A candidate (both measure clean once the top-edge band is
+   cropped; see the backdrop spec). *Open.*
 
 ## 7. Phases after bless
 

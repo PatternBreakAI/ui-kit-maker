@@ -53,6 +53,9 @@ generation work.
    sits there.
 4. **Nothing important within 8% of any edge.** Unity crops these plates on
    ultrawide and 16:10 displays.
+4b. **The brightest point of the whole frame sits OUTSIDE the middle 60%.**
+   Stronger than "keep the centre quiet," and the rule the first Plate A
+   candidate bent — its sun landed at 36%/48%, right beside the menu column.
 5. **Value: mid-to-dark, dusk key.** Nothing brighter than mid-grey in the
    central region. Bright backdrops kill light UI.
 6. **Soft focus.** Shallow depth of field, aerial haze — these read as
@@ -65,26 +68,54 @@ generation work.
 > No text, letters, numbers, logos, watermarks or signatures. No user
 > interface, buttons, menus, HUD, health bars or icons of any kind. No
 > centered focal subject. No faces or characters in the middle of frame. No
-> borders, frames or vignette edges. No high-contrast speckle or grain.
+> borders, frames, vignette edges or letterbox bands — the image must run
+> clean to all four edges. No high-contrast speckle or grain.
 
 AI image tools reflexively paint fake UI and gibberish lettering into game
 screenshots — this list is the single most important part of the prompt.
 
-## Palette, per shipping style
+## What the first delivery taught us (Plate A, 2026-08-10)
 
-The backdrop must be **complementary** to the kit so the UI pops off it.
-Whichever style ships, the plates go the other way on the wheel:
+Two candidates arrived correct on format, value, focus and palette — the
+prompt works. Measured against the rules above:
 
-- **"Lizard, lizard"** (acid lime, yellow, tavern silhouettes) → backdrops
-  in **deep cool teal, indigo, wet slate, blue-grey stone.** Avoid green
-  entirely; the UI owns green.
-- **"Spin & Win"** (gold, amber, pill silhouettes) → backdrops in **deep
-  plum, oxblood, midnight blue, velvet shadow.** Avoid yellow/amber; the UI
-  owns warm metal.
+| | Candidate 1 (valley) | Candidate 2 (torches) |
+| --- | --- | --- |
+| frame mean luminance | 0.227 | 0.215 |
+| centre-60% mean | 0.269 | 0.259 |
+| brightest point in centre | **0.613 at 36% / 48%** | 0.78 at 79% / 37% |
+
+Both hold the dusk key. Candidate 1 put the sun beside the menu column
+(hence rule 4b); Candidate 2's bright sky sits at the far edge of the zone,
+clear of the UI.
+
+**The one real defect, in both files:** a light grey band across the top
+**five pixels**, fading out by row 8 — row 0 measured `rgb(163,166,170)`
+against a real sky of `rgb(40,58,75)` six rows down. Not sky: a generator
+edge artifact. Full-screen in Unity it is a bright hairline along the top of
+the display, and it would appear in every store screenshot. Fixed in-house
+by cropping 10px off the top and rescaling to 2560 × 1440; the negative list
+above now forbids it at the source.
+
+Verify every future plate the same way before it enters the package: sample
+the outer rows and columns, and locate the frame's brightest point.
+
+## Palette — settled
+
+The shipping style is **"Lizard, lizard"** (owner, 2026-08-10): acid lime
+over deep green, tavern silhouette, Titan One. The backdrop must be
+**complementary** so the UI pops off it, so every plate goes the other way
+on the wheel:
+
+> **Deep cool teal, indigo, wet slate, blue-grey stone.** Avoid green
+> entirely — the UI owns green.
+
+Both Plate A candidates already sit in this range, which is why they
+composite cleanly.
 
 ## The prompts
 
-Fill `[PALETTE]` from the section above once the shipping style is picked.
+Fill `[PALETTE]` from the palette section above — cool teal / indigo / slate.
 
 **Plate A — Main Menu hero**
 
@@ -99,8 +130,8 @@ Fill `[PALETTE]` from the section above once the shipping style is picked.
 > painterly detail, no fine speckle. Nothing important near the edges.
 > [NEGATIVE LIST]
 
-Suggested `[SETTING]`: a fantasy valley with distant towers, a stone hall
-interior, or — for Spin & Win — a dim, glossy arcade/parlour interior.
+Suggested `[SETTING]`: a fantasy valley with distant towers, or a stone hall
+interior. Both delivered Plate A candidates took the valley and worked.
 
 **Plate B — Gameplay / HUD**
 
