@@ -80,12 +80,14 @@ developer's field notes.
 member, so each listing sells the others — the model that made LAYERLAB's
 "GUI PRO – …" own its category. Title shape:
 
-> `KITMAKER: <Kit Name> — Free Fantasy UI Kit`
+> **KITMAKER: Emerald Tavern — Free Fantasy UI Kit** *(owner, 2026-08-10)*
 
 Three jobs: **KITMAKER** is the family (and points at uikitmaker.com without
-reading as an ad), the kit name is the look, and the trailing phrase is what
-devs actually search. "Lizard, lizard" stays the internal working name — the
-shipping name must describe the look.
+reading as an ad), **Emerald Tavern** is the look — the acid-green candy on
+the tavern silhouette, named exactly right — and the trailing phrase is what
+devs actually search. "Lizard, lizard" remains the internal working name for
+the settings file; every outward surface says Emerald Tavern. (KITMAKER-
+colon vs KITMAKER-dash is a listing-time nit; the words are settled.)
 
 ### The component set — the SCENES are the spec
 
@@ -111,17 +113,26 @@ alone eat a dozen before either looks real.
 components across four states and three sizes is roughly **300 sprites and
 ~35 wired prefabs** — all true, all countable.
 
-### New pieces the scenes may demand (verify, then build)
+### New pieces — audited against the engine (2026-08-10)
 
-The engine's 115 components cover most of this, but a dev opening the
-package expects some things as *one prefab*, not three to assemble:
+Owner's bless: "let's make whatever we need." The audit halved the list —
+two of the four flagged pieces already exist:
 
-- **Window** — panel + title bar + close button as a single prefab. Verify
-  whether `panel` already carries a title before building a new piece.
-- **ScrollView viewport** — the recessed well behind the inventory list.
-- **Full-screen scrim** for pause and modal backdrops (trivial, but the
-  Settings and Dialog scenes both need one).
-- **Vertical scrollbar**, if the existing `scrollbar` is horizontal-only.
+- ~~Vertical scrollbar~~ — **already exists**: the `scrollbar` component IS
+  vertical (sunken track, candy thumb, stamped drag track).
+- ~~ScrollView viewport~~ — **already ships**: the importer assembles a
+  wired ScrollView prefab (frame + handle sprites, `ScrollViewPrefab`),
+  built after Jimi's field report.
+- **Window — BUILD.** `panel` is a bare container: no title bar, no close.
+  Compose it in the IMPORTER (panel shell + header-banner title strip +
+  icon-button close, saved as `Window.prefab`) rather than as a new engine
+  component — same pattern as CheckboxToggle/ScrollView, no new app
+  surface, no staging gate needed, and every Pro export gets it too.
+- **Scrim — BUILD.** A small white 9-slice + a full-stretch tinted
+  `Scrim.prefab` in the importer. Trivial; Settings and Dialog both use it.
+
+Both new prefabs are P2 exporter work with the usual zip-content probe, and
+land as their own PR before the package build.
 
 ### The rest of the package
 
