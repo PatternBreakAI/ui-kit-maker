@@ -9,23 +9,41 @@ outside the engine, exactly how it must be built, and what we do NOT need.
 is for the store cover only. Every other surface in the kit is drawn by our
 engine — components, icons, patterns, type — and needs no outside art.
 
-## Scene → backdrop map
+## Scene → backdrop map — CASUAL (reset 2026-08-10)
 
-Six demo scenes, four of which share plates:
+**The owner is re-rendering all plates in the casual direction with a new
+tool** (FLUX.1 Dev + a game-backgrounds LoRA); the fantasy-dusk Plate A/B
+picks below survive as field notes only. Six casual demo scenes (see the
+brief §5), still four generated plates:
 
 | Scene | Backdrop | Where it comes from |
 | --- | --- | --- |
-| Main Menu | **Plate A** — menu hero | generated |
-| Settings / Pause | Plate A, blurred + darkened | derived in-house from A |
-| HUD | **Plate B** — gameplay world | generated |
-| Inventory (ScrollView) | Plate B, darkened | derived in-house from B |
-| Dialog + Input | Plate B, as-is | reused |
-| Loading | **Plate C** — loading key art | generated |
+| Main Menu | **Plate A** — sunny menu hero | generated |
+| Level Select map | **Plate B** — world-map terrain (a winding-path landscape seen from above/at a tilt; the nodes composite ON the path) | generated |
+| Gameplay HUD | **Plate C** — the play-space backdrop behind a board/level | generated |
+| Level Complete / Shop / dialogs | Plate A or C, blurred + darkened | derived in-house |
+| Settings + Loading | Plate A blurred (settings) / Plate C (loading, calm bottom) | derived / reused |
 | *(store cover image — not in package)* | **Plate D** — abstract stage | generated |
 
 Deriving the blurred/darkened variants in-house keeps the scenes visually
-coherent (a pause screen IS the menu behind frosted glass) and halves the
-generation work.
+coherent (a popup sits over ITS game, behind frosted glass) and halves the
+generation work. Plate B's job changed the most: a casual level-select map
+IS its background — leave the path readable and the node line clear.
+
+## The new tool (owner, 2026-08-10)
+
+FLUX.1 Dev with the "Game Backgrounds" LoRA — the first courtyard test
+render conforms to this spec's composition rules beautifully (calm center,
+off-center interest, low-frequency detail). Two handling notes:
+
+- **It renders 1344 × 768 — that's 7:4, NOT 16:9** (16:9 at that width is
+  1344 × 756). If the tool takes explicit dimensions, ask for a 16:9 size;
+  otherwise we crop 12 rows in-house (6 top / 6 bottom) to exact 16:9 and
+  upscale to 1920 × 1080 (~1.43×). That's a bigger stretch than the 1.15×
+  we proved on the ChatGPT plates — fine for soft low-frequency art, but
+  verify each plate at 100% after the upscale before it enters the package.
+- **Delivery still PNG** (chat pastes don't reach the build container —
+  zips do).
 
 ## Universal specs — every plate
 
@@ -48,17 +66,22 @@ generation work.
 **Composition rules — these are what make UI readable on top**
 1. **The middle 60% must be quiet.** Menus, panels and dialogs sit there.
    Push all visual interest into the outer thirds.
-2. **Plate B extra:** keep the **bottom 25%** and **top 15%** especially
-   calm — HUD bars, resource counters and minimaps live in those strips.
-3. **Plate C extra:** the **bottom 20%** stays simple — the loading bar
-   sits there.
+2. **Plate C extra:** keep the **bottom 25%** and **top 15%** especially
+   calm — the goal bar, move counter and booster rail live in those
+   strips (and the loading bar reuses the calm bottom).
+3. **Plate B extra:** the winding path stays BARE and readable end to end
+   — our level nodes composite onto it.
 4. **Nothing important within 8% of any edge.** Unity crops these plates on
    ultrawide and 16:10 displays.
 4b. **The brightest point of the whole frame sits OUTSIDE the middle 60%.**
    Stronger than "keep the centre quiet," and the rule the first Plate A
    candidate bent — its sun landed at 36%/48%, right beside the menu column.
-5. **Value: mid-to-dark, dusk key.** Nothing brighter than mid-grey in the
-   central region. Bright backdrops kill light UI.
+5. **Value: casual-bright, sunny key** *(re-keyed 2026-08-10 for the casual
+   pivot — the old "mid-to-dark dusk" rule is retired)*. Cheerful daylight
+   is the category's language, BUT the UI zones stay protected: keep the
+   middle 60% and the HUD strips a half-stop deeper and calmer than the
+   frame, and never put pure-white sky directly behind a UI zone — the
+   candy's own highlights must stay the brightest thing in their area.
 6. **Soft focus.** Shallow depth of field, aerial haze — these read as
    out-of-focus backdrops, not hero illustrations.
 7. **Low-frequency detail.** No fine speckle, no tiny repeating texture; it
@@ -153,55 +176,56 @@ D (store cover stage).
 The shipping style is **"Lizard, lizard"** (owner, 2026-08-10): acid lime
 over deep green, tavern silhouette, Titan One. The backdrop must be
 **complementary** so the UI pops off it, so every plate goes the other way
-on the wheel:
+on the wheel — now in the casual-bright key:
 
-> **Deep cool teal, indigo, wet slate, blue-grey stone.** Avoid green
-> entirely — the UI owns green.
+> **Sky blues, soft teal, warm sand, lavender, coral accents.** Avoid
+> green entirely — the UI owns green. Sunny, saturated, cheerful; deep
+> dusk is retired with the fantasy direction.
 
-Both Plate A candidates already sit in this range, which is why they
-composite cleanly.
+## The prompts — casual key (rewritten 2026-08-10)
 
-## The prompts
-
-Fill `[PALETTE]` from the palette section above — cool teal / indigo / slate.
+Fill `[PALETTE]` from the palette section above — sky blue / soft teal /
+warm sand / lavender, never green.
 
 **Plate A — Main Menu hero**
 
-> A wide 16:9 background plate for a video game main menu screen.
-> A stylized [SETTING] seen at dusk from a distance. Atmospheric and
-> painterly, long-lens: shallow depth of field, aerial haze, the whole
-> scene slightly out of focus like a blurred backdrop behind a menu.
-> Overall value mid-to-dark — an overcast dusk key, nothing brighter than
-> mid-grey in the central area. The center 60% of the frame is visually
-> quiet and uncluttered; all visual interest sits in the left and right
-> outer thirds and the upper third. [PALETTE] color scheme. Low-frequency
-> painterly detail, no fine speckle. Nothing important near the edges.
+> A wide 16:9 background plate for a casual mobile game main menu screen.
+> A cheerful stylized [SETTING] in bright sunny daylight, soft rounded
+> forms, gentle rolling shapes. Atmospheric, long-lens: shallow depth of
+> field, soft haze, the whole scene slightly out of focus like a backdrop
+> behind a menu. The center 60% of the frame is visually quiet,
+> uncluttered and a touch deeper in tone than the edges; all visual
+> interest sits in the left and right outer thirds and the upper third,
+> and the brightest light stays out of the center. [PALETTE] color scheme.
+> Low-frequency detail, no fine speckle. Nothing important near the edges.
 > [NEGATIVE LIST]
 
-Suggested `[SETTING]`: a fantasy valley with distant towers, or a stone hall
-interior. Both delivered Plate A candidates took the valley and worked.
+Suggested `[SETTING]`: a sunny hillside village with a winding road, a
+seaside cove, a meadow with distant hills.
 
-**Plate B — Gameplay / HUD**
+**Plate B — Level Select world map**
 
-> A wide 16:9 background plate representing a paused moment of third-person
-> gameplay, camera looking out across a [SETTING]. Clear depth layering:
-> soft silhouetted foreground shapes at the extreme left and right edges,
-> a readable mid-ground, a hazy far background. Strong atmospheric
-> perspective, shallow depth of field, mid-to-dark dusk values. The center
-> 60% is quiet and uncluttered; the bottom 25% and top 15% of the frame are
-> especially calm and simple — game HUD elements will be composited there.
-> [PALETTE] color scheme. Low-frequency painterly detail, no fine speckle.
-> [NEGATIVE LIST]
+> A wide 16:9 background plate for a casual game level-select screen: a
+> stylized [SETTING] landscape seen from high above at a gentle tilt, like
+> a friendly board-game world map. A single soft winding dirt path curves
+> from the bottom of the frame to the top — the path is plain, empty and
+> clearly readable, with no markers or objects on it. Bright sunny
+> daylight, soft rounded terrain, shallow depth of field toward the frame
+> edges. The terrain beside the path stays calm and low-detail. [PALETTE]
+> color scheme. Low-frequency detail, no fine speckle. [NEGATIVE LIST]
+>
+> *(the level nodes, stars and locks are OUR sprites, composited on the
+> path — the plate must leave the path bare)*
 
-**Plate C — Loading screen key art**
+**Plate C — Gameplay backdrop**
 
-> Full-bleed 16:9 key art for a video game loading screen. A dramatic
-> [SETTING] with vertical interest in the upper-center of the frame.
-> Slightly richer and more saturated than a background plate — this is the
-> "wow" frame — but still mid-to-dark in value with soft, atmospheric
-> rendering. The bottom 20% of the frame is simple and quiet, a plain
-> gradient or haze, so a loading bar can sit over it. [PALETTE] color
-> scheme. [NEGATIVE LIST]
+> A wide 16:9 background plate that sits behind a casual puzzle game's
+> play area. A cheerful stylized [SETTING] in bright daylight, softly
+> blurred as if behind glass. The center 60% is quiet, even and slightly
+> deeper in tone — the game board sits there; the bottom 25% and top 15%
+> are especially calm and simple — score bars and booster buttons will be
+> composited there. [PALETTE] color scheme. Low-frequency detail, no fine
+> speckle. [NEGATIVE LIST]
 
 **Plate D — Store cover stage** *(not shipped in the package)*
 

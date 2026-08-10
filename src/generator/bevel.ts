@@ -3055,8 +3055,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
      no outline: the color group's darkest role (Shadow) on light faces,
-     near-white on dark faces. Not themed; theme voice is contentText. */
-  const infoInk = cfg.face.mode === "dark" ? "rgba(255,255,255,0.88)" : darken(effect(cfg.effects, "Shadow"), 0.15);
+     near-white on dark faces. Not themed; theme voice is contentText.
+     A pinned Readout ink (Typography) out-votes the adaptive pick — kit-wide
+     or per-piece through the scope machinery (owner, order ticket + unit
+     plate: "need to change the color of the black text"). */
+  const infoInk = cfg.type.infoInk ?? (cfg.face.mode === "dark" ? "rgba(255,255,255,0.88)" : darken(effect(cfg.effects, "Shadow"), 0.15));
   const infoText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800, ink2?: string) =>
     `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="${ink2 ?? infoInk}" text-anchor="${anchor2}" dominant-baseline="central">${esc(txt)}</text>`;
   /* HUD text for SPATIAL pieces and always-dark grounds (live footage,
@@ -4672,8 +4675,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const critWord = crit
         ? `<text x="${(cxD + fsD * 0.9).toFixed(1)}" y="${(cyD - fsD * 0.62).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(24 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.08em" fill="${lighten(glow, 0.35)}" text-anchor="middle" dominant-baseline="central" transform="rotate(6 ${(cxD + fsD * 0.9).toFixed(1)} ${(cyD - fsD * 0.62).toFixed(1)})" style="paint-order: stroke; stroke: rgba(0,0,0,0.6); stroke-width: 4px${state !== "disabled" ? `; filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.8)})` : ""}">CRIT!</text>`
         : "";
+      /* the combat loop (owner: "all of these need some kind of animation") —
+         spawn pop, float up, fade, respawn, the way damage numbers actually
+         live in games. SMIL like the tech card's breathing ring, so it plays
+         anywhere the SVG does; disabled stays a calm still. Crit pops harder
+         and its sparks flash only around the impact beat. */
+      const live = state !== "disabled";
+      const durD = crit ? "3s" : "2.6s";
+      const popD = live ? `<animateTransform attributeName="transform" type="scale" additive="sum" values="${crit ? "0.55;1.16;0.97;1;1" : "0.7;1.09;0.98;1;1"}" keyTimes="0;0.06;0.1;0.14;1" dur="${durD}" repeatCount="indefinite"/>` : "";
+      const floatD = live ? `<animateTransform attributeName="transform" type="translate" additive="sum" values="0 ${(8 * k).toFixed(1)};0 ${(-6 * k).toFixed(1)};0 ${(-26 * k).toFixed(1)}" keyTimes="0;0.4;1" dur="${durD}" repeatCount="indefinite"/>` : "";
+      const fadeD = live ? `<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.05;0.72;1" dur="${durD}" repeatCount="indefinite"/>` : "";
+      const sparksD = sparks && live
+        ? `<g>${sparks}<animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.07;0.4;0.62;1" dur="${durD}" repeatCount="indefinite"/></g>`
+        : sparks;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WD.toFixed(0)}" height="${HD.toFixed(0)}" viewBox="0 0 ${WD.toFixed(0)} ${HD.toFixed(0)}" data-dmgnumber="1" role="img" aria-label="damage ${amt}">
-<g opacity="${dim}">${sparks}<g transform="rotate(-6 ${cxD.toFixed(1)} ${cyD.toFixed(1)})">${contentText(amt, cxD, cyD, fsD, { anchor: "middle", keepCase: true })}</g>${critWord}</g>
+<g opacity="${dim}">${fadeD}<g>${floatD}<g transform="translate(${cxD.toFixed(1)} ${cyD.toFixed(1)})"><g>${popD}<g transform="translate(${(-cxD).toFixed(1)} ${(-cyD).toFixed(1)})">${sparksD}<g transform="rotate(-6 ${cxD.toFixed(1)} ${cyD.toFixed(1)})">${contentText(amt, cxD, cyD, fsD, { anchor: "middle", keepCase: true })}</g>${critWord}</g></g></g></g></g>
 </svg>`;
     }
     case "loottag": {
@@ -5573,18 +5589,27 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const inset = bw + 8 * k;
+      /* Content margin on a FIXED frame squeezes the content inward — same
+         doctrine as build()'s fixed-width surfaces. Horizontal takes the
+         full margin (width-capped so the countdown bar can't invert);
+         vertical takes a GENTLER share, hard-capped so the recipe rows can
+         never reach the bar even at max wall + max margin. The hanger hole
+         and the SERVED stamp stay structural (edge/center-anchored). */
+      const cMt = clamp((cfg.contentMargin ?? 0) * k, -8 * k, Math.min(60 * k, sw * 0.16));
+      const insetC = inset + cMt;
+      const insetV = inset + Math.min(cMt, 20 * k);
       const dim = state === "disabled";
       const hole = `<circle cx="${(sx + sw / 2).toFixed(1)}" cy="${(sy + inset + 11 * k).toFixed(1)}" r="${(7 * k).toFixed(1)}" fill="${wellFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>`;
-      const hx = sx + inset + 14 * k;
-      const hy = sy + inset + 52 * k;
+      const hx = sx + insetC + 14 * k;
+      const hy = sy + insetV + 52 * k;
       // null = REMOVED (the Icons checkbox) — only undefined falls back to stock
       const icT = opts.icon !== undefined ? opts.icon : STOCK_ICONS.heart;
       const glyph = icT ? wellGlyph(icT, hx + 14 * k, hy - 1 * k, 28 * k, glow) : "";
       const dish = contentText((opts.label ?? "PANCAKE STACK").slice(0, 16), hx + (icT ? 38 * k : 0), hy, 22 * k * typeK, {});
       // the order number rides the hanger-hole row so it never crowds the dish
-      const num = infoText((opts.slots?.num ?? "#07").slice(0, 5), sx + sw - inset - 12 * k, sy + inset + 15 * k, 16 * k, "end", 800);
+      const num = infoText((opts.slots?.num ?? "#07").slice(0, 5), sx + sw - insetC - 12 * k, sy + inset + 15 * k, 16 * k, "end", 800);
       const py = hy + 24 * k;
-      const perf = `<line x1="${(sx + inset + 8 * k).toFixed(1)}" y1="${py.toFixed(1)}" x2="${(sx + sw - inset - 8 * k).toFixed(1)}" y2="${py.toFixed(1)}" stroke="rgba(255,255,255,0.28)" stroke-width="${(1.6 * k).toFixed(1)}" stroke-dasharray="${(6 * k).toFixed(1)} ${(5 * k).toFixed(1)}"/>`;
+      const perf = `<line x1="${(sx + insetC + 8 * k).toFixed(1)}" y1="${py.toFixed(1)}" x2="${(sx + sw - insetC - 8 * k).toFixed(1)}" y2="${py.toFixed(1)}" stroke="rgba(255,255,255,0.28)" stroke-width="${(1.6 * k).toFixed(1)}" stroke-dasharray="${(6 * k).toFixed(1)} ${(5 * k).toFixed(1)}"/>`;
       const recipe = [(opts.slots?.i1 ?? "Flour · eggs · milk").slice(0, 26), (opts.slots?.i2 ?? "Flip until golden").slice(0, 26), (opts.slots?.i3 ?? "Serve with syrup").slice(0, 26)];
       let linesT = "";
       recipe.forEach((t, i) => {
@@ -5597,14 +5622,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const late = vT <= 0.25 && !dim;
       const barC = late ? ALARM : glow;
       const bh2 = 22 * k;
-      const bx = sx + inset + 10 * k, bw2 = sw - inset * 2 - 20 * k;
+      /* the countdown bar stays BOTTOM-ANCHORED on the structural inset —
+         letting it ride insetV closed the row/bar gap from both ends at
+         wall-34 + margin-60 + size s (caught on the worst-case render) */
+      const bx = sx + insetC + 10 * k, bw2 = sw - insetC * 2 - 20 * k;
       const by = sy + sh - inset - bh2 - 12 * k;
       const gidT = "ot" + UID++;
       const pulseT = late ? `<animate attributeName="opacity" values="1;0.55;1" dur="0.9s" repeatCount="indefinite"/>` : "";
       const bar = `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw2.toFixed(1)}" height="${bh2.toFixed(1)}" rx="${(bh2 / 2).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>` +
         (vT > 0.02 ? `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.4)}"/><stop offset="1" stop-color="${darken(barC, 0.2)}"/></linearGradient></defs>
           <rect x="${(bx + 2.5 * k).toFixed(1)}" y="${(by + 2.5 * k).toFixed(1)}" width="${((bw2 - 5 * k) * vT).toFixed(1)}" height="${(bh2 - 5 * k).toFixed(1)}" rx="${((bh2 - 5 * k) / 2).toFixed(1)}" fill="url(#${gidT})"${!dim ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(barC, 0.6)})"` : ""}>${pulseT}</rect>` : "");
-      const secs = infoText(`${Math.ceil(vT * 90)}s`, sx + sw - inset - 12 * k, by - 13 * k, 15 * k, "end", 800) +
+      const secs = infoText(`${Math.ceil(vT * 90)}s`, sx + sw - insetC - 12 * k, by - 13 * k, 15 * k, "end", 800) +
         infoText("TIME", bx + 2 * k, by - 13 * k, 13 * k, "start", 800);
       // served = done — the happy teal stamp, not the alarm
       const stampC = "#2DD4BF";
@@ -5922,12 +5950,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const w = 360 * k, h = 132 * k;
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 8 * k;
+      /* Content margin: fixed frame, so the portrait/name/rail block squeezes
+         inward — HORIZONTALLY only. The plate's rows are center-anchored on a
+         fixed height; a vertical push shoved the name into the HP rail
+         (caught on the margin-60 render). Width-capped so the rail keeps
+         real length even at max margin + max wall. */
+      const insetC = inset + clamp((cfg.contentMargin ?? 0) * k, -8 * k, Math.min(60 * k, w * 0.12));
       const cy = 30 + h / 2;
-      const pr = 33 * k, pcx = 39 + inset + pr + 8 * k;
+      const pr = 33 * k, pcx = 39 + insetC + pr + 8 * k;
       const gidU = "up" + UID++;
       const vHP = clamp(value ?? 0.82, 0, 1);
       const HPC = "#4ADE80";
-      const tx0 = pcx + pr + 14 * k, txw = 39 + w - inset - 12 * k - tx0;
+      const tx0 = pcx + pr + 14 * k, txw = 39 + w - insetC - 12 * k - tx0;
       const railH = 13 * k, railY = cy + 4 * k;
       const gU = 2.5 * k, mHU = railH - gU * 2;
       const parts = `<defs><clipPath id="${gidU}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath>
@@ -5938,7 +5972,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.35)}" stroke-width="1.6"/>` +
-        contentText(opts.label ?? "VANGUARD", tx0, 30 + inset + 18 * k, 23 * k * typeK, { keepCase: true }) +
+        /* fit-down guard: the name shares the squeezed text column, so at a
+           hard margin it shrinks instead of overhanging the shell */
+        (() => { const nm = opts.label ?? "VANGUARD"; const fsN0 = 23 * k * typeK;
+          return contentText(nm, tx0, 30 + inset + 18 * k, fsN0 * Math.min(1, (txw + 8 * k) / Math.max(1, nm.length * fsN0 * 0.62)), { keepCase: true }); })() +
         `<rect x="${tx0.toFixed(1)}" y="${railY.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
         (vHP > 0.04 ? `<rect x="${(tx0 + gU).toFixed(1)}" y="${(railY + gU).toFixed(1)}" width="${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)}" height="${mHU.toFixed(1)}" rx="${(mHU / 2).toFixed(1)}" fill="url(#${gidU}h)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(HPC, 0.55)})"` : ""}/>` : "") +
         (STOCK_ICONS.sword ? iconGroup(STOCK_ICONS.sword, tx0, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK }) : "") +
@@ -6265,16 +6302,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <g transform="translate(${(mX - mR * 0.62).toFixed(1)} ${(cy - mR * 0.62).toFixed(1)})"><path d="${starPath(mR * 1.24)}" fill="#92400E" opacity="0.85"/></g>
         <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/>`;
       /* eyebrow ink + keyline answer to their color slots (KIT_SLOTS.achievetoast);
-         untouched, the stroke keeps the soft translucent factory dark */
+         untouched, the stroke keeps the soft translucent factory dark; the
+         "none" sentinel removes the keyline entirely */
       const eyeC = opts.slots?.eyebrowColor ?? "#FACC15";
-      const eyeS = opts.slots?.eyebrowStroke ?? "rgba(8,12,22,0.45)";
+      const eyeS = opts.slots?.eyebrowStroke === "none" ? null : (opts.slots?.eyebrowStroke ?? "rgba(8,12,22,0.45)");
       // Unity extras export: plate + medallion — both words are live text
       if (opts.part === "shell") return inject(shell.replace("<svg ", '<svg data-achievetoast="1" '), med);
       /* the text nudge moves the WHOLE announcement block — eyebrow and
          title travel together (owner: "need to be able to nudge the
          eyebrow"; before this, nudging separated the two lines) */
       const parts = med +
-        `<text x="${(mX + mR + 16 * k + typeOxK * k).toFixed(1)}" y="${(cy - 15 * k + typeOyK * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="${eyeC}" dominant-baseline="central" style="paint-order: stroke; stroke: ${eyeS}; stroke-width: 2.2px">${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
+        `<text x="${(mX + mR + 16 * k + typeOxK * k).toFixed(1)}" y="${(cy - 15 * k + typeOyK * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.18em" fill="${eyeC}" dominant-baseline="central"${eyeS ? ` style="paint-order: stroke; stroke: ${eyeS}; stroke-width: 2.2px"` : ""}>${esc((opts.slots?.eyebrow ?? "ACHIEVEMENT UNLOCKED").slice(0, 28))}</text>` +
         contentText(opts.label ?? "FIRST BLOOD", mX + mR + 16 * k, cy + 14 * k, 26 * k * typeK);
       return inject(shell.replace("<svg ", '<svg data-achievetoast="1" '), parts);
     }
@@ -6386,31 +6424,37 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const val = opts.label ?? "1,250";
       const maxTxt = opts.max ? ` / ${opts.max}` : "";
       const fsV = 30 * k;
+      /* Content margin reaches composite pieces too (owner: "content margin
+         doesn't work here") — auto-width surface, so the shell GROWS around
+         the content like a button's does. Floored so a hard negative pull
+         can't push the medallion outside the shell. */
+      const cMr = clamp((cfg.contentMargin ?? 0) * k, -6 * k, 60 * k);
       // width breathes with the type scale and leaves real air after the
       // digits — six-figure values must not kiss the trailing wall
       const textW = (val.length + maxTxt.length) * fsV * typeK * 0.66;
       const addW = opts.addBtn ? 46 * k : 0;
-      const w = Math.max(164 * k, 66 * k + textW + addW + 62 * k);
+      const w = Math.max(164 * k + Math.max(0, cMr) * 2, 66 * k + textW + addW + 62 * k + cMr * 2);
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const cy = 30 + h / 2;
       const medR = h * 0.44;
       const noIcon = opts.icon === null; // removed glyph — the value centers
       const icon = opts.icon ?? STOCK_ICONS.gem;
       const dim = state === "disabled" ? 0.45 : 1;
+      const vx = 39 + 20 * k + cMr + medR * 2;
       const parts =
         (noIcon ? "" :
-          candyKnob(39 + 6 * k + medR, cy, medR, bevel) +
-          themedIcon(icon, 39 + 6 * k + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)) +
+          candyKnob(39 + 6 * k + cMr + medR, cy, medR, bevel) +
+          themedIcon(icon, 39 + 6 * k + cMr + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)) +
         (noIcon
           ? contentText(`${val}${maxTxt}`, 39 + (w - (opts.addBtn ? 46 * k : 0)) / 2, cy + 1, fsV * typeK, { anchor: "middle", keepCase: true, opacity: dim })
-          : contentText(val, 39 + 20 * k + medR * 2, cy + 1, fsV * typeK, { keepCase: true, opacity: dim }) +
+          : contentText(val, vx, cy + 1, fsV * typeK, { keepCase: true, opacity: dim }) +
             /* the divider gets REAL air: 0.7em advance per value glyph (heavy
                italic faces overhang) plus a 0.36em gap — and no leading space
                in the <text>, since SVG collapses it and the slash would kiss
                the last digit (the visual gate caught exactly that) */
-            (maxTxt ? `<text x="${(39 + 20 * k + medR * 2 + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="650" fill="${infoInk}" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
-        (opts.addBtn ? candyKnob(39 + w - 8 * k - h * 0.32, cy, h * 0.32, glow) +
-          `<text x="${(39 + w - 8 * k - h * 0.32).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${26 * k}" font-weight="800" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">+</text>` : "");
+            (maxTxt ? `<text x="${(vx + val.length * fsV * typeK * 0.7 + fsV * typeK * 0.36).toFixed(1)}" y="${(cy + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(fsV * typeK * 0.8).toFixed(1)}" font-weight="650" fill="${infoInk}" dominant-baseline="central">${esc(`/ ${opts.max}`)}</text>` : "")) +
+        (opts.addBtn ? candyKnob(39 + w - 8 * k - cMr - h * 0.32, cy, h * 0.32, glow) +
+          `<text x="${(39 + w - 8 * k - cMr - h * 0.32).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${26 * k}" font-weight="800" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">+</text>` : "");
       return inject(track, parts);
     }
     case "datarow": {

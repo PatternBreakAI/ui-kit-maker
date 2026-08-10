@@ -292,6 +292,11 @@ export interface TypeCfg {
   fill: string;
   fill2: string;       // gradient bottom
   fillOpacity: number; // 0..100 — translucent fills read as glass
+  /** Readout ink — the small utilitarian numbers on data pieces (timers,
+   *  counts, stats: the order ticket's #07, the unit plate's 12/8).
+   *  null/absent = adaptive: near-white on dark faces, the Shadow role
+   *  darkened on light ones (owner: "how do I edit the black text?"). */
+  infoInk?: string | null;
   outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** Relief follows the master light: highlight toward it, shade away from it.
@@ -1062,6 +1067,10 @@ export type SlotDef = {
   maxLen?: number;
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
+  /** color: offer a "none" option that removes the feature entirely — the
+      stored sentinel value is the string "none" (owner, eyebrow stroke:
+      "should have a none option"). Renderers must honor it. */
+  allowNone?: boolean;
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1256,8 +1265,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "ACHIEVEMENT UNLOCKED", maxLen: 28 },
     { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FACC15",
       note: "The announcement line's ink — gold is the factory setting because unlocks read as gold." },
-    { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28",
-      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid." },
+    { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28", allowNone: true,
+      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid; None removes it." },
   ],
   movecounter: [
     { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },

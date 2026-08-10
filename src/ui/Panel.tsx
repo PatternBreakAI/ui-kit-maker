@@ -1497,9 +1497,19 @@ export function Panel() {
             </div>
           ) : slot.kind === "color" && !finLocked ? (
             <div key={slot.id}>
-              <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id] ?? slot.def ?? "#FFFFFF"}
-                onChange={(v) => setKitSlot(focus, slot.id, v)} />
-              {kitSlotVals[focus]?.[slot.id] && (
+              {kitSlotVals[focus]?.[slot.id] !== "none" && (
+                <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id] ?? slot.def ?? "#FFFFFF"}
+                  onChange={(v) => setKitSlot(focus, slot.id, v)} />
+              )}
+              {slot.allowNone && (
+                /* the slot's OFF switch — stores the "none" sentinel; the
+                   renderer skips the feature (owner: "should have a none
+                   option for the eyebrow stroke") */
+                <label className="check"><input type="checkbox" checked={kitSlotVals[focus]?.[slot.id] === "none"}
+                  onChange={(e) => setKitSlot(focus, slot.id, e.target.checked ? "none" : null)} />
+                  None — no {slot.name.toLowerCase()}</label>
+              )}
+              {kitSlotVals[focus]?.[slot.id] && kitSlotVals[focus]?.[slot.id] !== "none" && (
                 <button className="resetstate" title="Back to the factory color"
                   onClick={() => setKitSlot(focus, slot.id, null)}>
                   <RotateCcw size={13} strokeWidth={2} /> Factory color
@@ -2179,6 +2189,26 @@ export function Panel() {
         </>)}
         <Slider label="Fill opacity" value={T2.fillOpacity ?? 100} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.fillOpacity = v; })} />
         </>)}
+
+        {/* readout ink — the utilitarian numbers on data pieces (the order
+            ticket's #07 and timer, the unit plate's 12/8 stats). Auto keeps
+            them legible on any face; a pinned color follows the scope bar
+            like every other type control (owner: "how do I edit the black
+            text?"). */}
+        <div className="ctl">
+          <label>Readout ink</label>
+          <div className="segmini" role="radiogroup">
+            <button className={!T2.infoInk ? "on" : ""} role="radio" aria-checked={!T2.infoInk}
+              onClick={() => update((c) => { c.type.infoInk = null; })}>Auto</button>
+            <button className={T2.infoInk ? "on" : ""} role="radio" aria-checked={!!T2.infoInk}
+              onClick={() => update((c) => { if (!c.type.infoInk) c.type.infoInk = "#FFFFFF"; })}>Custom</button>
+          </div>
+        </div>
+        {T2.infoInk ? (
+          <Well label="Readout ink" value={T2.infoInk} onChange={(v) => update((c) => { c.type.infoInk = v; })} />
+        ) : (
+          <div className="helper">The small working numbers — timers, counts, stats. Auto picks a legible ink from the face; Custom pins your color. Focus a piece to change just that piece.</div>
+        )}
 
         {/* per-piece text color — the escape hatch from "changing text color
             changes it everywhere". Only offered while a component is focused. */}

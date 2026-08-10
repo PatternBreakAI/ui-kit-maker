@@ -82,6 +82,27 @@ const out = await page.evaluate(async (json) => {
   const sorted = [...tops].sort((a, b) => a - b);
   // N ink top ≈ 42 - ~12px overhang; span = 2*D9 = 252 at size m
   res.qsGridAligned = tops.length >= 4 && sorted[0] < 55 && Math.abs((sorted[sorted.length - 1] - sorted[0]) - 252) < 10;
+
+  // ── readout ink: a pinned Typography color out-votes the adaptive pick ──
+  const cfgInk = hydrate(JSON.parse(JSON.stringify(json))); cfgInk.type.infoInk = "#FF00AA";
+  res.readoutInkUnit = renderKit(cfgInk, "unitplate", "m", "default", 0.82).includes('fill="#FF00AA"');
+  res.readoutInkTicket = renderKit(cfgInk, "orderticket", "m", "default", 0.62).includes('fill="#FF00AA"');
+  res.readoutInkAutoHolds = !renderKit(cfg, "unitplate", "m", "default", 0.82).includes('fill="#FF00AA"');
+
+  // ── eyebrow stroke: the "none" sentinel removes the keyline entirely ──
+  res.eyebrowStrokeFactory = renderKit(cfg, "achievetoast", "m", "default").includes("paint-order: stroke");
+  res.eyebrowStrokeNone = !renderKit(cfg, "achievetoast", "m", "default", undefined, undefined, { slots: { eyebrowStroke: "none" } }).includes("paint-order: stroke");
+
+  // ── content margin reaches composites; extremes never invert geometry ──
+  const wide = hydrate(JSON.parse(JSON.stringify(json))); wide.contentMargin = 60;
+  const shellW = (svg) => parseFloat((/data-shell0="[-\d.]+ [-\d.]+ ([\d.]+)/.exec(svg) ?? [])[1]);
+  res.marginGrowsCounter = shellW(renderKit(wide, "resource", "m", "default")) > shellW(renderKit(cfg, "resource", "m", "default")) + 60;
+  const wall34m = hydrate(model.defaultConfig()); wall34m.bevel.width = 34; wall34m.contentMargin = 60;
+  const hugAll = hydrate(model.defaultConfig()); hugAll.contentMargin = -20;
+  res.marginExtremesClean = ["s", "m", "l"].every((sz) => [wall34m, hugAll].every((c) =>
+    !negAttr(renderKit(c, "orderticket", sz, "default", 0.62)) &&
+    !negAttr(renderKit(c, "unitplate", sz, "default", 0.82)) &&
+    !negAttr(renderKit(c, "resource", sz, "default"))));
   return res;
 }, json);
 
