@@ -1022,7 +1022,7 @@ export type KitComponentId =
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
   | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
   | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper"
-  | "healthglobe" | "xpbar" | "vitalbar" | "manarails" | "questpanel" | "dialoguebox"
+  | "healthglobe" | "xpbar" | "vitalbar" | "quickslots" | "manarails" | "questpanel" | "dialoguebox"
   | "choicelist" | "invgrid" | "rarityframe" | "equipslot" | "skillnode"
   | "compass" | "partyframe" | "dmgnumber" | "loottag"
   | "crosshair" | "hitmarker" | "killfeed" | "magazine" | "equipselector"
@@ -1079,6 +1079,24 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   healthglobe: [
     { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },
+  ],
+  quickslots: [
+    { id: "g1", name: "Top glyph", kind: "choice", choices: INV_GLYPHS,
+      note: "The north tile's item. Factory keeps the stock potion; Empty leaves a dashed ready well." },
+    { id: "q1", name: "Top quantity", kind: "free", def: "", maxLen: 3,
+      note: "A number here pins a count badge to the tile's corner. Empty removes it." },
+    { id: "g2", name: "Left glyph", kind: "choice", choices: INV_GLYPHS,
+      note: "The west tile's item — Factory is the stock sword." },
+    { id: "q2", name: "Left quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the west tile. Empty removes it." },
+    { id: "g3", name: "Right glyph", kind: "choice", choices: INV_GLYPHS,
+      note: "The east tile's item — Factory is the stock shield." },
+    { id: "q3", name: "Right quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the east tile. Empty removes it." },
+    { id: "g4", name: "Bottom glyph", kind: "choice", choices: INV_GLYPHS,
+      note: "The south tile's item — Factory is the stock gem." },
+    { id: "q4", name: "Bottom quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the south tile. Empty removes it." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
@@ -1426,6 +1444,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   // Emerald Tavern target: the plain labeled resource bar (readout inside
   // the track, no level furniture) — staged until the owner releases it
   { id: "vitalbar", name: "Vital bar", staged: true },
+  // Emerald Tavern target: the consumable cross as ONE piece — loose slots
+  // composited by hand smear their extrusion tails over each other
+  { id: "quickslots", name: "Quick slots", staged: true },
   { id: "manarails", name: "Mana & stamina" },
   { id: "questpanel", name: "Quest tracker" },
   { id: "dialoguebox", name: "Dialogue box" },
@@ -1545,7 +1566,7 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
   { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
   { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
-  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
+  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "quickslots", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
   { id: "shooter", name: "Shooter & action", members: ["ammo", "killfeed", "dmgnumber", "respawn", "waypoint", "weaponwheel", "equipselector", "buffframe", "hotbar", "crosshair"] },
   { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
   { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },
