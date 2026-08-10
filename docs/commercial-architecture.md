@@ -265,6 +265,28 @@ always copyable. This raises the cost of taking the *assembled* products
 It does not make the artwork secret, and nothing in the product should
 imply it does.
 
+## Pro gating for the Boards era (recommendation, 2026-08-10)
+
+Owner prompt: "think about what to gate for PRO users." The line that has
+worked since v85: **creativity is free, professional output is Pro** —
+free users fall in love in the browser; the artifact a shipping team
+needs is the paid door. Applied to the new surfaces:
+
+| Surface | Tier | Why |
+| --- | --- | --- |
+| Boards: build, per-instance text/value, backgrounds | Free | Creativity primitive — gating it starves the funnel |
+| Board PNG export (1080p mockups) | Free | Shareable mockups ARE the marketing loop |
+| **Boards→Scenes Unity export** | **Pro** | The flagship shipping-team artifact; rides the EXISTING `/api/export` grant + licence + rate-limit machinery — no new enforcement surface |
+| Full-res background originals in the export zip | Pro | Travels only inside the scene export |
+| Engine kit / game kit / SVG pack | Pro (unchanged) | v85 status quo |
+
+The free Asset Store kit ships demo scenes BUILT WITH the Pro pipeline —
+the package itself demonstrates what Pro buys, which is the funnel
+message ("this was generated; remix it"). Store-listing copy must stay
+inside the compliance box: the package is fully functional as delivered;
+Pro sells the REMIX-and-re-export loop, never a dependency of the
+downloaded kit.
+
 ## Security posture (what is and is not protected)
 
 - The anon key is public by design; **all** access control is row-level

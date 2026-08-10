@@ -208,27 +208,58 @@ any free kit in the category, smaller and more curated than the $80 kings.
      §2.3 mechanism.
    - Backdrop plates avoid pink/magenta (the UI owns pink) per
      `FREE-KIT-BACKDROP-SPEC.md`, keyed casual-bright.
-2. **The name — series DECIDED 2026-08-10: KITMAKER.** The kit name is
-   REOPENED: **"Emerald Tavern" rescinded** (owner: conjures booze).
-   Candidates in §5 — **Salt Pink** recommended, since it's the launch
-   style's own name — awaiting the bless. The category line is now
-   **Free Casual Game UI Kit** (owner, same day).
+2. **The name — DECIDED 2026-08-10: "Salt Pink"** (owner, closing the same
+   day it opened). Full title: **KITMAKER: Salt Pink — Free Casual Game
+   UI Kit**. "Emerald Tavern" rescinded (conjured booze); the launch
+   style's own name takes the marquee.
 3. **Publisher identity** (PatternBreak) — account setup is owner-side:
    publisher profile, support email, the site link. *Open.*
 4. **Component list — REWORKED 2026-08-10 for the casual pivot:**
    scene-derived from the six casual scenes, ~33 pieces, and new assets get
    built where the scenes need them ("no square pegs in round holes").
    List in §5; add/cut still welcome.
-5. **Plates — RESET 2026-08-10:** the owner is re-rendering ALL plates with
-   a new tool (FLUX.1 Dev + a game-backgrounds LoRA) in the casual
-   direction; the earlier Plate A/B picks are superseded. Specs, the new
-   tool's 1344×768 output note, and the casual scene→plate map live in
-   `FREE-KIT-BACKDROP-SPEC.md`.
+5. **Plates — SUPERSEDED BY BOARDS-TO-SCENES (owner, 2026-08-10):** *"if
+   we complete Boards to Scenes we won't need this."* The demo scenes are
+   composed as BOARDS in the app — the owner uploads whatever background
+   art each scene wants (their FLUX tool or anything else), and the
+   Boards→Scenes exporter carries the full-res original into the Unity
+   package. No spec'd plate deliverable, no plate zip. The backdrop
+   spec's palette + composition rules survive as GUIDANCE for that board
+   art (avoid pink, calm center, casual-bright); the delivery pipeline
+   section is retired. Store marketing images become screenshots of the
+   same boards.
+6. **Staged pieces — RELEASED 2026-08-10 (owner-side):** the owner flipped
+   everything they want live from the staging bay on preview; the rest
+   stays gated "for now." The package build reads `componentReleases` at
+   export time, so the shipped set self-resolves to released pieces only —
+   if a piece in the §5 table is still gated at package time, it either
+   gets released then or drops from the free kit.
 
-## 7. Phases after bless
+## 7. Phases after bless — P2 plan of record (2026-08-10)
 
-P1 listing shell: publisher account, key images, description + notices.
-P2 package build: curate the kit, run the engine exporter, hand-polish the
-README deck, importer-built demo scenes, Unity test pass (Jimi-style: real
-project, layout groups, toggles, scroll view).
-P3 submit; expect a review cycle; iterate on feedback.
+P1 listing shell: publisher account (owner-side, in progress), key images
+(screenshots of the demo boards), description + notices (Bruno Ace line).
+
+P2 package build — **Boards→Scenes is the critical path** (owner: the
+demo scenes come from boards, retiring the plate pipeline; "make sure the
+boards hand off is as seamless as possible"):
+
+1. **Big-image backgrounds** — upload the full-res original once; the
+   Board shows a ~1280px browser proxy (drag stays silky); the ORIGINAL
+   bytes persist and ship in the export. Prerequisite for scenes.
+2. **Boards→Scenes exporter** — the board doc (positions, scales,
+   rotations, per-copy words, per-copy values, background) rides the
+   Smart Zip; the importer builds a ready Canvas scene per board:
+   open, press Play, buttons live with their own words on real TMP
+   labels (never baked), anchored by zone (corner/edge/center) so
+   layouts survive resolution changes. Window + Scrim prefabs and the
+   ScrollView check ride this milestone (§5).
+3. **Owner composes the six casual demo boards** in Salt Pink — their
+   backgrounds, their copy. This IS the creative deliverable that used
+   to be the plates.
+4. **Package build**: released pieces only, engine exporter, hand-
+   polished README deck, Third-Party Notices (Bruno Ace/OFL), console-
+   clean Unity test pass (Jimi-style: real project, layout groups,
+   toggles, scroll view, Fast Enter Playmode).
+
+P3 submit via 2022.3; expect a review cycle; iterate on feedback.

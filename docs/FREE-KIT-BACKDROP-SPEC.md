@@ -1,5 +1,14 @@
 # Free kit — scene backdrop spec
 
+> **RETIRED AS A DELIVERY PIPELINE (owner, 2026-08-10):** *"if we complete
+> Boards to Scenes we won't need this."* Demo scenes are composed as
+> BOARDS in the app; the owner uploads background art per board and the
+> Boards→Scenes exporter ships the full-res original. No plate zip, no
+> scene→plate map, no formal Plate A-D. **What survives below is the ART
+> GUIDANCE** — palette, composition, value key, the negative list — which
+> applies to whatever background the owner drops on a board. Marketing
+> images become screenshots of the same boards.
+
 Companion to `FREE-KIT-BRIEF.md`. What art the demo scenes need from
 outside the engine, exactly how it must be built, and what we do NOT need.
 
