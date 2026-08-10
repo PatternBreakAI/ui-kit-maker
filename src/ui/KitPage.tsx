@@ -1747,6 +1747,10 @@ const kitTier = useGen((s) => s.tier);
         rk("movecounter", "Moves · Last", {}, 0.12),
         // staging-bay pieces list their poses here too — the visibility
         // filter at the end keeps them admin-only until released
+        rk("vitalbar", "Vital · Health", { slots: { readout: "1,250 / 1,500", tint: "Health" } }, 0.83),
+        rk("vitalbar", "Vital · Mana", { slots: { readout: "650 / 1,000", tint: "Mana" } }, 0.65),
+        rk("vitalbar", "Vital · Kit glow", {}, 0.72),
+        rk("vitalbar", "Vital · Low", { slots: { readout: "180 / 1,500", tint: "Health" } }, 0.12),
         rk("orderticket", "Order ticket · Urgent", {}, 0.1),
         rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
         rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),

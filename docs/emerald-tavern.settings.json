@@ -1,0 +1,60 @@
+{
+  "presetId": "hard-candy",
+  "shape": "tavern",
+  "effects": { "Glow": "#316835", "Bevel": "#a0c80e", "Shadow": "#074106", "Highlight": "#FFFFFF", "Inner Fill": "#f0d62d" },
+  "face": { "mode": "light", "contrast": 100, "midpoint": 32 },
+  "bevel": { "width": 10, "softness": 78 },
+  "candy": {
+    "extrusion": { "depth": 33, "darkness": 94, "glow": 70 },
+    "rim": { "width": 3, "brightness": 80 },
+    "innerEdge": { "strength": 45, "width": 3 },
+    "innerGlow": { "opacity": 34, "size": 55, "color": "#1a9a09" },
+    "aura": { "color": null },
+    "gloss": { "on": true, "height": 46, "curve": 26, "opacity": 94, "softness": 95, "layer": "below", "fill": "gradient", "tint": "#3391b2", "tint2": "#DFF7FF" },
+    "specular": { "on": true, "mode": "anime", "size": 39, "stretch": 10, "intensity": 65, "softness": 0, "angle": 0, "gap": 50, "ox": 37, "oy": -30, "blend": "overlay" },
+    "bloom": { "opacity": 12, "size": 60 },
+    "contact": { "opacity": 32 },
+    "texture": { "amount": 25, "scale": 50 },
+    "pattern": { "type": "waves", "scale": 28, "angle": 51, "opacity": 100, "color": "#4f8f00" }
+  },
+  "lighting": { "tint": null, "angle": 101, "lowlight": 60, "highlight": 78 },
+  "shadow": { "blur": 14, "opacity": 61, "distance": 11 },
+  "transparency": { "frame": 100, "content": 100, "interior": 100 },
+  "content": { "label": "EQUIP" },
+  "type": {
+    "font": "Titan One", "customFonts": [], "size": 98, "weight": 400, "italic": true, "spacing": 2, "case": "upper",
+    "fillMode": "gradient", "fill": "#00d1ae", "fill2": "#000000", "fillOpacity": 100,
+    "outline": { "on": true, "color": "#acdb00", "width": 8, "color2": null },
+    "shadow": { "x": 0, "y": 3, "on": true, "blur": 4, "color": "#053b4c", "opacity": 100 },
+    "emboss": { "on": true, "shColor": "#3b6e11", "distance": 1.5, "softness": 75, "strength": 29, "hiOpacity": 73, "shOpacity": 100, "shSoftness": 65 },
+    "glow": { "on": true, "size": 8, "color": "#526613", "opacity": 100 },
+    "preset": "candy", "oy": -2,
+    "glints": { "on": true, "ox": 44, "blend": "overlay", "opacity": 49 },
+    "stripes": { "on": true, "angle": 45, "style": "scales", "opacity": 0 }
+  },
+  "icon": {
+    "show": true,
+    "def": { "lib": "lucide", "mode": "stroke", "name": "Play", "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>", "viewBox": "0 0 24 24" },
+    "placement": "right", "only": false, "size": 100, "strokeWidth": 24, "color": "#c2fdb5", "outlineWidth": null,
+    "opacity": 100, "rotation": 0, "gap": 18, "ox": 0, "oy": 0,
+    "fx": { "glow": true, "emboss": true, "shadow": true }
+  },
+  "states": {
+    "hover":    { "glow": 100, "lift": 0, "opacity": 100, "brightness": 5, "saturation": 38 },
+    "default":  { "glow": 0,   "lift": 0, "opacity": 100, "brightness": 5, "saturation": 38 },
+    "pressed":  { "glow": 100, "lift": 0, "opacity": 100, "brightness": 5, "saturation": 38 },
+    "disabled": { "glow": 0,   "lift": 0, "opacity": 100, "brightness": 5, "saturation": 38 }
+  },
+  "visible": { "hover": true, "pressed": true, "disabled": true },
+  "canvas": "#000000",
+  "knob": { "color": null },
+  "skew": 0,
+  "__workspace": {
+    "kitName": "Emerald Tavern",
+    "kitShapes": { "hotbar": "round" },
+    "kitDesigns": {
+      "iconbtn": { "icon": { "color": null, "outlineWidth": 5.5, "strokeWidth": 29 } },
+      "chip": { "icon": { "size": 159, "color": "#c9f820", "outlineWidth": null } }
+    }
+  }
+}

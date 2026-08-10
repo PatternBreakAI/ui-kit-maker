@@ -1022,7 +1022,7 @@ export type KitComponentId =
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
   | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
   | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper"
-  | "healthglobe" | "xpbar" | "manarails" | "questpanel" | "dialoguebox"
+  | "healthglobe" | "xpbar" | "vitalbar" | "manarails" | "questpanel" | "dialoguebox"
   | "choicelist" | "invgrid" | "rarityframe" | "equipslot" | "skillnode"
   | "compass" | "partyframe" | "dmgnumber" | "loottag"
   | "crosshair" | "hitmarker" | "killfeed" | "magazine" | "equipselector"
@@ -1076,6 +1076,16 @@ const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "B
 const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  healthglobe: [
+    { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
+      note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },
+  ],
+  vitalbar: [
+    { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
+      note: "The value text riding inside the track. Purely cosmetic here — the fill amount is the piece's live value." },
+    { id: "tint", name: "Fill", kind: "choice", choices: ["Glow", "Health", "Mana", "Gold"],
+      note: "Glow follows the kit's Glow role. Health, Mana and Gold are the genre-semantic hues — same canon as the mana & stamina rails — so two bars in one kit can read as different resources." },
+  ],
   cardback: [
     { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
       note: "The set emblem's footprint — Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
@@ -1413,6 +1423,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "stepper", name: "Stepper" },
   { id: "healthglobe", name: "Health globe" },
   { id: "xpbar", name: "XP bar" },
+  // Emerald Tavern target: the plain labeled resource bar (readout inside
+  // the track, no level furniture) — staged until the owner releases it
+  { id: "vitalbar", name: "Vital bar", staged: true },
   { id: "manarails", name: "Mana & stamina" },
   { id: "questpanel", name: "Quest tracker" },
   { id: "dialoguebox", name: "Dialogue box" },
@@ -1529,7 +1542,7 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
   { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
   { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
-  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
+  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
   { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
   { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
   { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },

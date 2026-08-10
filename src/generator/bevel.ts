@@ -4172,8 +4172,54 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="${(0.6 * rimB).toFixed(2)}"/>
   <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>` : ""}
   ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}
+  ${(() => {
+    /* the LEVEL BADGE (Emerald Tavern target: the orb wears its "24"):
+       a content slot, empty by default so every existing globe renders
+       byte-identically. Whole-globe renders only — the Unity rig's
+       rim/glass/liquid layers stay clean; the engine can add its own
+       live level text over the prefab. Same knob+number recipe as the
+       XP bar's level bubble, so the two speak one language. */
+    const lvl = (opts.slots?.lvl ?? "").trim().slice(0, 3);
+    if (!lvl || partG) return "";
+    const rB = Math.max(15, dG * 0.16);
+    const aB = Math.PI * 0.25; // 45° — the lower-right rim seat
+    const bx = cG + (rG - rimW * 0.1) * Math.cos(aB), by = cG + (rG - rimW * 0.1) * Math.sin(aB);
+    return candyKnob(bx, by, rB, knobC) +
+      `<text x="${bx.toFixed(1)}" y="${(by + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(rB * (lvl.length > 2 ? 0.72 : 0.95)).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${esc(lvl)}</text>`;
+  })()}
 </g>
 </svg>`;
+    }
+    case "vitalbar": {
+      /* RPG · vital bar — the plain labeled resource bar from the Emerald
+         Tavern target: the readout rides INSIDE the track ("1,250 / 1,500"),
+         no level furniture, no captions. EDITING CONTRACT: value = fill;
+         Readout is a content slot (cosmetic text — the fill is the live
+         number); Fill picks the kit's Glow or a genre-semantic hue (health
+         green / mana blue / gold), the mana-rails canon, so one kit can
+         stack an HP bar over an MP bar and each reads as itself. */
+      const w = 560 * k, h = 78 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 6 * k;
+      const vV = clamp(value ?? 0.72, 0, 1);
+      const cyV = 30 + h / 2;
+      const barX = 39 + inset + 8 * k, barW = w - inset * 2 - 16 * k;
+      const barH = Math.min(40 * k, h - inset * 2 - 8 * k);
+      const barY = cyV - barH / 2;
+      const tintName = opts.slots?.tint ?? "Glow";
+      const tint = tintName === "Health" ? "#4ade80" : tintName === "Mana" ? "#38bdf8" : tintName === "Gold" ? "#fbbf24" : glow;
+      const gidV = "vb" + UID++;
+      let inner = `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+        `<defs><linearGradient id="${gidV}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(tint, 0.5)}"/><stop offset="0.45" stop-color="${tint}"/><stop offset="1" stop-color="${darken(tint, 0.28)}"/></linearGradient></defs>`;
+      if (vV > 0.02) {
+        // negative-space canon: mercury floats in the track with air all round
+        const gV = 3.5 * k, mH = barH - gV * 2, mW = Math.max(0, (barW - gV * 2) * vV);
+        inner += `<rect x="${(barX + gV).toFixed(1)}" y="${(barY + gV).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidV})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(tint, 0.6)})"` : ""}/>
+          <rect x="${(barX + gV + 4 * k).toFixed(1)}" y="${(barY + gV + 2.5 * k).toFixed(1)}" width="${Math.max(0, mW - 8 * k).toFixed(1)}" height="${(mH * 0.32).toFixed(1)}" rx="${(mH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+      }
+      // the readout prints LAST — it must sit on the mercury, not under it
+      inner += contentText((opts.slots?.readout ?? "1,250 / 1,500").slice(0, 18), barX + 16 * k, cyV + 1, 23 * k * typeK, { keepCase: true });
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-vitalbar="1" '), inner), barX, barW);
     }
     case "xpbar": {
       /* RPG · XP bar — level bubble riding the left end, notched track,
