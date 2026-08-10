@@ -113,23 +113,40 @@ const chaikin = (poly: Pt[]): Pt[] => {
   return out;
 };
 
-const prune = (poly: Pt[], tol: number): Pt[] => {
-  if (poly.length < 8) return poly;
+/* Curvature-aware simplification: accumulate direction change since
+   the last kept vertex and keep a point once the boundary has TURNED
+   enough (or a straight run exceeds maxSeg). A chord-deviation test
+   against the immediate neighbor degenerates on smooth curves — the
+   chord always passes next to the candidate — so turning angle is the
+   honest signal. */
+const prune = (poly: Pt[], maxSeg: number): Pt[] => {
+  const n = poly.length;
+  if (n < 8) return poly;
   const out: Pt[] = [poly[0]];
-  for (let i = 1; i < poly.length - 1; i++) {
-    const a = out[out.length - 1], p = poly[i], b = poly[i + 1];
-    const ex = b[0] - a[0], ey = b[1] - a[1];
-    const len = Math.hypot(ex, ey) || 1;
-    const dev = Math.abs((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / len;
-    if (dev > tol || Math.hypot(p[0] - a[0], p[1] - a[1]) > 40) out.push(p);
+  let acc = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const q = poly[i - 1], p = poly[i], b = poly[i + 1];
+    const a1 = Math.atan2(p[1] - q[1], p[0] - q[0]);
+    const a2 = Math.atan2(b[1] - p[1], b[0] - p[0]);
+    let turn = Math.abs(a2 - a1);
+    if (turn > Math.PI) turn = 2 * Math.PI - turn;
+    acc += turn;
+    const last = out[out.length - 1];
+    if (acc >= 0.085 || Math.hypot(p[0] - last[0], p[1] - last[1]) > maxSeg) {
+      out.push(p);
+      acc = 0;
+    }
   }
-  out.push(poly[poly.length - 1]);
+  out.push(poly[n - 1]);
   return out.length >= 3 ? out : poly;
 };
 
 /** Weld per-glyph contours into their union. `cellHint` defaults to a
- *  resolution that is sub-half-pixel at the authored (÷16) scale. */
-export function weld(polys: Pt[][], groups: number[], cellHint?: number): WeldResult {
+ *  resolution that is sub-half-pixel at the authored (÷16) scale.
+ *  `minHoleWidth` widens the sliver-fill threshold — pass a fraction
+ *  of the measured stroke width so join gaps close like inked
+ *  lettering while real counters stay untouched. */
+export function weld(polys: Pt[][], groups: number[], cellHint?: number, minHoleWidth?: number): WeldResult {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const p of polys) for (const [x, y] of p) {
     if (x < x1) x1 = x; if (x > x2) x2 = x;
@@ -147,8 +164,44 @@ export function weld(polys: Pt[][], groups: number[], cellHint?: number): WeldRe
     const mine = polys.filter((_, i) => groups[i] === gi);
     if (mine.length) fillGlyph(grid, W, H, ox, oy, cell, mine);
   }
-  const loops = trace(grid, W, H, ox, oy, cell)
-    .map((l) => prune(chaikin(chaikin(l)), cell * 0.22));
+  let loops = trace(grid, W, H, ox, oy, cell)
+    .map((l) => prune(chaikin(chaikin(l)), cell * 9));
+  // fill sliver holes: where two letters meet above and below a join,
+  // an honest union keeps a hairline gap — a letterer inks it shut.
+  // Slivers are LONG and THIN (mean width ≈ 2·area/perimeter under a
+  // couple of cells); genuine counters are orders of magnitude wider.
+  const area = (p: Pt[]): number => {
+    let a = 0;
+    for (let i = 0, n = p.length; i < n; i++) {
+      const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % n];
+      a += x1 * y2 - x2 * y1;
+    }
+    return a / 2;
+  };
+  const per = (p: Pt[]): number => {
+    let l = 0;
+    for (let i = 0, n = p.length; i < n; i++) {
+      const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % n];
+      l += Math.hypot(x2 - x1, y2 - y1);
+    }
+    return l;
+  };
+  const inLoop = (x: number, y: number, poly: Pt[]): boolean => {
+    let inside = false;
+    for (let i = 0, n = poly.length, j = n - 1; i < n; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const holeCut = Math.max(cell * 2.2, minHoleWidth ?? 0);
+  loops = loops.filter((l, i) => {
+    const width = (2 * Math.abs(area(l))) / Math.max(1, per(l));
+    if (width > holeCut) return true;
+    let depth = 0;
+    for (let j = 0; j < loops.length; j++) if (j !== i && inLoop(l[0][0], l[0][1], loops[j])) depth++;
+    return depth % 2 === 0; // keep tiny OUTER islands, drop sliver holes
+  });
   const d = loops
     .map((l) => "M" + l.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L") + "Z")
     .join("");

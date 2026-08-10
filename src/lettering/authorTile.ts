@@ -34,6 +34,7 @@ import { scaleRecipe } from "./recipe";
 import type { TreatmentRecipe, RoleRecipe } from "./recipe";
 import { MATERIALS, DEMO_RIG } from "./materials";
 import { weld } from "./weld";
+import { strokeWidth } from "./ops";
 
 export interface GlyphOverride {
   /** global glyph index (blank lines don't advance it) */
@@ -78,25 +79,39 @@ export interface AuthoredTreatment {
 
 export interface AuthoredTile { svg: string; w: number; h: number; effWidth: number }
 
+/** the appearance-only subset of AuthoredTreatment — what any finished
+ *  ink geometry needs to wear the Candy treatment (the Lettering
+ *  Director hands blueprint geometry straight to this) */
+export type CandyAppearance = Pick<
+  AuthoredTreatment,
+  | "palette" | "bevelWidth" | "profile" | "extraFills" | "pattern"
+  | "depthArrangement" | "glossLayers" | "sparkles" | "scene"
+  | "masterScale" | "seed"
+>;
+
 const hash = (s: string): string => {
   let x = 2166136261 >>> 0;
   for (const ch of s) { x ^= ch.charCodeAt(0); x = Math.imul(x, 16777619) >>> 0; }
   return x.toString(36);
 };
 
-export function compileAuthored(font: Font, t: AuthoredTreatment): AuthoredTile {
-  const S = t.masterScale ?? 16;
-  const seed = t.seed ?? 7;
+/** the scaled Candy recipe every authored/blueprint compile shares */
+function candyRecipe(palette: Palette, tracking: number, S: number): TreatmentRecipe {
   const fixture = MATERIALS.find((m) => m.id === "candy-plastic")!;
   const base: TreatmentRecipe = {
-    id: "candy-authored", version: 1, palette: t.palette, light: DEMO_RIG,
+    id: "candy-authored", version: 1, palette, light: DEMO_RIG,
     hero: {
       fontFamily: "x", casePolicy: "preserve", size: 150,
-      tracking: t.tracking ?? 0.012, depth: fixture.depth, material: fixture.material,
+      tracking, depth: fixture.depth, material: fixture.material,
     } as RoleRecipe,
     composition: { lineGap: 0 }, stage: "stage",
   };
-  const R = scaleRecipe(base, S);
+  return scaleRecipe(base, S);
+}
+
+export function compileAuthored(font: Font, t: AuthoredTreatment): AuthoredTile {
+  const S = t.masterScale ?? 16;
+  const R = candyRecipe(t.palette, t.tracking ?? 0.012, S);
   const size = R.hero.size;
   const ns = `at${hash(`${t.text}|${S}|${t.bevelWidth ?? 0}|${t.columnFit ? 1 : 0}|${t.weldInk ? 1 : 0}`)}`;
 
@@ -161,13 +176,26 @@ export function compileAuthored(font: Font, t: AuthoredTreatment): AuthoredTile 
   /* ── INK TOPOLOGY ───────────────────────────────────────────────── */
   let geom: Geom = toGeom(cmds, size);
   if (t.weldInk) {
-    const wd = weld(geom.polys, geom.groups);
+    const wd = weld(geom.polys, geom.groups, undefined, strokeWidth(geom.polys) * 0.16);
     geom = {
       d: wd.d, polys: wd.polys, groups: wd.groups,
       x1: geom.x1, y1: geom.y1, x2: geom.x2, y2: geom.y2,
       glyphDs: [wd.d], glyphPolys: [wd.polys],
     };
   }
+
+  return renderCandyOnGeom(geom, t, ns);
+}
+
+/** Dress ANY finished ink geometry in the Candy treatment — the same
+ *  depth → B2 bevel → fills → finish → scene pipeline compileAuthored
+ *  uses, exposed so the Lettering Director's blueprints (welded,
+ *  swashed, interlocked) compile without re-implementing appearance. */
+export function renderCandyOnGeom(geom: Geom, t: CandyAppearance, ns: string): AuthoredTile {
+  const S = t.masterScale ?? 16;
+  const seed = t.seed ?? 7;
+  const R = candyRecipe(t.palette, 0.012, S);
+  const size = R.hero.size;
 
   /* ── frame ──────────────────────────────────────────────────────── */
   const pad = size * 0.45;
