@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
+import { delBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel } from "./bevel";
@@ -311,7 +312,7 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
   addToBoard: (libId: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
   addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
@@ -550,6 +551,12 @@ export interface BoardDef {
   aspect: "169" | "mobile";
   items: BoardItem[];
   bgImage?: string | null;
+  /** The uploaded ORIGINAL's key in the background vault (bgvault.ts,
+   *  IndexedDB, per-browser). bgImage stays the light ≤1920 proxy the
+   *  stage drags against; the vault original is what the Unity scene
+   *  export ships. Absent = bundled path / pasted URL / pre-vault save —
+   *  exports fall back to the proxy. */
+  bgAssetId?: string | null;
   /** A looping video backdrop (bundled /backdrops/*.mp4 path, or a
    *  session-only blob: URL from an upload). Exclusive with bgImage. */
   bgVideo?: string | null;
@@ -874,6 +881,8 @@ export const useGen = create<GenStore>((set, get) => ({
     saveBoards(get);
   },
   removeBoard: (id) => {
+    const dead = get().boards.find((b) => b.id === id);
+    if (dead?.bgAssetId) void delBgOriginal(dead.bgAssetId);
     mutateBoards(get, set, null, (bs) => {
       const rest = bs.filter((b) => b.id !== id);
       // never zero artboards — deleting the last one leaves a fresh empty one
@@ -896,7 +905,17 @@ export const useGen = create<GenStore>((set, get) => ({
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [] } : b)));
     set({ boardSel: null });
   },
-  setBoardBg: (patch) => mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b))),
+  setBoardBg: (patch) => {
+    /* replacing or clearing a vaulted background retires its ORIGINAL from
+       the vault — the proxy in bgImage keeps history/undo displayable, so
+       only the heavyweight bytes are reclaimed */
+    if ("bgImage" in patch || "bgVideo" in patch || "bgAssetId" in patch) {
+      const cur = get().boards.find((b) => b.id === get().activeBoard);
+      if (cur?.bgAssetId && cur.bgAssetId !== patch.bgAssetId) void delBgOriginal(cur.bgAssetId);
+      if (!("bgAssetId" in patch)) patch = { ...patch, bgAssetId: null };
+    }
+    mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b)));
+  },
   addToBoard: (libId) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;

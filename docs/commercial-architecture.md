@@ -287,6 +287,17 @@ inside the compliance box: the package is fully functional as delivered;
 Pro sells the REMIX-and-re-export loop, never a dependency of the
 downloaded kit.
 
+**The invariant that closes the funnel (owner Q, 2026-08-10: "why would
+I ever join?"): a remix cannot exit the browser on the free tier.** Free
+kits are finished samples WE curate; a user's remixed kit has no free
+export path — every artifact that leaves the browser as usable game
+assets (engine kit, game kit, SVG pack, and Boards→Scenes when it lands)
+passes the `/api/export` grant. Any future export feature routes through
+that same gate before it ships. The only free take-away stays the
+flattened PNG mockup — a picture of a kit, not a kit — and the free
+kit's README/description must say this plainly ("remix free in the
+browser; export your remix with Pro") so nobody feels bait-and-switched.
+
 ## Security posture (what is and is not protected)
 
 - The anon key is public by design; **all** access control is row-level

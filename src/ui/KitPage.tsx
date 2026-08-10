@@ -8,7 +8,7 @@ import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri } from "@/generator/exportUtils";
-import { downloadEngineExport, fetchKitFont } from "@/generator/engineExport";
+import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/generator/engineExport";
 import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
@@ -1449,8 +1449,11 @@ export function KitPage() {
            whole paid layer is inert anyway. */
         const scope = grant.scope ?? (st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const);
         const fdef2 = fontByName(st.cfg.type.font);
+        /* Boards→Scenes rides the FULL scope only — the server's grant is
+           the door (a remix never exits the browser on the free tier) */
+        const exBoards = scope === "full" ? await collectExportBoards(st).catch(() => undefined) : undefined;
         await downloadEngineExport(
-          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope },
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,

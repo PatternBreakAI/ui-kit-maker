@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Smartphone, SquarePen, Trash2, X } from "lucide-react";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { putBgOriginal } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
@@ -805,7 +806,11 @@ export function BoardView({ playing }: { playing: boolean }) {
                 const f = e.target.files?.[0];
                 if (f) {
                   if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
-                  else void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgVideo: null, bgShow: true }));
+                  /* two copies, two jobs: the ORIGINAL bytes go to the vault
+                     (what a Unity scene export ships), the stage gets the
+                     light proxy so dragging never fights a 4K decode */
+                  else void Promise.all([fileToBgDataUrl(f), putBgOriginal(f)]).then(([url, assetId]) =>
+                    setBoardBg({ bgImage: url, bgAssetId: assetId, bgVideo: null, bgShow: true }));
                 }
                 e.target.value = "";
               }} />
