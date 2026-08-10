@@ -1099,6 +1099,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The south tile: the armed quick item (d-pad down) — the flask slot. Factory is the stock potion." },
     { id: "q4", name: "Down quantity", kind: "free", def: "", maxLen: 3,
       note: "The consumable count — the Estus number. Empty removes it." },
+    { id: "active", name: "Active arm", kind: "choice", choices: ["None", "Up", "Left", "Right", "Down"],
+      note: "Lights one arm with the selection ring — the focus a controller draws while cycling. None rests the cross." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,

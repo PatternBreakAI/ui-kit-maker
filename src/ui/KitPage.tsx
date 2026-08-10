@@ -1751,7 +1751,7 @@ const kitTier = useGen((s) => s.tier);
         rk("vitalbar", "Vital · Mana", { slots: { readout: "650 / 1,000", tint: "Mana" } }, 0.65),
         rk("vitalbar", "Vital · Kit glow", {}, 0.72),
         rk("vitalbar", "Vital · Low", { slots: { readout: "180 / 1,500", tint: "Health" } }, 0.12),
-        rk("quickslots", "Quadrant · Loadout", { slots: { q1: "3", q4: "5" } }),
+        rk("quickslots", "Quadrant · Loadout", { slots: { q1: "3", q4: "5", active: "Down" } }),
         rk("quickslots", "Quadrant · Custom", { slots: { g1: "Scroll", g2: "Key", g3: "Zap", g4: "Heart", q4: "2" } }),
         rk("quickslots", "Quadrant · Bare", { slots: { g1: "Empty", g2: "Empty", g3: "Empty", g4: "Empty" } }),
         rk("orderticket", "Order ticket · Urgent", {}, 0.1),
