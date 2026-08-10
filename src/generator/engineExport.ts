@@ -1190,7 +1190,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            per-label Inspector edit. */
         return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10 };
       }),
-      palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5) },
+      /* markInk/radioInk — the SELECTED-mark tint for the wired Toggles,
+         renderKit's own chain: the piece's Pressed-state icon color, else
+         its main icon color, else the Glow role (owner: recolor the check
+         "without having to change the glow color") */
+      palette: { bevel: bevelC, glow: glowC, innerFill: innerC, well: wellC, highlight: base.lighting.tint ?? base.effects.Highlight ?? "#FFFFFF", shadow: base.effects.Shadow ?? darken(bevelC, 0.5),
+        markInk: (() => { const pc = pieceCfg("checkbox"); return pc.stateDesigns?.pressed?.icon?.color ?? pc.icon.color ?? glowC; })(),
+        radioInk: (() => { const pc = pieceCfg("radio"); return pc.stateDesigns?.pressed?.icon?.color ?? pc.icon.color ?? glowC; })() },
       /* the resting aura around pieces (app: candy.bloom) — deliberately NOT
          baked into sprites (auras overlap what's behind them), composed
          engine-side from fx/glow.png; the Playground shows the pattern */
@@ -2865,7 +2871,7 @@ namespace PatternBreak {
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
-  [Serializable] class PBPalette { public string glow; public string highlight; }
+  [Serializable] class PBPalette { public string glow; public string highlight; public string markInk; public string radioInk; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
@@ -4600,11 +4606,11 @@ namespace PatternBreak {
        and hides it natively. The designed ghost-mark prefabs stay too. */
     static bool TogglePrefabs(string dir, string root, int pngScale, PBManifest m) {
       bool any = false;
-      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f)) any = true;
-      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.34f)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f, m != null && m.palette != null ? m.palette.markInk : null)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.34f, m != null && m.palette != null ? m.palette.radioInk : null)) any = true;
       return any;
     }
-    static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale) {
+    static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale, string ink) {
       var bg = S(root + "/assets/" + bgPath);
       var mark = S(root + "/assets/" + markPath);
       if (bg == null || mark == null) return false;
@@ -4613,10 +4619,13 @@ namespace PatternBreak {
       markGo.transform.SetParent(go.transform, false);
       var mi = markGo.GetComponent<Image>();
       mi.raycastTarget = false;
-      // the mark wears the kit's Glow role, like the app's lit check
-      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) {
+      // the mark wears the kit's mark ink (the maker's Pressed-state icon
+      // color when set), like the app's lit check — old manifests ship no
+      // markInk and fall back to the Glow role, the tint they always had
+      string tint = !string.IsNullOrEmpty(ink) ? ink : (m != null && m.palette != null ? m.palette.glow : null);
+      if (!string.IsNullOrEmpty(tint)) {
         Color c;
-        if (ColorUtility.TryParseHtmlString(m.palette.glow, out c)) mi.color = c;
+        if (ColorUtility.TryParseHtmlString(tint, out c)) mi.color = c;
       }
       var bgRt = go.GetComponent<RectTransform>();
       var mrt = markGo.GetComponent<RectTransform>();

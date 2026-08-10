@@ -2979,6 +2979,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const bevel = effect(cfg.effects, "Bevel"), glow = effect(cfg.effects, "Glow");
   // the dragger ball can carry its own color; null follows the Bevel role
   const knobC = cfg.knob?.color ?? bevel;
+  /* the SELECTED-mark ink (checkbox check, radio pip): Pressed is the kit's
+     "on" look, so the Pressed-state icon color — or the main icon color —
+     re-inks the lit mark on its own (owner: "edit the colors of these
+     checkmarks without having to change the glow color"). Neither set =
+     the Glow role, the ink these marks have always worn. */
+  const markInk = cfg.stateDesigns?.pressed?.icon?.color ?? cfg.icon.color ?? glow;
   /* content-text — the full typography treatment for text the pieces draw
      themselves (counters, segments, rows): fill mode incl. gradients, case,
      italic, tracking, outline, shadow and glow all follow the theme. */
@@ -3086,7 +3092,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 
   /* v67: icons inherit the SAME treatment as type, in every self-drawn
      site — gradient/solid fill, outline pass, disabled dimming. */
-  const themedIcon = (defI: IconDef, xI: number, yI: number, sI: number, tone: string, swI = 2.2): string => {
+  const themedIcon = (defI: IconDef, xI0: number, yI0: number, sI: number, tone: string, swI = 2.2): string => {
+    /* the Icons nudge reaches self-drawn glyphs too — the dials promise
+       kit-wide reach and the weapon glyph must obey them (owner: "nudge
+       doesn't work on the icon here", the Kill feed). Same px unit as
+       built icons, scaled by this piece's size factor. */
+    const xI = xI0 + (cfg.icon.ox || 0) * k, yI = yI0 + (cfg.icon.oy || 0) * k;
     const T4 = cfg.type;
     if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
@@ -3233,7 +3244,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // the check is a separate tintable glyph the engine toggles)
       const ck = opts.icon === null ? ""
         : lit
-          ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, glow, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${glow})` })
+          ? iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, markInk, { strokeWidth: 3 * iconWK, filter: `drop-shadow(0 0 6px ${markInk})` })
           : iconGroup(STOCK_ICONS.check, 33 + ch * 0.24, 27 + ch * 0.24, ch * 0.52, "rgba(255,255,255,0.22)", { strokeWidth: 3 * iconWK });
       return inject(track, `<path d="${wellP}" fill="${wellFill}" opacity="0.9"/>` + ck);
     }
@@ -3250,7 +3261,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // is a separate tintable glyph the engine toggles)
       const pip = opts.icon === null ? ""
         : lit2
-          ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 6px ${glow})"/>`
+          ? `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${markInk}" style="filter: drop-shadow(0 0 6px ${markInk})"/>`
           : `<circle cx="${rcx.toFixed(1)}" cy="${rcy.toFixed(1)}" r="${rr.toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${(2.5 * iconWK).toFixed(2)}"/>`;
       return inject(track2, `<path d="${wellR}" fill="${wellFill}" opacity="0.9"/>` + pip);
     }
