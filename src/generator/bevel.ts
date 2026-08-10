@@ -2716,7 +2716,7 @@ const cxOf = (w: number) => w / 2;
 export const VALUE_DRIVEN = new Set<KitComponentId>([
   "segment", "checkbox", "radio", "toggle", "slider", "progress", "segbar", "input", "vsbar", "dialog",
   "listmenu", "scrollbar", "pagedots", "steps", "loadbar", "setrow", "notifydot", "avatarframe", "currency",
-  "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "manarails", "questpanel", "choicelist",
+  "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "vitalbar", "manarails", "questpanel", "choicelist",
   "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
   "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
   "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
@@ -4171,9 +4171,146 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cG}" cy="${cG}" r="${(rG - rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="${(0.6 * rimB).toFixed(2)}"/>
   <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>` : ""}
-  ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}
+  ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}${(() => {
+    /* the LEVEL BADGE (Emerald Tavern target: the orb wears its "24"):
+       a content slot, empty by default so every existing globe renders
+       byte-identically. Whole-globe renders only — the Unity rig's
+       rim/glass/liquid layers stay clean; the engine can add its own
+       live level text over the prefab. Same knob+number recipe as the
+       XP bar's level bubble, so the two speak one language. */
+    const lvl = (opts.slots?.lvl ?? "").trim().slice(0, 3);
+    if (!lvl || partG) return "";
+    const rB = Math.max(15, dG * 0.16);
+    const aB = Math.PI * 0.25; // 45° — the lower-right rim seat
+    const bx = cG + (rG - rimW * 0.1) * Math.cos(aB), by = cG + (rG - rimW * 0.1) * Math.sin(aB);
+    return candyKnob(bx, by, rB, knobC) +
+      `<text x="${bx.toFixed(1)}" y="${(by + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(rB * (lvl.length > 2 ? 0.72 : 0.95)).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${esc(lvl)}</text>`;
+  })()}
 </g>
 </svg>`;
+    }
+    case "vitalbar": {
+      /* RPG · vital bar — the labeled resource bar in the xpbar's
+         two-storey layout: readout line ABOVE, track below (owner: the
+         numbers overlapped the mercury when they rode inside; "display
+         them above or beneath, increase the area of the component").
+         EDITING CONTRACT: value = fill; Readout is a content slot
+         (cosmetic text — the fill is the live number); Fill picks the
+         kit's Glow or a genre-semantic hue (health green / mana blue /
+         gold), the mana-rails canon, so an HP bar over an MP bar each
+         reads as itself. */
+      const w = 560 * k, h = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 120 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const inset = bw + 8 * k;
+      const vV = clamp(value ?? 0.72, 0, 1);
+      const barX = 39 + inset + 4 * k, barW = w - inset * 2 - 8 * k;
+      // fixed height, the xpbar/manarails canon — a wall-width slider must
+      // never be able to invert the track (review: negative rects at bw 19+)
+      const barH = 28 * k;
+      const labY = 30 + inset + 14 * k;
+      const barY = 30 + h - inset - barH - 8 * k;
+      const tintName = opts.slots?.tint ?? "Glow";
+      const tint = tintName === "Health" ? "#4ade80" : tintName === "Mana" ? "#38bdf8" : tintName === "Gold" ? "#fbbf24" : glow;
+      const gidV = "vb" + UID++;
+      let inner = contentText((opts.slots?.readout ?? "1,250 / 1,500").slice(0, 18), barX + 2, labY, 21 * k * typeK, { keepCase: true }) +
+        `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+        `<defs><linearGradient id="${gidV}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(tint, 0.5)}"/><stop offset="0.45" stop-color="${tint}"/><stop offset="1" stop-color="${darken(tint, 0.28)}"/></linearGradient></defs>`;
+      if (vV > 0.02) {
+        // negative-space canon: mercury floats in the track with air all round
+        const gV = 3.5 * k, mH = barH - gV * 2, mW = Math.max(0, (barW - gV * 2) * vV);
+        inner += `<rect x="${(barX + gV).toFixed(1)}" y="${(barY + gV).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidV})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(tint, 0.6)})"` : ""}/>
+          <rect x="${(barX + gV + 4 * k).toFixed(1)}" y="${(barY + gV + 2.5 * k).toFixed(1)}" width="${Math.max(0, mW - 8 * k).toFixed(1)}" height="${(mH * 0.32).toFixed(1)}" rx="${(mH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+      }
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-vitalbar="1" '), inner), barX, barW);
+    }
+    case "quickslots": {
+      /* RPG · quick slots — the EQUIPMENT QUADRANT of the soulslike
+         lineage (Dark Souls, Bloodborne, Elden Ring): four tiles in a
+         d-pad cross with an EMPTY middle. Each arm IS the armed item of
+         its category — up spell, left off-hand, right weapon, down
+         consumable with its count. The tiles FLOAT APART on a shared
+         backing disc with quiet connector spokes (owner: "connect them
+         with a new element... they should not be touching"), and one arm
+         can wear the ACTIVE ring — the selection a controller focus
+         draws. One piece owns the cluster because loose slots composited
+         by hand smear their extrusion tails: shallow shared depth, one
+         disc, one seat shadow. EDITING CONTRACT: four glyph slots
+         (inventory picks, Empty = dashed ready well), four quantity
+         slots (empty = no badge), Active arm choice. */
+      const T9 = ({ s: 88, m: 112, l: 140 } as Record<KitSize, number>)[size] * k;
+      const G9 = 14 * k, D9 = T9 + G9, PAD9 = 30, PADB9 = 56;
+      const R9 = D9 + T9 / 2 + 12 * k;
+      const W9 = PAD9 * 2 + R9 * 2, H9 = PAD9 + PADB9 + R9 * 2;
+      const ccx9 = W9 / 2, ccy9 = PAD9 + R9;
+      /* the cluster pins its tiles to a shallow extrusion and a short cast
+         shadow — the same clone-and-clamp move the muted "alt" tone uses */
+      const tcfg = JSON.parse(JSON.stringify(cfg)) as GenConfig;
+      tcfg.candy.extrusion.depth = Math.min(tcfg.candy.extrusion.depth, 10);
+      tcfg.shadow.distance = Math.min(tcfg.shadow.distance, 7);
+      tcfg.candy.bloom = { ...(tcfg.candy.bloom ?? { opacity: 0, size: 0 }), opacity: 0 };
+      const innerOf9 = (s: string) => s.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+      /* the wall inset CAPS at 17% of the tile: these tiles are 88k, not the
+         132k of rarityframe, and a factory 19px wall at size s left a 15px
+         well with negative-radius dashed arcs (review) */
+      const inset9 = Math.min(bw, T9 * 0.17) + 5;
+      // d-pad semantics drive the stock picks: up spell, left off-hand,
+      // right weapon, down consumable
+      const FACTORY9: (keyof typeof STOCK_ICONS)[] = ["zap", "shield", "sword", "flask"];
+      const tileAt9 = (tx: number, ty: number, glyph: IconDef | null, qty: string, corner: "tr" | "br" | "bl", hot: boolean) => {
+        const sh9 = build(tcfg, state, { x: 33, y: 27, h: T9, fs: 0, iconSize: 0, tokenH: 132 }, { pinDesign: true, iconDef: null, label: "", fixedW: T9, shapeOverride: sov });
+        /* anchor on the shell's ACTUAL position (data-shell = x, y+rise+lift):
+           build reserves the extrusion slider's full travel as a rise
+           transform, and hosting the subtree at its coded x/y left the whole
+           cross ~30px south of the grid (review). The flipclock move. */
+        const aM9 = /data-shell="([-\d. ]+)"/.exec(sh9);
+        const [ax9, ay9] = aM9 ? aM9[1].split(" ").map(Number) : [33, 27];
+        const cxT = 33 + T9 / 2, cyT = 27 + T9 / 2, innerT = T9 - inset9 * 2;
+        const wellP9 = shapePath(sov ?? cfg.shape, 33 + inset9, 27 + inset9, innerT, innerT, Math.max(0, cfg.bevel.softness - 10));
+        let content9 = `<path d="${wellP9}" fill="${wellFill}" opacity="0.9"/>`;
+        if (glyph) content9 += themedIcon(glyph, cxT - innerT * 0.3, cyT - innerT * 0.3, innerT * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2);
+        else if (innerT - 16 >= 6) content9 += `<path d="${shapePath(sov ?? cfg.shape, 33 + inset9 + 8, 27 + inset9 + 8, innerT - 16, innerT - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`;
+        if (hot) {
+          /* the ACTIVE ring: controller focus in the kit's glow voice — a
+             ring just outside the silhouette plus a soft wash in the well,
+             calm on disabled like every lit mark */
+          content9 += `<path d="${wellP9}" fill="${hexRgba(glow, 0.14)}"/>`;
+          content9 += `<path d="${shapePath(sov ?? cfg.shape, 33 - 4, 27 - 4, T9 + 8, T9 + 8, cfg.bevel.softness)}" fill="none" stroke="${hexRgba(glow, 0.9)}" stroke-width="3.5"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>`;
+        }
+        if (qty) {
+          /* the count badge rides each arm's OUTER corner — a badge must
+             never hide behind a neighbour */
+          const bx9 = corner === "bl" ? 33 + inset9 + 4 : 33 + T9 - inset9 - 4;
+          const by9 = corner === "tr" ? 27 + inset9 + 4 : 27 + T9 - inset9 - 4;
+          content9 += `<circle cx="${bx9}" cy="${by9}" r="15" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.5"/><text x="${bx9}" y="${by9 + 1}" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(qty)}</text>`;
+        }
+        return `<g transform="translate(${(tx - ax9).toFixed(1)} ${(ty - ay9).toFixed(1)})">${innerOf9(inject(sh9, content9))}</g>`;
+      };
+      const pick9 = (n: number): IconDef | null => {
+        const p = opts.slots?.[`g${n}`];
+        if (p === "Empty") return null;
+        return (p && STOCK_ICONS[p.toLowerCase()]) || STOCK_ICONS[FACTORY9[n - 1]] || null;
+      };
+      const qty9 = (n: number) => (opts.slots?.[`q${n}`] ?? "").trim().slice(0, 3);
+      const hot9 = ({ Up: 1, Left: 2, Right: 3, Down: 4 } as Record<string, number>)[opts.slots?.active ?? ""] ?? 0;
+      /* the BACKING DISC — the element that makes four tiles one
+         instrument: a sunken plate in the kit's material voice, four quiet
+         spokes reaching for the tiles, a small hub where they meet */
+      const gidQ = "qs" + UID++;
+      const spoke9 = (dx: number, dy: number) =>
+        `<line x1="${(ccx9 + dx * T9 * 0.28).toFixed(1)}" y1="${(ccy9 + dy * T9 * 0.28).toFixed(1)}" x2="${(ccx9 + dx * D9 * 0.72).toFixed(1)}" y2="${(ccy9 + dy * D9 * 0.72).toFixed(1)}" stroke="rgba(255,255,255,0.10)" stroke-width="${(9 * k).toFixed(1)}" stroke-linecap="round"/>`;
+      const disc9 =
+        `<ellipse cx="${ccx9.toFixed(1)}" cy="${(ccy9 + R9 + 6 * k).toFixed(1)}" rx="${(R9 * 1.02).toFixed(1)}" ry="${(13 * k).toFixed(1)}" fill="rgba(8,12,20,0.28)" style="filter: blur(${(6 * k).toFixed(1)}px)"/>` +
+        `<defs><radialGradient id="${gidQ}d" cx="0.5" cy="0.42" r="0.9"><stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.68)}"/><stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.84)}"/></radialGradient></defs>` +
+        `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${R9.toFixed(1)}" fill="url(#${gidQ}d)" opacity="0.93" stroke="rgba(0,0,0,0.38)" stroke-width="1.5"/>` +
+        `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(R9 - 4 * k).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.35)}" stroke-width="1.2" opacity="0.35"/>` +
+        spoke9(0, -1) + spoke9(-1, 0) + spoke9(1, 0) + spoke9(0, 1) +
+        `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="rgba(8,12,20,0.5)" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"/>`;
+      let body9 = disc9;
+      body9 += tileAt9(ccx9 - T9 / 2, ccy9 - D9 - T9 / 2, pick9(1), qty9(1), "tr", hot9 === 1);
+      body9 += tileAt9(ccx9 - D9 - T9 / 2, ccy9 - T9 / 2, pick9(2), qty9(2), "bl", hot9 === 2);
+      body9 += tileAt9(ccx9 + D9 - T9 / 2, ccy9 - T9 / 2, pick9(3), qty9(3), "br", hot9 === 3);
+      body9 += tileAt9(ccx9 - T9 / 2, ccy9 + D9 - T9 / 2, pick9(4), qty9(4), "br", hot9 === 4);
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W9}" height="${H9}" viewBox="0 0 ${W9} ${H9}" data-quickslots="1" data-shell0="${PAD9} ${PAD9} ${(R9 * 2).toFixed(1)} ${(R9 * 2).toFixed(1)}" role="img" aria-label="equipment quadrant">${body9}</svg>`;
     }
     case "xpbar": {
       /* RPG · XP bar — level bubble riding the left end, notched track,

@@ -36,9 +36,10 @@ generation work.
   `plate-d-cover` (+ `-1`, `-2` for candidates).
 
 **What we do with them**
-- Downscale to 1920 × 1080 and convert to JPEG q85 (~200 KB each) for the
-  package — the same treatment as our site's existing backdrops
-  (1920 × 1097, 140–196 KB).
+- Downscale to 1920 × 1080 **PNG** for the package. (Corrected 2026-08-10:
+  the verified submission guidelines require lossless formats for all
+  in-package images outside Tools/Add-Ons/Audio — 2.4.3.a. The JPEG plan
+  is dead; PNG runs a few MB per plate against a 6 GB cap, a non-issue.)
 - Unity import: Max Size 2048, sRGB on, mipmaps off, Normal compression.
 - The importer's Canvas is `ScaleWithScreenSize` at a **1920 × 1080
   reference resolution** — that's why 16:9 masters, and why edge content is
@@ -106,13 +107,15 @@ the outer rows and columns, and locate the frame's brightest point.
 row 0 sits within a point or two of row 10 on every side. The negative-list
 fix worked; keep that clause in every prompt from here.
 
-**But both arrived at 1672 × 941, not 2560 × 1440.** Under 1920 wide, so
-they upscale even on an ordinary 1080p screen, and a 2400-wide store
-screenshot would stretch them 44%. Re-generate at the largest 16:9 the tool
-offers. Mitigating factor, and only for these plates: the art is
-deliberately soft and low-frequency, which is exactly the content that
-survives upscaling — so if ~1672 is a hard ceiling we can still ship the
-in-package 1920 × 1080 JPEGs. Store screenshots are the real constraint.
+**Both arrived at 1672 × 941, and the re-render (2026-08-10) came back at
+exactly 1672 × 941 again — that is the tool's hard ceiling, confirmed.** So
+the fallback is now the plan of record for every plate: generate at the
+tool's maximum, upscale in-house to 1920 × 1080 (canvas, high-quality
+smoothing) for the package JPEG. It works because the art is deliberately
+soft and low-frequency — exactly the content that survives a 15% upscale.
+Store screenshots composite the UI at native resolution OVER the upscaled
+plate, so the crisp pixels are ours and the minimum-1200 rule is cleared
+either way. Drop the "re-generate larger" ask; stop chasing 2560.
 
 For a HUD plate the two strips matter far more than the centre, because the
 HUD deliberately hugs the edges — measured against the real Lizard HUD,
@@ -129,12 +132,21 @@ contrast ×100; lower is calmer:
 
 Candidate 2's top strip is **2.6× calmer** — smooth sky where Candidate 1
 has tree canopy, directly under the health globe, XP rails, quest tracker
-and mini-map. That decides it. Candidate 2 does put its brightest point
-inside the centre 60%, which rule 4b forbids on a menu plate — but on a
-gameplay plate the centre carries the game, not the UI, so the rule is
-relaxed here and a hero sunset there is an asset, not a defect.
+and mini-map. Candidate 2 does put its brightest point inside the centre
+60%, which rule 4b forbids on a menu plate — but on a gameplay plate the
+centre carries the game, not the UI, so the rule is relaxed here and a hero
+sunset there is an asset, not a defect.
 
 Both bottoms are near-black (0.04) — the hotbar and ammo counter will pop.
+
+**FINAL (2026-08-10): the re-rendered candidate 2** (batch `b2.zip`,
+`…09_16_48 PM (2).png`) ships as Plate B. Its numbers: top-strip detail
+1.06 (calm sky), bottom strip mean 0.049 with the calmest peak of any
+candidate (0.254), edges clean at native resolution. Upscaled in-house to
+1920 × 1080 JPEG q85 (~234 KB) and verified under the real Emerald Tavern
+HUD — trackers on quiet sky, hotbar on near-black ground. Settled plates so
+far: A = torches-and-banner, B = this. Still to generate: C (loading),
+D (store cover stage).
 
 ## Palette — settled
 
@@ -211,12 +223,21 @@ interior. Both delivered Plate A candidates took the valley and worked.
   later, it crops from these masters.
 - **No separate pause/inventory art** — derived from A and B.
 
-## One flag: the AI disclosure
+## One flag: the AI disclosure (rules now verified — see
+`UNITY-SUBMISSION-GUIDELINES.md` 1.6)
 
-The store has a dedicated generative-AI disclosure field, and the brief's
-compliance box (§2.4) planned to answer it **"none"** — our art is
-deterministic procedural engine output, which is a genuine differentiator
-we intend to market ("procedurally generated," never "AI").
+The field is named the **"AI description"** field, and its rules are: plain
+terms, no marketing language, name the SPECIFIC tools, describe the
+value-adding modifications (1.6.a). Two more verified rules shape our copy:
+marketing-only AI (the Plate D cover stage, which never enters the package)
+needs **no** disclosure (1.6.b); and AI-assisted content may not be
+described with words implying human effort — "drawn," "hand drawn,"
+"painted" — anywhere in the submission (1.6.c), so the store copy for the
+plates avoids the "painterly" family even though the private generation
+prompts use it. The brief's compliance box planned to answer "none" — our
+UI art is deterministic procedural engine output, which is a genuine
+differentiator we intend to market ("procedurally generated," never
+"AI").
 
 Shipping AI-generated backdrops inside the package changes that answer to
 **yes**, and the honest declaration becomes something like: *"Demo scene

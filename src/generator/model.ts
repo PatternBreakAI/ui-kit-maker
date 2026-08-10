@@ -1022,7 +1022,7 @@ export type KitComponentId =
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
   | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
   | "nameplate" | "currency" | "buffframe" | "cooldown" | "stepper"
-  | "healthglobe" | "xpbar" | "manarails" | "questpanel" | "dialoguebox"
+  | "healthglobe" | "xpbar" | "vitalbar" | "quickslots" | "manarails" | "questpanel" | "dialoguebox"
   | "choicelist" | "invgrid" | "rarityframe" | "equipslot" | "skillnode"
   | "compass" | "partyframe" | "dmgnumber" | "loottag"
   | "crosshair" | "hitmarker" | "killfeed" | "magazine" | "equipselector"
@@ -1076,6 +1076,38 @@ const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "B
 const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  healthglobe: [
+    { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
+      note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },
+  ],
+  quickslots: [
+    /* the soulslike equipment quadrant: each arm is the ARMED item of its
+       d-pad category — there is no centre socket, arming IS the tile */
+    { id: "g1", name: "Up — spell / skill", kind: "choice", choices: INV_GLYPHS,
+      note: "The north tile: the armed spell or skill (d-pad up cycles it in the soulslike canon). Factory is the stock bolt; Empty leaves a dashed ready well." },
+    { id: "q1", name: "Up quantity", kind: "free", def: "", maxLen: 3,
+      note: "A number here pins a count badge to the tile's corner — charges, uses. Empty removes it." },
+    { id: "g2", name: "Left — off-hand", kind: "choice", choices: INV_GLYPHS,
+      note: "The west tile: the armed off-hand (d-pad left). Factory is the stock shield." },
+    { id: "q2", name: "Left quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the west tile. Empty removes it." },
+    { id: "g3", name: "Right — weapon", kind: "choice", choices: INV_GLYPHS,
+      note: "The east tile: the armed weapon (d-pad right). Factory is the stock sword." },
+    { id: "q3", name: "Right quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the east tile. Empty removes it." },
+    { id: "g4", name: "Down — consumable", kind: "choice", choices: INV_GLYPHS,
+      note: "The south tile: the armed quick item (d-pad down) — the flask slot. Factory is the stock potion." },
+    { id: "q4", name: "Down quantity", kind: "free", def: "", maxLen: 3,
+      note: "The consumable count — the Estus number. Empty removes it." },
+    { id: "active", name: "Active arm", kind: "choice", choices: ["None", "Up", "Left", "Right", "Down"],
+      note: "Lights one arm with the selection ring — the focus a controller draws while cycling. None rests the cross." },
+  ],
+  vitalbar: [
+    { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
+      note: "The value text riding inside the track. Purely cosmetic here — the fill amount is the piece's live value." },
+    { id: "tint", name: "Fill", kind: "choice", choices: ["Glow", "Health", "Mana", "Gold"],
+      note: "Glow follows the kit's Glow role. Health, Mana and Gold are the genre-semantic hues — same canon as the mana & stamina rails — so two bars in one kit can read as different resources." },
+  ],
   cardback: [
     { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
       note: "The set emblem's footprint — Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
@@ -1413,6 +1445,12 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "stepper", name: "Stepper" },
   { id: "healthglobe", name: "Health globe" },
   { id: "xpbar", name: "XP bar" },
+  // Emerald Tavern target: the plain labeled resource bar (readout inside
+  // the track, no level furniture) — staged until the owner releases it
+  { id: "vitalbar", name: "Vital bar", staged: true },
+  // Emerald Tavern target: the consumable cross as ONE piece — loose slots
+  // composited by hand smear their extrusion tails over each other
+  { id: "quickslots", name: "Quick slots", staged: true },
   { id: "manarails", name: "Mana & stamina" },
   { id: "questpanel", name: "Quest tracker" },
   { id: "dialoguebox", name: "Dialogue box" },
@@ -1529,10 +1567,10 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
   { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
   { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
-  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
+  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
   { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
   { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
-  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
+  { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "quickslots", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
   { id: "shooter", name: "Shooter & action", members: ["ammo", "killfeed", "dmgnumber", "respawn", "waypoint", "weaponwheel", "equipselector", "buffframe", "hotbar", "crosshair"] },
   { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
   { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },

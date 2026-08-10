@@ -1,10 +1,14 @@
 # The Free Kit — Unity Asset Store funnel brief
 
-Drafted 2026-08-09, for the owner's bless before any code. Sources: Unity's
-submission guidelines (via secondary coverage — assetstore.unity.com is
-blocked from this container; verify exact clause text once during listing
-prep), the Asset Store content-transparency policy, category research, and
-Jimi's field notes (our one real Unity-dev data point).
+Drafted 2026-08-09. Sources: Unity's submission guidelines — now VERIFIED
+against the real page (owner capture, 2026-08-10; page dated 2026-05-20;
+full normative text + delta log + P2 checklist in
+`UNITY-SUBMISSION-GUIDELINES.md`) — the Asset Store content-transparency
+policy, category research, and Jimi's field notes (our one real Unity-dev
+data point). The old caveat about second-hand clause text is closed; every
+compliance claim below held up, with the deltas noted in that doc (lossless
+in-package images, the "AI description" field rules, the no-human-effort-
+words rule for AI content).
 
 ## 1. The play
 
