@@ -2716,7 +2716,7 @@ const cxOf = (w: number) => w / 2;
 export const VALUE_DRIVEN = new Set<KitComponentId>([
   "segment", "checkbox", "radio", "toggle", "slider", "progress", "segbar", "input", "vsbar", "dialog",
   "listmenu", "scrollbar", "pagedots", "steps", "loadbar", "setrow", "notifydot", "avatarframe", "currency",
-  "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "manarails", "questpanel", "choicelist",
+  "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "vitalbar", "manarails", "questpanel", "choicelist",
   "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
   "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
   "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
@@ -4171,8 +4171,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cG}" cy="${cG}" r="${(rG - rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   <circle cx="${cG}" cy="${cG}" r="${(rG + rimW / 2 - 0.6).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.55)}" stroke-width="1" opacity="${(0.6 * rimB).toFixed(2)}"/>
   <path d="M ${(cG + rG * Math.cos(Math.PI * 1.08)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.08)).toFixed(1)} A ${rG.toFixed(1)} ${rG.toFixed(1)} 0 0 1 ${(cG + rG * Math.cos(Math.PI * 1.52)).toFixed(1)} ${(cG + rG * Math.sin(Math.PI * 1.52)).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.68)}" stroke-width="${(rimW * 0.32).toFixed(1)}" stroke-linecap="round" opacity="${(0.75 * rimB).toFixed(2)}"/>` : ""}
-  ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}
-  ${(() => {
+  ${partG !== "rim" ? `<ellipse cx="${(cG - inR * 0.3).toFixed(1)}" cy="${(cG - inR * 0.52).toFixed(1)}" rx="${(inR * 0.4).toFixed(1)}" ry="${(inR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.22"/>` : ""}${(() => {
     /* the LEVEL BADGE (Emerald Tavern target: the orb wears its "24"):
        a content slot, empty by default so every existing globe renders
        byte-identically. Whole-globe renders only — the Unity rig's
@@ -4204,7 +4203,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vV = clamp(value ?? 0.72, 0, 1);
       const cyV = 30 + h / 2;
       const barX = 39 + inset + 8 * k, barW = w - inset * 2 - 16 * k;
-      const barH = Math.min(40 * k, h - inset * 2 - 8 * k);
+      // fixed height, the xpbar/manarails canon — a wall-width slider must
+      // never be able to invert the track (review: negative rects at bw 19+)
+      const barH = 30 * k;
       const barY = cyV - barH / 2;
       const tintName = opts.slots?.tint ?? "Glow";
       const tint = tintName === "Health" ? "#4ade80" : tintName === "Mana" ? "#38bdf8" : tintName === "Gold" ? "#fbbf24" : glow;
@@ -4247,17 +4248,27 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       tcfg.shadow.distance = Math.min(tcfg.shadow.distance, 7);
       tcfg.candy.bloom = { ...(tcfg.candy.bloom ?? { opacity: 0, size: 0 }), opacity: 0 };
       const innerOf9 = (s: string) => s.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
-      const inset9 = bw + 5;
+      /* the wall inset CAPS at 17% of the tile: these tiles are 88k, not the
+         132k of rarityframe, and a factory 19px wall at size s left a 15px
+         well with negative-radius dashed arcs (review) */
+      const inset9 = Math.min(bw, T9 * 0.17) + 5;
       // d-pad semantics drive the stock picks: up spell, left off-hand,
       // right weapon, down consumable
       const FACTORY9: (keyof typeof STOCK_ICONS)[] = ["zap", "shield", "sword", "flask"];
       const tileAt9 = (tx: number, ty: number, glyph: IconDef | null, qty: string, corner: "tr" | "br" | "bl" = "br") => {
         const sh9 = build(tcfg, state, { x: 33, y: 27, h: T9, fs: 0, iconSize: 0, tokenH: 132 }, { pinDesign: true, iconDef: null, label: "", fixedW: T9, shapeOverride: sov });
+        /* anchor on the shell's ACTUAL position (data-shell = x, y+rise+lift):
+           build reserves the extrusion slider's full travel as a rise
+           transform, and hosting the subtree at its coded x/y left the whole
+           cross ~30px south of the grid — seat shadow orphaned, S shadow
+           clipped (review). The flipclock move. */
+        const aM9 = /data-shell="([-\d. ]+)"/.exec(sh9);
+        const [ax9, ay9] = aM9 ? aM9[1].split(" ").map(Number) : [33, 27];
         const cxT = 33 + T9 / 2, cyT = 27 + T9 / 2, innerT = T9 - inset9 * 2;
         const wellP9 = shapePath(sov ?? cfg.shape, 33 + inset9, 27 + inset9, innerT, innerT, Math.max(0, cfg.bevel.softness - 10));
         let content9 = `<path d="${wellP9}" fill="${wellFill}" opacity="0.9"/>`;
         if (glyph) content9 += themedIcon(glyph, cxT - innerT * 0.3, cyT - innerT * 0.3, innerT * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2);
-        else content9 += `<path d="${shapePath(sov ?? cfg.shape, 33 + inset9 + 8, 27 + inset9 + 8, innerT - 16, innerT - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`;
+        else if (innerT - 16 >= 6) content9 += `<path d="${shapePath(sov ?? cfg.shape, 33 + inset9 + 8, 27 + inset9 + 8, innerT - 16, innerT - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`;
         if (qty) {
           /* the count badge rides each arm's OUTER corner — the inner
              corners overlap by design, and a badge must never hide */
@@ -4265,7 +4276,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const by9 = corner === "tr" ? 27 + inset9 + 4 : 27 + T9 - inset9 - 4;
           content9 += `<circle cx="${bx9}" cy="${by9}" r="15" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.5"/><text x="${bx9}" y="${by9 + 1}" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(qty)}</text>`;
         }
-        return `<g transform="translate(${(tx - 33).toFixed(1)} ${(ty - 27).toFixed(1)})">${innerOf9(inject(sh9, content9))}</g>`;
+        return `<g transform="translate(${(tx - ax9).toFixed(1)} ${(ty - ay9).toFixed(1)})">${innerOf9(inject(sh9, content9))}</g>`;
       };
       const pick9 = (n: number): IconDef | null => {
         const p = opts.slots?.[`g${n}`];
