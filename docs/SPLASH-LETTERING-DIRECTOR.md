@@ -96,3 +96,25 @@ modification.
 
 The production editor stays parked until the study's silhouettes pass
 the designed-not-typeset gate.
+
+## Study outcome — round 1 (2026-08-10)
+
+A live four-lens council + adversarial gatekeeper reviewed the actual
+rendered sheets. Their findings forced six engine fixes, the largest
+being **nonzero-winding weld fill** (Baloo-class fonts build letters
+from overlapping pieces; even-odd parity punched white plugs through
+every stem/bowl joint) and the **per-aperture weld gate** (each
+original counter tracked through the pair-weld by centroid; newly
+trapped negative space is a feature, crushed original apertures are
+damage).
+
+Final adversarial gate: **SWEET DREAMS passes** (nested lines, weight
+rebuilt, underline swash grown from the final s terminal); NIGHT
+MARKET passed two of three gate rounds; BUBBLE / STAY WILD & FREE /
+GO / CHAMPIONSHIP fail with recorded reasons. The verdict trail says
+the script grammar has crossed the designed-not-typeset line and the
+chunky/poster grammars still express through arrangement. Round 2:
+sculpted weld transitions (fillets), chunky bowl-rhythm construction,
+tapered poster columns with per-letter width fitting, ampersand as
+connector, and swash apparatus that carries the letters' own stroke
+weight at every scale.

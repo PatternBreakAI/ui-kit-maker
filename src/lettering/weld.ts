@@ -23,24 +23,33 @@ export interface WeldResult {
   d: string;
 }
 
-/** even-odd scanline fill of one glyph's contours into the grid */
+/** NONZERO-winding scanline fill of one glyph's contours. Fonts like
+ *  Baloo construct letters from OVERLAPPING pieces (stem + bowls) and
+ *  depend on nonzero fill — even-odd parity flips every self-overlap
+ *  to white and punches rectangular holes through stems and joints. */
 function fillGlyph(grid: Uint8Array, W: number, H: number, ox: number, oy: number, cell: number, contours: Pt[][]): void {
   for (let row = 0; row < H; row++) {
     const y = oy + (row + 0.5) * cell;
-    const xs: number[] = [];
+    const xs: [number, number][] = []; // [x, winding]
     for (const poly of contours) {
       for (let i = 0, n = poly.length; i < n; i++) {
         const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % n];
         if (y1 > y === y2 > y) continue;
-        xs.push(x1 + ((y - y1) / (y2 - y1)) * (x2 - x1));
+        xs.push([x1 + ((y - y1) / (y2 - y1)) * (x2 - x1), y2 > y1 ? 1 : -1]);
       }
     }
     if (xs.length < 2) continue;
-    xs.sort((a, b) => a - b);
-    for (let k = 0; k + 1 < xs.length; k += 2) {
-      const c0 = Math.max(0, Math.ceil((xs[k] - ox) / cell - 0.5));
-      const c1 = Math.min(W - 1, Math.floor((xs[k + 1] - ox) / cell - 0.5));
-      for (let c = c0; c <= c1; c++) grid[row * W + c] = 1;
+    xs.sort((a, b) => a[0] - b[0]);
+    let wind = 0, start = 0;
+    for (const [x, w] of xs) {
+      const prev = wind;
+      wind += w;
+      if (prev === 0 && wind !== 0) start = x;
+      else if (prev !== 0 && wind === 0) {
+        const c0 = Math.max(0, Math.ceil((start - ox) / cell - 0.5));
+        const c1 = Math.min(W - 1, Math.floor((x - ox) / cell - 0.5));
+        for (let c = c0; c <= c1; c++) grid[row * W + c] = 1;
+      }
     }
   }
 }

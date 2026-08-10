@@ -52,7 +52,7 @@ const perimeter = (p: Pt[]): number => {
   return l;
 };
 
-const inPoly = (x: number, y: number, poly: Pt[]): boolean => {
+export const inPoly = (x: number, y: number, poly: Pt[]): boolean => {
   let inside = false;
   for (let i = 0, n = poly.length, j = n - 1; i < n; j = i++) {
     const [xi, yi] = poly[i], [xj, yj] = poly[j];
@@ -78,6 +78,24 @@ export function counterStats(polys: Pt[][]): CounterInfo {
     }
   });
   return { count, minDim: count ? minDim : Infinity, totalArea };
+}
+
+/** each counter with its contour, box center and minimum dimension —
+ *  for tracking INDIVIDUAL apertures through a weld */
+export interface CounterDetail { poly: Pt[]; cx: number; cy: number; minDim: number }
+export function counterList(polys: Pt[][]): CounterDetail[] {
+  const out: CounterDetail[] = [];
+  polys.forEach((p, i) => {
+    let depth = 0;
+    const [px, py] = p[0];
+    polys.forEach((q, j) => { if (i !== j && inPoly(px, py, q)) depth++; });
+    if (depth % 2 === 1) {
+      let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+      for (const [x, y] of p) { if (x < x1) x1 = x; if (x > x2) x2 = x; if (y < y1) y1 = y; if (y > y2) y2 = y; }
+      out.push({ poly: p, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2, minDim: Math.min(x2 - x1, y2 - y1) });
+    }
+  });
+  return out;
 }
 
 /** stroke-width estimate: ink area over half the boundary length */
@@ -213,10 +231,14 @@ export function buildTerminal(
   lenEm: number, dropEm: number, curve: number,
   avoid: Pt[][], underlineSweep?: { backToX: number; belowY: number },
 ): TerminalBand | null {
-  // anchor: extreme point in the baseline zone
+  // anchor: extreme point in the glyph's OWN lower zone — the band is
+  // relative to the glyph so stacked lines anchor correctly
+  const gb = boundsOfPolys(polys);
+  const bandTop = gb.y1 + (gb.y2 - gb.y1) * 0.35;
+  const bandBot = gb.y2 + 0.1 * size;
   let anchor: Pt | null = null;
   for (const p of polys) for (const [x, y] of p) {
-    if (y < -0.5 * size || y > 0.15 * size) continue;
+    if (y < bandTop || y > bandBot) continue;
     if (!anchor || (dir === 1 ? x > anchor[0] : x < anchor[0])) anchor = [x, y];
   }
   if (!anchor) return null;
@@ -240,15 +262,29 @@ export function buildTerminal(
       center = [];
       for (let i = 0; i <= 34; i++) center.push(quad(anchor, p1, p2, i / 34));
     }
-    // taper: attach at ~full stroke, held through the body, dying at
-    // the tip — a pen lift, not a hairline the whole way
+    // smooth the spine (the two-quad chain has a corner at the seam),
+    // then offset with NEIGHBOR normals so the band never kinks
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i < center.length - 1; i++) {
+        center[i] = [
+          (center[i - 1][0] + 2 * center[i][0] + center[i + 1][0]) / 4,
+          (center[i - 1][1] + 2 * center[i][1] + center[i + 1][1]) / 4,
+        ];
+      }
+    }
+    // taper: attach at ~full stroke, held through the body — a drawn
+    // stroke from the same tool as the letters, not a hairline. The
+    // underline ends in a blunt chisel; the swash dies to a point.
     const left: Pt[] = [], right: Pt[] = [];
     for (let i = 0; i < center.length; i++) {
       const t = i / (center.length - 1);
-      const body = t < 0.72 ? 0.98 - 0.4 * (t / 0.72) : 0.58 - 0.38 * ((t - 0.72) / 0.28);
+      const body = underlineSweep
+        ? 0.98 - 0.34 * t
+        : t < 0.72 ? 0.98 - 0.4 * (t / 0.72) : 0.58 - 0.38 * ((t - 0.72) / 0.28);
       const w = (w0 * body) / 2;
-      const p = center[i], q = center[Math.min(center.length - 1, i + 1)];
-      const dxx = q[0] - p[0] || 1e-6, dyy = q[1] - p[1];
+      const p = center[i];
+      const q0 = center[Math.max(0, i - 1)], q1 = center[Math.min(center.length - 1, i + 1)];
+      const dxx = q1[0] - q0[0] || 1e-6, dyy = q1[1] - q0[1];
       const l = Math.hypot(dxx, dyy);
       left.push([p[0] - (dyy / l) * w, p[1] + (dxx / l) * w]);
       right.push([p[0] + (dyy / l) * w, p[1] - (dxx / l) * w]);

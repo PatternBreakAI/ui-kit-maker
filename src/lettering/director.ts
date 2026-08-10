@@ -17,9 +17,9 @@ import { mulberry32 } from "./engine";
 import { inspectFeatures } from "./otfeatures";
 import type { FeatureInventory } from "./otfeatures";
 import {
-  boundsOfPolys, buildTerminal, colYs, counterStats,
-  flatContours, measuredPenetration, opticalSpacing, rigidWarpMoves,
-  solveInterlock, solveOverlap, strokeWidth,
+  boundsOfPolys, buildTerminal, colYs, counterList, counterStats,
+  flatContours, inPoly, measuredPenetration, opticalSpacing,
+  rigidWarpMoves, solveInterlock, solveOverlap, strokeWidth,
 } from "./ops";
 import type { Pt } from "./ops";
 import { weld } from "./weld";
@@ -63,7 +63,7 @@ const W = <T>(id: string, w: number, desc: string, v: T): Weighted<T> => ({ id, 
 export const CANDY_SCRIPT: TreatmentGrammar = {
   id: "candy-script", archetype: "script", fontFamily: "Pacifico",
   casePolicy: "title", tracking: 0.004, lineHeight: 0.92, weldInk: true,
-  overlapDepth: 0.45, tuckTarget: 0.05,
+  overlapDepth: 0.45, tuckTarget: 0.035,
   lensWeights: { signPainter: 0.4, typeDesigner: 0.25, graffitiWriter: 0.2, posterIllustrator: 0.15 },
   moves: {
     lines: [W("stack", 3, "one word per line", "one-word-per-line"), W("few", 1, "fewest lines", "few")],
@@ -82,9 +82,9 @@ export const CANDY_SCRIPT: TreatmentGrammar = {
     join: [W("none", 1, "font's own joins", { kind: "none" })],
     terminal: [
       W("tail", 2.5, "swash exit stroke", { kind: "tail" }),
-      W("underline", 2, "underline return beneath the block", { kind: "underline" }),
+      W("underline", 2.5, "underline return beneath the block", { kind: "underline" }),
       W("lead", 1, "lead-in from the first letter", { kind: "lead-in" }),
-      W("none", 1.5, "clean terminals", { kind: "none" }),
+      W("none", 0.5, "clean terminals", { kind: "none" }),
     ],
     alternates: [
       W("fina", 2.5, "designed final forms", { kind: "final-forms", p: 1 }),
@@ -317,8 +317,9 @@ function realizeSpec(
       ops.push({ op: "proportion", target: `'${p.char}'`, params: `×${spec.proportion.k}`, rationale: "one swelled letter gives the eye a doorway into the block" });
     }
   }
-  // rhythm
-  if (spec.rhythm.kind === "bounce") {
+  // rhythm — bounce needs at least three letters to read as a beat;
+  // on two it reads as one letter sagging
+  if (spec.rhythm.kind === "bounce" && plans.length >= 3) {
     plans.forEach((p, i) => {
       p.baselineShift = (i % 2 ? 1 : -1) * spec.rhythm.amp * (0.8 + rng() * 0.4);
       p.rotation = (i % 2 ? -1 : 1) * spec.rhythm.amp * 16 * (0.7 + rng() * 0.6);
@@ -389,6 +390,36 @@ function realizeSpec(
     rationale: "even the AIR between letters, not the metal — measured from the outlines, pair by pair",
   });
 
+  /* ── clear undeclared contact around swelled glyphs ── */
+  // an enlarged letter that grazes its neighbor reads as a nick, not
+  // an overlap — measure the actual penetration and give it air
+  if (!spec.noOps) {
+    let cleared = 0;
+    lineCmds.forEach((cl, li) => {
+      for (let k = 0; k + 1 < cl.length; k++) {
+        const pa = plans[lineGlyphIdx[li][k]], pb = plans[lineGlyphIdx[li][k + 1]];
+        if (pb.overlapPrev > 0) continue;
+        if (Math.max(pa.scaleX, pa.scaleY, pb.scaleX, pb.scaleY) < 1.08) continue;
+        const A = flatContours(cl[k], size), B = flatContours(cl[k + 1], size);
+        if (!A.length || !B.length) continue;
+        const pen = measuredPenetration(A, B);
+        if (pen <= 0.5) continue;
+        const push = pen + strokeWidth(A.concat(B)) * 0.06;
+        for (let m = k + 1; m < cl.length; m++) {
+          cl[m] = mapCmds(cl[m], (x, y) => [x + push, y]);
+          lineCenters[li][m] += push;
+        }
+        lineWs[li] += push;
+        cleared++;
+      }
+    });
+    if (cleared) ops.push({
+      op: "optical-spacing", target: `${cleared} swelled pair${cleared > 1 ? "s" : ""}`,
+      params: "measured graze cleared to open air",
+      rationale: "a swelled letter must own its space — a graze against the neighbor reads as a nick, not a weld",
+    });
+  }
+
   /* ── glyph-rigid transforms: rhythm + warp ── */
   lineCmds.forEach((cl, li) => {
     const moves = rigidWarpMoves(lineCenters[li], lineWs[li], size, spec.warp as { kind: string; k: number });
@@ -433,15 +464,21 @@ function realizeSpec(
       const narrower = Math.min(ba2.x2 - ba2.x1, bb2.x2 - bb2.x1);
       const dx = solveOverlap(A, B, target, Math.min(size * 0.32, narrower * 0.34));
       if (dx === null) { plan.overlapPrev = 0; continue; }
-      // counter gate: weld the PAIR and count surviving apertures —
-      // one merged aperture is a lettering move, two is damage
+      // counter gate: weld the PAIR and track each ORIGINAL aperture
+      // through it — a crushed A is damage, but the new negative space
+      // a deep weld traps between two bowls is a feature, not a wound
       const shifted = B.map((p) => p.map(([x, y]) => [x + dx, y] as Pt));
       const pairPolys = [...A, ...shifted];
       const pairGroups = [...A.map(() => 0), ...shifted.map(() => 1)];
       const welded = weld(pairPolys, pairGroups);
-      const before = counterStats(A).count + counterStats(B).count;
-      if (welded.polys.length && counterStats(welded.polys).count < before - 1) {
-        plan.overlapPrev = 0; continue;
+      if (welded.polys.length) {
+        const pre = [...counterList(A), ...counterList(shifted)];
+        const holes = counterList(welded.polys);
+        const damaged = pre.some((c) => {
+          const h = holes.find((hh) => inPoly(c.cx, c.cy, hh.poly));
+          return !h || h.minDim < c.minDim * 0.55;
+        });
+        if (damaged) { plan.overlapPrev = 0; continue; }
       }
       for (let m = k; m < cl.length; m++) {
         cl[m] = mapCmds(cl[m], (x, y) => [x + dx, y]);
@@ -585,12 +622,21 @@ function realizeSpec(
   }
   const bounds = boundsOfPolys(unionPolys);
 
+  // the concept card must not promise what fell back: keep only the
+  // move descriptions whose ops actually landed in the record
+  const has = (op: string): boolean => ops.some((o) => o.op === op);
+  const desc = spec.desc.filter((d) => {
+    if (/swash|underline|lead-in/.test(d)) return has("terminal");
+    if (/weld into one|welded impact/.test(d)) return has("overlap");
+    if (/^interlocked$|tuck lines|lock the ranks/.test(d)) return has("interlock");
+    return true;
+  });
   const bp: LetteringBlueprint = {
     id, phrase: spec.lines.join(" "), fontFamily: g.fontFamily, seed,
     lines: linePlans, glyphPlans: plans,
     weldInk: weldThis, columnFit: fit, lineHeight: g.lineHeight,
-    silhouetteIntent: spec.desc[0] ?? "",
-    conceptRationale: spec.desc.join("; "),
+    silhouetteIntent: desc[0] ?? "",
+    conceptRationale: desc.join("; "),
     ops,
   };
   return { bp, cmds: flat, glyphPolys: flatPolys, unionPolys, d, bounds };
