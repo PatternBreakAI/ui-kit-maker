@@ -100,6 +100,42 @@ above now forbids it at the source.
 Verify every future plate the same way before it enters the package: sample
 the outer rows and columns, and locate the frame's brightest point.
 
+## What the second delivery taught us (Plate B, 2026-08-10)
+
+**The edge band is gone.** Both candidates run clean to all four edges —
+row 0 sits within a point or two of row 10 on every side. The negative-list
+fix worked; keep that clause in every prompt from here.
+
+**But both arrived at 1672 × 941, not 2560 × 1440.** Under 1920 wide, so
+they upscale even on an ordinary 1080p screen, and a 2400-wide store
+screenshot would stretch them 44%. Re-generate at the largest 16:9 the tool
+offers. Mitigating factor, and only for these plates: the art is
+deliberately soft and low-frequency, which is exactly the content that
+survives upscaling — so if ~1672 is a hard ceiling we can still ship the
+in-package 1920 × 1080 JPEGs. Store screenshots are the real constraint.
+
+For a HUD plate the two strips matter far more than the centre, because the
+HUD deliberately hugs the edges — measured against the real Lizard HUD,
+nothing lands in the middle at all. Detail is neighbour-to-neighbour
+contrast ×100; lower is calmer:
+
+| | Candidate 1 | Candidate 2 |
+| --- | --- | --- |
+| frame mean | 0.140 | 0.148 |
+| **top 15% detail** | 2.47 | **0.94** |
+| bottom 25% mean / detail | 0.045 / 2.24 | 0.042 / 2.30 |
+| centre 60% detail | 2.69 | 3.68 |
+| brightest point | 0.921 at **13%**/48% | 0.898 at **27%**/36% |
+
+Candidate 2's top strip is **2.6× calmer** — smooth sky where Candidate 1
+has tree canopy, directly under the health globe, XP rails, quest tracker
+and mini-map. That decides it. Candidate 2 does put its brightest point
+inside the centre 60%, which rule 4b forbids on a menu plate — but on a
+gameplay plate the centre carries the game, not the UI, so the rule is
+relaxed here and a hero sunset there is an asset, not a defect.
+
+Both bottoms are near-black (0.04) — the hotbar and ammo counter will pop.
+
 ## Palette — settled
 
 The shipping style is **"Lizard, lizard"** (owner, 2026-08-10): acid lime

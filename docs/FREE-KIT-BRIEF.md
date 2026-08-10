@@ -74,27 +74,72 @@ prefabs that ARE the thing their name says, working ScrollView, honest orb
 fill. The listing copy can say, truthfully: built with a working game
 developer's field notes.
 
-## 5. The over-deliver spec (draft for bless)
+## 5. The over-deliver spec
 
-- **~20 curated components** (from our 115): primary/secondary/small/icon
-  buttons, toggle+checkbox+radio (Unity Toggle-wired), slider, progress +
-  segmented bar, panel, header, data row, item slot, dropdown, input,
-  chip, **health orb**. Curated spread, not a dump.
+**The series is KITMAKER** (owner, 2026-08-10). Every kit we ever list is a
+member, so each listing sells the others — the model that made LAYERLAB's
+"GUI PRO – …" own its category. Title shape:
+
+> `KITMAKER: <Kit Name> — Free Fantasy UI Kit`
+
+Three jobs: **KITMAKER** is the family (and points at uikitmaker.com without
+reading as an ad), the kit name is the look, and the trailing phrase is what
+devs actually search. "Lizard, lizard" stays the internal working name — the
+shipping name must describe the look.
+
+### The component set — the SCENES are the spec
+
+Owner's rule (2026-08-10): *"let's make new assets if we need them for the
+scenes, no problem, no square pegs in round holes."* So the list is derived
+from what the six demo scenes genuinely need, not from a target count. That
+lands at **32**, not the 20 first drafted — the Settings and HUD screens
+alone eat a dozen before either looks real.
+
+| Group | Pieces |
+| --- | --- |
+| Buttons (5) | Primary, Secondary, Small, Icon button, Chip |
+| Selection (5) | Toggle, Checkbox, Radio, Slider, Dropdown |
+| Text entry (2) | Input field, Search field |
+| Navigation (2) | Segmented control *(doubles as the tab bar)*, Scrollbar |
+| Containers (5) | Panel, Header banner, Settings row, Data row, Tooltip |
+| Items (3) | Item slot, Inventory grid, Rarity frame |
+| Bars (4) | Progress bar, Segmented bar, Loading bar, XP bar |
+| HUD (4) | Health globe, Hotbar, Quest tracker, Mini-map |
+| Dialogue (2) | Dialogue box, Dialogue choices |
+
+**Advertise the numbers buyers compare, not the component count.** 32
+components across four states and three sizes is roughly **300 sprites and
+~35 wired prefabs** — all true, all countable.
+
+### New pieces the scenes may demand (verify, then build)
+
+The engine's 115 components cover most of this, but a dev opening the
+package expects some things as *one prefab*, not three to assemble:
+
+- **Window** — panel + title bar + close button as a single prefab. Verify
+  whether `panel` already carries a title before building a new piece.
+- **ScrollView viewport** — the recessed well behind the inventory list.
+- **Full-screen scrim** for pause and modal backdrops (trivial, but the
+  Settings and Dialog scenes both need one).
+- **Vertical scrollbar**, if the existing `scrollbar` is horizontal-only.
+
+### The rest of the package
+
 - **All four states** per piece, union-cropped, Sprite-Swap prefabs wired
   for hover/press/disabled.
 - **TMP font assets + live labels** — no free competitor ships fonts at
-  all.
-- **Measured 9-slice everywhere** + the tiled-face option for the patterned
-  face (with the Sliced-vs-Tiled trade-off note).
-- **Three demo scenes** built by our importer (main menu, settings, HUD) —
-  the Playground machinery already constructs scenes on import.
+  all. Titan One, OFL, listed in `Third-Party Notices.txt`.
+- **Measured 9-slice everywhere** + the tiled-face option, which the Lizard
+  style's waves pattern makes load-bearing rather than a footnote.
+- **Six demo scenes** built by our importer — main menu, settings, HUD,
+  inventory, dialog, loading.
 - **The remix hook:** the kit's own settings JSON ships in the package +
   one README page: "this kit was generated — remix it at uikitmaker.com."
 - **Marketing strip:** the same kit rendered in six styles ("one kit,
   infinite reskins") — honest, because the engine really does it, and it IS
   the funnel message.
 
-Target size: 200+ sprites, 25+ prefabs, 3 scenes, fonts, docs — larger than
+Target size: 300+ sprites, 35+ prefabs, 6 scenes, fonts, docs — larger than
 any free kit in the category, smaller and more curated than the $80 kings.
 
 ## 6. Owner decisions
@@ -110,13 +155,17 @@ any free kit in the category, smaller and more curated than the $80 kings.
      with the notice line in the store description, exactly as §2.3 planned.
    - Backdrop plates go **cool** (teal / indigo / slate, no green) per
      `FREE-KIT-BACKDROP-SPEC.md`. The Plate A candidates already do.
-2. **The name.** Kit-branded ("Lizard, lizard UI Kit — Free") vs
-   maker-branded ("UI Kit Maker: Starter Kit"). *Open.*
+2. **The name — DECIDED 2026-08-10: the series is KITMAKER.** Title shape
+   and reasoning in §5. The individual kit name (replacing the internal
+   "Lizard, lizard") is still open.
 3. **Publisher identity** (PatternBreak) — account setup is owner-side:
    publisher profile, support email, the site link. *Open.*
-4. Bless the component list in §5 (add/cut). *Open.*
-5. Pick the Plate A candidate (both measure clean once the top-edge band is
-   cropped; see the backdrop spec). *Open.*
+4. **Component list — DECIDED 2026-08-10:** scene-derived, 32 pieces, and
+   new assets get built where the scenes need them ("no square pegs in
+   round holes"). List in §5; add/cut still welcome.
+5. **Plate A — DECIDED 2026-08-10: Candidate 2**, the torches-and-banner
+   frame (`plate-a-menu-2.png`). Plate B is back with the edge artifact
+   fixed but under-sized; see the backdrop spec field notes.
 
 ## 7. Phases after bless
 
