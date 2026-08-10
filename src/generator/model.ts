@@ -1097,6 +1097,10 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The south tile's item — Factory is the stock gem." },
     { id: "q4", name: "Bottom quantity", kind: "free", def: "", maxLen: 3,
       note: "Count badge for the south tile. Empty removes it." },
+    { id: "g5", name: "Centre item", kind: "choice", choices: INV_GLYPHS,
+      note: "The armed-item socket. Factory keeps the honest dashed ready well — the socket's stock state is empty; pick a glyph to arm it and it wears the glow." },
+    { id: "q5", name: "Centre quantity", kind: "free", def: "", maxLen: 3,
+      note: "Count badge for the armed item. Empty removes it." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
