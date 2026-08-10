@@ -57,8 +57,11 @@ export function SplashEditorPage(): JSX.Element {
   const up = (patch: Partial<SplashDoc>): void => setDoc((d) => ({ ...d, ...patch }));
 
   const exportSvg = (): void => {
-    if (!compiled) return;
-    const blob = new Blob([compiled.svg], { type: "image/svg+xml" });
+    if (!font) return;
+    // the canvas runs a 4× preview compile for interactivity — exports
+    // ALWAYS recompile at the 16× master or edges arrive preview-coarse
+    const full = compileAuthored(font, { ...docToTreatment(doc), masterScale: 16 });
+    const blob = new Blob([full.svg], { type: "image/svg+xml" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `splash-${doc.text.replace(/\W+/g, "-").toLowerCase()}.svg`;
