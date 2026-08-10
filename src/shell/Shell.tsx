@@ -65,6 +65,10 @@ const SplashPage = lazy(() =>
 // `candy` is the Candy Lab — the owner-testable surface for the new
 // lettering engine's Model B2 material (unlinked until released).
 const IS_CANDY = LAB_PARAM === "candy";
+const IS_SPLASH2 = LAB_PARAM === "splash2";
+const SplashEditorPage = lazy(() =>
+  import("@/lettering/SplashEditorPage").then((m) => ({ default: m.SplashEditorPage })),
+);
 const CandyLabPage = lazy(() =>
   import("@/lettering/CandyLabPage").then((m) => ({ default: m.CandyLabPage })),
 );
@@ -213,6 +217,16 @@ export function Shell() {
       <RouteBoundary>
         <Suspense fallback={<RouteLoading />}>
           <CandyLabPage />
+        </Suspense>
+      </RouteBoundary>
+    );
+  }
+
+  if (IS_SPLASH2) {
+    return (
+      <RouteBoundary>
+        <Suspense fallback={<RouteLoading />}>
+          <SplashEditorPage />
         </Suspense>
       </RouteBoundary>
     );
