@@ -91,20 +91,26 @@ casual games category and not try to be all things to all people."* The
 free kit sells to ONE buyer — the casual/mobile dev (match-3, merge, idle,
 puzzle) — and every word, scene and piece aims at them. This is also where
 the field is weakest: the paid king's casual kit is the one buyers call
-"too cartoony to restyle," and restyling is our product. The Lizard look
-itself doesn't move — Titan One on candy shells IS the casual voice.
+"too cartoony to restyle," and restyling is our product.
+
+**LAUNCH STYLE — SALT PINK (owner, 2026-08-10: "more marketable").** The
+live hero kit: hot-pink candy over deep magenta, ice-mint glow, Bruno Ace
+italic 900, twill face pattern, tavern silhouette. Snapshot captured from
+the hero lineup into `salt-pink.settings.json` (probes and shot scripts
+run against it). This supersedes "Lizard, lizard" as the shipping style;
+the lime kit stays a strong second listing later.
 
 Three jobs: **KITMAKER** is the family (and points at uikitmaker.com
 without reading as an ad), **〈Name〉** is the look, and the trailing phrase
-is what casual devs actually search. "Lizard, lizard" remains the internal
-working name for the settings file. **"Emerald Tavern" is RESCINDED**
-(owner, 2026-08-10: conjures booze) — candidates for the bless, all in the
-site's candy voice (Grape Jelly, Citrus Pop…), which is match-3-native:
+is what casual devs actually search. **"Emerald Tavern" is RESCINDED**
+(owner, 2026-08-10: conjures booze) — and with Salt Pink as the launch
+style, the recommendation writes itself:
 
-1. **Sour Apple** *(recommended — acid lime, candy family, reads casual)*
-2. Lime Fizz
-3. Limeade
-4. Green Gummy
+1. **Salt Pink** *(recommended — it's already the kit's name, candy voice,
+   marketable on its face: "KITMAKER: Salt Pink — Free Casual Game UI Kit")*
+2. Pink Salt (the seasoning read, if the inversion sits better)
+3. Bubble Punch
+4. Taffy Pop
 
 ### The six casual demo scenes — the SCENES are the spec
 
@@ -174,9 +180,9 @@ land as their own PR before the package build.
 - **All four states** per piece, union-cropped, Sprite-Swap prefabs wired
   for hover/press/disabled.
 - **TMP font assets + live labels** — no free competitor ships fonts at
-  all. Titan One, OFL, listed in `Third-Party Notices.txt`.
-- **Measured 9-slice everywhere** + the tiled-face option, which the Lizard
-  style's waves pattern makes load-bearing rather than a footnote.
+  all. Bruno Ace, OFL, listed in `Third-Party Notices.txt`.
+- **Measured 9-slice everywhere** + the tiled-face option, which Salt
+  Pink's twill pattern makes load-bearing rather than a footnote.
 - **Six demo scenes** built by our importer — the casual six above: menu,
   level map, gameplay HUD, level complete, shop/daily, settings+loading.
 - **The remix hook:** the kit's own settings JSON ships in the package +
@@ -190,22 +196,23 @@ any free kit in the category, smaller and more curated than the $80 kings.
 
 ## 6. Owner decisions
 
-1. **The style — DECIDED 2026-08-10: "Lizard, lizard."** Tavern silhouette,
-   Titan One, acid lime over deep green with a waves face pattern. Judged
-   against "Spin & Win" on real composited menu mockups: the green candy
-   reads cleanly at every level of the stack, where the gold kit's
-   secondaries went pale. The casual pivot keeps the style — Titan One on
-   candy IS casual — and two consequences still carry:
-   - It shows off the **patterned face**, so the tiled-faces option and the
-     Sliced-vs-Tiled note earn their place in the README.
-   - **Titan One is a Google/OFL face** — it goes in `Third-Party Notices.txt`
-     with the notice line in the store description, exactly as §2.3 planned.
-   - Backdrop plates avoid green (the UI owns green) per
-     `FREE-KIT-BACKDROP-SPEC.md`, now keyed casual-bright rather than dusk.
+1. **The style — SUPERSEDED 2026-08-10: launch is SALT PINK** (owner:
+   "more marketable"). Hot pink over deep magenta, ice-mint glow, Bruno
+   Ace italic 900, twill pattern, tavern silhouette — the live hero kit,
+   snapshot in `salt-pink.settings.json`. "Lizard, lizard" stands down to
+   second-listing material. Consequences that carry over:
+   - The **patterned face** story survives (twill instead of waves) — the
+     tiled-faces option and the Sliced-vs-Tiled note keep their README place.
+   - **Bruno Ace is a Google/OFL face** — `Third-Party Notices.txt` and the
+     store-description notice line name it now (not Titan One), exactly the
+     §2.3 mechanism.
+   - Backdrop plates avoid pink/magenta (the UI owns pink) per
+     `FREE-KIT-BACKDROP-SPEC.md`, keyed casual-bright.
 2. **The name — series DECIDED 2026-08-10: KITMAKER.** The kit name is
    REOPENED: **"Emerald Tavern" rescinded** (owner: conjures booze).
-   Candidates in §5 — Sour Apple recommended — awaiting the bless. The
-   category line is now **Free Casual Game UI Kit** (owner, same day).
+   Candidates in §5 — **Salt Pink** recommended, since it's the launch
+   style's own name — awaiting the bless. The category line is now
+   **Free Casual Game UI Kit** (owner, same day).
 3. **Publisher identity** (PatternBreak) — account setup is owner-side:
    publisher profile, support email, the site link. *Open.*
 4. **Component list — REWORKED 2026-08-10 for the casual pivot:**

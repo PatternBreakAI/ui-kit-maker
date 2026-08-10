@@ -1,8 +1,11 @@
-/* Emerald Tavern component probe — engine assertions for the staged pieces
-   (vitalbar, quickslots) and the healthglobe level badge, including the
+/* Free-kit component probe — engine assertions for the staged pieces
+   (vitalbar, quickslots), the healthglobe level badge, readout ink,
+   eyebrow-stroke none and composite content margin, including the
    adversarial-review scenarios: factory config at size s, wall width 34,
-   byte-cleanliness, grid alignment. Needs the dev server on :5199.
-   Run: node scripts/probe-tavern.mjs */
+   byte-cleanliness, grid alignment. Runs against the LAUNCH kit settings
+   (Salt Pink — the live hero snapshot; owner pick, 2026-08-10); point
+   KIT_SETTINGS at another settings JSON to probe a different kit.
+   Needs the dev server on :5199. Run: node scripts/probe-tavern.mjs */
 import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -10,7 +13,7 @@ import { dirname, join } from "node:path";
 
 process.env.NODE_USE_ENV_PROXY = "1";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const json = JSON.parse(readFileSync(join(ROOT, "docs/emerald-tavern.settings.json"), "utf8"));
+const json = JSON.parse(readFileSync(join(ROOT, process.env.KIT_SETTINGS ?? "docs/salt-pink.settings.json"), "utf8"));
 
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium" });
 const page = await (await browser.newContext()).newPage();

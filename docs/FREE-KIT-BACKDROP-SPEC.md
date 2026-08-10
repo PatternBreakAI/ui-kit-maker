@@ -173,14 +173,17 @@ D (store cover stage).
 
 ## Palette — settled
 
-The shipping style is **"Lizard, lizard"** (owner, 2026-08-10): acid lime
-over deep green, tavern silhouette, Titan One. The backdrop must be
-**complementary** so the UI pops off it, so every plate goes the other way
-on the wheel — now in the casual-bright key:
+The shipping style is **SALT PINK** (owner, 2026-08-10 — superseding
+"Lizard, lizard"): hot pink over deep magenta, ice-mint glow, tavern
+silhouette, Bruno Ace. The backdrop must be **complementary** so the UI
+pops off it, so every plate goes the other way on the wheel — in the
+casual-bright key:
 
-> **Sky blues, soft teal, warm sand, lavender, coral accents.** Avoid
-> green entirely — the UI owns green. Sunny, saturated, cheerful; deep
-> dusk is retired with the fantasy direction.
+> **Sky blues, soft teal, mint, sea green, warm sand.** Avoid pink,
+> magenta and warm reds entirely — the UI owns pink (and its glow owns
+> mint at HIGH saturation; pale desaturated mint in a backdrop is fine).
+> Sunny, saturated, cheerful; deep dusk is retired with the fantasy
+> direction.
 
 ## The prompts — casual key (rewritten 2026-08-10)
 
