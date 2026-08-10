@@ -4222,20 +4222,25 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return stampTrack(inject(shell.replace("<svg ", '<svg data-vitalbar="1" '), inner), barX, barW);
     }
     case "quickslots": {
-      /* RPG · quick slots — the consumable CROSS from the Emerald Tavern
-         target, born because five loose item slots composited by hand smear
-         their extrusion tails across each other's faces (owner: "this
-         component isn't working"). One piece owns the cluster: tiles ride a
-         SHALLOW shared depth (the cluster is furniture, not five heroes),
-         painter order tucks every tail behind the row below, and one soft
-         ground shadow seats the whole cross. EDITING CONTRACT: four glyph
-         slots (N/W/E/S, inventory picks, Empty = dashed ready well), four
-         quantity slots (empty = no badge); the round centre well is the
-         quick-use socket, always ready. */
+      /* RPG · quick slots — the EQUIPMENT QUADRANT of the soulslike
+         lineage (Dark Souls, Bloodborne, Elden Ring): four tiles in a
+         d-pad cross with an EMPTY middle. Each arm IS the armed item of
+         its category — up spell, left off-hand, right weapon, down
+         consumable with its count — so there is no fifth socket; arming
+         is what a tile shows. (The first cut drew the mockup's round
+         centre "socket"; the owner called it out — no real game has one —
+         and the piece refit to the true pattern.) One piece owns the
+         cross because five loose slots composited by hand smear their
+         extrusion tails: tiles ride a SHALLOW shared depth, painter order
+         tucks every tail behind the row below, one soft ground shadow
+         seats the quadrant. EDITING CONTRACT: four glyph slots (inventory
+         picks, Empty = dashed ready well), four quantity slots (empty =
+         no badge); the cross reads as the d-pad it binds to. */
       const T9 = ({ s: 88, m: 112, l: 140 } as Record<KitSize, number>)[size] * k;
-      const G9 = 12 * k, PAD9 = 30, PADB9 = 56;
-      const W9 = PAD9 * 2 + T9 * 3 + G9 * 2, H9 = PAD9 + PADB9 + T9 * 3 + G9 * 2;
-      /* the cluster pins its tiles to a shallow extrusion and a short cast
+      const D9 = T9 * 0.78, PAD9 = 30, PADB9 = 56;
+      const W9 = PAD9 * 2 + T9 + D9 * 2, H9 = PAD9 + PADB9 + T9 + D9 * 2;
+      const ccx9 = W9 / 2, ccy9 = PAD9 + D9 + T9 / 2;
+      /* the quadrant pins its tiles to a shallow extrusion and a short cast
          shadow — the same clone-and-clamp move the muted "alt" tone uses */
       const tcfg = JSON.parse(JSON.stringify(cfg)) as GenConfig;
       tcfg.candy.extrusion.depth = Math.min(tcfg.candy.extrusion.depth, 10);
@@ -4243,24 +4248,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       tcfg.candy.bloom = { ...(tcfg.candy.bloom ?? { opacity: 0, size: 0 }), opacity: 0 };
       const innerOf9 = (s: string) => s.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
       const inset9 = bw + 5;
-      const FACTORY9: (keyof typeof STOCK_ICONS)[] = ["flask", "sword", "shield", "gem"];
-      // arm order is painter order: N first, W/E, then centre, S LAST —
-      // every extrusion tail lands behind the tile below it
-      const arms9: { gx: number; gy: number; slot: number }[] = [
-        { gx: 1, gy: 0, slot: 1 }, { gx: 0, gy: 1, slot: 2 }, { gx: 2, gy: 1, slot: 3 },
-      ];
-      const tileAt9 = (gx: number, gy: number, round: boolean, glyph: IconDef | null, qty: string, hot = false) => {
-        const tx = PAD9 + gx * (T9 + G9), ty = PAD9 + gy * (T9 + G9);
-        const sh9 = build(tcfg, state, { x: 33, y: 27, h: T9, fs: 0, iconSize: 0, tokenH: 132 }, { pinDesign: true, iconDef: null, label: "", fixedW: T9, shapeOverride: round ? "round" : sov });
+      // d-pad semantics drive the stock picks: up spell, left off-hand,
+      // right weapon, down consumable
+      const FACTORY9: (keyof typeof STOCK_ICONS)[] = ["zap", "shield", "sword", "flask"];
+      const tileAt9 = (tx: number, ty: number, glyph: IconDef | null, qty: string, corner: "tr" | "br" | "bl" = "br") => {
+        const sh9 = build(tcfg, state, { x: 33, y: 27, h: T9, fs: 0, iconSize: 0, tokenH: 132 }, { pinDesign: true, iconDef: null, label: "", fixedW: T9, shapeOverride: sov });
         const cxT = 33 + T9 / 2, cyT = 27 + T9 / 2, innerT = T9 - inset9 * 2;
-        const wellP9 = shapePath(round ? "round" : (sov ?? cfg.shape), 33 + inset9, 27 + inset9, innerT, innerT, Math.max(0, cfg.bevel.softness - 10));
+        const wellP9 = shapePath(sov ?? cfg.shape, 33 + inset9, 27 + inset9, innerT, innerT, Math.max(0, cfg.bevel.softness - 10));
         let content9 = `<path d="${wellP9}" fill="${wellFill}" opacity="0.9"/>`;
-        // the ARMED centre announces itself — the streak meter's ignition glow
-        if (glyph && hot && state !== "disabled") content9 += `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(glyph, cxT - innerT * 0.3, cyT - innerT * 0.3, innerT * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;
-        else if (glyph) content9 += themedIcon(glyph, cxT - innerT * 0.3, cyT - innerT * 0.3, innerT * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2);
-        else content9 += `<path d="${shapePath(round ? "round" : (sov ?? cfg.shape), 33 + inset9 + 8, 27 + inset9 + 8, innerT - 16, innerT - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`;
+        if (glyph) content9 += themedIcon(glyph, cxT - innerT * 0.3, cyT - innerT * 0.3, innerT * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2);
+        else content9 += `<path d="${shapePath(sov ?? cfg.shape, 33 + inset9 + 8, 27 + inset9 + 8, innerT - 16, innerT - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`;
         if (qty) {
-          const bx9 = 33 + T9 - inset9 - 4, by9 = 27 + T9 - inset9 - 4;
+          /* the count badge rides each arm's OUTER corner — the inner
+             corners overlap by design, and a badge must never hide */
+          const bx9 = corner === "bl" ? 33 + inset9 + 4 : 33 + T9 - inset9 - 4;
+          const by9 = corner === "tr" ? 27 + inset9 + 4 : 27 + T9 - inset9 - 4;
           content9 += `<circle cx="${bx9}" cy="${by9}" r="15" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.5"/><text x="${bx9}" y="${by9 + 1}" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(qty)}</text>`;
         }
         return `<g transform="translate(${(tx - 33).toFixed(1)} ${(ty - 27).toFixed(1)})">${innerOf9(inject(sh9, content9))}</g>`;
@@ -4271,18 +4273,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         return (p && STOCK_ICONS[p.toLowerCase()]) || STOCK_ICONS[FACTORY9[n - 1]] || null;
       };
       const qty9 = (n: number) => (opts.slots?.[`q${n}`] ?? "").trim().slice(0, 3);
-      const ground9 = `<ellipse cx="${(W9 / 2).toFixed(1)}" cy="${(PAD9 + T9 * 3 + G9 * 2 + 8 * k).toFixed(1)}" rx="${(T9 * 1.35).toFixed(1)}" ry="${(14 * k).toFixed(1)}" fill="rgba(8,12,20,0.28)" style="filter: blur(${(6 * k).toFixed(1)}px)"/>`;
+      const ground9 = `<ellipse cx="${ccx9.toFixed(1)}" cy="${(ccy9 + D9 + T9 / 2 + 8 * k).toFixed(1)}" rx="${(T9 * 1.3).toFixed(1)}" ry="${(14 * k).toFixed(1)}" fill="rgba(8,12,20,0.28)" style="filter: blur(${(6 * k).toFixed(1)}px)"/>`;
+      // painter order is the tail-tucking order: north, the middle row, south LAST
       let body9 = ground9;
-      for (const a of arms9) body9 += tileAt9(a.gx, a.gy, false, pick9(a.slot), qty9(a.slot));
-      /* the centre is the ARMED-ITEM socket and it is REAL (owner: "make it
-         real for games"): its own glyph + quantity slots, and an armed item
-         wears the glow. Factory keeps the honest dashed ready well — the
-         socket's stock state is empty. */
-      const pC9 = opts.slots?.g5;
-      const center9 = !pC9 || pC9 === "Factory" || pC9 === "Empty" ? null : (STOCK_ICONS[pC9.toLowerCase()] ?? null);
-      body9 += tileAt9(1, 1, true, center9, qty9(5), true);
-      body9 += tileAt9(1, 2, false, pick9(4), qty9(4)); // S paints last
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W9}" height="${H9}" viewBox="0 0 ${W9} ${H9}" data-quickslots="1" data-shell0="${PAD9} ${PAD9} ${(T9 * 3 + G9 * 2).toFixed(1)} ${(T9 * 3 + G9 * 2).toFixed(1)}" role="img" aria-label="quick slots">${body9}</svg>`;
+      body9 += tileAt9(ccx9 - T9 / 2, ccy9 - D9 - T9 / 2, pick9(1), qty9(1), "tr");
+      body9 += tileAt9(ccx9 - D9 - T9 / 2, ccy9 - T9 / 2, pick9(2), qty9(2), "bl");
+      body9 += tileAt9(ccx9 + D9 - T9 / 2, ccy9 - T9 / 2, pick9(3), qty9(3), "br");
+      body9 += tileAt9(ccx9 - T9 / 2, ccy9 + D9 - T9 / 2, pick9(4), qty9(4), "br");
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W9}" height="${H9}" viewBox="0 0 ${W9} ${H9}" data-quickslots="1" data-shell0="${PAD9} ${PAD9} ${(T9 + D9 * 2).toFixed(1)} ${(T9 + D9 * 2).toFixed(1)}" role="img" aria-label="equipment quadrant">${body9}</svg>`;
     }
     case "xpbar": {
       /* RPG · XP bar — level bubble riding the left end, notched track,
