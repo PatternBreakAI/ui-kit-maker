@@ -137,8 +137,11 @@ export function runGates(rc: RealizedCandidate, m: LensMetrics): string[] {
   const fails: string[] = [];
   const { bp, size, glyphPolys } = rc;
 
+  // the gate is "art-directed, not merely formatted" — a recognizable
+  // source font never fails a result; DEFAULT text with no recorded
+  // compositional decision does
   if (m.countersLost > 0) fails.push(`counters closed (${m.countersLost} beyond declared welds)`);
-  if (m.structureDelta < 2) fails.push("typeset-only: ops amount to scale/tracking/tilt");
+  if (m.structureDelta < 1) fails.push("formatted-only: no compositional decisions recorded");
 
   // undeclared collisions: penetration beyond the neutral typeset's
   let gi = 0;
@@ -176,10 +179,12 @@ type Scorer = (m: LensMetrics) => { score: number; notes: string[] };
 const SCORERS: Record<LensName, Scorer> = {
   signPainter: (m) => {
     const notes: string[] = [];
-    let s = 4.2 + Math.min(2.6, m.rhythmEnergy * 2.4) + Math.min(2.2, m.ornamentCount * 1.1) + Math.min(1.4, m.overlapNerve * 1.2);
+    // owner rule: no generated ornament lines — the gesture must come
+    // from the typography itself, so interlock carries the bonus
+    let s = 4.2 + Math.min(2.6, m.rhythmEnergy * 2.4) + Math.min(2, m.interlockTuck * 11) + Math.min(1.4, m.overlapNerve * 1.2);
     if (m.rhythmEnergy > 0.25) notes.push("living baseline");
-    if (m.ornamentCount) notes.push(`${m.ornamentCount} terminal flourish${m.ornamentCount > 1 ? "es" : ""} earn their space`);
-    if (m.rhythmEnergy < 0.06 && !m.ornamentCount) { s -= 1.6; notes.push("stiff — reads like set type, not brush work"); }
+    if (m.interlockTuck > 0.1) notes.push("lines read as one drawn block");
+    if (m.rhythmEnergy < 0.06 && m.interlockTuck < 0.04) { s -= 1.6; notes.push("stiff — reads like set type, not brush work"); }
     if (m.distortionLoad > 1.4) { s -= 1.2; notes.push("over-articulated"); }
     return { score: clamp10(s), notes };
   },
@@ -191,6 +196,9 @@ const SCORERS: Record<LensName, Scorer> = {
     if (m.counterHealth >= 1) notes.push("counters healthy");
     else notes.push("apertures tightening");
     if (m.structureDelta >= 4 && m.distortionLoad < 0.9) { s += 1.2; notes.push("structural, yet disciplined"); }
+    // calibrated on the CHAMPIONSHIP owner pick: compression that runs
+    // the length of a word costs more counters than it earns nerve
+    if (m.overlapNerve > 0.7) { s -= Math.min(2.5, (m.overlapNerve - 0.7) * 1.1); notes.push("compression beyond what the counters can afford"); }
     return { score: clamp10(s), notes };
   },
   graffitiWriter: (m) => {

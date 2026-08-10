@@ -24,7 +24,7 @@ import {
 import type { Pt } from "./ops";
 import { weld } from "./weld";
 import type { LensName } from "./blueprint";
-import type { GlyphPlan, LetteringBlueprint, LinePlan, LineWarp, OpRecord, Scorecard } from "./blueprint";
+import type { GlyphPlan, LetteringBlueprint, LinePlan, LineWarp, OpRecord, OrnamentPlan, Scorecard } from "./blueprint";
 import { scoreCandidate } from "./lenses";
 import type { RealizedCandidate } from "./lenses";
 
@@ -64,7 +64,7 @@ export const CANDY_SCRIPT: TreatmentGrammar = {
   id: "candy-script", archetype: "script", fontFamily: "Pacifico",
   casePolicy: "title", tracking: 0.004, lineHeight: 0.92, weldInk: true,
   overlapDepth: 0.45, tuckTarget: 0.035,
-  lensWeights: { signPainter: 0.4, typeDesigner: 0.25, graffitiWriter: 0.2, posterIllustrator: 0.15 },
+  lensWeights: { signPainter: 0.4, typeDesigner: 0.3, graffitiWriter: 0.05, posterIllustrator: 0.25 },
   moves: {
     lines: [W("stack", 3, "one word per line", "one-word-per-line"), W("few", 1, "fewest lines", "few")],
     columnFit: [W("no", 3, "natural measures", false), W("yes", 1, "shared column", true)],
@@ -80,12 +80,10 @@ export const CANDY_SCRIPT: TreatmentGrammar = {
       W("final", 1, "swelled final", { kind: "final", k: 1.18 }),
     ],
     join: [W("none", 1, "font's own joins", { kind: "none" })],
-    terminal: [
-      W("tail", 2.5, "swash exit stroke", { kind: "tail" }),
-      W("underline", 2.5, "underline return beneath the block", { kind: "underline" }),
-      W("lead", 1, "lead-in from the first letter", { kind: "lead-in" }),
-      W("none", 0.5, "clean terminals", { kind: "none" }),
-    ],
+    // owner rule (2026-08-10): no generated ornament lines — the
+    // lockup stands on typography alone. buildTerminal stays isolated
+    // in ops.ts for a future opt-in user tool only.
+    terminal: [W("none", 1, "clean terminals", { kind: "none" })],
     alternates: [
       W("fina", 2.5, "designed final forms", { kind: "final-forms", p: 1 }),
       W("sprinkle", 1.5, "stylistic alternates", { kind: "sprinkle", p: 0.5 }),
@@ -99,7 +97,7 @@ export const CANDY_CHUNKY: TreatmentGrammar = {
   id: "candy-chunky", archetype: "chunky", fontFamily: "Baloo 2",
   casePolicy: "title", tracking: 0.012, lineHeight: 1.02, weldInk: false,
   overlapDepth: 0.3, tuckTarget: 0.06,
-  lensWeights: { signPainter: 0.2, typeDesigner: 0.3, graffitiWriter: 0.3, posterIllustrator: 0.2 },
+  lensWeights: { signPainter: 0.3, typeDesigner: 0.35, graffitiWriter: 0.05, posterIllustrator: 0.3 },
   moves: {
     lines: [W("few", 3, "fewest lines", "few"), W("stack", 1, "one word per line", "one-word-per-line")],
     columnFit: [W("no", 3, "natural measures", false), W("yes", 1, "shared column", true)],
@@ -133,7 +131,7 @@ export const CANDY_POSTER: TreatmentGrammar = {
   id: "candy-poster", archetype: "poster", fontFamily: "Bangers",
   casePolicy: "upper", tracking: 0.02, lineHeight: 1.0, weldInk: false,
   overlapDepth: 0.3, tuckTarget: 0.045,
-  lensWeights: { signPainter: 0.15, typeDesigner: 0.2, graffitiWriter: 0.25, posterIllustrator: 0.4 },
+  lensWeights: { signPainter: 0.25, typeDesigner: 0.3, graffitiWriter: 0.05, posterIllustrator: 0.4 },
   moves: {
     lines: [W("many", 3, "stack tight lines", "many"), W("few", 1.5, "fewest lines", "few")],
     columnFit: [W("yes", 3, "force to one column", true), W("no", 1, "ragged measures", false)],
@@ -244,6 +242,7 @@ function realizeSpec(
   const ops: OpRecord[] = [];
   const plans: GlyphPlan[] = [];
   const linePlans: LinePlan[] = [];
+  const ornaments: OrnamentPlan[] = [];
 
   /* per-glyph plan construction (alternates + proportion + rhythm) */
   const lineGlyphIdx: number[][] = [];
@@ -582,13 +581,16 @@ function realizeSpec(
       const bandCmds: Cmd[] = [{ type: "M", x: band.contour[0][0], y: band.contour[0][1] }];
       for (let i = 1; i < band.contour.length; i++) bandCmds.push({ type: "L", x: band.contour[i][0], y: band.contour[i][1] });
       bandCmds.push({ type: "Z" });
-      flat[attach] = [...flat[attach], ...bandCmds];
-      flatPolys[attach] = flatContours(flat[attach], size);
-      const p = plans[attach === firstIdxInFlat ? 0 : plans.length - 1];
-      p.terminal = {
-        kind: spec.terminal.kind === "lead-in" ? "lead-in" : spec.terminal.kind === "underline" ? "underline-return" : "swash-tail",
-        lenEm: 1.05, dropEm: 0.3, curve: 0.42,
-      };
+      // ornaments are SEPARATE editable layers anchored to the glyph —
+      // the source outline is never mutated; the ink union downstream
+      // joins them for seamless material
+      flat.push(bandCmds);
+      flatPolys.push(flatContours(bandCmds, size));
+      const anchorPlan = attach === firstIdxInFlat ? 0 : plans.length - 1;
+      const kind = spec.terminal.kind === "lead-in" ? "lead-in" as const
+        : spec.terminal.kind === "underline" ? "underline-return" as const : "swash-tail" as const;
+      ornaments.push({ kind, anchorGlyph: anchorPlan });
+      plans[anchorPlan].terminal = { kind, lenEm: 1.05, dropEm: 0.3, curve: 0.42 };
     }
   }
   if (g.weldInk || spec.join.kind === "overlap-chain") {
@@ -633,7 +635,7 @@ function realizeSpec(
   });
   const bp: LetteringBlueprint = {
     id, phrase: spec.lines.join(" "), fontFamily: g.fontFamily, seed,
-    lines: linePlans, glyphPlans: plans,
+    lines: linePlans, glyphPlans: plans, ornaments,
     weldInk: weldThis, columnFit: fit, lineHeight: g.lineHeight,
     silhouetteIntent: desc[0] ?? "",
     conceptRationale: desc.join("; "),
@@ -665,11 +667,25 @@ export interface DirectedCandidate {
   card: Scorecard;
 }
 
+/** Genuinely distinct composition directions — the product offers a
+ *  handful of REAL choices, not twelve shades of the same lockup.
+ *  Directions constrain the move sampler; everything still comes from
+ *  existing font geometry and layout decisions. */
+export type CompositionDirection =
+  | "clean-typographic" | "compact-lockup" | "rhythmic-display"
+  | "column" | "overlap-interlock" | "marquee";
+export const DIRECTIONS: CompositionDirection[] = [
+  "clean-typographic", "compact-lockup", "rhythmic-display",
+  "column", "overlap-interlock", "marquee",
+];
+
 /** Generate `count` deterministic structural candidates for a phrase.
- *  Geometry only — material never participates in choosing. */
+ *  Geometry only — material never participates in choosing. At six or
+ *  fewer candidates, each takes a distinct composition direction;
+ *  larger counts sample freely (the study's exhaustive mode). */
 export function generateBlueprints(
   font: Font, text: string, grammar: TreatmentGrammar,
-  seed: number, count = 12, size = 300,
+  seed: number, count = 6, size = 300,
 ): { candidates: DirectedCandidate[]; neutral: Realized; rejectedCombos: number } {
   const inv = inspectFeatures(font);
   const cased = applyCase(text.trim(), grammar.casePolicy);
@@ -678,6 +694,63 @@ export function generateBlueprints(
   const seen = new Set<string>();
   const candidates: DirectedCandidate[] = [];
   let rejectedCombos = 0;
+  const useDirections = count <= DIRECTIONS.length;
+
+  const FIX = <T>(desc: string, v: T): Weighted<T> => ({ id: `dir:${desc}`, w: 0, desc, v });
+  type Chosen = {
+    lines: Weighted<"few" | "many" | "one-word-per-line">; columnFit: Weighted<boolean>;
+    warp: Weighted<LineWarp>; rhythm: Weighted<{ kind: "none" | "bounce" | "tilt"; amp: number }>;
+    proportion: Weighted<{ kind: "none" | "condense" | "initial" | "final"; k: number }>;
+    join: Weighted<{ kind: "none" | "overlap-chain" }>; terminal: Weighted<{ kind: "none" | "tail" | "underline" | "lead-in" }>;
+    alternates: Weighted<{ kind: "none" | "sprinkle" | "final-forms"; p: number }>; interlock: Weighted<boolean>;
+  };
+  const applyDirection = (dir: CompositionDirection, c: Chosen, wordCount: number): void => {
+    const mm = grammar.moves;
+    switch (dir) {
+      case "clean-typographic":
+        c.warp = FIX("level baseline", { kind: "none" } as LineWarp);
+        c.rhythm = FIX("calm baseline", { kind: "none" as const, amp: 0 });
+        c.join = FIX("letters hold rank", { kind: "none" as const });
+        c.terminal = FIX("clean terminals", { kind: "none" as const });
+        c.interlock = FIX("open leading", false);
+        c.columnFit = FIX("natural measures", false);
+        break;
+      case "compact-lockup":
+        c.interlock = FIX("tucked tight", true);
+        c.join = FIX("letters hold rank", { kind: "none" as const });
+        if (c.warp.v.kind !== "none" && c.warp.v.kind !== "arch") c.warp = FIX("level baseline", { kind: "none" } as LineWarp);
+        c.columnFit = FIX("natural measures", false);
+        break;
+      case "rhythmic-display": {
+        if (c.rhythm.v.kind === "none") {
+          const alt = mm.rhythm.find((o) => o.v.kind !== "none");
+          if (alt) c.rhythm = alt;
+        }
+        c.interlock = FIX("open leading", false);
+        c.columnFit = FIX("natural measures", false);
+        c.join = FIX("letters hold rank", { kind: "none" as const });
+        break;
+      }
+      case "column":
+        if (wordCount > 1) c.columnFit = FIX("forced column", true);
+        else c.proportion = FIX("condensed ranks", { kind: "condense" as const, k: 0.88 });
+        c.warp = FIX("level baseline", { kind: "none" } as LineWarp);
+        c.interlock = FIX("tucked", true);
+        break;
+      case "overlap-interlock": {
+        const ov = mm.join.find((o) => o.v.kind === "overlap-chain");
+        if (ov) c.join = ov;
+        c.interlock = FIX("tucked", true);
+        break;
+      }
+      case "marquee": {
+        const w = mm.warp.find((o) => o.v.kind === "arch") ?? mm.warp.find((o) => o.v.kind !== "none");
+        if (w) c.warp = w;
+        c.join = FIX("letters hold rank", { kind: "none" as const });
+        break;
+      }
+    }
+  };
 
   // gate baselines must compare like with like: one neutral typeset
   // per LINE-BREAK configuration, cached by break key
@@ -713,8 +786,11 @@ export function generateBlueprints(
       terminal: pick(r, m.terminal), alternates: pick(r, m.alternates),
       interlock: pick(r, m.interlock),
     };
+    const dir = useDirections ? DIRECTIONS[candidates.length] : null;
+    if (dir) applyDirection(dir, chosen, words.length);
     const lines = breakFor(words, chosen.lines.v, r);
     const comboKey = [
+      dir ?? "free",
       lines.join("/"), chosen.columnFit.id, chosen.warp.id, chosen.rhythm.id,
       chosen.proportion.id, chosen.join.id, chosen.terminal.id,
       chosen.alternates.id, chosen.interlock.id,
@@ -728,6 +804,7 @@ export function generateBlueprints(
       alternates: chosen.alternates.v, interlock: chosen.interlock.v,
       comboKey,
       desc: [
+        ...(dir ? [dir] : []),
         `${lines.length}-line ${chosen.warp.desc}`,
         chosen.rhythm.desc, chosen.proportion.desc, chosen.join.desc,
         chosen.terminal.desc, chosen.alternates.desc,
@@ -755,6 +832,58 @@ export function silhouetteSvg(r: Realized, pad = 0.12): string {
   const p = Math.max(w, h) * pad;
   const W2 = Math.round(w + p * 2), H2 = Math.round(h + p * 2);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2}" height="${H2}" viewBox="${(r.bounds.x1 - p).toFixed(1)} ${(r.bounds.y1 - p).toFixed(1)} ${W2} ${H2}"><path d="${r.d}" fill="#141414"/></svg>`;
+}
+
+/* ── font ↔ treatment compatibility ──────────────────────────────── */
+
+export interface FontFit { score: number; notes: string[] }
+
+/** Measured fit between a face and a treatment grammar — weight,
+ *  roundness and natural connection are read from the outlines, so a
+ *  weak pairing (airy monoline on a chunky grammar) is known BEFORE
+ *  generation instead of judged after. */
+export function fontCompatibility(font: Font, g: TreatmentGrammar): FontFit {
+  const size = 200;
+  const notes: string[] = [];
+  const glyphOf = (ch: string): Pt[][] => {
+    const gl = toGlyphs(font, ch)[0];
+    return gl ? flatContours((gl.getPath(0, 0, size).commands as Cmd[]) ?? [], size) : [];
+  };
+  const o = glyphOf(g.casePolicy === "upper" ? "O" : "o");
+  if (!o.length) return { score: 0.5, notes: ["no measurable sample glyph"] };
+  const sw = strokeWidth(o) / size;
+  const ob = boundsOfPolys(o);
+  const oAspect = (ob.x2 - ob.x1) / Math.max(1, ob.y2 - ob.y1);
+  notes.push(`stroke ${(sw * 100).toFixed(0)}% of em`, `o-aspect ${oAspect.toFixed(2)}`);
+
+  // natural connection: set "no" with real kerning and measure contact
+  let joinPen = 0;
+  {
+    const pair = toGlyphs(font, g.casePolicy === "upper" ? "NO" : "no");
+    if (pair.length === 2) {
+      const unit = size / font.unitsPerEm;
+      let kern = 0;
+      try { kern = font.getKerningValue(pair[0], pair[1]) * unit; } catch { /* no pair */ }
+      const adv = (pair[0].advanceWidth ?? font.unitsPerEm * 0.5) * unit + kern;
+      const A = flatContours((pair[0].getPath(0, 0, size).commands as Cmd[]) ?? [], size);
+      const B = flatContours((pair[1].getPath(adv, 0, size).commands as Cmd[]) ?? [], size);
+      joinPen = measuredPenetration(A, B);
+    }
+  }
+
+  let score = 0.5;
+  if (g.archetype === "script") {
+    score = (joinPen > 0.5 ? 0.55 : 0.15) + Math.max(0, 0.3 - Math.abs(sw - 0.14) * 2);
+    notes.push(joinPen > 0.5 ? "letters connect as set — true script" : "no natural connections");
+  } else if (g.archetype === "chunky") {
+    score = Math.min(0.55, Math.max(0, (sw - 0.08) * 3.5)) + Math.max(0, 0.35 - Math.abs(oAspect - 1) * 0.9);
+    if (sw < 0.12) notes.push("stroke too airy for a chunky treatment");
+    else notes.push("mass suits a toy-box read");
+  } else {
+    score = Math.max(0, 0.4 - Math.max(0, oAspect - 0.78) * 1.2) + Math.min(0.4, Math.max(0, (sw - 0.07) * 3));
+    notes.push(oAspect <= 0.78 ? "condensed ranks suit a poster column" : "wide forms fight a poster column");
+  }
+  return { score: Math.max(0, Math.min(1, score + 0.15)), notes };
 }
 
 /** outline-only view of the same geometry */

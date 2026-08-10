@@ -108,13 +108,60 @@ original counter tracked through the pair-weld by centroid; newly
 trapped negative space is a feature, crushed original apertures are
 damage).
 
-Final adversarial gate: **SWEET DREAMS passes** (nested lines, weight
-rebuilt, underline swash grown from the final s terminal); NIGHT
-MARKET passed two of three gate rounds; BUBBLE / STAY WILD & FREE /
-GO / CHAMPIONSHIP fail with recorded reasons. The verdict trail says
-the script grammar has crossed the designed-not-typeset line and the
-chunky/poster grammars still express through arrangement. Round 2:
-sculpted weld transitions (fillets), chunky bowl-rhythm construction,
-tapered poster columns with per-letter width fitting, ampersand as
-connector, and swash apparatus that carries the letters' own stroke
-weight at every scale.
+Final adversarial gate (round-1 standard): SWEET DREAMS passed; NIGHT
+MARKET passed two of three gate rounds; the rest failed with recorded
+reasons. **The study is approved by the owner** with one selection
+change: CHAMPIONSHIP carries an owner art-direction override to the
+c2 one-line wordmark (restraint over procedural novelty). The council
+is advisory; an explicit owner selection is authoritative and stored
+on the piece.
+
+## Revised gate — owner course correction (2026-08-10)
+
+**"Art-directed, not merely formatted"** replaces "designed, not
+merely typeset". A source font may remain recognizable; never
+penalize that. Splash Text art-directs excellent type — it does not
+redraw alphabets.
+
+Font-respectful geometry contract for DEFAULT generation:
+
+- MAY: font selection/pairing, font-supplied alternates and
+  ligatures, casing/roles/line breaks, optical spacing, per-glyph
+  scale/baseline/rotation/shear/spacing, line-level arch/taper/
+  perspective/envelope, overlap + tuck + z-order of existing glyphs,
+  **union of real overlapping ink** (nonzero-fill within glyphs,
+  contextual-spacing-then-union between glyphs), separate procedural
+  ornaments anchored to the typography.
+- MUST NOT: redraw bowls/stems/counters/terminals, invent substitute
+  letterforms, add synthetic connector bridges across gaps, mutate a
+  glyph path to grow a terminal, sculpt anatomy, or manufacture
+  complexity to look custom. **Union real ink; do not invent ink.**
+  Dots, accents and deliberately detached marks stay detached.
+
+Ornaments (underlines, swashes, returns, plaques, rays, bursts) are
+separate editable layers (`bp.ornaments`) — they may visually
+continue a terminal but never modify the source glyph.
+
+**Owner rule (2026-08-10, overriding the outside review): no
+generated ornament LINES at all in automatic results** — no
+underlines, swash tails, or lead-ins. The lockups stand on
+typography alone; the designs read fine without them. The terminal
+machinery stays isolated in `ops.ts` for a possible future opt-in
+user tool only.
+
+Council weights belong to each grammar: Candy weights Sign Painter /
+Type Designer / Poster Illustrator; the graffiti lens is minimal
+(0.05) unless a style is expressly street/graffiti/comic-impact.
+Long single-word poster lane is calibrated on the CHAMPIONSHIP owner
+pick: one-line integrity, readability, clear counters, compact-but-
+not-crushed spacing, consistent rhythm — novelty only after those.
+
+Candidate generation defaults to SIX genuinely distinct composition
+directions (clean typographic · compact lockup · rhythmic display ·
+column · overlap/interlock · marquee), all built from existing font
+geometry and layout decisions. `fontCompatibility(font, grammar)`
+measures weight, roundness and natural connection from the outlines
+so weak pairings are known before generation.
+
+Next milestone: the Splash 2 editor proof. No further autonomous
+glyph-redrawing research rounds.

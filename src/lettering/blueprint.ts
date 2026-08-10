@@ -83,6 +83,15 @@ export interface OpRecord {
   rationale: string;
 }
 
+/** a procedural ornament — underline, swash, plaque, ray. Ornaments
+ *  are SEPARATE editable layers anchored to the typography; they may
+ *  visually continue a terminal but never mutate the source glyph. */
+export interface OrnamentPlan {
+  kind: TerminalKind;
+  /** glyph plan index the ornament is anchored to */
+  anchorGlyph: number;
+}
+
 export interface LetteringBlueprint {
   id: string;
   phrase: string;
@@ -90,6 +99,7 @@ export interface LetteringBlueprint {
   seed: number;
   lines: LinePlan[];
   glyphPlans: GlyphPlan[];
+  ornaments: OrnamentPlan[];
   /** weld the whole lockup into one piece of ink downstream */
   weldInk: boolean;
   columnFit: boolean;
