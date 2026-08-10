@@ -36,9 +36,10 @@ generation work.
   `plate-d-cover` (+ `-1`, `-2` for candidates).
 
 **What we do with them**
-- Downscale to 1920 × 1080 and convert to JPEG q85 (~200 KB each) for the
-  package — the same treatment as our site's existing backdrops
-  (1920 × 1097, 140–196 KB).
+- Downscale to 1920 × 1080 **PNG** for the package. (Corrected 2026-08-10:
+  the verified submission guidelines require lossless formats for all
+  in-package images outside Tools/Add-Ons/Audio — 2.4.3.a. The JPEG plan
+  is dead; PNG runs a few MB per plate against a 6 GB cap, a non-issue.)
 - Unity import: Max Size 2048, sRGB on, mipmaps off, Normal compression.
 - The importer's Canvas is `ScaleWithScreenSize` at a **1920 × 1080
   reference resolution** — that's why 16:9 masters, and why edge content is
@@ -222,12 +223,21 @@ interior. Both delivered Plate A candidates took the valley and worked.
   later, it crops from these masters.
 - **No separate pause/inventory art** — derived from A and B.
 
-## One flag: the AI disclosure
+## One flag: the AI disclosure (rules now verified — see
+`UNITY-SUBMISSION-GUIDELINES.md` 1.6)
 
-The store has a dedicated generative-AI disclosure field, and the brief's
-compliance box (§2.4) planned to answer it **"none"** — our art is
-deterministic procedural engine output, which is a genuine differentiator
-we intend to market ("procedurally generated," never "AI").
+The field is named the **"AI description"** field, and its rules are: plain
+terms, no marketing language, name the SPECIFIC tools, describe the
+value-adding modifications (1.6.a). Two more verified rules shape our copy:
+marketing-only AI (the Plate D cover stage, which never enters the package)
+needs **no** disclosure (1.6.b); and AI-assisted content may not be
+described with words implying human effort — "drawn," "hand drawn,"
+"painted" — anywhere in the submission (1.6.c), so the store copy for the
+plates avoids the "painterly" family even though the private generation
+prompts use it. The brief's compliance box planned to answer "none" — our
+UI art is deterministic procedural engine output, which is a genuine
+differentiator we intend to market ("procedurally generated," never
+"AI").
 
 Shipping AI-generated backdrops inside the package changes that answer to
 **yes**, and the honest declaration becomes something like: *"Demo scene
