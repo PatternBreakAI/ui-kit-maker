@@ -73,6 +73,7 @@ export function UnityPage() {
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
+          <button className="cg-navbtn cg-navbtn--go" onClick={() => navigate("#/app")}>Open the generator</button>
           <button className="cg-navbtn" onClick={() => navigate("#/faq")}>FAQ</button>
           <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>

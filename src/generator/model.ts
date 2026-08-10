@@ -1605,6 +1605,22 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
+/* Pieces whose main label is free text — one list feeds the Panel's Text
+   field AND the Board's per-instance text chip, so the two surfaces can't
+   drift (owner: two START buttons on one board need different words). */
+export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
+  "primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge",
+  "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast",
+  "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield",
+  "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe",
+  "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint",
+  "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode",
+  "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
+  "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
+  "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
+  "rewardcard", "qtybadge", "claimbtn", "chestpanel",
+]);
+
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and
    the Global sliders still apply. Derived from bevel's pinDesign call

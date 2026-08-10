@@ -67,7 +67,10 @@ export function StudentPage() {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/pricing")}>← Pricing</button>
-        <span className="fd-pricing__mark">PatternBreak</span>
+        <span className="cg-nav">
+          <button className="cg-navbtn cg-navbtn--go" onClick={() => navigate("#/app")}>Open the generator</button>
+          <span className="fd-pricing__mark">PatternBreak</span>
+        </span>
       </header>
 
       <main className="fd-student">

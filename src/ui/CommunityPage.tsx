@@ -34,12 +34,32 @@ import logoUrl from "../../pb-logo.png";
 const HERO_POOL: KitComponentId[] = [
   "primary", "speedo", "dialog", "trophy", "flipclock", "healthglobe",
   "equipselector", "weaponwheel", "combo", "leaderboard", "waypoint", "dropdown",
+  "starrating", "spinwheel", "bignum", "achievetoast",
 ] as KitComponentId[];
 const MINI_SETS: { cid: KitComponentId; v?: number }[][] = [
   [{ cid: "progress" as KitComponentId, v: 0.62 }, { cid: "toggle" as KitComponentId, v: 1 }, { cid: "badge" as KitComponentId }],
   [{ cid: "chip" as KitComponentId }, { cid: "orb" as KitComponentId, v: 1 }, { cid: "keycap" as KitComponentId }],
   [{ cid: "currency" as KitComponentId }, { cid: "slider" as KitComponentId, v: 0.5 }, { cid: "notifydot" as KitComponentId }],
   [{ cid: "segbar" as KitComponentId, v: 0.6 }, { cid: "iconbtn" as KitComponentId }, { cid: "cooldown" as KitComponentId, v: 0.4 }],
+];
+/* Slides 2 and 3 (owner: "a swipe-able gallery of the ui kit, maybe 2 or 3
+   slides… a more creative way to lay out the components"): curated
+   compositions in three layout voices — row, column, 2×2 grid — drawn from
+   the RELEASED catalog so the wall shows the kit system's real breadth.
+   The hash picks two DIFFERENT sets per card, so neighboring cards flip
+   through different corners of the same kit. */
+type SlidePiece = { cid: KitComponentId; v?: number; size: "s" | "m" | "l" };
+const SLIDE_SETS: { cls: "row" | "col" | "grid"; pieces: SlidePiece[] }[] = [
+  { cls: "row", pieces: [{ cid: "starrating", v: 0.9, size: "m" }, { cid: "combo", v: 0.75, size: "s" }] },
+  { cls: "row", pieces: [{ cid: "currency", size: "s" }, { cid: "heartmeter", v: 0.6, size: "s" }, { cid: "movecounter", v: 0.5, size: "s" }] },
+  { cls: "grid", pieces: [{ cid: "toggle", v: 1, size: "s" }, { cid: "checkbox", v: 1, size: "s" }, { cid: "slider", v: 0.55, size: "s" }, { cid: "orb", v: 1, size: "s" }] },
+  { cls: "col", pieces: [{ cid: "xpbar", v: 0.55, size: "m" }, { cid: "loadbar", v: 0.8, size: "m" }] },
+  { cls: "row", pieces: [{ cid: "bignum", size: "m" }, { cid: "dmgnumber", v: 0.85, size: "s" }] },
+  { cls: "row", pieces: [{ cid: "cooldown", v: 0.4, size: "s" }, { cid: "buffframe", size: "s" }, { cid: "keycap", size: "s" }] },
+  { cls: "row", pieces: [{ cid: "avatarframe", size: "s" }, { cid: "nameplate", size: "m" }] },
+  { cls: "col", pieces: [{ cid: "secondary", size: "m" }, { cid: "input", size: "m" }] },
+  { cls: "grid", pieces: [{ cid: "slot", size: "s" }, { cid: "rarityframe", v: 0.8, size: "s" }, { cid: "badge", size: "s" }, { cid: "notifydot", size: "s" }] },
+  { cls: "row", pieces: [{ cid: "levelnode", v: 0.9, size: "s" }, { cid: "pathconnector", size: "s" }, { cid: "levelnode", v: 0.2, size: "s" }] },
 ];
 /** cheap stable hash of a uuid string */
 function idHash(s: string): number {
@@ -49,14 +69,22 @@ function idHash(s: string): number {
 }
 
 export function CardArt({ card }: { card: { id: string } }) {
-  /* two refs, one hard rule: React owns `host` (frame, spinner), the
-     engine owns `paint` (innerHTML target). Injecting into the React-
+  /* refs with one hard rule: React owns `host` (frame, spinner, dots), the
+     engine owns the `paint*` innerHTML targets. Injecting into the React-
      managed node let React try to remove a spinner the injection had
      already destroyed — a removeChild crash that blanked the page the
      first time a card ever loaded successfully. */
   const host = useRef<HTMLDivElement>(null);
   const paint = useRef<HTMLDivElement>(null);
+  const paint2 = useRef<HTMLDivElement>(null);
+  const paint3 = useRef<HTMLDivElement>(null);
+  const slidesEl = useRef<HTMLDivElement>(null);
+  const [slide, setSlide] = useState(0);
   const [state, setState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  const goTo = (i: number) => {
+    const el = slidesEl.current;
+    if (el) el.scrollTo({ left: el.clientWidth * Math.max(0, Math.min(2, i)), behavior: "smooth" });
+  };
   /* the hero is ALIVE from the moment the card loads (owner call): a real
      LiveArt instance, not a screenshot — shine sweeps, gauges rev on a
      staggered first beat, and CLICKS interact with the piece (rev it, flip
@@ -103,6 +131,14 @@ export function CardArt({ card }: { card: { id: string } }) {
           const small = MINI_SETS[(h >> 4) % MINI_SETS.length].map((p) => piece(p.cid, "s", p.v));
           paint.current.innerHTML =
             `<div class="cg-minis">${small.map((s) => `<span>${s}</span>`).join("")}</div>`;
+          /* slides 2 + 3: two DISTINCT compositions per card, hash-picked so
+             the wall's rhythm varies card to card */
+          const iA = (h >> 7) % SLIDE_SETS.length;
+          const iB = (iA + 1 + ((h >> 11) % (SLIDE_SETS.length - 1))) % SLIDE_SETS.length;
+          const comp = (set: (typeof SLIDE_SETS)[number]) =>
+            `<div class="cg-comp cg-comp--${set.cls}">${set.pieces.map((p) => `<span>${piece(p.cid, p.size, p.v)}</span>`).join("")}</div>`;
+          if (paint2.current) paint2.current.innerHTML = comp(SLIDE_SETS[iA]);
+          if (paint3.current) paint3.current.innerHTML = comp(SLIDE_SETS[iB]);
           /* the maker's stage rides the payload — paint it behind the art.
              Strict base64-image match only: this string enters CSS url(),
              so nothing that could escape it is accepted. Public cards are
@@ -126,14 +162,31 @@ export function CardArt({ card }: { card: { id: string } }) {
 
   return (
     <div ref={host} className="cg-art" aria-hidden="true">
-      {liveHero && (
-        <div className="cg-hero">
-          <LiveArt cfg={liveHero.cfg} playing ambient shine
-            kit={{ id: liveHero.cid, size: "l", label: liveHero.label, slots: liveHero.slots }} />
+      <div ref={slidesEl} className="cg-slides"
+        onScroll={(e) => { const el = e.currentTarget; setSlide(Math.round(el.scrollLeft / Math.max(1, el.clientWidth))); }}>
+        <div className="cg-slide">
+          {liveHero && (
+            <div className="cg-hero">
+              <LiveArt cfg={liveHero.cfg} playing ambient shine
+                kit={{ id: liveHero.cid, size: "l", label: liveHero.label, slots: liveHero.slots }} />
+            </div>
+          )}
+          {/* display:contents so the injected minis join the slide's flex */}
+          <div ref={paint} style={{ display: "contents" }} />
         </div>
-      )}
-      {/* display:contents so the injected hero/minis join .cg-art's flex */}
-      <div ref={paint} style={{ display: "contents" }} />
+        <div className="cg-slide" ref={paint2} />
+        <div className="cg-slide" ref={paint3} />
+      </div>
+      {state === "done" && (<>
+        {/* swipe on touch, chevrons on hover for mouse — dots do both */}
+        {slide > 0 && <button className="cg-arr cg-arr--l" aria-hidden="true" tabIndex={-1} onClick={() => goTo(slide - 1)}>‹</button>}
+        {slide < 2 && <button className="cg-arr cg-arr--r" aria-hidden="true" tabIndex={-1} onClick={() => goTo(slide + 1)}>›</button>}
+        <div className="cg-dots">
+          {[0, 1, 2].map((i) => (
+            <button key={i} className={slide === i ? "on" : ""} aria-hidden="true" tabIndex={-1} onClick={() => goTo(i)} />
+          ))}
+        </div>
+      </>)}
       {state !== "done" && (
         <span className="cg-art__wait">
           {state === "failed" ? "—" : <Loader2 size={16} strokeWidth={2.2} className="fd-spin" />}
@@ -288,6 +341,7 @@ export function CommunityPage() {
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/")}>← UI Kit Maker</button>
         <span className="cg-nav">
+          <button className="cg-navbtn cg-navbtn--go" onClick={() => navigate("#/app")}>{t("openGenerator")}</button>
           <button className="cg-navbtn" onClick={() => navigate("#/studio")}>{t("yourStudio")}</button>
           <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
         </span>

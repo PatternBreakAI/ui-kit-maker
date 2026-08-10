@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -779,7 +779,7 @@ export function Panel() {
      icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
   const iconTogglable = !!focus && focus !== "iconbtn" &&
     (iconSwappable || focus === "primary" || focus === "secondary");
-  const labelEditable = !!focus && (["primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge", "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast", "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield", "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe", "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode", "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue", "unitplate", "techcard", "friendrow", "chatbubble", "clancrest", "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket", "rewardcard", "qtybadge", "claimbtn", "chestpanel"] as KitComponentId[]).includes(focus);
+  const labelEditable = !!focus && KIT_LABEL_EDITABLE.has(focus);
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
   const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(focus);
   const subFieldName: Partial<Record<KitComponentId, string>> = { combo: "Plate word — e.g. COMBO!" };
