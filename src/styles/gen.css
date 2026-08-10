@@ -2133,6 +2133,15 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
 /* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
 .bd-pval { -webkit-appearance: none; appearance: none; width: 74px; height: 26px; margin: 0; padding: 0 4px; background: none; cursor: ew-resize; align-self: center; }
+/* per-instance text chip — "this copy only" words in the piece toolbar */
+.bd-ptext {
+  width: 108px; height: 22px; margin: 0; padding: 0 7px; align-self: center;
+  border: 1px solid rgba(159, 226, 255, .3); border-radius: 6px;
+  background: rgba(10, 14, 24, .8); color: #e7ecf5;
+  font: 600 11px/1 Inter, sans-serif; letter-spacing: .02em;
+}
+.bd-ptext::placeholder { color: rgba(231, 236, 245, .38); }
+.bd-ptext:focus { outline: none; border-color: #9fe2ff; }
 .bd-pval::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
 .bd-pval::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: #9fe2ff; border: 0; }
 .bd-pval::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }

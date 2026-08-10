@@ -39,7 +39,10 @@ export function UserPage({ handle }: { handle: string }) {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/community")}>← {t("cgTitle")}</button>
-        <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
+        <span className="cg-nav">
+          <button className="cg-navbtn cg-navbtn--go" onClick={() => navigate("#/app")}>{t("openGenerator")}</button>
+          <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
+        </span>
       </header>
 
       <main className="cg">

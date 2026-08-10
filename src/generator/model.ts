@@ -292,6 +292,11 @@ export interface TypeCfg {
   fill: string;
   fill2: string;       // gradient bottom
   fillOpacity: number; // 0..100 — translucent fills read as glass
+  /** Readout ink — the small utilitarian numbers on data pieces (timers,
+   *  counts, stats: the order ticket's #07, the unit plate's 12/8).
+   *  null/absent = adaptive: near-white on dark faces, the Shadow role
+   *  darkened on light ones (owner: "how do I edit the black text?"). */
+  infoInk?: string | null;
   outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** Relief follows the master light: highlight toward it, shade away from it.
@@ -1062,6 +1067,10 @@ export type SlotDef = {
   maxLen?: number;
   /** shown in the i card and on locked/value clicks — the no-dead-clicks text */
   note?: string;
+  /** color: offer a "none" option that removes the feature entirely — the
+      stored sentinel value is the string "none" (owner, eyebrow stroke:
+      "should have a none option"). Renderers must honor it. */
+  allowNone?: boolean;
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1256,8 +1265,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "ACHIEVEMENT UNLOCKED", maxLen: 28 },
     { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FACC15",
       note: "The announcement line's ink — gold is the factory setting because unlocks read as gold." },
-    { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28",
-      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid." },
+    { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28", allowNone: true,
+      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid; None removes it." },
   ],
   movecounter: [
     { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },
@@ -1595,6 +1604,22 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
   killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
+
+/* Pieces whose main label is free text — one list feeds the Panel's Text
+   field AND the Board's per-instance text chip, so the two surfaces can't
+   drift (owner: two START buttons on one board need different words). */
+export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
+  "primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge",
+  "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast",
+  "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield",
+  "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe",
+  "dmgnumber", "loottag", "killfeed", "streakmeter", "waypoint",
+  "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode",
+  "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
+  "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
+  "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
+  "rewardcard", "qtybadge", "claimbtn", "chestpanel",
+]);
 
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and

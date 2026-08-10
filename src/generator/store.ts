@@ -329,6 +329,8 @@ interface GenStore {
   scaleBoardItem: (id: string, scale: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
+  /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
+  setBoardItemLabel: (id: string, label: string | null) => void;
   removeBoardItem: (id: string) => void;
   /** Board history — 100 levels, coalesced for continuous gestures. */
   boardPast: string[];
@@ -533,6 +535,11 @@ export interface BoardItem {
   /** THIS instance's value pose (0..1) — wins over the kit-wide staged
    *  value, so one board can show a common AND a legendary rarity frame */
   v?: number;
+  /** THIS instance's text — two START buttons on one screen can say START
+   *  and OPTIONS (owner). Wins over the kit-wide specimen label; absent =
+   *  follow the kit. Design changes still flow through live — only the
+   *  words are pinned. */
+  label?: string;
 }
 /** One artboard — a named, fixed-resolution stage with its own pieces and
  *  background. Backgrounds are object URLs, so the image itself is
@@ -936,6 +943,11 @@ export const useGen = create<GenStore>((set, get) => ({
   setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
+    return next;
+  }),
+  setBoardItemLabel: (id, label) => mutateItem(get, set, `label:${id}`, id, (b) => {
+    const next = { ...b };
+    if (label === null || label === "") delete next.label; else next.label = label;
     return next;
   }),
   removeBoardItem: (id) => {

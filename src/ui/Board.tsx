@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate,
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg } from "@/generator/exportUtils";
 import { LiveArt } from "./LiveArt";
@@ -28,11 +28,50 @@ const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Rewards & chests", ids: ["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] },
-  { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry"] },
-  { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug"] },
+  { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
+  { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
   { name: "Card battler", ids: ["cardback", "pack"] },
 ];
+
+/* Search vocabulary: teams reach for genre words the component names don't
+   carry — "results", "celebration", "saga", "lives" must land on the right
+   pieces (owner: "all kit elements… just need to be surface-able by
+   search"). Every piece also matches its display name, its id and its
+   group name; this map only adds the words those three miss. */
+const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
+  starrating: "stars results celebration win level complete replay",
+  combo: "multiplier celebration results streak pop",
+  bignum: "score results points celebration count",
+  dmgnumber: "damage floating hit crit numbers pop",
+  levelnode: "saga map level select world stage lock",
+  pathconnector: "saga map path world trail dots",
+  heartmeter: "lives hearts refill casual",
+  energymeter: "energy stamina lightning refill",
+  movecounter: "moves turns remaining casual",
+  dailycell: "daily rewards calendar gift streak",
+  spinwheel: "spin wheel fortune prize daily lucky",
+  booster: "powerup power-up consumable item casual",
+  chest: "reward loot crate treasure win",
+  giftbox: "present reward gift daily",
+  rewardcard: "reward results win prize claim",
+  rewardtray: "rewards results win row",
+  claimbtn: "collect claim reward cta",
+  qtybadge: "count amount quantity stack",
+  chestpanel: "rewards chest opening celebration",
+  achievetoast: "achievement unlock celebration banner first",
+  trophy: "cup winner victory results podium gold",
+  startlights: "race countdown start lights gantry",
+  resource: "currency coins gems counter hud pill",
+  currency: "coins gems gold money wallet",
+  pricebtn: "buy purchase shop iap best value ribbon",
+  healthglobe: "orb health hp potion diablo",
+  xpbar: "experience level progress bar",
+  orderticket: "cooking recipe kitchen casual timer",
+  popmeter: "population supply cap strategy",
+  quickslots: "equipment quadrant dpad loadout souls",
+  vitalbar: "health mana bar readout hud",
+};
 
 /* Bundled backdrops — the owner's own scenes, served from public/. A path
    URL persists (and exports); only blob: uploads stay session-only. */
@@ -305,10 +344,15 @@ export function BoardView({ playing }: { playing: boolean }) {
   const assets = useMemo(() => {
     const tc = clone(cfg);
     for (const s of Object.values(tc.states)) s.glow = 0;
-    const name = (id: KitComponentId) => KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
+    /* trophy/startlights are deregistered from the kit-page roster but the
+       Board surfaces EVERYTHING (owner: "all kit elements… surface-able by
+       search") — they still need honest display names here */
+    const EXTRA_NAMES: Partial<Record<KitComponentId, string>> = { trophy: "Trophy cup", startlights: "Start lights" };
+    const name = (id: KitComponentId) => KIT_COMPONENTS.find((c) => c.id === id)?.name ?? EXTRA_NAMES[id] ?? id;
     return ASSET_GROUPS.map((g) => ({
       name: g.name,
-      items: g.ids.filter((id) => kitVisible(id, componentReleases, isAdmin)).map((id) => ({ id, name: name(id), svg: renderKit(applyKitTextFill(tc, kitTextFill[id]), id, "s", "default", undefined, kitShapes[id], { icon: resolveKitIcon(kitIcons[id], undefined), label: kitLabels[id] }) })),
+      // hay = everything search can land on: display name, id, group, synonyms
+      items: g.ids.filter((id) => kitVisible(id, componentReleases, isAdmin)).map((id) => ({ id, name: name(id), hay: `${name(id)} ${id} ${g.name} ${SEARCH_TERMS[id] ?? ""}`.toLowerCase(), svg: renderKit(applyKitTextFill(tc, kitTextFill[id]), id, "s", "default", undefined, kitShapes[id], { icon: resolveKitIcon(kitIcons[id], undefined), label: kitLabels[id] }) })),
     }));
   }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
 
@@ -319,7 +363,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const svgOf = (b: BoardItem): { svg: string; cfg: GenConfig } => {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
-      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
+      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
     }
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
@@ -495,7 +539,9 @@ export function BoardView({ playing }: { playing: boolean }) {
         <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
         <div className="bd-scroll">
           {assets.map((g) => {
-            const items = g.items.filter((it) => !q || it.name.toLowerCase().includes(q.toLowerCase()));
+            // every typed word must land somewhere in the piece's haystack
+            const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+            const items = g.items.filter((it) => terms.every((t) => it.hay.includes(t)));
             if (!items.length) return null;
             return (
               <div key={g.name}>
@@ -878,7 +924,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
       <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left" }}>
         {b.kitId ? (
           <LiveArt cfg={applyKitTextFill(cfg, kitTextFill[b.kitId])} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
+            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined }} />
@@ -920,6 +966,18 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                     value={Math.round((b.v ?? kitVals[b.kitId] ?? 0.62) * 100)}
                     onChange={(e) => useGen.getState().setBoardItemVal(b.id, +e.target.value / 100)}
                     onDoubleClick={() => useGen.getState().setBoardItemVal(b.id, null)} />
+                )}
+                {b.kitId && KIT_LABEL_EDITABLE.has(b.kitId) && (
+                  /* THIS instance's words — two START buttons on one screen
+                     can say START and OPTIONS. The kit's design keeps
+                     flowing through; only the text is pinned. Empty =
+                     follow the kit again. */
+                  <input type="text" className="bd-ptext" maxLength={labelMaxOf(b.kitId)}
+                    title="Text — this copy only. Clear the field to follow the kit again."
+                    aria-label="Instance text"
+                    placeholder={kitLabels[b.kitId] || "Text — this copy"}
+                    value={b.label ?? ""}
+                    onChange={(e) => useGen.getState().setBoardItemLabel(b.id, e.target.value)} />
                 )}
                 <button title="Export this piece as SVG" onClick={onExport}>
                   <Download size={12} strokeWidth={2.2} />

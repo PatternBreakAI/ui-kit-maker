@@ -454,6 +454,10 @@
 }
 .cg-navbtn:hover { color: var(--ink); border-color: var(--accent, #d946ef); transform: translateY(-1px); }
 [data-theme="dark"] .cg-navbtn { background: rgba(24, 17, 42, .8); border-color: rgba(180, 140, 250, .2); }
+/* the door back to the tool — every page carries one (owner: "should be
+   able to get to the generator from the community page (and all pages)") */
+.cg-navbtn--go { border-color: var(--accent, #d946ef); color: var(--accent, #d946ef); font-weight: 700; }
+.cg-navbtn--go:hover { color: #fff; background: var(--accent, #d946ef); }
 
 .cg-secline {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -487,16 +491,55 @@
   padding: 3px 8px; border-radius: 999px;
 }
 
-/* the art: hero render on top, three minis under it */
+/* the art: a 3-slide swipeable gallery (owner: "a swipe-able gallery of
+   the ui kit, maybe 2 or 3 slides") — slide 1 is the live hero + minis,
+   slides 2/3 are hash-picked compositions so the wall keeps a varied
+   rhythm. Native scroll-snap carries touch; chevrons carry the mouse. */
 .cg-art {
   position: relative; display: flex; flex-direction: column; align-items: center;
-  gap: 8px; min-height: 150px; padding: 18px 14px 8px; justify-content: center;
+  min-height: 150px; padding: 12px 0 6px; justify-content: center;
 }
-.cg-art__wait { color: var(--ink3); }
+.cg-art__wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ink3); }
+.cg-slides {
+  display: flex; width: 100%; overflow-x: auto;
+  scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.cg-slides::-webkit-scrollbar { display: none; }
+.cg-slide {
+  flex: 0 0 100%; min-width: 100%; scroll-snap-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; min-height: 150px; padding: 6px 14px 2px;
+}
 .cg-hero { display: flex; justify-content: center; max-width: 100%; }
 .cg-hero svg { display: block; max-width: 210px; height: auto; }
 .cg-minis { display: flex; align-items: center; justify-content: center; gap: 10px; opacity: .92; }
 .cg-minis svg { display: block; max-width: 62px; max-height: 44px; height: auto; }
+/* the three composition voices — row strip, stacked column, 2×2 grid */
+.cg-comp { display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 100%; }
+.cg-comp svg { display: block; height: auto; }
+.cg-comp--row { flex-wrap: wrap; }
+.cg-comp--row svg { max-width: 90px; max-height: 74px; }
+.cg-comp--col { flex-direction: column; gap: 10px; }
+.cg-comp--col svg { max-width: 200px; max-height: 64px; }
+.cg-comp--grid { display: grid; grid-template-columns: auto auto; gap: 10px 16px; justify-items: center; align-items: center; }
+.cg-comp--grid svg { max-width: 78px; max-height: 56px; }
+.cg-dots { display: flex; gap: 7px; justify-content: center; padding-top: 4px; }
+.cg-dots button {
+  width: 6px; height: 6px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  background: var(--ink3); opacity: .35; transition: opacity .15s, transform .15s;
+}
+.cg-dots button.on { opacity: 1; transform: scale(1.25); background: var(--accent, #d946ef); }
+.cg-arr {
+  position: absolute; top: 44%; z-index: 2; width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; cursor: pointer; padding: 0 0 2px;
+  font-size: 17px; line-height: 1; color: var(--ink);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  opacity: 0; transition: opacity .15s;
+}
+.cg-card:hover .cg-arr, .cg-arr:focus-visible { opacity: .85; }
+.cg-arr--l { left: 7px; }
+.cg-arr--r { right: 7px; }
 
 .cg-meta { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 14px; margin-top: auto; }
 .cg-title { display: flex; flex-direction: column; gap: 2px; }

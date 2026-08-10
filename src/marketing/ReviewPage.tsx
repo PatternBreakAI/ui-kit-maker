@@ -160,7 +160,10 @@ export function ReviewPage() {
     <div className="fd-pricing">
       <header className="fd-pricing__nav">
         <button className="fd-pricing__brand" onClick={() => navigate("#/account")}>← Account</button>
-        <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
+        <span className="cg-nav">
+          <button className="cg-navbtn cg-navbtn--go" onClick={() => navigate("#/app")}>Open the generator</button>
+          <span className="fd-pricing__mark"><img className="fd-pricing__logo" src={logoUrl} alt="" />PatternBreak</span>
+        </span>
       </header>
 
       <main className="fd-student fd-review">

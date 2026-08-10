@@ -49,7 +49,7 @@ Package build gates (verify during P2, before submission):
 - [ ] Submit with Unity 2022.3 LTS (1.3.a); if ever submitted via 6.5+, URP support becomes mandatory (1.3.c) — uGUI content is pipeline-agnostic but demo scenes must open clean under URP.
 - [ ] Documentation in .txt/.md/.pdf/.html/.rtf, comprehensive, local copy included (2.3.a-b).
 - [ ] Description lists asset counts + technical details (sprite dimensions, formats) (3.1.b); dependencies disclosed (1.1.c); no purely AI-generated description (3.1.a).
-- [ ] Third-Party Notices.txt in package + notice line in description (1.2.a): "Asset uses Titan One under SIL OFL; see Third-Party Notices.txt file in package for details."
+- [ ] Third-Party Notices.txt in package + notice line in description (1.2.a): "Asset uses Bruno Ace under SIL OFL; see Third-Party Notices.txt file in package for details." *(font updated 2026-08-10 — launch kit is Salt Pink/Bruno Ace, not Titan One)*
 - [ ] "AI description" field: name the image tool used for the three demo backdrop plates; state that all UI sprites, prefabs and fonts are deterministic procedural output of our engine, not generative AI (1.6.a).
 - [ ] No human-effort words for AI content anywhere in the submission (1.6.c).
 - [ ] Under 6GB (1.1.e) — we are megabytes, not gigabytes.
