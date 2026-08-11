@@ -2122,6 +2122,24 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-bgthumb i { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--ink2); padding: 0 3px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; max-width: 100%; }
 .bd-bgthumb:hover { transform: translateY(-1px); border-color: var(--ink3); }
 .bd-bgthumb[aria-pressed="true"] { border-color: #6fd6ff; box-shadow: 0 0 0 1.5px rgba(111, 214, 255, .4); }
+/* the scene library — search-first over the backdrop grid language */
+.bd-lib-staged { font-size: 8.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #ffd166; border: 1px solid rgba(255, 209, 102, .5); border-radius: 5px; padding: 1px 5px; margin-left: 7px; vertical-align: 1px; }
+.bd-libsearch { display: flex; align-items: center; gap: 6px; margin-top: 8px; height: 30px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); padding: 0 8px; color: var(--ink3); }
+.bd-libsearch input { flex: 1; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 11.5px; outline: none; }
+.bd-libsearch input::placeholder { color: var(--ink3); }
+.bd-libsearch button { display: grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 5px; background: none; color: var(--ink3); cursor: pointer; padding: 0; }
+.bd-libsearch button:hover { color: var(--ink); }
+.bd-libchips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.bd-libchips button { height: 20px; padding: 0 8px; border: 1px solid var(--line2); border-radius: 10px; background: none; color: var(--ink2); font: 700 9.5px inherit; letter-spacing: .03em; cursor: pointer; white-space: nowrap; }
+.bd-libchips button:hover { border-color: var(--ink3); color: var(--ink); }
+.bd-libchips button.on { border-color: #6fd6ff; color: #6fd6ff; background: rgba(111, 214, 255, .09); }
+.bd-libgrid .bd-bgthumb i { display: flex; align-items: center; gap: 4px; }
+.bd-libgrid .bd-bgthumb i b { flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); }
+/* portrait scenes keep the tile rhythm — cover-cropped like the stage */
+.bd-libgrid .bd-bgthumb.tall img { object-position: center 22%; }
+.bd-libmore { width: 100%; margin-top: 7px; height: 26px; border: 1px dashed var(--line2); border-radius: 8px; background: none; color: var(--ink2); font: 700 10.5px inherit; cursor: pointer; }
+.bd-libmore:hover { border-color: var(--ink3); color: var(--ink); }
+
 .bd-vurl { display: flex; gap: 6px; margin-top: 8px; }
 .bd-vurl input { flex: 1; min-width: 0; height: 30px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 11.5px; padding: 0 9px; }
 .bd-vurl input::placeholder { color: var(--ink3); }

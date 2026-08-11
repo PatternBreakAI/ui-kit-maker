@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
+import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
@@ -293,6 +294,72 @@ const ovBackground = (mode: string): string =>
     ? "radial-gradient(ellipse at 50% 42%, rgba(4,7,14,0) 34%, rgba(4,7,14,0.92) 100%)"
     : OV_TINT[mode] ?? "transparent";
 
+/* ── The background library: 82 owner-curated scenes, search-first ────
+   Thumbs ship with the app (public/bg-thumbs); a click applies the
+   full-res WebP straight from the Supabase "backgrounds" bucket — the
+   board stores that URL, never pixels, so the document stays skinny and
+   the darkroom/overlays work exactly as they do on uploads. STAGED:
+   admins only until the owner releases it (standing rule); also absent
+   when the app runs without cloud config (no bucket to serve from). */
+function BackdropLibrary({ aspect, current, apply }: {
+  aspect: "169" | "mobile";
+  current: string | null | undefined;
+  apply: (url: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // the active board's orientation leads: 16:9 boards surface landscape
+  // scenes first, mobile boards portrait — never hides the rest
+  const landFirst = aspect === "169";
+  const list = BACKDROP_LIBRARY
+    .filter((e) => (!cat || e.cat === cat) && words.every((w) => e.hay.includes(w)))
+    .sort((a, b) => (a.land === b.land ? 0 : a.land === landFirst ? -1 : 1));
+  const CAP = 18;
+  const shown = showAll ? list : list.slice(0, CAP);
+  return (
+    <div className="bd-lib">
+      <div className="bd-h" style={{ marginTop: 14 }}>Scene library <span className="bd-lib-staged" title="Visible to admins only until released">staged</span></div>
+      <div className="bd-libsearch">
+        <Search size={13} strokeWidth={2.2} />
+        <input value={q} placeholder="Search 82 scenes — cozy kitchen, neon, battle…" aria-label="Search the scene library"
+          onChange={(e) => { setQ(e.target.value); setShowAll(false); }} />
+        {q && <button aria-label="Clear search" onClick={() => setQ("")}><X size={12} strokeWidth={2.4} /></button>}
+      </div>
+      <div className="bd-libchips" role="tablist" aria-label="Scene categories">
+        <button role="tab" className={cat === null ? "on" : ""} aria-selected={cat === null} onClick={() => { setCat(null); setShowAll(false); }}>All</button>
+        {BACKDROP_CATEGORIES.map((c) => (
+          <button key={c} role="tab" className={cat === c ? "on" : ""} aria-selected={cat === c}
+            onClick={() => { setCat(cat === c ? null : c); setShowAll(false); }}>{c.replace(" & ", " · ")}</button>
+        ))}
+      </div>
+      {list.length === 0 ? (
+        <div className="bd-note">No scene matches — try fewer words, or another genre.</div>
+      ) : (
+        <div className="bd-bggrid bd-libgrid" aria-label="Library scenes">
+          {shown.map((e) => {
+            const url = backdropUrl(e.id);
+            if (!url) return null;
+            return (
+              <button key={e.id} className={`bd-bgthumb${e.land ? "" : " tall"}`} title={`${e.title} · ${e.cat}`}
+                aria-pressed={current === url}
+                onClick={() => apply(url)}>
+                <img src={backdropThumb(e.id)} alt={e.title} loading="lazy" />
+                <i><b style={{ background: e.dot }} />{e.title}</i>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {list.length > CAP && !showAll && (
+        <button className="bd-libmore" onClick={() => setShowAll(true)}>Show all {list.length}</button>
+      )}
+      <div className="bd-note">Scenes stream from the cloud — your board saves a link, never the pixels.</div>
+    </div>
+  );
+}
+
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
@@ -454,6 +521,9 @@ export function BoardView({ playing }: { playing: boolean }) {
           ctx.restore(); res();
         };
         img.onerror = () => res();
+        /* library scenes (and any remote image): anonymous CORS or nothing —
+           a tainted frame would kill the whole canvas export */
+        if (/^https:\/\//.test(bd.bgImage!)) img.crossOrigin = "anonymous";
         img.src = bd.bgImage!;
       });
     }
@@ -884,6 +954,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                 </button>
               ))}
             </div>
+            {/* the scene library — staged behind the admin flag, and absent
+                entirely in cloud-less builds (no bucket to stream from) */}
+            {isAdmin && backdropUrl("any") !== null && (
+              <BackdropLibrary aspect={act.aspect} current={act.bgImage}
+                apply={(url) => setBoardBg({ bgImage: url, bgVideo: null, bgShow: true })} />
+            )}
             {/* bring-your-own loop: any direct https .mp4/.webm link — a plain
                 string, so it persists like the bundled scenes */}
             <div className="bd-vurl">

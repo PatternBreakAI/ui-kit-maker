@@ -157,6 +157,19 @@ export async function collectExportBoards(st: {
             if (r.ok) { bytes = new Uint8Array(await r.arrayBuffer()); ext = bd.bgImage.split(".").pop() ?? "jpg"; }
           } catch { /* scene ships without a backdrop */ }
         }
+        else if (/^https:\/\//.test(bd.bgImage)) {
+          // library scene (or any remote image) — the storage bucket serves
+          // permissive CORS, so the bytes bake exactly like a bundled one
+          try {
+            const r = await fetch(bd.bgImage);
+            if (r.ok) {
+              bytes = new Uint8Array(await r.arrayBuffer());
+              const ct = r.headers.get("content-type") ?? "";
+              ext = /png/.test(ct) ? "png" : /webp/.test(ct) ? "webp" : /jpe?g/.test(ct) ? "jpg"
+                : (bd.bgImage.split(".").pop()?.split("?")[0] ?? "png");
+            }
+          } catch { /* scene ships without a backdrop */ }
+        }
       }
       /* the whole darkroom BAKES into the shipped pixels — hue, saturation,
          brightness, contrast, blur AND the seeded grain are deterministic
