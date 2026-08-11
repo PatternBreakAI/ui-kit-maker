@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useDeferredValue, useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
 import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
 import { LessonBody } from "./LessonCard";
@@ -22,6 +22,9 @@ const capOf = (s: GenStateName) =>
 
 export function CanvasView() {
   const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg, sliceStage } = useGen();
+  // the state-preview cards trail the live cfg by a frame during drags —
+  // they are references, not the thing being edited (see the scard render)
+  const scardCfg = useDeferredValue(cfg);
   const actBd = boards.find((b) => b.id === activeBoard);
   const [gridPop, setGridPop] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -423,7 +426,11 @@ export function CanvasView() {
             <button className={`scard clickable${s === selectedState ? " sel" : ""}`} key={s}
               onClick={() => setSelectedState(s)} title={`Edit ${cap}`} aria-pressed={s === selectedState}>
               <div className="scard-title">{cap}{s === selectedState ? " · editing" : ""}</div>
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, s)) }} />
+              {/* the cards render from the DEFERRED cfg: during a slider drag
+                  only the hero pays per frame — three extra engine renders per
+                  tick were most of the drag's main-thread bill, and the cards
+                  catch up the instant the pointer rests */}
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s)) }} />
             </button>
           ))}
         </div>

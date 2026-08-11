@@ -180,10 +180,30 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
   label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
+  /* Drags coalesce to ONE update per animation frame, latest value wins.
+     Range inputs fire faster than the editor can re-render (each update
+     redraws the hero + every state card synchronously), so an unthrottled
+     drag on a heavy kit queued seconds of solid main-thread work — enough
+     to trip Chrome's "Page Unresponsive" dialog (field: "site is
+     freezing"). The final value always lands; the typed number field
+     stays immediate. */
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const latest = useRef(value);
+  const frame = useRef<number | null>(null);
+  useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current); }, []);
+  const emit = (v: number) => {
+    latest.current = v;
+    if (frame.current != null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      onChangeRef.current(latest.current);
+    });
+  };
   return (
     <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => onChange(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)} />
       <span className="valbox">
         <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
