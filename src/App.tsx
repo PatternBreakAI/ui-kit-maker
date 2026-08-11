@@ -120,6 +120,55 @@ function ChromeNudge() {
   );
 }
 
+/* SAFE MODE reads the stored workspace without loading it — so it can hand
+   support a one-click diagnostics summary even when a normal boot freezes
+   before DevTools can open (field: "I don't know how to hit F12"). Key
+   sizes, kit vitals and board shapes only — never full stored values. */
+function safeDiagnostics(): string {
+  const lines: string[] = [`UI Kit Maker diagnostics · ${new Date().toISOString().slice(0, 16)}`];
+  try {
+    const keys: [string, number][] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!;
+      if (k.startsWith("ui-generator")) keys.push([k, Math.round((localStorage.getItem(k) ?? "").length / 1024)]);
+    }
+    keys.sort((a, b) => b[1] - a[1]);
+    lines.push("keys: " + keys.map(([k, s]) => `${k.replace("ui-generator-", "")}=${s}KB`).join(" · "));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg = JSON.parse(localStorage.getItem("ui-generator-v10") ?? "null") as any;
+    if (cfg) {
+      lines.push(`cfg: preset=${cfg.presetId} font=${cfg.type?.font} shape=${cfg.shape} extrusion=${cfg.candy?.extrusion?.depth} glowD/H=${cfg.states?.default?.glow}/${cfg.states?.hover?.glow} customFonts=[${(cfg.type?.customFonts ?? []).join(",")}]`);
+      const eff = cfg.effects && typeof cfg.effects === "object" ? Object.keys(cfg.effects).length : 0;
+      const patName = (p: unknown): string => (p && typeof p === "object"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? String((p as any).kind ?? (p as any).id ?? (p as any).name ?? "custom") : String(p ?? "-"));
+      lines.push(`cfg2: effects=${eff} wall=${patName(cfg.candy?.wall?.pattern ?? cfg.candy?.wallPattern)} face=${patName(cfg.candy?.pattern)} states=${Object.keys(cfg.states ?? {}).join("/")}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shapes = JSON.parse(localStorage.getItem("ui-generator-kitshapes") ?? "{}") as any;
+    const shapeSet = [...new Set([cfg?.shape, ...Object.values(shapes ?? {})])].filter(Boolean);
+    lines.push("shapes: " + (shapeSet.join(", ") || "-"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bd = JSON.parse(localStorage.getItem("ui-generator-board") ?? "null") as any;
+    if (bd?.boards) lines.push("boards: " + bd.boards.map((b: { name?: string; items?: unknown[]; bgAssetId?: string; bgImage?: string }) =>
+      `${b.name ?? "?"}[${(b.items ?? []).length} items, bg:${b.bgAssetId ? "vault" : b.bgImage ? (b.bgImage.startsWith("data:") ? "DATA-URL" : b.bgImage.slice(0, 24)) : "none"}]`).join(" · "));
+    lines.push("ua: " + navigator.userAgent);
+  } catch (e) { lines.push("collect error: " + String(e).slice(0, 100)); }
+  return lines.join("\n");
+}
+
+function SafeBootBanner() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="safeboot-badge" role="status">
+      SAFE MODE — factory defaults, nothing saves. Your real workspace is untouched; remove <b>?safe</b> from the URL to return to it.
+      <button onClick={() => { void navigator.clipboard.writeText(safeDiagnostics()).then(() => setCopied(true)); }}>
+        {copied ? "Copied — paste it in chat" : "Copy diagnostics"}
+      </button>
+    </div>
+  );
+}
+
 /* When something inside a handler throws, React can leave the UI looking fine
    while every click silently dies — the "app craps out" report. Surface it. */
 function useCrashBanner() {
@@ -188,11 +237,7 @@ export function App() {
       <LootModal />
       <TutorTip />
       <ChromeNudge />
-      {SAFE_BOOT && (
-        <div className="safeboot-badge" role="status">
-          SAFE MODE — factory defaults, nothing saves. Your real workspace is untouched; remove <b>?safe</b> from the URL to return to it.
-        </div>
-      )}
+      {SAFE_BOOT && <SafeBootBanner />}
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}
