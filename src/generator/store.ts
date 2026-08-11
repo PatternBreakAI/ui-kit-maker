@@ -749,9 +749,49 @@ let histKey = "";
 let histT = 0;
 /* data-URL and bundled-path backdrops persist; blob URLs cannot survive a
    reload, so they stay session-only */
-const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") ? u : undefined);
+const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") && !u.startsWith("data:") ? u : undefined);
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
   saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
+
+/* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
+   whenever I click anything in the left tray") ──
+   A data-URL backdrop in the board doc meant EVERY board mutation dragged
+   ~500KB of base64 through history + localStorage + cloud sync — seconds
+   per click on a real document, and the 100-step undo held up to 100
+   copies in memory. So: pixels live in the VAULT, the stage shows a
+   session object URL, and the persisted doc carries only bgAssetId.
+   Boot restores the URLs; legacy data-URL boards migrate into the vault
+   the first time they load. */
+let bgRehydrated = false;
+export async function rehydrateBoardBgs(): Promise<void> {
+  if (bgRehydrated || typeof indexedDB === "undefined") return;
+  bgRehydrated = true;
+  const { getBgOriginal, putBgOriginal } = await import("./bgvault");
+  const st = useGen.getState();
+  let changed = false;
+  const boards = await Promise.all(st.boards.map(async (b) => {
+    // vault-backed board whose session URL died with the last tab
+    if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
+      const rec = await getBgOriginal(b.bgAssetId);
+      if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+      return b;
+    }
+    // legacy data-URL board — move the pixels into the vault, slim the doc
+    if (b.bgImage && b.bgImage.startsWith("data:image/") && !b.bgAssetId) {
+      try {
+        const blob = await (await fetch(b.bgImage)).blob();
+        const id = await putBgOriginal(blob, "migrated");
+        if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
+      } catch { /* undecodable — leave it */ }
+    }
+    return b;
+  }));
+  if (changed) {
+    // no history entry — this is plumbing, not an edit
+    useGen.setState({ boards });
+    saveBoards(useGen.getState);
+  }
+}
 
 /** Downscale an uploaded background to a storable data URL (≤1920px,
  *  JPEG) — small enough to persist, big enough for a 16:9 board. */

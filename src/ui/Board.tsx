@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, fileToBgDataUrl, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -295,6 +295,8 @@ export function BoardView({ playing }: { playing: boolean }) {
     setBoardBg({ bgVideo: r.url!, bgImage: null, bgShow: true });
     setVidUrl("");
   };
+  // session object URLs die with the tab — restore them from the vault
+  useEffect(() => { void rehydrateBoardBgs(); }, []);
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
@@ -896,12 +898,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 const f = e.target.files?.[0];
                 if (f) {
                   if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
-                  /* two copies, two jobs: the vault holds the SHIP COPY
-                     (≤1920 long side — the scene-export ceiling; smaller
-                     uploads pass through untouched), the stage gets the
-                     light proxy so dragging never fights a big decode */
-                  else void Promise.all([fileToBgDataUrl(f), normalizeShipCopy(f).then((b) => putBgOriginal(b, f.name))]).then(([url, assetId]) =>
-                    setBoardBg({ bgImage: url, bgAssetId: assetId, bgVideo: null, bgShow: true }));
+                  /* ONE copy, in the vault: the ship copy (≤1920) is also
+                     the display image, served as a session object URL — the
+                     board DOC carries only the tiny bgAssetId, so history,
+                     saves and cloud sync never drag pixels (field crash) */
+                  else void normalizeShipCopy(f).then(async (ship) => {
+                    const assetId = await putBgOriginal(ship, f.name);
+                    setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
+                  });
                 }
                 e.target.value = "";
               }} />
@@ -949,25 +953,49 @@ export function BoardView({ playing }: { playing: boolean }) {
  *  the shell and a corner drag handle that resizes in place. */
 /* A stamp on the stage. Unwarped: the crisp svg itself, restyling live.
    Warped: the svg rasters through the SAME warp op the exports use, so the
-   preview is the export. The adjust filter stays CSS either way. */
+   preview is the export. HARDENED after a field crash report ("chrome
+   keeps crashing"): re-rasters are debounced past drag ticks, previews cap
+   at 2048px (exports still render full-res, one-shot), and frames live as
+   object URLs that revoke their predecessor — the old data-URL-per-tick
+   version could park hundreds of MB in renderer memory during one drag. */
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
-  const svg = stampSvg(cfg, stamp);
+  /* a 400% specimen is a real engine render — memo it, or every board
+     interaction re-renders every stamp (the tray-click sluggishness) */
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
-  const [url, setUrl] = useState<string | null>(null);
+  const [frame, setFrame] = useState<{ url: string; w: number; h: number } | null>(null);
+  const urlRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!warped) { setUrl(null); return; }
+    if (!warped) {
+      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+      setFrame(null); return;
+    }
     let on = true;
-    const img = new Image();
-    img.onload = () => {
-      if (!on) return;
-      const cv = warpStampRaster(img, img.width, img.height, stamp.warp!);
-      setUrl(cv.toDataURL());
-    };
-    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
-    return () => { on = false; };
+    const t = window.setTimeout(() => {
+      const img = new Image();
+      img.onload = () => {
+        if (!on) return;
+        const k = Math.min(1, 2048 / Math.max(1, img.width));
+        const cv0 = document.createElement("canvas");
+        cv0.width = Math.max(1, Math.round(img.width * k));
+        cv0.height = Math.max(1, Math.round(img.height * k));
+        cv0.getContext("2d")!.drawImage(img, 0, 0, cv0.width, cv0.height);
+        const wc = warpStampRaster(cv0, cv0.width, cv0.height, stamp.warp!);
+        wc.toBlob((bl) => {
+          if (!on || !bl) return;
+          const u = URL.createObjectURL(bl);
+          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+          urlRef.current = u;
+          setFrame({ url: u, w: wc.width / k, h: wc.height / k });
+        });
+      };
+      img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+    }, 130); // one raster per settled dial position, not per tick
+    return () => { on = false; window.clearTimeout(t); };
   }, [svg, warped, stamp.warp?.style, stamp.warp?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
-  return warped && url
-    ? <img src={url} style={{ filter: stampFilter(cfg, stamp), display: "block" }} alt="" />
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+  return warped && frame
+    ? <img src={frame.url} width={frame.w} height={frame.h} style={{ filter: stampFilter(cfg, stamp), display: "block" }} alt="" />
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 

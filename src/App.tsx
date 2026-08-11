@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { TopBar } from "./ui/TopBar";
 import { Rail, Panel } from "./ui/Panel";
 import { CanvasView } from "./ui/CanvasView";
-import { useGen } from "./generator/store";
+import { useGen, rehydrateBoardBgs } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 import { ensureFont } from "./generator/fonts";
 import { registerCustomFont } from "./generator/model";
 import { TutorTip } from "./ui/TutorTip";
 import { startTutor } from "./tutor/tutor";
+
+/* Board backdrops rehydrate (and legacy data-URL boards MIGRATE into the
+   vault) at BOOT, not on first Board visit — a fat board key made every
+   edit-screen click drag pixels through history and cloud sync (field:
+   "freezes whenever I click anything in the left tray"). */
+function useBoardBgBoot() {
+  useEffect(() => { void rehydrateBoardBgs(); }, []);
+}
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
    reload when the signed-in identity changes (so admin controls appear). */
@@ -129,6 +137,7 @@ function useCrashBanner() {
 export function App() {
   const { panelW, setPanelW, undo, redo, theme, phase, canvasMode } = useGen();
   useSharedKit();
+  useBoardBgBoot();
   useCloudPresets();
   useDocumentFonts();
   useEffect(() => { startTutor(); }, []);
