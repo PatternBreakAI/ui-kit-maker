@@ -1021,8 +1021,13 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     return () => { on = false; window.clearTimeout(t); };
   }, [svg, warped, stamp.warp?.style, stamp.warp?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+  /* the raster frame is grab-inert: draggable images invite the browser's
+     NATIVE drag (a ghost image + pointercancel that kills our capture-based
+     move — owner: "hard to grab and move around"), and pointer-events pass
+     through so the StagePiece wrapper owns every press */
   return warped && frame
-    ? <img src={frame.url} width={frame.w} height={frame.h} style={{ filter: stampFilter(cfg, stamp), display: "block" }} alt="" />
+    ? <img src={frame.url} width={frame.w} height={frame.h} draggable={false}
+        style={{ filter: stampFilter(cfg, stamp), display: "block", pointerEvents: "none", userSelect: "none" }} alt="" />
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
@@ -1046,8 +1051,15 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
     if (!host) return;
     const read = () => {
       const svg = host.querySelector("svg");
-      const w = svg ? parseFloat(svg.getAttribute("width") ?? "0") : 0;
-      const h = svg ? parseFloat(svg.getAttribute("height") ?? "0") : 0;
+      let w = svg ? parseFloat(svg.getAttribute("width") ?? "0") : 0;
+      let h = svg ? parseFloat(svg.getAttribute("height") ?? "0") : 0;
+      /* a WARPED stamp is an <img> frame, not an svg — without this branch
+         the wrapper keeps its unwarped size, the bent lettering pokes
+         outside the hit area, and the piece is barely grabbable */
+      if (!svg) {
+        const img = host.querySelector("img");
+        if (img) { w = parseFloat(img.getAttribute("width") ?? "0"); h = parseFloat(img.getAttribute("height") ?? "0"); }
+      }
       /* v59: the selection box hugs what the eye sees — the union of the
          DRAWN geometry (knobs poking past a slider track, extrusion depth),
          measured with getBBox in viewBox units. Filters (glow, shadows)
