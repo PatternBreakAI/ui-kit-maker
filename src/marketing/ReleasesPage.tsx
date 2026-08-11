@@ -28,7 +28,7 @@ const RELEASES: Release[] = [
       },
       {
         h: "The Board learns your shortcuts",
-        p: "Shift-click selects several pieces; drag any of them and the group moves together. Arrow keys nudge (Shift strides), an align rack lines up edges and centers, ⌘C/⌘V carries pieces between boards, clicking empty space lets go of the selection, and one button exports every board at full resolution.",
+        p: "Shift-click selects several pieces; drag any of them and the group moves together. Arrow keys nudge (Shift strides), an align rack lines up edges and centers and distributes spacing evenly, ⌘C/⌘V carries pieces between boards, clicking empty space lets go of the selection, and one button exports every board at full resolution.",
       },
       {
         h: "Bars stretch the way they will in your game",

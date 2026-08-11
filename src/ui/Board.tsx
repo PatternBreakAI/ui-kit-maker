@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
@@ -451,30 +451,51 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (boardSel !== id) setBoardSel(id);
     if (!shift) setSelExtra([]);
   };
-  /* align the selection (owner). Bounds come from each piece's on-screen
-     selection box — the shell-hugging one — so alignment answers to what
-     the eye sees, not to glow padding. */
-  const alignSel = (edge: "left" | "centerh" | "right" | "top" | "middlev" | "bottom") => {
+  /* align & distribute (owner). Bounds come from each piece's on-screen
+     selection box — the shell-hugging one — so both answer to what the
+     eye sees, not to glow padding. */
+  const measureSel = () => {
     const bd = boards.find((x) => x.items.some((b) => b.id === boardSel));
-    if (!bd) return;
+    if (!bd) return null;
     const canvas = document.querySelector(`[data-board="${bd.id}"] .bd-canvas`);
-    if (!canvas) return;
+    if (!canvas) return null;
     const cr = canvas.getBoundingClientRect();
     const f = fitOf(bd);
-    const rects = selIdsAll.flatMap((id) => {
+    return selIdsAll.flatMap((id) => {
       const host = canvas.querySelector(`[data-bid="${id}"]`);
       const it = bd.items.find((b) => b.id === id);
       if (!host || !it) return [];
       const r = (host.querySelector(".board-selbox") ?? host).getBoundingClientRect();
       return [{ it, l: (r.left - cr.left) / f, t: (r.top - cr.top) / f, w: r.width / f, h: r.height / f }];
     });
-    if (rects.length < 2) return;
+  };
+  const alignSel = (edge: "left" | "centerh" | "right" | "top" | "middlev" | "bottom") => {
+    const rects = measureSel();
+    if (!rects || rects.length < 2) return;
     const minL = Math.min(...rects.map((r) => r.l)), maxR = Math.max(...rects.map((r) => r.l + r.w));
     const minT = Math.min(...rects.map((r) => r.t)), maxB = Math.max(...rects.map((r) => r.t + r.h));
     applyBoardItemPatches("align", rects.map(({ it, l, t, w, h }) => {
       const dx = edge === "left" ? minL - l : edge === "right" ? maxR - (l + w) : edge === "centerh" ? (minL + maxR) / 2 - (l + w / 2) : 0;
       const dy = edge === "top" ? minT - t : edge === "bottom" ? maxB - (t + h) : edge === "middlev" ? (minT + maxB) / 2 - (t + h / 2) : 0;
       return { id: it.id, x: Math.round(it.x + dx), y: Math.round(it.y + dy) };
+    }));
+  };
+  /* distribute: equal GAPS along the axis, first and last pieces planted —
+     the standard distribute-spacing move. Overlapping pieces just get
+     negative gaps, which still spreads them sensibly. */
+  const distributeSel = (axis: "h" | "v") => {
+    const rects = measureSel();
+    if (!rects || rects.length < 3) return;
+    const sorted = [...rects].sort((a, b) => (axis === "h" ? a.l - b.l : a.t - b.t));
+    const first = sorted[0], last = sorted[sorted.length - 1];
+    const span = axis === "h" ? last.l + last.w - first.l : last.t + last.h - first.t;
+    const content = sorted.reduce((s, r) => s + (axis === "h" ? r.w : r.h), 0);
+    const gap = (span - content) / (sorted.length - 1);
+    let cursor = axis === "h" ? first.l : first.t;
+    applyBoardItemPatches("distribute", sorted.map((r) => {
+      const d = cursor - (axis === "h" ? r.l : r.t);
+      cursor += (axis === "h" ? r.w : r.h) + gap;
+      return { id: r.it.id, x: Math.round(r.it.x + (axis === "h" ? d : 0)), y: Math.round(r.it.y + (axis === "v" ? d : 0)) };
     }));
   };
 
@@ -1012,6 +1033,18 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <Icon size={13} strokeWidth={2} />
                 </button>
               ))}
+            </div>
+            <div className="bd-alignrow" role="group" aria-label="Distribute selection">
+              <button title="Distribute horizontally — equal gaps, outer pieces planted (3+ pieces)"
+                aria-label="Distribute horizontally" disabled={selIdsAll.length < 3}
+                onClick={() => distributeSel("h")}>
+                <AlignHorizontalSpaceBetween size={13} strokeWidth={2} />
+              </button>
+              <button title="Distribute vertically — equal gaps, outer pieces planted (3+ pieces)"
+                aria-label="Distribute vertically" disabled={selIdsAll.length < 3}
+                onClick={() => distributeSel("v")}>
+                <AlignVerticalSpaceBetween size={13} strokeWidth={2} />
+              </button>
             </div>
             <p className="bd-hint">Drag any selected piece to move the group. Arrow keys nudge (Shift strides). ⌘C then ⌘V on another board carries them over.</p>
             <button className="bd-abtool danger bd-removeall" onClick={() => { removeBoardItems(selIdsAll); setSelExtra([]); }}>
