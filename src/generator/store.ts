@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
-import { delBgOriginal } from "./bgvault";
+import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel, renderTypeSpecimen } from "./bevel";
@@ -309,6 +309,9 @@ interface GenStore {
   setActiveBoard: (id: string) => void;
   addBoard: () => void;
   removeBoard: (id: string) => void;
+  /** Copy a whole artboard — pieces, backdrop, darkroom and overlay dials —
+   *  as "<name> copy" right after the source (owner: "a running start"). */
+  duplicateBoard: (id: string) => void;
   renameBoard: (id: string, name: string) => void;
   /** Reorder in the pages tray — InDesign style. */
   moveBoard: (id: string, dir: -1 | 1) => void;
@@ -801,6 +804,72 @@ const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") &&
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
   saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
 
+/* ── boards in the settings file (owner: "are the boards also saved in the
+   export json? if not, they should be") ──
+   The travelling form embeds each vaulted backdrop ORIGINAL as a data URL
+   (bgData) and drops session-bound object URLs and vault keys — the file
+   works on any machine. Bundled paths (/backdrops/…) and https URLs ride
+   as they are. Import is the mirror: bgData lands back in the vault under
+   a fresh key, every id is re-minted, and board history starts clean. */
+const bgDataUrlOk = (s: string) => /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(s);
+const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result));
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(blob);
+});
+
+export async function exportableBoards(bs: BoardDef[]): Promise<Record<string, unknown>[]> {
+  return Promise.all(bs.map(async (b) => {
+    const out = JSON.parse(JSON.stringify(b)) as Record<string, unknown>;
+    if (b.bgAssetId) {
+      try {
+        const rec = await getBgOriginal(b.bgAssetId);
+        if (rec) out.bgData = await blobToDataUrl(rec.blob);
+      } catch { /* the backdrop just doesn't travel */ }
+    }
+    delete out.bgAssetId; // vault keys mean nothing on another machine
+    if (typeof out.bgImage === "string" && (out.bgImage as string).startsWith("blob:")) delete out.bgImage;
+    return out;
+  }));
+}
+
+export async function importBoards(raw: unknown): Promise<boolean> {
+  if (!Array.isArray(raw) || !raw.length) return false;
+  const stamp = Date.now().toString(36);
+  const boards: BoardDef[] = [];
+  for (const [bi, rb] of (raw as unknown[]).entries()) {
+    if (!rb || typeof rb !== "object") continue;
+    const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string };
+    b.id = "ab" + stamp + bi.toString(36);
+    b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
+    b.aspect = b.aspect === "mobile" ? "mobile" : "169";
+    b.items = Array.isArray(b.items)
+      ? b.items.filter((it) => it && typeof it === "object")
+        .map((it, i) => ({ ...it, id: "bd" + stamp + bi.toString(36) + "i" + i.toString(36) }))
+      : [];
+    // strings that end up in CSS url() get the same strictness as
+    // loadKitPayload's travelling stage: known-safe shapes only
+    if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
+      try {
+        const blob = await (await fetch(b.bgData)).blob();
+        const key = await putBgOriginal(blob, "imported backdrop");
+        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); }
+      } catch { /* backdrop stays absent */ }
+    } else {
+      b.bgAssetId = null;
+      if (typeof b.bgImage === "string" && !/^(\/|https:\/\/)/.test(b.bgImage)) delete (b as Partial<BoardDef>).bgImage;
+    }
+    delete b.bgData;
+    if (typeof b.bgVideo === "string" && !/^(\/|https:\/\/)/.test(b.bgVideo)) delete (b as Partial<BoardDef>).bgVideo;
+    boards.push(b);
+  }
+  if (!boards.length) return false;
+  useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
+  saveBoards(() => useGen.getState());
+  return true;
+}
+
 /* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
    whenever I click anything in the left tray") ──
    A data-URL backdrop in the board doc meant EVERY board mutation dragged
@@ -1114,6 +1183,43 @@ export const useGen = create<GenStore>((set, get) => ({
     const bs = get().boards;
     if (!bs.some((b) => b.id === get().activeBoard)) set({ activeBoard: bs[0].id, boardSel: null });
     saveBoards(get);
+  },
+  duplicateBoard: (id) => {
+    const src = get().boards.find((b) => b.id === id);
+    if (!src) return;
+    const stamp = Date.now().toString(36);
+    const nid = "ab" + stamp + Math.random().toString(36).slice(2, 5);
+    const copy: BoardDef = {
+      ...(typeof structuredClone === "function" ? structuredClone(src) : JSON.parse(JSON.stringify(src)) as BoardDef),
+      id: nid,
+      name: (src.name + " copy").slice(0, 40),
+      items: src.items.map((b, i) => ({
+        ...(typeof structuredClone === "function" ? structuredClone(b) : JSON.parse(JSON.stringify(b)) as BoardItem),
+        id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
+      })),
+      /* vault records are NEVER shared between boards — removeBoard and a
+         backdrop swap both retire the original, which would strand the
+         sibling. The copy's own bytes land asynchronously below; until
+         then bgImage still paints this session. */
+      bgAssetId: null,
+    };
+    mutateBoards(get, set, null, (bs) => {
+      const i = bs.findIndex((b) => b.id === id);
+      const next = [...bs];
+      next.splice(i < 0 ? bs.length : i + 1, 0, copy);
+      return next;
+    });
+    set({ activeBoard: nid, boardSel: null });
+    if (src.bgAssetId) {
+      void getBgOriginal(src.bgAssetId).then(async (rec) => {
+        if (!rec) return;
+        const fresh = await putBgOriginal(rec.blob, rec.name);
+        if (!fresh) return;
+        // invisible metadata — patched outside history so undo stays honest
+        set({ boards: get().boards.map((b) => (b.id === nid ? { ...b, bgAssetId: fresh } : b)) });
+        saveBoards(get);
+      });
+    }
   },
   renameBoard: (id, name) => mutateBoards(get, set, `rename:${id}`, (bs) => bs.map((b) => (b.id === id ? { ...b, name: name.slice(0, 40) } : b))),
   moveBoard: (id, dir) => mutateBoards(get, set, null, (bs) => {

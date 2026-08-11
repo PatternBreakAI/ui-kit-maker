@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
-import { useGen, hydrate, getDefault, isTouched } from "@/generator/store";
+import { useGen, hydrate, getDefault, isTouched, exportableBoards, importBoards } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
@@ -102,6 +102,8 @@ export function TopBar() {
         delete parsed.__workspace;
         if (ws && typeof ws === "object") {
           useGen.getState().loadKitPayload({ cfg: hydrate(parsed), ...ws }, { viewer: false, phase: "master" });
+          // boards ride the same file (owner) — backdrops re-vault async
+          if (Array.isArray(ws.boards)) void importBoards(ws.boards);
         } else {
           replaceConfig(hydrate(parsed));
         }
@@ -235,14 +237,19 @@ export function TopBar() {
                 <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit — on the Kit page
               </button>
               <button onClick={() => {
-                const st = useGen.getState();
-                downloadSettings(cfg, {
-                  kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-                  kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs,
-                  kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
-                  kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
-                  kitLocks: st.kitLocks, kitSizes: st.kitSizes,
-                });
+                void (async () => {
+                  const st = useGen.getState();
+                  downloadSettings(cfg, {
+                    kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
+                    kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs,
+                    kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+                    kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
+                    kitLocks: st.kitLocks, kitSizes: st.kitSizes,
+                    // the boards ride too (owner): vaulted backdrops embed as
+                    // data URLs so the file works on any machine
+                    boards: await exportableBoards(st.boards),
+                  });
+                })();
                 setMenuOpen(false);
               }}>
                 <FileJson size={15} strokeWidth={1.8} /> {t("exportSettings")}

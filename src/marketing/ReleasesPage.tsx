@@ -39,6 +39,10 @@ const RELEASES: Release[] = [
         p: "Rework a piece on the Board — its words, its value, its look — and save it to your assets under its own name. The master component stays untouched, so a Small tab turned BACK button still leaves you a clean master for the FORWARD one.",
       },
       {
+        h: "Boards duplicate, and they travel",
+        p: "One click copies a whole artboard — pieces, backdrop and darkroom dials — a running start for the next shell menu in the same family. And the settings file now carries your boards too: export it on one machine, import it on another, and the document arrives whole, backdrops included.",
+      },
+      {
         h: "A center scrim in the darkroom",
         p: "The vignette's inverse: subtly darken the middle of the frame — the move games make behind menus so the UI pops. It stacks with the vignette and the overlay washes, or works alone, and it exports with the board.",
       },

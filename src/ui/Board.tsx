@@ -392,7 +392,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
-    setActiveBoard, addBoard, removeBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
+    setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
@@ -926,6 +926,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onClick={() => void exportPng(bd)}>
                     <Download size={12} strokeWidth={2.2} /> PNG
                   </button>
+                  <button className="bd-abtool" title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
+                    onClick={() => duplicateBoard(bd.id)}>
+                    <Copy size={12} strokeWidth={2.2} /> Duplicate
+                  </button>
                   <button className="bd-abtool" title="Clear every piece from this board"
                     onClick={() => { if (bd.items.length === 0 || window.confirm(`Clear all ${bd.items.length} pieces from ${bd.name}?`)) clearBoard(bd.id); }}>
                     Clear
@@ -1068,6 +1072,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </span>
               <span className="bd-pagename">{bd.name}</span>
               <span className="bd-pagectl">
+                <button title={`Duplicate ${bd.name}`} onClick={(e) => { e.stopPropagation(); duplicateBoard(bd.id); }}><Copy size={11} strokeWidth={2.4} /></button>
                 <button title="Move up" disabled={i === 0} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, -1); }}><ArrowUp size={11} strokeWidth={2.4} /></button>
                 <button title="Move down" disabled={i === boards.length - 1} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, 1); }}><ArrowDown size={11} strokeWidth={2.4} /></button>
                 <button title={`Delete ${bd.name}`} className="danger"
