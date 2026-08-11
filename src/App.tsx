@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { TopBar } from "./ui/TopBar";
 import { Rail, Panel } from "./ui/Panel";
 import { CanvasView } from "./ui/CanvasView";
-import { useGen, rehydrateBoardBgs } from "./generator/store";
+import { useGen, rehydrateBoardBgs, SAFE_BOOT } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 import { ensureFont } from "./generator/fonts";
@@ -188,6 +188,11 @@ export function App() {
       <LootModal />
       <TutorTip />
       <ChromeNudge />
+      {SAFE_BOOT && (
+        <div className="safeboot-badge" role="status">
+          SAFE MODE — factory defaults, nothing saves. Your real workspace is untouched; remove <b>?safe</b> from the URL to return to it.
+        </div>
+      )}
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}

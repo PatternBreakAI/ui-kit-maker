@@ -229,6 +229,7 @@ export function fetchSiteDefault(): void {
 /* Anyone who has never edited (fresh visitor, or someone who only looked
    around) follows the site default — their library and board are untouched. */
 function adoptDefaultIfUntouched(): void {
+  if (SAFE_BOOT) return; // safe boot never writes the real keys
   if (localStorage.getItem(TOUCHED_KEY) === "1") return;
   const next = getDefault();
   if (JSON.stringify(useGen.getState().cfg) === JSON.stringify(next)) return;
@@ -237,6 +238,7 @@ function adoptDefaultIfUntouched(): void {
 }
 
 function load(): GenConfig {
+  if (SAFE_BOOT) return getDefault(); // safe boot: factory kit, stored doc untouched
   try {
     for (const key of [LS_KEY, LS_KEY_V9]) {
       const raw = localStorage.getItem(key);
@@ -734,11 +736,22 @@ export function defaultRow(): RowCfg {
 }
 const LIB_KEY = "ui-generator-library";
 const BOARD_KEY = "ui-generator-board";
+/* ── SAFE BOOT (support hatch) ────────────────────────────────────────
+   `?safe` (or #safe) anywhere in the URL boots the app FACTORY-FRESH
+   without touching the user's stored document: every persisted read
+   returns its default, every persisted write is a no-op, and the cloud
+   never starts (cloud.ts checks this flag). Built for "the site freezes
+   before I can do anything" field reports — if safe mode opens clean,
+   the stored document is the trigger, and it's still intact for
+   diagnosis. Nothing done in safe mode saves. */
+export const SAFE_BOOT = typeof location !== "undefined" && /[?&#]safe\b/.test(location.href);
 function loadJson<T>(key: string, fallback: T): T {
+  if (SAFE_BOOT) return fallback;
   try { const raw = localStorage.getItem(key); if (raw) return JSON.parse(raw) as T; } catch { /* ignore */ }
   return fallback;
 }
 function saveJson(key: string, v: unknown) {
+  if (SAFE_BOOT) return; // safe mode must never clobber the real document
   try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* quota — keep in memory */ }
 }
 
@@ -1741,7 +1754,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg: next, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 300);
   },
@@ -1891,7 +1904,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 600);
   },
@@ -1911,7 +1924,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 600);
   },

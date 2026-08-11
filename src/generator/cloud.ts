@@ -484,6 +484,11 @@ function endSession() {
 export async function startCloud() {
   if (started) return;
   started = true;
+  // SAFE BOOT: a factory-fresh session must neither pull the cloud doc
+  // (it could reintroduce the very state being diagnosed) nor push its
+  // pristine defaults over the user's real workspace
+  const { SAFE_BOOT } = await import("./store");
+  if (SAFE_BOOT) { setStatus({ state: "off" }); return; }
   const cfg = cloudConfig();
   if (!cfg) { setStatus({ state: "off" }); return; }
   installWriteHook();
