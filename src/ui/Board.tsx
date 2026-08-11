@@ -293,7 +293,7 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 /* The bar family stretches HORIZONTALLY, 9-slice style (owner): the side
    handles re-render the track wider — caps, knob and inset stay true —
    while corners keep proportional scale. Only these components. */
-const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar"]);
+const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar"]);
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>

@@ -3575,8 +3575,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "vsbar": {
       /* Fighting · VS health bar — two mirrored wells drain toward center,
-         candy VS medallion on the axis. value drives the LEFT fighter. */
-      const w = 860 * k, h = 96 * k;
+         candy VS medallion on the axis. value drives the LEFT fighter.
+         Stretch widens the WELLS; the medallion and its center reserve
+         hold their size, so the axis stays a fixed cap (9-slice spirit). */
+      const w = 860 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 96 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3, gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
