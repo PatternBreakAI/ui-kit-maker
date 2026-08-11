@@ -5,6 +5,7 @@ import { CanvasView } from "./ui/CanvasView";
 import { useGen, rehydrateBoardBgs, SAFE_BOOT } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
+import { readFlightRings } from "./generator/flightRecorder";
 import { ensureFont } from "./generator/fonts";
 import { registerCustomFont } from "./generator/model";
 import { TutorTip } from "./ui/TutorTip";
@@ -154,6 +155,17 @@ function safeDiagnostics(): string {
       `${b.name ?? "?"}[${(b.items ?? []).length} items, bg:${b.bgAssetId ? "vault" : b.bgImage ? (b.bgImage.startsWith("data:") ? "DATA-URL" : b.bgImage.slice(0, 24)) : "none"}]`).join(" · "));
     lines.push("ua: " + navigator.userAgent);
   } catch (e) { lines.push("collect error: " + String(e).slice(0, 100)); }
+  /* flight recorder rings: what each recent session was doing when its
+     beat stopped. A ring whose last entry isn't "pagehide" ended
+     un-cleanly — its tail is the freeze's last known act. */
+  try {
+    for (const { slot, ring } of readFlightRings()) {
+      const age = Math.round((Date.now() - ring.beat) / 1000);
+      const cleanExit = ring.entries[ring.entries.length - 1]?.includes("pagehide");
+      lines.push(`— flight ring ${slot}: build ${ring.build}, beat ${age}s ago, ${cleanExit ? "clean exit" : "NO clean exit"}`);
+      lines.push(ring.entries.slice(-40).join(" | "));
+    }
+  } catch (e) { lines.push("flight rings unreadable: " + String(e).slice(0, 80)); }
   return lines.join("\n");
 }
 
