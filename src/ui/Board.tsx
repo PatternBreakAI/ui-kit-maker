@@ -45,7 +45,7 @@ const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
-  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon"] },
+  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
@@ -85,6 +85,8 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   trophy: "cup winner victory results podium gold",
   startlights: "race countdown start lights gantry",
   gearicon: "settings gear cog options config preferences menu",
+  trophyicon: "trophy cup winner award champion victory first place prize",
+  gifticon: "gift present box bow ribbon reward claim surprise",
   resource: "currency coins gems counter hud pill",
   currency: "coins gems gold money wallet",
   pricebtn: "buy purchase shop iap best value ribbon",
@@ -309,6 +311,16 @@ function BackdropLibrary({ aspect, current, apply }: {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  /* a scene that never arrives (bucket missing, file missing, offline)
+     must SAY so — the stage shows nothing and every dial looks broken */
+  const [loadErr, setLoadErr] = useState(false);
+  const applyChecked = (url: string) => {
+    apply(url); // optimistic — the stage streams it the moment it exists
+    const probe = new Image();
+    probe.onload = () => setLoadErr(false);
+    probe.onerror = () => setLoadErr(true);
+    probe.src = url;
+  };
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // the active board's orientation leads: 16:9 boards surface landscape
   // scenes first, mobile boards portrait — never hides the rest
@@ -344,7 +356,7 @@ function BackdropLibrary({ aspect, current, apply }: {
             return (
               <button key={e.id} className={`bd-bgthumb${e.land ? "" : " tall"}`} title={`${e.title} · ${e.cat}`}
                 aria-pressed={current === url}
-                onClick={() => apply(url)}>
+                onClick={() => applyChecked(url)}>
                 <img src={backdropThumb(e.id)} alt={e.title} loading="lazy" />
                 <i><b style={{ background: e.dot }} />{e.title}</i>
               </button>
@@ -354,6 +366,11 @@ function BackdropLibrary({ aspect, current, apply }: {
       )}
       {list.length > CAP && !showAll && (
         <button className="bd-libmore" onClick={() => setShowAll(true)}>Show all {list.length}</button>
+      )}
+      {loadErr && (
+        <div className="bd-note bd-vurl-err" role="alert">
+          That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in — the boards light up instantly, no redeploy.
+        </div>
       )}
       <div className="bd-note">Scenes stream from the cloud — your board saves a link, never the pixels.</div>
     </div>

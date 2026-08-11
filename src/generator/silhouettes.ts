@@ -347,6 +347,12 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:gear", name: "Gear", category: "Plaques & Frames", source: "custom (parametric 12-tooth cog)", license: "original", renderer: "path", preview: true,
     capScale: 0.5, content: { top: 0.3, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
     supports: ["button"], character: "Twelve-tooth cog — the settings glyph as real geometry." },
+  { id: "stock:trophycup", name: "Trophy cup", category: "Plaques & Frames", source: "custom (authored prize cup)", license: "original", renderer: "path", preview: true,
+    capScale: 0.5, content: { top: 0.3, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
+    supports: ["button"], character: "The classic prize cup — crescent handles, slim stem, proud base." },
+  { id: "stock:gift", name: "Gift box", category: "Plaques & Frames", source: "custom (computed 3/4 iso union)", license: "original", renderer: "path", preview: true,
+    capScale: 0.5, content: { top: 0.35, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
+    supports: ["button"], character: "A 3/4 gift box — lid slab, bow loops, receding side." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

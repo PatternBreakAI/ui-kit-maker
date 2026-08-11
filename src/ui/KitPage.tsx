@@ -1770,6 +1770,10 @@ const kitTier = useGen((s) => s.tier);
         rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
         rk("gearicon", "Settings gear"),
         rk("gearicon", "Settings gear · Disabled", {}, undefined, "disabled"),
+        rk("trophyicon", "Trophy"),
+        rk("trophyicon", "Trophy · Disabled", {}, undefined, "disabled"),
+        rk("gifticon", "Gift box"),
+        rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
         rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
@@ -2452,6 +2456,22 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="gearicon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
           <div className="kp-meta"><span>The cog itself wears the kit — face, bevel and extrusion wrap the silhouette</span><span>No shell box; the hub is a recessed well</span><span>A real button — hover and press work</span></div>
+        </>)}
+        {kitVisible("trophyicon", releases, false) && (<>
+          <div className="kp-subhead">Trophy</div>
+          <div className="kp-tray">
+            <Piece id="trophyicon" caption="Trophy" scale={0.5} />
+            <Piece id="trophyicon" caption="Disabled" baseState="disabled" scale={0.5} />
+          </div>
+          <div className="kp-meta"><span>The prize cup wears the kit — crescent handles carry real daylight</span><span>No shell box; the cup mouth is a recessed opening, the base wears a name plate</span><span>A real button — hover and press work</span></div>
+        </>)}
+        {kitVisible("gifticon", releases, false) && (<>
+          <div className="kp-subhead">Gift box</div>
+          <div className="kp-tray">
+            <Piece id="gifticon" caption="Gift box" scale={0.5} />
+            <Piece id="gifticon" caption="Disabled" baseState="disabled" scale={0.5} />
+          </div>
+          <div className="kp-meta"><span>A 3/4 gift box wearing the kit whole — lid slab, bow loops, receding side</span><span>Ribbon, lid shadow and bow glint ride as overlays on the kit's own material</span><span>A real button — hover and press work</span></div>
         </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">
