@@ -312,7 +312,16 @@ export async function fontDataUri(family: string, cssQuery: string | null): Prom
   try {
     if (cssQuery) {
       const css = await (await fetchDeadline(`https://fonts.googleapis.com/css2?family=${cssQuery}&display=swap`)).text();
-      const m = /url\((https:[^)]+\.woff2)\)/.exec(css);
+      /* css2 emits one @font-face per script subset, and only the latin
+         block (unicode-range opening at U+0000) is guaranteed to carry A-Z.
+         Grabbing the FIRST woff2 was a per-family lottery: Grandstander and
+         Grenze lead with vietnamese, Pixelify Sans with cyrillic — an embed
+         of those files loads fine and then renders NOTHING, so every glyph
+         silently falls back to a system face (owner: warped stamps "still
+         not rendering the correct font" while Bruno Ace kits passed). */
+      const blocks = css.split("@font-face").slice(1);
+      const latin = blocks.find((b) => /unicode-range:[^;}]*U\+0000/i.test(b)) ?? blocks[0] ?? "";
+      const m = /url\((https:[^)]+\.woff2)\)/.exec(latin) ?? /url\((https:[^)]+\.woff2)\)/.exec(css);
       if (m) {
         const buf = await (await fetchDeadline(m[1])).arrayBuffer();
         let bin = "";
@@ -322,7 +331,10 @@ export async function fontDataUri(family: string, cssQuery: string | null): Prom
       }
     }
   } catch { uri = null; }
-  FONT_CACHE.set(family, uri);
+  /* cache hits and structural misses (no css to fetch) — but never a FAILED
+     fetch: one flaky request must not pin a family to the fallback face for
+     the whole session */
+  if (uri || !cssQuery) FONT_CACHE.set(family, uri);
   return uri;
 }
 
