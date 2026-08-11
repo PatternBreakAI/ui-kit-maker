@@ -337,6 +337,9 @@ interface GenStore {
   setBoardSel: (id: string | null) => void;
   moveBoardItem: (id: string, x: number, y: number) => void;
   scaleBoardItem: (id: string, scale: number) => void;
+  /** One gesture, one history step: scale about a transform-box anchor —
+   *  position and scale move together so the anchored corner stays planted. */
+  transformBoardItem: (id: string, scale: number, x: number, y: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
@@ -1162,6 +1165,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
+  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
   setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));

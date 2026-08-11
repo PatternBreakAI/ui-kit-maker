@@ -7332,21 +7332,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return build(cfg, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
     }
     case "gifticon": {
-      /* Gift box — same doctrine, with ONE identifying detail (the gear-hub
-         rule): the vertical ribbon band over lid and front. Nothing else. */
+      /* Gift box — a simple 2D icon wearing the kit whole; the thick kit
+         stroke defines the box's walls (owner: ribbon retired for now —
+         the outline does the talking, zero-overlay like the trophy). */
       const dF = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const shellF = build(cfg, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
-      const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
-      if (!shellFM || opts.part === "base") return shellF;
-      const [fx0, fy0, fw, fh] = shellFM[1].split(" ").map(Number);
-      const dimF = state === "disabled" ? 0.45 : 1;
-      const wellF = darken(effect(cfg.effects, "Inner Fill"), 0.72);
-      /* vb geometry: lid front y 64→96, box front y 96→184, band centered
-         on the knot x=90 (fractions of the 200-unit square) */
-      const ribbon = `<g opacity="${dimF}">
-        <rect x="${(fx0 + 0.405 * fw).toFixed(1)}" y="${(fy0 + 0.32 * fh).toFixed(1)}" width="${(fw * 0.085).toFixed(1)}" height="${(fh * 0.6).toFixed(1)}" fill="${wellF}" opacity="0.85"/>
-      </g>`;
-      return inject(shellF, ribbon);
+      return build(cfg, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.
