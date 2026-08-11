@@ -1586,7 +1586,7 @@ button.kp-fact { cursor: pointer; }
 .bd-asset span svg { max-width: 96%; max-height: 42px; width: auto; height: auto; }
 .bd-asset i { font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink2); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-hint { margin: 16px 2px 6px; font-size: 11px; line-height: 1.55; color: var(--ink2); }
-.bd-main { display: flex; flex-direction: column; min-width: 0; }
+.bd-main { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .bd-top { display: flex; align-items: center; gap: 18px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
 .bd-title h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .bd-title span { font-size: 12px; color: var(--ink2); }
@@ -2126,11 +2126,14 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 
 /* on-piece controls (homepage-board port): toolbar above the shell + a
    corner resize handle, both counter-scaled to stay screen-sized */
-.bd-ptoolwrap, .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
-.bd-ptool { position: absolute; bottom: 8px; left: 0; transform-origin: bottom left; display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: rgba(10, 12, 22, .92); border: 1px solid rgba(111, 214, 255, .55); box-shadow: 0 10px 26px rgba(6, 8, 16, .5); }
-.bd-ptool button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: #9fe2ff; cursor: pointer; padding: 0; }
-.bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
-.bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
+.bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
+/* the selected piece's toolbar — docked bottom-center of the canvas column
+   (owner: the floating version covered the art and drifted with every drag) */
+.bd-dock { position: absolute; left: 50%; bottom: 68px; transform: translateX(-50%); z-index: 30; display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 12px; background: rgba(10, 12, 22, .94); border: 1px solid rgba(111, 214, 255, .55); box-shadow: 0 12px 30px rgba(6, 8, 16, .55); max-width: calc(100% - 32px); }
+.bd-dock button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: #9fe2ff; cursor: pointer; padding: 0; flex: none; }
+.bd-dock button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
+.bd-dock button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
+.bd-dockname { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: rgba(214, 235, 255, .75); padding: 0 6px 0 4px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
 /* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
 /* the stamp door — the one non-component asset, pinned above the groups */
 .bd-stampbtn {

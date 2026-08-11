@@ -709,7 +709,6 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
                     {bd.items.map((b) => (
                       <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id} fit={fit}
-                        onExport={() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
                         onSelect={() => { setActiveBoard(bd.id); setBoardSel(b.id); }}
                         onDragStart={(e) => { dragRef.current = { id: b.id, dx: e.clientX, dy: e.clientY, ox: b.x, oy: b.y, fit }; setBoardSel(b.id); }}
                         onDragMove={(e) => {
@@ -727,6 +726,66 @@ export function BoardView({ playing }: { playing: boolean }) {
           })}
           <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
         </div>
+        {/* the selected piece's toolbar docks at the bottom of the canvas
+            area, centered — floating over the art it covered the piece and
+            drifted with every drag (owner: "the floating toolbar should
+            appear at the bottom of the screen centered underneath the
+            boards"). Same controls, steady home. */}
+        {sel && !playing && (
+          <div className="bd-dock" onPointerDown={(e) => e.stopPropagation()}>
+            <span className="bd-dockname" title={nameOf(sel)}>{nameOf(sel)}</span>
+            {sel.kitId && (
+              <button title="Open this component in the editor"
+                onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}>
+                <SquarePen size={13} strokeWidth={2.2} />
+              </button>
+            )}
+            <button title="Duplicate (⌘D)" onClick={() => duplicateBoardItem(sel.id)}>
+              <Copy size={13} strokeWidth={2.2} />
+            </button>
+            {sel.kitId && VALUE_DRIVEN.has(sel.kitId) && (
+              /* THIS instance's pose — rarity tier, fill level, needle
+                 angle — without touching the kit-wide staged value, so a
+                 board can show every tier at once. Double-click clears. */
+              <input type="range" min={0} max={100} className="bd-pval"
+                title="Value — this piece only (rarity tier, fill, pose). Double-click to follow the kit again."
+                aria-label="Instance value"
+                value={Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}
+                onChange={(e) => useGen.getState().setBoardItemVal(sel.id, +e.target.value / 100)}
+                onDoubleClick={() => useGen.getState().setBoardItemVal(sel.id, null)} />
+            )}
+            {sel.stamp && (<>
+              <input type="text" className="bd-ptext" maxLength={40}
+                title="The stamp's words" aria-label="Stamp text"
+                value={sel.stamp.text}
+                onChange={(e) => useGen.getState().setBoardItemStamp(sel.id, { text: e.target.value })} />
+              <input type="range" min={25} max={400} className="bd-pval"
+                title="Type size — 100% is the kit's own size"
+                aria-label="Stamp size"
+                value={sel.stamp.size}
+                onChange={(e) => useGen.getState().setBoardItemStamp(sel.id, { size: +e.target.value })} />
+            </>)}
+            {sel.kitId && KIT_LABEL_EDITABLE.has(sel.kitId) && (
+              /* THIS instance's words — two START buttons on one screen
+                 can say START and OPTIONS. The kit's design keeps
+                 flowing through; only the text is pinned. Empty =
+                 follow the kit again. */
+              <input type="text" className="bd-ptext" maxLength={labelMaxOf(sel.kitId)}
+                title="Text — this copy only. Clear the field to follow the kit again."
+                aria-label="Instance text"
+                placeholder={kitLabels[sel.kitId] || "Text — this copy"}
+                value={sel.label ?? ""}
+                onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
+            )}
+            <button title="Export this piece as SVG"
+              onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}>
+              <Download size={13} strokeWidth={2.2} />
+            </button>
+            <button className="danger" title="Remove (Delete)" onClick={() => removeBoardItem(sel.id)}>
+              <X size={13} strokeWidth={2.4} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── pages tray + inspector ── */}
@@ -1031,13 +1090,12 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
+function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd }: {
   b: BoardItem; playing: boolean; selected: boolean; fit: number;
   onSelect: () => void;
   onDragStart: (e: React.PointerEvent) => void;
   onDragMove: (e: React.PointerEvent) => void;
   onDragEnd: () => void;
-  onExport: () => void;
 }) {
   const { cfg, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
   const sc = b.scale ?? 1;
@@ -1127,66 +1185,11 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
           ? { left: dim.shell[0] * sc, top: dim.shell[1] * sc, width: dim.shell[2] * sc, height: dim.shell[3] * sc }
           : { left: 0, top: 0, width: "100%", height: "100%" }} />
       )}
+      {/* the piece's toolbar lives in the bottom dock now (owner request) —
+          only the corner resize handle stays on the piece itself */}
       {selected && !playing && dim && (() => {
         const sh = dim.shell ?? [0, 0, dim.w, dim.h];
-        const stop = (e: React.PointerEvent) => e.stopPropagation();
         return (
-          <>
-            {/* the piece's own toolbar — counter-scaled so chips stay
-                readable inside the fit-scaled stage */}
-            <div className="bd-ptoolwrap" style={{ left: sh[0] * sc, top: sh[1] * sc }}>
-              <div className="bd-ptool" style={{ transform: `scale(${1 / fit})` }} onPointerDown={stop}>
-                {b.kitId && (
-                  <button title="Open this component in the editor"
-                    onClick={() => { useGen.getState().setFocus(b.kitId!); useGen.getState().setPhase("master"); }}>
-                    <SquarePen size={12} strokeWidth={2.2} />
-                  </button>
-                )}
-                <button title="Duplicate (⌘D)" onClick={() => useGen.getState().duplicateBoardItem(b.id)}>
-                  <Copy size={12} strokeWidth={2.2} />
-                </button>
-                {b.kitId && VALUE_DRIVEN.has(b.kitId) && (
-                  /* THIS instance's pose — rarity tier, fill level, needle
-                     angle — without touching the kit-wide staged value, so a
-                     board can show every tier at once. Double-click clears. */
-                  <input type="range" min={0} max={100} className="bd-pval"
-                    title="Value — this piece only (rarity tier, fill, pose). Double-click to follow the kit again."
-                    aria-label="Instance value"
-                    value={Math.round((b.v ?? kitVals[b.kitId] ?? 0.62) * 100)}
-                    onChange={(e) => useGen.getState().setBoardItemVal(b.id, +e.target.value / 100)}
-                    onDoubleClick={() => useGen.getState().setBoardItemVal(b.id, null)} />
-                )}
-                {b.stamp && (<>
-                  <input type="text" className="bd-ptext" maxLength={40}
-                    title="The stamp's words" aria-label="Stamp text"
-                    value={b.stamp.text}
-                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { text: e.target.value })} />
-                  <input type="range" min={25} max={400} className="bd-pval"
-                    title="Type size — 100% is the kit's own size"
-                    aria-label="Stamp size"
-                    value={b.stamp.size}
-                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { size: +e.target.value })} />
-                </>)}
-                {b.kitId && KIT_LABEL_EDITABLE.has(b.kitId) && (
-                  /* THIS instance's words — two START buttons on one screen
-                     can say START and OPTIONS. The kit's design keeps
-                     flowing through; only the text is pinned. Empty =
-                     follow the kit again. */
-                  <input type="text" className="bd-ptext" maxLength={labelMaxOf(b.kitId)}
-                    title="Text — this copy only. Clear the field to follow the kit again."
-                    aria-label="Instance text"
-                    placeholder={kitLabels[b.kitId] || "Text — this copy"}
-                    value={b.label ?? ""}
-                    onChange={(e) => useGen.getState().setBoardItemLabel(b.id, e.target.value)} />
-                )}
-                <button title="Export this piece as SVG" onClick={onExport}>
-                  <Download size={12} strokeWidth={2.2} />
-                </button>
-                <button className="danger" title="Remove (Delete)" onClick={() => useGen.getState().removeBoardItem(b.id)}>
-                  <X size={12} strokeWidth={2.4} />
-                </button>
-              </div>
-            </div>
             <span className="bd-rszwrap" style={{ left: (sh[0] + sh[2]) * sc, top: (sh[1] + sh[3]) * sc }}>
               <span className="bd-rsz2" role="slider" aria-label="Resize piece" aria-valuenow={Math.round(sc * 100)}
                 style={{ transform: `scale(${1 / fit})` }}
@@ -1203,7 +1206,6 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                 onPointerUp={() => { rsz.current = null; }}
                 onPointerCancel={() => { rsz.current = null; }} />
             </span>
-          </>
         );
       })()}
     </div>
