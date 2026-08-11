@@ -2179,6 +2179,9 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   border-radius: 6px; box-shadow: 0 0 0 9999px rgba(8, 12, 22, .14);
 }
 .bd-safe__frame--title { border-color: rgba(255, 214, 102, .55); box-shadow: none; }
+/* center cross — same dashed language as the frames, a touch quieter */
+.bd-safe__centerv { position: absolute; left: 50%; top: 0; bottom: 0; width: 0; border-left: 1px dashed rgba(159, 226, 255, .38); }
+.bd-safe__centerh { position: absolute; top: 50%; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(159, 226, 255, .38); }
 .bd-safe__frame b {
   position: absolute; left: 6px; top: 2px; font: 700 9px/1.6 Inter, sans-serif;
   letter-spacing: .12em; text-transform: uppercase; color: rgba(231, 236, 245, .6);

@@ -791,6 +791,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                       mobile: notch + home-bar insets in stage units. */}
                   {boardSafe && (
                     <div className="bd-safe" aria-hidden="true">
+                      {/* center cross — the composition anchor, both aspects */}
+                      <i className="bd-safe__centerv" />
+                      <i className="bd-safe__centerh" />
                       {bd.aspect === "169" ? (<>
                         <i className="bd-safe__frame" style={{ inset: "2.5%" }}><b>action safe</b></i>
                         <i className="bd-safe__frame bd-safe__frame--title" style={{ inset: "5%" }}><b>title safe</b></i>
