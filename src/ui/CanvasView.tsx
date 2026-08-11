@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useDeferredValue, useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
 import { Hand, Minus, Plus, LayoutGrid, Grip, AlignJustify, Square, SquarePen, Play, ImagePlus, X, PenTool, Microscope, Info } from "lucide-react";
 import { routeOf, helpNavigate } from "./smartHelp";
 import { LessonBody } from "./LessonCard";
 import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit, padSvg } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
@@ -21,6 +22,9 @@ const capOf = (s: GenStateName) =>
 
 export function CanvasView() {
   const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg, sliceStage } = useGen();
+  // the state-preview cards trail the live cfg by a frame during drags —
+  // they are references, not the thing being edited (see the scard render)
+  const scardCfg = useDeferredValue(cfg);
   const actBd = boards.find((b) => b.id === activeBoard);
   const [gridPop, setGridPop] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -381,11 +385,19 @@ export function CanvasView() {
           <input ref={bgInput} type="file" accept="image/*" style={{ display: "none" }}
             onChange={(e) => {
               const f = e.target.files?.[0];
-              // both stages persist as downscaled data URLs — the editor
-              // backdrop travels with the kit payload, so it comes through
-              // in shares and saved projects
-              if (f && phase === "board") void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgShow: true }));
-              else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));
+              /* BOARD backdrops go through the VAULT — pixels must never ride
+                 the document (field: "site is freezing again" — this button
+                 was the one upload path still planting data URLs, which the
+                 history stringified on every edit AND persistence stripped on
+                 reload, losing the backdrop). The EDITOR backdrop stays a
+                 downscaled data URL by design: it travels with the kit
+                 payload, so it comes through in shares and saved projects. */
+              if (f && phase === "board") {
+                void normalizeShipCopy(f).then(async (ship) => {
+                  const assetId = await putBgOriginal(ship, f.name);
+                  setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
+                });
+              } else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));
               e.target.value = "";
             }} />
           <span className="zdiv" />
@@ -414,7 +426,11 @@ export function CanvasView() {
             <button className={`scard clickable${s === selectedState ? " sel" : ""}`} key={s}
               onClick={() => setSelectedState(s)} title={`Edit ${cap}`} aria-pressed={s === selectedState}>
               <div className="scard-title">{cap}{s === selectedState ? " · editing" : ""}</div>
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, s)) }} />
+              {/* the cards render from the DEFERRED cfg: during a slider drag
+                  only the hero pays per frame — three extra engine renders per
+                  tick were most of the drag's main-thread bill, and the cards
+                  catch up the instant the pointer rests */}
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s)) }} />
             </button>
           ))}
         </div>

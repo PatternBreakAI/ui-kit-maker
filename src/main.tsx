@@ -7,14 +7,21 @@ import "./styles/frontdoor.css";
 import { Analytics } from "@vercel/analytics/react";
 import { Shell } from "./shell/Shell";
 import { initTheme } from "./shell/theme";
-import { startCloud } from "./generator/cloud";
+import { startCloud, onCloudStatus } from "./generator/cloud";
+import { startFlightRecorder, recordChange } from "./generator/flightRecorder";
 
 // Apply the persisted theme before the first paint so every route — the
 // landing included — renders in the right theme with no flash.
 initTheme();
 
+// The freeze hunt's black box: breadcrumbs + a 1s beat into localStorage
+// (outside the sync prefix), readable later from SAFE MODE diagnostics.
+// Records nothing in safe mode — that is the reading session.
+startFlightRecorder();
+
 // Cloud accounts + saves — a no-op until a Supabase project is configured.
 void startCloud();
+onCloudStatus((s) => recordChange("cloud", s.state + (s.detail ? ` ${s.detail.slice(0, 30)}` : "")));
 
 // The Shell is a minimal hash router: it paints the marketing landing at #/,
 // lazy-loads the editor at #/app (and for #share=/#p= deep links), and mounts

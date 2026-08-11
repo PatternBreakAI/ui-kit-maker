@@ -2,13 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { TopBar } from "./ui/TopBar";
 import { Rail, Panel } from "./ui/Panel";
 import { CanvasView } from "./ui/CanvasView";
-import { useGen } from "./generator/store";
+import { useGen, rehydrateBoardBgs, SAFE_BOOT } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
+import { readFlightRings } from "./generator/flightRecorder";
 import { ensureFont } from "./generator/fonts";
 import { registerCustomFont } from "./generator/model";
 import { TutorTip } from "./ui/TutorTip";
 import { startTutor } from "./tutor/tutor";
+
+/* Board backdrops rehydrate (and legacy data-URL boards MIGRATE into the
+   vault) at BOOT, not on first Board visit — a fat board key made every
+   edit-screen click drag pixels through history and cloud sync (field:
+   "freezes whenever I click anything in the left tray"). */
+function useBoardBgBoot() {
+  useEffect(() => { void rehydrateBoardBgs(); }, []);
+}
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
    reload when the signed-in identity changes (so admin controls appear). */
@@ -112,6 +121,91 @@ function ChromeNudge() {
   );
 }
 
+/* SAFE MODE reads the stored workspace without loading it — so it can hand
+   support a one-click diagnostics summary even when a normal boot freezes
+   before DevTools can open (field: "I don't know how to hit F12"). Key
+   sizes, kit vitals and board shapes only — never full stored values. */
+function safeDiagnostics(): string {
+  const lines: string[] = [`UI Kit Maker diagnostics · ${new Date().toISOString().slice(0, 16)}`];
+  try {
+    const keys: [string, number][] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!;
+      if (k.startsWith("ui-generator")) keys.push([k, Math.round((localStorage.getItem(k) ?? "").length / 1024)]);
+    }
+    keys.sort((a, b) => b[1] - a[1]);
+    lines.push("keys: " + keys.map(([k, s]) => `${k.replace("ui-generator-", "")}=${s}KB`).join(" · "));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg = JSON.parse(localStorage.getItem("ui-generator-v10") ?? "null") as any;
+    if (cfg) {
+      lines.push(`cfg: preset=${cfg.presetId} font=${cfg.type?.font} shape=${cfg.shape} extrusion=${cfg.candy?.extrusion?.depth} glowD/H=${cfg.states?.default?.glow}/${cfg.states?.hover?.glow} customFonts=[${(cfg.type?.customFonts ?? []).join(",")}]`);
+      const eff = cfg.effects && typeof cfg.effects === "object" ? Object.keys(cfg.effects).length : 0;
+      const patName = (p: unknown): string => (p && typeof p === "object"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? String((p as any).kind ?? (p as any).id ?? (p as any).name ?? "custom") : String(p ?? "-"));
+      lines.push(`cfg2: effects=${eff} wall=${patName(cfg.candy?.wall?.pattern ?? cfg.candy?.wallPattern)} face=${patName(cfg.candy?.pattern)} states=${Object.keys(cfg.states ?? {}).join("/")}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shapes = JSON.parse(localStorage.getItem("ui-generator-kitshapes") ?? "{}") as any;
+    const shapeSet = [...new Set([cfg?.shape, ...Object.values(shapes ?? {})])].filter(Boolean);
+    lines.push("shapes: " + (shapeSet.join(", ") || "-"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bd = JSON.parse(localStorage.getItem("ui-generator-board") ?? "null") as any;
+    if (bd?.boards) lines.push("boards: " + bd.boards.map((b: { name?: string; items?: unknown[]; bgAssetId?: string; bgImage?: string }) =>
+      `${b.name ?? "?"}[${(b.items ?? []).length} items, bg:${b.bgAssetId ? "vault" : b.bgImage ? (b.bgImage.startsWith("data:") ? "DATA-URL" : b.bgImage.slice(0, 24)) : "none"}]`).join(" · "));
+    lines.push("ua: " + navigator.userAgent);
+  } catch (e) { lines.push("collect error: " + String(e).slice(0, 100)); }
+  /* flight recorder rings: what each recent session was doing when its
+     beat stopped. A ring whose last entry isn't "pagehide" ended
+     un-cleanly — its tail is the freeze's last known act. */
+  try {
+    for (const { slot, ring } of readFlightRings()) {
+      const age = Math.round((Date.now() - ring.beat) / 1000);
+      // pagehide can be trailed by its own vis-hidden entry — a clean
+      // navigation, not a wedge; look at the last two
+      const cleanExit = ring.entries.slice(-2).some((e) => e.includes("pagehide"));
+      lines.push(`— flight ring ${slot}: build ${ring.build}, beat ${age}s ago, ${cleanExit ? "clean exit" : "NO clean exit"}`);
+      lines.push(ring.entries.slice(-40).join(" | "));
+    }
+  } catch (e) { lines.push("flight rings unreadable: " + String(e).slice(0, 80)); }
+  return lines.join("\n");
+}
+
+/* The freeze follows the owner's evolving document — replicas built from a
+   stale copy keep coming back clean. SAFE MODE can hand over the real
+   thing: every ui-generator key, serialized to a downloadable file (board
+   pixels live in the vault, not these keys, so the file stays small). */
+function downloadWorkspaceFile() {
+  const doc: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!;
+      if (k.startsWith("ui-generator")) doc[k] = localStorage.getItem(k) ?? "";
+    }
+  } catch { /* storage unavailable */ }
+  const blob = new Blob([JSON.stringify(doc)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `uikitmaker-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function SafeBootBanner() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="safeboot-badge" role="status">
+      SAFE MODE — factory defaults, nothing saves. Your real workspace is untouched; remove <b>?safe</b> from the URL to return to it.
+      <button onClick={() => { void navigator.clipboard.writeText(safeDiagnostics()).then(() => setCopied(true)); }}>
+        {copied ? "Copied — paste it in chat" : "Copy diagnostics"}
+      </button>
+      <button onClick={downloadWorkspaceFile} title="Save your full workspace as a file — for support only, nothing leaves this machine until you send it">
+        Download workspace file
+      </button>
+    </div>
+  );
+}
+
 /* When something inside a handler throws, React can leave the UI looking fine
    while every click silently dies — the "app craps out" report. Surface it. */
 function useCrashBanner() {
@@ -129,6 +223,7 @@ function useCrashBanner() {
 export function App() {
   const { panelW, setPanelW, undo, redo, theme, phase, canvasMode } = useGen();
   useSharedKit();
+  useBoardBgBoot();
   useCloudPresets();
   useDocumentFonts();
   useEffect(() => { startTutor(); }, []);
@@ -179,6 +274,7 @@ export function App() {
       <LootModal />
       <TutorTip />
       <ChromeNudge />
+      {SAFE_BOOT && <SafeBootBanner />}
       <div className="body" style={{ gridTemplateColumns: slim ? "84px 1fr" : `84px ${panelW}px 6px 1fr` }}>
         <Rail />
         {!slim && <Panel />}

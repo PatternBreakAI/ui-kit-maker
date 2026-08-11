@@ -7226,6 +7226,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </g>
 </svg>`;
     }
+    case "gearicon": {
+      /* Settings gear — the illustrated cog itself IS the component: the
+         kit's face, bevel and extrusion wrap the gear silhouette with no
+         shell box around it (owner: "the actual illustrated gear icon
+         with extrusion"). The hub is drawn as a RECESSED WELL, not a real
+         hole, so the extrusion sweep stays one clean outline. */
+      const dG = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      const shellG = build(cfg, state, { x: 39, y: 30, h: dG, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dG, shapeOverride: sov });
+      const shellGM = /data-shell0="([-\d. ]+)"/.exec(shellG);
+      if (!shellGM || opts.part === "base") return shellG;
+      const [gx, gy, gw, gh] = shellGM[1].split(" ").map(Number);
+      const gcx = gx + gw / 2, gcy = gy + gh / 2;
+      const dimG = state === "disabled" ? 0.45 : 1;
+      const rRing = Math.min(gw, gh) * 0.21, rHole = Math.min(gw, gh) * 0.115;
+      const wellG = darken(effect(cfg.effects, "Inner Fill"), 0.72);
+      const gidG = "gi" + UID++;
+      const hub = `<g opacity="${dimG}">
+        <defs><radialGradient id="${gidG}" cx="0.38" cy="0.32" r="0.9"><stop offset="0" stop-color="${lighten(bevel, 0.22)}"/><stop offset="0.65" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></radialGradient></defs>
+        <circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${rRing.toFixed(1)}" fill="url(#${gidG})" stroke="${hexRgba(darken(bevel, 0.55), 0.85)}" stroke-width="${(rRing * 0.09).toFixed(1)}"/>
+        <circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${rHole.toFixed(1)}" fill="${wellG}" stroke="${hexRgba(darken(wellG, 0.5), 0.9)}" stroke-width="${(rHole * 0.16).toFixed(1)}"/>
+        <path d="M ${(gcx - rHole * 0.55).toFixed(1)} ${(gcy - rHole * 0.62).toFixed(1)} a ${(rHole * 0.82).toFixed(1)} ${(rHole * 0.82).toFixed(1)} 0 0 1 ${(rHole * 1.1).toFixed(1)} ${(-rHole * 0.12).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="${(rHole * 0.14).toFixed(1)}" stroke-linecap="round"/>
+      </g>`;
+      return inject(shellG, hub);
+    }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.
          Every value is live engine data in real games. */

@@ -1,12 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Smartphone, SquarePen, Trash2, X } from "lucide-react";
-import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { ArrowDown, ArrowUp, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
-import { download, downloadSvg } from "@/generator/exportUtils";
+import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { LiveArt } from "./LiveArt";
+
+/* An SVG rasterized through an <img> — or downloaded and opened outside the
+   app — is a SEALED document: it cannot see the page's loaded fonts, so any
+   <text> silently falls back to a system face (owner: "the warp effects are
+   cool but lose the font"). Inline the cfg's faces as data-URI @font-face
+   rules before any of those trips. fontDataUri caches per family, so after
+   the first fetch this is string work. Exact-name guard: fontByName falls
+   back to the default face for unknown families, and embedding the WRONG
+   bytes under a family's name is worse than the fallback. */
+async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
+  if (!svg.includes("<text")) return svg;
+  const fams = [pc.type.font, ...(pc.type.listFont ? [pc.type.listFont] : [])];
+  const rules: string[] = [];
+  for (const fam of fams) {
+    const fd = fontByName(fam);
+    const uri = await fontDataUri(fam, fd.name === fam ? fd.css ?? null : null).catch(() => null);
+    if (uri) rules.push(`@font-face{font-family:"${fam.replace(/"/g, "")}";src:url(${uri}) format("woff2");}`);
+  }
+  return rules.length ? svg.replace(/(<svg[^>]*>)/, `$1<style>${rules.join("")}</style>`) : svg;
+}
 
 /* ── The Board v3 — a vertical stack of named artboards ────────────
    Left: searchable asset drawer (live kit components + saved pieces).
@@ -23,7 +44,7 @@ const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
-  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick"] },
+  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
@@ -62,6 +83,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   achievetoast: "achievement unlock celebration banner first",
   trophy: "cup winner victory results podium gold",
   startlights: "race countdown start lights gantry",
+  gearicon: "settings gear cog options config preferences menu",
   resource: "currency coins gems counter hud pill",
   currency: "coins gems gold money wallet",
   pricebtn: "buy purchase shop iap best value ribbon",
@@ -264,6 +286,7 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
    what ships is exactly what the artboard showed. */
+
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
   mode === "vignette"
@@ -272,9 +295,9 @@ const ovBackground = (mode: string): string =>
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar,
+    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
     setActiveBoard, addBoard, removeBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSel, setBoardSel,
+    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
   } = useGen();
@@ -293,6 +316,8 @@ export function BoardView({ playing }: { playing: boolean }) {
     setBoardBg({ bgVideo: r.url!, bgImage: null, bgShow: true });
     setVidUrl("");
   };
+  // session object URLs die with the tab — restore them from the vault
+  useEffect(() => { void rehydrateBoardBgs(); }, []);
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
@@ -327,6 +352,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       } else if (mod && e.key.toLowerCase() === "d" && st.boardSel) {
         e.preventDefault();
         st.duplicateBoardItem(st.boardSel);
+      } else if (mod && (e.key === "]" || e.key === "[") && st.boardSel) {
+        e.preventDefault();
+        st.reorderBoardItem(st.boardSel, e.key === "]" ? (e.shiftKey ? "front" : "forward") : (e.shiftKey ? "back" : "backward"));
       } else if ((e.key === "Delete" || e.key === "Backspace") && st.boardSel) {
         e.preventDefault();
         st.removeBoardItem(st.boardSel);
@@ -359,18 +387,25 @@ export function BoardView({ playing }: { playing: boolean }) {
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
 
-  /* the exact svg a board item shows — shared by display, export and PNG */
+  /* the exact svg a board item shows — shared by display, export and PNG.
+     Per-component design forks (kitDesigns) apply here exactly like the
+     editor and Kit page — without them the board showed the MASTER design,
+     including its state recipes (owner: buttons "showing the hover glowy
+     state" that their component fork had tamed). */
   const svgOf = (b: BoardItem): { svg: string; cfg: GenConfig } => {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
-      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
+      const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
+      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
+    if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", undefined, item.kit.shape) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
 
   const nameOf = (b: BoardItem): string => {
+    if (b.stamp) return `"${b.stamp.text}"`;
     if (b.kitId) return KIT_COMPONENTS.find((c) => c.id === b.kitId)?.name ?? b.kitId;
     return library.find((l) => l.id === b.libId)?.name ?? "Piece";
   };
@@ -397,7 +432,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             const s = Math.max(W / v.videoWidth, H / v.videoHeight);
             ctx.save();
             ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-            if (bd.bgBlur) ctx.filter = `blur(${bd.bgBlur}px)`;
+            const bf = boardBgFilter(bd); if (bf) ctx.filter = bf;
             ctx.drawImage(v, (W - v.videoWidth * s) / 2, (H - v.videoHeight * s) / 2, v.videoWidth * s, v.videoHeight * s);
             ctx.restore();
           } catch { /* frame unavailable — export continues without it */ }
@@ -414,7 +449,7 @@ export function BoardView({ playing }: { playing: boolean }) {
           const s = Math.max(W / img.width, H / img.height); // cover, cropped to the board
           ctx.save();
           ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-          if (bd.bgBlur) ctx.filter = `blur(${bd.bgBlur}px)`;
+          const bf = boardBgFilter(bd); if (bf) ctx.filter = bf;
           ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
           ctx.restore(); res();
         };
@@ -422,6 +457,8 @@ export function BoardView({ playing }: { playing: boolean }) {
         img.src = bd.bgImage!;
       });
     }
+    // background film grain — independent of the overlay (owner: "noise")
+    drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
     // the overlay layer composites exactly like the live stage: tint (with
     // its blend mode) first, then film grain riding an overlay blend
     const ovMode = bd.ovMode ?? "none";
@@ -440,29 +477,13 @@ export function BoardView({ playing }: { playing: boolean }) {
       }
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
-      if ((bd.ovNoise ?? 0) > 0) {
-        const t = document.createElement("canvas");
-        t.width = t.height = 256;
-        const tc = t.getContext("2d")!;
-        const im = tc.createImageData(256, 256);
-        let seed = 48271; // seeded — the same board exports the same pixels
-        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < im.data.length; i += 4) {
-          const v2 = 88 + rnd() * 112;
-          im.data[i] = im.data[i + 1] = im.data[i + 2] = v2; im.data[i + 3] = 255;
-        }
-        tc.putImageData(im, 0, 0);
-        ctx.save();
-        ctx.globalCompositeOperation = "overlay";
-        ctx.globalAlpha = ((bd.ovNoise ?? 0) / 100) * 0.6;
-        ctx.fillStyle = ctx.createPattern(t, "repeat")!;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+      drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
     }
     for (const b of bd.items) {
-      const { svg, cfg: pc } = svgOf(b);
-      if (!svg) continue;
+      const { svg: svg0, cfg: pc } = svgOf(b);
+      if (!svg0) continue;
+      // the compositor's raster trip is sealed too — faces ride inside
+      const svg = await svgWithFaces(svg0, pc);
       const pad = glowPadOf(pc);
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
@@ -471,9 +492,15 @@ export function BoardView({ playing }: { playing: boolean }) {
           const w = img.width * s, h = img.height * s;
           const cx = b.x - pad * s + w / 2, cy = b.y - pad * s + h / 2;
           ctx.save();
+          if (b.stamp) { const sf = stampFilter(cfg, b.stamp); if (sf) ctx.filter = sf; }
           ctx.translate(cx, cy);
           if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
-          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          if (b.stamp?.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount) {
+            const wc = warpStampRaster(img, img.width, img.height, b.stamp.warp);
+            ctx.drawImage(wc, -w / 2, -(wc.height * s) / 2, w, wc.height * s);
+          } else {
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          }
           ctx.restore(); res();
         };
         img.onerror = () => res();
@@ -537,6 +564,10 @@ export function BoardView({ playing }: { playing: boolean }) {
           <input placeholder="Search assets…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
         </label>
         <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
+        <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
+          onClick={() => useGen.getState().addStampToBoard()}>
+          <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
+        </button>
         <div className="bd-scroll">
           {assets.map((g) => {
             // every typed word must land somewhere in the piece's haystack
@@ -619,6 +650,10 @@ export function BoardView({ playing }: { playing: boolean }) {
           <label className="bd-snap"><Grid3x3 size={13} strokeWidth={2} /> Snap to grid
             <input type="checkbox" checked={boardSnap} onChange={(e) => setBoardSnap(e.target.checked)} />
           </label>
+          <label className="bd-snap" title="Safe-area guides — keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
+            <Shield size={13} strokeWidth={2} /> Safe area
+            <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
+          </label>
           <button className="bd-export" onClick={() => { if (act) exportPng(act); }}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
         </header>
         <div className="bd-frame bd-boards" ref={frameRef}>
@@ -648,11 +683,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
                   {bd.bgImage && (bd.bgShow ?? true) && (
-                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
+                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
                   )}
                   {bd.bgVideo && (bd.bgShow ?? true) && (
                     <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
-                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
+                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
+                  )}
+                  {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
+                    <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
                   )}
                   {/* overlay sits between the backdrop and the pieces */}
                   {(bd.ovMode ?? "none") !== "none" && (
@@ -661,11 +699,26 @@ export function BoardView({ playing }: { playing: boolean }) {
                   {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
                     <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
                   )}
+                  {/* safety guides (owner) — pure view layer, never exported.
+                      16:9: broadcast/console action (95%) + title (90%) safe;
+                      mobile: notch + home-bar insets in stage units. */}
+                  {boardSafe && (
+                    <div className="bd-safe" aria-hidden="true">
+                      {bd.aspect === "169" ? (<>
+                        <i className="bd-safe__frame" style={{ inset: "2.5%" }}><b>action safe</b></i>
+                        <i className="bd-safe__frame bd-safe__frame--title" style={{ inset: "5%" }}><b>title safe</b></i>
+                      </>) : (<>
+                        <i className="bd-safe__frame" style={{ top: (47 / 844 * 100) + "%", bottom: (34 / 844 * 100) + "%", left: (12 / 390 * 100) + "%", right: (12 / 390 * 100) + "%" }}><b>device safe</b></i>
+                        <i className="bd-safe__notch" />
+                        <i className="bd-safe__homebar" />
+                      </>)}
+                    </div>
+                  )}
                   <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
                     {bd.items.map((b) => (
                       <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id} fit={fit}
-                        onExport={() => downloadSvg(svgOf(b).svg, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)}
+                        onExport={() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
                         onSelect={() => { setActiveBoard(bd.id); setBoardSel(b.id); }}
                         onDragStart={(e) => { dragRef.current = { id: b.id, dx: e.clientX, dy: e.clientY, ox: b.x, oy: b.y, fit }; setBoardSel(b.id); }}
                         onDragMove={(e) => {
@@ -727,6 +780,76 @@ export function BoardView({ playing }: { playing: boolean }) {
               <input type="range" min={-45} max={45} value={sel.rot ?? 0}
                 onChange={(e) => rotateBoardItem(sel.id, +e.target.value)} />
             </label>
+            {sel.stamp && (() => {
+              /* the stamp's own dials — instance-only, the kit's typography
+                 never moves (owner: "basic controls… hue / saturation,
+                 brightness/contrast", "drop shadow", "glow") */
+              const st = sel.stamp;
+              const patch = (p: Partial<typeof st>) => useGen.getState().setBoardItemStamp(sel.id, p);
+              return (<>
+                <div className="bd-h" style={{ marginTop: 14 }}>Type stamp</div>
+                <input className="bd-abname" value={st.text} maxLength={40} aria-label="Stamp text"
+                  onChange={(e) => patch({ text: e.target.value })} />
+                <label className="bd-slider">Type size · {st.size}%
+                  <input type="range" min={25} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Hue · {st.hue ?? 0}°
+                  <input type="range" min={-180} max={180} value={st.hue ?? 0} onChange={(e) => patch({ hue: +e.target.value })}
+                    onDoubleClick={() => patch({ hue: 0 })} />
+                </label>
+                <label className="bd-slider">Saturation · {st.sat ?? 100}%
+                  <input type="range" min={0} max={200} value={st.sat ?? 100} onChange={(e) => patch({ sat: +e.target.value })}
+                    onDoubleClick={() => patch({ sat: 100 })} />
+                </label>
+                <label className="bd-slider">Brightness · {st.bright ?? 100}%
+                  <input type="range" min={40} max={180} value={st.bright ?? 100} onChange={(e) => patch({ bright: +e.target.value })}
+                    onDoubleClick={() => patch({ bright: 100 })} />
+                </label>
+                <label className="bd-slider">Contrast · {st.contrast ?? 100}%
+                  <input type="range" min={40} max={180} value={st.contrast ?? 100} onChange={(e) => patch({ contrast: +e.target.value })}
+                    onDoubleClick={() => patch({ contrast: 100 })} />
+                </label>
+                <label className="bd-slider">Drop shadow · {st.shadow ?? 0}%
+                  <input type="range" min={0} max={100} value={st.shadow ?? 0} onChange={(e) => patch({ shadow: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Glow · {st.glow ?? 0}%
+                  <input type="range" min={0} max={100} value={st.glow ?? 0} onChange={(e) => patch({ glow: +e.target.value })} />
+                </label>
+                <div className="bd-ovmodes" role="radiogroup" aria-label="Warp style">
+                  {(["none", "arc", "flag", "bulge"] as const).map((wsty) => (
+                    <button key={wsty} className={(st.warp?.style ?? "none") === wsty ? "on" : ""} role="radio" aria-checked={(st.warp?.style ?? "none") === wsty}
+                      onClick={() => patch({ warp: { style: wsty, amount: st.warp?.amount ?? 40 } })}>
+                      {wsty === "none" ? "No warp" : wsty[0].toUpperCase() + wsty.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                {(st.warp?.style ?? "none") !== "none" && (
+                  <label className="bd-slider">Warp amount · {st.warp?.amount ?? 0}
+                    <input type="range" min={-100} max={100} value={st.warp?.amount ?? 0}
+                      onChange={(e) => patch({ warp: { style: st.warp!.style, amount: +e.target.value } })}
+                      onDoubleClick={() => patch({ warp: { style: st.warp!.style, amount: 0 } })} />
+                  </label>
+                )}
+                <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
+              </>);
+            })()}
+            {/* stacking order — items render in array order, later = on top
+                (owner: "need some layering/stacking order controls") */}
+            <div className="bd-h" style={{ marginTop: 14 }}>Layer</div>
+            <div className="bd-layer" role="group" aria-label="Stacking order">
+              <button title="Bring to front (⇧⌘])" onClick={() => useGen.getState().reorderBoardItem(sel.id, "front")}>
+                <BringToFront size={13} strokeWidth={2.2} /> Front
+              </button>
+              <button title="Bring forward (⌘])" onClick={() => useGen.getState().reorderBoardItem(sel.id, "forward")}>
+                <ArrowUp size={13} strokeWidth={2.2} /> Up
+              </button>
+              <button title="Send backward (⌘[)" onClick={() => useGen.getState().reorderBoardItem(sel.id, "backward")}>
+                <ArrowDown size={13} strokeWidth={2.2} /> Down
+              </button>
+              <button title="Send to back (⇧⌘[)" onClick={() => useGen.getState().reorderBoardItem(sel.id, "back")}>
+                <SendToBack size={13} strokeWidth={2.2} /> Back
+              </button>
+            </div>
             <div className="bd-actions">
               {sel.kitId && (
                 <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
@@ -737,7 +860,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              <button onClick={() => downloadSvg(svgOf(sel).svg, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)}>
+              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}>
                 <Download size={13} strokeWidth={2.2} /> Export asset
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
@@ -785,6 +908,24 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <label className="bd-slider">Blur · {act.bgBlur ?? 0}px
                   <input type="range" min={0} max={14} value={act.bgBlur ?? 0} onChange={(e) => setBoardBg({ bgBlur: +e.target.value })} />
                 </label>
+                <label className="bd-slider">Saturation · {act.bgSat ?? 100}%
+                  <input type="range" min={0} max={100} value={act.bgSat ?? 100} onChange={(e) => setBoardBg({ bgSat: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Hue · {act.bgHue ?? 0}°
+                  <input type="range" min={-180} max={180} value={act.bgHue ?? 0} onChange={(e) => setBoardBg({ bgHue: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgHue: 0 })} />
+                </label>
+                <label className="bd-slider">Brightness · {act.bgBright ?? 100}%
+                  <input type="range" min={40} max={180} value={act.bgBright ?? 100} onChange={(e) => setBoardBg({ bgBright: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgBright: 100 })} />
+                </label>
+                <label className="bd-slider">Contrast · {act.bgContrast ?? 100}%
+                  <input type="range" min={40} max={180} value={act.bgContrast ?? 100} onChange={(e) => setBoardBg({ bgContrast: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgContrast: 100 })} />
+                </label>
+                <label className="bd-slider">Noise · {act.bgNoise ?? 0}%
+                  <input type="range" min={0} max={100} value={act.bgNoise ?? 0} onChange={(e) => setBoardBg({ bgNoise: +e.target.value })} />
+                </label>
                 <div className="bd-note">
                   {act.bgVideo
                     ? act.bgVideo.startsWith("blob:")
@@ -805,7 +946,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 const f = e.target.files?.[0];
                 if (f) {
                   if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
-                  else void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgVideo: null, bgShow: true }));
+                  /* ONE copy, in the vault: the ship copy (≤1920) is also
+                     the display image, served as a session object URL — the
+                     board DOC carries only the tiny bgAssetId, so history,
+                     saves and cloud sync never drag pixels (field crash) */
+                  else void normalizeShipCopy(f).then(async (ship) => {
+                    const assetId = await putBgOriginal(ship, f.name);
+                    setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
+                  });
                 }
                 e.target.value = "";
               }} />
@@ -851,6 +999,64 @@ export function BoardView({ playing }: { playing: boolean }) {
  *  box always hugs the piece at any scale. Selection grows the on-piece
  *  controls (ported from the homepage board): a floating toolbar above
  *  the shell and a corner drag handle that resizes in place. */
+/* A stamp on the stage. Unwarped: the crisp svg itself, restyling live.
+   Warped: the svg rasters through the SAME warp op the exports use, so the
+   preview is the export. HARDENED after a field crash report ("chrome
+   keeps crashing"): re-rasters are debounced past drag ticks, previews cap
+   at 2048px (exports still render full-res, one-shot), and frames live as
+   object URLs that revoke their predecessor — the old data-URL-per-tick
+   version could park hundreds of MB in renderer memory during one drag. */
+function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
+  /* a 400% specimen is a real engine render — memo it, or every board
+     interaction re-renders every stamp (the tray-click sluggishness) */
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
+  const [frame, setFrame] = useState<{ url: string; w: number; h: number } | null>(null);
+  const urlRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!warped) {
+      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+      setFrame(null); return;
+    }
+    let on = true;
+    const t = window.setTimeout(() => {
+      /* the raster trip is sealed — the kit face must ride INSIDE the svg
+         or the warped preview speaks a system font (owner report) */
+      void svgWithFaces(svg, cfg).then((svgF) => {
+        if (!on) return;
+        const img = new Image();
+        img.onload = () => {
+          if (!on) return;
+          const k = Math.min(1, 2048 / Math.max(1, img.width));
+          const cv0 = document.createElement("canvas");
+          cv0.width = Math.max(1, Math.round(img.width * k));
+          cv0.height = Math.max(1, Math.round(img.height * k));
+          cv0.getContext("2d")!.drawImage(img, 0, 0, cv0.width, cv0.height);
+          const wc = warpStampRaster(cv0, cv0.width, cv0.height, stamp.warp!);
+          wc.toBlob((bl) => {
+            if (!on || !bl) return;
+            const u = URL.createObjectURL(bl);
+            if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+            urlRef.current = u;
+            setFrame({ url: u, w: wc.width / k, h: wc.height / k });
+          });
+        };
+        img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
+      });
+    }, 130); // one raster per settled dial position, not per tick
+    return () => { on = false; window.clearTimeout(t); };
+  }, [svg, warped, stamp.warp?.style, stamp.warp?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+  /* the raster frame is grab-inert: draggable images invite the browser's
+     NATIVE drag (a ghost image + pointercancel that kills our capture-based
+     move — owner: "hard to grab and move around"), and pointer-events pass
+     through so the StagePiece wrapper owns every press */
+  return warped && frame
+    ? <img src={frame.url} width={frame.w} height={frame.h} draggable={false}
+        style={{ filter: stampFilter(cfg, stamp), display: "block", pointerEvents: "none", userSelect: "none" }} alt="" />
+    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
 function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
   b: BoardItem; playing: boolean; selected: boolean; fit: number;
   onSelect: () => void;
@@ -859,8 +1065,22 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
   onDragEnd: () => void;
   onExport: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
   const sc = b.scale ?? 1;
+  /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
+     with a backdrop). A fresh applyKitDesign object here on every render
+     defeated LiveArt's svg memo, and the renderer's per-call gradient ids
+     make byte-different svg for identical input — so each render rewrote
+     the DOM, the measurement MutationObserver below fired a microtask,
+     setDim scheduled more sync work, and the whole cycle starved the
+     event loop forever (CanvasView's deferred cfg lane never caught up).
+     A stable fork object breaks the cycle at its source. */
+  const kd = b.kitId ? kitDesigns[b.kitId] : undefined;
+  const ktf = b.kitId ? kitTextFill[b.kitId] : undefined;
+  const forkCfg = useMemo(
+    () => (b.kitId ? applyKitTextFill(applyKitDesign(cfg, kd), ktf) : cfg),
+    [cfg, b.kitId, kd, ktf],
+  );
   const artRef = useRef<HTMLDivElement>(null);
   // corner-handle resize: screen-px delta → scale, against the piece's
   // unscaled on-screen width captured at grab time
@@ -871,42 +1091,57 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
     if (!host) return;
     const read = () => {
       const svg = host.querySelector("svg");
-      const w = svg ? parseFloat(svg.getAttribute("width") ?? "0") : 0;
-      const h = svg ? parseFloat(svg.getAttribute("height") ?? "0") : 0;
-      /* v59: the selection box hugs what the eye sees — the union of the
-         DRAWN geometry (knobs poking past a slider track, extrusion depth),
-         measured with getBBox in viewBox units. Filters (glow, shadows)
-         don't count, which is exactly right: glow isn't the component.
-         With anchorContent the wrapper origin sits at viewBox 0,0, so a
-         geometry rect maps to CSS 1:1 (glow-padded canvases) or × w/vbW
-         (plain 0-origin canvases). data-shell stays the fallback. */
+      let w = svg ? parseFloat(svg.getAttribute("width") ?? "0") : 0;
+      let h = svg ? parseFloat(svg.getAttribute("height") ?? "0") : 0;
+      /* a WARPED stamp is an <img> frame, not an svg — without this branch
+         the wrapper keeps its unwarped size, the bent lettering pokes
+         outside the hit area, and the piece is barely grabbable */
+      if (!svg) {
+        const img = host.querySelector("img");
+        if (img) { w = parseFloat(img.getAttribute("width") ?? "0"); h = parseFloat(img.getAttribute("height") ?? "0"); }
+      }
+      /* The selection box trusts the engine's own data-shell stamp — the
+         rect that hugs the component's silhouette. The old getBBox union
+         counted EVERY drawn geometry (contact-shadow ellipses, auras,
+         specimen slack), which read as boxes far larger than the art
+         (owner: "the bounding boxes for everything is huge"). getBBox
+         stays as the fallback for svgs without the stamp. */
       let shell: [number, number, number, number] | null = null;
       if (svg) {
-        try {
-          const bb = (svg as SVGGraphicsElement).getBBox();
-          const vb = (svg as SVGSVGElement).viewBox?.baseVal;
-          if (bb && bb.width > 0 && bb.height > 0 && vb && vb.width > 0) {
-            const kx = w / vb.width || 1, ky = h / vb.height || 1;
-            const padX = vb.x < 0 ? vb.x : 0, padY = vb.x < 0 ? vb.x : 0; // LiveArt margins reclaim the x-derived pad on both axes
-            shell = [(bb.x - vb.x) * kx + padX, (bb.y - vb.y) * ky + padY, bb.width * kx, bb.height * ky];
-          }
-        } catch { /* detached / display:none — fall through to data-shell */ }
+        const raw = svg.getAttribute("data-shell")?.split(" ").map(Number);
+        if (raw && raw.length === 4 && raw.every(Number.isFinite)) shell = raw as [number, number, number, number];
         if (!shell) {
-          const raw = svg.getAttribute("data-shell")?.split(" ").map(Number);
-          if (raw && raw.length === 4 && raw.every(Number.isFinite)) shell = raw as [number, number, number, number];
+          try {
+            const bb = (svg as SVGGraphicsElement).getBBox();
+            const vb = (svg as SVGSVGElement).viewBox?.baseVal;
+            if (bb && bb.width > 0 && bb.height > 0 && vb && vb.width > 0) {
+              const kx = w / vb.width || 1, ky = h / vb.height || 1;
+              const padX = vb.x < 0 ? vb.x : 0, padY = vb.x < 0 ? vb.x : 0; // LiveArt margins reclaim the x-derived pad on both axes
+              shell = [(bb.x - vb.x) * kx + padX, (bb.y - vb.y) * ky + padY, bb.width * kx, bb.height * ky];
+            }
+          } catch { /* detached / display:none — no shell, box falls back to the full canvas */ }
         }
       }
       if (w && h) setDim((d) => (d && d.w === w && d.h === h && String(d.shell) === String(shell) ? d : { w, h, shell }));
     };
     read();
-    const mo = new MutationObserver(read);
+    /* THE FREEZE FIX, part 2: MutationObserver callbacks are microtasks —
+       measuring (and setting state) directly from one lets a re-render's
+       DOM write chain straight into the next measurement without ever
+       yielding to the event loop. Coalescing through rAF puts a frame
+       boundary in the cycle, so even pathological churn can only cost
+       one measurement per frame, never a wedged tab. */
+    let pend = 0;
+    const mo = new MutationObserver(() => {
+      if (!pend) pend = requestAnimationFrame(() => { pend = 0; read(); });
+    });
     mo.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["width", "height", "data-shell"] });
     // text geometry settles once webfonts arrive — re-measure then
     if (typeof document !== "undefined" && document.fonts?.ready) void document.fonts.ready.then(() => read());
-    return () => mo.disconnect();
+    return () => { cancelAnimationFrame(pend); mo.disconnect(); };
   }, []);
-  const item = b.kitId ? null : library.find((l) => l.id === b.libId);
-  if (!b.kitId && !item) return null;
+  const item = b.kitId || b.stamp ? null : library.find((l) => l.id === b.libId);
+  if (!b.kitId && !b.stamp && !item) return null;
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
@@ -922,12 +1157,20 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
         onPointerCancel: onDragEnd,
       } : { onPointerDown: onSelect })}>
       <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left" }}>
-        {b.kitId ? (
-          <LiveArt cfg={applyKitTextFill(cfg, kitTextFill[b.kitId])} playing={playing} anchorContent
+        {b.stamp ? (
+          <StampArt cfg={cfg} stamp={b.stamp} />
+        ) : b.kitId ? (
+          /* per-component design forks apply on the stage exactly like the
+             editor and Kit page — the master design (and its state recipes)
+             must never leak past a fork here. forkCfg is memoized above:
+             a stable object identity is what keeps LiveArt's svg memo (and
+             the measurement observer behind it) quiet between real edits. */
+          <LiveArt cfg={forkCfg} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
-              row: b.kitId === "datarow" ? kitRow : undefined }} />
+              row: b.kitId === "datarow" ? kitRow : undefined,
+              themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }} />
         ) : (
           <LiveArt cfg={item!.cfg} playing={playing} anchorContent
             kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape } : undefined} />
@@ -967,6 +1210,17 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                     onChange={(e) => useGen.getState().setBoardItemVal(b.id, +e.target.value / 100)}
                     onDoubleClick={() => useGen.getState().setBoardItemVal(b.id, null)} />
                 )}
+                {b.stamp && (<>
+                  <input type="text" className="bd-ptext" maxLength={40}
+                    title="The stamp's words" aria-label="Stamp text"
+                    value={b.stamp.text}
+                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { text: e.target.value })} />
+                  <input type="range" min={25} max={400} className="bd-pval"
+                    title="Type size — 100% is the kit's own size"
+                    aria-label="Stamp size"
+                    value={b.stamp.size}
+                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { size: +e.target.value })} />
+                </>)}
                 {b.kitId && KIT_LABEL_EDITABLE.has(b.kitId) && (
                   /* THIS instance's words — two START buttons on one screen
                      can say START and OPTIONS. The kit's design keeps

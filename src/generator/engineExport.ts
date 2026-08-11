@@ -7,10 +7,12 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
+import type { BoardDef } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, measureSliceRGBA } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
@@ -50,6 +52,209 @@ export interface EngineExportState {
       tiers ship every component. Same folder, same paths: upgrading later
       lands the full kit over the starter without moving anything. */
   scope: "free" | "full";
+  /** Boards→Scenes (Pro): the user's artboards, pre-collected by
+      collectExportBoards. Emitted ONLY when scope is "full" — a remix
+      never exits the browser on the free tier. */
+  boards?: ExportBoardData[];
+}
+
+/* ── Boards→Scenes: the board document, serialized for the importer ──
+   Positions are BOARD coordinates (1920×1080 / 390×844, y down, item
+   CENTER); the importer re-anchors each piece to its nearest zone so the
+   layout survives resolution changes. w/h are the piece's intended
+   design-px footprint — the importer scales the prefab to match, so any
+   prefab sizing convention stays correct. */
+export interface ExportBoardItemData {
+  component: string;
+  cx: number; cy: number;
+  w: number; h: number;
+  rot: number;
+  /** per-copy words (owner: two START buttons on one screen) — null = the
+      prefab's own label stands */
+  label: string | null;
+  value: number | null;
+  /** zone anchor, Unity convention (ax 0..1 left→right, ay 0..1 bottom→top) */
+  ax: number; ay: number;
+  anchor: string;
+  /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
+      shadow/glow already in the pixels); null for prefab-backed pieces */
+  stamp: string | null;
+}
+export interface ExportBoardData {
+  name: string;
+  w: number; h: number;
+  bg: {
+    file: string; opacity: number; blur: number;
+    overlay: string; overlayStrength: number; overlayBlend: string;
+    /** the darkroom dials — already BAKED into the bytes, so the importer
+        places the image as-is; recorded for transparency */
+    saturation: number; hue: number; brightness: number; contrast: number; noise: number;
+    /** original upload bytes from the vault, or the decoded proxy when the
+        vault has no original (other device / pre-vault board) */
+    bytes: Uint8Array;
+    /** true when the vault original shipped; false = proxy fallback */
+    original: boolean;
+  } | null;
+  items: ExportBoardItemData[];
+  /** baked stamp sprites for this board — pushed into the zip beside bg */
+  stampFiles: { file: string; bytes: Uint8Array }[];
+}
+
+const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
+  const m = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(u);
+  if (!m) return null;
+  const bin = atob(m[2]);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return { bytes: out, ext: m[1] === "jpeg" ? "jpg" : m[1] };
+};
+
+/** Assemble the boards for a scene export: geometry from the same render
+    recipe the Board stage uses, background bytes vault-first. Boards with
+    no kit pieces are skipped (nothing to build a scene from). */
+export async function collectExportBoards(st: {
+  boards: BoardDef[];
+  cfg: GenConfig;
+  kitTextFill: Partial<Record<KitComponentId, string>>;
+  kitSizes: Partial<Record<KitComponentId, "s" | "m" | "l">>;
+  kitShapes: Partial<Record<KitComponentId, Shape>>;
+  kitLabels: Partial<Record<KitComponentId, string>>;
+  kitVals: Partial<Record<KitComponentId, number>>;
+  /** Per-component design forks — the Board stage applies them, so the
+   *  exported scenes must too (optional: older callers ship master-only). */
+  kitDesigns?: Partial<Record<KitComponentId, Parameters<typeof applyKitDesign>[1]>>;
+}): Promise<ExportBoardData[]> {
+  const { getBgOriginal } = await import("./bgvault");
+  const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
+  const out: ExportBoardData[] = [];
+  const seen = new Set<string>();
+  for (const bd of st.boards) {
+    const items = bd.items.filter((b) => b.kitId || b.stamp);
+    if (!items.length) continue;
+    const [W, H] = STAGE_DIMS[bd.aspect];
+    let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
+    while (seen.has(slug)) slug += "2";
+    seen.add(slug);
+
+    let bg: ExportBoardData["bg"] = null;
+    if (bd.bgImage && (bd.bgShow ?? true)) {
+      let bytes: Uint8Array | null = null, ext = "png", original = false;
+      if (bd.bgAssetId) {
+        const rec = await getBgOriginal(bd.bgAssetId);
+        if (rec) {
+          bytes = new Uint8Array(await rec.blob.arrayBuffer());
+          ext = /png$/.test(rec.type) ? "png" : /webp$/.test(rec.type) ? "webp" : "jpg";
+          original = true;
+        }
+      }
+      if (!bytes) {
+        const d = dataUrlBytes(bd.bgImage);
+        if (d) { bytes = d.bytes; ext = d.ext; }
+        else if (bd.bgImage.startsWith("/")) {
+          // bundled backdrop — fetch the shipped asset itself
+          try {
+            const r = await fetch(bd.bgImage);
+            if (r.ok) { bytes = new Uint8Array(await r.arrayBuffer()); ext = bd.bgImage.split(".").pop() ?? "jpg"; }
+          } catch { /* scene ships without a backdrop */ }
+        }
+      }
+      /* the whole darkroom BAKES into the shipped pixels — hue, saturation,
+         brightness, contrast, blur AND the seeded grain are deterministic
+         ops, so what the stage shows is exactly what Unity places. A failed
+         decode ships the untouched bytes; the manifest keeps the dials. */
+      const grade = boardBgFilter(bd);
+      const grain = bd.bgNoise ?? 0;
+      if (bytes && (grade || grain > 0)) {
+        try {
+          const bmp = await createImageBitmap(new Blob([bytes.slice().buffer as ArrayBuffer]));
+          const cv = document.createElement("canvas");
+          cv.width = bmp.width; cv.height = bmp.height;
+          const ctx = cv.getContext("2d")!;
+          if (grade) ctx.filter = grade;
+          ctx.drawImage(bmp, 0, 0);
+          ctx.filter = "none";
+          drawBoardNoise(ctx, cv.width, cv.height, grain);
+          bmp.close();
+          const jpeg = ext === "jpg";
+          const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
+          if (blob) { bytes = new Uint8Array(await blob.arrayBuffer()); if (!jpeg) ext = "png"; }
+        } catch { /* undecodable — ship as-is */ }
+      }
+      if (bytes) {
+        bg = {
+          file: `backgrounds/${slug}.${ext}`, bytes, original,
+          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
+          overlay: bd.ovMode ?? "none", overlayStrength: bd.ovStrength ?? 100,
+          overlayBlend: bd.ovBlend ?? "normal",
+        };
+      }
+    }
+
+    const exItems: ExportBoardItemData[] = [];
+    const stampFiles: { file: string; bytes: Uint8Array }[] = [];
+    for (const b of items) {
+      if (b.stamp) {
+        /* a stamp bakes to its own sprite: specimen svg → raster → the
+           instance's adjust filter (shadow/glow included) on a canvas
+           padded so nothing clips. Center is preserved (symmetric pad).
+           The face rides INSIDE the svg: boards collect BEFORE the engine
+           pipeline arms setEmbedFont, and a sealed raster with no embed
+           bakes system glyphs (owner: warp "loses the font" — same trap). */
+        const fd0 = fontByName(st.cfg.type.font);
+        const stampSvgF = await inlineKitFace(stampSvg(st.cfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+        const { bytes: raw, w: rw0, h: rh0 } = await svgToPngBytes(stampSvgF, 2);
+        const bmp = await createImageBitmap(new Blob([raw.slice().buffer as ArrayBuffer]));
+        // warp FIRST (shadow/glow then follow the bent shape), filter second
+        const warped = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount
+          ? warpStampRaster(bmp, rw0, rh0, b.stamp.warp) : null;
+        const rw = warped ? warped.width : rw0, rh = warped ? warped.height : rh0;
+        const padPx = stampFilterPad(b.stamp) * 2;
+        const cv = document.createElement("canvas");
+        cv.width = rw + padPx * 2; cv.height = rh + padPx * 2;
+        const cx2 = cv.getContext("2d")!;
+        const sf = stampFilter(st.cfg, b.stamp);
+        if (sf) cx2.filter = sf;
+        cx2.drawImage(warped ?? bmp, padPx, padPx);
+        bmp.close();
+        const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+        if (!blob) continue;
+        const file = `boardstamps/${slug}-${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        const k = b.scale ?? 1;
+        const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
+        const cx = b.x + ((rw / 2) * k) / 2, cy = b.y + ((rh / 2) * k) / 2;
+        const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
+        const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
+          anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
+          stamp: file,
+        });
+        continue;
+      }
+      const id = b.kitId!;
+      // the Board stage's own recipe — dims must match what the maker saw
+      const svg = renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id], themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id] });
+      const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
+      const sh = parseFloat(/height="([\d.]+)"/.exec(svg)?.[1] ?? "80");
+      const k = b.scale ?? 1;
+      const w = sw * k, h = sh * k;
+      const cx = b.x + w / 2, cy = b.y + h / 2;
+      const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
+      // board y runs DOWN; Unity anchors run UP — top third = ay 1
+      const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
+      const anchor = `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`;
+      exItems.push({
+        component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+        w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+        rot: b.rot ?? 0, label: b.label ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
+      });
+    }
+    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
+  }
+  return out;
 }
 
 const sha256Hex = async (data: Uint8Array): Promise<string> => {
@@ -1207,9 +1412,26 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
         },
       } : {}),
+      /* Boards→Scenes (Pro): the maker's artboards — the importer builds a
+         ready scene per board, per-copy words on live labels, zone-anchored.
+         Emitted on the FULL scope only: a remix never exits the browser on
+         the free tier (commercial-architecture.md). */
+      ...(full && st.boards?.length ? {
+        boards: st.boards.map((b) => ({
+          name: b.name, w: b.w, h: b.h,
+          bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, saturation: b.bg.saturation, hue: b.bg.hue, brightness: b.bg.brightness, contrast: b.bg.contrast, noise: b.bg.noise, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
+          items: b.items,
+        })),
+      } : {}),
       assets: manifest,
     }, null, 2),
   });
+  if (full && st.boards?.length) {
+    for (const b of st.boards) {
+      if (b.bg) files.push({ path: b.bg.file, data: b.bg.bytes });
+      for (const sf of b.stampFiles) files.push({ path: sf.file, data: sf.bytes });
+    }
+  }
 
   /* ── Unity: the importer IS the product's second half. It applies
      borders/pivots idempotently, keeps the I1–I5 overwrite contract, and
@@ -2439,6 +2661,16 @@ back to 1 to work at true size and scroll around. (Playground.unity is
 never overwritten once it exists; **Tools > PatternBreak > Rebuild Kit
 Playground Scene** replaces it.)
 
+**Your boards arrived as scenes.** If the kit was exported with screens
+composed on the app's Board, each one is a ready scene in
+**${root}/Scenes/** — background placed (the original upload, full
+resolution), every piece zone-anchored so the layout survives other
+aspect ratios, and any per-copy words already set on the live labels.
+Open one, press Play; buttons respond. Like the Playground, a board
+scene builds once and is then yours — **Tools > PatternBreak > Rebuild
+Kit Board Scenes** regenerates them from the manifest when you want a
+fresh copy.
+
 > **Buttons ignoring the mouse in your own scene?** The usual suspects
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
@@ -2878,7 +3110,11 @@ namespace PatternBreak {
   [Serializable] class PBLabelSize { public string family; public float size; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBAsset[] assets; }
+  // ── Boards→Scenes: the maker's artboards, one ready scene each ──
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; }
+  [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
+  [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -3260,6 +3496,9 @@ namespace PatternBreak {
       // Scenes can't be created mid-import, hence the delayCall.
       if (!File.Exists(root + "/Playground.unity"))
         EditorApplication.delayCall += () => BuildPlayground(root);
+      // the maker's board scenes ride the same after-import beat — each
+      // builds once, then it's yours (existing scenes are never touched)
+      EditorApplication.delayCall += () => BuildBoardScenes(root, manifest);
 
       // ── the receipt ──
       var receipt = new PBLock();
@@ -3446,6 +3685,168 @@ namespace PatternBreak {
         if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
           UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
       }
+    }
+
+    /* ── Boards→Scenes: every artboard the maker composed in the app
+       arrives as a READY scene — background placed, pieces zone-anchored,
+       per-copy words on the live labels. Built once per board, then yours
+       (Tools > PatternBreak > Rebuild Kit Board Scenes refreshes). ── */
+    static string BoardSlug(string name) {
+      var sb = new System.Text.StringBuilder();
+      foreach (var ch in name) sb.Append(char.IsLetterOrDigit(ch) ? ch : '-');
+      var s = sb.ToString().Trim('-');
+      return string.IsNullOrEmpty(s) ? "Board" : s;
+    }
+    static void BuildBoardScenes(string root, PBManifest m) {
+      if (m == null || m.boards == null || m.boards.Length == 0) return;
+      foreach (var bd in m.boards) {
+        try { BuildBoardScene(root, m, bd, false); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
+      }
+    }
+    static void BuildBoardScene(string root, PBManifest m, PBBoard bd, bool force) {
+      var dir = root + "/Scenes";
+      if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
+      var scenePath = dir + "/" + BoardSlug(bd.name) + ".unity";
+      if (File.Exists(scenePath)) {
+        if (!force) return; // yours after first generation
+        AssetDatabase.DeleteAsset(scenePath);
+      }
+      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      try {
+        var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
+        var camGo = new GameObject("Camera", typeof(Camera));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
+        var cam = camGo.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.09f, 0.10f, 0.15f);
+        camGo.tag = "MainCamera";
+        var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(canvasGo, scene);
+        canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        var scaler = canvasGo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2((float)bd.w, (float)bd.h);
+        scaler.matchWidthOrHeight = 0.5f;
+        var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
+#if ENABLE_LEGACY_INPUT_MANAGER
+        esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#elif ENABLE_INPUT_SYSTEM
+        esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#endif
+        /* background: the maker's own art, full-stretch behind everything.
+           The zip carries the UPLOAD ORIGINAL when the maker's browser had
+           it (manifest > boards > bg.original); opacity from the app rides
+           the image color. Blur/grain are app-preview niceties — flag them
+           in the log rather than faking them with hidden post-processing. */
+        if (bd.bg != null && !string.IsNullOrEmpty(bd.bg.file)) {
+          var bgSp = S(root + "/" + bd.bg.file);
+          if (bgSp != null) {
+            var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bgGo.transform.SetParent(canvasGo.transform, false);
+            var brt = bgGo.GetComponent<RectTransform>();
+            brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+            brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
+            var bimg = bgGo.GetComponent<Image>();
+            bimg.sprite = bgSp;
+            bimg.preserveAspect = false;
+            bimg.raycastTarget = false;
+            bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
+            if (bd.bg.overlay != null && bd.bg.overlay != "none") {
+              var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              ovGo.transform.SetParent(canvasGo.transform, false);
+              var ort = ovGo.GetComponent<RectTransform>();
+              ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
+              ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
+              var oimg = ovGo.GetComponent<Image>();
+              oimg.raycastTarget = false;
+              float a = Mathf.Clamp01(bd.bg.overlayStrength / 100f);
+              // vignette approximates as a soft dark wash; dark/light are exact
+              oimg.color = bd.bg.overlay == "light" ? new Color(0.96f, 0.97f, 1f, a * 0.5f) : new Color(0.02f, 0.03f, 0.06f, bd.bg.overlay == "vignette" ? a * 0.45f : a * 0.6f);
+            }
+          }
+        }
+        int placed = 0, missing = 0;
+        if (bd.items != null) foreach (var it in bd.items) {
+          GameObject inst; RectTransform rt;
+          if (!string.IsNullOrEmpty(it.stamp)) {
+            /* a type stamp — its baked sprite (adjust dials, shadow and
+               glow already in the pixels), a plain Image, no prefab */
+            var ssp = S(root + "/" + it.stamp);
+            if (ssp == null) { missing++; continue; }
+            inst = new GameObject("Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            inst.transform.SetParent(canvasGo.transform, false);
+            var simg = inst.GetComponent<Image>();
+            simg.sprite = ssp; simg.raycastTarget = false;
+            rt = inst.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(it.w, it.h);
+          } else {
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(it.component) + ".prefab");
+            if (pf == null) { missing++; continue; }
+            inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
+            inst.transform.SetParent(canvasGo.transform, false);
+            rt = inst.GetComponent<RectTransform>();
+            if (rt == null) continue;
+          }
+          /* zone anchoring: the board records each piece's nearest ninth
+             (ax/ay) — offsets are FROM that anchor, so a corner HUD piece
+             hugs its corner on every aspect the game runs at */
+          rt.anchorMin = new Vector2(it.ax, it.ay); rt.anchorMax = new Vector2(it.ax, it.ay);
+          rt.pivot = new Vector2(0.5f, 0.5f);
+          float axBoard = it.ax * bd.w;
+          float ayBoard = (1f - it.ay) * bd.h; // board y runs down
+          rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
+          if (string.IsNullOrEmpty(it.stamp) && rt.sizeDelta.x > 1f) {
+            float s = it.w / rt.sizeDelta.x;
+            rt.localScale = new Vector3(s, s, 1f);
+          }
+          if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
+          /* per-copy words (the maker typed them on this copy in the app) —
+             the label is LIVE text, so the override is one string set */
+          if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.label)) {
+            var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
+            if (tmp != null) tmp.text = it.label;
+          }
+          placed++;
+        }
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
+          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — re-run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate)" : "") + ". Open " + scenePath + " and press Play.");
+        else
+          Debug.LogWarning("UI Kit Maker: couldn't save the board scene at " + scenePath + ".");
+      } finally {
+        if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
+          UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+      }
+    }
+
+    [MenuItem("Tools/PatternBreak/Rebuild Kit Board Scenes")]
+    public static void RebuildBoardScenes() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
+        return;
+      }
+      int total = 0;
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { continue; }
+        if (m == null || m.boards == null || m.boards.Length == 0) continue;
+        total += m.boards.Length;
+        if (!EditorUtility.DisplayDialog("UI Kit Maker — rebuild board scenes",
+          "Replaces this kit's " + m.boards.Length + " board scene(s) with fresh ones from the manifest. Changes you made inside them are lost; every other scene is untouched.",
+          "Rebuild", "Skip this kit")) continue;
+        foreach (var bd in m.boards) {
+          try { BuildBoardScene(root, m, bd, true); }
+          catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
+        }
+      }
+      if (total == 0) Debug.Log("UI Kit Maker: this kit carries no boards — compose screens on the app's Board and re-export to get scenes.");
     }
 
     [MenuItem("Tools/PatternBreak/Rebuild Kit Playground Scene")]
@@ -5184,6 +5585,18 @@ namespace PatternBreak {
         bti.textureCompression = TextureImporterCompression.Uncompressed;
         bti.maxTextureSize = 4096;
         bti.npotScale = TextureImporterNPOTScale.None;
+        return;
+      }
+      /* Board backdrops — the maker's own art, possibly 4K originals —
+         arrive as single sprites so the board scenes' Background Image can
+         hold them. Full quality, no mips, big ceiling. */
+      if (path.Contains("UIKitMaker/") && (path.Contains("/backgrounds/") || path.Contains("/boardstamps/"))) {
+        var gti = (TextureImporter)assetImporter;
+        gti.textureType = TextureImporterType.Sprite;
+        gti.spriteImportMode = SpriteImportMode.Single;
+        gti.mipmapEnabled = false;
+        gti.alphaIsTransparency = true;
+        gti.maxTextureSize = 8192;
         return;
       }
       /* Type Stamps — baked styled phrases exported at 4x — land under the

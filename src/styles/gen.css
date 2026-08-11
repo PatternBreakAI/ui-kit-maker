@@ -706,6 +706,10 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 }
 .crashbar button { border: 1px solid rgba(255,255,255,.5); background: none; color: #fff; border-radius: 8px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
 .crashbar .crashdetail { font-weight: 400; opacity: .75; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* SAFE BOOT banner — the support hatch must be unmistakable */
+.safeboot-badge { position: fixed; top: 0; left: 0; right: 0; z-index: 499; background: #8a6d00; color: #fff; font-size: 12.5px; font-weight: 600; padding: 7px 18px; text-align: center; }
+.safeboot-badge button { margin-left: 12px; border: 1px solid rgba(255,255,255,.6); background: rgba(0,0,0,.18); color: #fff; border-radius: 8px; padding: 3px 12px; cursor: pointer; font: inherit; font-weight: 700; }
+.safeboot-badge button:hover { background: rgba(0,0,0,.32); }
 
 /* ── v25: play lock, help hints, board frames ─────────────────── */
 .panel.playlock .sec, .panel.playlock .btnrow { opacity: .38; pointer-events: none; filter: grayscale(.6); }
@@ -1238,8 +1242,10 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 /* ── v33: editorial guidelines document ───────────────────────── */
 /* reading mode: canvas tools dock to the lower-right corner so they
-   never sit over the document's center column */
-.canvas-wrap.kitmode .zoolbar { left: auto; right: 22px; transform: none; }
+   never sit over the document's center column. KIT PAGE ONLY — on the
+   Board the right dock covered the inspector rail (owner: "it covers
+   some UI on the right"), so the Board keeps the centered home. */
+.canvas-wrap.kitread .zoolbar { left: auto; right: 22px; transform: none; }
 
 /* sticky chapter navigation — persistent orientation for a long page */
 .kp-tabsbar {
@@ -1633,6 +1639,10 @@ button.kp-fact { cursor: pointer; }
 /* two columns, never wider than the panel — three inline buttons used to
    shove the inspector past the right edge */
 .bd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; min-width: 0; }
+/* stacking order — four compact chips in one row */
+.bd-layer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; min-width: 0; }
+.bd-layer button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 4px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.bd-layer button:hover { border-color: var(--ink); }
 .bd-actions button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-actions button:hover { border-color: var(--ink); }
 .bd-actions .danger { color: #c4453d; }
@@ -2132,6 +2142,39 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
 .bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
 /* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
+/* the stamp door — the one non-component asset, pinned above the groups */
+.bd-stampbtn {
+  display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
+  padding: 9px 11px; border-radius: 10px; cursor: pointer; text-align: left;
+  border: 1px dashed rgba(159, 226, 255, .4); background: rgba(24, 30, 46, .5);
+  color: #cfe0f2; font: 600 12px/1.3 Inter, sans-serif;
+  transition: border-color .15s, color .15s;
+}
+.bd-stampbtn:hover { border-color: #9fe2ff; color: #fff; }
+
+/* safety-area guides — a view layer over the stage; pointer-dead, never
+   exported. Frames are dashed with a soft outer dim so the unsafe margin
+   reads at a glance. */
+.bd-safe { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.bd-safe__frame {
+  position: absolute; display: block; border: 1px dashed rgba(159, 226, 255, .55);
+  border-radius: 6px; box-shadow: 0 0 0 9999px rgba(8, 12, 22, .14);
+}
+.bd-safe__frame--title { border-color: rgba(255, 214, 102, .55); box-shadow: none; }
+.bd-safe__frame b {
+  position: absolute; left: 6px; top: 2px; font: 700 9px/1.6 Inter, sans-serif;
+  letter-spacing: .12em; text-transform: uppercase; color: rgba(231, 236, 245, .6);
+}
+.bd-safe__frame--title b { color: rgba(255, 214, 102, .7); }
+.bd-safe__notch {
+  position: absolute; top: 1.2%; left: 50%; transform: translateX(-50%);
+  width: 32%; height: 3.4%; border-radius: 999px; background: rgba(8, 12, 22, .5);
+  border: 1px solid rgba(159, 226, 255, .3);
+}
+.bd-safe__homebar {
+  position: absolute; bottom: 1.1%; left: 50%; transform: translateX(-50%);
+  width: 36%; height: .6%; min-height: 3px; border-radius: 999px; background: rgba(231, 236, 245, .45);
+}
 .bd-pval { -webkit-appearance: none; appearance: none; width: 74px; height: 26px; margin: 0; padding: 0 4px; background: none; cursor: ew-resize; align-self: center; }
 /* per-instance text chip — "this copy only" words in the piece toolbar */
 .bd-ptext {

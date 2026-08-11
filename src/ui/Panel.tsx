@@ -180,10 +180,30 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
   label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
+  /* Drags coalesce to ONE update per animation frame, latest value wins.
+     Range inputs fire faster than the editor can re-render (each update
+     redraws the hero + every state card synchronously), so an unthrottled
+     drag on a heavy kit queued seconds of solid main-thread work — enough
+     to trip Chrome's "Page Unresponsive" dialog (field: "site is
+     freezing"). The final value always lands; the typed number field
+     stays immediate. */
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const latest = useRef(value);
+  const frame = useRef<number | null>(null);
+  useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current); }, []);
+  const emit = (v: number) => {
+    latest.current = v;
+    if (frame.current != null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      onChangeRef.current(latest.current);
+    });
+  };
   return (
     <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => onChange(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)} />
       <span className="valbox">
         <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
@@ -633,17 +653,39 @@ export function Panel() {
      engine (api/admin.ts sends thumb: null), so the card came up blank
      (owner: "the thumbnail isn't appearing"). The recipe is right there in
      cfg, so draw the art here instead. Memoized per list — this heals every
-     past publish with no re-publish and no database work. */
+     past publish with no re-publish and no database work.
+
+     CIRCUIT BREAKER (field: "site freezes before I can do anything"): a
+     poisoned cfg can wedge the renderer forever, and this loop runs on
+     every signed-in boot — one bad row froze every session. Each render
+     marks itself in localStorage before starting and clears the mark on
+     completion; a mark that survives means that render killed the tab, so
+     every later boot SKIPS that preset (blank card, named in the console)
+     instead of freezing again. The key sits OUTSIDE the sync prefix on
+     purpose — a local scar, never synced to other devices. */
   const cloudArt = useMemo(() => {
+    const GUARD = "forge-thumbguard";
+    const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+    const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
     const out: Record<string, string> = {};
     for (const p of cloudPresets) {
       if (p.thumb) continue;
+      const guard = readGuard();
+      if (guard.includes(p.id)) {
+        console.warn(`Looks: skipping the thumbnail of "${p.name}" (${p.id}) — rendering it froze a previous session. Fix or delete that preset in the Release Desk.`);
+        continue;
+      }
       try {
+        writeGuard([...guard, p.id]);
+        const t0 = performance.now();
         const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
         for (const st of Object.values(tc.states)) st.glow = 0;
         tc.content.label = "PLAY"; tc.icon.show = false;
         out[p.id] = renderBevel(tc, "default");
+        const ms = performance.now() - t0;
+        if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) thumbnail took ${Math.round(ms)}ms to render — this preset is close to freezing sessions.`);
       } catch { /* a cfg we can't read just stays blank rather than crashing the tray */ }
+      finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
     }
     return out;
   }, [cloudPresets]);

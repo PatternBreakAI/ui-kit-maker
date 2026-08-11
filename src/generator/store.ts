@@ -2,9 +2,10 @@ import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
+import { delBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
-import { renderBevel } from "./bevel";
+import { renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
@@ -228,6 +229,7 @@ export function fetchSiteDefault(): void {
 /* Anyone who has never edited (fresh visitor, or someone who only looked
    around) follows the site default — their library and board are untouched. */
 function adoptDefaultIfUntouched(): void {
+  if (SAFE_BOOT) return; // safe boot never writes the real keys
   if (localStorage.getItem(TOUCHED_KEY) === "1") return;
   const next = getDefault();
   if (JSON.stringify(useGen.getState().cfg) === JSON.stringify(next)) return;
@@ -236,6 +238,7 @@ function adoptDefaultIfUntouched(): void {
 }
 
 function load(): GenConfig {
+  if (SAFE_BOOT) return getDefault(); // safe boot: factory kit, stored doc untouched
   try {
     for (const key of [LS_KEY, LS_KEY_V9]) {
       const raw = localStorage.getItem(key);
@@ -311,7 +314,7 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
   addToBoard: (libId: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
   addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
@@ -319,10 +322,17 @@ interface GenStore {
   addKitToBoard: (kitId: KitComponentId) => void;
   duplicateBoardItem: (id: string) => void;
   rotateBoardItem: (id: string, deg: number) => void;
+  /** Stacking order within the piece's board — items render in array order,
+   *  so later = on top. */
+  reorderBoardItem: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   /** Sets the ACTIVE board's aspect. */
   setBoardAspect: (a: "169" | "mobile") => void;
   boardSnap: boolean;
   setBoardSnap: (v: boolean) => void;
+  /** Safety-area guides over every artboard (16:9: action/title safe;
+   *  mobile: device insets) — a view-layer overlay, never in exports. */
+  boardSafe: boolean;
+  setBoardSafe: (v: boolean) => void;
   boardSel: string | null;
   setBoardSel: (id: string | null) => void;
   moveBoardItem: (id: string, x: number, y: number) => void;
@@ -331,6 +341,10 @@ interface GenStore {
   setBoardItemVal: (id: string, v: number | null) => void;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
+  /** Drop a type stamp on the active board. */
+  addStampToBoard: () => void;
+  /** Edit a stamp's words or size. */
+  setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
   /** Board history — 100 levels, coalesced for continuous gestures. */
   boardPast: string[];
@@ -540,6 +554,125 @@ export interface BoardItem {
    *  follow the kit. Design changes still flow through live — only the
    *  words are pinned. */
   label?: string;
+  /** A TYPE STAMP — the kit's full lettering treatment with no shell
+   *  (owner: "temp game logos or just areas where I might need text…
+   *  type the word and the ability to size it", then: "basic controls…
+   *  hue / saturation, brightness/contrast", "drop shadow", "glow").
+   *  size = % of the kit's type size; the adjust dials are INSTANCE-only
+   *  (the kit's typography never moves); glow wears the kit's Glow color.
+   *  Restyles flow through live like any kit piece. */
+  stamp?: {
+    text: string; size: number;
+    hue?: number;      // -180..180 deg
+    sat?: number;      // 0..200 %
+    bright?: number;   // 0..200 %
+    contrast?: number; // 0..200 %
+    shadow?: number;   // 0..100 strength
+    glow?: number;     // 0..100 strength
+    /** simple warp (owner) — one style, one amount, raster-remapped so
+     *  stage, PNG and Unity bake stay pixel-identical */
+    warp?: { style: "none" | "arc" | "flag" | "bulge"; amount: number };
+  };
+}
+
+/** One filter string for a backdrop's darkroom dials — the stage, the PNG
+ *  compositor and the Unity bake all speak THIS. Blur last, so the color
+ *  grade lands before the haze. */
+export function boardBgFilter(bd: Pick<BoardDef, "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast">): string | undefined {
+  const p: string[] = [];
+  if (bd.bgHue) p.push(`hue-rotate(${bd.bgHue}deg)`);
+  if ((bd.bgSat ?? 100) < 100) p.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
+  if ((bd.bgBright ?? 100) !== 100) p.push(`brightness(${(bd.bgBright ?? 100) / 100})`);
+  if ((bd.bgContrast ?? 100) !== 100) p.push(`contrast(${(bd.bgContrast ?? 100) / 100})`);
+  if (bd.bgBlur) p.push(`blur(${bd.bgBlur}px)`);
+  return p.length ? p.join(" ") : undefined;
+}
+
+/** Seeded film grain, shared by the PNG compositor and the Unity bake —
+ *  the same board always exports the same pixels. */
+export function drawBoardNoise(ctx: CanvasRenderingContext2D, W: number, H: number, amount: number) {
+  if (amount <= 0) return;
+  const t = document.createElement("canvas");
+  t.width = t.height = 256;
+  const tc = t.getContext("2d")!;
+  const im = tc.createImageData(256, 256);
+  let seed = 48271;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < im.data.length; i += 4) {
+    const v2 = 88 + rnd() * 112;
+    im.data[i] = im.data[i + 1] = im.data[i + 2] = v2; im.data[i + 3] = 255;
+  }
+  tc.putImageData(im, 0, 0);
+  ctx.save();
+  ctx.globalCompositeOperation = "overlay";
+  ctx.globalAlpha = (amount / 100) * 0.6;
+  ctx.fillStyle = ctx.createPattern(t, "repeat")!;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+/** The warp's vertical paint reach (px at raster scale) — canvases pad by
+ *  this so a bend never clips. */
+export function stampWarpPad(h: number, warp: { style: string; amount: number } | undefined): number {
+  if (!warp || warp.style === "none" || !warp.amount) return 0;
+  const a = Math.abs(warp.amount) / 100;
+  return Math.ceil(warp.style === "bulge" ? h * a * 0.25 : h * (warp.style === "arc" ? 0.5 : 0.25) * a);
+}
+
+/** Remap a stamp raster through its warp — 2px column strips, the same
+ *  math on every surface. Returns a canvas padded by stampWarpPad. */
+export function warpStampRaster(src: CanvasImageSource, w: number, h: number, warp: { style: "none" | "arc" | "flag" | "bulge"; amount: number }): HTMLCanvasElement {
+  const pad = stampWarpPad(h, warp);
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(1, Math.round(w)); cv.height = Math.max(1, Math.round(h + pad * 2));
+  const ctx = cv.getContext("2d")!;
+  if (!pad) { ctx.drawImage(src, 0, 0); return cv; }
+  const A = (warp.amount / 100) * h;
+  for (let x = 0; x < w; x += 2) {
+    const sw = Math.min(2, w - x);
+    const t = (x + sw / 2) / w, u = 2 * t - 1;
+    if (warp.style === "bulge") {
+      const sY = 1 + (warp.amount / 100) * 0.5 * (1 - u * u);
+      const dh = h * sY;
+      ctx.drawImage(src, x, 0, sw, h, x, pad + (h - dh) / 2, sw, dh);
+    } else {
+      const dy = warp.style === "arc" ? -A * 0.5 * (1 - u * u) : A * 0.25 * Math.sin(2 * Math.PI * t);
+      ctx.drawImage(src, x, 0, sw, h, x, pad + dy, sw, h);
+    }
+  }
+  return cv;
+}
+
+/** A stamp's artwork — the kit's full lettering treatment, shell off.
+ *  Size scales the TYPE, so stamps stay vector-crisp at logo scale. */
+export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string {
+  return renderTypeSpecimen(cfg, st.text || "GAME TITLE", { mutate: (c) => { c.type.size = Math.max(8, c.type.size * st.size / 100); } });
+}
+
+/** One filter string for a stamp's adjust dials — the stage, the board PNG
+ *  compositor and the Unity scene bake all speak THIS, so they can't
+ *  drift. Glow rides the kit's Glow role. */
+export function stampFilter(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string | undefined {
+  const p: string[] = [];
+  if (st.hue) p.push(`hue-rotate(${st.hue}deg)`);
+  if ((st.sat ?? 100) !== 100) p.push(`saturate(${(st.sat ?? 100) / 100})`);
+  if ((st.bright ?? 100) !== 100) p.push(`brightness(${(st.bright ?? 100) / 100})`);
+  if ((st.contrast ?? 100) !== 100) p.push(`contrast(${(st.contrast ?? 100) / 100})`);
+  if (st.shadow) p.push(`drop-shadow(0 ${(2 + st.shadow * 0.1).toFixed(1)}px ${(2 + st.shadow * 0.22).toFixed(1)}px rgba(0,0,0,${(st.shadow / 100 * 0.6).toFixed(2)}))`);
+  if (st.glow) {
+    const g = cfg.effects.Glow ?? "#7DF9FF";
+    p.push(`drop-shadow(0 0 ${(3 + st.glow * 0.22).toFixed(1)}px ${g}) drop-shadow(0 0 ${(6 + st.glow * 0.5).toFixed(1)}px ${g})`);
+  }
+  return p.length ? p.join(" ") : undefined;
+}
+
+/** The stamp filter's paint reach past the glyph raster (px at 1:1) — the
+ *  scene bake pads its canvas by this so shadows and glow never clip. */
+export function stampFilterPad(st: NonNullable<BoardItem["stamp"]>): number {
+  let pad = 0;
+  if (st.shadow) pad = Math.max(pad, 2 + st.shadow * 0.1 + (2 + st.shadow * 0.22) * 2);
+  if (st.glow) pad = Math.max(pad, (6 + st.glow * 0.5) * 3);
+  return Math.ceil(pad);
 }
 /** One artboard — a named, fixed-resolution stage with its own pieces and
  *  background. Backgrounds are object URLs, so the image itself is
@@ -550,12 +683,26 @@ export interface BoardDef {
   aspect: "169" | "mobile";
   items: BoardItem[];
   bgImage?: string | null;
+  /** The uploaded ORIGINAL's key in the background vault (bgvault.ts,
+   *  IndexedDB, per-browser). bgImage stays the light ≤1920 proxy the
+   *  stage drags against; the vault original is what the Unity scene
+   *  export ships. Absent = bundled path / pasted URL / pre-vault save —
+   *  exports fall back to the proxy. */
+  bgAssetId?: string | null;
   /** A looping video backdrop (bundled /backdrops/*.mp4 path, or a
    *  session-only blob: URL from an upload). Exclusive with bgImage. */
   bgVideo?: string | null;
   bgShow?: boolean;
   bgOpacity?: number;
   bgBlur?: number;
+  /** The backdrop darkroom (owner: saturation, then "hue / saturation,
+   *  brightness/contrast, noise") — all baked into PNG and Unity exports,
+   *  so what you see is what ships. 100/0 = untouched. */
+  bgSat?: number;      // 0..100
+  bgHue?: number;      // -180..180 deg
+  bgBright?: number;   // 0..200 %
+  bgContrast?: number; // 0..200 %
+  bgNoise?: number;    // 0..100 film grain, independent of the overlay's
   /** Overlay between the backdrop and the pieces — a tint-and-grain layer
    *  that makes components pop against busy art. */
   ovMode?: "none" | "dark" | "light" | "vignette";
@@ -589,11 +736,22 @@ export function defaultRow(): RowCfg {
 }
 const LIB_KEY = "ui-generator-library";
 const BOARD_KEY = "ui-generator-board";
+/* ── SAFE BOOT (support hatch) ────────────────────────────────────────
+   `?safe` (or #safe) anywhere in the URL boots the app FACTORY-FRESH
+   without touching the user's stored document: every persisted read
+   returns its default, every persisted write is a no-op, and the cloud
+   never starts (cloud.ts checks this flag). Built for "the site freezes
+   before I can do anything" field reports — if safe mode opens clean,
+   the stored document is the trigger, and it's still intact for
+   diagnosis. Nothing done in safe mode saves. */
+export const SAFE_BOOT = typeof location !== "undefined" && /[?&#]safe\b/.test(location.href);
 function loadJson<T>(key: string, fallback: T): T {
+  if (SAFE_BOOT) return fallback;
   try { const raw = localStorage.getItem(key); if (raw) return JSON.parse(raw) as T; } catch { /* ignore */ }
   return fallback;
 }
 function saveJson(key: string, v: unknown) {
+  if (SAFE_BOOT) return; // safe mode must never clobber the real document
   try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* quota — keep in memory */ }
 }
 
@@ -607,9 +765,49 @@ let histKey = "";
 let histT = 0;
 /* data-URL and bundled-path backdrops persist; blob URLs cannot survive a
    reload, so they stay session-only */
-const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") ? u : undefined);
+const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") && !u.startsWith("data:") ? u : undefined);
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
   saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
+
+/* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
+   whenever I click anything in the left tray") ──
+   A data-URL backdrop in the board doc meant EVERY board mutation dragged
+   ~500KB of base64 through history + localStorage + cloud sync — seconds
+   per click on a real document, and the 100-step undo held up to 100
+   copies in memory. So: pixels live in the VAULT, the stage shows a
+   session object URL, and the persisted doc carries only bgAssetId.
+   Boot restores the URLs; legacy data-URL boards migrate into the vault
+   the first time they load. */
+let bgRehydrated = false;
+export async function rehydrateBoardBgs(): Promise<void> {
+  if (bgRehydrated || typeof indexedDB === "undefined") return;
+  bgRehydrated = true;
+  const { getBgOriginal, putBgOriginal } = await import("./bgvault");
+  const st = useGen.getState();
+  let changed = false;
+  const boards = await Promise.all(st.boards.map(async (b) => {
+    // vault-backed board whose session URL died with the last tab
+    if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
+      const rec = await getBgOriginal(b.bgAssetId);
+      if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+      return b;
+    }
+    // legacy data-URL board — move the pixels into the vault, slim the doc
+    if (b.bgImage && b.bgImage.startsWith("data:image/") && !b.bgAssetId) {
+      try {
+        const blob = await (await fetch(b.bgImage)).blob();
+        const id = await putBgOriginal(blob, "migrated");
+        if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
+      } catch { /* undecodable — leave it */ }
+    }
+    return b;
+  }));
+  if (changed) {
+    // no history entry — this is plumbing, not an edit
+    useGen.setState({ boards });
+    saveBoards(useGen.getState);
+  }
+}
 
 /** Downscale an uploaded background to a storable data URL (≤1920px,
  *  JPEG) — small enough to persist, big enough for a 16:9 board. */
@@ -874,6 +1072,8 @@ export const useGen = create<GenStore>((set, get) => ({
     saveBoards(get);
   },
   removeBoard: (id) => {
+    const dead = get().boards.find((b) => b.id === id);
+    if (dead?.bgAssetId) void delBgOriginal(dead.bgAssetId);
     mutateBoards(get, set, null, (bs) => {
       const rest = bs.filter((b) => b.id !== id);
       // never zero artboards — deleting the last one leaves a fresh empty one
@@ -896,7 +1096,17 @@ export const useGen = create<GenStore>((set, get) => ({
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [] } : b)));
     set({ boardSel: null });
   },
-  setBoardBg: (patch) => mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b))),
+  setBoardBg: (patch) => {
+    /* replacing or clearing a vaulted background retires its ORIGINAL from
+       the vault — the proxy in bgImage keeps history/undo displayable, so
+       only the heavyweight bytes are reclaimed */
+    if ("bgImage" in patch || "bgVideo" in patch || "bgAssetId" in patch) {
+      const cur = get().boards.find((b) => b.id === get().activeBoard);
+      if (cur?.bgAssetId && cur.bgAssetId !== patch.bgAssetId) void delBgOriginal(cur.bgAssetId);
+      if (!("bgAssetId" in patch)) patch = { ...patch, bgAssetId: null };
+    }
+    mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b)));
+  },
   addToBoard: (libId) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
@@ -933,9 +1143,21 @@ export const useGen = create<GenStore>((set, get) => ({
     if (copy) set({ boardSel: (copy as BoardItem).id });
   },
   rotateBoardItem: (id, deg) => mutateItem(get, set, `rot:${id}`, id, (b) => ({ ...b, rot: Math.max(-180, Math.min(180, Math.round(deg))) })),
+  reorderBoardItem: (id, dir) => mutateBoards(get, set, null, (bs) => bs.map((bd) => {
+    const i = bd.items.findIndex((b) => b.id === id);
+    if (i < 0) return bd;
+    const items = [...bd.items];
+    const [it] = items.splice(i, 1);
+    const j = dir === "front" ? items.length : dir === "back" ? 0
+      : dir === "forward" ? Math.min(items.length, i + 1) : Math.max(0, i - 1);
+    items.splice(j, 0, it);
+    return { ...bd, items };
+  })),
   setBoardAspect: (a) => mutateBoards(get, set, "aspect", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, aspect: a } : b))),
   boardSnap: loadJson<boolean>("ui-generator-boardsnap", true),
   setBoardSnap: (v) => { saveJson("ui-generator-boardsnap", v); set({ boardSnap: v }); },
+  boardSafe: loadJson<boolean>("ui-generator-boardsafe", false),
+  setBoardSafe: (v) => { saveJson("ui-generator-boardsafe", v); set({ boardSafe: v }); },
   boardSel: null,
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
@@ -950,6 +1172,14 @@ export const useGen = create<GenStore>((set, get) => ({
     if (label === null || label === "") delete next.label; else next.label = label;
     return next;
   }),
+  addStampToBoard: () => {
+    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", x: 560, y: 420, stamp: { text: "GAME TITLE", size: 100 } };
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
+    set({ phase: "board", boardSel: item.id });
+  },
+  setBoardItemStamp: (id, patch) => mutateItem(get, set, `stamp:${id}`, id, (b) => (
+    b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(25, Math.min(400, patch.size ?? b.stamp.size)) } } : b
+  )),
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
     if (get().boardSel === id) set({ boardSel: null });
@@ -1524,7 +1754,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg: next, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 300);
   },
@@ -1674,7 +1904,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 600);
   },
@@ -1694,7 +1924,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ cfg, saveStatus: "saving" });
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(get().cfg)); } catch { /* ignore */ }
+      saveJson(LS_KEY, get().cfg);
       set({ saveStatus: "saved" });
     }, 600);
   },
