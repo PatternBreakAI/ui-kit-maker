@@ -369,7 +369,7 @@ function BackdropLibrary({ aspect, current, apply }: {
       )}
       {loadErr && (
         <div className="bd-note bd-vurl-err" role="alert">
-          That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in — the boards light up instantly, no redeploy.
+          <span>That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in — the boards light up instantly, no redeploy.</span>
         </div>
       )}
       <div className="bd-note">Scenes stream from the cloud — your board saves a link, never the pixels.</div>

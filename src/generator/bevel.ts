@@ -7251,49 +7251,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(shellG, hub);
     }
     case "trophyicon": {
-      /* Trophy — the prize cup itself IS the component, wearing the kit's
-         face/bevel/extrusion with no shell box (gear doctrine). The
-         silhouette already carves real daylight in the handles, so the
-         overlay only furnishes it: the cup mouth as a recessed opening,
-         a specular sweep, and a name-plate band on the base. */
+      /* Trophy — a simple 2D icon wearing the kit whole (owner: "think of
+         these as simple 2d icons first"). The silhouette carries all the
+         identity; no overlay furnishing at all. */
       const dT = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const shellT = build(cfg, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
-      const shellTM = /data-shell0="([-\d. ]+)"/.exec(shellT);
-      if (!shellTM || opts.part === "base") return shellT;
-      const [tx, ty, tw, th] = shellTM[1].split(" ").map(Number);
-      const fxT = (f: number) => tx + f * tw, fyT = (f: number) => ty + f * th;
-      const dimT = state === "disabled" ? 0.45 : 1;
-      const wellT = darken(effect(cfg.effects, "Inner Fill"), 0.72);
-      const gidT = "ty" + UID++;
-      const furnish = `<g opacity="${dimT}">
-        <defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${darken(wellT, 0.35)}"/><stop offset="1" stop-color="${wellT}"/></linearGradient></defs>
-        <ellipse cx="${fxT(0.5).toFixed(1)}" cy="${fyT(0.135).toFixed(1)}" rx="${(tw * 0.185).toFixed(1)}" ry="${(th * 0.028).toFixed(1)}" fill="url(#${gidT})" stroke="${hexRgba(lighten(bevel, 0.25), 0.8)}" stroke-width="${(tw * 0.012).toFixed(1)}"/>
-        <path d="M ${fxT(0.29).toFixed(1)} ${fyT(0.27).toFixed(1)} Q ${fxT(0.23).toFixed(1)} ${fyT(0.44).toFixed(1)} ${fxT(0.31).toFixed(1)} ${fyT(0.57).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="${(tw * 0.022).toFixed(1)}" stroke-linecap="round"/>
-        <rect x="${fxT(0.315).toFixed(1)}" y="${fyT(0.885).toFixed(1)}" width="${(tw * 0.37).toFixed(1)}" height="${(th * 0.045).toFixed(1)}" rx="${(th * 0.014).toFixed(1)}" fill="${wellT}" stroke="${hexRgba(darken(wellT, 0.5), 0.9)}" stroke-width="${(tw * 0.008).toFixed(1)}"/>
-      </g>`;
-      return inject(shellT, furnish);
+      return build(cfg, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
     }
     case "gifticon": {
-      /* Gift box — same doctrine: the 3/4 box wears the kit whole; the
-         overlay draws what the single-loop silhouette can't: the ribbon
-         band over lid and front, its slanted run down the receding side,
-         the lid's separation shadow, and a knot glint. */
+      /* Gift box — same doctrine, with ONE identifying detail (the gear-hub
+         rule): the vertical ribbon band over lid and front. Nothing else. */
       const dF = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
       const shellF = build(cfg, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
       const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
       if (!shellFM || opts.part === "base") return shellF;
       const [fx0, fy0, fw, fh] = shellFM[1].split(" ").map(Number);
-      const fxF = (f: number) => fx0 + f * fw, fyF = (f: number) => fy0 + f * fh;
       const dimF = state === "disabled" ? 0.45 : 1;
       const wellF = darken(effect(cfg.effects, "Inner Fill"), 0.72);
+      /* vb geometry: lid front y 64→96, box front y 96→184, band centered
+         on the knot x=90 (fractions of the 200-unit square) */
       const ribbon = `<g opacity="${dimF}">
-        <rect x="${fxF(0.355).toFixed(1)}" y="${fyF(0.325).toFixed(1)}" width="${(fw * 0.09).toFixed(1)}" height="${(fh * 0.585).toFixed(1)}" fill="${wellF}" stroke="${hexRgba(darken(wellF, 0.5), 0.85)}" stroke-width="${(fw * 0.006).toFixed(1)}"/>
-        <path d="M ${fxF(0.71).toFixed(1)} ${fyF(0.51).toFixed(1)} L ${fxF(0.755).toFixed(1)} ${fyF(0.487).toFixed(1)} L ${fxF(0.755).toFixed(1)} ${fyF(0.868).toFixed(1)} L ${fxF(0.71).toFixed(1)} ${fyF(0.892).toFixed(1)} Z" fill="${hexRgba(darken(wellF, 0.18), 0.9)}"/>
-        <path d="M ${fxF(0.13).toFixed(1)} ${fyF(0.49).toFixed(1)} L ${fxF(0.67).toFixed(1)} ${fyF(0.49).toFixed(1)}" stroke="${hexRgba(darken(bevel, 0.55), 0.7)}" stroke-width="${(fh * 0.014).toFixed(1)}"/>
-        <path d="M ${fxF(0.67).toFixed(1)} ${fyF(0.49).toFixed(1)} L ${fxF(0.87).toFixed(1)} ${fyF(0.4).toFixed(1)}" stroke="${hexRgba(darken(bevel, 0.55), 0.5)}" stroke-width="${(fh * 0.011).toFixed(1)}"/>
-        <path d="M ${fxF(0.465).toFixed(1)} ${fyF(0.225).toFixed(1)} a ${(fw * 0.05).toFixed(1)} ${(fw * 0.045).toFixed(1)} 0 0 1 ${(fw * 0.075).toFixed(1)} ${(-fw * 0.008).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="${(fw * 0.016).toFixed(1)}" stroke-linecap="round"/>
-        <path d="M ${fxF(0.44).toFixed(1)} ${fyF(0.2).toFixed(1)} Q ${fxF(0.34).toFixed(1)} ${fyF(0.13).toFixed(1)} ${fxF(0.31).toFixed(1)} ${fyF(0.115).toFixed(1)}" fill="none" stroke="${hexRgba(darken(bevel, 0.45), 0.55)}" stroke-width="${(fw * 0.012).toFixed(1)}" stroke-linecap="round"/>
-        <path d="M ${fxF(0.56).toFixed(1)} ${fyF(0.19).toFixed(1)} Q ${fxF(0.64).toFixed(1)} ${fyF(0.12).toFixed(1)} ${fxF(0.67).toFixed(1)} ${fyF(0.105).toFixed(1)}" fill="none" stroke="${hexRgba(darken(bevel, 0.45), 0.55)}" stroke-width="${(fw * 0.012).toFixed(1)}" stroke-linecap="round"/>
+        <rect x="${(fx0 + 0.405 * fw).toFixed(1)}" y="${(fy0 + 0.32 * fh).toFixed(1)}" width="${(fw * 0.085).toFixed(1)}" height="${(fh * 0.6).toFixed(1)}" fill="${wellF}" opacity="0.85"/>
       </g>`;
       return inject(shellF, ribbon);
     }

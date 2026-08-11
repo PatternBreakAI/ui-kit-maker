@@ -385,24 +385,23 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
   },
 
   trophycup: {
-    /* Trophy cup — the classic prize silhouette: wide-lipped bowl, true
-       crescent handles (the outline carves daylight between handle and
-       bowl — still ONE loop, so the extrusion sweep stays clean), slim
-       stem, collar, pedestal and a two-step base. Companion piece to the
-       gear: the component wears the kit with no shell box. */
+    /* Trophy cup — a SIMPLE 2D icon first (owner note): plain U cup,
+       even-thickness D-ring handles, neck, flared foot, one plinth. One
+       loop, so the extrusion sweep stays clean; the kit's face does all
+       the talking — the component adds no overlay furnishing. */
     id: "trophycup", name: "Trophy cup", capAware: true,
     vb: [0.0, 0.0, 200.0, 200.0],
-    d: "M 60 20 L 140 20 Q 146 20 146 25 L 146 32 L 140 36 C 168 33 186 45 184 63 C 182 82 165 95 147 90 Q 144 90 143 88 C 154 83 160 73 158 61 C 156 50 149 45 141 46 C 142 64 139 84 130 100 C 123 111 111 119 103 122 L 107 148 Q 116 151 116 157 L 116 160 L 126 164 L 126 172 L 142 176 Q 147 177 147 181 L 147 186 L 53 186 L 53 181 Q 53 177 58 176 L 74 172 L 74 164 L 84 160 L 84 157 Q 84 151 93 148 L 97 122 C 89 119 77 111 70 100 C 61 84 58 64 59 46 C 51 45 44 50 42 61 C 40 73 46 83 57 88 Q 56 90 53 90 C 35 95 18 82 16 63 C 14 45 32 33 60 36 L 54 32 L 54 25 Q 54 20 60 20 Z",
+    d: "M 54 18 L 146 18 Q 154 18 154 26 L 154 38 C 176 38 190 50 190 66 C 190 84 174 96 154 96 L 152 80 C 164 80 174 74 174 66 C 174 56 164 52 152 52 C 151 74 146 94 132 106 C 124 112 114 116 108 117 L 111 132 Q 130 138 134 148 L 138 156 Q 152 158 152 168 L 152 182 L 48 182 L 48 168 Q 48 158 62 156 L 66 148 Q 70 138 89 132 L 92 117 C 86 116 76 112 68 106 C 54 94 49 74 48 52 C 36 52 26 56 26 66 C 26 74 36 80 48 80 L 46 96 C 26 96 10 84 10 66 C 10 50 24 38 46 38 L 46 26 Q 46 18 54 18 Z",
   },
   gift: {
-    /* Gift box at 3/4 — front face, receding side and lid slab with a
-       two-loop bow, authored as a computed union of the iso faces so the
-       silhouette is a single mathematically clean loop. Ribbon and bow
-       detail are drawn by the component as overlays, same doctrine as
-       the gear hub. */
+    /* Gift box at a calm 3/4 — front face, receding side, lid slab and
+       a teardrop-loop bow meeting at a knot, authored as a computed
+       union so the silhouette is one mathematically clean loop. The
+       component adds only the ribbon band (gear-hub doctrine: one
+       identifying detail, no more). */
     id: "gift", name: "Gift box", capAware: true,
     vb: [0.0, 0.0, 200.0, 200.0],
-    d: "M 26 64 L 61.3 48 L 59.9 46.7 L 58.8 45 L 58 43.2 L 57.6 41.2 L 57.6 39.1 L 57.9 37 L 58.6 34.7 L 59.6 32.5 L 61 30.3 L 62.7 28.1 L 64.6 26.1 L 66.8 24.1 L 69.2 22.4 L 71.8 20.8 L 74.5 19.5 L 77.3 18.4 L 80.1 17.6 L 82.9 17.1 L 85.6 16.8 L 88.2 16.9 L 90.6 17.2 L 92.9 17.9 L 94.9 18.8 L 96.6 19.9 L 98.1 21.3 L 99.2 23 L 100 24.8 L 100.4 26.8 L 100.4 28.9 L 100.1 31 L 99.4 33.3 L 98.4 35.5 L 97 37.7 L 95.3 39.9 L 93.4 41.9 L 91.2 43.9 L 89.6 45 L 91.2 45 L 91.5 44.5 L 92.3 43.5 L 93.2 42.6 L 94.3 41.9 L 95.5 41.2 L 96.8 40.7 L 98.2 40.3 L 99.6 40.1 L 101 40 L 102.4 40.1 L 103.8 40.3 L 105.2 40.7 L 106.5 41.2 L 107.7 41.9 L 108.8 42.6 L 109.7 43.5 L 110.5 44.5 L 110.8 45 L 120.3 45 L 119.5 44.7 L 116.9 43.6 L 114.4 42.2 L 112 40.7 L 109.8 39 L 107.8 37.1 L 106.1 35.2 L 104.7 33.1 L 103.6 31.1 L 102.8 29 L 102.4 27 L 102.3 25 L 102.6 23.2 L 103.2 21.4 L 104.2 19.9 L 105.4 18.5 L 107 17.3 L 108.9 16.4 L 111 15.7 L 113.3 15.3 L 115.8 15.2 L 118.4 15.3 L 121 15.7 L 123.8 16.3 L 126.5 17.3 L 129.1 18.4 L 131.6 19.8 L 134 21.3 L 136.2 23 L 138.2 24.9 L 139.9 26.8 L 141.3 28.9 L 142.4 30.9 L 143.2 33 L 143.6 35 L 143.7 37 L 143.4 38.8 L 142.8 40.6 L 141.8 42.1 L 140.6 43.5 L 139 44.7 L 138.3 45 L 176 45 L 176 79 L 168 82.6 L 168 163 L 126 182 L 34 182 L 34 98 L 26 98 L 26 64 Z",
+    d: "M 30 62 L 53.7 50.9 L 52 50.6 L 52 50.6 L 50.6 50.3 L 48 49.4 L 45.5 48.2 L 43.2 46.7 L 41.2 44.8 L 39.3 42.8 L 37.8 40.5 L 36.6 38 L 35.7 35.4 L 35.2 32.7 L 35 30 L 35.2 27.3 L 35.7 24.6 L 36.6 22 L 37.8 19.5 L 39.3 17.2 L 41.2 15.2 L 43.2 13.3 L 45.5 11.8 L 48 10.6 L 50.6 9.7 L 53.3 9.2 L 56 9 L 58.7 9.2 L 61.4 9.7 L 64 10.6 L 66.5 11.8 L 68.8 13.3 L 70.8 15.2 L 72.7 17.2 L 74.2 19.5 L 75.4 22 L 75.5 22.1 L 75.5 22.1 L 84.7 45 L 86.4 44.5 L 88.2 44.1 L 90 44 L 91.8 44.1 L 93.6 44.5 L 95.3 45.1 L 105.5 20.4 L 105.5 20.4 L 105.5 20.3 L 106.7 18 L 108.1 15.8 L 109.9 13.9 L 111.8 12.1 L 114 10.7 L 116.3 9.5 L 118.8 8.7 L 121.4 8.2 L 124 8 L 126.6 8.2 L 129.2 8.7 L 131.7 9.5 L 134 10.7 L 136.2 12.1 L 138.1 13.9 L 139.9 15.8 L 141.3 18 L 142.5 20.3 L 143.3 22.8 L 143.8 25.4 L 144 28 L 143.8 30.6 L 143.3 33.2 L 142.5 35.7 L 141.3 38 L 139.9 40.2 L 138.1 42.1 L 136.2 43.9 L 134 45.3 L 131.7 46.5 L 129.3 47.3 L 129.3 47.3 L 126.7 48 L 176 48 L 176 82 L 166 86.7 L 166 170 L 136 184 L 40 184 L 40 96 L 30 96 L 30 62 Z",
   },
 };
 
