@@ -396,7 +396,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
-    applyBoardItemPatches, removeBoardItems,
+    applyBoardItemPatches, removeBoardItems, transformBoardItems,
   } = useGen();
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
@@ -480,6 +480,23 @@ export function BoardView({ playing }: { playing: boolean }) {
       return { id: it.id, x: Math.round(it.x + dx), y: Math.round(it.y + dy) };
     }));
   };
+  /* the GROUP transform box (owner: "scale multiple objects at once") —
+     a dashed frame hugging the whole selection, with corner handles that
+     scale every piece about the opposite corner. Geometry is measured
+     from the same shell-hugging selection boxes as align/distribute,
+     after each commit, so the frame follows drags, nudges and the scale
+     gesture itself live. */
+  const [grpBox, setGrpBox] = useState<{ bd: string; l: number; t: number; w: number; h: number } | null>(null);
+  const grsz = useRef<{ x0: number; y0: number; ax: number; ay: number; hpx: number; hpy: number; fMin: number; fMax: number; pieces: { id: string; s0: number; px: number; py: number }[] } | null>(null);
+  useEffect(() => {
+    if (selIdsAll.length < 2) { setGrpBox((g) => (g ? null : g)); return; }
+    const bd = boards.find((x) => x.items.some((b) => b.id === boardSel));
+    const rects = bd ? measureSel() : null;
+    if (!bd || !rects || rects.length < 2) { setGrpBox((g) => (g ? null : g)); return; }
+    const l = Math.min(...rects.map((r) => r.l)), t = Math.min(...rects.map((r) => r.t));
+    const w = Math.max(...rects.map((r) => r.l + r.w)) - l, h = Math.max(...rects.map((r) => r.t + r.h)) - t;
+    setGrpBox((g) => (g && g.bd === bd.id && Math.abs(g.l - l) < 0.5 && Math.abs(g.t - t) < 0.5 && Math.abs(g.w - w) < 0.5 && Math.abs(g.h - h) < 0.5 ? g : { bd: bd.id, l, t, w, h }));
+  }); // measured from the DOM — runs after every commit, self-limits via the equality guard
   /* distribute: equal GAPS along the axis, first and last pieces planted —
      the standard distribute-spacing move. Overlapping pieces just get
      negative gaps, which still spreads them sensibly. */
@@ -983,6 +1000,50 @@ export function BoardView({ playing }: { playing: boolean }) {
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
+                    {grpBox && grpBox.bd === bd.id && !playing && (
+                      /* the frame itself never eats clicks (pointer-events:
+                         none) — only its corner handles are interactive */
+                      <div className="bd-groupbox" aria-hidden="true" style={{ left: grpBox.l, top: grpBox.t, width: grpBox.w, height: grpBox.h }}>
+                        {([[0, 0], [1, 0], [0, 1], [1, 1]] as const).map(([hx, hy]) => (
+                          <span key={`g${hx}${hy}`} className="bd-rszwrap" style={{ left: hx * grpBox.w, top: hy * grpBox.h }}>
+                            <span className="bd-rsz2" role="slider" aria-label="Scale the selection" aria-valuenow={100}
+                              style={{ transform: `scale(${1 / fit})`, cursor: hx === hy ? "nwse-resize" : "nesw-resize" }}
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured scale still works */ }
+                                const pieces = bd.items.filter((it) => selIdsAll.includes(it.id))
+                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y }));
+                                if (pieces.length < 2) return;
+                                grsz.current = {
+                                  x0: e.clientX, y0: e.clientY,
+                                  ax: grpBox.l + (1 - hx) * grpBox.w, ay: grpBox.t + (1 - hy) * grpBox.h,
+                                  hpx: grpBox.l + hx * grpBox.w, hpy: grpBox.t + hy * grpBox.h,
+                                  // clamp the GROUP factor so no piece leaves its own
+                                  // 0.3..2 range mid-gesture — relative spacing never warps
+                                  fMin: Math.max(...pieces.map((p) => 0.3 / p.s0)),
+                                  fMax: Math.min(...pieces.map((p) => 2 / p.s0)),
+                                  pieces,
+                                };
+                              }}
+                              onPointerMove={(e) => {
+                                const g = grsz.current;
+                                if (!g) return;
+                                if (!(e.buttons & 1)) { grsz.current = null; return; }
+                                // corners follow the diagonal — both axes, averaged,
+                                // exactly like the single-piece transform box
+                                const ddx = (e.clientX - g.x0) / fit, ddy = (e.clientY - g.y0) / fit;
+                                const rx = Math.abs(g.hpx + ddx - g.ax) / Math.max(1, Math.abs(g.hpx - g.ax));
+                                const ry = Math.abs(g.hpy + ddy - g.ay) / Math.max(1, Math.abs(g.hpy - g.ay));
+                                const s = Math.max(g.fMin, Math.min(g.fMax, (rx + ry) / 2));
+                                transformBoardItems(`grpscale:${g.pieces.map((p) => p.id).join(",")}`,
+                                  g.pieces.map((p) => ({ id: p.id, scale: p.s0 * s, x: g.ax + (p.px - g.ax) * s, y: g.ay + (p.py - g.ay) * s })));
+                              }}
+                              onPointerUp={() => { grsz.current = null; }}
+                              onPointerCancel={() => { grsz.current = null; }} />
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {bd.items.length === 0 && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                 </div>

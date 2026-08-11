@@ -358,6 +358,9 @@ interface GenStore {
   /** One history step for a whole group: multi-drag, arrow-key nudges and
    *  align all land here. `tag` coalesces a continuous gesture or key run. */
   applyBoardItemPatches: (tag: string, patches: { id: string; x: number; y: number }[]) => void;
+  /** Group scale: one coalesced step patching scale AND position together,
+   *  so a corner drag scales the whole selection about a shared anchor. */
+  transformBoardItems: (tag: string, patches: { id: string; scale: number; x: number; y: number }[]) => void;
   /** Remove every listed piece in one history step (multi-select delete). */
   removeBoardItems: (ids: string[]) => void;
   /** Paste copies onto the ACTIVE board (re-identified, nudged +24) and
@@ -1244,6 +1247,13 @@ export const useGen = create<GenStore>((set, get) => ({
     mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
       bd.items.some((b) => map.has(b.id))
         ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, x: p.x, y: p.y } : b; }) }
+        : bd));
+  },
+  transformBoardItems: (tag, patches) => {
+    const map = new Map(patches.map((p) => [p.id, p]));
+    mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
+      bd.items.some((b) => map.has(b.id))
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(0.3, Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
         : bd));
   },
   removeBoardItems: (ids) => {

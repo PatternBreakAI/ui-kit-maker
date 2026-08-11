@@ -2215,6 +2215,10 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-rszbar { left: -11px; top: -5px; width: 22px; height: 10px; border-radius: 5px; }
 /* side handles (bar family) — vertical pills; drag = 9-slice stretch */
 .bd-rszside { left: -5px; top: -11px; width: 10px; height: 22px; border-radius: 5px; }
+/* the GROUP transform frame — hugs a multi-selection; only its corner
+   handles are interactive, so pieces inside stay clickable */
+.bd-groupbox { position: absolute; border: 1.5px dashed rgba(111, 214, 255, .75); border-radius: 4px; pointer-events: none; z-index: 6; }
+.bd-groupbox .bd-rszwrap { pointer-events: auto; }
 
 /* the assets search's clear button (owner: "need an x button in here") */
 .bd-searchclear { display: flex; flex: none; border: 0; background: none; color: var(--ink2); cursor: pointer; padding: 2px; }
