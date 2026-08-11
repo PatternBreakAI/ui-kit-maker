@@ -2046,10 +2046,8 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
               .finally(() => { go.disabled = false; });
           });
         }
-        const fpHow = document.getElementById("fpHow");
-        if (fpHow) fpHow.addEventListener("click", (ev) => { ev.preventDefault();
-          const sc = document.querySelector(".step-card");
-          if (sc && sc.closest("section")) sc.closest("section").scrollIntoView({ behavior: "smooth" }); });
+        /* "How it works" is a real page now (#/how, the living manual) —
+           the plain href carries the hash change; no scroll handler needed. */
         const fpLic = document.getElementById("fpLicense");
         if (fpLic) fpLic.addEventListener("click", (ev) => { ev.preventDefault();
           const ol = document.getElementById("ownLic");

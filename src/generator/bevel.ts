@@ -2980,6 +2980,10 @@ function stampTrack(svg: string, x: number, w: number): string {
 export interface KitOpts {
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
+  /** Horizontal 9-slice stretch for the bar family (slider, progress,
+   *  emblem bar, segmented meter): the TRACK re-renders wider — caps, knob
+   *  and inset stay true instead of distorting. 1 = authored width. */
+  stretch?: number;
   /** Alt tone — muted variant for empty/error titles; inert to hover. */
   tone?: "alt";
   /** Joystick deflection, each axis −1..1. */
@@ -3356,7 +3360,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="${on ? 0.92 : 0.96}"/>` + candyKnob(kx, ky, knobR, knobC, dot));
     }
     case "slider": {
-      const w = 460 * k, h = 64 * k;
+      const w = 460 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw * 0.7 + 3;
       const gapPad = 5 * k;
@@ -3394,7 +3398,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
     case "progress": {
-      const w = 520 * k, h = 64 * k;
+      const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;
@@ -3435,7 +3439,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          cell is an identical rounded rect floating in the well's negative
          space. Snap mode lights whole cells; smooth mode slides one fill
          under the notches. */
-      const w = 520 * k, h = 72 * k;
+      const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 72 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;

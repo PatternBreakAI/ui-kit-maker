@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
@@ -290,11 +290,23 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
    what ships is exactly what the artboard showed. */
 
+/* The bar family stretches HORIZONTALLY, 9-slice style (owner): the side
+   handles re-render the track wider — caps, knob and inset stay true —
+   while corners keep proportional scale. Only these components. */
+const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar"]);
+
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
   mode === "vignette"
     ? "radial-gradient(ellipse at 50% 42%, rgba(4,7,14,0) 34%, rgba(4,7,14,0.92) 100%)"
     : OV_TINT[mode] ?? "transparent";
+
+/* Center scrim — the vignette's inverse: games dim the MIDDLE of the frame
+   behind menus so the UI pops off a busy scene (owner: "subtly darken the
+   middle"). Independent of the overlay mode, so it stacks on a vignette,
+   rides any tint, or works alone. Ellipse 62% × 62% at 50% 46%, mirrored
+   exactly in the PNG export below. */
+const CENTER_SCRIM = "radial-gradient(62% 62% at 50% 46%, rgba(4,7,14,0.85) 0%, rgba(4,7,14,0.5) 45%, rgba(4,7,14,0) 100%)";
 
 /* ── The background library: 82 owner-curated scenes, search-first ────
    Thumbs ship with the app (public/bg-thumbs); a click applies the
@@ -384,6 +396,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
+    applyBoardItemPatches, removeBoardItems,
   } = useGen();
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
@@ -405,8 +418,65 @@ export function BoardView({ playing }: { playing: boolean }) {
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ id: string; dx: number; dy: number; ox: number; oy: number; fit: number } | null>(null);
+  const dragRef = useRef<{ list: { id: string; ox: number; oy: number }[]; dx: number; dy: number; fit: number } | null>(null);
   const [frameW, setFrameW] = useState(900);
+
+  /* multi-select (owner): shift-click extends within ONE board. boardSel
+     stays the primary; the extras ride alongside. Group drags, arrow-key
+     nudges, copy/paste and align all act on the whole set. */
+  const [selExtra, setSelExtra] = useState<string[]>([]);
+  const selIdsAll = useMemo(() => (boardSel ? [boardSel, ...selExtra] : []), [boardSel, selExtra]);
+  const selIdsRef = useRef<string[]>([]);
+  selIdsRef.current = selIdsAll;
+  // the board clipboard — plain cloned items; paste re-identifies onto the ACTIVE board
+  const clipRef = useRef<BoardItem[]>([]);
+  useEffect(() => {
+    // selection hygiene: extras die with the primary, and with deleted pieces
+    if (!boardSel) { if (selIdsRef.current.length > 1) setSelExtra([]); return; }
+    const alive = new Set(boards.flatMap((bd) => bd.items).map((b) => b.id));
+    setSelExtra((xs) => {
+      const next = xs.filter((x) => alive.has(x) && x !== boardSel);
+      return next.length === xs.length ? xs : next;
+    });
+  }, [boardSel, boards]);
+  const pickPiece = (bdId: string, id: string, shift: boolean) => {
+    setActiveBoard(bdId);
+    if (shift && boardSel && boardSel !== id) {
+      const primaryBd = boards.find((x) => x.items.some((b) => b.id === boardSel));
+      if (primaryBd?.id === bdId) {
+        setSelExtra((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+        return;
+      }
+    }
+    if (boardSel !== id) setBoardSel(id);
+    if (!shift) setSelExtra([]);
+  };
+  /* align the selection (owner). Bounds come from each piece's on-screen
+     selection box — the shell-hugging one — so alignment answers to what
+     the eye sees, not to glow padding. */
+  const alignSel = (edge: "left" | "centerh" | "right" | "top" | "middlev" | "bottom") => {
+    const bd = boards.find((x) => x.items.some((b) => b.id === boardSel));
+    if (!bd) return;
+    const canvas = document.querySelector(`[data-board="${bd.id}"] .bd-canvas`);
+    if (!canvas) return;
+    const cr = canvas.getBoundingClientRect();
+    const f = fitOf(bd);
+    const rects = selIdsAll.flatMap((id) => {
+      const host = canvas.querySelector(`[data-bid="${id}"]`);
+      const it = bd.items.find((b) => b.id === id);
+      if (!host || !it) return [];
+      const r = (host.querySelector(".board-selbox") ?? host).getBoundingClientRect();
+      return [{ it, l: (r.left - cr.left) / f, t: (r.top - cr.top) / f, w: r.width / f, h: r.height / f }];
+    });
+    if (rects.length < 2) return;
+    const minL = Math.min(...rects.map((r) => r.l)), maxR = Math.max(...rects.map((r) => r.l + r.w));
+    const minT = Math.min(...rects.map((r) => r.t)), maxB = Math.max(...rects.map((r) => r.t + r.h));
+    applyBoardItemPatches("align", rects.map(({ it, l, t, w, h }) => {
+      const dx = edge === "left" ? minL - l : edge === "right" ? maxR - (l + w) : edge === "centerh" ? (minL + maxR) / 2 - (l + w / 2) : 0;
+      const dy = edge === "top" ? minT - t : edge === "bottom" ? maxB - (t + h) : edge === "middlev" ? (minT + maxB) / 2 - (t + h / 2) : 0;
+      return { id: it.id, x: Math.round(it.x + dx), y: Math.round(it.y + dy) };
+    }));
+  };
 
   // stage scale follows the frame width — every artboard reads like a device
   useEffect(() => {
@@ -423,28 +493,49 @@ export function BoardView({ playing }: { playing: boolean }) {
     return Math.min((frameW - 56) / W, 820 / H, 1);
   };
 
-  /* keyboard: Delete removes, Cmd+D duplicates, Cmd+Z / Shift+Cmd+Z undo/redo */
+  /* keyboard: Delete removes the selection, Cmd+D duplicates, Cmd+Z / Shift+Cmd+Z
+     undo/redo, Cmd+C / Cmd+V copy & paste (paste lands on the ACTIVE board, so
+     it carries pieces between boards), arrows nudge — Shift makes them stride. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       const st = useGen.getState();
+      const ids = selIdsRef.current;
+      const selItems = () => st.boards.flatMap((bd) => bd.items).filter((b) => ids.includes(b.id));
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) st.redoBoard(); else st.undoBoard();
+      } else if (mod && e.key.toLowerCase() === "c" && ids.length) {
+        // an honest copy: never hijack a real text-selection copy
+        if (String(window.getSelection() ?? "").length) return;
+        e.preventDefault();
+        clipRef.current = structuredClone(selItems());
+      } else if (mod && e.key.toLowerCase() === "v" && clipRef.current.length) {
+        e.preventDefault();
+        const fresh = st.pasteBoardItems(clipRef.current);
+        setSelExtra(fresh.slice(1));
       } else if (mod && e.key.toLowerCase() === "d" && st.boardSel) {
         e.preventDefault();
         st.duplicateBoardItem(st.boardSel);
       } else if (mod && (e.key === "]" || e.key === "[") && st.boardSel) {
         e.preventDefault();
         st.reorderBoardItem(st.boardSel, e.key === "]" ? (e.shiftKey ? "front" : "forward") : (e.shiftKey ? "back" : "backward"));
-      } else if ((e.key === "Delete" || e.key === "Backspace") && st.boardSel) {
+      } else if ((e.key === "Delete" || e.key === "Backspace") && ids.length) {
         e.preventDefault();
-        st.removeBoardItem(st.boardSel);
+        st.removeBoardItems(ids);
+      } else if (!mod && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") && ids.length) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        st.applyBoardItemPatches(`nudge:${ids.join(",")}`,
+          selItems().map((b) => ({ id: b.id, x: b.x + dx, y: b.y + dy })));
       } else if (e.key === "Escape" && st.boardSel) {
         // drop the selection without touching the piece
         st.setBoardSel(null);
+        setSelExtra([]);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -480,12 +571,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
-      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
-    return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", undefined, item.kit.shape) : renderBevel(item.cfg, "default"), cfg: item.cfg };
+    return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
 
   const nameOf = (b: BoardItem): string => {
@@ -565,6 +656,20 @@ export function BoardView({ playing }: { playing: boolean }) {
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
       drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
+    }
+    // center scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
+    if ((bd.ovCenter ?? 0) > 0) {
+      ctx.save();
+      ctx.globalAlpha = (bd.ovCenter ?? 0) / 100;
+      ctx.translate(W / 2, H * 0.46);
+      ctx.scale(W * 0.62, H * 0.62);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, "rgba(4,7,14,0.85)");
+      g.addColorStop(0.45, "rgba(4,7,14,0.5)");
+      g.addColorStop(1, "rgba(4,7,14,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(-3, -3, 6, 6);
+      ctx.restore();
     }
     for (const b of bd.items) {
       const { svg: svg0, cfg: pc } = svgOf(b);
@@ -649,6 +754,12 @@ export function BoardView({ playing }: { playing: boolean }) {
         <div className="bd-h">Assets</div>
         <label className="bd-search"><Search size={13} strokeWidth={2.2} />
           <input placeholder="Search assets…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
+          {q && (
+            <button className="bd-searchclear" title="Clear search" aria-label="Clear search"
+              onClick={(e) => { e.preventDefault(); setQ(""); }}>
+              <X size={12} strokeWidth={2.4} />
+            </button>
+          )}
         </label>
         <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
         <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
@@ -683,14 +794,17 @@ export function BoardView({ playing }: { playing: boolean }) {
             <div>
               <div className="bd-cat">Saved components</div>
               <div className="bd-grid">
-                {library.filter((l) => !q || l.name.toLowerCase().includes(q.toLowerCase())).map((l) => (
-                  <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"}`} onClick={() => addToBoard(l.id)}
-                    onPointerEnter={() => setPreview({ name: l.name, svg: l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", undefined, l.kit.shape) : renderBevel(l.cfg, "default") })}
-                    onPointerLeave={() => setPreview(null)}>
-                    <span dangerouslySetInnerHTML={{ __html: l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", undefined, l.kit.shape) : renderBevel(l.cfg, "default") }} />
-                    <i>{l.name}</i>
-                  </button>
-                ))}
+                {library.filter((l) => !q || l.name.toLowerCase().includes(q.toLowerCase())).map((l) => {
+                  const art = l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default");
+                  return (
+                    <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"}`} onClick={() => addToBoard(l.id)}
+                      onPointerEnter={() => setPreview({ name: l.name, svg: art })}
+                      onPointerLeave={() => setPreview(null)}>
+                      <span dangerouslySetInnerHTML={{ __html: art }} />
+                      <i>{l.name}</i>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -742,8 +856,24 @@ export function BoardView({ playing }: { playing: boolean }) {
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
           <button className="bd-export" onClick={() => { if (act) exportPng(act); }}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
+          <button className="bd-export bd-exportall"
+            title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
+            onClick={async () => {
+              for (const bd of boards) if (bd.items.length || bd.bgImage || bd.bgVideo) await exportPng(bd);
+            }}>
+            <Download size={14} strokeWidth={2.2} /> All boards
+          </button>
         </header>
-        <div className="bd-frame bd-boards" ref={frameRef}>
+        <div className="bd-frame bd-boards" ref={frameRef}
+          /* click-away deselects (owner): anywhere that isn't a piece, its
+             toolbar, a resize handle, or a board's header controls clears the
+             selection — you shouldn't have to select ANOTHER object to let
+             go of this one. The per-stage handlers below stay for the fast
+             path; this one catches the void between and around boards. */
+          onPointerDown={(e) => {
+            const t = e.target as HTMLElement;
+            if (!t.closest(".board-item, .bd-ptoolwrap, .bd-rszwrap, .bd-abhead")) setBoardSel(null);
+          }}>
           {boards.map((bd) => {
             const [W, H, aspName] = STAGE[bd.aspect];
             const fit = fitOf(bd);
@@ -786,6 +916,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                   {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
                     <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
                   )}
+                  {(bd.ovCenter ?? 0) > 0 && (
+                    <div className="bd-ov" style={{ background: CENTER_SCRIM, opacity: (bd.ovCenter ?? 0) / 100 }} />
+                  )}
                   {/* safety guides (owner) — pure view layer, never exported.
                       16:9: broadcast/console action (95%) + title (90%) safe;
                       mobile: notch + home-bar insets in stage units. */}
@@ -807,14 +940,25 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
                     {bd.items.map((b) => (
-                      <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id} fit={fit}
+                      <StagePiece key={b.id} b={b} playing={playing}
+                        selected={selIdsAll.includes(b.id)} solo={boardSel === b.id && selIdsAll.length === 1} fit={fit}
                         onExport={() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
-                        onSelect={() => { setActiveBoard(bd.id); setBoardSel(b.id); }}
-                        onDragStart={(e) => { dragRef.current = { id: b.id, dx: e.clientX, dy: e.clientY, ox: b.x, oy: b.y, fit }; setBoardSel(b.id); }}
+                        onSelect={(e) => pickPiece(bd.id, b.id, !!e?.shiftKey)}
+                        onDragStart={(e) => {
+                          // dragging any selected piece carries the whole selection
+                          const group = selIdsAll.includes(b.id) && selIdsAll.length > 1
+                            ? bd.items.filter((it) => selIdsAll.includes(it.id))
+                            : [b];
+                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y })), dx: e.clientX, dy: e.clientY, fit };
+                        }}
                         onDragMove={(e) => {
                           const d = dragRef.current;
-                          if (!d || d.id !== b.id) return;
-                          moveBoardItem(b.id, snapV(d.ox + (e.clientX - d.dx) / d.fit), snapV(d.oy + (e.clientY - d.dy) / d.fit));
+                          if (!d || !d.list.some((g) => g.id === b.id)) return;
+                          // same dead-man rule as the resize handles: no button, no gesture
+                          if (!(e.buttons & 1)) { dragRef.current = null; return; }
+                          const mdx = (e.clientX - d.dx) / d.fit, mdy = (e.clientY - d.dy) / d.fit;
+                          applyBoardItemPatches(`grpmove:${d.list.map((g) => g.id).join(",")}`,
+                            d.list.map((g) => ({ id: g.id, x: snapV(g.ox + mdx), y: snapV(g.oy + mdy) })));
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
@@ -854,7 +998,27 @@ export function BoardView({ playing }: { playing: boolean }) {
           <button className="bd-addboard" onClick={addBoard}><Plus size={13} strokeWidth={2.2} /> Add board</button>
         </div>
 
-        {sel ? (
+        {selIdsAll.length > 1 ? (
+          <>
+            <div className="bd-h" style={{ marginTop: 16 }}>Selected · {selIdsAll.length} pieces</div>
+            <div className="bd-alignrow" role="group" aria-label="Align selection">
+              {([["left", "Align left edges", AlignStartVertical],
+                ["centerh", "Align horizontal centers", AlignCenterVertical],
+                ["right", "Align right edges", AlignEndVertical],
+                ["top", "Align top edges", AlignStartHorizontal],
+                ["middlev", "Align vertical middles", AlignCenterHorizontal],
+                ["bottom", "Align bottom edges", AlignEndHorizontal]] as const).map(([edge, tip, Icon]) => (
+                <button key={edge} title={tip} aria-label={tip} onClick={() => alignSel(edge)}>
+                  <Icon size={13} strokeWidth={2} />
+                </button>
+              ))}
+            </div>
+            <p className="bd-hint">Drag any selected piece to move the group. Arrow keys nudge (Shift strides). ⌘C then ⌘V on another board carries them over.</p>
+            <button className="bd-abtool danger bd-removeall" onClick={() => { removeBoardItems(selIdsAll); setSelExtra([]); }}>
+              <Trash2 size={12} strokeWidth={2.2} /> Remove {selIdsAll.length} pieces
+            </button>
+          </>
+        ) : sel ? (
           <>
             <div className="bd-h" style={{ marginTop: 16 }}>Selected</div>
             <div className="bd-selname">{nameOf(sel)}{selBoard ? <em> · {selBoard.name}</em> : null}</div>
@@ -870,6 +1034,32 @@ export function BoardView({ playing }: { playing: boolean }) {
               <input type="range" min={-45} max={45} value={sel.rot ?? 0}
                 onChange={(e) => rotateBoardItem(sel.id, +e.target.value)} />
             </label>
+            {/* instance dials live HERE too — the floating toolbar overlaps
+                neighbours in tight stacks (owner: "placement of controls is
+                problematic"); the rail is always readable */}
+            {sel.kitId && STRETCHABLE.has(sel.kitId) && (
+              <label className="bd-slider" title="9-slice width — the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
+                Width · {Math.round((sel.stretch ?? 1) * 100)}%
+                <input type="range" min={70} max={300} value={Math.round((sel.stretch ?? 1) * 100)}
+                  onChange={(e) => useGen.getState().stretchBoardItem(sel.id, +e.target.value / 100, sel.x)}
+                  onDoubleClick={() => useGen.getState().stretchBoardItem(sel.id, 1, sel.x)} />
+              </label>
+            )}
+            {sel.kitId && VALUE_DRIVEN.has(sel.kitId) && (
+              <label className="bd-slider" title="Value — this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
+                Value — this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
+                <input type="range" min={0} max={100} value={Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}
+                  onChange={(e) => useGen.getState().setBoardItemVal(sel.id, +e.target.value / 100)}
+                  onDoubleClick={() => useGen.getState().setBoardItemVal(sel.id, null)} />
+              </label>
+            )}
+            {sel.kitId && KIT_LABEL_EDITABLE.has(sel.kitId) && (
+              <input className="bd-abname" maxLength={labelMaxOf(sel.kitId)} aria-label="Instance text"
+                title="Text — this copy only. Clear the field to follow the kit again."
+                placeholder={kitLabels[sel.kitId] || "Text — this copy"}
+                value={sel.label ?? ""}
+                onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
+            )}
             {sel.stamp && (() => {
               /* the stamp's own dials — instance-only, the kit's typography
                  never moves (owner: "basic controls… hue / saturation,
@@ -1081,6 +1271,12 @@ export function BoardView({ playing }: { playing: boolean }) {
             ) : (
               <div className="bd-note">A dark, light or vignetted wash with film grain, between the backdrop and the pieces.</div>
             )}
+            <label className="bd-slider" title="Dims the middle of the frame — the move games make behind menus so the UI pops. Stacks with the overlay above, or works alone.">
+              Center scrim · {act.ovCenter ?? 0}%
+              <input type="range" min={0} max={100} value={act.ovCenter ?? 0}
+                onChange={(e) => setBoardBg({ ovCenter: +e.target.value })}
+                onDoubleClick={() => setBoardBg({ ovCenter: 0 })} />
+            </label>
             <div className="bd-h" style={{ marginTop: 18 }}>Stage</div>
             <div className="bd-note">{act.name} · {STAGE[act.aspect][0]} × {STAGE[act.aspect][1]} · shown at {Math.round(fitOf(act) * 100)}% · Export renders at full resolution.</div>
           </>
@@ -1170,9 +1366,12 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
-  b: BoardItem; playing: boolean; selected: boolean; fit: number;
-  onSelect: () => void;
+function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
+  b: BoardItem; playing: boolean; selected: boolean;
+  /** the ONE selected piece — toolbar and transform handles only render solo,
+   *  so a multi-selection stays a clean field of boxes */
+  solo: boolean; fit: number;
+  onSelect: (e?: React.PointerEvent) => void;
   onDragStart: (e: React.PointerEvent) => void;
   onDragMove: (e: React.PointerEvent) => void;
   onDragEnd: () => void;
@@ -1198,6 +1397,8 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
   // corner-handle resize: screen-px delta → scale, against the piece's
   // unscaled on-screen width captured at grab time
   const rsz = useRef<{ x0: number; y0: number; s0: number; hx: number; anchorX: number; anchorY: number; handX: number; handY: number; shx: number; shy: number; shw: number; shh: number; axf: number; ayf: number } | null>(null);
+  // 9-slice side-handle gesture (bar family): stretch factor + planted edge
+  const str = useRef<{ x0: number; st0: number; shw0: number; bx0: number; hx: number } | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   useEffect(() => {
     const host = artRef.current;
@@ -1261,13 +1462,14 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
   const item = b.kitId || b.stamp ? null : library.find((l) => l.id === b.libId);
   if (!b.kitId && !b.stamp && !item) return null;
   return (
-    <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`}
+    <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`} data-bid={b.id}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
         width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined }}
       {...(!playing ? {
         onPointerDown: (e: React.PointerEvent) => {
-          onSelect();
-          (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+          onSelect(e);
+          // a pen lifted mid-gesture can make capture throw — never fatal
+          try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* gesture still works uncaptured */ }
           onDragStart(e);
         },
         onPointerMove: onDragMove,
@@ -1284,14 +1486,14 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
              a stable object identity is what keeps LiveArt's svg memo (and
              the measurement observer behind it) quiet between real edits. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
+            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch,
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined,
               themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }} />
         ) : (
           <LiveArt cfg={item!.cfg} playing={playing} anchorContent
-            kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape } : undefined} />
+            kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape, label: item!.kit.label, value: item!.kit.v } : undefined} />
         )}
       </div>
       {selected && (
@@ -1299,7 +1501,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
           ? { left: dim.shell[0] * sc, top: dim.shell[1] * sc, width: dim.shell[2] * sc, height: dim.shell[3] * sc }
           : { left: 0, top: 0, width: "100%", height: "100%" }} />
       )}
-      {selected && !playing && dim && (() => {
+      {solo && !playing && dim && (() => {
         const sh = dim.shell ?? [0, 0, dim.w, dim.h];
         const stop = (e: React.PointerEvent) => e.stopPropagation();
         return (
@@ -1317,6 +1519,19 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                 <button title="Duplicate (⌘D)" onClick={() => useGen.getState().duplicateBoardItem(b.id)}>
                   <Copy size={12} strokeWidth={2.2} />
                 </button>
+                {b.kitId && (
+                  /* the owner's FORWARD-button worry: a piece reworked on the
+                     Board (words, value, the component's current look) freezes
+                     into a named asset — the master keeps its own life */
+                  <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset. The master component stays untouched."
+                    onClick={() => {
+                      const def = b.label ?? KIT_COMPONENTS.find((c) => c.id === b.kitId)?.name ?? "My asset";
+                      const name = window.prompt("Save this piece to your assets as:", def);
+                      if (name?.trim()) useGen.getState().saveBoardItemAsAsset(b.id, name.trim());
+                    }}>
+                    <BookmarkPlus size={12} strokeWidth={2.2} />
+                  </button>
+                )}
                 {b.kitId && VALUE_DRIVEN.has(b.kitId) && (
                   /* THIS instance's pose — rarity tier, fill level, needle
                      angle — without touching the kit-wide staged value, so a
@@ -1373,7 +1588,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                     style={{ transform: `scale(${1 / fit})`, cursor: bar ? "ns-resize" : hx === hy ? "nwse-resize" : "nesw-resize" }}
                     onPointerDown={(e) => {
                       e.stopPropagation();
-                      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                      try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured resize still works */ }
                       const axf = hx === 0.5 ? 0.5 : 1 - hx, ayf = 1 - hy;
                       rsz.current = {
                         x0: e.clientX, y0: e.clientY, s0: sc, hx,
@@ -1387,6 +1602,12 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                     onPointerMove={(e) => {
                       const r = rsz.current;
                       if (!r) return;
+                      /* dead-man switch: a gesture only lives while the primary
+                         button is down. If the pointerup ever lands elsewhere
+                         (capture lost to a mid-drag re-render, release outside
+                         the window), a stray hover must NOT keep resizing —
+                         that was the "stuck in resize mode" report. */
+                      if (!(e.buttons & 1)) { rsz.current = null; return; }
                       const ddx = (e.clientX - r.x0) / fit, ddy = (e.clientY - r.y0) / fit;
                       const rx = Math.abs(r.handX + ddx - r.anchorX) / Math.max(1, Math.abs(r.handX - r.anchorX));
                       const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
@@ -1402,6 +1623,35 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                 </span>
               );
             })}
+            {/* the bar family's SIDE handles — 9-slice stretch, not scale:
+                the track re-renders wider while the far edge stays planted */}
+            {b.kitId && STRETCHABLE.has(b.kitId) && ([0, 1] as const).map((shx2) => (
+              <span key={`s${shx2}`} className="bd-rszwrap" style={{ left: (sh[0] + shx2 * sh[2]) * sc, top: (sh[1] + 0.5 * sh[3]) * sc }}>
+                <span className="bd-rsz2 bd-rszside" role="slider"
+                  aria-label="Stretch piece horizontally (9-slice)" aria-valuenow={Math.round((b.stretch ?? 1) * 100)}
+                  style={{ transform: `scale(${1 / fit})`, cursor: "ew-resize" }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured stretch still works */ }
+                    str.current = { x0: e.clientX, st0: b.stretch ?? 1, shw0: sh[2] * sc, bx0: b.x, hx: shx2 };
+                  }}
+                  onPointerMove={(e) => {
+                    const r = str.current;
+                    if (!r) return;
+                    if (!(e.buttons & 1)) { str.current = null; return; }
+                    const ddx = (e.clientX - r.x0) / fit;
+                    const w2 = Math.max(20, r.hx === 1 ? r.shw0 + ddx : r.shw0 - ddx);
+                    const st2 = Math.max(0.7, Math.min(3, r.st0 * (w2 / r.shw0)));
+                    // right handle: left edge planted (x keeps). left handle:
+                    // right edge planted — x follows the predicted width, which
+                    // is exact because the track's shell scales linearly
+                    const x2 = r.hx === 1 ? r.bx0 : r.bx0 - r.shw0 * (st2 / r.st0 - 1);
+                    useGen.getState().stretchBoardItem(b.id, st2, x2);
+                  }}
+                  onPointerUp={() => { str.current = null; }}
+                  onPointerCancel={() => { str.current = null; }} />
+              </span>
+            ))}
           </>
         );
       })()}

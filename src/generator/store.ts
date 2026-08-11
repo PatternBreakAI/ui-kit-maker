@@ -314,8 +314,11 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
   addToBoard: (libId: string) => void;
+  /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
+   *  and value — as a named library asset. The master is never touched. */
+  saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
   addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
   /** Drop a live kit component on the board — follows the master style. */
@@ -340,6 +343,9 @@ interface GenStore {
   /** One gesture, one history step: scale about a transform-box anchor —
    *  position and scale move together so the anchored corner stays planted. */
   transformBoardItem: (id: string, scale: number, x: number, y: number) => void;
+  /** 9-slice stretch gesture (bar family): width multiplier + x so the
+   *  anchored edge stays planted. One coalesced history step. */
+  stretchBoardItem: (id: string, stretch: number, x: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
@@ -349,6 +355,14 @@ interface GenStore {
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
+  /** One history step for a whole group: multi-drag, arrow-key nudges and
+   *  align all land here. `tag` coalesces a continuous gesture or key run. */
+  applyBoardItemPatches: (tag: string, patches: { id: string; x: number; y: number }[]) => void;
+  /** Remove every listed piece in one history step (multi-select delete). */
+  removeBoardItems: (ids: string[]) => void;
+  /** Paste copies onto the ACTIVE board (re-identified, nudged +24) and
+   *  return the new ids so the caller can select them. */
+  pasteBoardItems: (items: BoardItem[]) => string[];
   /** Board history — 100 levels, coalesced for continuous gestures. */
   boardPast: string[];
   boardFuture: string[];
@@ -534,7 +548,13 @@ interface GenStore {
 /** A saved component remembers *which* kit piece it is (when saved while one
  *  was focused), so the board can render and play it as that piece — a slider
  *  stays a slider. Absent = the master button (all older saves). */
-export interface LibKit { id: KitComponentId; size: KitSize; shape?: Shape }
+export interface LibKit {
+  id: KitComponentId; size: KitSize; shape?: Shape;
+  /** Saved-from-the-Board extras: the INSTANCE's pinned words and value pose
+   *  ride with the asset (owner: a Small tab reworked into BACK stays BACK —
+   *  the master keeps its own name for the future FORWARD). */
+  label?: string; v?: number;
+}
 export interface UserPreset { id: string; name: string; cfg: GenConfig; thumb?: string }
 export interface LibItem { id: string; name: string; cfg: GenConfig; kit?: LibKit }
 export interface StyleItem {
@@ -552,6 +572,9 @@ export interface BoardItem {
   /** THIS instance's value pose (0..1) — wins over the kit-wide staged
    *  value, so one board can show a common AND a legendary rarity frame */
   v?: number;
+  /** Horizontal 9-slice stretch (bar family only): the track re-renders
+   *  wider — caps, knob and inset stay true instead of distorting. */
+  stretch?: number;
   /** THIS instance's text — two START buttons on one screen can say START
    *  and OPTIONS (owner). Wins over the kit-wide specimen label; absent =
    *  follow the kit. Design changes still flow through live — only the
@@ -712,6 +735,9 @@ export interface BoardDef {
   ovStrength?: number;  // 0..100 — tint opacity
   ovNoise?: number;     // 0..100 — film-grain amount
   ovBlend?: "normal" | "multiply" | "screen" | "overlay" | "soft-light";
+  /** Center scrim — dims the MIDDLE of the frame (the game-menu move), the
+   *  vignette's inverse. Independent of ovMode so the two stack. */
+  ovCenter?: number;    // 0..100 — scrim opacity
 }
 /** Two independent text groups + slot toggles for the Data Row family. */
 export interface RowCfg {
@@ -1110,6 +1136,30 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b)));
   },
+  saveBoardItemAsAsset: (id, name) => {
+    const st = get();
+    const b = st.boards.flatMap((bd) => bd.items).find((x) => x.id === id);
+    if (!b?.kitId) return;
+    // bake exactly what the stage shows: master + this component's design
+    // fork + text fill + per-size text nudges — the snapshot IS the piece
+    let cfg = (typeof structuredClone === "function" ? structuredClone(st.cfg) : JSON.parse(JSON.stringify(st.cfg))) as GenConfig;
+    if (st.kitDesigns[b.kitId]) cfg = applyKitDesign(cfg, st.kitDesigns[b.kitId]);
+    if (st.kitTextFill[b.kitId]) cfg = applyKitTextFill(cfg, st.kitTextFill[b.kitId]);
+    const sz = effKitSize(st.kitSizes[b.kitId]);
+    const oy = st.kitTextOy[`${b.kitId}:${sz}`];
+    if (oy !== undefined) cfg.type.oy = oy;
+    const ox = st.kitTextOx[`${b.kitId}:${sz}`];
+    if (ox !== undefined) cfg.type.ox = ox;
+    const kit: LibKit = {
+      id: b.kitId, size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[b.kitId],
+      ...(b.label ? { label: b.label } : {}),
+      ...(b.v !== undefined ? { v: b.v } : {}),
+    };
+    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
+    const library = [...st.library, item];
+    saveJson(LIB_KEY, library);
+    set({ library });
+  },
   addToBoard: (libId) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
@@ -1166,6 +1216,7 @@ export const useGen = create<GenStore>((set, get) => ({
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
   transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
+  stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
   setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
@@ -1187,6 +1238,30 @@ export const useGen = create<GenStore>((set, get) => ({
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
     if (get().boardSel === id) set({ boardSel: null });
+  },
+  applyBoardItemPatches: (tag, patches) => {
+    const map = new Map(patches.map((p) => [p.id, p]));
+    mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
+      bd.items.some((b) => map.has(b.id))
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, x: p.x, y: p.y } : b; }) }
+        : bd));
+  },
+  removeBoardItems: (ids) => {
+    const gone = new Set(ids);
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (bd.items.some((b) => gone.has(b.id)) ? { ...bd, items: bd.items.filter((b) => !gone.has(b.id)) } : bd)));
+    if (gone.has(get().boardSel ?? "")) set({ boardSel: null });
+  },
+  pasteBoardItems: (items) => {
+    if (!items.length) return [];
+    const stamp = Date.now().toString(36);
+    const add: BoardItem[] = items.map((it, i) => ({
+      ...structuredClone(it),
+      id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
+      x: it.x + 24, y: it.y + 24,
+    }));
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
+    set({ boardSel: add[0].id });
+    return add.map((b) => b.id);
   },
   boardPast: [],
   boardFuture: [],

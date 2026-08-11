@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 
 export type RouteName =
   | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
-  | "community" | "studio" | "user" | "admin" | "faq" | "releases" | "unity" | "typeproof" | "italicprobe";
+  | "community" | "studio" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "typeproof" | "italicprobe";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
@@ -51,6 +51,7 @@ export function parseHash(hash: string): Route {
   if (path === "/admin") return { name: "admin", viewer: false };
   if (path === "/faq") return { name: "faq", viewer: false };
   if (path === "/releases") return { name: "releases", viewer: false };
+  if (path === "/how") return { name: "how", viewer: false };
   if (path === "/unity") return { name: "unity", viewer: false };
   // QA sheet for real-browser (read: Safari) type-filter passes — public
   // but unlinked; humans reach it by being told the URL

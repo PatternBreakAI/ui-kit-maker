@@ -61,6 +61,9 @@ const FaqPage = lazy(() =>
 const ReleasesPage = lazy(() =>
   import("@/marketing/ReleasesPage").then((m) => ({ default: m.ReleasesPage })),
 );
+const HowPage = lazy(() =>
+  import("@/marketing/HowPage").then((m) => ({ default: m.HowPage })),
+);
 const UnityPage = lazy(() =>
   import("@/marketing/UnityPage").then((m) => ({ default: m.UnityPage })),
 );
@@ -252,6 +255,10 @@ export function Shell() {
       ) : route.name === "releases" ? (
         <Suspense fallback={<RouteLoading />}>
           <ReleasesPage />
+        </Suspense>
+      ) : route.name === "how" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <HowPage />
         </Suspense>
       ) : route.name === "unity" ? (
         <Suspense fallback={<RouteLoading />}>

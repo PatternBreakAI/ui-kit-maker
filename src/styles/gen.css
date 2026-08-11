@@ -2213,6 +2213,22 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-rsz2 { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 1.5px solid #6fd6ff; border-radius: 4px; background: rgba(10, 12, 22, .92); cursor: nwse-resize; touch-action: none; }
 /* top/bottom-center handlebars — wider pills, same accent language */
 .bd-rszbar { left: -11px; top: -5px; width: 22px; height: 10px; border-radius: 5px; }
+/* side handles (bar family) — vertical pills; drag = 9-slice stretch */
+.bd-rszside { left: -5px; top: -11px; width: 10px; height: 22px; border-radius: 5px; }
+
+/* the assets search's clear button (owner: "need an x button in here") */
+.bd-searchclear { display: flex; flex: none; border: 0; background: none; color: var(--ink2); cursor: pointer; padding: 2px; }
+.bd-searchclear:hover { color: var(--ink); }
+
+/* multi-select: the align rack + group remove in the side rail */
+.bd-alignrow { display: flex; gap: 5px; margin-top: 8px; }
+.bd-alignrow button {
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 7px 0;
+  border: 1px solid var(--line2); border-radius: 8px; background: var(--soft);
+  color: var(--ink2); cursor: pointer;
+}
+.bd-alignrow button:hover { border-color: #6fd6ff; color: var(--ink); }
+.bd-removeall { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 12px; }
 
 /* drag-to-place ghost riding the cursor */
 .bd-ghost { position: fixed; z-index: 90; width: 150px; transform: translate(-50%, -50%); pointer-events: none; opacity: .92; filter: drop-shadow(0 12px 26px rgba(6, 8, 16, .55)); }

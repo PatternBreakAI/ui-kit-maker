@@ -27,6 +27,22 @@ const RELEASES: Release[] = [
         p: "Boxes now hug the artwork itself — including warped type stamps, where the box wraps the actual lettering instead of the empty air around it. What you see selected is what you're moving.",
       },
       {
+        h: "The Board learns your shortcuts",
+        p: "Shift-click selects several pieces; drag any of them and the group moves together. Arrow keys nudge (Shift strides), an align rack lines up edges and centers, ⌘C/⌘V carries pieces between boards, clicking empty space lets go of the selection, and one button exports every board at full resolution.",
+      },
+      {
+        h: "Bars stretch the way they will in your game",
+        p: "Sliders, progress bars and segmented meters grow new side handles: pull an edge and the track re-renders wider — caps, knob and inset stay true instead of distorting, exactly like a nine-slice in an engine. Corners still scale the whole piece proportionally.",
+      },
+      {
+        h: "Any board piece can become an asset",
+        p: "Rework a piece on the Board — its words, its value, its look — and save it to your assets under its own name. The master component stays untouched, so a Small tab turned BACK button still leaves you a clean master for the FORWARD one.",
+      },
+      {
+        h: "A center scrim in the darkroom",
+        p: "The vignette's inverse: subtly darken the middle of the frame — the move games make behind menus so the UI pops. It stacks with the vignette and the overlay washes, or works alone, and it exports with the board.",
+      },
+      {
         h: "Layering, guides, and a center cross",
         p: "Bring pieces forward and back (⌘] and ⌘[ too), toggle safe-area guides on any artboard, and find a new dashed center cross marking the exact middle of the stage — vertically and horizontally — for quick composition checks.",
       },
