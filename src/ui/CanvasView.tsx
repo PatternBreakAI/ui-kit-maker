@@ -5,6 +5,7 @@ import { LessonBody } from "./LessonCard";
 import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit, padSvg } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
@@ -381,11 +382,19 @@ export function CanvasView() {
           <input ref={bgInput} type="file" accept="image/*" style={{ display: "none" }}
             onChange={(e) => {
               const f = e.target.files?.[0];
-              // both stages persist as downscaled data URLs — the editor
-              // backdrop travels with the kit payload, so it comes through
-              // in shares and saved projects
-              if (f && phase === "board") void fileToBgDataUrl(f).then((url) => setBoardBg({ bgImage: url, bgShow: true }));
-              else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));
+              /* BOARD backdrops go through the VAULT — pixels must never ride
+                 the document (field: "site is freezing again" — this button
+                 was the one upload path still planting data URLs, which the
+                 history stringified on every edit AND persistence stripped on
+                 reload, losing the backdrop). The EDITOR backdrop stays a
+                 downscaled data URL by design: it travels with the kit
+                 payload, so it comes through in shares and saved projects. */
+              if (f && phase === "board") {
+                void normalizeShipCopy(f).then(async (ship) => {
+                  const assetId = await putBgOriginal(ship, f.name);
+                  setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
+                });
+              } else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));
               e.target.value = "";
             }} />
           <span className="zdiv" />
