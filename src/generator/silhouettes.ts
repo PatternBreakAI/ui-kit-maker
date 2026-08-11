@@ -341,6 +341,12 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:leanrunner", flippable: true, name: "Lean Runner", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.241, content: { top: 0.248, right: 0.334, bottom: 0.057, left: 0.421 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Parallelogram at a dead run." },
+  /* the Settings gear component's own silhouette — unlisted from the public
+     picker (preview) while the component sits in the staging bay; square by
+     construction, so it never stretches */
+  { id: "stock:gear", name: "Gear", category: "Plaques & Frames", source: "custom (parametric 12-tooth cog)", license: "original", renderer: "path", preview: true,
+    capScale: 0.5, content: { top: 0.3, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
+    supports: ["button"], character: "Twelve-tooth cog — the settings glyph as real geometry." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

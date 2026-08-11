@@ -1759,6 +1759,8 @@ const kitTier = useGen((s) => s.tier);
         rk("quickslots", "Quadrant · Bare", { slots: { g1: "Empty", g2: "Empty", g3: "Empty", g4: "Empty" } }),
         rk("orderticket", "Order ticket · Urgent", {}, 0.1),
         rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
+        rk("gearicon", "Settings gear"),
+        rk("gearicon", "Settings gear · Disabled", {}, undefined, "disabled"),
         rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
@@ -2433,6 +2435,15 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="joystick" caption="Disabled" baseState="disabled" scale={0.44} />
         </div>
         <div className="kp-meta"><span>Knob springs back on release</span><span>Deflection clamps to the travel ring</span><span>data-stick carries the geometry for engine bindings</span></div>
+        {/* staging-bay resident — hidden from the public until released */}
+        {kitVisible("gearicon", releases, false) && (<>
+          <div className="kp-subhead">Settings gear</div>
+          <div className="kp-tray">
+            <Piece id="gearicon" caption="Settings gear" scale={0.5} />
+            <Piece id="gearicon" caption="Disabled" baseState="disabled" scale={0.5} />
+          </div>
+          <div className="kp-meta"><span>The cog itself wears the kit — face, bevel and extrusion wrap the silhouette</span><span>No shell box; the hub is a recessed well</span><span>A real button — hover and press work</span></div>
+        </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">
           <Piece id="reticle" caption="Reticle · ring" scale={0.55} />

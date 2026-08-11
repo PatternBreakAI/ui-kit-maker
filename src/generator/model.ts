@@ -1043,7 +1043,9 @@ export type KitComponentId =
   // until released from the kit page's bay
   | "orderticket"
   // rewards & chests pack (staged)
-  | "chest" | "giftbox" | "rewardcard" | "qtybadge" | "rewardtray" | "claimbtn" | "chestpanel";
+  | "chest" | "giftbox" | "rewardcard" | "qtybadge" | "rewardtray" | "claimbtn" | "chestpanel"
+  // illustrated settings gear (staged) — the cog itself wears the treatment
+  | "gearicon";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -1495,6 +1497,7 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "combo", name: "Combo burst" },
   { id: "movecounter", name: "Move counter" },
   { id: "orderticket", name: "Order ticket", staged: true },
+  { id: "gearicon", name: "Settings gear", staged: true },
   { id: "chest", name: "Treasure chest", staged: true },
   { id: "giftbox", name: "Gift box", staged: true },
   { id: "rewardcard", name: "Reward card", staged: true },
@@ -1785,6 +1788,7 @@ export function applyKitTextFill(cfg: GenConfig, fill?: string | null): GenConfi
    defaults — the master's silhouette everywhere else, and each component
    can be overridden individually while focused. */
 export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
+  gearicon: "stock:gear",
   header: "banner",
   dialog: "round",
   toast: "pill",

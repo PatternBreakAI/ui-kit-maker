@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { LiveArt } from "./LiveArt";
@@ -44,7 +44,7 @@ const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
-  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick"] },
+  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
@@ -83,6 +83,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   achievetoast: "achievement unlock celebration banner first",
   trophy: "cup winner victory results podium gold",
   startlights: "race countdown start lights gantry",
+  gearicon: "settings gear cog options config preferences menu",
   resource: "currency coins gems counter hud pill",
   currency: "coins gems gold money wallet",
   pricebtn: "buy purchase shop iap best value ribbon",
@@ -294,7 +295,7 @@ const ovBackground = (mode: string): string =>
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar,
+    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
     setActiveBoard, addBoard, removeBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
@@ -351,6 +352,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       } else if (mod && e.key.toLowerCase() === "d" && st.boardSel) {
         e.preventDefault();
         st.duplicateBoardItem(st.boardSel);
+      } else if (mod && (e.key === "]" || e.key === "[") && st.boardSel) {
+        e.preventDefault();
+        st.reorderBoardItem(st.boardSel, e.key === "]" ? (e.shiftKey ? "front" : "forward") : (e.shiftKey ? "back" : "backward"));
       } else if ((e.key === "Delete" || e.key === "Backspace") && st.boardSel) {
         e.preventDefault();
         st.removeBoardItem(st.boardSel);
@@ -383,11 +387,16 @@ export function BoardView({ playing }: { playing: boolean }) {
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
 
-  /* the exact svg a board item shows — shared by display, export and PNG */
+  /* the exact svg a board item shows — shared by display, export and PNG.
+     Per-component design forks (kitDesigns) apply here exactly like the
+     editor and Kit page — without them the board showed the MASTER design,
+     including its state recipes (owner: buttons "showing the hover glowy
+     state" that their component fork had tamed). */
   const svgOf = (b: BoardItem): { svg: string; cfg: GenConfig } => {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
-      return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
+      const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
+      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -824,6 +833,23 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
               </>);
             })()}
+            {/* stacking order — items render in array order, later = on top
+                (owner: "need some layering/stacking order controls") */}
+            <div className="bd-h" style={{ marginTop: 14 }}>Layer</div>
+            <div className="bd-layer" role="group" aria-label="Stacking order">
+              <button title="Bring to front (⇧⌘])" onClick={() => useGen.getState().reorderBoardItem(sel.id, "front")}>
+                <BringToFront size={13} strokeWidth={2.2} /> Front
+              </button>
+              <button title="Bring forward (⌘])" onClick={() => useGen.getState().reorderBoardItem(sel.id, "forward")}>
+                <ArrowUp size={13} strokeWidth={2.2} /> Up
+              </button>
+              <button title="Send backward (⌘[)" onClick={() => useGen.getState().reorderBoardItem(sel.id, "backward")}>
+                <ArrowDown size={13} strokeWidth={2.2} /> Down
+              </button>
+              <button title="Send to back (⇧⌘[)" onClick={() => useGen.getState().reorderBoardItem(sel.id, "back")}>
+                <SendToBack size={13} strokeWidth={2.2} /> Back
+              </button>
+            </div>
             <div className="bd-actions">
               {sel.kitId && (
                 <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
@@ -1039,7 +1065,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
   onDragEnd: () => void;
   onExport: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
   const sc = b.scale ?? 1;
   const artRef = useRef<HTMLDivElement>(null);
   // corner-handle resize: screen-px delta → scale, against the piece's
@@ -1060,27 +1086,26 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
         const img = host.querySelector("img");
         if (img) { w = parseFloat(img.getAttribute("width") ?? "0"); h = parseFloat(img.getAttribute("height") ?? "0"); }
       }
-      /* v59: the selection box hugs what the eye sees — the union of the
-         DRAWN geometry (knobs poking past a slider track, extrusion depth),
-         measured with getBBox in viewBox units. Filters (glow, shadows)
-         don't count, which is exactly right: glow isn't the component.
-         With anchorContent the wrapper origin sits at viewBox 0,0, so a
-         geometry rect maps to CSS 1:1 (glow-padded canvases) or × w/vbW
-         (plain 0-origin canvases). data-shell stays the fallback. */
+      /* The selection box trusts the engine's own data-shell stamp — the
+         rect that hugs the component's silhouette. The old getBBox union
+         counted EVERY drawn geometry (contact-shadow ellipses, auras,
+         specimen slack), which read as boxes far larger than the art
+         (owner: "the bounding boxes for everything is huge"). getBBox
+         stays as the fallback for svgs without the stamp. */
       let shell: [number, number, number, number] | null = null;
       if (svg) {
-        try {
-          const bb = (svg as SVGGraphicsElement).getBBox();
-          const vb = (svg as SVGSVGElement).viewBox?.baseVal;
-          if (bb && bb.width > 0 && bb.height > 0 && vb && vb.width > 0) {
-            const kx = w / vb.width || 1, ky = h / vb.height || 1;
-            const padX = vb.x < 0 ? vb.x : 0, padY = vb.x < 0 ? vb.x : 0; // LiveArt margins reclaim the x-derived pad on both axes
-            shell = [(bb.x - vb.x) * kx + padX, (bb.y - vb.y) * ky + padY, bb.width * kx, bb.height * ky];
-          }
-        } catch { /* detached / display:none — fall through to data-shell */ }
+        const raw = svg.getAttribute("data-shell")?.split(" ").map(Number);
+        if (raw && raw.length === 4 && raw.every(Number.isFinite)) shell = raw as [number, number, number, number];
         if (!shell) {
-          const raw = svg.getAttribute("data-shell")?.split(" ").map(Number);
-          if (raw && raw.length === 4 && raw.every(Number.isFinite)) shell = raw as [number, number, number, number];
+          try {
+            const bb = (svg as SVGGraphicsElement).getBBox();
+            const vb = (svg as SVGSVGElement).viewBox?.baseVal;
+            if (bb && bb.width > 0 && bb.height > 0 && vb && vb.width > 0) {
+              const kx = w / vb.width || 1, ky = h / vb.height || 1;
+              const padX = vb.x < 0 ? vb.x : 0, padY = vb.x < 0 ? vb.x : 0; // LiveArt margins reclaim the x-derived pad on both axes
+              shell = [(bb.x - vb.x) * kx + padX, (bb.y - vb.y) * ky + padY, bb.width * kx, bb.height * ky];
+            }
+          } catch { /* detached / display:none — no shell, box falls back to the full canvas */ }
         }
       }
       if (w && h) setDim((d) => (d && d.w === w && d.h === h && String(d.shell) === String(shell) ? d : { w, h, shell }));
@@ -1112,11 +1137,15 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
         {b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (
-          <LiveArt cfg={applyKitTextFill(cfg, kitTextFill[b.kitId])} playing={playing} anchorContent
+          /* per-component design forks apply on the stage exactly like the
+             editor and Kit page — the master design (and its state recipes)
+             must never leak past a fork here */
+          <LiveArt cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId])} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
-              row: b.kitId === "datarow" ? kitRow : undefined }} />
+              row: b.kitId === "datarow" ? kitRow : undefined,
+              themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }} />
         ) : (
           <LiveArt cfg={item!.cfg} playing={playing} anchorContent
             kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape } : undefined} />

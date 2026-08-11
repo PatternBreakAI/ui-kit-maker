@@ -120,6 +120,9 @@ export async function collectExportBoards(st: {
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitLabels: Partial<Record<KitComponentId, string>>;
   kitVals: Partial<Record<KitComponentId, number>>;
+  /** Per-component design forks — the Board stage applies them, so the
+   *  exported scenes must too (optional: older callers ship master-only). */
+  kitDesigns?: Partial<Record<KitComponentId, Parameters<typeof applyKitDesign>[1]>>;
 }): Promise<ExportBoardData[]> {
   const { getBgOriginal } = await import("./bgvault");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
@@ -233,7 +236,7 @@ export async function collectExportBoards(st: {
       }
       const id = b.kitId!;
       // the Board stage's own recipe — dims must match what the maker saw
-      const svg = renderKit(applyKitTextFill(st.cfg, st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id] });
+      const svg = renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id], themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id] });
       const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
       const sh = parseFloat(/height="([\d.]+)"/.exec(svg)?.[1] ?? "80");
       const k = b.scale ?? 1;

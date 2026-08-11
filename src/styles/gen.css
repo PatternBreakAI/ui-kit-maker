@@ -1238,8 +1238,10 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 /* ── v33: editorial guidelines document ───────────────────────── */
 /* reading mode: canvas tools dock to the lower-right corner so they
-   never sit over the document's center column */
-.canvas-wrap.kitmode .zoolbar { left: auto; right: 22px; transform: none; }
+   never sit over the document's center column. KIT PAGE ONLY — on the
+   Board the right dock covered the inspector rail (owner: "it covers
+   some UI on the right"), so the Board keeps the centered home. */
+.canvas-wrap.kitread .zoolbar { left: auto; right: 22px; transform: none; }
 
 /* sticky chapter navigation — persistent orientation for a long page */
 .kp-tabsbar {
@@ -1633,6 +1635,10 @@ button.kp-fact { cursor: pointer; }
 /* two columns, never wider than the panel — three inline buttons used to
    shove the inspector past the right edge */
 .bd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; min-width: 0; }
+/* stacking order — four compact chips in one row */
+.bd-layer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; min-width: 0; }
+.bd-layer button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 4px; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.bd-layer button:hover { border-color: var(--ink); }
 .bd-actions button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-actions button:hover { border-color: var(--ink); }
 .bd-actions .danger { color: #c4453d; }

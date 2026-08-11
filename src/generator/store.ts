@@ -320,6 +320,9 @@ interface GenStore {
   addKitToBoard: (kitId: KitComponentId) => void;
   duplicateBoardItem: (id: string) => void;
   rotateBoardItem: (id: string, deg: number) => void;
+  /** Stacking order within the piece's board — items render in array order,
+   *  so later = on top. */
+  reorderBoardItem: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   /** Sets the ACTIVE board's aspect. */
   setBoardAspect: (a: "169" | "mobile") => void;
   boardSnap: boolean;
@@ -1127,6 +1130,16 @@ export const useGen = create<GenStore>((set, get) => ({
     if (copy) set({ boardSel: (copy as BoardItem).id });
   },
   rotateBoardItem: (id, deg) => mutateItem(get, set, `rot:${id}`, id, (b) => ({ ...b, rot: Math.max(-180, Math.min(180, Math.round(deg))) })),
+  reorderBoardItem: (id, dir) => mutateBoards(get, set, null, (bs) => bs.map((bd) => {
+    const i = bd.items.findIndex((b) => b.id === id);
+    if (i < 0) return bd;
+    const items = [...bd.items];
+    const [it] = items.splice(i, 1);
+    const j = dir === "front" ? items.length : dir === "back" ? 0
+      : dir === "forward" ? Math.min(items.length, i + 1) : Math.max(0, i - 1);
+    items.splice(j, 0, it);
+    return { ...bd, items };
+  })),
   setBoardAspect: (a) => mutateBoards(get, set, "aspect", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, aspect: a } : b))),
   boardSnap: loadJson<boolean>("ui-generator-boardsnap", true),
   setBoardSnap: (v) => { saveJson("ui-generator-boardsnap", v); set({ boardSnap: v }); },
