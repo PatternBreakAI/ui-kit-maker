@@ -44,6 +44,30 @@ function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequ
   });
 }
 
+/** Normalize an upload into the SHIP COPY (owner research, 2026-08-10:
+ *  backdrops aren't presented as reusable assets, so 1920 on the long side
+ *  is the ceiling). At or under the ceiling the bytes pass through
+ *  untouched — no recompression, ever; over it, one downscale re-encode
+ *  (PNG/WebP go to lossless PNG, JPEG stays JPEG at high quality). */
+export async function normalizeShipCopy(file: File | Blob): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const long = Math.max(bmp.width, bmp.height);
+    if (long <= 1920) { bmp.close(); return file; }
+    const s = 1920 / long;
+    const cv = document.createElement("canvas");
+    cv.width = Math.max(1, Math.round(bmp.width * s));
+    cv.height = Math.max(1, Math.round(bmp.height * s));
+    cv.getContext("2d")!.drawImage(bmp, 0, 0, cv.width, cv.height);
+    bmp.close();
+    const jpeg = /jpe?g$/.test(file.type);
+    const out = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
+    return out ?? file;
+  } catch {
+    return file; // undecodable? vault what we got rather than nothing
+  }
+}
+
 /** Store an upload's original bytes; returns the vault id to pin on the board. */
 export async function putBgOriginal(file: File | Blob, name?: string): Promise<string | null> {
   const id = "bg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);

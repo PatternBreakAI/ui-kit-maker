@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Smartphone, SquarePen, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Shield, Smartphone, SquarePen, Trash2, X } from "lucide-react";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
-import { putBgOriginal } from "@/generator/bgvault";
+import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
@@ -265,6 +265,15 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
    what ships is exactly what the artboard showed. */
+/* backdrop blur + saturation share one CSS filter string — used by the
+   live stage AND the PNG compositor so exports match the screen */
+const bgFilter = (bd: Pick<BoardDef, "bgBlur" | "bgSat">): string | undefined => {
+  const parts: string[] = [];
+  if (bd.bgBlur) parts.push(`blur(${bd.bgBlur}px)`);
+  if ((bd.bgSat ?? 100) < 100) parts.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
+  return parts.length ? parts.join(" ") : undefined;
+};
+
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
   mode === "vignette"
@@ -275,7 +284,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitIcons, kitLabels, kitVals, kitRow, kitBar,
     setActiveBoard, addBoard, removeBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSel, setBoardSel,
+    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
   } = useGen();
@@ -398,7 +407,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             const s = Math.max(W / v.videoWidth, H / v.videoHeight);
             ctx.save();
             ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-            if (bd.bgBlur) ctx.filter = `blur(${bd.bgBlur}px)`;
+            const bf = bgFilter(bd); if (bf) ctx.filter = bf;
             ctx.drawImage(v, (W - v.videoWidth * s) / 2, (H - v.videoHeight * s) / 2, v.videoWidth * s, v.videoHeight * s);
             ctx.restore();
           } catch { /* frame unavailable — export continues without it */ }
@@ -415,7 +424,7 @@ export function BoardView({ playing }: { playing: boolean }) {
           const s = Math.max(W / img.width, H / img.height); // cover, cropped to the board
           ctx.save();
           ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-          if (bd.bgBlur) ctx.filter = `blur(${bd.bgBlur}px)`;
+          const bf = bgFilter(bd); if (bf) ctx.filter = bf;
           ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
           ctx.restore(); res();
         };
@@ -620,6 +629,10 @@ export function BoardView({ playing }: { playing: boolean }) {
           <label className="bd-snap"><Grid3x3 size={13} strokeWidth={2} /> Snap to grid
             <input type="checkbox" checked={boardSnap} onChange={(e) => setBoardSnap(e.target.checked)} />
           </label>
+          <label className="bd-snap" title="Safe-area guides — keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
+            <Shield size={13} strokeWidth={2} /> Safe area
+            <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
+          </label>
           <button className="bd-export" onClick={() => { if (act) exportPng(act); }}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
         </header>
         <div className="bd-frame bd-boards" ref={frameRef}>
@@ -649,11 +662,11 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
                   {bd.bgImage && (bd.bgShow ?? true) && (
-                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
+                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: bgFilter(bd) }} />
                   )}
                   {bd.bgVideo && (bd.bgShow ?? true) && (
                     <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
-                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: bd.bgBlur ? `blur(${bd.bgBlur}px)` : undefined }} />
+                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: bgFilter(bd) }} />
                   )}
                   {/* overlay sits between the backdrop and the pieces */}
                   {(bd.ovMode ?? "none") !== "none" && (
@@ -661,6 +674,21 @@ export function BoardView({ playing }: { playing: boolean }) {
                   )}
                   {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
                     <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
+                  )}
+                  {/* safety guides (owner) — pure view layer, never exported.
+                      16:9: broadcast/console action (95%) + title (90%) safe;
+                      mobile: notch + home-bar insets in stage units. */}
+                  {boardSafe && (
+                    <div className="bd-safe" aria-hidden="true">
+                      {bd.aspect === "169" ? (<>
+                        <i className="bd-safe__frame" style={{ inset: "2.5%" }}><b>action safe</b></i>
+                        <i className="bd-safe__frame bd-safe__frame--title" style={{ inset: "5%" }}><b>title safe</b></i>
+                      </>) : (<>
+                        <i className="bd-safe__frame" style={{ top: (47 / 844 * 100) + "%", bottom: (34 / 844 * 100) + "%", left: (12 / 390 * 100) + "%", right: (12 / 390 * 100) + "%" }}><b>device safe</b></i>
+                        <i className="bd-safe__notch" />
+                        <i className="bd-safe__homebar" />
+                      </>)}
+                    </div>
                   )}
                   <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
@@ -786,6 +814,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <label className="bd-slider">Blur · {act.bgBlur ?? 0}px
                   <input type="range" min={0} max={14} value={act.bgBlur ?? 0} onChange={(e) => setBoardBg({ bgBlur: +e.target.value })} />
                 </label>
+                <label className="bd-slider">Saturation · {act.bgSat ?? 100}%
+                  <input type="range" min={0} max={100} value={act.bgSat ?? 100} onChange={(e) => setBoardBg({ bgSat: +e.target.value })} />
+                </label>
                 <div className="bd-note">
                   {act.bgVideo
                     ? act.bgVideo.startsWith("blob:")
@@ -806,10 +837,11 @@ export function BoardView({ playing }: { playing: boolean }) {
                 const f = e.target.files?.[0];
                 if (f) {
                   if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
-                  /* two copies, two jobs: the ORIGINAL bytes go to the vault
-                     (what a Unity scene export ships), the stage gets the
-                     light proxy so dragging never fights a 4K decode */
-                  else void Promise.all([fileToBgDataUrl(f), putBgOriginal(f)]).then(([url, assetId]) =>
+                  /* two copies, two jobs: the vault holds the SHIP COPY
+                     (≤1920 long side — the scene-export ceiling; smaller
+                     uploads pass through untouched), the stage gets the
+                     light proxy so dragging never fights a big decode */
+                  else void Promise.all([fileToBgDataUrl(f), normalizeShipCopy(f).then((b) => putBgOriginal(b, f.name))]).then(([url, assetId]) =>
                     setBoardBg({ bgImage: url, bgAssetId: assetId, bgVideo: null, bgShow: true }));
                 }
                 e.target.value = "";

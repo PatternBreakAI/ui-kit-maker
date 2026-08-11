@@ -312,7 +312,7 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
   addToBoard: (libId: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
   addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
@@ -324,6 +324,10 @@ interface GenStore {
   setBoardAspect: (a: "169" | "mobile") => void;
   boardSnap: boolean;
   setBoardSnap: (v: boolean) => void;
+  /** Safety-area guides over every artboard (16:9: action/title safe;
+   *  mobile: device insets) — a view-layer overlay, never in exports. */
+  boardSafe: boolean;
+  setBoardSafe: (v: boolean) => void;
   boardSel: string | null;
   setBoardSel: (id: string | null) => void;
   moveBoardItem: (id: string, x: number, y: number) => void;
@@ -563,6 +567,10 @@ export interface BoardDef {
   bgShow?: boolean;
   bgOpacity?: number;
   bgBlur?: number;
+  /** Backdrop saturation, 0–100 (100 = as shot) — art often needs to step
+   *  back a little so the candy owns the color (owner). Baked into PNG
+   *  and Unity exports, so what you see is what ships. */
+  bgSat?: number;
   /** Overlay between the backdrop and the pieces — a tint-and-grain layer
    *  that makes components pop against busy art. */
   ovMode?: "none" | "dark" | "light" | "vignette";
@@ -955,6 +963,8 @@ export const useGen = create<GenStore>((set, get) => ({
   setBoardAspect: (a) => mutateBoards(get, set, "aspect", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, aspect: a } : b))),
   boardSnap: loadJson<boolean>("ui-generator-boardsnap", true),
   setBoardSnap: (v) => { saveJson("ui-generator-boardsnap", v); set({ boardSnap: v }); },
+  boardSafe: loadJson<boolean>("ui-generator-boardsafe", false),
+  setBoardSafe: (v) => { saveJson("ui-generator-boardsafe", v); set({ boardSafe: v }); },
   boardSel: null,
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),

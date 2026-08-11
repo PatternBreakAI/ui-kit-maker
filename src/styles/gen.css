@@ -2132,6 +2132,29 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
 .bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
 /* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
+/* safety-area guides — a view layer over the stage; pointer-dead, never
+   exported. Frames are dashed with a soft outer dim so the unsafe margin
+   reads at a glance. */
+.bd-safe { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.bd-safe__frame {
+  position: absolute; display: block; border: 1px dashed rgba(159, 226, 255, .55);
+  border-radius: 6px; box-shadow: 0 0 0 9999px rgba(8, 12, 22, .14);
+}
+.bd-safe__frame--title { border-color: rgba(255, 214, 102, .55); box-shadow: none; }
+.bd-safe__frame b {
+  position: absolute; left: 6px; top: 2px; font: 700 9px/1.6 Inter, sans-serif;
+  letter-spacing: .12em; text-transform: uppercase; color: rgba(231, 236, 245, .6);
+}
+.bd-safe__frame--title b { color: rgba(255, 214, 102, .7); }
+.bd-safe__notch {
+  position: absolute; top: 1.2%; left: 50%; transform: translateX(-50%);
+  width: 32%; height: 3.4%; border-radius: 999px; background: rgba(8, 12, 22, .5);
+  border: 1px solid rgba(159, 226, 255, .3);
+}
+.bd-safe__homebar {
+  position: absolute; bottom: 1.1%; left: 50%; transform: translateX(-50%);
+  width: 36%; height: .6%; min-height: 3px; border-radius: 999px; background: rgba(231, 236, 245, .45);
+}
 .bd-pval { -webkit-appearance: none; appearance: none; width: 74px; height: 26px; margin: 0; padding: 0 4px; background: none; cursor: ew-resize; align-self: center; }
 /* per-instance text chip — "this copy only" words in the piece toolbar */
 .bd-ptext {

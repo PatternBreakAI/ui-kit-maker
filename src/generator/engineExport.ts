@@ -82,6 +82,9 @@ export interface ExportBoardData {
   bg: {
     file: string; opacity: number; blur: number;
     overlay: string; overlayStrength: number; overlayBlend: string;
+    /** the app's saturation dial (0–100) — already BAKED into the bytes,
+        so the importer places the image as-is; recorded for transparency */
+    saturation: number;
     /** original upload bytes from the vault, or the decoded proxy when the
         vault has no original (other device / pre-vault board) */
     bytes: Uint8Array;
@@ -146,10 +149,29 @@ export async function collectExportBoards(st: {
           } catch { /* scene ships without a backdrop */ }
         }
       }
+      /* the saturation dial BAKES into the shipped pixels — a deterministic
+         color op, so what the stage shows is exactly what Unity places
+         (unlike blur, which stays a preview nicety). A failed decode ships
+         the untouched bytes and keeps the dial value in the manifest. */
+      const sat = bd.bgSat ?? 100;
+      if (bytes && sat < 100) {
+        try {
+          const bmp = await createImageBitmap(new Blob([bytes.slice().buffer as ArrayBuffer]));
+          const cv = document.createElement("canvas");
+          cv.width = bmp.width; cv.height = bmp.height;
+          const ctx = cv.getContext("2d")!;
+          ctx.filter = `saturate(${sat / 100})`;
+          ctx.drawImage(bmp, 0, 0);
+          bmp.close();
+          const jpeg = ext === "jpg";
+          const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
+          if (blob) { bytes = new Uint8Array(await blob.arrayBuffer()); if (!jpeg) ext = "png"; }
+        } catch { /* undecodable — ship as-is */ }
+      }
       if (bytes) {
         bg = {
           file: `backgrounds/${slug}.${ext}`, bytes, original,
-          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0,
+          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: sat,
           overlay: bd.ovMode ?? "none", overlayStrength: bd.ovStrength ?? 100,
           overlayBlend: bd.ovBlend ?? "normal",
         };
@@ -1343,7 +1365,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ...(full && st.boards?.length ? {
         boards: st.boards.map((b) => ({
           name: b.name, w: b.w, h: b.h,
-          bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
+          bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, saturation: b.bg.saturation, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
           items: b.items,
         })),
       } : {}),
@@ -3033,7 +3055,7 @@ namespace PatternBreak {
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; }
-  [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
+  [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
