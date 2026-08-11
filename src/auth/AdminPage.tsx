@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2 } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House } from "lucide-react";
 import "@/styles/pricing.css";
-import { cloudConfig, myProfileTier, accessToken } from "@/generator/cloud";
+import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
@@ -181,6 +181,33 @@ export function AdminPage() {
     setCensus({ users: (data.users as (Row & { kits: number })[]) ?? [], total: Number(data.total ?? 0), page: Number(data.page ?? 0) });
   };
 
+  /* homepage curation — the HARDCODED front-door kits (hero reel, swatch
+     chips, community cards) an admin can retire without a deploy. Match
+     keys are lowercase DISPLAY NAMES: the landing checks names on every
+     surface, and names never collide across surfaces the way shared
+     preset ids do (Grape Jelly the reel entry vs Grape Arcade the card).
+     KEEP IN SYNC with HERO_SWATCHES / HERO_REEL / CM_KITS in
+     src/marketing/landingInit.ts. */
+  const HOME_ROSTER: { group: string; names: string[] }[] = [
+    { group: "Hero reel & style chips", names: ["Grape Jelly", "Hard Candy", "Schweetheart", "Neon Versus", "Oopsie", "Citrus Pop", "Bubble Pop", "Nope Yep", "Wager", "Deep Ocean", "Forest Sprite", "Hero Chisel", "Glacier Tech"] },
+    { group: "Community cards", names: ["Grape Arcade", "Abyss Console", "Forge Standard"] },
+  ];
+  const [homeHidden, setHomeHidden] = useState<Set<string> | null>(null);
+  const [homeNote, setHomeNote] = useState<string | null>(null);
+  const [homeBusy, setHomeBusy] = useState(false);
+  const toggleHomeKit = async (name: string) => {
+    if (!homeHidden) return;
+    const key = name.toLowerCase();
+    const next = new Set(homeHidden);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setHomeHidden(next);
+    setHomeBusy(true);
+    const err = await setHiddenLandingKits([...next]);
+    setHomeBusy(false);
+    setHomeNote(err ?? `Saved. The homepage picks this up within ~5 minutes (the feed is CDN-cached); your own next visit applies it too.`);
+    if (err) setHomeHidden(homeHidden); // roll the optimistic flip back
+  };
+
   // the release desk
   const [kq, setKq] = useState("");
   const [kBusy, setKBusy] = useState(false);
@@ -221,6 +248,10 @@ export function AdminPage() {
 
   // the census and the pulse load themselves once the desk opens
   useEffect(() => { if (allowed) { void loadCensus(0); void loadStats(); } }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!allowed) return;
+    void listHiddenLandingKits().then((keys) => setHomeHidden(new Set(keys.map((s) => s.toLowerCase()))));
+  }, [allowed]);
 
   // qOverride: the census hands an email straight in — state hasn't
   // flushed yet when a row click fires the search
@@ -707,6 +738,37 @@ export function AdminPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="fd-card">
+          <h2 className="fd-card__title"><House size={17} strokeWidth={2.1} /> Homepage kits</h2>
+          <p className="fd-fine">
+            The front door's <b>built-in</b> kits — the hero reel, the style chips, and the three
+            community cards ship hardcoded. Untick one and it leaves the homepage for every visitor,
+            no deploy: the list rides the same feed as hero designations (CDN-cached ~5 minutes).
+            Designated heroes are curated in the Release desk above; unticking a name here also
+            keeps a same-named hero out of the reel.
+          </p>
+          {homeHidden === null ? (
+            <p className="fd-note"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Reading the current lineup…</p>
+          ) : (
+            HOME_ROSTER.map(({ group, names }) => (
+              <div key={group} className="fd-homegroup">
+                <div className="fd-homegroup__name">{group}</div>
+                <div className="fd-homegrid">
+                  {names.map((nm) => (
+                    <label key={nm} className={`fd-homekit${homeHidden.has(nm.toLowerCase()) ? " off" : ""}`}>
+                      <input type="checkbox" disabled={homeBusy}
+                        checked={!homeHidden.has(nm.toLowerCase())}
+                        onChange={() => void toggleHomeKit(nm)} />
+                      {nm}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+          {homeNote && <p className="fd-note">{homeNote}</p>}
         </section>
 
         <section className="fd-card">

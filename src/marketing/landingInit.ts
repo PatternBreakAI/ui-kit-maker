@@ -61,6 +61,20 @@ export function initLanding(deps: LandingDeps) {
          — and are documented in docs/front-door.md. */
       const HERO_SWATCHES = ["grape-jelly", "bubble-pop", "deep-ocean", "hard-candy", "forest-sprite", "citrus-pop", "hero-chisel", "glacier-tech"];
       const HERO_REEL = ["auth:grape-jelly", "hard-candy|PLAY", "auth:schweetheart", "auth:neon-versus", "auth:oopsie", "auth:citrus-pop", "auth:bubble-pop", "auth:nope-yep", "auth:wager"];
+      /* Homepage curation (owner, admin desk → "Homepage kits"): retired
+         built-ins. The truth lives in app_settings.hidden_landing_kits and
+         rides the /api/hero-lineup feed; this localStorage echo lets every
+         later paint filter BEFORE first render, keeping the fail-soft
+         600ms-deferred fetch design intact. Keys match lowercase preset
+         ids, auth ids, or display names. Fail-soft: an unreadable list
+         hides nothing; a list that would empty the reel or the swatch row
+         is ignored (the homepage never goes blank). */
+      let HIDDEN_KITS = new Set();
+      try {
+        const rawHid = JSON.parse(localStorage.getItem("fd-hidden-kits") || "[]");
+        if (Array.isArray(rawHid)) HIDDEN_KITS = new Set(rawHid.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase()));
+      } catch (_) { /* private mode / bad echo — show everything */ }
+      const kitHidden = (...keys) => keys.some((s2) => s2 && HIDDEN_KITS.has(String(s2).toLowerCase()));
       /* Every face the reel/chips can ask for must be self-hosted in
          landing.css — scripts/check-landing-fonts.mjs fails the build
          on a missing or orphaned face. warmFont below is the runtime
@@ -68,10 +82,14 @@ export function initLanding(deps: LandingDeps) {
          authored after the last freeze). */
       const FONT_CHIPS = ["Russo One", "Fredoka", "Lilita One", "Bungee"];
 
-      const PAL = HERO_SWATCHES.map((pid) => {
-        const pr = deps.engine.presetById(pid);
-        return { name: pr.name, color: pr.effects["Inner Fill"] || "#A855F7", pid };
-      });
+      const PAL = (() => {
+        const all = HERO_SWATCHES.map((pid) => {
+          const pr = deps.engine.presetById(pid);
+          return { name: pr.name, color: pr.effects["Inner Fill"] || "#A855F7", pid };
+        });
+        const vis = all.filter((p) => !kitHidden(p.pid, p.name));
+        return vis.length ? vis : all; // never an empty swatch row
+      })();
       const PATTERNS = {
         None:    { css: "none", size: "12px 12px", svg: null },
         Stripes: { css: "repeating-linear-gradient(122deg, rgba(255,255,255,.5) 0 4px, transparent 4px 11px)", size: "auto",
@@ -345,17 +363,21 @@ export function initLanding(deps: LandingDeps) {
       };
 
       /* ── attract mode ── */
-      const REEL = HERO_REEL.map((entry) => {
-        const [id, label] = entry.split("|");
-        if (id.startsWith("auth:")) {
-          const a = id.slice(5);
-          const eff = (E.AUTHORED[a] && E.AUTHORED[a].effects) || {};
-          const name = a.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return { auth: a, color: eff["Inner Fill"] || "#A855F7", name, label };
-        }
-        const pr = E.presetById(id);
-        return { pid: id, color: pr.effects["Inner Fill"] || "#A855F7", name: pr.name, label };
-      });
+      const REEL = (() => {
+        const all = HERO_REEL.map((entry) => {
+          const [id, label] = entry.split("|");
+          if (id.startsWith("auth:")) {
+            const a = id.slice(5);
+            const eff = (E.AUTHORED[a] && E.AUTHORED[a].effects) || {};
+            const name = a.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            return { auth: a, color: eff["Inner Fill"] || "#A855F7", name, label };
+          }
+          const pr = E.presetById(id);
+          return { pid: id, color: pr.effects["Inner Fill"] || "#A855F7", name: pr.name, label };
+        });
+        const vis = all.filter((e2) => !kitHidden(e2.auth, e2.pid, e2.name));
+        return vis.length ? vis : all; // a curated-to-nothing reel falls back whole
+      })();
       /* Warm every face the lineup can ask for before the rotation
          reaches it (hero-feed cfgs warm as they join, below). */
       Object.keys(E.AUTHORED).forEach((a) => { const t2 = E.AUTHORED[a] && E.AUTHORED[a].type; warmFont(t2 && t2.font); });
@@ -1722,11 +1744,24 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
         fetch("/api/hero-lineup")
           .then((r) => (r.ok ? r.json() : { heroes: [] }))
           .then((data) => {
+            /* the admin's homepage curation list rides this feed — echo it
+               for the next paint's pre-render filter, and apply what's cheap
+               NOW: hidden community cards leave the page, and a hidden name
+               never joins the hero lineup. The reel/swatches already on
+               stage finish this visit; the next paint filters them fully. */
+            const hid = new Set(Array.isArray(data && data.hidden) ? data.hidden.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase()) : []);
+            try { localStorage.setItem("fd-hidden-kits", JSON.stringify([...hid].slice(0, 64))); } catch (_) { /* private mode */ }
+            try {
+              document.querySelectorAll("#cmCards [data-pid]").forEach((el) => {
+                if (hid.has(el.dataset.pid || "") || hid.has(el.dataset.kname || "")) el.remove();
+              });
+            } catch (_) { /* cards stand */ }
             const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 8) : [];
             const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
             heroes.forEach((h) => {
               try {
                 if (!h || typeof h.name !== "string" || !h.name.trim() || !h.cfg || typeof h.cfg !== "object") return;
+                if (hid.has(h.name.toLowerCase())) return;
                 if (seen.has(h.name.toLowerCase())) return;
                 warmFont(h.cfg.type && h.cfg.type.font);
                 const key = "hero:" + h.name;
@@ -2068,10 +2103,11 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           '<circle cx="32" cy="24" r="11" fill="rgba(255,255,255,.92)"/>' +
           '<path d="M10 64c2-14 10-21 22-21s20 7 22 21z" fill="rgba(255,255,255,.92)"/></svg>');
         const cmWrap = document.getElementById("cmCards");
-        if (cmWrap) CM_KITS.forEach(([pid, nm, by, likes, ac]) => {
+        if (cmWrap) CM_KITS.filter(([pid, nm]) => !kitHidden(pid, nm)).forEach(([pid, nm, by, likes, ac]) => {
           const card = document.createElement("a");
           card.className = "cm-card";
           card.href = "#/community";
+          card.dataset.pid = pid; card.dataset.kname = String(nm).toLowerCase();
           let big = "", bits = "", frame = "";
           try {
             let c2 = null;
