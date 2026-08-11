@@ -161,12 +161,34 @@ function safeDiagnostics(): string {
   try {
     for (const { slot, ring } of readFlightRings()) {
       const age = Math.round((Date.now() - ring.beat) / 1000);
-      const cleanExit = ring.entries[ring.entries.length - 1]?.includes("pagehide");
+      // pagehide can be trailed by its own vis-hidden entry — a clean
+      // navigation, not a wedge; look at the last two
+      const cleanExit = ring.entries.slice(-2).some((e) => e.includes("pagehide"));
       lines.push(`— flight ring ${slot}: build ${ring.build}, beat ${age}s ago, ${cleanExit ? "clean exit" : "NO clean exit"}`);
       lines.push(ring.entries.slice(-40).join(" | "));
     }
   } catch (e) { lines.push("flight rings unreadable: " + String(e).slice(0, 80)); }
   return lines.join("\n");
+}
+
+/* The freeze follows the owner's evolving document — replicas built from a
+   stale copy keep coming back clean. SAFE MODE can hand over the real
+   thing: every ui-generator key, serialized to a downloadable file (board
+   pixels live in the vault, not these keys, so the file stays small). */
+function downloadWorkspaceFile() {
+  const doc: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!;
+      if (k.startsWith("ui-generator")) doc[k] = localStorage.getItem(k) ?? "";
+    }
+  } catch { /* storage unavailable */ }
+  const blob = new Blob([JSON.stringify(doc)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `uikitmaker-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function SafeBootBanner() {
@@ -176,6 +198,9 @@ function SafeBootBanner() {
       SAFE MODE — factory defaults, nothing saves. Your real workspace is untouched; remove <b>?safe</b> from the URL to return to it.
       <button onClick={() => { void navigator.clipboard.writeText(safeDiagnostics()).then(() => setCopied(true)); }}>
         {copied ? "Copied — paste it in chat" : "Copy diagnostics"}
+      </button>
+      <button onClick={downloadWorkspaceFile} title="Save your full workspace as a file — for support only, nothing leaves this machine until you send it">
+        Download workspace file
       </button>
     </div>
   );

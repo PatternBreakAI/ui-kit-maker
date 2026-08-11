@@ -68,15 +68,27 @@ export function recordChange(channel: string, tag: string) {
   record(`${channel} ${tag}`);
 }
 
-/* a compact, PII-free description of what was clicked */
+/* a compact, PII-free description of what was interacted with. v2: svg
+   elements have no string className (SVGAnimatedString) and icon svgs
+   carry no text — walk to the interactive HOST (button/link/labelled
+   node) and name that, falling back to attribute classes. v1 recorded
+   the owner's wedge click as a bare "svg", which narrowed nothing. */
 function describe(el: EventTarget | null): string {
   if (!(el instanceof Element)) return "?";
-  const cls = typeof el.className === "string" ? el.className.split(/\s+/).filter(Boolean).slice(0, 2).join(".") : "";
-  let label = el.getAttribute("aria-label") ?? el.getAttribute("title") ?? "";
-  if (!label && el instanceof HTMLElement && !["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) {
-    label = (el.textContent ?? "").trim().slice(0, 20);
+  const host = el.closest("button, a, [role=button], [title], [aria-label]") ?? el;
+  const cls = (n: Element) => (n.getAttribute("class") ?? "").split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+  let label = host.getAttribute("aria-label") ?? host.getAttribute("title") ?? "";
+  if (!label && host instanceof HTMLElement && !["INPUT", "TEXTAREA", "SELECT"].includes(host.tagName)) {
+    label = (host.textContent ?? "").trim().slice(0, 20);
   }
-  return `${el.tagName.toLowerCase()}${cls ? "." + cls : ""}${label ? ` "${label}"` : ""}`;
+  const hostDesc = `${host.tagName.toLowerCase()}${cls(host) ? "." + cls(host) : ""}${label ? ` "${label}"` : ""}`;
+  if (host === el) {
+    // no interactive host — add the parent's classes so a bare svg/path
+    // still says where it lives (.hero-slot, .scard, .sec …)
+    const p = el.parentElement;
+    return `${hostDesc}${p ? ` in ${p.tagName.toLowerCase()}${cls(p) ? "." + cls(p) : ""}` : ""}`;
+  }
+  return el.tagName === host.tagName ? hostDesc : `${el.tagName.toLowerCase()}→${hostDesc}`;
 }
 
 export function startFlightRecorder() {
@@ -92,8 +104,13 @@ export function startFlightRecorder() {
   record(`boot ${build} ${location.hash.slice(0, 24)} ${navigator.userAgent.includes("Mac") ? "mac" : "other"}`);
   writeRing();
 
-  // interactions flush synchronously, ahead of the app's own handlers
+  // interactions flush synchronously, ahead of the app's own handlers.
+  // down AND up AND click: the owner's wedge survived its pointerdown
+  // task (a later breadcrumb landed), so the killer runs in a later
+  // phase — recording all three brackets which handler never returned.
   window.addEventListener("pointerdown", (e) => { record(`down ${describe(e.target)}`, true); }, true);
+  window.addEventListener("pointerup", (e) => { record(`up ${describe(e.target)}`, true); }, true);
+  window.addEventListener("click", (e) => { record(`click ${describe(e.target)}`, true); }, true);
   window.addEventListener("keydown", (e) => {
     // modifier chords and structural keys only — typed text is not ours
     const structural = e.key.length > 1;
