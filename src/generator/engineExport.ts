@@ -12,7 +12,7 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, w
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, measureSliceRGBA } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
@@ -193,8 +193,13 @@ export async function collectExportBoards(st: {
       if (b.stamp) {
         /* a stamp bakes to its own sprite: specimen svg → raster → the
            instance's adjust filter (shadow/glow included) on a canvas
-           padded so nothing clips. Center is preserved (symmetric pad). */
-        const { bytes: raw, w: rw0, h: rh0 } = await svgToPngBytes(stampSvg(st.cfg, b.stamp), 2);
+           padded so nothing clips. Center is preserved (symmetric pad).
+           The face rides INSIDE the svg: boards collect BEFORE the engine
+           pipeline arms setEmbedFont, and a sealed raster with no embed
+           bakes system glyphs (owner: warp "loses the font" — same trap). */
+        const fd0 = fontByName(st.cfg.type.font);
+        const stampSvgF = await inlineKitFace(stampSvg(st.cfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+        const { bytes: raw, w: rw0, h: rh0 } = await svgToPngBytes(stampSvgF, 2);
         const bmp = await createImageBitmap(new Blob([raw.slice().buffer as ArrayBuffer]));
         // warp FIRST (shadow/glow then follow the bent shape), filter second
         const warped = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount

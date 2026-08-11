@@ -4,10 +4,30 @@ import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, 
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitTextFill, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
-import { download, downloadSvg } from "@/generator/exportUtils";
+import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { LiveArt } from "./LiveArt";
+
+/* An SVG rasterized through an <img> — or downloaded and opened outside the
+   app — is a SEALED document: it cannot see the page's loaded fonts, so any
+   <text> silently falls back to a system face (owner: "the warp effects are
+   cool but lose the font"). Inline the cfg's faces as data-URI @font-face
+   rules before any of those trips. fontDataUri caches per family, so after
+   the first fetch this is string work. Exact-name guard: fontByName falls
+   back to the default face for unknown families, and embedding the WRONG
+   bytes under a family's name is worse than the fallback. */
+async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
+  if (!svg.includes("<text")) return svg;
+  const fams = [pc.type.font, ...(pc.type.listFont ? [pc.type.listFont] : [])];
+  const rules: string[] = [];
+  for (const fam of fams) {
+    const fd = fontByName(fam);
+    const uri = await fontDataUri(fam, fd.name === fam ? fd.css ?? null : null).catch(() => null);
+    if (uri) rules.push(`@font-face{font-family:"${fam.replace(/"/g, "")}";src:url(${uri}) format("woff2");}`);
+  }
+  return rules.length ? svg.replace(/(<svg[^>]*>)/, `$1<style>${rules.join("")}</style>`) : svg;
+}
 
 /* ── The Board v3 — a vertical stack of named artboards ────────────
    Left: searchable asset drawer (live kit components + saved pieces).
@@ -451,8 +471,10 @@ export function BoardView({ playing }: { playing: boolean }) {
       drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
     }
     for (const b of bd.items) {
-      const { svg, cfg: pc } = svgOf(b);
-      if (!svg) continue;
+      const { svg: svg0, cfg: pc } = svgOf(b);
+      if (!svg0) continue;
+      // the compositor's raster trip is sealed too — faces ride inside
+      const svg = await svgWithFaces(svg0, pc);
       const pad = glowPadOf(pc);
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
@@ -687,7 +709,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onPointerDown={(e) => { if (e.target === e.currentTarget) setBoardSel(null); }}>
                     {bd.items.map((b) => (
                       <StagePiece key={b.id} b={b} playing={playing} selected={boardSel === b.id} fit={fit}
-                        onExport={() => downloadSvg(svgOf(b).svg, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)}
+                        onExport={() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
                         onSelect={() => { setActiveBoard(bd.id); setBoardSel(b.id); }}
                         onDragStart={(e) => { dragRef.current = { id: b.id, dx: e.clientX, dy: e.clientY, ox: b.x, oy: b.y, fit }; setBoardSel(b.id); }}
                         onDragMove={(e) => {
@@ -812,7 +834,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              <button onClick={() => downloadSvg(svgOf(sel).svg, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)}>
+              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}>
                 <Download size={13} strokeWidth={2.2} /> Export asset
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
@@ -972,24 +994,29 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     }
     let on = true;
     const t = window.setTimeout(() => {
-      const img = new Image();
-      img.onload = () => {
+      /* the raster trip is sealed — the kit face must ride INSIDE the svg
+         or the warped preview speaks a system font (owner report) */
+      void svgWithFaces(svg, cfg).then((svgF) => {
         if (!on) return;
-        const k = Math.min(1, 2048 / Math.max(1, img.width));
-        const cv0 = document.createElement("canvas");
-        cv0.width = Math.max(1, Math.round(img.width * k));
-        cv0.height = Math.max(1, Math.round(img.height * k));
-        cv0.getContext("2d")!.drawImage(img, 0, 0, cv0.width, cv0.height);
-        const wc = warpStampRaster(cv0, cv0.width, cv0.height, stamp.warp!);
-        wc.toBlob((bl) => {
-          if (!on || !bl) return;
-          const u = URL.createObjectURL(bl);
-          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-          urlRef.current = u;
-          setFrame({ url: u, w: wc.width / k, h: wc.height / k });
-        });
-      };
-      img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+        const img = new Image();
+        img.onload = () => {
+          if (!on) return;
+          const k = Math.min(1, 2048 / Math.max(1, img.width));
+          const cv0 = document.createElement("canvas");
+          cv0.width = Math.max(1, Math.round(img.width * k));
+          cv0.height = Math.max(1, Math.round(img.height * k));
+          cv0.getContext("2d")!.drawImage(img, 0, 0, cv0.width, cv0.height);
+          const wc = warpStampRaster(cv0, cv0.width, cv0.height, stamp.warp!);
+          wc.toBlob((bl) => {
+            if (!on || !bl) return;
+            const u = URL.createObjectURL(bl);
+            if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+            urlRef.current = u;
+            setFrame({ url: u, w: wc.width / k, h: wc.height / k });
+          });
+        };
+        img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
+      });
     }, 130); // one raster per settled dial position, not per tick
     return () => { on = false; window.clearTimeout(t); };
   }, [svg, warped, stamp.warp?.style, stamp.warp?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
