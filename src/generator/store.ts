@@ -323,9 +323,10 @@ interface GenStore {
    *  and value — as a named library asset. The master is never touched. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
-  addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
-  /** Drop a live kit component on the board — follows the master style. */
-  addKitToBoard: (kitId: KitComponentId) => void;
+  addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  /** Drop a live kit component on the board — follows the master style.
+   *  `ov` picks a render variant (the ghost joystick). */
+  addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
   duplicateBoardItem: (id: string) => void;
   rotateBoardItem: (id: string, deg: number) => void;
   /** Stacking order within the piece's board — items render in array order,
@@ -351,6 +352,8 @@ interface GenStore {
   stretchBoardItem: (id: string, stretch: number, x: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
+  /** THIS instance's opacity (0..100); null returns it to fully opaque. */
+  setBoardItemOpacity: (id: string, v: number | null) => void;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
   /** Drop a type stamp on the active board. */
@@ -581,6 +584,12 @@ export interface BoardItem {
   /** Horizontal 9-slice stretch (bar family only): the track re-renders
    *  wider — caps, knob and inset stay true instead of distorting. */
   stretch?: number;
+  /** THIS instance's opacity, 0..100 — ghosted HUD layers, faded scenery
+   *  pieces. Absent = fully opaque. Rides PNG exports. */
+  opacity?: number;
+  /** Render-variant overlay for kit assets that ship more than one face —
+   *  the ghost joystick ("ghost"), a slot's status skins. Absent = stock. */
+  ov?: string;
   /** THIS instance's text — two START buttons on one screen can say START
    *  and OPTIONS (owner). Wins over the kit-wide specimen label; absent =
    *  follow the kit. Design changes still flow through live — only the
@@ -1281,16 +1290,16 @@ export const useGen = create<GenStore>((set, get) => ({
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      libId: "", kitId: it.kitId, x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}),
+      libId: "", kitId: it.kitId, x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });
   },
-  addKitToBoard: (kitId) => {
+  addKitToBoard: (kitId, ov) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
     const mob = act?.aspect === "mobile";
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, x: (mob ? 60 : 640) + (n % 3) * (mob ? 30 : 90), y: (mob ? 240 : 420) + (n % 3) * 60 };
+    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, ...(ov ? { ov } : {}), x: (mob ? 60 : 640) + (n % 3) * (mob ? 30 : 90), y: (mob ? 240 : 420) + (n % 3) * 60 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ boardSel: item.id });
   },
@@ -1326,6 +1335,11 @@ export const useGen = create<GenStore>((set, get) => ({
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
   transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
   stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
+  setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
+    const next = { ...b };
+    if (v === null || v >= 100) delete next.opacity; else next.opacity = Math.max(0, Math.min(100, Math.round(v)));
+    return next;
+  }),
   setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));

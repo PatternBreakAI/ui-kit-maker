@@ -8,7 +8,7 @@ import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bev
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
-import { LiveArt } from "./LiveArt";
+import { LiveArt, stillSmil, stripSmil } from "./LiveArt";
 
 /* An SVG rasterized through an <img> — or downloaded and opened outside the
    app — is a SEALED document: it cannot see the page's loaded fonts, so any
@@ -40,13 +40,16 @@ async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
 
 /* The full 113-piece roster, grouped by genre — every component the kit
    ships is placeable (the drawer had frozen at the pre-pack roster). */
-const ASSET_GROUPS: { name: string; ids: KitComponentId[] }[] = [
+/* Tray entries are kit ids, optionally with a render variant after "~"
+   (the same suffix convention the flip shapes use): "joystick~ghost" is
+   the overlay stick — one component, two placeable faces. */
+const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "gifticon"] },
-  { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
+  { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Rewards & chests", ids: ["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] },
@@ -66,6 +69,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   combo: "multiplier celebration results streak pop",
   bignum: "score results points celebration count",
   dmgnumber: "damage floating hit crit numbers pop",
+  firebutton: "fire shoot trigger pad thumb button attack",
   levelnode: "saga map level select world stage lock",
   pathconnector: "saga map path world trail dots",
   heartmeter: "lives hearts refill casual",
@@ -393,7 +397,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
     setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel,
+    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
@@ -415,6 +419,43 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
   // session object URLs die with the tab — restore them from the vault
   useEffect(() => { void rehydrateBoardBgs(); }, []);
+  // the asset tray and rollover preview are catalogs, never stages — their
+  // SMIL loops (damage floats, radar pulses) hold a settled frame
+  useEffect(() => {
+    stillSmil(document.querySelector(".bd-assets"), true);
+    stillSmil(document.querySelector(".bd-preview"), true);
+  });
+  /* resizable trays (owner: "stretch the left and right trays to my
+     liking — a little"). Widths ride CSS vars with hard clamps baked into
+     the grid template, so no drag can break the stage; the choice persists
+     per browser. */
+  const [trayW, setTrayW] = useState<{ l: number; r: number }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("ui-generator-traywidths") || "null");
+      if (v && typeof v.l === "number" && typeof v.r === "number") return { l: v.l, r: v.r };
+    } catch { /* private mode */ }
+    return { l: 238, r: 270 };
+  });
+  const trayDrag = useRef<{ side: "l" | "r"; x0: number; w0: number } | null>(null);
+  const clampTray = (side: "l" | "r", w: number) => (side === "l" ? Math.max(200, Math.min(400, w)) : Math.max(230, Math.min(420, w)));
+  const gripDown = (side: "l" | "r") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured drag still works */ }
+    trayDrag.current = { side, x0: e.clientX, w0: trayW[side] };
+  };
+  const gripMove = (e: React.PointerEvent) => {
+    const d = trayDrag.current;
+    if (!d) return;
+    if (!(e.buttons & 1)) { trayDrag.current = null; return; }
+    const dx = e.clientX - d.x0;
+    const w = clampTray(d.side, d.side === "l" ? d.w0 + dx : d.w0 - dx);
+    setTrayW((prev) => {
+      const next = { ...prev, [d.side]: w };
+      try { localStorage.setItem("ui-generator-traywidths", JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  };
+  const gripUp = () => { trayDrag.current = null; };
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
@@ -528,7 +569,10 @@ export function BoardView({ playing }: { playing: boolean }) {
   }, []);
   const fitOf = (bd: BoardDef) => {
     const [W, H] = STAGE[bd.aspect];
-    return Math.min((frameW - 56) / W, 820 / H, 1);
+    // the shared canvas zoom drives the boards too (owner: "zoom doesn't
+    // work on the boards toolbar") — every gesture divides by fit, so the
+    // whole manipulation stack rides along for free
+    return Math.min((frameW - 56) / W, 820 / H, 1) * zoom;
   };
 
   /* keyboard: Delete removes the selection, Cmd+D duplicates, Cmd+Z / Shift+Cmd+Z
@@ -593,7 +637,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     return ASSET_GROUPS.map((g) => ({
       name: g.name,
       // hay = everything search can land on: display name, id, group, synonyms
-      items: g.ids.filter((id) => kitVisible(id, componentReleases, isAdmin)).map((id) => ({ id, name: name(id), hay: `${name(id)} ${id} ${g.name} ${SEARCH_TERMS[id] ?? ""}`.toLowerCase(), svg: renderKit(applyKitTextFill(tc, kitTextFill[id]), id, "s", "default", undefined, kitShapes[id], { icon: resolveKitIcon(kitIcons[id], undefined), label: kitLabels[id] }) })),
+      items: g.ids.filter((entry) => kitVisible(entry.split("~")[0] as KitComponentId, componentReleases, isAdmin)).map((entry) => {
+        const [bid, ov] = entry.split("~");
+        const kid = bid as KitComponentId;
+        const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
+        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: renderKit(applyKitTextFill(tc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitLabels[kid], overlay: ov }) };
+      }),
     }));
   }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
 
@@ -609,7 +658,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
-      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -712,8 +761,10 @@ export function BoardView({ playing }: { playing: boolean }) {
     for (const b of bd.items) {
       const { svg: svg0, cfg: pc } = svgOf(b);
       if (!svg0) continue;
-      // the compositor's raster trip is sealed too — faces ride inside
-      const svg = await svgWithFaces(svg0, pc);
+      // the compositor's raster trip is sealed too — faces ride inside.
+      // SMIL loops are stripped: rasterization must get the resting pose,
+      // never whatever instant a fade-in loop's clock happened to be at
+      const svg = stripSmil(await svgWithFaces(svg0, pc));
       const pad = glowPadOf(pc);
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
@@ -722,6 +773,8 @@ export function BoardView({ playing }: { playing: boolean }) {
           const w = img.width * s, h = img.height * s;
           const cx = b.x - pad * s + w / 2, cy = b.y - pad * s + h / 2;
           ctx.save();
+          // the instance's opacity ships exactly as the stage shows it
+          if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
           if (b.stamp) { const sf = stampFilter(cfg, b.stamp); if (sf) ctx.filter = sf; }
           ctx.translate(cx, cy);
           if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
@@ -746,7 +799,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   /* drag-to-place (ported from the homepage board): press an asset, drag a
      ghost across the page, release over any board — the piece lands under
      the cursor. A plain click still adds to the active board. */
-  const ghostRef = useRef<{ kitId: KitComponentId; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
+  const ghostRef = useRef<{ kitId: KitComponentId; ov?: string; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [ghost, setGhost] = useState<{ svg: string; x: number; y: number } | null>(null);
   useEffect(() => {
@@ -775,7 +828,7 @@ export function BoardView({ playing }: { playing: boolean }) {
       const f = r.width / STAGE[bd.aspect][0];
       const sv = (v: number) => (st.boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
       st.setActiveBoard(bid);
-      st.addBoardItems([{ kitId: g.kitId, x: sv(Math.max(0, (e.clientX - r.left) / f - 110)), y: sv(Math.max(0, (e.clientY - r.top) / f - 55)) }]);
+      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: sv(Math.max(0, (e.clientX - r.left) / f - 110)), y: sv(Math.max(0, (e.clientY - r.top) / f - 55)) }]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -786,9 +839,13 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
 
   return (
-    <div className="board2">
+    <div className="board2" style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
       {/* ── assets ── */}
       <aside className="bd-assets">
+        <span className="bd-traygrip bd-traygrip--l" role="separator" aria-orientation="vertical" aria-label="Resize the assets tray"
+          title="Drag to widen or narrow the assets tray. Double-click resets."
+          onPointerDown={gripDown("l")} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={gripUp}
+          onDoubleClick={() => setTrayW((p) => { const n = { ...p, l: 238 }; try { localStorage.setItem("ui-generator-traywidths", JSON.stringify(n)); } catch { /* private mode */ } return n; })} />
         <div className="bd-h">Assets</div>
         <label className="bd-search"><Search size={13} strokeWidth={2.2} />
           <input placeholder="Search assets…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
@@ -816,9 +873,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-grid">
                   {items.map((it) => (
                     <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
-                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.id); }}
-                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.id, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
-                      onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.id, x: 0, y: 0 } as BoardItem).svg })}
+                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId, it.ov); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, ov: it.ov, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
+                      onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, ov: it.ov, x: 0, y: 0 } as BoardItem).svg })}
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: it.svg }} />
                       <i>{it.name}</i>
@@ -1060,6 +1117,10 @@ export function BoardView({ playing }: { playing: boolean }) {
 
       {/* ── pages tray + inspector ── */}
       <aside className="bd-side">
+        <span className="bd-traygrip bd-traygrip--r" role="separator" aria-orientation="vertical" aria-label="Resize the inspector tray"
+          title="Drag to widen or narrow this tray. Double-click resets."
+          onPointerDown={gripDown("r")} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={gripUp}
+          onDoubleClick={() => setTrayW((p) => { const n = { ...p, r: 270 }; try { localStorage.setItem("ui-generator-traywidths", JSON.stringify(n)); } catch { /* private mode */ } return n; })} />
         <div className="bd-h">Boards</div>
         <div className="bd-pages">
           {boards.map((bd, i) => (
@@ -1144,6 +1205,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onDoubleClick={() => useGen.getState().stretchBoardItem(sel.id, 1, sel.x)} />
               </label>
             )}
+            <label className="bd-slider" title="This piece's opacity — ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
+              Opacity · {sel.opacity ?? 100}%
+              <input type="range" min={0} max={100} value={sel.opacity ?? 100}
+                onChange={(e) => useGen.getState().setBoardItemOpacity(sel.id, +e.target.value)}
+                onDoubleClick={() => useGen.getState().setBoardItemOpacity(sel.id, null)} />
+            </label>
             {sel.kitId && VALUE_DRIVEN.has(sel.kitId) && (
               <label className="bd-slider" title="Value — this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
                 Value — this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
@@ -1575,7 +1642,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
         onPointerUp: onDragEnd,
         onPointerCancel: onDragEnd,
       } : { onPointerDown: onSelect })}>
-      <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left" }}>
+      <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
         {b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (
@@ -1585,7 +1652,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              a stable object identity is what keeps LiveArt's svg memo (and
              the measurement observer behind it) quiet between real edits. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch,
+            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, overlay: b.ov,
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined,

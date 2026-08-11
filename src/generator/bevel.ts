@@ -6700,6 +6700,34 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         (opts.part === "base" ? "" : candyKnob(cx2 + sx2 * f2 * maxOff, cy2 + sy3 * f2 * maxOff, kr2, knobC, state === "disabled" ? "#A7AAB4" : glow)));
       return svg2.replace("<svg ", `<svg data-stick="${cx2} ${cy2} ${maxOff.toFixed(1)}" `);
     }
+    case "firebutton": {
+      /* Shooter · fire button (owner: "like the filled in joystick with
+         some fire affordances") — the joystick pad's committed sibling:
+         same circular well, but the knob is a BIG dome nearly filling it,
+         wearing the kit's lettering, ringed by danger ticks. Reads "press
+         me hard", never "drag me". The pressed state sinks the dome. */
+      const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
+      const track = build(cfg, state, { x: 33, y: 27, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
+      const inset9 = bw + 5;
+      const cx9 = 33 + dF9 / 2, cy9 = 27 + dF9 / 2;
+      const krF = dF9 / 2 - inset9 - 13;
+      const sink = state === "pressed" ? dF9 * 0.016 : 0;
+      const rimF = state === "disabled" ? "#A7AAB4" : glow;
+      const ringR = krF + 8;
+      let ticks = "";
+      for (let i = 0; i < 12; i++) {
+        const a9 = (i / 12) * Math.PI * 2 - Math.PI / 2;
+        const major = i % 3 === 0;
+        const c9 = Math.cos(a9), s9 = Math.sin(a9);
+        ticks += `<line x1="${(cx9 + c9 * (ringR - (major ? 1 : 0))).toFixed(1)}" y1="${(cy9 + s9 * (ringR - (major ? 1 : 0))).toFixed(1)}" x2="${(cx9 + c9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" y2="${(cy9 + s9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" stroke="${hexRgba(rimF, major ? 0.85 : 0.4)}" stroke-width="${(dF9 * 0.013).toFixed(1)}" stroke-linecap="round"/>`;
+      }
+      const fsF = krF * 0.44 * typeK;
+      return inject(track,
+        `<path d="${roundRect(33 + inset9, 27 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
+         ${ticks}` +
+        candyKnob(cx9, cy9 + sink, krF, knobC, rimF) +
+        contentText(opts.label ?? "FIRE", cx9, cy9 + sink, fsF, { anchor: "middle" }));
+    }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.
          The icon is the replaceable media slot. */

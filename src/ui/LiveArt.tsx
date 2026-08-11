@@ -45,6 +45,33 @@ export interface LiveKit {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+/* ── the stillness rule (owner: "most things should be user initiated") ──
+   The engine bakes SMIL loops into ~30 components (damage floats, radar
+   pulses, carets, liquid waves…). Left alone they run EVERYWHERE, all the
+   time — dozens of idle timelines ticking behind a design surface. So:
+   every host freezes its SMIL clocks unless the surface is actually in
+   Play. Frozen clocks park at a settled beat — 1.2s in — because loops
+   that fade in from nothing (the damage number) are blank at t=0. */
+export function stillSmil(root: ParentNode | null, still: boolean) {
+  if (!root) return;
+  for (const el of root.querySelectorAll("svg")) {
+    const s = el as SVGSVGElement;
+    if (!s.querySelector("animate, animateTransform, animateMotion")) continue;
+    try {
+      if (still) { s.pauseAnimations(); s.setCurrentTime(1.2); }
+      else if (s.animationsPaused()) s.unpauseAnimations();
+    } catch { /* engines without SMIL control: the loop just runs */ }
+  }
+}
+
+/** PNG rasterization can't be left to SMIL timing — Chrome snapshots
+ *  whatever instant the internal clock is at, and a fade-in loop's t=0 is
+ *  nothing at all. Exports strip the loops and keep the resting pose
+ *  (every template's base attributes ARE the settled look). */
+export const stripSmil = (svg: string): string =>
+  svg.replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+
 /* The glow pad is part of the CANVAS, not the component — pointer honesty
    demands the interactive zone hug the SHELL ("the hit area is way too
    big", owner). data-shell (viewBox units) maps through the on-screen
@@ -67,7 +94,7 @@ export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: numbe
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
@@ -102,6 +129,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   style?: React.CSSProperties;
   title?: string;
   onDesignClick?: () => void;
+  /** Reference surfaces (the kit page): the piece stays hover-playable,
+   *  but its SMIL loops park while the pointer is elsewhere — motion is
+   *  user-initiated, never ambient. */
+  stillLoops?: boolean;
 }) {
   const id = kit?.id;
   const [live, setLive] = useState<GenStateName>("default");
@@ -573,6 +604,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       },
     } : {}),
   };
+
+  // the stillness rule: this piece's SMIL clocks run only while the host
+  // surface is in Play — a design surface holds a settled frame. On
+  // stillLoops surfaces the pointer is the switch: loops wake under it.
+  useEffect(() => {
+    stillSmil(ref.current, !playing || disabled || (!!stillLoops && live === "default"));
+  }, [svg, playing, disabled, stillLoops, live]);
 
   useEffect(() => {
     if (id !== "input") return;

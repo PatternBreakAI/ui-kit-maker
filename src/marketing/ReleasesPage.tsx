@@ -63,6 +63,14 @@ const RELEASES: Release[] = [
         p: "A Pro engine export now carries each artboard into Unity as a built scene: full-resolution background, pieces anchored so they hold their corners at any screen size, and your per-copy words already on the labels.",
       },
       {
+        h: "Motion is now user-initiated",
+        p: "The animated pieces — damage numbers, radar pulses, the weapon wheel's comets — used to loop in the background on every surface. Now they hold a settled frame while you design, wake under your pointer on the kit page, and run free only in Play mode. Dozens of idle timelines went silent, and PNG exports always capture the clean resting pose.",
+      },
+      {
+        h: "The Board bends to your hand",
+        p: "Boards zoom with the toolbar, the side trays stretch to your liking (within safe rails), every piece has its own opacity dial, and the ghost joystick overlay is placeable straight from the assets tray.",
+      },
+      {
         h: "Faster, steadier, and honest about it",
         p: "A rare freeze on boards with background images was hunted down and fixed at the root. The app also gained a safe mode (add ?safe to the address) with one-click diagnostics, so if anything ever misbehaves on your machine, support starts from evidence instead of guesswork.",
       },

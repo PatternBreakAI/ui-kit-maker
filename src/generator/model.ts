@@ -1046,7 +1046,7 @@ export type KitComponentId =
   | "chest" | "giftbox" | "rewardcard" | "qtybadge" | "rewardtray" | "claimbtn" | "chestpanel"
   // illustrated settings gear (staged) — the cog itself wears the treatment
   | "gearicon"
-  | "trophyicon"
+  | "trophyicon" | "firebutton"
   | "gifticon";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
@@ -1501,6 +1501,7 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "orderticket", name: "Order ticket", staged: true },
   { id: "gearicon", name: "Settings gear", staged: true },
   { id: "trophyicon", name: "Trophy", staged: true },
+  { id: "firebutton", name: "Fire button", staged: true },
   { id: "gifticon", name: "Gift box", staged: true },
   { id: "chest", name: "Treasure chest", staged: true },
   { id: "giftbox", name: "Gift box", staged: true },
@@ -1609,6 +1610,7 @@ export const kitVisible = (id: KitComponentId, releases: Record<string, string>,
 export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
   dialoguebox: 48, dialog: 48, tooltip: 48, toast: 40, chatbubble: 40,
   killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
+  firebutton: 8,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
@@ -1625,7 +1627,7 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
   "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
   "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
-  "rewardcard", "qtybadge", "claimbtn", "chestpanel",
+  "rewardcard", "qtybadge", "claimbtn", "chestpanel", "firebutton",
 ]);
 
 /* Components whose FRAME keeps the Default design in every state — the

@@ -12,7 +12,7 @@ import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/gener
 import { updateProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
-import { LiveArt } from "./LiveArt";
+import { LiveArt, stillSmil } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
@@ -160,6 +160,9 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
     const late = window.setTimeout(measure, 800);
     return () => { fonts?.removeEventListener?.("loadingdone", onDone); window.clearTimeout(late); };
   }, [svg, scale, hug]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the reference sheet is a design surface — SMIL loops hold a settled
+  // frame here; the playable pieces (LiveArt) wake theirs in Play
+  useEffect(() => { stillSmil(ref.current, true); }, [svg]);
   return <div ref={ref} className={`kp-art${className ? " " + className : ""}`} style={{ width: w }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
@@ -445,7 +448,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   const shineVars = useShineVars(shine);
   return (
     <figure className="kp-piece" style={shineVars} data-kp={p.id}>
-      <LiveArt cfg={cfg} playing scale={p.scale ?? PIECE_SCALE} className="kp-live"
+      <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} />
       <figcaption className="kp-cap">
         {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
@@ -1267,6 +1270,11 @@ export function KitPage() {
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load
   const [bayOpen, setBayOpen] = useState(false);
+  // injected showcase strips (screen patterns, collage, playground) are
+  // design surfaces — their SMIL loops hold the settled frame too
+  useEffect(() => {
+    document.querySelectorAll(".gp-piece").forEach((el) => stillSmil(el, true));
+  });
   const focusRet = useGen((s) => s.focus);
   const dark = isDarkBg(cfg.canvas);
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
@@ -1774,6 +1782,8 @@ const kitTier = useGen((s) => s.tier);
         rk("trophyicon", "Trophy · Disabled", {}, undefined, "disabled"),
         rk("gifticon", "Gift box"),
         rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
+        rk("firebutton", "Fire button"),
+        rk("firebutton", "Fire button · Pressed", {}, undefined, "pressed"),
         rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
@@ -2472,6 +2482,15 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="gifticon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
           <div className="kp-meta"><span>A 3/4 gift box wearing the kit whole — lid slab, bow loops, receding side</span><span>Ribbon, lid shadow and bow glint ride as overlays on the kit's own material</span><span>A real button — hover and press work</span></div>
+        </>)}
+        {kitVisible("firebutton", releases, false) && (<>
+          <div className="kp-subhead">Fire button</div>
+          <div className="kp-tray">
+            <Piece id="firebutton" caption="Fire" scale={0.5} />
+            <Piece id="firebutton" caption="Pressed" baseState="pressed" scale={0.5} />
+            <Piece id="firebutton" caption="Disabled" baseState="disabled" scale={0.5} />
+          </div>
+          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The word on the dome is your text (Component content), in the kit's lettering</span><span>Pressed sinks the dome — a real button</span></div>
         </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">
