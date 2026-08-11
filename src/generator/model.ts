@@ -1610,7 +1610,6 @@ export const kitVisible = (id: KitComponentId, releases: Record<string, string>,
 export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
   dialoguebox: 48, dialog: 48, tooltip: 48, toast: 40, chatbubble: 40,
   killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
-  firebutton: 8,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
@@ -1627,7 +1626,7 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
   "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
   "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
-  "rewardcard", "qtybadge", "claimbtn", "chestpanel", "firebutton",
+  "rewardcard", "qtybadge", "claimbtn", "chestpanel",
 ]);
 
 /* Components whose FRAME keeps the Default design in every state — the

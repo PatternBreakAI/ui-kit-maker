@@ -1783,6 +1783,7 @@ const kitTier = useGen((s) => s.tier);
         rk("gifticon", "Gift box"),
         rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
         rk("firebutton", "Fire button"),
+        rk("firebutton", "Fire button · Volt armed", {}, 0.3),
         rk("firebutton", "Fire button · Pressed", {}, undefined, "pressed"),
         rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
         rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
@@ -2486,11 +2487,12 @@ const kitTier = useGen((s) => s.tier);
         {kitVisible("firebutton", releases, false) && (<>
           <div className="kp-subhead">Fire button</div>
           <div className="kp-tray">
-            <Piece id="firebutton" caption="Fire" scale={0.5} />
+            <Piece id="firebutton" caption="Blade armed" scale={0.5} />
+            <Piece id="firebutton" caption="Volt armed" value={0.3} scale={0.5} />
             <Piece id="firebutton" caption="Pressed" baseState="pressed" scale={0.5} />
             <Piece id="firebutton" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The word on the dome is your text (Component content), in the kit's lettering</span><span>Pressed sinks the dome — a real button</span></div>
+          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The dome wears the armed weapon's icon; the rest of the armory waits as small satellites — Value cycles what's armed, Icons swaps the glyph, like the wheel but simpler</span><span>Pressed sinks the dome — a real button</span></div>
         </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">

@@ -69,7 +69,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   combo: "multiplier celebration results streak pop",
   bignum: "score results points celebration count",
   dmgnumber: "damage floating hit crit numbers pop",
-  firebutton: "fire shoot trigger pad thumb button attack",
+  firebutton: "fire shoot trigger pad thumb button attack weapon armed",
   levelnode: "saga map level select world stage lock",
   pathconnector: "saga map path world trail dots",
   heartmeter: "lives hearts refill casual",

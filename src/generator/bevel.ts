@@ -2797,7 +2797,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
-  "chest", "giftbox", "rewardcard", "rewardtray",
+  "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -6701,18 +6701,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return svg2.replace("<svg ", `<svg data-stick="${cx2} ${cy2} ${maxOff.toFixed(1)}" `);
     }
     case "firebutton": {
-      /* Shooter · fire button (owner: "like the filled in joystick with
-         some fire affordances") — the joystick pad's committed sibling:
+      /* Shooter · fire button — the joystick pad's committed sibling: the
          same circular well, but the knob is a BIG dome nearly filling it,
-         wearing the kit's lettering, ringed by danger ticks. Reads "press
-         me hard", never "drag me". The pressed state sinks the dome. */
+         ringed by danger ticks. Reads "press me hard", never "drag me".
+         The dome wears the ARMED weapon's glyph, with the other available
+         weapons waiting as small satellites on the dome's shoulder — the
+         weapon wheel's editing contract, simplified: value cycles which
+         weapon is armed; icon swaps the armed glyph; pressed sinks the
+         dome; disabled grays and stands still. */
       const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
       const track = build(cfg, state, { x: 33, y: 27, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
       const inset9 = bw + 5;
       const cx9 = 33 + dF9 / 2, cy9 = 27 + dF9 / 2;
       const krF = dF9 / 2 - inset9 - 13;
       const sink = state === "pressed" ? dF9 * 0.016 : 0;
-      const rimF = state === "disabled" ? "#A7AAB4" : glow;
+      const live8 = state !== "disabled";
+      const rimF = live8 ? glow : "#A7AAB4";
       const ringR = krF + 8;
       let ticks = "";
       for (let i = 0; i < 12; i++) {
@@ -6721,12 +6725,25 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const c9 = Math.cos(a9), s9 = Math.sin(a9);
         ticks += `<line x1="${(cx9 + c9 * (ringR - (major ? 1 : 0))).toFixed(1)}" y1="${(cy9 + s9 * (ringR - (major ? 1 : 0))).toFixed(1)}" x2="${(cx9 + c9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" y2="${(cy9 + s9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" stroke="${hexRgba(rimF, major ? 0.85 : 0.4)}" stroke-width="${(dF9 * 0.013).toFixed(1)}" stroke-linecap="round"/>`;
       }
-      const fsF = krF * 0.44 * typeK;
+      // the armory: the wheel's first four chambers. value picks the armed
+      // one in quarters (0 blade, .3 volt, .6 tonic, .9 aegis).
+      const ROSTER9 = [STOCK_ICONS.sword, STOCK_ICONS.zap, STOCK_ICONS.flask, STOCK_ICONS.shield];
+      const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
+      const icF = krF * 0.8;
+      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4", 2.6)}</g>`;
+      const satR = krF * 0.17, satOrbit = krF * 0.66;
+      let sats = "";
+      ROSTER9.filter((_, i) => i !== armed9).forEach((ic, j) => {
+        const aS = ((-135 + j * 45) * Math.PI) / 180;
+        const sx = cx9 + satOrbit * Math.cos(aS), sy = cy9 + sink + satOrbit * Math.sin(aS);
+        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
+          iconGroup(ic, sx - satR * 0.55, sy - satR * 0.55, satR * 1.1, "#AEB6C4", { strokeWidth: 2 * iconWK });
+      });
       return inject(track,
         `<path d="${roundRect(33 + inset9, 27 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
-        candyKnob(cx9, cy9 + sink, krF, knobC, rimF) +
-        contentText(opts.label ?? "FIRE", cx9, cy9 + sink, fsF, { anchor: "middle" }));
+        candyKnob(cx9, cy9 + sink, krF, knobC) +
+        sats + armedIc);
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.
