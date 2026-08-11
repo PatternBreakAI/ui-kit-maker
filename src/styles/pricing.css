@@ -831,3 +831,17 @@
 .unitypage .unitysec p { margin: 0 0 12px; line-height: 1.55; opacity: 0.88; }
 .unitypage .unitycta { text-align: center; padding-top: 10px; }
 .unitypage .unitybtns { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+
+/* ── #/releases — public release notes ─────────────────────────────── */
+.rel { max-width: 720px; }
+.rel-entry { margin-top: 34px; }
+.rel-datebar { display: flex; align-items: baseline; gap: 12px; border-bottom: 2px solid var(--cg-accent, #6fd6ff); padding-bottom: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.rel-date { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--cg-accent, #6fd6ff); }
+.rel-title { font-size: 19px; font-weight: 700; }
+.rel-item { border-bottom: 1px solid rgba(128, 138, 160, .22); padding: 15px 0 14px; }
+.rel-item h3 { font-size: 16px; margin: 0 0 5px; }
+.rel-item p { margin: 0; font-size: 14.5px; line-height: 1.6; opacity: .78; }
+.rel-labhead { margin-top: 26px; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffd166; }
+.rel-item--lab h3::after { content: "soon"; font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #ffd166; border: 1px solid rgba(255, 209, 102, .5); border-radius: 5px; padding: 1.5px 6px; margin-left: 8px; vertical-align: 2px; }
+.rel-contact { margin-top: 36px; font-size: 14.5px; opacity: .85; }
+.rel-contact a { color: var(--cg-accent, #6fd6ff); }

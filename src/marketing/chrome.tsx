@@ -227,6 +227,7 @@ export function MarketingFooter() {
               <a href="#/community" onClick={go("#/community")}>{t("fpCommunity")}</a>
               <a href="#/signin" onClick={go("#/signin")}>{t("signin")}</a>
               <a href="#/faq" onClick={go("#/faq")}>{t("fpFaq")}</a>
+        <a href="#/releases" onClick={go("#/releases")}>Release notes</a>
               <a href="#/" onClick={go("#/")}>{t("fpHow")}</a>
             </nav>
             <nav className="footer-col" aria-label={t("fpLegalH")}>
