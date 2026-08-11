@@ -1107,7 +1107,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
      interaction re-renders every stamp (the tray-click sluggishness) */
   const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
-  const [frame, setFrame] = useState<{ url: string; w: number; h: number } | null>(null);
+  const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
   useEffect(() => {
     if (!warped) {
@@ -1129,12 +1129,28 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
           cv0.height = Math.max(1, Math.round(img.height * k));
           cv0.getContext("2d")!.drawImage(img, 0, 0, cv0.width, cv0.height);
           const wc = warpStampRaster(cv0, cv0.width, cv0.height, stamp.warp!);
+          /* the warp frame carries padding the lettering never fills — scan
+             the raster's true alpha bounds so the selection box (and grab
+             area) hugs the actual type, not the canvas (owner: boxes must
+             adhere "to the actual type stamp area") */
+          let shell: [number, number, number, number] | null = null;
+          try {
+            const d = wc.getContext("2d")!.getImageData(0, 0, wc.width, wc.height).data;
+            let x0 = wc.width, y0 = wc.height, x1 = 0, y1 = 0;
+            for (let py = 0; py < wc.height; py += 2) for (let px = 0; px < wc.width; px += 2) {
+              if (d[(py * wc.width + px) * 4 + 3] > 8) {
+                if (px < x0) x0 = px; if (px > x1) x1 = px;
+                if (py < y0) y0 = py; if (py > y1) y1 = py;
+              }
+            }
+            if (x1 > x0) shell = [x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k];
+          } catch { /* tainted or empty — the full frame remains the box */ }
           wc.toBlob((bl) => {
             if (!on || !bl) return;
             const u = URL.createObjectURL(bl);
             if (urlRef.current) URL.revokeObjectURL(urlRef.current);
             urlRef.current = u;
-            setFrame({ url: u, w: wc.width / k, h: wc.height / k });
+            setFrame({ url: u, w: wc.width / k, h: wc.height / k, shell });
           });
         };
         img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
@@ -1149,6 +1165,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
      through so the StagePiece wrapper owns every press */
   return warped && frame
     ? <img src={frame.url} width={frame.w} height={frame.h} draggable={false}
+        data-shell={frame.shell ? frame.shell.map((n) => n.toFixed(1)).join(" ") : undefined}
         style={{ filter: stampFilter(cfg, stamp), display: "block", pointerEvents: "none", userSelect: "none" }} alt="" />
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
@@ -1180,7 +1197,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
   const artRef = useRef<HTMLDivElement>(null);
   // corner-handle resize: screen-px delta → scale, against the piece's
   // unscaled on-screen width captured at grab time
-  const rsz = useRef<{ x0: number; s0: number; wpx: number } | null>(null);
+  const rsz = useRef<{ x0: number; y0: number; s0: number; hx: number; anchorX: number; anchorY: number; handX: number; handY: number; shx: number; shy: number; shw: number; shh: number; axf: number; ayf: number } | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   useEffect(() => {
     const host = artRef.current;
@@ -1192,9 +1209,14 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
       /* a WARPED stamp is an <img> frame, not an svg — without this branch
          the wrapper keeps its unwarped size, the bent lettering pokes
          outside the hit area, and the piece is barely grabbable */
+      let imgShell: [number, number, number, number] | null = null;
       if (!svg) {
         const img = host.querySelector("img");
-        if (img) { w = parseFloat(img.getAttribute("width") ?? "0"); h = parseFloat(img.getAttribute("height") ?? "0"); }
+        if (img) {
+          w = parseFloat(img.getAttribute("width") ?? "0"); h = parseFloat(img.getAttribute("height") ?? "0");
+          const raw = img.getAttribute("data-shell")?.split(" ").map(Number);
+          if (raw && raw.length === 4 && raw.every(Number.isFinite)) imgShell = raw as [number, number, number, number];
+        }
       }
       /* The selection box trusts the engine's own data-shell stamp — the
          rect that hugs the component's silhouette. The old getBBox union
@@ -1202,7 +1224,7 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
          specimen slack), which read as boxes far larger than the art
          (owner: "the bounding boxes for everything is huge"). getBBox
          stays as the fallback for svgs without the stamp. */
-      let shell: [number, number, number, number] | null = null;
+      let shell: [number, number, number, number] | null = imgShell;
       if (svg) {
         const raw = svg.getAttribute("data-shell")?.split(" ").map(Number);
         if (raw && raw.length === 4 && raw.every(Number.isFinite)) shell = raw as [number, number, number, number];
@@ -1337,22 +1359,49 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                 </button>
               </div>
             </div>
-            <span className="bd-rszwrap" style={{ left: (sh[0] + sh[2]) * sc, top: (sh[1] + sh[3]) * sc }}>
-              <span className="bd-rsz2" role="slider" aria-label="Resize piece" aria-valuenow={Math.round(sc * 100)}
-                style={{ transform: `scale(${1 / fit})` }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-                  rsz.current = { x0: e.clientX, s0: sc, wpx: Math.max(24, dim.w * fit) };
-                }}
-                onPointerMove={(e) => {
-                  const r = rsz.current;
-                  if (!r) return;
-                  useGen.getState().scaleBoardItem(b.id, Math.max(0.3, Math.min(2, r.s0 + (e.clientX - r.x0) / r.wpx)));
-                }}
-                onPointerUp={() => { rsz.current = null; }}
-                onPointerCancel={() => { rsz.current = null; }} />
-            </span>
+            {/* the transform box: scale from ANY corner, plus top-center and
+                bottom-center handlebars (owner: à la Adobe). Every drag
+                anchors the OPPOSITE corner/edge — the far side stays planted
+                while the piece grows toward the pointer. One coalesced
+                history step per gesture (transformBoardItem). */}
+            {([[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0], [0.5, 1]] as const).map(([hx, hy]) => {
+              const bar = hx === 0.5;
+              return (
+                <span key={`h${hx}${hy}`} className="bd-rszwrap" style={{ left: (sh[0] + hx * sh[2]) * sc, top: (sh[1] + hy * sh[3]) * sc }}>
+                  <span className={bar ? "bd-rsz2 bd-rszbar" : "bd-rsz2"} role="slider"
+                    aria-label={bar ? "Resize piece (vertical handlebar)" : "Resize piece"} aria-valuenow={Math.round(sc * 100)}
+                    style={{ transform: `scale(${1 / fit})`, cursor: bar ? "ns-resize" : hx === hy ? "nwse-resize" : "nesw-resize" }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                      const axf = hx === 0.5 ? 0.5 : 1 - hx, ayf = 1 - hy;
+                      rsz.current = {
+                        x0: e.clientX, y0: e.clientY, s0: sc, hx,
+                        anchorX: b.x + (sh[0] + axf * sh[2]) * sc,
+                        anchorY: b.y + (sh[1] + ayf * sh[3]) * sc,
+                        handX: b.x + (sh[0] + hx * sh[2]) * sc,
+                        handY: b.y + (sh[1] + hy * sh[3]) * sc,
+                        shx: sh[0], shy: sh[1], shw: sh[2], shh: sh[3], axf, ayf,
+                      };
+                    }}
+                    onPointerMove={(e) => {
+                      const r = rsz.current;
+                      if (!r) return;
+                      const ddx = (e.clientX - r.x0) / fit, ddy = (e.clientY - r.y0) / fit;
+                      const rx = Math.abs(r.handX + ddx - r.anchorX) / Math.max(1, Math.abs(r.handX - r.anchorX));
+                      const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
+                      // corners follow the diagonal (both axes, averaged);
+                      // the handlebars are pure vertical stretch-to-scale
+                      const s2 = Math.max(0.3, Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
+                      useGen.getState().transformBoardItem(b.id, s2,
+                        r.anchorX - (r.shx + r.axf * r.shw) * s2,
+                        r.anchorY - (r.shy + r.ayf * r.shh) * s2);
+                    }}
+                    onPointerUp={() => { rsz.current = null; }}
+                    onPointerCancel={() => { rsz.current = null; }} />
+                </span>
+              );
+            })}
           </>
         );
       })()}

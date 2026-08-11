@@ -386,12 +386,14 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
 
   trophycup: {
     /* Trophy cup — a SIMPLE 2D icon first (owner note): plain U cup,
-       even-thickness D-ring handles, neck, flared foot, one plinth. One
+       even-thickness D-ring handles, and a SOLID bottom — the cup flows
+       through a thick waist into a trumpet base (owner: "fill in the
+       bottom"). One
        loop, so the extrusion sweep stays clean; the kit's face does all
        the talking — the component adds no overlay furnishing. */
     id: "trophycup", name: "Trophy cup", capAware: true,
     vb: [0.0, 0.0, 200.0, 200.0],
-    d: "M 54 18 L 146 18 Q 154 18 154 26 L 154 38 C 176 38 190 50 190 66 C 190 84 174 96 154 96 L 152 80 C 164 80 174 74 174 66 C 174 56 164 52 152 52 C 151 74 146 94 132 106 C 124 112 114 116 108 117 L 111 132 Q 130 138 134 148 L 138 156 Q 152 158 152 168 L 152 182 L 48 182 L 48 168 Q 48 158 62 156 L 66 148 Q 70 138 89 132 L 92 117 C 86 116 76 112 68 106 C 54 94 49 74 48 52 C 36 52 26 56 26 66 C 26 74 36 80 48 80 L 46 96 C 26 96 10 84 10 66 C 10 50 24 38 46 38 L 46 26 Q 46 18 54 18 Z",
+    d: "M 54 18 L 146 18 Q 154 18 154 26 L 154 38 C 176 38 190 50 190 66 C 190 84 174 96 154 96 L 152 80 C 164 80 174 74 174 66 C 174 56 164 52 152 52 C 151 74 146 92 134 104 C 127 110 119 114 112 116 L 110 128 C 110 138 122 144 136 150 Q 154 156 154 168 L 154 182 L 46 182 L 46 168 Q 46 156 64 150 C 78 144 90 138 90 128 L 88 116 C 81 114 73 110 66 104 C 54 92 49 74 48 52 C 36 52 26 56 26 66 C 26 74 36 80 48 80 L 46 96 C 26 96 10 84 10 66 C 10 50 24 38 46 38 L 46 26 Q 46 18 54 18 Z",
   },
   gift: {
     /* Gift box at a calm 3/4 — front face, receding side, lid slab and

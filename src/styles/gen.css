@@ -2211,6 +2211,8 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-pval::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
 .bd-pval::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #9fe2ff; border: 0; }
 .bd-rsz2 { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 1.5px solid #6fd6ff; border-radius: 4px; background: rgba(10, 12, 22, .92); cursor: nwse-resize; touch-action: none; }
+/* top/bottom-center handlebars — wider pills, same accent language */
+.bd-rszbar { left: -11px; top: -5px; width: 22px; height: 10px; border-radius: 5px; }
 
 /* drag-to-place ghost riding the cursor */
 .bd-ghost { position: fixed; z-index: 90; width: 150px; transform: translate(-50%, -50%); pointer-events: none; opacity: .92; filter: drop-shadow(0 12px 26px rgba(6, 8, 16, .55)); }

@@ -587,6 +587,7 @@ export const LANDING_HTML = `</head>
           <a href="#/community" id="fpCommunity">Community</a>
           <a href="#/signin" id="fpSignin">Sign in</a>
           <a href="#/faq" id="fpFaq">FAQ</a>
+          <a href="#/releases" id="fpReleases">Release notes</a>
           <a href="#" id="fpHow">How it works</a>
         </nav>
         <nav class="footer-col" aria-labelledby="fpLegalH">

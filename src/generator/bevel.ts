@@ -7325,28 +7325,59 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(shellG, hub);
     }
     case "trophyicon": {
-      /* Trophy — a simple 2D icon wearing the kit whole (owner: "think of
-         these as simple 2d icons first"). The silhouette carries all the
-         identity; no overlay furnishing at all. */
+      /* Trophy — a simple 2D icon wearing the kit whole. Tall icons let two
+         kit layers eat the lower body: the face gradient's full-height ramp
+         and the inner-glow shade rising from the bottom edge. Both are
+         calmed — not killed — so the stem and base stay in the cup's
+         material (owner: "fill in the area ... with the same material as
+         the cup so it isn't hollow"). No overlay furnishing. */
       const dT = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      return build(cfg, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
+      const cfgT: GenConfig = {
+        ...cfg,
+        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
+        candy: { ...cfg.candy, innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) } },
+      };
+      return build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
     }
     case "gifticon": {
-      /* Gift box — same doctrine, with ONE identifying detail (the gear-hub
-         rule): the vertical ribbon band over lid and front. Nothing else. */
+      /* Gift box — geometry first (owner): the specular shine and gloss
+         are parked, the face gradient is calmed to one material, and the
+         3/4 form is drawn by FOLD LINES in the same voice as the outer
+         stroke — the lid's underside across the front, the front/side
+         fold, and the lid's own fold. */
       const dF = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const shellF = build(cfg, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
+      const cfgF: GenConfig = {
+        ...cfg,
+        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
+        candy: {
+          ...cfg.candy,
+          gloss: { ...cfg.candy.gloss, on: false },
+          specular: { ...cfg.candy.specular, on: false },
+          innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) },
+        },
+      };
+      const shellF = build(cfgF, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
       const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
       if (!shellFM || opts.part === "base") return shellF;
-      const [fx0, fy0, fw, fh] = shellFM[1].split(" ").map(Number);
+      const [fx0, fy0, fw] = shellFM[1].split(" ").map(Number);
+      /* The gift silhouette's 200-square viewBox maps onto the (square)
+         shell box at fw/200 — verified against the rendered path bbox —
+         so the fold lines are drawn in AUTHORED coordinates: lid
+         underside (30,96)→(166,86.7), the front/side fold rising from
+         the bottom corner at x=136, and the lid's own fold at x=146
+         (the lid overhangs the box by 10). Ends tuck 1 unit short so
+         the round caps fuse into the outline instead of poking out. */
+      const sMap = fw / 200;
+      const aX = (ax: number) => (fx0 + ax * sMap).toFixed(1), aY = (ay: number) => (fy0 + ay * sMap).toFixed(1);
       const dimF = state === "disabled" ? 0.45 : 1;
-      const wellF = darken(effect(cfg.effects, "Inner Fill"), 0.72);
-      /* vb geometry: lid front y 64→96, box front y 96→184, band centered
-         on the knot x=90 (fractions of the 200-unit square) */
-      const ribbon = `<g opacity="${dimF}">
-        <rect x="${(fx0 + 0.405 * fw).toFixed(1)}" y="${(fy0 + 0.32 * fh).toFixed(1)}" width="${(fw * 0.085).toFixed(1)}" height="${(fh * 0.6).toFixed(1)}" fill="${wellF}" opacity="0.85"/>
+      const lnW = (fw * 0.033).toFixed(1);
+      const lnC = hexRgba(darken(bevel, 0.52), 0.9);
+      const folds = `<g opacity="${dimF}" stroke="${lnC}" stroke-width="${lnW}" stroke-linecap="round" fill="none">
+        <path d="M ${aX(31)} ${aY(95.6)} L ${aX(165)} ${aY(86.9)}"/>
+        <path d="M ${aX(136)} ${aY(88.9)} L ${aX(136)} ${aY(181.5)}"/>
+        <path d="M ${aX(146)} ${aY(53.2)} L ${aX(146)} ${aY(87.4)}"/>
       </g>`;
-      return inject(shellF, ribbon);
+      return inject(shellF, folds);
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.
