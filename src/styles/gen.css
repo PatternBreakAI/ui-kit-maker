@@ -2132,6 +2132,16 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
 .bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
 /* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
+/* the stamp door — the one non-component asset, pinned above the groups */
+.bd-stampbtn {
+  display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
+  padding: 9px 11px; border-radius: 10px; cursor: pointer; text-align: left;
+  border: 1px dashed rgba(159, 226, 255, .4); background: rgba(24, 30, 46, .5);
+  color: #cfe0f2; font: 600 12px/1.3 Inter, sans-serif;
+  transition: border-color .15s, color .15s;
+}
+.bd-stampbtn:hover { border-color: #9fe2ff; color: #fff; }
+
 /* safety-area guides — a view layer over the stage; pointer-dead, never
    exported. Frames are dashed with a soft outer dim so the unsafe margin
    reads at a glance. */

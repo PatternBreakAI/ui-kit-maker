@@ -8,6 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
@@ -75,6 +76,9 @@ export interface ExportBoardItemData {
   /** zone anchor, Unity convention (ax 0..1 left→right, ay 0..1 bottom→top) */
   ax: number; ay: number;
   anchor: string;
+  /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
+      shadow/glow already in the pixels); null for prefab-backed pieces */
+  stamp: string | null;
 }
 export interface ExportBoardData {
   name: string;
@@ -82,9 +86,9 @@ export interface ExportBoardData {
   bg: {
     file: string; opacity: number; blur: number;
     overlay: string; overlayStrength: number; overlayBlend: string;
-    /** the app's saturation dial (0–100) — already BAKED into the bytes,
-        so the importer places the image as-is; recorded for transparency */
-    saturation: number;
+    /** the darkroom dials — already BAKED into the bytes, so the importer
+        places the image as-is; recorded for transparency */
+    saturation: number; hue: number; brightness: number; contrast: number; noise: number;
     /** original upload bytes from the vault, or the decoded proxy when the
         vault has no original (other device / pre-vault board) */
     bytes: Uint8Array;
@@ -92,6 +96,8 @@ export interface ExportBoardData {
     original: boolean;
   } | null;
   items: ExportBoardItemData[];
+  /** baked stamp sprites for this board — pushed into the zip beside bg */
+  stampFiles: { file: string; bytes: Uint8Array }[];
 }
 
 const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
@@ -120,7 +126,7 @@ export async function collectExportBoards(st: {
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId);
+    const items = bd.items.filter((b) => b.kitId || b.stamp);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -149,19 +155,22 @@ export async function collectExportBoards(st: {
           } catch { /* scene ships without a backdrop */ }
         }
       }
-      /* the saturation dial BAKES into the shipped pixels — a deterministic
-         color op, so what the stage shows is exactly what Unity places
-         (unlike blur, which stays a preview nicety). A failed decode ships
-         the untouched bytes and keeps the dial value in the manifest. */
-      const sat = bd.bgSat ?? 100;
-      if (bytes && sat < 100) {
+      /* the whole darkroom BAKES into the shipped pixels — hue, saturation,
+         brightness, contrast, blur AND the seeded grain are deterministic
+         ops, so what the stage shows is exactly what Unity places. A failed
+         decode ships the untouched bytes; the manifest keeps the dials. */
+      const grade = boardBgFilter(bd);
+      const grain = bd.bgNoise ?? 0;
+      if (bytes && (grade || grain > 0)) {
         try {
           const bmp = await createImageBitmap(new Blob([bytes.slice().buffer as ArrayBuffer]));
           const cv = document.createElement("canvas");
           cv.width = bmp.width; cv.height = bmp.height;
           const ctx = cv.getContext("2d")!;
-          ctx.filter = `saturate(${sat / 100})`;
+          if (grade) ctx.filter = grade;
           ctx.drawImage(bmp, 0, 0);
+          ctx.filter = "none";
+          drawBoardNoise(ctx, cv.width, cv.height, grain);
           bmp.close();
           const jpeg = ext === "jpg";
           const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
@@ -171,7 +180,7 @@ export async function collectExportBoards(st: {
       if (bytes) {
         bg = {
           file: `backgrounds/${slug}.${ext}`, bytes, original,
-          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: sat,
+          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
           overlay: bd.ovMode ?? "none", overlayStrength: bd.ovStrength ?? 100,
           overlayBlend: bd.ovBlend ?? "normal",
         };
@@ -179,7 +188,44 @@ export async function collectExportBoards(st: {
     }
 
     const exItems: ExportBoardItemData[] = [];
+    const stampFiles: { file: string; bytes: Uint8Array }[] = [];
     for (const b of items) {
+      if (b.stamp) {
+        /* a stamp bakes to its own sprite: specimen svg → raster → the
+           instance's adjust filter (shadow/glow included) on a canvas
+           padded so nothing clips. Center is preserved (symmetric pad). */
+        const { bytes: raw, w: rw0, h: rh0 } = await svgToPngBytes(stampSvg(st.cfg, b.stamp), 2);
+        const bmp = await createImageBitmap(new Blob([raw.slice().buffer as ArrayBuffer]));
+        // warp FIRST (shadow/glow then follow the bent shape), filter second
+        const warped = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount
+          ? warpStampRaster(bmp, rw0, rh0, b.stamp.warp) : null;
+        const rw = warped ? warped.width : rw0, rh = warped ? warped.height : rh0;
+        const padPx = stampFilterPad(b.stamp) * 2;
+        const cv = document.createElement("canvas");
+        cv.width = rw + padPx * 2; cv.height = rh + padPx * 2;
+        const cx2 = cv.getContext("2d")!;
+        const sf = stampFilter(st.cfg, b.stamp);
+        if (sf) cx2.filter = sf;
+        cx2.drawImage(warped ?? bmp, padPx, padPx);
+        bmp.close();
+        const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+        if (!blob) continue;
+        const file = `boardstamps/${slug}-${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        const k = b.scale ?? 1;
+        const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
+        const cx = b.x + ((rw / 2) * k) / 2, cy = b.y + ((rh / 2) * k) / 2;
+        const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
+        const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
+          anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
+          stamp: file,
+        });
+        continue;
+      }
       const id = b.kitId!;
       // the Board stage's own recipe — dims must match what the maker saw
       const svg = renderKit(applyKitTextFill(st.cfg, st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id] });
@@ -195,10 +241,10 @@ export async function collectExportBoards(st: {
       exItems.push({
         component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
         w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
-        rot: b.rot ?? 0, label: b.label ?? null, value: b.v ?? null, ax, ay, anchor,
+        rot: b.rot ?? 0, label: b.label ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
       });
     }
-    out.push({ name: bd.name, w: W, h: H, bg, items: exItems });
+    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
   }
   return out;
 }
@@ -1365,7 +1411,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ...(full && st.boards?.length ? {
         boards: st.boards.map((b) => ({
           name: b.name, w: b.w, h: b.h,
-          bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, saturation: b.bg.saturation, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
+          bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, saturation: b.bg.saturation, hue: b.bg.hue, brightness: b.bg.brightness, contrast: b.bg.contrast, noise: b.bg.noise, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
           items: b.items,
         })),
       } : {}),
@@ -1373,7 +1419,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     }, null, 2),
   });
   if (full && st.boards?.length) {
-    for (const b of st.boards) if (b.bg) files.push({ path: b.bg.file, data: b.bg.bytes });
+    for (const b of st.boards) {
+      if (b.bg) files.push({ path: b.bg.file, data: b.bg.bytes });
+      for (const sf of b.stampFiles) files.push({ path: sf.file, data: sf.bytes });
+    }
   }
 
   /* ── Unity: the importer IS the product's second half. It applies
@@ -3054,8 +3103,8 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; }
-  [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; }
+  [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
@@ -3699,7 +3748,6 @@ namespace PatternBreak {
             bimg.preserveAspect = false;
             bimg.raycastTarget = false;
             bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
-            if (bd.bg.blur > 0f) Debug.Log("UI Kit Maker: board '" + bd.name + "' uses a " + bd.bg.blur + "px backdrop blur in the app — add your own blur material if you want the same haze in-engine.");
             if (bd.bg.overlay != null && bd.bg.overlay != "none") {
               var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
               ovGo.transform.SetParent(canvasGo.transform, false);
@@ -3716,12 +3764,26 @@ namespace PatternBreak {
         }
         int placed = 0, missing = 0;
         if (bd.items != null) foreach (var it in bd.items) {
-          var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(it.component) + ".prefab");
-          if (pf == null) { missing++; continue; }
-          var inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
-          inst.transform.SetParent(canvasGo.transform, false);
-          var rt = inst.GetComponent<RectTransform>();
-          if (rt == null) continue;
+          GameObject inst; RectTransform rt;
+          if (!string.IsNullOrEmpty(it.stamp)) {
+            /* a type stamp — its baked sprite (adjust dials, shadow and
+               glow already in the pixels), a plain Image, no prefab */
+            var ssp = S(root + "/" + it.stamp);
+            if (ssp == null) { missing++; continue; }
+            inst = new GameObject("Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            inst.transform.SetParent(canvasGo.transform, false);
+            var simg = inst.GetComponent<Image>();
+            simg.sprite = ssp; simg.raycastTarget = false;
+            rt = inst.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(it.w, it.h);
+          } else {
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(it.component) + ".prefab");
+            if (pf == null) { missing++; continue; }
+            inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
+            inst.transform.SetParent(canvasGo.transform, false);
+            rt = inst.GetComponent<RectTransform>();
+            if (rt == null) continue;
+          }
           /* zone anchoring: the board records each piece's nearest ninth
              (ax/ay) — offsets are FROM that anchor, so a corner HUD piece
              hugs its corner on every aspect the game runs at */
@@ -3730,14 +3792,14 @@ namespace PatternBreak {
           float axBoard = it.ax * bd.w;
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
-          if (rt.sizeDelta.x > 1f) {
+          if (string.IsNullOrEmpty(it.stamp) && rt.sizeDelta.x > 1f) {
             float s = it.w / rt.sizeDelta.x;
             rt.localScale = new Vector3(s, s, 1f);
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
           /* per-copy words (the maker typed them on this copy in the app) —
              the label is LIVE text, so the override is one string set */
-          if (!string.IsNullOrEmpty(it.label)) {
+          if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.label)) {
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
           }
@@ -5520,7 +5582,7 @@ namespace PatternBreak {
       /* Board backdrops — the maker's own art, possibly 4K originals —
          arrive as single sprites so the board scenes' Background Image can
          hold them. Full quality, no mips, big ceiling. */
-      if (path.Contains("UIKitMaker/") && path.Contains("/backgrounds/")) {
+      if (path.Contains("UIKitMaker/") && (path.Contains("/backgrounds/") || path.Contains("/boardstamps/"))) {
         var gti = (TextureImporter)assetImporter;
         gti.textureType = TextureImporterType.Sprite;
         gti.spriteImportMode = SpriteImportMode.Single;

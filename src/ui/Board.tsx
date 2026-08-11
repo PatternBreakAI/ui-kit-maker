@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Shield, Smartphone, SquarePen, Trash2, X } from "lucide-react";
-import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { ArrowDown, ArrowUp, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { useGen, fileToBgDataUrl, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -265,14 +265,6 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
    what ships is exactly what the artboard showed. */
-/* backdrop blur + saturation share one CSS filter string — used by the
-   live stage AND the PNG compositor so exports match the screen */
-const bgFilter = (bd: Pick<BoardDef, "bgBlur" | "bgSat">): string | undefined => {
-  const parts: string[] = [];
-  if (bd.bgBlur) parts.push(`blur(${bd.bgBlur}px)`);
-  if ((bd.bgSat ?? 100) < 100) parts.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
-  return parts.length ? parts.join(" ") : undefined;
-};
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
@@ -375,12 +367,14 @@ export function BoardView({ playing }: { playing: boolean }) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       return { svg: renderKit(applyKitTextFill(cfg, kitTextFill[b.kitId]), b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined }), cfg };
     }
+    if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", undefined, item.kit.shape) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
 
   const nameOf = (b: BoardItem): string => {
+    if (b.stamp) return `"${b.stamp.text}"`;
     if (b.kitId) return KIT_COMPONENTS.find((c) => c.id === b.kitId)?.name ?? b.kitId;
     return library.find((l) => l.id === b.libId)?.name ?? "Piece";
   };
@@ -407,7 +401,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             const s = Math.max(W / v.videoWidth, H / v.videoHeight);
             ctx.save();
             ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-            const bf = bgFilter(bd); if (bf) ctx.filter = bf;
+            const bf = boardBgFilter(bd); if (bf) ctx.filter = bf;
             ctx.drawImage(v, (W - v.videoWidth * s) / 2, (H - v.videoHeight * s) / 2, v.videoWidth * s, v.videoHeight * s);
             ctx.restore();
           } catch { /* frame unavailable — export continues without it */ }
@@ -424,7 +418,7 @@ export function BoardView({ playing }: { playing: boolean }) {
           const s = Math.max(W / img.width, H / img.height); // cover, cropped to the board
           ctx.save();
           ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-          const bf = bgFilter(bd); if (bf) ctx.filter = bf;
+          const bf = boardBgFilter(bd); if (bf) ctx.filter = bf;
           ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
           ctx.restore(); res();
         };
@@ -432,6 +426,8 @@ export function BoardView({ playing }: { playing: boolean }) {
         img.src = bd.bgImage!;
       });
     }
+    // background film grain — independent of the overlay (owner: "noise")
+    drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
     // the overlay layer composites exactly like the live stage: tint (with
     // its blend mode) first, then film grain riding an overlay blend
     const ovMode = bd.ovMode ?? "none";
@@ -450,25 +446,7 @@ export function BoardView({ playing }: { playing: boolean }) {
       }
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
-      if ((bd.ovNoise ?? 0) > 0) {
-        const t = document.createElement("canvas");
-        t.width = t.height = 256;
-        const tc = t.getContext("2d")!;
-        const im = tc.createImageData(256, 256);
-        let seed = 48271; // seeded — the same board exports the same pixels
-        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < im.data.length; i += 4) {
-          const v2 = 88 + rnd() * 112;
-          im.data[i] = im.data[i + 1] = im.data[i + 2] = v2; im.data[i + 3] = 255;
-        }
-        tc.putImageData(im, 0, 0);
-        ctx.save();
-        ctx.globalCompositeOperation = "overlay";
-        ctx.globalAlpha = ((bd.ovNoise ?? 0) / 100) * 0.6;
-        ctx.fillStyle = ctx.createPattern(t, "repeat")!;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+      drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
     }
     for (const b of bd.items) {
       const { svg, cfg: pc } = svgOf(b);
@@ -481,9 +459,15 @@ export function BoardView({ playing }: { playing: boolean }) {
           const w = img.width * s, h = img.height * s;
           const cx = b.x - pad * s + w / 2, cy = b.y - pad * s + h / 2;
           ctx.save();
+          if (b.stamp) { const sf = stampFilter(cfg, b.stamp); if (sf) ctx.filter = sf; }
           ctx.translate(cx, cy);
           if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
-          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          if (b.stamp?.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount) {
+            const wc = warpStampRaster(img, img.width, img.height, b.stamp.warp);
+            ctx.drawImage(wc, -w / 2, -(wc.height * s) / 2, w, wc.height * s);
+          } else {
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          }
           ctx.restore(); res();
         };
         img.onerror = () => res();
@@ -547,6 +531,10 @@ export function BoardView({ playing }: { playing: boolean }) {
           <input placeholder="Search assets…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
         </label>
         <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
+        <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
+          onClick={() => useGen.getState().addStampToBoard()}>
+          <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
+        </button>
         <div className="bd-scroll">
           {assets.map((g) => {
             // every typed word must land somewhere in the piece's haystack
@@ -662,11 +650,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
                   {bd.bgImage && (bd.bgShow ?? true) && (
-                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: bgFilter(bd) }} />
+                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
                   )}
                   {bd.bgVideo && (bd.bgShow ?? true) && (
                     <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
-                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: bgFilter(bd) }} />
+                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
+                  )}
+                  {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
+                    <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
                   )}
                   {/* overlay sits between the backdrop and the pieces */}
                   {(bd.ovMode ?? "none") !== "none" && (
@@ -756,6 +747,59 @@ export function BoardView({ playing }: { playing: boolean }) {
               <input type="range" min={-45} max={45} value={sel.rot ?? 0}
                 onChange={(e) => rotateBoardItem(sel.id, +e.target.value)} />
             </label>
+            {sel.stamp && (() => {
+              /* the stamp's own dials — instance-only, the kit's typography
+                 never moves (owner: "basic controls… hue / saturation,
+                 brightness/contrast", "drop shadow", "glow") */
+              const st = sel.stamp;
+              const patch = (p: Partial<typeof st>) => useGen.getState().setBoardItemStamp(sel.id, p);
+              return (<>
+                <div className="bd-h" style={{ marginTop: 14 }}>Type stamp</div>
+                <input className="bd-abname" value={st.text} maxLength={40} aria-label="Stamp text"
+                  onChange={(e) => patch({ text: e.target.value })} />
+                <label className="bd-slider">Type size · {st.size}%
+                  <input type="range" min={25} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Hue · {st.hue ?? 0}°
+                  <input type="range" min={-180} max={180} value={st.hue ?? 0} onChange={(e) => patch({ hue: +e.target.value })}
+                    onDoubleClick={() => patch({ hue: 0 })} />
+                </label>
+                <label className="bd-slider">Saturation · {st.sat ?? 100}%
+                  <input type="range" min={0} max={200} value={st.sat ?? 100} onChange={(e) => patch({ sat: +e.target.value })}
+                    onDoubleClick={() => patch({ sat: 100 })} />
+                </label>
+                <label className="bd-slider">Brightness · {st.bright ?? 100}%
+                  <input type="range" min={40} max={180} value={st.bright ?? 100} onChange={(e) => patch({ bright: +e.target.value })}
+                    onDoubleClick={() => patch({ bright: 100 })} />
+                </label>
+                <label className="bd-slider">Contrast · {st.contrast ?? 100}%
+                  <input type="range" min={40} max={180} value={st.contrast ?? 100} onChange={(e) => patch({ contrast: +e.target.value })}
+                    onDoubleClick={() => patch({ contrast: 100 })} />
+                </label>
+                <label className="bd-slider">Drop shadow · {st.shadow ?? 0}%
+                  <input type="range" min={0} max={100} value={st.shadow ?? 0} onChange={(e) => patch({ shadow: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Glow · {st.glow ?? 0}%
+                  <input type="range" min={0} max={100} value={st.glow ?? 0} onChange={(e) => patch({ glow: +e.target.value })} />
+                </label>
+                <div className="bd-ovmodes" role="radiogroup" aria-label="Warp style">
+                  {(["none", "arc", "flag", "bulge"] as const).map((wsty) => (
+                    <button key={wsty} className={(st.warp?.style ?? "none") === wsty ? "on" : ""} role="radio" aria-checked={(st.warp?.style ?? "none") === wsty}
+                      onClick={() => patch({ warp: { style: wsty, amount: st.warp?.amount ?? 40 } })}>
+                      {wsty === "none" ? "No warp" : wsty[0].toUpperCase() + wsty.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                {(st.warp?.style ?? "none") !== "none" && (
+                  <label className="bd-slider">Warp amount · {st.warp?.amount ?? 0}
+                    <input type="range" min={-100} max={100} value={st.warp?.amount ?? 0}
+                      onChange={(e) => patch({ warp: { style: st.warp!.style, amount: +e.target.value } })}
+                      onDoubleClick={() => patch({ warp: { style: st.warp!.style, amount: 0 } })} />
+                  </label>
+                )}
+                <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
+              </>);
+            })()}
             <div className="bd-actions">
               {sel.kitId && (
                 <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
@@ -816,6 +860,21 @@ export function BoardView({ playing }: { playing: boolean }) {
                 </label>
                 <label className="bd-slider">Saturation · {act.bgSat ?? 100}%
                   <input type="range" min={0} max={100} value={act.bgSat ?? 100} onChange={(e) => setBoardBg({ bgSat: +e.target.value })} />
+                </label>
+                <label className="bd-slider">Hue · {act.bgHue ?? 0}°
+                  <input type="range" min={-180} max={180} value={act.bgHue ?? 0} onChange={(e) => setBoardBg({ bgHue: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgHue: 0 })} />
+                </label>
+                <label className="bd-slider">Brightness · {act.bgBright ?? 100}%
+                  <input type="range" min={40} max={180} value={act.bgBright ?? 100} onChange={(e) => setBoardBg({ bgBright: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgBright: 100 })} />
+                </label>
+                <label className="bd-slider">Contrast · {act.bgContrast ?? 100}%
+                  <input type="range" min={40} max={180} value={act.bgContrast ?? 100} onChange={(e) => setBoardBg({ bgContrast: +e.target.value })}
+                    onDoubleClick={() => setBoardBg({ bgContrast: 100 })} />
+                </label>
+                <label className="bd-slider">Noise · {act.bgNoise ?? 0}%
+                  <input type="range" min={0} max={100} value={act.bgNoise ?? 0} onChange={(e) => setBoardBg({ bgNoise: +e.target.value })} />
                 </label>
                 <div className="bd-note">
                   {act.bgVideo
@@ -888,6 +947,30 @@ export function BoardView({ playing }: { playing: boolean }) {
  *  box always hugs the piece at any scale. Selection grows the on-piece
  *  controls (ported from the homepage board): a floating toolbar above
  *  the shell and a corner drag handle that resizes in place. */
+/* A stamp on the stage. Unwarped: the crisp svg itself, restyling live.
+   Warped: the svg rasters through the SAME warp op the exports use, so the
+   preview is the export. The adjust filter stays CSS either way. */
+function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
+  const svg = stampSvg(cfg, stamp);
+  const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!warped) { setUrl(null); return; }
+    let on = true;
+    const img = new Image();
+    img.onload = () => {
+      if (!on) return;
+      const cv = warpStampRaster(img, img.width, img.height, stamp.warp!);
+      setUrl(cv.toDataURL());
+    };
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+    return () => { on = false; };
+  }, [svg, warped, stamp.warp?.style, stamp.warp?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  return warped && url
+    ? <img src={url} style={{ filter: stampFilter(cfg, stamp), display: "block" }} alt="" />
+    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
 function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
   b: BoardItem; playing: boolean; selected: boolean; fit: number;
   onSelect: () => void;
@@ -942,8 +1025,8 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
     if (typeof document !== "undefined" && document.fonts?.ready) void document.fonts.ready.then(() => read());
     return () => mo.disconnect();
   }, []);
-  const item = b.kitId ? null : library.find((l) => l.id === b.libId);
-  if (!b.kitId && !item) return null;
+  const item = b.kitId || b.stamp ? null : library.find((l) => l.id === b.libId);
+  if (!b.kitId && !b.stamp && !item) return null;
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
@@ -959,7 +1042,9 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
         onPointerCancel: onDragEnd,
       } : { onPointerDown: onSelect })}>
       <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left" }}>
-        {b.kitId ? (
+        {b.stamp ? (
+          <StampArt cfg={cfg} stamp={b.stamp} />
+        ) : b.kitId ? (
           <LiveArt cfg={applyKitTextFill(cfg, kitTextFill[b.kitId])} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
@@ -1004,6 +1089,17 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
                     onChange={(e) => useGen.getState().setBoardItemVal(b.id, +e.target.value / 100)}
                     onDoubleClick={() => useGen.getState().setBoardItemVal(b.id, null)} />
                 )}
+                {b.stamp && (<>
+                  <input type="text" className="bd-ptext" maxLength={40}
+                    title="The stamp's words" aria-label="Stamp text"
+                    value={b.stamp.text}
+                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { text: e.target.value })} />
+                  <input type="range" min={25} max={400} className="bd-pval"
+                    title="Type size — 100% is the kit's own size"
+                    aria-label="Stamp size"
+                    value={b.stamp.size}
+                    onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { size: +e.target.value })} />
+                </>)}
                 {b.kitId && KIT_LABEL_EDITABLE.has(b.kitId) && (
                   /* THIS instance's words — two START buttons on one screen
                      can say START and OPTIONS. The kit's design keeps

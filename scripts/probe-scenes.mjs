@@ -68,12 +68,31 @@ const out = await page.evaluate(async (json) => {
       { id: "i5", libId: "", kitId: "secondary", x: 60, y: 700 },
     ] },
     { id: "b3", name: "Empty", aspect: "169", items: [] },
+    { id: "b4", name: "Clean", aspect: "169", bgImage: "data:image/png;base64,x", bgAssetId: assetId, bgShow: true, items: [
+      { id: "i6", libId: "", kitId: "primary", x: 200, y: 200 },
+    ] },
   ];
+  // type stamps: baked sprite + manifest entry; glow pads the canvas
+  const stampBoards = [{ id: "t1", name: "Logo", aspect: "169", items: [
+    { id: "t1a", libId: "", x: 700, y: 400, stamp: { text: "SALT PINK", size: 200 } },
+    { id: "t1b", libId: "", x: 700, y: 700, stamp: { text: "SALT PINK", size: 200, glow: 80, shadow: 60, hue: 40 } },
+    { id: "t1c", libId: "", x: 700, y: 900, stamp: { text: "SALT PINK", size: 200, warp: { style: "arc", amount: 80 } } },
+  ] }];
+  const stEx = (await collectExportBoards({ boards: stampBoards, cfg, kitTextFill: {}, kitSizes: {}, kitShapes: {}, kitLabels: {}, kitVals: {} }))[0];
+  res.stampBakes = stEx.stampFiles.length === 3 && stEx.stampFiles.every((f) => /boardstamps\/logo-\d\.png$/.test(f.file) && f.bytes.length > 500);
+  // the arc bends upward into padded canvas — taller than the flat stamp
+  res.stampWarpTaller = stEx.items[2].h > stEx.items[0].h * 1.2 && Math.abs(stEx.items[2].w - stEx.items[0].w) < 2;
+  res.stampManifest = stEx.items.every((i) => i.component === "typestamp" && i.stamp && i.label === "SALT PINK");
+  res.stampGlowPads = stEx.items[1].w > stEx.items[0].w && stEx.items[1].h > stEx.items[0].h;
+
   const st = { boards, cfg, kitTextFill: {}, kitSizes: {}, kitShapes: {}, kitLabels: { primary: "START" }, kitVals: {} };
   const ex = await collectExportBoards(st);
-  res.boardCount = ex.length === 2; // Empty skipped
-  const b1 = ex[0], b2 = ex[1];
-  res.bgOriginalShips = !!b1.bg && b1.bg.original === true && b1.bg.bytes.length === blob.size && /\.png$/.test(b1.bg.file);
+  res.boardCount = ex.length === 3; // Empty skipped
+  const b1 = ex[0], b2 = ex[1], b4 = ex[2];
+  // blur 2 is a darkroom dial now — vault-sourced but re-encoded (baked)
+  res.bgOriginalBakes = !!b1.bg && b1.bg.original === true && b1.bg.bytes.length !== blob.size && b1.bg.bytes.length > 500 && /\.png$/.test(b1.bg.file);
+  // no dials at all → the vault bytes pass through UNTOUCHED
+  res.bgUntouchedExact = !!b4.bg && b4.bg.original === true && b4.bg.bytes.length === blob.size;
   res.bgSettingsRide = b1.bg.opacity === 90 && b1.bg.blur === 2 && b1.bg.saturation === 100 && b1.bg.overlay === "vignette" && b1.bg.overlayStrength === 80;
   res.proxyFallback = !!b2.bg && b2.bg.original === false && b2.bg.bytes.length > 100 && /\.jpg$/.test(b2.bg.file);
   const items = b1.items;
