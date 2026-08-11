@@ -48,6 +48,53 @@ function measureLive(label: string, font: string, weight: number, italic: boolea
   } catch { return null; }
 }
 
+/* ── glyph-ink map for glint stars ────────────────────────────────────
+   Star positions are authored as fractions of the text BLOCK, which
+   knows nothing about where the ink is — a star could float in a
+   counter or a letter gap (owner: "make sure the stars always touch
+   the letterforms"). Rasterize the label once at a fixed sample size,
+   collect its ink pixels, and let each star snap to the nearest one.
+   Deterministic (same label + face → same map → same snap), cached,
+   and a null map leaves the authored positions untouched. Coordinates
+   come back relative to the text's left edge and center line, in
+   sample units. */
+const INK_FS = 72;
+const _inkCache = new Map<string, { pts: [number, number][]; w: number } | null>();
+function glyphInkMap(raw: string, font: string, weight: number, italic: boolean, spacingEm: number): { pts: [number, number][]; w: number } | null {
+  const key = `${raw}|${font}|${weight}|${italic}|${spacingEm.toFixed(3)}`;
+  const hit = _inkCache.get(key);
+  if (hit !== undefined) return hit;
+  let out: { pts: [number, number][]; w: number } | null = null;
+  try {
+    if (typeof document !== "undefined") {
+      const cv = document.createElement("canvas");
+      const spec = `${italic ? "italic " : ""}${weight || 400} ${INK_FS}px "${font}", 'Inter Variable', Inter, sans-serif`;
+      const pre = cv.getContext("2d");
+      if (pre) {
+        pre.font = spec;
+        cv.width = Math.min(2400, Math.ceil(pre.measureText(raw).width * (1 + Math.max(0, spacingEm))) + INK_FS);
+        cv.height = INK_FS * 2;
+        const ctx = cv.getContext("2d", { willReadFrequently: true })!;
+        ctx.font = spec; // canvas resize resets state
+        try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${spacingEm}em`; } catch { /* older engines */ }
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(raw, INK_FS / 2, INK_FS);
+        const tw = ctx.measureText(raw).width;
+        const img = ctx.getImageData(0, 0, cv.width, cv.height).data;
+        const pts: [number, number][] = [];
+        for (let py = 0; py < cv.height; py += 3) for (let px = 0; px < cv.width; px += 3) {
+          if (img[(py * cv.width + px) * 4 + 3] > 128) pts.push([px - INK_FS / 2, py - INK_FS]);
+        }
+        if (pts.length && tw > 0) out = { pts, w: tw };
+      }
+    }
+  } catch { out = null; }
+  if (_inkCache.size > 300) _inkCache.clear();
+  _inkCache.set(key, out);
+  return out;
+}
+
 /* Rough.js draws the hand-drawn *line character* over the approved outline —
    it never designs the silhouette. Fixed seed keeps every render, state card,
    copied code and download byte-identical. Results are memoized per path. */
@@ -2406,7 +2453,34 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         ${body}
       </g>
       <g opacity="${Math.min(1, gOp * 1.15).toFixed(2)}">
-        ${starSet.map((st) => star4(tx0 + textW * st.f + lx * fs * 0.06 + gdx, gy + fs * st.dy + ly * fs * 0.06 + gdy, fs * st.s, st.r)).join("\n        ")}
+        ${starSet.map((st) => {
+          /* snap each star from its authored block-fraction position to
+             the nearest real ink pixel, so sparkles always sit ON the
+             lettering — never in a counter or a letter gap. Explicit
+             star sets (the bake/export knobs) keep their authored
+             positions: those contracts are already per-glyph. */
+          let nx = tx0 + textW * st.f, ny = gy + fs * st.dy;
+          if (opts.glintStars === undefined) {
+            const ink = glyphInkMap(cased, T2.font, T2.weight, !!T2.italic, spacingEm);
+            if (ink) {
+              /* work in TRUE ink space: the layout's textW is an estimate
+                 padded wider than the real glyph run, so mapping through
+                 it left end-stars floating beside the first and last
+                 letters. The real run is ink.w scaled by fs/INK_FS,
+                 anchored like the drawn text. */
+              const realW = ink.w * (fs / INK_FS);
+              const startX = opts.anchorLeft ? tTextX : tTextX - realW / 2;
+              const sx = ((nx - startX) / fs) * INK_FS, sy = ((ny - gy) / fs) * INK_FS;
+              let best: [number, number] | null = null, bd = Infinity;
+              for (const p of ink.pts) {
+                const d = (p[0] - sx) * (p[0] - sx) + (p[1] - sy) * (p[1] - sy);
+                if (d < bd) { bd = d; best = p; }
+              }
+              if (best) { nx = startX + (best[0] / INK_FS) * fs; ny = gy + (best[1] / INK_FS) * fs; }
+            }
+          }
+          return star4(nx + lx * fs * 0.06 + gdx, ny + ly * fs * 0.06 + gdy, fs * st.s, st.r);
+        }).join("\n        ")}
       </g>`;
     if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
   }
