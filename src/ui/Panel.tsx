@@ -653,17 +653,39 @@ export function Panel() {
      engine (api/admin.ts sends thumb: null), so the card came up blank
      (owner: "the thumbnail isn't appearing"). The recipe is right there in
      cfg, so draw the art here instead. Memoized per list — this heals every
-     past publish with no re-publish and no database work. */
+     past publish with no re-publish and no database work.
+
+     CIRCUIT BREAKER (field: "site freezes before I can do anything"): a
+     poisoned cfg can wedge the renderer forever, and this loop runs on
+     every signed-in boot — one bad row froze every session. Each render
+     marks itself in localStorage before starting and clears the mark on
+     completion; a mark that survives means that render killed the tab, so
+     every later boot SKIPS that preset (blank card, named in the console)
+     instead of freezing again. The key sits OUTSIDE the sync prefix on
+     purpose — a local scar, never synced to other devices. */
   const cloudArt = useMemo(() => {
+    const GUARD = "forge-thumbguard";
+    const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+    const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
     const out: Record<string, string> = {};
     for (const p of cloudPresets) {
       if (p.thumb) continue;
+      const guard = readGuard();
+      if (guard.includes(p.id)) {
+        console.warn(`Looks: skipping the thumbnail of "${p.name}" (${p.id}) — rendering it froze a previous session. Fix or delete that preset in the Release Desk.`);
+        continue;
+      }
       try {
+        writeGuard([...guard, p.id]);
+        const t0 = performance.now();
         const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
         for (const st of Object.values(tc.states)) st.glow = 0;
         tc.content.label = "PLAY"; tc.icon.show = false;
         out[p.id] = renderBevel(tc, "default");
+        const ms = performance.now() - t0;
+        if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) thumbnail took ${Math.round(ms)}ms to render — this preset is close to freezing sessions.`);
       } catch { /* a cfg we can't read just stays blank rather than crashing the tray */ }
+      finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
     }
     return out;
   }, [cloudPresets]);
