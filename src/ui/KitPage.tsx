@@ -244,10 +244,19 @@ function usePiece(p: PieceOpts) {
   // kit-wide size from the floating nav's M/L switch
   // the documentation shows medium and large only — a stored Small reads as Medium
   const size = p.size ?? effKitSize(kitSizes[p.id]);
+  // a pinned component renders its own snapshot, not the master's style —
+  // and a per-piece text color rides on top of either. Memoized: a fresh
+  // object here on every render (this hook re-runs on ANY store change)
+  // defeated LiveArt's svg memo and rewrote every piece's DOM each pass —
+  // the same churn that wedged the Board stage (see StagePiece's fix).
+  const kd = kitDesigns[p.id];
+  const ktf = kitTextFill[p.id];
+  const pieceCfg = useMemo(
+    () => flatPiece(applyKitTextFill(applyKitDesign(cfg, kd), ktf), p.flat),
+    [cfg, kd, ktf, p.flat],
+  );
   return {
-    // a pinned component renders its own snapshot, not the master's style —
-    // and a per-piece text color rides on top of either
-    cfg: flatPiece(applyKitTextFill(applyKitDesign(cfg, kitDesigns[p.id]), kitTextFill[p.id]), p.flat),
+    cfg: pieceCfg,
     /* two distinct badges (owner: pieces read "locked" here while the
        editor said unlocked): LOCKED is the editor's "finished" freeze
        (kitLocks); PINNED just means the piece keeps its own look

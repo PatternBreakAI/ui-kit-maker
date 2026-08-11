@@ -1067,6 +1067,20 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
 }) {
   const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
   const sc = b.scale ?? 1;
+  /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
+     with a backdrop). A fresh applyKitDesign object here on every render
+     defeated LiveArt's svg memo, and the renderer's per-call gradient ids
+     make byte-different svg for identical input — so each render rewrote
+     the DOM, the measurement MutationObserver below fired a microtask,
+     setDim scheduled more sync work, and the whole cycle starved the
+     event loop forever (CanvasView's deferred cfg lane never caught up).
+     A stable fork object breaks the cycle at its source. */
+  const kd = b.kitId ? kitDesigns[b.kitId] : undefined;
+  const ktf = b.kitId ? kitTextFill[b.kitId] : undefined;
+  const forkCfg = useMemo(
+    () => (b.kitId ? applyKitTextFill(applyKitDesign(cfg, kd), ktf) : cfg),
+    [cfg, b.kitId, kd, ktf],
+  );
   const artRef = useRef<HTMLDivElement>(null);
   // corner-handle resize: screen-px delta → scale, against the piece's
   // unscaled on-screen width captured at grab time
@@ -1111,11 +1125,20 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
       if (w && h) setDim((d) => (d && d.w === w && d.h === h && String(d.shell) === String(shell) ? d : { w, h, shell }));
     };
     read();
-    const mo = new MutationObserver(read);
+    /* THE FREEZE FIX, part 2: MutationObserver callbacks are microtasks —
+       measuring (and setting state) directly from one lets a re-render's
+       DOM write chain straight into the next measurement without ever
+       yielding to the event loop. Coalescing through rAF puts a frame
+       boundary in the cycle, so even pathological churn can only cost
+       one measurement per frame, never a wedged tab. */
+    let pend = 0;
+    const mo = new MutationObserver(() => {
+      if (!pend) pend = requestAnimationFrame(() => { pend = 0; read(); });
+    });
     mo.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["width", "height", "data-shell"] });
     // text geometry settles once webfonts arrive — re-measure then
     if (typeof document !== "undefined" && document.fonts?.ready) void document.fonts.ready.then(() => read());
-    return () => mo.disconnect();
+    return () => { cancelAnimationFrame(pend); mo.disconnect(); };
   }, []);
   const item = b.kitId || b.stamp ? null : library.find((l) => l.id === b.libId);
   if (!b.kitId && !b.stamp && !item) return null;
@@ -1139,8 +1162,10 @@ function StagePiece({ b, playing, selected, fit, onSelect, onDragStart, onDragMo
         ) : b.kitId ? (
           /* per-component design forks apply on the stage exactly like the
              editor and Kit page — the master design (and its state recipes)
-             must never leak past a fork here */
-          <LiveArt cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId])} playing={playing} anchorContent
+             must never leak past a fork here. forkCfg is memoized above:
+             a stable object identity is what keeps LiveArt's svg memo (and
+             the measurement observer behind it) quiet between real edits. */
+          <LiveArt cfg={forkCfg} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
