@@ -1240,7 +1240,13 @@ export const useGen = create<GenStore>((set, get) => ({
     return next;
   }),
   clearBoard: (id) => {
-    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [] } : b)));
+    /* Clear wipes the whole stage — pieces AND the backdrop (owner: "clear
+       should also clear the background image"). A vaulted original retires
+       with it, same as the darkroom's own Clear; the proxy stays displayable
+       for undo. */
+    const tgt = get().boards.find((b) => b.id === id);
+    if (tgt?.bgAssetId) void delBgOriginal(tgt.bgAssetId);
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [], bgImage: null, bgVideo: null, bgAssetId: null } : b)));
     set({ boardSel: null });
   },
   setBoardBg: (patch) => {

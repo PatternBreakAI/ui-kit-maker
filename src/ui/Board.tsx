@@ -987,8 +987,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onClick={() => duplicateBoard(bd.id)}>
                     <Copy size={12} strokeWidth={2.2} /> Duplicate
                   </button>
-                  <button className="bd-abtool" title="Clear every piece from this board"
-                    onClick={() => { if (bd.items.length === 0 || window.confirm(`Clear all ${bd.items.length} pieces from ${bd.name}?`)) clearBoard(bd.id); }}>
+                  <button className="bd-abtool" title="Clear this board — every piece and the background"
+                    onClick={() => {
+                      const hasBg = !!(bd.bgImage || bd.bgVideo);
+                      const what = bd.items.length ? `all ${bd.items.length} pieces${hasBg ? " and the background" : ""}` : hasBg ? "the background" : "";
+                      if (!what || window.confirm(`Clear ${what} from ${bd.name}?`)) clearBoard(bd.id);
+                    }}>
                     Clear
                   </button>
                   <button className="bd-abtool danger" title="Delete this board"
@@ -1105,7 +1109,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                         ))}
                       </div>
                     )}
-                    {bd.items.length === 0 && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
+                    {/* the hint is for a truly bare stage — a board wearing a
+                        backdrop is already someone's scene, never watermark it
+                        (owner: hint text over a fresh upload) */}
+                    {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                 </div>
               </section>
