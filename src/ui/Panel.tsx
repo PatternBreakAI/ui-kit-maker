@@ -2153,6 +2153,24 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         <div className="helper">Reading text — quest lists, menus, choice lists, dialogue lines, chat messages — speaks this face; titles and plates keep the display font. A loud display face is a headline voice, not a reading voice.</div>
+        {/* the reading voice's COLOR, one dial for every list-face surface
+            (owner: "change the color of this list font and list fonts
+            everywhere") — Auto keeps each surface's designed ink; a piece's
+            own body-color control (the dialogue box) still wins. */}
+        <div className="ctl">
+          <label>List ink</label>
+          <div className="segmini" role="radiogroup">
+            <button className={!T2.listInk ? "on" : ""} role="radio" aria-checked={!T2.listInk}
+              onClick={() => update((c) => { c.type.listInk = null; })}>Auto</button>
+            <button className={T2.listInk ? "on" : ""} role="radio" aria-checked={!!T2.listInk}
+              onClick={() => update((c) => { if (!c.type.listInk) c.type.listInk = "#FFFFFF"; })}>Custom</button>
+          </div>
+        </div>
+        {T2.listInk ? (
+          <Well label="List ink" value={T2.listInk} onChange={(v) => update((c) => { c.type.listInk = v; })} />
+        ) : (
+          <div className="helper">The reading text's color, everywhere the list face speaks. Auto keeps each surface's designed ink; Custom pins your color. The dialogue box's own body color still wins there.</div>
+        )}
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
         {/* stacked labels only — the gap between lines, % of factory leading
             (owner: "leading controls for the type, at least here"). Shown

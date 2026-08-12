@@ -297,6 +297,12 @@ export interface TypeCfg {
    *  null/absent = adaptive: near-white on dark faces, the Shadow role
    *  darkened on light ones (owner: "how do I edit the black text?"). */
   infoInk?: string | null;
+  /** List ink — the READING text's color, everywhere the list face speaks
+   *  (quest lists, menus, choice lists, dialogue lines, chat messages,
+   *  friend-row status). null/absent = each surface's designed default;
+   *  an explicit per-part ink (dialogue body color) still wins (owner:
+   *  "change the color of this list font and list fonts everywhere"). */
+  listInk?: string | null;
   outline: { on: boolean; color: string; color2: string | null; width: number };       // color2 set = gradient stroke
   shadow: { on: boolean; color: string; x: number; y: number; blur: number; opacity: number };
   /** Relief follows the master light: highlight toward it, shade away from it.

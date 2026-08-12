@@ -3123,6 +3123,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // an explicit per-part ink (a color slot) beats the type fill — the
     // effects (outline, shadow, glow) still ride the type treatment
     if (o2.ink) fill4 = o2.ink;
+    /* the LIST INK: one pinned color for every reading-text voice (owner:
+       "change the color of this list font and list fonts everywhere") —
+       under the per-part inks, over the display fill */
+    else if (o2.list && (T4.listInk ?? cfg.type.listInk)) fill4 = (T4.listInk ?? cfg.type.listInk)!;
     else if (T4.fillMode === "solid") fill4 = T4.fill;
     else if (T4.fillMode === "gradient") {
       defs4 += `<linearGradient id="${gid4}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient>`;
@@ -6321,9 +6325,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         </g>
         <circle cx="${(pcx + pr * 0.72).toFixed(1)}" cy="${(cy + pr * 0.72).toFixed(1)}" r="${(8 * k).toFixed(1)}" fill="${PRES}" stroke="rgba(255,255,255,0.9)" stroke-width="2"${online && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(PRES, 0.7)})"` : ""}/>` +
         contentText(opts.label ?? "KAIRO_77", pcx + pr + 14 * k, cy - 10 * k, 21 * k * typeK, { keepCase: true }) +
-        infoText(online ? (opts.slots?.status ?? "In Match · Ranked").slice(0, 32) : "Last seen 2h ago", pcx + pr + 14 * k, cy + 15 * k, 14.5 * k, "start", 650) +
+        /* the STATUS is reading text — it speaks the LIST FACE (owner:
+           "the list font does not match the display font" — it was
+           hardcoded Inter). Quiet voice: plain dress, readout ink unless
+           the List ink pins a color. */
+        contentText(online ? (opts.slots?.status ?? "In Match · Ranked").slice(0, 32) : "Last seen 2h ago", pcx + pr + 14 * k, cy + 15 * k, 14.5 * k * Math.min(typeK, 1.2), { keepCase: true, list: true, plain: true, ink: cfg.type.listInk ?? infoInk }) +
         `<rect x="${joinX.toFixed(1)}" y="${(cy - joinH / 2).toFixed(1)}" width="${joinW.toFixed(1)}" height="${joinH.toFixed(1)}" rx="${(joinH / 2).toFixed(1)}" fill="${joinFill}" stroke="${online ? hexRgba(glow, 0.6) : "rgba(255,255,255,0.2)"}" stroke-width="1.4"${online && state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>` +
-        `<text x="${(joinX + joinW / 2).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="${joinInk}" text-anchor="middle" dominant-baseline="central">${esc(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE")}</text>`;
+        // the JOIN cap is a mini CTA — the kit's display face, plain dress
+        contentText(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE", joinX + joinW / 2, cy + 1, 15 * k, { anchor: "middle", plain: true, ink: joinInk, track: 6, keepCase: true });
       return inject(shell.replace("<svg ", '<svg data-friendrow="1" '), parts);
     }
     case "chatbubble": {
@@ -6356,7 +6365,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bodyH = inset * 2 + 30 * k + lines.length * lineH + 8 * k;
       const h = bodyH + Math.min(30, bodyH * 0.28);
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
-      let parts = infoText((opts.slots?.sender ?? "NOVA_KNIGHT").slice(0, 20), 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, "start", 800) +
+      // the sender is reading text — the LIST FACE speaks it (the timestamp
+      // stays a readout: small working numbers)
+      let parts = contentText((opts.slots?.sender ?? "NOVA_KNIGHT").slice(0, 20), 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, { keepCase: true, list: true, plain: true, ink: cfg.type.listInk ?? infoInk }) +
         infoText((opts.slots?.time ?? "14:02").slice(0, 8), 39 + w - inset - 12 * k, 30 + inset + 16 * k, 13 * k, "end", 650);
       lines.forEach((ln, i) => {
         // message body = reading text → the list face, like dialogue lines
