@@ -4115,11 +4115,18 @@ namespace PatternBreak {
               foreach (var a in m.assets) if (a != null && a.component == it.component && a.part == "base") { baseA = a; break; }
               var shl = baseA != null ? baseA.shell : null;
               float s;
-              if (shl != null && shl.w > 4f) {
-                s = it.w / (shl.w / ps);
-                // land the SHELL's center on the board point, not the sprite's
-                float dxS = (shl.x + shl.w / 2f) / ps - rt.sizeDelta.x / 2f;
-                float dyS = (shl.y + shl.h / 2f) / ps - rt.sizeDelta.y / 2f;
+              var rootImg2 = inst.GetComponent<Image>();
+              var rootSp = rootImg2 != null ? rootImg2.sprite : null;
+              if (shl != null && shl.w > 4f && rootSp != null && rootSp.rect.width > 1f) {
+                /* RECT-PROOF: scale from the SPRITE's own pixels, not the
+                   prefab rect — an old prefab with a stale rect (the 2x
+                   PLAY buttons) sizes true anyway, because the shell's
+                   fraction of the sprite survives any rect stretch */
+                s = (it.w / rt.sizeDelta.x) * (rootSp.rect.width / shl.w);
+                float fx = (shl.x + shl.w / 2f) / rootSp.rect.width;
+                float fy = (shl.y + shl.h / 2f) / rootSp.rect.height;
+                float dxS = rt.sizeDelta.x * (fx - 0.5f);
+                float dyS = rt.sizeDelta.y * (fy - 0.5f);
                 rt.anchoredPosition += new Vector2(-dxS * s, dyS * s);
               } else s = it.w / rt.sizeDelta.x;
               rt.localScale = new Vector3(s, s, 1f);
@@ -4144,6 +4151,15 @@ namespace PatternBreak {
             else {
               var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
               if (tmp != null) tmp.text = it.label;
+            }
+            /* longer words than the prefab default WRAPPED inside the
+               fixed label box (field: BACK → "BAC K") — one line, shrink
+               to fit instead */
+            foreach (var wt in inst.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+#pragma warning disable 0618
+              wt.enableWordWrapping = false;
+#pragma warning restore 0618
+              wt.overflowMode = TMPro.TextOverflowModes.Overflow;
             }
 #else
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
@@ -5337,6 +5353,7 @@ namespace PatternBreak {
       if (family == "endturn") return "END TURN";
       if (family == "keycap") return "E";
       if (family == "pricebtn") return "$4.99";
+      if (family == "header-banner") return "SETTINGS";
       return "PLAY";
     }
     static bool ProgressPrefab(string dir, string root, int pngScale) {
@@ -5690,7 +5707,7 @@ namespace PatternBreak {
 #endif
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
-      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "endturn", "keycap", "pricebtn" };
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "endturn", "keycap", "pricebtn", "header-banner" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
