@@ -1737,7 +1737,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  opaque — the engine stencil that clips the tiled pattern to the
    *  shape. Unset = the normal single-layer render, byte-for-byte as
    *  before. */
-  faceLayer?: "under" | "over" | "mask";
+  faceLayer?: "under" | "over" | "mask" | "specular";
   /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
    *  inside each glyph are what make glints read per-letter; a bandScale
    *  wide enough pushes the caps outside the glyph so adjacent baked
@@ -1764,9 +1764,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   };
   const secondary = !!opts.secondary;
   /* stretch-safe face layers: LU draws everything BELOW the pattern, LO
-     everything ABOVE it. Unset faceLayer = both, i.e. today's render. */
+     everything ABOVE it. Unset faceLayer = both, i.e. today's render.
+     "specular" = the streak ALONE (its clip, masks and blend intact) on a
+     transparent canvas — the engine overlays it as its own sprite so
+     nine-slicing can't smear the feather (owner: "translated very
+     bluntly"). */
   const LM = opts.faceLayer === "mask"; // the face silhouette alone, opaque
-  const LU = !LM && opts.faceLayer !== "over", LO = !LM && opts.faceLayer !== "under";
+  const LSP = opts.faceLayer === "specular";
+  const LU = !LM && !LSP && opts.faceLayer !== "over", LO = !LM && !LSP && opts.faceLayer !== "under";
   const D = designFor(cfg, opts.pinDesign && state !== "disabled" ? "default" : state);
   /* per-state icon rig — color/effects/weight/pose fork with the state,
      the glyph itself is component-wide (store.update enforces that) */
@@ -2679,7 +2684,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
-    ${specular && LO ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
   </g>
 </g>
 </svg>`;
@@ -3044,8 +3049,9 @@ export interface KitOpts {
    *  ("over") the pattern, so the pattern can tile independently and
    *  never shears when a nine-slice middle stretches. "mask" is the bare
    *  face silhouette, opaque — an engine stencil that clips the tiled
-   *  pattern to the shape. */
-  faceLayer?: "under" | "over" | "mask";
+   *  pattern to the shape. "specular" is the streak ALONE on transparency,
+   *  for the engine-composed specular overlay. */
+  faceLayer?: "under" | "over" | "mask" | "specular";
   sub?: string; max?: string; addBtn?: boolean; overlay?: string;
   /** Chosen slot values, keyed by slot id (see KIT_SLOTS in model.ts).
    *  The renderer validates against the slot's curated list — a choice
@@ -3310,7 +3316,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "secondary":
       return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { secondary: true, label: opts.label ?? "Secondary", shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "small":
-      return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "iconbtn":
@@ -3318,14 +3324,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          export's bare shell — the glyph ships separately in icons/) */
       return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "chip":
-      return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "badge":
       // presented (count) → awarded (star) → disabled
       return state === "pressed"
         ? build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 0, iconSize: 52 * k }, { label: "", iconDef: opts.icon ?? STOCK_ICONS.star, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx })
         : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k, iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "tab":
-      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "segment": {
       const w = 560 * k, h = 106 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
@@ -3386,9 +3392,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // compact premium proportion: shell ≈ 2–2.5× the knob diameter, with the
       // knob filling most of the inner height like a hardware switch
       const w = 148 * k, h = 102 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 4;
       const knobR = (h - bw * 2) / 2 - 8;
+      /* rig LAYERS (overlay knob): the wired Unity Switch assembles the
+         REAL component from these — bare track, knob with the ON dot,
+         knob with the OFF dot — so the working control is byte-true to
+         the piece the maker styled */
+      if (opts.overlay === "knob" || opts.overlay === "knob-off") {
+        const dotL = opts.overlay === "knob" ? glow : "#9AA1AC";
+        const cpad = Math.ceil(knobR + 20);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL)}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.94"/>`);
       const kx = on ? 39 + w - inset - 5 - knobR : 39 + inset + 5 + knobR;
       const ky = 30 + h / 2;
       const dot = state === "disabled" ? "#A7AAB4" : on ? glow : "#9AA1AC";
@@ -3396,7 +3413,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "slider": {
       const w = 460 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw * 0.7 + 3;
       const gapPad = 5 * k;
       const bh = h - inset * 2 - gapPad * 2;
@@ -3407,6 +3423,28 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the component's outer boundary at 0% and 100% (it may overlap the
          inner track), and the fill ends at the thumb's center */
       const kr = h * 0.42;
+      /* rig LAYERS (overlay knob): the wired Unity Slider assembles the
+         REAL component from these three sprites, so the working control
+         matches the Board's piece exactly */
+      if (opts.overlay === "knob") {
+        const cpad = Math.ceil(kr + 20);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC)}</svg>`;
+      }
+      if (opts.overlay === "fill") {
+        /* the mercury at 100% — the full silhouette-shaped run, no shell,
+           no well, no knob. Unity's Fill Rect scissors it to the live
+           value, exactly like the app's clip does. */
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
+          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const v01 = clamp(value ?? 0.62, 0, 1);
       const knobX = 39 + Math.max(kr + 1.5, Math.min(w - kr - 1.5, inset + gapPad + trackW * v01));
       const fillW = Math.max(0, knobX - bx);
@@ -3550,7 +3588,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "input": {
       const w = 560 * k, h = 124 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no well, no placeholder
+      if (opts.faceLayer === "specular") return track;
       const inset = bw + 4;
       const tyIn = 30 + h / 2 + 1 + (opts.textOy ?? cfg.type.oy ?? 0) * k;
       // the typeable area is the 9-slice text-safe zone: value and caret clip
@@ -6655,6 +6695,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const needH = titleBase + (subOn ? lineAdv + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
       const h = Math.max(128 * k, needH);
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 128 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no row content
+      if (opts.faceLayer === "specular") return track;
       const slotS = h - inset * 2 - 8;
       const sx = 39 + inset + 6, sy2 = 30 + inset + 4 + 2;
       const icon = opts.icon ?? STOCK_ICONS.user;
@@ -6788,6 +6830,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the wheel's, simplified: value cycles which weapon is armed; icon
          swaps the armed glyph; pressed sinks the dome; disabled grays. */
       const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
+      /* rig LAYERS (overlay knob): each waiting-weapon chamber as its own
+         bare sprite — rim ring, well band, candy dome, NO glyph. The Unity
+         swipe rig overlays tintable icons/ glyphs and re-deals them as the
+         armed weapon cycles. Sizes must stay in step with the satellite
+         loop below (mr = dF9 · 0.205 · [1, 0.82, 0.68]). */
+      const satM9 = /^sat([123])$/.exec(opts.overlay ?? "");
+      if (satM9) {
+        const j9 = +satM9[1] - 1;
+        const mr9 = dF9 * 0.205 * [1, 0.82, 0.68][j9];
+        const rimS9 = state !== "disabled" ? bevel : "#8F949E";
+        const cpad9 = Math.ceil(mr9 + 16);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad9 * 2}" height="${cpad9 * 2}" viewBox="0 0 ${cpad9 * 2} ${cpad9 * 2}">
+          <circle cx="${cpad9}" cy="${cpad9}" r="${mr9.toFixed(1)}" fill="${rimS9}" stroke="${darken(rimS9, 0.38)}" stroke-width="1.5"/>
+          <circle cx="${cpad9}" cy="${cpad9}" r="${(mr9 * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
+          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC) + `</svg>`;
+      }
       // the shell's x/y margins grow to hold the carousel — satellites live
       // INSIDE the canvas so raster exports keep them (never in glow slack)
       const exF = Math.round(dF9 * 0.3);
@@ -6833,17 +6891,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           candyKnob(sx, sy, mr * 0.72, knobC) +
           themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2);
       });
+      /* overlay "plain" = the swipe rig's dome: pad, ticks and candy dome
+         with NO baked glyph and NO satellites — the runtime deals those */
+      const bare9 = opts.overlay === "plain";
       return inject(track,
         `<path d="${roundRect(x9 + inset9, y9 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
         candyKnob(cx9, cy9 + sink, krF, knobC) +
-        armedIc + sats);
+        (bare9 ? "" : armedIc + sats));
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.
          The icon is the replaceable media slot. */
       const s2 = ({ s: 104, m: 128, l: 168 } as Record<KitSize, number>)[size] * k;
       const track = build(cfg, state, { x: 33, y: 27, h: s2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: s2, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no well, no overlays
+      if (opts.faceLayer === "specular") return track;
       const inset = bw + 5;
       const cx2 = 33 + s2 / 2, cy2 = 27 + s2 / 2;
       const inner = s2 - inset * 2;
