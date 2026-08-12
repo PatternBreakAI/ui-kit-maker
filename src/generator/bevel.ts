@@ -2475,9 +2475,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
              lettering — never in a counter or a letter gap. Explicit
              star sets (the bake/export knobs) keep their authored
              positions: those contracts are already per-glyph. */
-          let nx = tx0 + textW * st.f, ny = gy + fs * st.dy;
+          /* the light nudge and the offset dials move the TARGET, before
+             the snap — nudging after it shoved an already-snapped star
+             back off the letterform (owner: "stars are drifting"; the
+             worst measured 0.125em off-ink). The snap has the last word,
+             so every star ENDS on ink while still favoring the light. */
+          let nx = tx0 + textW * st.f + lx * fs * 0.06 + gdx, ny = gy + fs * st.dy + ly * fs * 0.06 + gdy;
           if (opts.glintStars === undefined) {
-            const ink = glyphInkMap(cased, T2.font, T2.weight, !!T2.italic, spacingEm);
+            /* SYNTHETIC italics sample UPRIGHT: the stars live inside the
+               label's skewX(-14) group, so the render shears star and
+               glyph together — but sampling with canvas "italic" applied
+               the canvas's OWN oblique on top, and every star landed
+               between the two shears (owner: "stars are drifting"; worst
+               measured 0.126em off-ink). A real italic face still samples
+               italic — canvas selects the same registered face. */
+            const ink = glyphInkMap(cased, T2.font, T2.weight, synthItal ? false : !!T2.italic, spacingEm);
             if (ink) {
               /* work in TRUE ink space: the layout's textW is an estimate
                  padded wider than the real glyph run, so mapping through
@@ -2495,7 +2507,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
               if (best) { nx = startX + (best[0] / INK_FS) * fs; ny = gy + (best[1] / INK_FS) * fs; }
             }
           }
-          return star4(nx + lx * fs * 0.06 + gdx, ny + ly * fs * 0.06 + gdy, fs * st.s, st.r);
+          return star4(nx, ny, fs * st.s, st.r);
         }).join("\n        ")}
       </g>`;
     if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
