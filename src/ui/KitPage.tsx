@@ -387,10 +387,16 @@ function UnityBriefing({ cards, prog, accent, kitName, onHide }: {
   onHide: () => void;
 }) {
   const [ix, setIx] = useState(0);
+  const [held, setHeld] = useState(false);
+  /* owner: "the cards are going by way too fast" — a card holds for a
+     full 10s read, the pointer resting on it pauses the clock entirely,
+     and a manual dot pick re-arms the whole hold (the timer keys on ix)
+     instead of hopping away mid-read */
   useEffect(() => {
-    const t = window.setInterval(() => setIx((i) => i + 1), 5600);
-    return () => window.clearInterval(t);
-  }, []);
+    if (held) return;
+    const t = window.setTimeout(() => setIx((i) => i + 1), 10000);
+    return () => window.clearTimeout(t);
+  }, [ix, held]);
   const at = ix % cards.length;
   const card = cards[at];
   const pct = prog ? Math.round((prog.done / Math.max(1, prog.total)) * 100) : 4;
@@ -405,7 +411,7 @@ function UnityBriefing({ cards, prog, accent, kitName, onHide }: {
         <h2 className="kp-brieftitle">{kitName}</h2>
         <div className="kp-briefbar" aria-hidden="true"><i style={{ width: `${pct}%`, background: accent }} /></div>
         <span className="kp-briefstage" role="status">{stage}…</span>
-        <div className="kp-briefcard" key={at}>
+        <div className="kp-briefcard" key={at} onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)}>
           <i className={`kp-brieftag${card.kicker === "DID YOU KNOW" ? " know" : ""}`}>{card.kicker}</i>
           <b>{card.title}</b>
           <p>{card.body}</p>
