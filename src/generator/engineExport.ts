@@ -2,8 +2,8 @@
    The engine contract: NOTHING replaceable is baked. Every component
    ships as atomic, transparent PNGs (frames and surfaces as nine-slice
    with explicit margins), a manifest with native dimensions, slice
-   margins, pivots, tintability and usage, plus Unity import tooling and
-   Unreal UMG recipes. Labels are LIVE ENGINE TEXT — the manifest carries
+   margins, pivots, tintability and usage, plus Unity import tooling.
+   Labels are LIVE ENGINE TEXT — the manifest carries
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
@@ -1537,25 +1537,6 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
-
-  /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
-  if (full) {
-    const m = (fam: string) => manifest.find((a) => a.component === fam && a.part === "base")?.nineSlice;
-    const bm = m("button-primary"); const pm = m("panel");
-    files.push({ path: "unreal/README.md", data: UNREAL_README });
-    files.push({
-      path: "unreal/UMG_Recipes.md",
-      data: UNREAL_RECIPES
-        .replace("__BTN_MARGIN__", bm ? `${bm.left}, ${bm.top}, ${bm.right}, ${bm.bottom}` : "48, 40, 48, 40")
-        .replace("__PANEL_MARGIN__", pm ? `${pm.left}, ${pm.top}, ${pm.right}, ${pm.bottom}` : "64, 64, 64, 64")
-        .replace(/__FONT__/g, st.cfg.type.font),
-    });
-    files.push({
-      path: "unreal/SliceMargins.csv",
-      data: "Name,Left,Top,Right,Bottom\n" + manifest.filter((a) => a.nineSlice)
-        .map((a) => `${a.component}/${a.part},${a.nineSlice!.left},${a.nineSlice!.top},${a.nineSlice!.right},${a.nineSlice!.bottom}`).join("\n"),
-    });
-  }
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
   if (full && catalog) {
@@ -3567,7 +3548,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) MaintainExamplePrefabs(root, manifest);
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest); GenerateMissingPrefabs(root, manifest); }
 #if UNITY_2023_2_OR_NEWER
       if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
 #endif
@@ -5859,55 +5840,3 @@ namespace PatternBreak {
 }
 `;
 
-const UNREAL_README = `# PatternBreak kit — Unreal import
-
-1. Import assets/ into Content/PatternBreak (drag the folder in).
-2. UMG widgets cannot ship as text — build them once from
-   UMG_Recipes.md; every margin below is exact for THIS kit export.
-3. SliceMargins.csv imports as a DataTable if you want the margins
-   available to Blueprints/code.
-4. All labels are live TextBlocks in the kit's display face (see
-   kit-manifest.json > typography). Never bake copy into textures.
-`;
-
-const UNREAL_RECIPES = `# UMG recipes — exact values for this export
-
-Margins below are Slate brush margins as FRACTIONS of the image size —
-Unreal wants 0..0.5 per side. Compute: side_px / image_px (values are also
-in SliceMargins.csv in pixels).
-
-## Button
-- Widget: Button (or Border + Button for flat-variant layering)
-- Style > Normal/Hovered/Pressed brush: assets/button-primary/button-primary-base.9.png
-  - Draw As: Box
-  - Margin (px at export scale): __BTN_MARGIN__  -> divide by the PNG size per side
-- Child: TextBlock, font "__FONT__" (live text), plus an optional Image for the icon (assets/icons/*, tinted).
-
-## Panel / window
-- Border widget, brush assets/panel/panel-base.9.png, Draw As: Box
-- Margin (px): __PANEL_MARGIN__
-
-## Progress bar
-- ProgressBar widget
-- Style > Background Image: assets/progress/progress-track.9.png (Box)
-- Style > Fill Image: assets/progress/progress-fill.9.png (Box)
-- Percent is bound to live data.
-
-## Slider
-- Slider widget
-- Style > Normal Bar: assets/slider/slider-track.9.png; Fill: assets/slider/slider-fill.9.png
-- Style > Normal Thumb: assets/slider/slider-thumb.png (Draw As: Image)
-
-## Toggle
-- CheckBox widget styled as a switch:
-  Unchecked/Checked Image: assets/toggle/toggle-track.9.png (tint the checked state
-  toward the palette glow), thumb via a child Image animated between ends.
-
-## Checkbox / Radio
-- CheckBox widget: Unchecked Image assets/checkbox/checkbox-base.png;
-  Checked = base + assets/icons/check.png (tinted) layered above.
-  Prefer Unity's own Toggle? **CheckboxToggle.prefab** and
-  **RadioToggle.prefab** are wired ones — bare well + the kit's mark as
-  the Toggle's graphic, isOn does the rest (group radios with a
-  ToggleGroup). Both flavors ship; pick per screen.
-`;

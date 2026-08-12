@@ -3570,7 +3570,7 @@ const kitTier = useGen((s) => s.tier);
           ["Figma", "Drop any exported SVG on the canvas; ungroup once for the layer tree (shadow, extrusion, shell, face, content, gloss)"],
           ["Illustrator", "Opens directly. The SVG-Tiny clipping notice concerns re-saving only; imports are complete"],
           ["Unity", "The Unity kit: nine-slice sprites + kit-manifest.json (dims, margins, pivots, tintability), a smart importer, wired example prefabs, styled live text and a press-Play Playground scene; the sprite sheet is a visual catalog only"],
-          ["Unreal", "Coming soon — the Unity kit's zip already carries UMG recipes (unreal/) for early birds"],
+          ["Unreal", "Coming soon"],
           ["Nine-slice", "Caps are capScale × shell height and never stretch; content gives the text-safe insets (9slice.json)"],
           ["Settings", "The whole design as portable JSON — re-import it or share it as a team default"],
         ]} />
