@@ -9,7 +9,7 @@
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
@@ -112,6 +112,23 @@ const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
 /** Assemble the boards for a scene export: geometry from the same render
     recipe the Board stage uses, background bytes vault-first. Boards with
     no kit pieces are skipped (nothing to build a scene from). */
+/* Which board pieces arrive in scenes as LIVE prefabs, and under which
+   manifest family. The board stores editor ids ("primary") while the
+   importer names prefabs from sprite families ("button-primary" →
+   ButtonPrimary.prefab) — emitting the raw id sent the scene builder
+   looking for Primary.prefab and the piece was skipped (owner: "missing
+   the custom buttons"). Ids OUTSIDE this map ship no sprite family at
+   all (staged props, newer pieces), so those pieces travel as BAKED
+   SPRITES of exactly what the board showed instead. Keep in step with
+   the NINE table and the importer's prefab builders. */
+const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
+  primary: "button-primary", secondary: "button-secondary", small: "button-small",
+  chip: "chip", tab: "tab", input: "input", panel: "panel", header: "header-banner",
+  datarow: "list-row", slot: "item-slot",
+  iconbtn: "iconbtn", checkbox: "checkbox", radio: "radio", badge: "badge",
+  progress: "progress", joystick: "joystick", seasontrack: "seasontrack",
+};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -120,6 +137,9 @@ export async function collectExportBoards(st: {
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitLabels: Partial<Record<KitComponentId, string>>;
   kitVals: Partial<Record<KitComponentId, number>>;
+  /** Per-component icon overrides — board pieces wear them on the stage,
+   *  so measurements and baked sprites must too (optional: older callers). */
+  kitIcons?: Partial<Record<KitComponentId, Parameters<typeof resolveKitIcon>[0]>>;
   /** Per-component design forks — the Board stage applies them, so the
    *  exported scenes must too (optional: older callers ship master-only). */
   kitDesigns?: Partial<Record<KitComponentId, Parameters<typeof applyKitDesign>[1]>>;
@@ -321,8 +341,15 @@ export async function collectExportBoards(st: {
         continue;
       }
       const id = b.kitId!;
-      // the Board stage's own recipe — dims must match what the maker saw
-      const svg = renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id], themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id] });
+      /* the Board stage's own recipe, WHOLE (Board.tsx svgOf): icon
+         override, variant overlay (~gold), 9-slice stretch — dims and
+         baked pixels must match what the maker saw */
+      const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      const svg = renderKit(cfgP, id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+        icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+        label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+        themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+      });
       const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
       const sh = parseFloat(/height="([\d.]+)"/.exec(svg)?.[1] ?? "80");
       const k = b.scale ?? 1;
@@ -332,8 +359,29 @@ export async function collectExportBoards(st: {
       // board y runs DOWN; Unity anchors run UP — top third = ay 1
       const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
       const anchor = `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`;
+      const fam = PREFAB_FAMILY[id];
+      if (!fam) {
+        /* no sprite family ships for this piece — it can never place as a
+           prefab, and it used to just vanish from the scene ("7 skipped").
+           It travels as a BAKED SPRITE of the board's exact pixels, same
+           pipeline as saved assets. */
+        const still = svg
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+        const fdK = fontByName(cfgP.type.font);
+        const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
+        const { bytes: pk } = await svgToPngBytes(svgK, 2);
+        const file = `boardstamps/${slug}-k${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: pk });
+        exItems.push({
+          component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
+        });
+        continue;
+      }
       exItems.push({
-        component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+        component: fam, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
         w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
         /* the words the maker actually SAW: per-copy label first, the
            kit-wide custom words second. Emitting only the per-copy label
@@ -3861,14 +3909,23 @@ namespace PatternBreak {
                glow already in the pixels), a plain Image, no prefab */
             var ssp = S(root + "/" + it.stamp);
             if (ssp == null) { missing++; continue; }
-            inst = new GameObject("Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // baked kit pieces read as themselves in the hierarchy, not as "Stamp"
+            var bakedName = it.component == "typestamp" || it.component == "libasset"
+              ? "Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label)
+              : NiceName(it.component) + " (baked)";
+            inst = new GameObject(bakedName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             inst.transform.SetParent(canvasGo.transform, false);
             var simg = inst.GetComponent<Image>();
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
           } else {
-            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(it.component) + ".prefab");
+            // composed rigs publish under their own prefab names
+            var pfName = NiceName(it.component);
+            if (it.component == "progress") pfName = "ProgressBar";
+            else if (it.component == "joystick") pfName = "Joystick";
+            else if (it.component == "seasontrack") pfName = "SeasonTrack";
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
             inst.transform.SetParent(canvasGo.transform, false);
