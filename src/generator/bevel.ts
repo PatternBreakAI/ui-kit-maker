@@ -90,8 +90,24 @@ function glyphInkMap(raw: string, font: string, weight: number, italic: boolean,
       }
     }
   } catch { out = null; }
-  if (_inkCache.size > 300) _inkCache.clear();
-  _inkCache.set(key, out);
+  /* a sample taken before the face finished loading measured the FALLBACK
+     font's letterforms — usable this render, but NEVER cached, or the
+     stars keep the wrong glyph run forever even after the real face lands
+     (owner: "are the stars drifting away from the letterforms?").
+     fonts.check() alone can't gate this: it answers TRUE for a family
+     with nothing registered (nothing pending to load) — exactly the
+     pre-ensureFont window. Ready = the family is actually registered in
+     document.fonts AND its load settled. */
+  let ready = true;
+  try {
+    const fam = font.toLowerCase();
+    const registered = [...document.fonts].some((f) => f.family.replace(/['"]/g, "").toLowerCase() === fam);
+    ready = registered && document.fonts.check(`${weight || 400} ${INK_FS}px "${font}"`);
+  } catch { /* engines without FontFaceSet iteration: cache as before */ }
+  if (ready) {
+    if (_inkCache.size > 300) _inkCache.clear();
+    _inkCache.set(key, out);
+  }
   return out;
 }
 

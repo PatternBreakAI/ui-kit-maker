@@ -1515,9 +1515,18 @@ export function BoardView({ playing }: { playing: boolean }) {
    object URLs that revoke their predecessor — the old data-URL-per-tick
    version could park hundreds of MB in renderer memory during one drag. */
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
+  /* glint stars snap to REAL letterform ink — a stamp rendered before its
+     face finished loading snapped to the fallback font's run (the drifting
+     stars). Re-render when faces land; the un-cached ink map re-samples. */
+  const [fontTick, setFontTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setFontTick((t) => t + 1);
+    try { document.fonts?.addEventListener?.("loadingdone", bump); } catch { /* engines without FontFaceSet events */ }
+    return () => { try { document.fonts?.removeEventListener?.("loadingdone", bump); } catch { /* symmetric */ } };
+  }, []);
   /* a 400% specimen is a real engine render — memo it, or every board
      interaction re-renders every stamp (the tray-click sluggishness) */
-  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline]); // eslint-disable-line react-hooks/exhaustive-deps
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
   const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
