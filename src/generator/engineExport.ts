@@ -29,6 +29,11 @@ interface AssetMeta {
   pivot: { x: number; y: number };
   tintable: boolean;
   usage: string;
+  /** The SHELL's box inside the shipped sprite, in file pixels (at
+   *  pngScale). Scenes size pieces shell-to-shell with it — scaling by
+   *  the sprite rect compared a glow-padded board box against a cropped
+   *  sprite and every prefab landed oversized (owner: "weird sizing"). */
+  shell?: { x: number; y: number; w: number; h: number } | null;
 }
 
 export interface EngineExportState {
@@ -380,15 +385,34 @@ export async function collectExportBoards(st: {
         });
         continue;
       }
+      /* prefab pieces size SHELL-TO-SHELL: the svg box carries glow and
+         shadow padding while the Unity sprite is cropped, so scaling by
+         the outer box inflated every prefab by its padding ratio (owner:
+         "weird sizing issues" — the baked boards, which carry their
+         padding inside the image, came out right). data-shell0 is the
+         shell's true box; the importer matches it against the manifest's
+         shell-in-sprite. */
+      let pw = w, ph = h, pcx = cx, pcy = cy;
+      const shm2 = /data-shell0="([-\d. ]+)"/.exec(svg);
+      const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(svg);
+      if (shm2 && vbm2) {
+        const [bx3, by3, bw4, bh4] = shm2[1].split(" ").map(Number);
+        pw = bw4 * k; ph = bh4 * k;
+        pcx = b.x + ((bx3 - +vbm2[1]) + bw4 / 2) * k;
+        pcy = b.y + ((by3 - +vbm2[2]) + bh4 / 2) * k;
+      }
+      const pax = pcx < W / 3 ? 0 : pcx > (2 * W) / 3 ? 1 : 0.5;
+      const pay = pcy < H / 3 ? 1 : pcy > (2 * H) / 3 ? 0 : 0.5;
       exItems.push({
-        component: fam, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
-        w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+        component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
+        w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
         /* the words the maker actually SAW: per-copy label first, the
            kit-wide custom words second. Emitting only the per-copy label
            left kit-wide words behind — the baked board PNG said BACK, the
            live scene label reverted to the prefab's default TAB (owner:
            "the custom stuff from the boards isn't coming through") */
-        rot: b.rot ?? 0, label: b.label ?? st.kitLabels[id] ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
+        rot: b.rot ?? 0, label: b.label ?? st.kitLabels[id] ?? null, value: b.v ?? null, ax: pax, ay: pay,
+        anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
       });
     }
     out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
@@ -837,6 +861,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
         grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
+      /* shell-in-sprite, for shell-true scene sizing: the svg states its
+         shell box (data-shell0, viewBox units); the crop box places it
+         inside the shipped file's pixels */
+      let shellBox: AssetMeta["shell"] = null;
+      {
+        const shm = /data-shell0="([-\d. ]+)"/.exec(q.svg);
+        const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (shm && vbm) {
+          const [bx2, by2, bw3, bh3] = shm[1].split(" ").map(Number);
+          shellBox = {
+            x: Math.round((bx2 - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)),
+            y: Math.round((by2 - +vbm[2]) * PNG_SCALE - (raster.box?.y0 ?? 0)),
+            w: Math.round(bw3 * PNG_SCALE), h: Math.round(bh3 * PNG_SCALE),
+          };
+        }
+      }
       // Last line of defence: whatever the cap math says, borders must leave
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
@@ -891,7 +931,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -3212,7 +3252,8 @@ using TMPro;
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
+  [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -3942,7 +3983,24 @@ namespace PatternBreak {
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
           if (string.IsNullOrEmpty(it.stamp)) {
             if (rt.sizeDelta.x > 1f) {
-              float s = it.w / rt.sizeDelta.x;
+              /* SHELL-TO-SHELL sizing: the board records the shell's box
+                 and the manifest records where that shell sits inside the
+                 sprite. Scaling by the sprite rect compared a glow-padded
+                 board box against a cropped sprite — every prefab landed
+                 oversized by its padding ratio (owner: "weird sizing
+                 issues", while the baked boards came out right). */
+              float ps = m.pngScale > 0 ? m.pngScale : 2;
+              PBAsset baseA = null;
+              foreach (var a in m.assets) if (a != null && a.component == it.component && a.part == "base") { baseA = a; break; }
+              var shl = baseA != null ? baseA.shell : null;
+              float s;
+              if (shl != null && shl.w > 4f) {
+                s = it.w / (shl.w / ps);
+                // land the SHELL's center on the board point, not the sprite's
+                float dxS = (shl.x + shl.w / 2f) / ps - rt.sizeDelta.x / 2f;
+                float dyS = (shl.y + shl.h / 2f) / ps - rt.sizeDelta.y / 2f;
+                rt.anchoredPosition += new Vector2(-dxS * s, dyS * s);
+              } else s = it.w / rt.sizeDelta.x;
               rt.localScale = new Vector3(s, s, 1f);
             } else {
               /* a stretch-anchored prefab root reports no sizeDelta — after
