@@ -317,7 +317,7 @@ interface GenStore {
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgFit" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
   addToBoard: (libId: string) => void;
   /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
    *  and value — as a named library asset. The master is never touched. */
@@ -741,6 +741,12 @@ export interface BoardDef {
    *  session-only blob: URL from an upload). Exclusive with bgImage. */
   bgVideo?: string | null;
   bgShow?: boolean;
+  /** How an IMAGE backdrop meets the frame. "cover" (default) fills the
+   *  board and crops the overflow; "fit" shows the WHOLE scene over a
+   *  blurred fill — the answer when the scene's aspect isn't the board's
+   *  (owner: 9:16 portrait scenes read "too big" on the 9:19.5 mobile
+   *  stage under cover's ~22% zoom). Videos always cover. */
+  bgFit?: "cover" | "fit";
   bgOpacity?: number;
   bgBlur?: number;
   /** The backdrop darkroom (owner: saturation, then "hue / saturation,

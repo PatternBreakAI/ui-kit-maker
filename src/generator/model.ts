@@ -1046,7 +1046,7 @@ export type KitComponentId =
   | "chest" | "giftbox" | "rewardcard" | "qtybadge" | "rewardtray" | "claimbtn" | "chestpanel"
   // illustrated settings gear (staged) — the cog itself wears the treatment
   | "gearicon"
-  | "trophyicon" | "firebutton"
+  | "trophyicon" | "firebutton" | "countbadge"
   | "gifticon";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
@@ -1450,6 +1450,7 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "setrow", name: "Settings row" },
   { id: "searchfield", name: "Search field" },
   { id: "notifydot", name: "Notification badge" },
+  { id: "countbadge", name: "Count badge", staged: true },
   { id: "avatarframe", name: "Avatar frame" },
   { id: "nameplate", name: "Nameplate" },
   { id: "currency", name: "Currency pill" },

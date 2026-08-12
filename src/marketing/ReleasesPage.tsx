@@ -79,6 +79,10 @@ const RELEASES: Release[] = [
         p: "A board's Clear button now clears the whole stage — pieces and background together, and it tells you exactly what's going before it goes. And the empty-stage hint no longer prints itself over a backdrop you just uploaded; it waits for a truly bare board.",
       },
       {
+        h: "Backdrops choose how they meet the frame",
+        p: "A new Fill / Fit switch in the darkroom for image backgrounds. Fill covers the board edge to edge, cropping the overflow — today's look. Fit shows the whole scene, nothing cropped, floating over a softly blurred fill of itself — the cure for art whose aspect isn't the board's, like a portrait scene on a modern phone stage. Exports render whichever you chose, exactly as the stage shows it.",
+      },
+      {
         h: "Faster, steadier, and honest about it",
         p: "A rare freeze on boards with background images was hunted down and fixed at the root. The app also gained a safe mode (add ?safe to the address) with one-click diagnostics, so if anything ever misbehaves on your machine, support starts from evidence instead of guesswork.",
       },

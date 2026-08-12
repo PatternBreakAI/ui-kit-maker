@@ -1708,6 +1708,8 @@ const kitTier = useGen((s) => s.tier);
         rk("searchfield", "Search field"),
         rk("searchfield", "Search field · query", { label: "health potion" }),
         rk("notifydot", "Notification badge", {}, 0.3),
+        rk("countbadge", "Count badge", {}, 0.03),
+        rk("countbadge", "Count badge · 42", {}, 0.42),
         rk("avatarframe", "Avatar frame", {}, 0.12),
         rk("nameplate", "Nameplate"),
         rk("currency", "Currency pill", {}, 0.125),
@@ -2492,7 +2494,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="firebutton" caption="Pressed" baseState="pressed" scale={0.5} />
             <Piece id="firebutton" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The dome wears the armed weapon's icon; the rest of the armory waits as small satellites — Value cycles what's armed, Icons swaps the glyph, like the wheel but simpler</span><span>Pressed sinks the dome — a real button</span></div>
+          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The dome wears the armed weapon's icon; the rest of the armory fans out as its own mini-buttons, a quick-select carousel — Value cycles what's armed, Icons swaps the glyph</span><span>Pressed sinks the dome — a real button</span></div>
         </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">
@@ -2574,6 +2576,7 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-tray">
           <Piece id="searchfield" caption="Search field" scale={0.5} />
           <Piece id="notifydot" caption="Notification badge" value={0.3} scale={0.54} />
+          {kitVisible("countbadge", releases, false) && <Piece id="countbadge" caption="Count badge" value={0.03} scale={0.8} />}
           <Piece id="avatarframe" caption="Avatar frame" value={0.12} scale={0.54} />
         </div>
         <div className="kp-tray">

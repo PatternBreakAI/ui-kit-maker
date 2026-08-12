@@ -2789,7 +2789,7 @@ const cxOf = (w: number) => w / 2;
  *  slider shows exactly for these. */
 export const VALUE_DRIVEN = new Set<KitComponentId>([
   "segment", "checkbox", "radio", "toggle", "slider", "progress", "segbar", "input", "vsbar", "dialog",
-  "listmenu", "scrollbar", "pagedots", "steps", "loadbar", "setrow", "notifydot", "avatarframe", "currency",
+  "listmenu", "scrollbar", "pagedots", "steps", "loadbar", "setrow", "notifydot", "countbadge", "avatarframe", "currency",
   "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "vitalbar", "manarails", "questpanel", "choicelist",
   "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
   "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
@@ -3960,6 +3960,37 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const badge = `<g data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(3 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.7)})"` : ""}/>
         <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${count}</text></g>`;
       return inject(shell.replace("<svg ", '<svg data-notifydot="1" '), glyph + badge);
+    }
+    case "countbadge": {
+      /* System chrome · count badge — the classic red circle with a white
+         number, STANDALONE (owner: "a red circle with a white numeric
+         inside for general notification items") — pin it to any board
+         piece. Notification red is a convention, not a theme role, so it
+         stays red — leaning a whisper toward the kit's glow to sit in the
+         family, the same recipe as the icon button's corner badge. value
+         drives the count, 0..1 → 1..99. */
+      const dB = ({ s: 56, m: 72, l: 92 } as const)[size] * k;
+      const padB = 26;
+      const cxB = dB / 2 + padB, cyB = dB / 2 + padB, rB = dB / 2;
+      const liveB = state !== "disabled";
+      const baseB = liveB ? hexMix("#FF3B4A", glow, 0.12) : "#9AA0AB";
+      const badgeB = state === "hover" ? lighten(baseB, 0.12) : state === "pressed" ? darken(baseB, 0.1) : baseB;
+      const nB = Math.max(1, Math.min(99, Math.round((value ?? 0.03) * 99)));
+      const txtB = String(nB);
+      const fsB = dB * (txtB.length > 1 ? 0.44 : 0.54);
+      const gidB = "cb" + UID++;
+      const totB = dB + padB * 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${nB} notifications">
+<defs><radialGradient id="${gidB}" cx="0.35" cy="0.3" r="0.95">
+  <stop offset="0" stop-color="${lighten(badgeB, 0.32)}"/>
+  <stop offset="0.62" stop-color="${badgeB}"/>
+  <stop offset="1" stop-color="${darken(badgeB, 0.18)}"/>
+</radialGradient></defs>
+<g${liveB ? ` style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"` : ""}>
+  <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${Math.max(2, dB * 0.055).toFixed(1)}"/>
+  <text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>
+</g>
+</svg>`;
     }
     case "avatarframe": {
       /* System chrome · avatar frame — portrait ring with the level chip.
@@ -6714,16 +6745,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "firebutton": {
       /* Shooter · fire button — the joystick pad's committed sibling: the
          same circular well, but the knob is a BIG dome nearly filling it,
-         ringed by danger ticks. Reads "press me hard", never "drag me".
-         The dome wears the ARMED weapon's glyph, with the other available
-         weapons waiting as small satellites on the dome's shoulder — the
-         weapon wheel's editing contract, simplified: value cycles which
-         weapon is armed; icon swaps the armed glyph; pressed sinks the
-         dome; disabled grays and stands still. */
+         ringed by danger ticks. The dome wears the ARMED weapon's glyph;
+         the other weapons FAN OUT as their own mini fire-buttons tangent
+         to the main one's edge — a quick-select carousel (owner mockup:
+         "their own circles... icons as big as possible... some kind of
+         quick select carousel"). Nearest-in-cycle rides biggest at 12
+         o'clock, the rest taper down the left arc. Editing contract stays
+         the wheel's, simplified: value cycles which weapon is armed; icon
+         swaps the armed glyph; pressed sinks the dome; disabled grays. */
       const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
-      const track = build(cfg, state, { x: 33, y: 27, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
+      // the shell's x/y margins grow to hold the carousel — satellites live
+      // INSIDE the canvas so raster exports keep them (never in glow slack)
+      const exF = Math.round(dF9 * 0.3);
+      const x9 = 33 + exF, y9 = 27 + exF;
+      const track = build(cfg, state, { x: x9, y: y9, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
       const inset9 = bw + 5;
-      const cx9 = 33 + dF9 / 2, cy9 = 27 + dF9 / 2;
+      const cx9 = x9 + dF9 / 2, cy9 = y9 + dF9 / 2;
       const krF = dF9 / 2 - inset9 - 13;
       const sink = state === "pressed" ? dF9 * 0.016 : 0;
       const live8 = state !== "disabled";
@@ -6741,20 +6778,32 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const ROSTER9 = [STOCK_ICONS.sword, STOCK_ICONS.zap, STOCK_ICONS.flask, STOCK_ICONS.shield];
       const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
       const icF = krF * 0.8;
-      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4", 2.6)}</g>`;
-      const satR = krF * 0.17, satOrbit = krF * 0.66;
+      const icTone = live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4";
+      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, icTone, 2.6)}</g>`;
+      /* the quick-select carousel: each waiting weapon is its own MINI
+         fire button — rim ring, well band, candy dome, the glyph as big
+         as the dome allows — kissing the main button's edge. Cycle order
+         from the armed one; the next weapon rides biggest at the top. */
+      const R9 = dF9 / 2;
+      const miniRim = live8 ? bevel : "#8F949E";
       let sats = "";
-      ROSTER9.filter((_, i) => i !== armed9).forEach((ic, j) => {
-        const aS = ((-135 + j * 45) * Math.PI) / 180;
-        const sx = cx9 + satOrbit * Math.cos(aS), sy = cy9 + sink + satOrbit * Math.sin(aS);
-        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
-          iconGroup(ic, sx - satR * 0.55, sy - satR * 0.55, satR * 1.1, "#AEB6C4", { strokeWidth: 2 * iconWK });
+      [1, 2, 3].forEach((step, j) => {
+        const ic = ROSTER9[(armed9 + step) % 4];
+        const mr = dF9 * 0.205 * [1, 0.82, 0.68][j];
+        const aS = ((-90 - j * 45) * Math.PI) / 180;
+        const orbit = R9 + mr + 3;
+        const sx = cx9 + orbit * Math.cos(aS), sy = cy9 + orbit * Math.sin(aS);
+        const mic = mr * 1.02;
+        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${mr.toFixed(1)}" fill="${miniRim}" stroke="${darken(miniRim, 0.38)}" stroke-width="1.5"/>
+          <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(mr * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
+          candyKnob(sx, sy, mr * 0.72, knobC) +
+          themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2);
       });
       return inject(track,
-        `<path d="${roundRect(33 + inset9, 27 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
+        `<path d="${roundRect(x9 + inset9, y9 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
         candyKnob(cx9, cy9 + sink, krF, knobC) +
-        sats + armedIc);
+        armedIc + sats);
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.
