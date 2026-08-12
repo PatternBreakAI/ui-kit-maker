@@ -350,6 +350,9 @@ interface GenStore {
   /** 9-slice stretch gesture (bar family): width multiplier + x so the
    *  anchored edge stays planted. One coalesced history step. */
   stretchBoardItem: (id: string, stretch: number, x: number) => void;
+  /** Vertical 9-slice stretch gesture (blank panels): height multiplier + y
+   *  so the anchored edge stays planted. One coalesced history step. */
+  stretchBoardItemV: (id: string, stretchY: number, y: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
   /** THIS instance's opacity (0..100); null returns it to fully opaque. */
@@ -581,9 +584,13 @@ export interface BoardItem {
   /** THIS instance's value pose (0..1) — wins over the kit-wide staged
    *  value, so one board can show a common AND a legendary rarity frame */
   v?: number;
-  /** Horizontal 9-slice stretch (bar family only): the track re-renders
-   *  wider — caps, knob and inset stay true instead of distorting. */
+  /** Horizontal 9-slice stretch (bar family + blank panel): the track
+   *  re-renders wider — caps, knob and inset stay true instead of
+   *  distorting. */
   stretch?: number;
+  /** Vertical 9-slice stretch (blank panels): the shell re-renders taller,
+   *  walls and rim held at component scale. */
+  stretchY?: number;
   /** THIS instance's opacity, 0..100 — ghosted HUD layers, faded scenery
    *  pieces. Absent = fully opaque. Rides PNG exports. */
   opacity?: number;
@@ -1341,6 +1348,7 @@ export const useGen = create<GenStore>((set, get) => ({
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
   transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
   stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
+  stretchBoardItemV: (id, stretchY, y) => mutateItem(get, set, `stretchy:${id}`, id, (b) => ({ ...b, stretchY: Math.max(0.7, Math.min(3, stretchY)), y })),
   setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null || v >= 100) delete next.opacity; else next.opacity = Math.max(0, Math.min(100, Math.round(v)));

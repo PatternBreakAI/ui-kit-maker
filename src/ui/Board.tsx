@@ -297,7 +297,11 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 /* The bar family stretches HORIZONTALLY, 9-slice style (owner): the side
    handles re-render the track wider — caps, knob and inset stay true —
    while corners keep proportional scale. Only these components. */
-const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar"]);
+const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar", "panel"]);
+/* Blank panels stretch BOTH ways (owner: "two modes — 9-slice stretchable
+   and scale... just the blank panels for now"): top/bottom handles pull the
+   height, left/right the width, corners keep proportional scale. */
+const STRETCHABLE_V = new Set<string>(["panel"]);
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
@@ -658,7 +662,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
-      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -1212,6 +1216,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onDoubleClick={() => useGen.getState().stretchBoardItem(sel.id, 1, sel.x)} />
               </label>
             )}
+            {sel.kitId && STRETCHABLE_V.has(sel.kitId) && (
+              <label className="bd-slider" title="9-slice height — the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
+                Height · {Math.round((sel.stretchY ?? 1) * 100)}%
+                <input type="range" min={70} max={300} value={Math.round((sel.stretchY ?? 1) * 100)}
+                  onChange={(e) => useGen.getState().stretchBoardItemV(sel.id, +e.target.value / 100, sel.y)}
+                  onDoubleClick={() => useGen.getState().stretchBoardItemV(sel.id, 1, sel.y)} />
+              </label>
+            )}
             <label className="bd-slider" title="This piece's opacity — ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
               Opacity · {sel.opacity ?? 100}%
               <input type="range" min={0} max={100} value={sel.opacity ?? 100}
@@ -1572,6 +1584,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   const rsz = useRef<{ x0: number; y0: number; s0: number; hx: number; anchorX: number; anchorY: number; handX: number; handY: number; shx: number; shy: number; shw: number; shh: number; axf: number; ayf: number } | null>(null);
   // 9-slice side-handle gesture (bar family): stretch factor + planted edge
   const str = useRef<{ x0: number; st0: number; shw0: number; bx0: number; hx: number } | null>(null);
+  // the vertical twin (blank panels): height stretch + planted edge
+  const strv = useRef<{ y0: number; st0: number; shh0: number; by0: number; hy: number } | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   useEffect(() => {
     const host = artRef.current;
@@ -1659,7 +1673,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              a stable object identity is what keeps LiveArt's svg memo (and
              the measurement observer behind it) quiet between real edits. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, overlay: b.ov,
+            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined,
@@ -1751,8 +1765,13 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                 bottom-center handlebars (owner: à la Adobe). Every drag
                 anchors the OPPOSITE corner/edge — the far side stays planted
                 while the piece grows toward the pointer. One coalesced
-                history step per gesture (transformBoardItem). */}
-            {([[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0], [0.5, 1]] as const).map(([hx, hy]) => {
+                history step per gesture (transformBoardItem). Two-mode pieces
+                (blank panels) surrender the handlebars: their top/bottom spots
+                belong to the vertical 9-SLICE handles — edges stretch, corners
+                scale, one meaning per handle. */}
+            {([[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0], [0.5, 1]] as const)
+              .filter(([hx]) => !(hx === 0.5 && b.kitId && STRETCHABLE_V.has(b.kitId)))
+              .map(([hx, hy]) => {
               const bar = hx === 0.5;
               return (
                 <span key={`h${hx}${hy}`} className="bd-rszwrap" style={{ left: (sh[0] + hx * sh[2]) * sc, top: (sh[1] + hy * sh[3]) * sc }}>
@@ -1823,6 +1842,34 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                   }}
                   onPointerUp={() => { str.current = null; }}
                   onPointerCancel={() => { str.current = null; }} />
+              </span>
+            ))}
+            {/* the blank panel's TOP/BOTTOM handles — vertical 9-slice: the
+                shell re-renders taller while the far edge stays planted */}
+            {b.kitId && STRETCHABLE_V.has(b.kitId) && ([0, 1] as const).map((shy2) => (
+              <span key={`v${shy2}`} className="bd-rszwrap" style={{ left: (sh[0] + 0.5 * sh[2]) * sc, top: (sh[1] + shy2 * sh[3]) * sc }}>
+                <span className="bd-rsz2 bd-rszside bd-rszside--v" role="slider"
+                  aria-label="Stretch piece vertically (9-slice)" aria-valuenow={Math.round((b.stretchY ?? 1) * 100)}
+                  style={{ transform: `scale(${1 / fit})`, cursor: "ns-resize" }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured stretch still works */ }
+                    strv.current = { y0: e.clientY, st0: b.stretchY ?? 1, shh0: sh[3] * sc, by0: b.y, hy: shy2 };
+                  }}
+                  onPointerMove={(e) => {
+                    const r = strv.current;
+                    if (!r) return;
+                    if (!(e.buttons & 1)) { strv.current = null; return; }
+                    const ddy = (e.clientY - r.y0) / fit;
+                    const h2 = Math.max(20, r.hy === 1 ? r.shh0 + ddy : r.shh0 - ddy);
+                    const st2 = Math.max(0.7, Math.min(3, r.st0 * (h2 / r.shh0)));
+                    // bottom handle: top edge planted (y keeps). top handle:
+                    // bottom edge planted — y follows the predicted height
+                    const y2 = r.hy === 1 ? r.by0 : r.by0 - r.shh0 * (st2 / r.st0 - 1);
+                    useGen.getState().stretchBoardItemV(b.id, st2, y2);
+                  }}
+                  onPointerUp={() => { strv.current = null; }}
+                  onPointerCancel={() => { strv.current = null; }} />
               </span>
             ))}
           </>

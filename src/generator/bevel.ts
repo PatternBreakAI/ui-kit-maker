@@ -2981,9 +2981,14 @@ export interface KitOpts {
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
-   *  emblem bar, segmented meter): the TRACK re-renders wider — caps, knob
-   *  and inset stay true instead of distorting. 1 = authored width. */
+   *  emblem bar, segmented meter) and the blank panel: the TRACK/shell
+   *  re-renders wider — caps, knob and inset stay true instead of
+   *  distorting. 1 = authored width. */
   stretch?: number;
+  /** Vertical 9-slice stretch — blank panels only: the shell re-renders
+   *  taller while tokenH keeps walls, rim and depth at component scale.
+   *  1 = authored height. */
+  stretchY?: number;
   /** Alt tone — muted variant for empty/error titles; inert to hover. */
   tone?: "alt";
   /** Joystick deflection, each axis −1..1. */
@@ -3570,7 +3575,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : opts.kind === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
         : opts.kind === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
-      const [pw, ph2] = dims[size];
+      // blank panels stretch 9-slice BOTH ways (owner: "two modes — 9-slice
+      // stretchable and scale"): the shell re-renders at the pulled size while
+      // tokenH keeps walls, rim and depth at component scale — chrome constant,
+      // body grows. Corners still scale proportionally on the Board.
+      const [pw0, ph0] = dims[size];
+      const pw = pw0 * clamp(opts.stretch ?? 1, 0.7, 3);
+      const ph2 = ph0 * clamp(opts.stretchY ?? 1, 0.7, 3);
       return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov, faceLayer: opts.faceLayer });
     }
     case "vsbar": {

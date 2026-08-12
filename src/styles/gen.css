@@ -2223,6 +2223,7 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-rszbar { left: -11px; top: -5px; width: 22px; height: 10px; border-radius: 5px; }
 /* side handles (bar family) — vertical pills; drag = 9-slice stretch */
 .bd-rszside { left: -5px; top: -11px; width: 10px; height: 22px; border-radius: 5px; }
+.bd-rszside--v { left: -11px; top: -5px; width: 22px; height: 10px; }
 /* the GROUP transform frame — hugs a multi-selection; only its corner
    handles are interactive, so pieces inside stay clickable */
 .bd-groupbox { position: absolute; border: 1.5px dashed rgba(111, 214, 255, .75); border-radius: 4px; pointer-events: none; z-index: 6; }
