@@ -1831,6 +1831,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSwitchGlide.cs", data: SWITCH_GLIDE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakFireButton.cs", data: FIREBUTTON_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
@@ -1865,7 +1868,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
     "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
-    "Runtime/PatternBreakBoardRigs.cs",
+    "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
+    "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
   ]);
   const rooted = files.map((f) => ({
@@ -2905,7 +2909,11 @@ namespace PatternBreak {
 /* Runtime scripts: the BOARD RIGS — small behaviors that make placed
    scenes PLAY like the boards read (owner: difficulty selectable, the
    countdown counting, the damage number popping, the radar sweeping).
-   One shared file: four small classes, all demo-friendly and removable. */
+   ONE CLASS PER FILE: Unity binds a saved component to its script file
+   only when the file holds a single class — four classes in one file
+   left every one of them "referenced script missing" on scene load
+   (field: dead difficulty row, static countdown, frozen radar). The
+   file name keeps SelectGroup so existing installs overwrite in place. */
 const BOARD_RIGS_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 
@@ -2943,7 +2951,13 @@ namespace PatternBreak {
       }
     }
   }
+}
+`;
 
+/* Countdown label — one class per file (see BOARD_RIGS_RUNTIME). */
+const COUNTDOWN_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
   /* Countdown label — a numeric stamp that actually counts (owner: the
      numerics should animate on play). Parses m:ss from the label at
      start, or set seconds yourself; loops for the demo, onElapsed for
@@ -2982,7 +2996,13 @@ namespace PatternBreak {
 #endif
     }
   }
+}
+`;
 
+/* Pop number — one class per file (see BOARD_RIGS_RUNTIME). */
+const POP_NUMBER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
   /* Pop number — the damage-number beat: pop, drift up, fade, repeat.
      A looping demo out of the box; call Show(n) from your game to fire
      one real pop with a new value. */
@@ -3014,7 +3034,13 @@ namespace PatternBreak {
       cg.alpha = f < 0.75f ? 1f : 1f - (f - 0.75f) / 0.25f;
     }
   }
+}
+`;
 
+/* Radar demo — one class per file (see BOARD_RIGS_RUNTIME). */
+const RADAR_DEMO_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
   /* Radar demo — a sweeping line and drifting blips over the mini-map
      frame, so the piece reads alive on day one. Everything it moves is
      named "Demo …": delete those children and drive your own icons, or
