@@ -712,11 +712,23 @@ export function BoardView({ playing }: { playing: boolean }) {
       await new Promise<void>((res) => {
         const img = new Image();
         img.onload = () => {
-          const s = Math.max(W / img.width, H / img.height); // cover, cropped to the board
           ctx.save();
           ctx.globalAlpha = (bd.bgOpacity ?? 100) / 100;
-          const bf = boardBgFilter(bd); if (bf) ctx.filter = bf;
-          ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
+          const bf = boardBgFilter(bd);
+          if (bd.bgFit === "fit") {
+            // mirror the stage's Fit mode: blurred over-scanned cover fill,
+            // then the WHOLE scene contained — nothing cropped
+            const sc = Math.max(W / img.width, H / img.height) * 1.12;
+            ctx.filter = [bf, `blur(${Math.round(W * 0.014)}px) brightness(0.72)`].filter(Boolean).join(" ");
+            ctx.drawImage(img, (W - img.width * sc) / 2, (H - img.height * sc) / 2, img.width * sc, img.height * sc);
+            ctx.filter = bf || "none";
+            const sf = Math.min(W / img.width, H / img.height);
+            ctx.drawImage(img, (W - img.width * sf) / 2, (H - img.height * sf) / 2, img.width * sf, img.height * sf);
+          } else {
+            const s = Math.max(W / img.width, H / img.height); // cover, cropped to the board
+            if (bf) ctx.filter = bf;
+            ctx.drawImage(img, (W - img.width * s) / 2, (H - img.height * s) / 2, img.width * s, img.height * s);
+          }
           ctx.restore(); res();
         };
         img.onerror = () => res();
@@ -1006,9 +1018,18 @@ export function BoardView({ playing }: { playing: boolean }) {
                 </header>
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
-                  {bd.bgImage && (bd.bgShow ?? true) && (
+                  {bd.bgImage && (bd.bgShow ?? true) && (bd.bgFit === "fit" ? (
+                    /* Fit: the WHOLE scene, over a blurred fill of itself —
+                       for scenes whose aspect isn't the board's (owner:
+                       portrait 9:16 art read "too big" on the 9:19.5 mobile
+                       stage under cover's zoom-and-crop) */
+                    <>
+                      <div className="bd-bg bd-bgblur" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: [boardBgFilter(bd), "blur(26px) brightness(0.72)"].filter(Boolean).join(" ") }} />
+                      <div className="bd-bg bd-bgfit" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
+                    </>
+                  ) : (
                     <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
-                  )}
+                  ))}
                   {bd.bgVideo && (bd.bgShow ?? true) && (
                     <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
                       style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
@@ -1373,6 +1394,20 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Replace</button>
                   <button className="danger" onClick={() => setBoardBg({ bgImage: null, bgVideo: null })}><X size={13} strokeWidth={2.2} /> Clear</button>
                 </div>
+                {/* image backdrops choose how they meet the frame: Fill crops
+                    to cover, Fit shows the whole scene over a blurred fill —
+                    the cure for art whose aspect isn't the board's (owner:
+                    portrait scenes read "too big" on the mobile stage) */}
+                {act.bgImage && (
+                  <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Background fit">
+                    <button className={(act.bgFit ?? "cover") === "cover" ? "on" : ""} role="radio" aria-checked={(act.bgFit ?? "cover") === "cover"}
+                      title="Fill the board — the scene covers the frame; overflow is cropped"
+                      onClick={() => setBoardBg({ bgFit: "cover" })}>Fill</button>
+                    <button className={act.bgFit === "fit" ? "on" : ""} role="radio" aria-checked={act.bgFit === "fit"}
+                      title="Show the whole scene — nothing cropped, a blurred fill behind"
+                      onClick={() => setBoardBg({ bgFit: "fit" })}>Fit</button>
+                  </div>
+                )}
                 <label className="bd-slider">Opacity · {act.bgOpacity ?? 100}%
                   <input type="range" min={10} max={100} value={act.bgOpacity ?? 100} onChange={(e) => setBoardBg({ bgOpacity: +e.target.value })} />
                 </label>

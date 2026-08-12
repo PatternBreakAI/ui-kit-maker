@@ -1612,6 +1612,11 @@ button.kp-fact { cursor: pointer; }
 .bd-meta { position: absolute; top: 12px; left: 20px; font-size: 11px; font-weight: 600; color: var(--ink2); }
 .bd-stage { position: relative; border-radius: 14px; overflow: hidden; background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30); }
 .bd-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
+/* Fit mode: the whole scene rides crisp over a blurred fill of itself —
+   the phone-gallery treatment for art whose aspect isn't the board's.
+   The blur layer over-scans so its softened edges never show. */
+.bd-bgfit { background-size: contain; background-repeat: no-repeat; }
+.bd-bgblur { transform: scale(1.12); }
 .bd-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 .bd-empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(235,238,255,.38); font-size: 15px; }
 /* the selection outline is a measured overlay — StagePiece reads the
@@ -1652,6 +1657,9 @@ button.kp-fact { cursor: pointer; }
 .bd-actions button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-actions button:hover { border-color: var(--ink); }
 .bd-actions .danger { color: #c4453d; }
+/* Fill/Fit — how an image backdrop meets the frame */
+.bd-fitrow { margin-top: 8px; }
+.bd-fitrow button.on { border-color: #6fd6ff; color: #6fd6ff; background: rgba(111, 214, 255, .09); }
 .bd-actions.one { grid-template-columns: 1fr; }
 .bd-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 11px; font-size: 11.5px; line-height: 1.5; color: var(--ink2); }
 .bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; border-radius: 10px; border: 1px solid var(--line2); background-size: cover; background-position: center; }
