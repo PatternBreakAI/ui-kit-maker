@@ -44,3 +44,8 @@ widest fonts), not just defaults.
   in the npm script).
 - Never use the four-point "AI star" (Sparkles/Sparkle) icon anywhere.
 - No fabricated social proof, ever.
+- Release notes (`#/releases`) update ONLY on the owner's blessing, batch by
+  batch (owner mandate, 2026-08-12). The notes never mention: adjustments to
+  legal documents, anything involving personal information, or user-account
+  internals — account items appear only when they're quality-of-life.
+  Staged components stay out of the notes until the owner releases them.

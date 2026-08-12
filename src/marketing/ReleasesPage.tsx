@@ -27,6 +27,30 @@ const RELEASES: Release[] = [
         p: "Boxes now hug the artwork itself — including warped type stamps, where the box wraps the actual lettering instead of the empty air around it. What you see selected is what you're moving.",
       },
       {
+        h: "The Board learns your shortcuts",
+        p: "Shift-click selects several pieces; drag any of them and the group moves together, or grab a corner of the group frame and scale them all at once about the opposite corner. Arrow keys nudge (Shift strides), an align rack lines up edges and centers and distributes spacing evenly, ⌘C/⌘V carries pieces between boards, clicking empty space lets go of the selection, and one button exports every board at full resolution.",
+      },
+      {
+        h: "Bars stretch the way they will in your game",
+        p: "Sliders, progress bars, segmented meters and the VS health bar grow new side handles: pull an edge and the track re-renders wider — caps, knob and inset stay true instead of distorting, exactly like a nine-slice in an engine. Corners still scale the whole piece proportionally.",
+      },
+      {
+        h: "Blank panels: pull the edges, scale the corners",
+        p: "The blank panel now works in two modes. Grab any edge — left, right, top or bottom — and it stretches nine-slice style to the exact footprint your screen needs, the border and rim holding their designed weight. And because every pull is a fresh render, the gloss, pattern and grain are redrawn at the new size, never smeared. Corners still scale the whole panel proportionally, and Width and Height dials in the rail take exact numbers.",
+      },
+      {
+        h: "Any board piece can become an asset",
+        p: "Rework a piece on the Board — its words, its value, its look — and save it to your assets under its own name. The master component stays untouched, so a Small tab turned BACK button still leaves you a clean master for the FORWARD one.",
+      },
+      {
+        h: "Boards duplicate, and they travel",
+        p: "One click copies a whole artboard — pieces, backdrop and darkroom dials — a running start for the next shell menu in the same family. And the settings file now carries your boards too: export it on one machine, import it on another, and the document arrives whole, backdrops included.",
+      },
+      {
+        h: "A center scrim in the darkroom",
+        p: "The vignette's inverse: subtly darken the middle of the frame — the move games make behind menus so the UI pops. It stacks with the vignette and the overlay washes, or works alone, and it exports with the board.",
+      },
+      {
         h: "Layering, guides, and a center cross",
         p: "Bring pieces forward and back (⌘] and ⌘[ too), toggle safe-area guides on any artboard, and find a new dashed center cross marking the exact middle of the stage — vertically and horizontally — for quick composition checks.",
       },
@@ -41,6 +65,18 @@ const RELEASES: Release[] = [
       {
         h: "Boards arrive in Unity as ready scenes",
         p: "A Pro engine export now carries each artboard into Unity as a built scene: full-resolution background, pieces anchored so they hold their corners at any screen size, and your per-copy words already on the labels.",
+      },
+      {
+        h: "Motion is now user-initiated",
+        p: "The animated pieces — damage numbers, radar pulses, the weapon wheel's comets — used to loop in the background on every surface. Now they hold a settled frame while you design, wake under your pointer on the kit page, and run free only in Play mode. Dozens of idle timelines went silent, and PNG exports always capture the clean resting pose.",
+      },
+      {
+        h: "The Board bends to your hand",
+        p: "Boards zoom with the toolbar, the side trays stretch to your liking (within safe rails), every piece has its own opacity dial, and the ghost joystick overlay is placeable straight from the assets tray.",
+      },
+      {
+        h: "A cleaner slate, and backdrops left in peace",
+        p: "A board's Clear button now clears the whole stage — pieces and background together, and it tells you exactly what's going before it goes. And the empty-stage hint no longer prints itself over a backdrop you just uploaded; it waits for a truly bare board.",
       },
       {
         h: "Faster, steadier, and honest about it",

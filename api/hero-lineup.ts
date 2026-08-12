@@ -36,17 +36,32 @@ export async function GET(): Promise<Response> {
     /* snapshot->cfg only — the design recipe is the entire public
        surface of a hero designation; the rest of the snapshot (labels,
        backdrop, per-component work) stays in the vault until a wiring
-       pass decides the carousel wants more. */
-    const res = await fetch(
-      `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=preset_name,created_at,cfg:snapshot->cfg&order=created_at.desc&limit=8`,
-      { headers: { apikey: service, authorization: `Bearer ${service}` } },
-    );
-    if (!res.ok) return json({ heroes: [] });
+       pass decides the carousel wants more.
+       `hidden` rides along: the admin's homepage curation list
+       (app_settings.hidden_landing_kits, world-readable by RLS) — the
+       landing has no Supabase client, so this feed is its one channel. */
+    const headers = { apikey: service, authorization: `Bearer ${service}` };
+    const [res, hidRes] = await Promise.all([
+      fetch(
+        `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=preset_name,created_at,cfg:snapshot->cfg&order=created_at.desc&limit=8`,
+        { headers },
+      ),
+      fetch(`${supaUrl}/rest/v1/app_settings?key=eq.hidden_landing_kits&select=value`, { headers })
+        .catch(() => null),
+    ]);
+    let hidden: string[] = [];
+    if (hidRes?.ok) {
+      const hrows = (await hidRes.json()) as { value: unknown }[];
+      const v = hrows[0]?.value;
+      if (Array.isArray(v)) hidden = v.filter((x): x is string => typeof x === "string").slice(0, 64);
+    }
+    if (!res.ok) return json({ heroes: [], hidden });
     const rows = (await res.json()) as { preset_name: string; created_at: string; cfg: unknown }[];
     return json({
       heroes: rows
         .filter((r) => r.cfg && typeof r.cfg === "object")
         .map((r) => ({ name: r.preset_name, cfg: r.cfg, frozenAt: r.created_at })),
+      hidden,
     }, true);
   } catch {
     return json({ heroes: [] });

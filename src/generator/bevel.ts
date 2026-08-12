@@ -2797,7 +2797,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
-  "chest", "giftbox", "rewardcard", "rewardtray",
+  "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -2980,6 +2980,15 @@ function stampTrack(svg: string, x: number, w: number): string {
 export interface KitOpts {
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
+  /** Horizontal 9-slice stretch for the bar family (slider, progress,
+   *  emblem bar, segmented meter) and the blank panel: the TRACK/shell
+   *  re-renders wider — caps, knob and inset stay true instead of
+   *  distorting. 1 = authored width. */
+  stretch?: number;
+  /** Vertical 9-slice stretch — blank panels only: the shell re-renders
+   *  taller while tokenH keeps walls, rim and depth at component scale.
+   *  1 = authored height. */
+  stretchY?: number;
   /** Alt tone — muted variant for empty/error titles; inert to hover. */
   tone?: "alt";
   /** Joystick deflection, each axis −1..1. */
@@ -3356,7 +3365,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="${on ? 0.92 : 0.96}"/>` + candyKnob(kx, ky, knobR, knobC, dot));
     }
     case "slider": {
-      const w = 460 * k, h = 64 * k;
+      const w = 460 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw * 0.7 + 3;
       const gapPad = 5 * k;
@@ -3394,7 +3403,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
     case "progress": {
-      const w = 520 * k, h = 64 * k;
+      const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;
@@ -3435,7 +3444,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          cell is an identical rounded rect floating in the well's negative
          space. Snap mode lights whole cells; smooth mode slides one fill
          under the notches. */
-      const w = 520 * k, h = 72 * k;
+      const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 72 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;
@@ -3566,13 +3575,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : opts.kind === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
         : opts.kind === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
-      const [pw, ph2] = dims[size];
+      // blank panels stretch 9-slice BOTH ways (owner: "two modes — 9-slice
+      // stretchable and scale"): the shell re-renders at the pulled size while
+      // tokenH keeps walls, rim and depth at component scale — chrome constant,
+      // body grows. Corners still scale proportionally on the Board.
+      const [pw0, ph0] = dims[size];
+      const pw = pw0 * clamp(opts.stretch ?? 1, 0.7, 3);
+      const ph2 = ph0 * clamp(opts.stretchY ?? 1, 0.7, 3);
       return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov, faceLayer: opts.faceLayer });
     }
     case "vsbar": {
       /* Fighting · VS health bar — two mirrored wells drain toward center,
-         candy VS medallion on the axis. value drives the LEFT fighter. */
-      const w = 860 * k, h = 96 * k;
+         candy VS medallion on the axis. value drives the LEFT fighter.
+         Stretch widens the WELLS; the medallion and its center reserve
+         hold their size, so the axis stays a fixed cap (9-slice spirit). */
+      const w = 860 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 96 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3, gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
@@ -6693,6 +6710,51 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          <circle cx="${cx2}" cy="${cy2}" r="${(maxOff + kr2 * 0.5).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2" stroke-dasharray="3 8"/>` +
         (opts.part === "base" ? "" : candyKnob(cx2 + sx2 * f2 * maxOff, cy2 + sy3 * f2 * maxOff, kr2, knobC, state === "disabled" ? "#A7AAB4" : glow)));
       return svg2.replace("<svg ", `<svg data-stick="${cx2} ${cy2} ${maxOff.toFixed(1)}" `);
+    }
+    case "firebutton": {
+      /* Shooter · fire button — the joystick pad's committed sibling: the
+         same circular well, but the knob is a BIG dome nearly filling it,
+         ringed by danger ticks. Reads "press me hard", never "drag me".
+         The dome wears the ARMED weapon's glyph, with the other available
+         weapons waiting as small satellites on the dome's shoulder — the
+         weapon wheel's editing contract, simplified: value cycles which
+         weapon is armed; icon swaps the armed glyph; pressed sinks the
+         dome; disabled grays and stands still. */
+      const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
+      const track = build(cfg, state, { x: 33, y: 27, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
+      const inset9 = bw + 5;
+      const cx9 = 33 + dF9 / 2, cy9 = 27 + dF9 / 2;
+      const krF = dF9 / 2 - inset9 - 13;
+      const sink = state === "pressed" ? dF9 * 0.016 : 0;
+      const live8 = state !== "disabled";
+      const rimF = live8 ? glow : "#A7AAB4";
+      const ringR = krF + 8;
+      let ticks = "";
+      for (let i = 0; i < 12; i++) {
+        const a9 = (i / 12) * Math.PI * 2 - Math.PI / 2;
+        const major = i % 3 === 0;
+        const c9 = Math.cos(a9), s9 = Math.sin(a9);
+        ticks += `<line x1="${(cx9 + c9 * (ringR - (major ? 1 : 0))).toFixed(1)}" y1="${(cy9 + s9 * (ringR - (major ? 1 : 0))).toFixed(1)}" x2="${(cx9 + c9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" y2="${(cy9 + s9 * (ringR + (major ? 6 : 3.5))).toFixed(1)}" stroke="${hexRgba(rimF, major ? 0.85 : 0.4)}" stroke-width="${(dF9 * 0.013).toFixed(1)}" stroke-linecap="round"/>`;
+      }
+      // the armory: the wheel's first four chambers. value picks the armed
+      // one in quarters (0 blade, .3 volt, .6 tonic, .9 aegis).
+      const ROSTER9 = [STOCK_ICONS.sword, STOCK_ICONS.zap, STOCK_ICONS.flask, STOCK_ICONS.shield];
+      const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
+      const icF = krF * 0.8;
+      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4", 2.6)}</g>`;
+      const satR = krF * 0.17, satOrbit = krF * 0.66;
+      let sats = "";
+      ROSTER9.filter((_, i) => i !== armed9).forEach((ic, j) => {
+        const aS = ((-135 + j * 45) * Math.PI) / 180;
+        const sx = cx9 + satOrbit * Math.cos(aS), sy = cy9 + sink + satOrbit * Math.sin(aS);
+        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
+          iconGroup(ic, sx - satR * 0.55, sy - satR * 0.55, satR * 1.1, "#AEB6C4", { strokeWidth: 2 * iconWK });
+      });
+      return inject(track,
+        `<path d="${roundRect(33 + inset9, 27 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
+         ${ticks}` +
+        candyKnob(cx9, cy9 + sink, krF, knobC) +
+        sats + armedIc);
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.

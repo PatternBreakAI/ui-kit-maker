@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
 import { ensureFont } from "./fonts";
-import { delBgOriginal } from "./bgvault";
+import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { renderBevel, renderTypeSpecimen } from "./bevel";
@@ -309,17 +309,24 @@ interface GenStore {
   setActiveBoard: (id: string) => void;
   addBoard: () => void;
   removeBoard: (id: string) => void;
+  /** Copy a whole artboard — pieces, backdrop, darkroom and overlay dials —
+   *  as "<name> copy" right after the source (owner: "a running start"). */
+  duplicateBoard: (id: string) => void;
   renameBoard: (id: string, name: string) => void;
   /** Reorder in the pages tray — InDesign style. */
   moveBoard: (id: string, dir: -1 | 1) => void;
   clearBoard: (id: string) => void;
   /** Patch the ACTIVE board's background (image / show / opacity / blur). */
-  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend">>) => void;
+  setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
   addToBoard: (libId: string) => void;
+  /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
+   *  and value — as a named library asset. The master is never touched. */
+  saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
-  addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number }[]) => void;
-  /** Drop a live kit component on the board — follows the master style. */
-  addKitToBoard: (kitId: KitComponentId) => void;
+  addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  /** Drop a live kit component on the board — follows the master style.
+   *  `ov` picks a render variant (the ghost joystick). */
+  addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
   duplicateBoardItem: (id: string) => void;
   rotateBoardItem: (id: string, deg: number) => void;
   /** Stacking order within the piece's board — items render in array order,
@@ -340,8 +347,16 @@ interface GenStore {
   /** One gesture, one history step: scale about a transform-box anchor —
    *  position and scale move together so the anchored corner stays planted. */
   transformBoardItem: (id: string, scale: number, x: number, y: number) => void;
+  /** 9-slice stretch gesture (bar family): width multiplier + x so the
+   *  anchored edge stays planted. One coalesced history step. */
+  stretchBoardItem: (id: string, stretch: number, x: number) => void;
+  /** Vertical 9-slice stretch gesture (blank panels): height multiplier + y
+   *  so the anchored edge stays planted. One coalesced history step. */
+  stretchBoardItemV: (id: string, stretchY: number, y: number) => void;
   /** Pin THIS instance's value pose (0..1); null returns it to the kit-wide staged value. */
   setBoardItemVal: (id: string, v: number | null) => void;
+  /** THIS instance's opacity (0..100); null returns it to fully opaque. */
+  setBoardItemOpacity: (id: string, v: number | null) => void;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
   /** Drop a type stamp on the active board. */
@@ -349,6 +364,17 @@ interface GenStore {
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
+  /** One history step for a whole group: multi-drag, arrow-key nudges and
+   *  align all land here. `tag` coalesces a continuous gesture or key run. */
+  applyBoardItemPatches: (tag: string, patches: { id: string; x: number; y: number }[]) => void;
+  /** Group scale: one coalesced step patching scale AND position together,
+   *  so a corner drag scales the whole selection about a shared anchor. */
+  transformBoardItems: (tag: string, patches: { id: string; scale: number; x: number; y: number }[]) => void;
+  /** Remove every listed piece in one history step (multi-select delete). */
+  removeBoardItems: (ids: string[]) => void;
+  /** Paste copies onto the ACTIVE board (re-identified, nudged +24) and
+   *  return the new ids so the caller can select them. */
+  pasteBoardItems: (items: BoardItem[]) => string[];
   /** Board history — 100 levels, coalesced for continuous gestures. */
   boardPast: string[];
   boardFuture: string[];
@@ -534,7 +560,13 @@ interface GenStore {
 /** A saved component remembers *which* kit piece it is (when saved while one
  *  was focused), so the board can render and play it as that piece — a slider
  *  stays a slider. Absent = the master button (all older saves). */
-export interface LibKit { id: KitComponentId; size: KitSize; shape?: Shape }
+export interface LibKit {
+  id: KitComponentId; size: KitSize; shape?: Shape;
+  /** Saved-from-the-Board extras: the INSTANCE's pinned words and value pose
+   *  ride with the asset (owner: a Small tab reworked into BACK stays BACK —
+   *  the master keeps its own name for the future FORWARD). */
+  label?: string; v?: number;
+}
 export interface UserPreset { id: string; name: string; cfg: GenConfig; thumb?: string }
 export interface LibItem { id: string; name: string; cfg: GenConfig; kit?: LibKit }
 export interface StyleItem {
@@ -552,6 +584,19 @@ export interface BoardItem {
   /** THIS instance's value pose (0..1) — wins over the kit-wide staged
    *  value, so one board can show a common AND a legendary rarity frame */
   v?: number;
+  /** Horizontal 9-slice stretch (bar family + blank panel): the track
+   *  re-renders wider — caps, knob and inset stay true instead of
+   *  distorting. */
+  stretch?: number;
+  /** Vertical 9-slice stretch (blank panels): the shell re-renders taller,
+   *  walls and rim held at component scale. */
+  stretchY?: number;
+  /** THIS instance's opacity, 0..100 — ghosted HUD layers, faded scenery
+   *  pieces. Absent = fully opaque. Rides PNG exports. */
+  opacity?: number;
+  /** Render-variant overlay for kit assets that ship more than one face —
+   *  the ghost joystick ("ghost"), a slot's status skins. Absent = stock. */
+  ov?: string;
   /** THIS instance's text — two START buttons on one screen can say START
    *  and OPTIONS (owner). Wins over the kit-wide specimen label; absent =
    *  follow the kit. Design changes still flow through live — only the
@@ -712,6 +757,9 @@ export interface BoardDef {
   ovStrength?: number;  // 0..100 — tint opacity
   ovNoise?: number;     // 0..100 — film-grain amount
   ovBlend?: "normal" | "multiply" | "screen" | "overlay" | "soft-light";
+  /** Center scrim — dims the MIDDLE of the frame (the game-menu move), the
+   *  vignette's inverse. Independent of ovMode so the two stack. */
+  ovCenter?: number;    // 0..100 — scrim opacity
 }
 /** Two independent text groups + slot toggles for the Data Row family. */
 export interface RowCfg {
@@ -771,6 +819,72 @@ let histT = 0;
 const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") && !u.startsWith("data:") ? u : undefined);
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
   saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
+
+/* ── boards in the settings file (owner: "are the boards also saved in the
+   export json? if not, they should be") ──
+   The travelling form embeds each vaulted backdrop ORIGINAL as a data URL
+   (bgData) and drops session-bound object URLs and vault keys — the file
+   works on any machine. Bundled paths (/backdrops/…) and https URLs ride
+   as they are. Import is the mirror: bgData lands back in the vault under
+   a fresh key, every id is re-minted, and board history starts clean. */
+const bgDataUrlOk = (s: string) => /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(s);
+const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result));
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(blob);
+});
+
+export async function exportableBoards(bs: BoardDef[]): Promise<Record<string, unknown>[]> {
+  return Promise.all(bs.map(async (b) => {
+    const out = JSON.parse(JSON.stringify(b)) as Record<string, unknown>;
+    if (b.bgAssetId) {
+      try {
+        const rec = await getBgOriginal(b.bgAssetId);
+        if (rec) out.bgData = await blobToDataUrl(rec.blob);
+      } catch { /* the backdrop just doesn't travel */ }
+    }
+    delete out.bgAssetId; // vault keys mean nothing on another machine
+    if (typeof out.bgImage === "string" && (out.bgImage as string).startsWith("blob:")) delete out.bgImage;
+    return out;
+  }));
+}
+
+export async function importBoards(raw: unknown): Promise<boolean> {
+  if (!Array.isArray(raw) || !raw.length) return false;
+  const stamp = Date.now().toString(36);
+  const boards: BoardDef[] = [];
+  for (const [bi, rb] of (raw as unknown[]).entries()) {
+    if (!rb || typeof rb !== "object") continue;
+    const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string };
+    b.id = "ab" + stamp + bi.toString(36);
+    b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
+    b.aspect = b.aspect === "mobile" ? "mobile" : "169";
+    b.items = Array.isArray(b.items)
+      ? b.items.filter((it) => it && typeof it === "object")
+        .map((it, i) => ({ ...it, id: "bd" + stamp + bi.toString(36) + "i" + i.toString(36) }))
+      : [];
+    // strings that end up in CSS url() get the same strictness as
+    // loadKitPayload's travelling stage: known-safe shapes only
+    if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
+      try {
+        const blob = await (await fetch(b.bgData)).blob();
+        const key = await putBgOriginal(blob, "imported backdrop");
+        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); }
+      } catch { /* backdrop stays absent */ }
+    } else {
+      b.bgAssetId = null;
+      if (typeof b.bgImage === "string" && !/^(\/|https:\/\/)/.test(b.bgImage)) delete (b as Partial<BoardDef>).bgImage;
+    }
+    delete b.bgData;
+    if (typeof b.bgVideo === "string" && !/^(\/|https:\/\/)/.test(b.bgVideo)) delete (b as Partial<BoardDef>).bgVideo;
+    boards.push(b);
+  }
+  if (!boards.length) return false;
+  useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
+  saveBoards(() => useGen.getState());
+  return true;
+}
 
 /* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
    whenever I click anything in the left tray") ──
@@ -1086,6 +1200,43 @@ export const useGen = create<GenStore>((set, get) => ({
     if (!bs.some((b) => b.id === get().activeBoard)) set({ activeBoard: bs[0].id, boardSel: null });
     saveBoards(get);
   },
+  duplicateBoard: (id) => {
+    const src = get().boards.find((b) => b.id === id);
+    if (!src) return;
+    const stamp = Date.now().toString(36);
+    const nid = "ab" + stamp + Math.random().toString(36).slice(2, 5);
+    const copy: BoardDef = {
+      ...(typeof structuredClone === "function" ? structuredClone(src) : JSON.parse(JSON.stringify(src)) as BoardDef),
+      id: nid,
+      name: (src.name + " copy").slice(0, 40),
+      items: src.items.map((b, i) => ({
+        ...(typeof structuredClone === "function" ? structuredClone(b) : JSON.parse(JSON.stringify(b)) as BoardItem),
+        id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
+      })),
+      /* vault records are NEVER shared between boards — removeBoard and a
+         backdrop swap both retire the original, which would strand the
+         sibling. The copy's own bytes land asynchronously below; until
+         then bgImage still paints this session. */
+      bgAssetId: null,
+    };
+    mutateBoards(get, set, null, (bs) => {
+      const i = bs.findIndex((b) => b.id === id);
+      const next = [...bs];
+      next.splice(i < 0 ? bs.length : i + 1, 0, copy);
+      return next;
+    });
+    set({ activeBoard: nid, boardSel: null });
+    if (src.bgAssetId) {
+      void getBgOriginal(src.bgAssetId).then(async (rec) => {
+        if (!rec) return;
+        const fresh = await putBgOriginal(rec.blob, rec.name);
+        if (!fresh) return;
+        // invisible metadata — patched outside history so undo stays honest
+        set({ boards: get().boards.map((b) => (b.id === nid ? { ...b, bgAssetId: fresh } : b)) });
+        saveBoards(get);
+      });
+    }
+  },
   renameBoard: (id, name) => mutateBoards(get, set, `rename:${id}`, (bs) => bs.map((b) => (b.id === id ? { ...b, name: name.slice(0, 40) } : b))),
   moveBoard: (id, dir) => mutateBoards(get, set, null, (bs) => {
     const i = bs.findIndex((b) => b.id === id);
@@ -1096,7 +1247,13 @@ export const useGen = create<GenStore>((set, get) => ({
     return next;
   }),
   clearBoard: (id) => {
-    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [] } : b)));
+    /* Clear wipes the whole stage — pieces AND the backdrop (owner: "clear
+       should also clear the background image"). A vaulted original retires
+       with it, same as the darkroom's own Clear; the proxy stays displayable
+       for undo. */
+    const tgt = get().boards.find((b) => b.id === id);
+    if (tgt?.bgAssetId) void delBgOriginal(tgt.bgAssetId);
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [], bgImage: null, bgVideo: null, bgAssetId: null } : b)));
     set({ boardSel: null });
   },
   setBoardBg: (patch) => {
@@ -1110,6 +1267,30 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b)));
   },
+  saveBoardItemAsAsset: (id, name) => {
+    const st = get();
+    const b = st.boards.flatMap((bd) => bd.items).find((x) => x.id === id);
+    if (!b?.kitId) return;
+    // bake exactly what the stage shows: master + this component's design
+    // fork + text fill + per-size text nudges — the snapshot IS the piece
+    let cfg = (typeof structuredClone === "function" ? structuredClone(st.cfg) : JSON.parse(JSON.stringify(st.cfg))) as GenConfig;
+    if (st.kitDesigns[b.kitId]) cfg = applyKitDesign(cfg, st.kitDesigns[b.kitId]);
+    if (st.kitTextFill[b.kitId]) cfg = applyKitTextFill(cfg, st.kitTextFill[b.kitId]);
+    const sz = effKitSize(st.kitSizes[b.kitId]);
+    const oy = st.kitTextOy[`${b.kitId}:${sz}`];
+    if (oy !== undefined) cfg.type.oy = oy;
+    const ox = st.kitTextOx[`${b.kitId}:${sz}`];
+    if (ox !== undefined) cfg.type.ox = ox;
+    const kit: LibKit = {
+      id: b.kitId, size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[b.kitId],
+      ...(b.label ? { label: b.label } : {}),
+      ...(b.v !== undefined ? { v: b.v } : {}),
+    };
+    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
+    const library = [...st.library, item];
+    saveJson(LIB_KEY, library);
+    set({ library });
+  },
   addToBoard: (libId) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
@@ -1122,16 +1303,16 @@ export const useGen = create<GenStore>((set, get) => ({
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      libId: "", kitId: it.kitId, x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}),
+      libId: "", kitId: it.kitId, x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });
   },
-  addKitToBoard: (kitId) => {
+  addKitToBoard: (kitId, ov) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
     const mob = act?.aspect === "mobile";
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, x: (mob ? 60 : 640) + (n % 3) * (mob ? 30 : 90), y: (mob ? 240 : 420) + (n % 3) * 60 };
+    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, ...(ov ? { ov } : {}), x: (mob ? 60 : 640) + (n % 3) * (mob ? 30 : 90), y: (mob ? 240 : 420) + (n % 3) * 60 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ boardSel: item.id });
   },
@@ -1166,6 +1347,13 @@ export const useGen = create<GenStore>((set, get) => ({
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
   scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
   transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
+  stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
+  stretchBoardItemV: (id, stretchY, y) => mutateItem(get, set, `stretchy:${id}`, id, (b) => ({ ...b, stretchY: Math.max(0.7, Math.min(3, stretchY)), y })),
+  setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
+    const next = { ...b };
+    if (v === null || v >= 100) delete next.opacity; else next.opacity = Math.max(0, Math.min(100, Math.round(v)));
+    return next;
+  }),
   setBoardItemVal: (id, v) => mutateItem(get, set, `val:${id}`, id, (b) => {
     const next = { ...b };
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
@@ -1187,6 +1375,37 @@ export const useGen = create<GenStore>((set, get) => ({
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
     if (get().boardSel === id) set({ boardSel: null });
+  },
+  applyBoardItemPatches: (tag, patches) => {
+    const map = new Map(patches.map((p) => [p.id, p]));
+    mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
+      bd.items.some((b) => map.has(b.id))
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, x: p.x, y: p.y } : b; }) }
+        : bd));
+  },
+  transformBoardItems: (tag, patches) => {
+    const map = new Map(patches.map((p) => [p.id, p]));
+    mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
+      bd.items.some((b) => map.has(b.id))
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(0.3, Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
+        : bd));
+  },
+  removeBoardItems: (ids) => {
+    const gone = new Set(ids);
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (bd.items.some((b) => gone.has(b.id)) ? { ...bd, items: bd.items.filter((b) => !gone.has(b.id)) } : bd)));
+    if (gone.has(get().boardSel ?? "")) set({ boardSel: null });
+  },
+  pasteBoardItems: (items) => {
+    if (!items.length) return [];
+    const stamp = Date.now().toString(36);
+    const add: BoardItem[] = items.map((it, i) => ({
+      ...structuredClone(it),
+      id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
+      x: it.x + 24, y: it.y + 24,
+    }));
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
+    set({ boardSel: add[0].id });
+    return add.map((b) => b.id);
   },
   boardPast: [],
   boardFuture: [],

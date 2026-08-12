@@ -15,6 +15,10 @@ export interface LiveKit {
   icon?: IconDef | null;
   /** Starting value — toggle on/off (1/0), slider/progress fill, segment index. */
   value?: number;
+  /** Horizontal 9-slice stretch for the bar family — see KitOpts.stretch. */
+  stretch?: number;
+  /** Vertical 9-slice stretch — blank panels; see KitOpts.stretchY. */
+  stretchY?: number;
   /** Resting state when idle — e.g. an awarded badge or an open dropdown. */
   baseState?: GenStateName;
   /** Per-component vertical text adjustment (explicit; 0 is valid). */
@@ -43,6 +47,33 @@ export interface LiveKit {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+/* ── the stillness rule (owner: "most things should be user initiated") ──
+   The engine bakes SMIL loops into ~30 components (damage floats, radar
+   pulses, carets, liquid waves…). Left alone they run EVERYWHERE, all the
+   time — dozens of idle timelines ticking behind a design surface. So:
+   every host freezes its SMIL clocks unless the surface is actually in
+   Play. Frozen clocks park at a settled beat — 1.2s in — because loops
+   that fade in from nothing (the damage number) are blank at t=0. */
+export function stillSmil(root: ParentNode | null, still: boolean) {
+  if (!root) return;
+  for (const el of root.querySelectorAll("svg")) {
+    const s = el as SVGSVGElement;
+    if (!s.querySelector("animate, animateTransform, animateMotion")) continue;
+    try {
+      if (still) { s.pauseAnimations(); s.setCurrentTime(1.2); }
+      else if (s.animationsPaused()) s.unpauseAnimations();
+    } catch { /* engines without SMIL control: the loop just runs */ }
+  }
+}
+
+/** PNG rasterization can't be left to SMIL timing — Chrome snapshots
+ *  whatever instant the internal clock is at, and a fade-in loop's t=0 is
+ *  nothing at all. Exports strip the loops and keep the resting pose
+ *  (every template's base attributes ARE the settled look). */
+export const stripSmil = (svg: string): string =>
+  svg.replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+
 /* The glow pad is part of the CANVAS, not the component — pointer honesty
    demands the interactive zone hug the SHELL ("the hit area is way too
    big", owner). data-shell (viewBox units) maps through the on-screen
@@ -65,7 +96,7 @@ export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: numbe
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
@@ -100,6 +131,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   style?: React.CSSProperties;
   title?: string;
   onDesignClick?: () => void;
+  /** Reference surfaces (the kit page): the piece stays hover-playable,
+   *  but its SMIL loops park while the pointer is elsewhere — motion is
+   *  user-initiated, never ambient. */
+  stillLoops?: boolean;
 }) {
   const id = kit?.id;
   const [live, setLive] = useState<GenStateName>("default");
@@ -148,12 +183,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // hosts pass fresh kit literals every render — key on the fields, not the
   // object, so the (string-building) renderer only runs when something changed
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}`
     : "";
   const svg = useMemo(
     () => {
       const raw = kit
-        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stick: id === "joystick" && playing ? stick : undefined })
+        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
       return shine ? addShine(out) : out;
@@ -571,6 +606,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       },
     } : {}),
   };
+
+  // the stillness rule: this piece's SMIL clocks run only while the host
+  // surface is in Play — a design surface holds a settled frame. On
+  // stillLoops surfaces the pointer is the switch: loops wake under it.
+  useEffect(() => {
+    stillSmil(ref.current, !playing || disabled || (!!stillLoops && live === "default"));
+  }, [svg, playing, disabled, stillLoops, live]);
 
   useEffect(() => {
     if (id !== "input") return;

@@ -896,6 +896,31 @@ export async function setHiddenStarters(ids: string[]): Promise<string | null> {
   return error?.message ?? null;
 }
 
+/* The HOMEPAGE's hardcoded kits (hero reel seeds, swatch chips, community
+   cards) get the same treatment: an admin can retire any of them for every
+   visitor without a deploy. The landing has no Supabase client, so the list
+   travels to it through /api/hero-lineup (and a localStorage echo for the
+   first paint). Entries are lowercase match keys — preset ids AND display
+   names both work. */
+const HIDDEN_LANDING_KEY = "hidden_landing_kits";
+
+export async function listHiddenLandingKits(): Promise<string[]> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", HIDDEN_LANDING_KEY).maybeSingle();
+  if (error || !Array.isArray(data?.value)) return [];
+  return (data.value as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
+export async function setHiddenLandingKits(keys: string[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate the homepage.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: HIDDEN_LANDING_KEY, value: keys, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /* Stock silhouettes ship in the bundle too, and the same curation applies:
    an admin can retire one for every visitor without a deploy. Retiring hides
    it from the PICKER only — a design already built on that shape keeps
