@@ -666,6 +666,45 @@ export function drawBoardNoise(ctx: CanvasRenderingContext2D, W: number, H: numb
   ctx.restore();
 }
 
+/** The overlay stack above the backdrop — tint wash (with its blend), its
+ *  grain, then the center scrim — ONE function so the stage, the board PNG
+ *  compositor and the Unity background bake composite identically (owner:
+ *  the scenes must look like the boards). */
+export function drawBoardOverlays(ctx: CanvasRenderingContext2D, W: number, H: number, bd: Pick<BoardDef, "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">) {
+  const ovMode = bd.ovMode ?? "none";
+  if (ovMode !== "none") {
+    const GCO: Record<string, GlobalCompositeOperation> = { normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", "soft-light": "soft-light" };
+    ctx.save();
+    ctx.globalCompositeOperation = GCO[bd.ovBlend ?? "normal"] ?? "source-over";
+    ctx.globalAlpha = (bd.ovStrength ?? 45) / 100;
+    if (ovMode === "vignette") {
+      const g = ctx.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.3, W / 2, H * 0.42, Math.hypot(W, H) * 0.58);
+      g.addColorStop(0, "rgba(4,7,14,0)");
+      g.addColorStop(1, "rgba(4,7,14,0.92)");
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = ovMode === "dark" ? "#060A14" : "#F4F6FF";
+    }
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
+  }
+  // center scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
+  if ((bd.ovCenter ?? 0) > 0) {
+    ctx.save();
+    ctx.globalAlpha = (bd.ovCenter ?? 0) / 100;
+    ctx.translate(W / 2, H * 0.46);
+    ctx.scale(W * 0.62, H * 0.62);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, "rgba(4,7,14,0.85)");
+    g.addColorStop(0.45, "rgba(4,7,14,0.5)");
+    g.addColorStop(1, "rgba(4,7,14,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-3, -3, 6, 6);
+    ctx.restore();
+  }
+}
+
 /** The warp's vertical paint reach (px at raster scale) — canvases pad by
  *  this so a bend never clips. */
 export function stampWarpPad(h: number, warp: { style: string; amount: number } | undefined): number {

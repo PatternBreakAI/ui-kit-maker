@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
@@ -741,40 +741,9 @@ export function BoardView({ playing }: { playing: boolean }) {
     }
     // background film grain — independent of the overlay (owner: "noise")
     drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
-    // the overlay layer composites exactly like the live stage: tint (with
-    // its blend mode) first, then film grain riding an overlay blend
-    const ovMode = bd.ovMode ?? "none";
-    if (ovMode !== "none") {
-      const GCO: Record<string, GlobalCompositeOperation> = { normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", "soft-light": "soft-light" };
-      ctx.save();
-      ctx.globalCompositeOperation = GCO[bd.ovBlend ?? "normal"] ?? "source-over";
-      ctx.globalAlpha = (bd.ovStrength ?? 45) / 100;
-      if (ovMode === "vignette") {
-        const g = ctx.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.3, W / 2, H * 0.42, Math.hypot(W, H) * 0.58);
-        g.addColorStop(0, "rgba(4,7,14,0)");
-        g.addColorStop(1, "rgba(4,7,14,0.92)");
-        ctx.fillStyle = g;
-      } else {
-        ctx.fillStyle = ovMode === "dark" ? "#060A14" : "#F4F6FF";
-      }
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-      drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
-    }
-    // center scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
-    if ((bd.ovCenter ?? 0) > 0) {
-      ctx.save();
-      ctx.globalAlpha = (bd.ovCenter ?? 0) / 100;
-      ctx.translate(W / 2, H * 0.46);
-      ctx.scale(W * 0.62, H * 0.62);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-      g.addColorStop(0, "rgba(4,7,14,0.85)");
-      g.addColorStop(0.45, "rgba(4,7,14,0.5)");
-      g.addColorStop(1, "rgba(4,7,14,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(-3, -3, 6, 6);
-      ctx.restore();
-    }
+    // the overlay stack (tint + its grain + center scrim) — one shared
+    // recipe with the Unity background bake, so the two can't drift
+    drawBoardOverlays(ctx, W, H, bd);
     for (const b of bd.items) {
       const { svg: svg0, cfg: pc } = svgOf(b);
       if (!svg0) continue;

@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, warpStampRaster } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
@@ -180,27 +180,61 @@ export async function collectExportBoards(st: {
          decode ships the untouched bytes; the manifest keeps the dials. */
       const grade = boardBgFilter(bd);
       const grain = bd.bgNoise ?? 0;
-      if (bytes && (grade || grain > 0)) {
+      /* the scene must LOOK like the board (owner): a Fit-mode backdrop, an
+         overlay wash or the center scrim can't ride as live Unity layers —
+         so those boards flatten the WHOLE backdrop stack at board resolution
+         (stage floor, fit layout, grade, grain, wash, scrim, even the bg
+         opacity), the exact drawBoardOverlays recipe the PNG export uses.
+         The importer then places ONE finished image and adds nothing. */
+      const ovBake = bd.bgFit === "fit" || (bd.ovMode ?? "none") !== "none" || (bd.ovCenter ?? 0) > 0;
+      let baked = false;
+      if (bytes && (grade || grain > 0 || ovBake)) {
         try {
           const bmp = await createImageBitmap(new Blob([bytes.slice().buffer as ArrayBuffer]));
           const cv = document.createElement("canvas");
-          cv.width = bmp.width; cv.height = bmp.height;
-          const ctx = cv.getContext("2d")!;
-          if (grade) ctx.filter = grade;
-          ctx.drawImage(bmp, 0, 0);
-          ctx.filter = "none";
-          drawBoardNoise(ctx, cv.width, cv.height, grain);
+          const ctx0 = cv.getContext.bind(cv);
+          if (ovBake) {
+            cv.width = W; cv.height = H;
+            const ctx = ctx0("2d")!;
+            ctx.fillStyle = "#0D0F16"; // the stage floor behind a translucent bg
+            ctx.fillRect(0, 0, W, H);
+            ctx.globalAlpha = Math.min(1, Math.max(0, (bd.bgOpacity ?? 100) / 100));
+            if (bd.bgFit === "fit") {
+              const sc = Math.max(W / bmp.width, H / bmp.height) * 1.12;
+              ctx.filter = [grade, `blur(${Math.round(W * 0.014)}px) brightness(0.72)`].filter(Boolean).join(" ");
+              ctx.drawImage(bmp, (W - bmp.width * sc) / 2, (H - bmp.height * sc) / 2, bmp.width * sc, bmp.height * sc);
+              ctx.filter = grade || "none";
+              const sf = Math.min(W / bmp.width, H / bmp.height);
+              ctx.drawImage(bmp, (W - bmp.width * sf) / 2, (H - bmp.height * sf) / 2, bmp.width * sf, bmp.height * sf);
+            } else {
+              if (grade) ctx.filter = grade;
+              const s9 = Math.max(W / bmp.width, H / bmp.height);
+              ctx.drawImage(bmp, (W - bmp.width * s9) / 2, (H - bmp.height * s9) / 2, bmp.width * s9, bmp.height * s9);
+            }
+            ctx.filter = "none";
+            ctx.globalAlpha = 1;
+            drawBoardNoise(ctx, W, H, grain);
+            drawBoardOverlays(ctx, W, H, bd);
+          } else {
+            cv.width = bmp.width; cv.height = bmp.height;
+            const ctx = ctx0("2d")!;
+            if (grade) ctx.filter = grade;
+            ctx.drawImage(bmp, 0, 0);
+            ctx.filter = "none";
+            drawBoardNoise(ctx, cv.width, cv.height, grain);
+          }
           bmp.close();
-          const jpeg = ext === "jpg";
+          const jpeg = ext === "jpg" && !ovBake;
           const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
           if (blob) { bytes = new Uint8Array(await blob.arrayBuffer()); if (!jpeg) ext = "png"; }
+          if (ovBake) baked = true;
         } catch { /* undecodable — ship as-is */ }
       }
       if (bytes) {
         bg = {
-          file: `backgrounds/${slug}.${ext}`, bytes, original,
-          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
-          overlay: bd.ovMode ?? "none", overlayStrength: bd.ovStrength ?? 100,
+          file: `backgrounds/${slug}.${ext}`, bytes, original: baked ? false : original,
+          opacity: baked ? 100 : (bd.bgOpacity ?? 100), blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
+          overlay: baked ? "none" : (bd.ovMode ?? "none"), overlayStrength: bd.ovStrength ?? 100,
           overlayBlend: bd.ovBlend ?? "normal",
         };
       }
