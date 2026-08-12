@@ -2859,14 +2859,14 @@ const rarityOf = (cfg: GenConfig, v: number | undefined, fallback = 2) => {
 };
 
 /** Dimensional candy ball — knobs for toggles, switches and sliders. */
-function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string): string {
+function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string, shadow = true): string {
   const kid = "kn" + UID++;
   return `<defs><radialGradient id="${kid}" cx="0.35" cy="0.3" r="0.9">
     <stop offset="0" stop-color="#FFFFFF"/>
     <stop offset="0.55" stop-color="${lighten(base, 0.78)}"/>
     <stop offset="1" stop-color="${lighten(base, 0.3)}"/>
   </radialGradient></defs>
-  <ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>
+  ${shadow ? `<ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>` : ""}
   <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${kid})" stroke="${darken(base, 0.38)}" stroke-width="1.5"/>
   ${dot ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(3, r * 0.3).toFixed(1)}" fill="${dot}"/>` : ""}
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
@@ -3405,7 +3405,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (opts.overlay === "knob" || opts.overlay === "knob-off") {
         const dotL = opts.overlay === "knob" ? glow : "#9AA1AC";
         const cpad = Math.ceil(knobR + 20);
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL)}</svg>`;
+        // shadowless: a merged cast shadow makes the standalone sprite an
+        // egg and Unity centers on the egg (field: "vertically distorted")
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL, false)}</svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
@@ -3432,7 +3434,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          matches the Board's piece exactly */
       if (opts.overlay === "knob") {
         const cpad = Math.ceil(kr + 20);
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC)}</svg>`;
+        // shadowless: a merged cast shadow makes the standalone sprite an
+        // egg and Unity centers on the egg (field: "vertically distorted")
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC, undefined, false)}</svg>`;
       }
       if (opts.overlay === "fill") {
         /* the mercury at 100% — the full silhouette-shaped run, no shell,
@@ -6815,7 +6819,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          PatternBreakJoystick runtime moves the thumb over the base */
       if (opts.part === "thumb") {
         const pad9 = 26, s9 = (kr2 + pad9) * 2;
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow)}</svg>`;
+        // shadowless (see the rig knobs): the merged shadow made the sprite
+        // bottom-heavy and the centered rig thumb read off-center
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow, false)}</svg>`;
       }
       const track = build(cfg, state, { x: 33, y: 27, h: d2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d2, shapeOverride: "pill" });
       const inset2 = bw + 5;
@@ -6846,6 +6852,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          swipe rig overlays tintable icons/ glyphs and re-deals them as the
          armed weapon cycles. Sizes must stay in step with the satellite
          loop below (mr = dF9 · 0.205 · [1, 0.82, 0.68]). */
+      /* rig LAYER: the weapon glyphs PRE-THEMED like the app's armed icon
+         (owner: "make the icons more on-brand… follow what is there in
+         the boards") — outline underlay, lit fill and glow halo baked;
+         the Unity rig deals these sprites instead of tinting flat icons. */
+      const glyM9 = /^glyph-(sword|zap|flask|shield)$/.exec(opts.overlay ?? "");
+      if (glyM9) {
+        const gdef9 = { sword: STOCK_ICONS.sword, zap: STOCK_ICONS.zap, flask: STOCK_ICONS.flask, shield: STOCK_ICONS.shield }[glyM9[1] as "sword" | "zap" | "flask" | "shield"];
+        const gs9 = Math.round(dF9 * 0.5);
+        const gpad9 = Math.ceil(gs9 * 0.32);
+        const tone9 = hexMix(glow, "#FFFFFF", 0.15);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${gs9 + gpad9 * 2}" height="${gs9 + gpad9 * 2}" viewBox="0 0 ${gs9 + gpad9 * 2} ${gs9 + gpad9 * 2}">
+          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6)}</g></svg>`;
+      }
       const satM9 = /^sat([123])$/.exec(opts.overlay ?? "");
       if (satM9) {
         const j9 = +satM9[1] - 1;
@@ -6855,7 +6874,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad9 * 2}" height="${cpad9 * 2}" viewBox="0 0 ${cpad9 * 2} ${cpad9 * 2}">
           <circle cx="${cpad9}" cy="${cpad9}" r="${mr9.toFixed(1)}" fill="${rimS9}" stroke="${darken(rimS9, 0.38)}" stroke-width="1.5"/>
           <circle cx="${cpad9}" cy="${cpad9}" r="${(mr9 * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
-          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC) + `</svg>`;
+          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC, undefined, false) + `</svg>`;
       }
       // the shell's x/y margins grow to hold the carousel — satellites live
       // INSIDE the canvas so raster exports keep them (never in glow slack)
