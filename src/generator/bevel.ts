@@ -6742,13 +6742,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
       const icF = krF * 0.8;
       const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4", 2.6)}</g>`;
-      const satR = krF * 0.17, satOrbit = krF * 0.66;
+      // the waiting weapons sit RIGHT ON the dome's rim, each in its own
+      // socket, sized to read at a glance (owner: "the other circles need
+      // to sit right on the edge in their own circles and be big enough
+      // to see") — they straddle the edge like console fire-button pips
+      const satR = krF * 0.21, satOrbit = krF;
       let sats = "";
       ROSTER9.filter((_, i) => i !== armed9).forEach((ic, j) => {
         const aS = ((-135 + j * 45) * Math.PI) / 180;
         const sx = cx9 + satOrbit * Math.cos(aS), sy = cy9 + sink + satOrbit * Math.sin(aS);
-        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
-          iconGroup(ic, sx - satR * 0.55, sy - satR * 0.55, satR * 1.1, "#AEB6C4", { strokeWidth: 2 * iconWK });
+        sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${satR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.94)}" stroke="${hexRgba(rimF, 0.55)}" stroke-width="1.8"/>` +
+          iconGroup(ic, sx - satR * 0.58, sy - satR * 0.58, satR * 1.16, "#C6CDD9", { strokeWidth: 2.2 * iconWK });
       });
       return inject(track,
         `<path d="${roundRect(33 + inset9, 27 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
