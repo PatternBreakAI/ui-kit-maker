@@ -7,10 +7,10 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
-import type { BoardDef } from "./store";
+import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
@@ -123,13 +123,16 @@ export async function collectExportBoards(st: {
   /** Per-component design forks — the Board stage applies them, so the
    *  exported scenes must too (optional: older callers ship master-only). */
   kitDesigns?: Partial<Record<KitComponentId, Parameters<typeof applyKitDesign>[1]>>;
+  /** The saved-asset library — board pieces frozen from a reworked copy
+   *  (the BACK-button story). Needed so those pieces travel to Unity. */
+  library?: LibItem[];
 }): Promise<ExportBoardData[]> {
   const { getBgOriginal } = await import("./bgvault");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -243,6 +246,42 @@ export async function collectExportBoards(st: {
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
           rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
+          stamp: file,
+        });
+        continue;
+      }
+      if (!b.kitId && b.libId) {
+        /* a SAVED ASSET — its look and words are a frozen snapshot by
+           design (the master is never touched), so it travels as a BAKED
+           SPRITE exactly like a stamp: faithful to the pixel, and Unity
+           shows the fork, not the master (owner: BACK arrived as the
+           master's TAB). SMIL loops strip first — rasterizing at t=0
+           leaves fade-in loops blank. */
+        const item = st.library?.find((l) => l.id === b.libId);
+        if (!item) continue;
+        const raw0 = item.kit
+          ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label ? { label: item.kit.label } : undefined)
+          : renderBevel(item.cfg, "default");
+        const still = raw0
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+        const fdL = fontByName(item.cfg.type.font);
+        const svgL = await inlineKitFace(still, item.cfg.type.font, fdL.name === item.cfg.type.font ? fdL.css ?? null : null);
+        const { bytes: pb } = await svgToPngBytes(svgL, 2);
+        const swL = parseFloat(/width="([\d.]+)"/.exec(still)?.[1] ?? "200");
+        const shL = parseFloat(/height="([\d.]+)"/.exec(still)?.[1] ?? "80");
+        const file = `boardstamps/${slug}-a${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: pb });
+        const kL = b.scale ?? 1;
+        const wL = swL * kL, hL = shL * kL;
+        const cxL = b.x + wL / 2, cyL = b.y + hL / 2;
+        const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
+        const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "libasset", cx: Math.round(cxL * 10) / 10, cy: Math.round(cyL * 10) / 10,
+          w: Math.round(wL * 10) / 10, h: Math.round(hL * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axL, ay: ayL,
+          anchor: `${ayL === 1 ? "top" : ayL === 0 ? "bottom" : "middle"}-${axL === 0 ? "left" : axL === 1 ? "right" : "center"}`,
           stamp: file,
         });
         continue;
@@ -3722,7 +3761,12 @@ namespace PatternBreak {
       if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
       var scenePath = dir + "/" + BoardSlug(bd.name) + ".unity";
       if (File.Exists(scenePath)) {
-        if (!force) return; // yours after first generation
+        /* yours after first generation — EXCEPT a scene we know shipped
+           incomplete (pieces skipped because prefabs hadn't generated on
+           the first import beat): that one self-heals on the next pass
+           instead of asking the maker to remember a menu path */
+        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false);
+        if (!force && !pending) return;
         AssetDatabase.DeleteAsset(scenePath);
       }
       var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
@@ -3813,9 +3857,17 @@ namespace PatternBreak {
           float axBoard = it.ax * bd.w;
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
-          if (string.IsNullOrEmpty(it.stamp) && rt.sizeDelta.x > 1f) {
-            float s = it.w / rt.sizeDelta.x;
-            rt.localScale = new Vector3(s, s, 1f);
+          if (string.IsNullOrEmpty(it.stamp)) {
+            if (rt.sizeDelta.x > 1f) {
+              float s = it.w / rt.sizeDelta.x;
+              rt.localScale = new Vector3(s, s, 1f);
+            } else {
+              /* a stretch-anchored prefab root reports no sizeDelta — after
+                 the point re-anchoring above its rect IS its sizeDelta, so
+                 size it to the board footprint directly (the skip used to
+                 leave such pieces at native size — the giant-tab report) */
+              rt.sizeDelta = new Vector2(it.w, it.h);
+            }
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
           /* per-copy words (the maker typed them on this copy in the app) —
@@ -3826,8 +3878,13 @@ namespace PatternBreak {
           }
           placed++;
         }
-        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
-          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — re-run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate)" : "") + ". Open " + scenePath + " and press Play.");
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath)) {
+          // remember incompleteness so the after-prefabs pass rebuilds THIS
+          // scene automatically; a complete build clears the marker
+          if (missing > 0) SessionState.SetBool("pbBoardPending:" + scenePath, true);
+          else SessionState.EraseBool("pbBoardPending:" + scenePath);
+          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — it rebuilds itself once prefabs finish, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
+        }
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the board scene at " + scenePath + ".");
       } finally {
@@ -5176,15 +5233,8 @@ namespace PatternBreak {
       return true;
     }
 #endif
-    static bool GeneratePrefabs(string root, PBManifest m) {
+    static bool RunPrefabBuilders(string dir, string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
-      bool createdHere = false;
-      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
-        var created = AssetDatabase.CreateFolder(root, "Prefabs");
-        if (string.IsNullOrEmpty(created)) return false;
-        createdHere = true;
-      }
-      var dir = root + "/Prefabs";
       bool any = false;
       // the kit's own face, shipped in fonts/ with its license — labels wire to it
       Font kitFont = null;
@@ -5219,11 +5269,50 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
+      return any;
+    }
+    static bool GeneratePrefabs(string root, PBManifest m) {
+      bool createdHere = false;
+      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
+        var created = AssetDatabase.CreateFolder(root, "Prefabs");
+        if (string.IsNullOrEmpty(created)) return false;
+        createdHere = true;
+      }
+      var dir = root + "/Prefabs";
+      bool any = RunPrefabBuilders(dir, root, m);
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
       return any;
+    }
+    /* MaintainExamplePrefabs' surgical sibling: a kit UPDATE can carry
+       components this project has never had prefabs for (the "7 skipped,
+       no prefab yet" board-scene report) — build exactly those, never
+       touching an existing prefab (yours after first generation). The
+       builders run into a staging folder; only names the project lacks
+       move over, the rest is discarded. */
+    static void GenerateMissingPrefabs(string root, PBManifest m) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir) || m == null) return;
+      var have = new HashSet<string>();
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
+        have.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(g)));
+      var stage = root + "/PrefabsStaging";
+      if (AssetDatabase.IsValidFolder(stage)) AssetDatabase.DeleteAsset(stage);
+      if (string.IsNullOrEmpty(AssetDatabase.CreateFolder(root, "PrefabsStaging"))) return;
+      int added = 0;
+      try {
+        RunPrefabBuilders(stage, root, m);
+        foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { stage })) {
+          var p = AssetDatabase.GUIDToAssetPath(g);
+          var name = Path.GetFileName(p);
+          if (!have.Contains(name) && string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, dir + "/" + name))) added++;
+        }
+      } finally {
+        AssetDatabase.DeleteAsset(stage);
+      }
+      if (added > 0) Debug.Log("UI Kit Maker: " + added + " new prefab(s) added for this kit's newer pieces — existing prefabs untouched.");
     }
     /* Per-import maintenance for OUR example prefabs — the two things that
        must track the kit even though "your prefabs are yours" (owner field
