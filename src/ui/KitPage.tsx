@@ -16,6 +16,7 @@ import { LiveArt, stillSmil } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
+import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
 
 /* The Kit — a living guideline sheet in five levels: Foundations, Components,
    Assemblies, Build Parts, Screen Patterns. One renderer draws everything,
@@ -368,6 +369,52 @@ function ExportMenu({ actions, preferId }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The Unity briefing — a loading-screen takeover while the engine zip
+ *  builds (owner: "prep people with a 'unity warning' that plays while
+ *  they wait… real analysis of your file… did-you-know stuff… a giant
+ *  modal"). Cards come pre-computed from THIS kit's state; the modal
+ *  cycles them over the real progress bar and leaves when the zip does.
+ *  Hide returns to the split-button's slim progress — never a trap. */
+function UnityBriefing({ cards, prog, accent, kitName, onHide }: {
+  cards: BriefCard[];
+  prog: { done: number; total: number; label: string } | null;
+  accent: string;
+  kitName: string;
+  onHide: () => void;
+}) {
+  const [ix, setIx] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setIx((i) => i + 1), 5600);
+    return () => window.clearInterval(t);
+  }, []);
+  const at = ix % cards.length;
+  const card = cards[at];
+  const pct = prog ? Math.round((prog.done / Math.max(1, prog.total)) * 100) : 4;
+  const stage = !prog ? "Reading your kit"
+    : prog.label === "catalog" ? "Packing the visual catalog"
+    : prog.label === "zip" ? "Zipping"
+    : `Rendering ${Math.min(prog.done + 1, prog.total)} of ${prog.total}`;
+  return (
+    <div className="kp-brief" role="dialog" aria-modal="true" aria-label="Preparing your Unity kit">
+      <div className="kp-briefbox">
+        <span className="kp-briefkick">Preparing your Unity kit</span>
+        <h2 className="kp-brieftitle">{kitName}</h2>
+        <div className="kp-briefbar" aria-hidden="true"><i style={{ width: `${pct}%`, background: accent }} /></div>
+        <span className="kp-briefstage" role="status">{stage}…</span>
+        <div className="kp-briefcard" key={at}>
+          <i className={`kp-brieftag${card.kicker === "DID YOU KNOW" ? " know" : ""}`}>{card.kicker}</i>
+          <b>{card.title}</b>
+          <p>{card.body}</p>
+        </div>
+        <div className="kp-briefdots" aria-hidden="true">
+          {cards.map((_, i) => <button key={i} className={i === at ? "on" : undefined} tabIndex={-1} onClick={() => setIx(i)} style={i === at ? { background: accent } : undefined} />)}
+        </div>
+        <button className="kp-briefhide" onClick={onHide}>Hide — the download finishes on its own</button>
+      </div>
     </div>
   );
 }
@@ -1433,6 +1480,11 @@ export function KitPage() {
   const [sheetBusy, setSheetBusy] = useState(false);
   const [engineBusy, setEngineBusy] = useState(false);
   const [engineProg, setEngineProg] = useState<{ done: number; total: number; label: string } | null>(null);
+  /* the Unity briefing — loading-screen cards of real per-kit analysis
+     that take the screen while the zip builds (owner). Computed fresh at
+     export start, once the server grant settles the scope. */
+  const [brief, setBrief] = useState<BriefCard[] | null>(null);
+  const [briefHidden, setBriefHidden] = useState(false);
   /* I1, revised: the Unity slug follows the kit's CURRENT name. Same name →
      same slug, so re-exports keep landing in the same Unity folder and
      overwrite in place. A different name means a different kit (or a
@@ -1468,6 +1520,9 @@ export function KitPage() {
         const fdef2 = fontByName(st.cfg.type.font);
         /* Boards→Scenes rides the FULL scope only — the server's grant is
            the door (a remix never exits the browser on the free tier) */
+        /* the briefing plays from here — the scope is settled, the wait
+           is about to be real (board collection + every sprite render) */
+        try { setBrief(buildUnityBriefing(st, scope)); setBriefHidden(false); } catch { setBrief(null); }
         const exBoards = scope === "full" ? await collectExportBoards(st).catch(() => undefined) : undefined;
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards },
@@ -1480,6 +1535,7 @@ export function KitPage() {
     } finally {
       setEngineBusy(false);
       setEngineProg(null);
+      setBrief(null);
     }
   };
   /* every catalog entry — components, variants, states — as individual
@@ -1957,6 +2013,11 @@ const kitTier = useGen((s) => s.tier);
             <span className="kp-curtainstage">{bootStage}…</span>
           </div>
         </div>
+      )}
+      {/* ── the Unity briefing takes the screen while the zip builds ── */}
+      {engineBusy && brief && !briefHidden && (
+        <UnityBriefing cards={brief} prog={engineProg} accent={cfg.effects.Glow || cfg.effects.Bevel || "#0E9CC9"}
+          kitName={kitName ?? `The ${preset?.name ?? "Custom"} Kit`} onHide={() => setBriefHidden(true)} />
       )}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
