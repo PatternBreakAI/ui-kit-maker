@@ -2821,7 +2821,9 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "vitalbar", "manarails", "questpanel", "choicelist",
   "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
   "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
-  "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
+  /* pricebtn left this list: its render case never read value, so the
+     Value slider showed and did nothing (workflow audit) */
+  "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter",
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
@@ -4008,6 +4010,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const fsB = dB * (txtB.length > 1 ? 0.44 : 0.54);
       const gidB = "cb" + UID++;
       const totB = dB + padB * 2;
+      /* overlay "plain" ships the BARE circle for the engine: the count
+         becomes live text over it (owner: "the countdown numerics should
+         be dynamic — I'll want those to animate on play") */
+      const bareB = opts.overlay === "plain";
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${nB} notifications">
 <defs><radialGradient id="${gidB}" cx="0.35" cy="0.3" r="0.95">
   <stop offset="0" stop-color="${lighten(badgeB, 0.32)}"/>
@@ -4016,7 +4022,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </radialGradient></defs>
 <g${liveB ? ` style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"` : ""}>
   <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${Math.max(2, dB * 0.055).toFixed(1)}"/>
-  <text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>
+  ${bareB ? "" : `<text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>`}
 </g>
 </svg>`;
     }
