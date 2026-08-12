@@ -1782,7 +1782,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     data: JSON.stringify({
       name: "PatternBreak.Editor",
       rootNamespace: "",
-      references: ["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI"],
+      /* Unity.InputSystem: the scene builder's EventSystem wiring is
+         #if ENABLE_INPUT_SYSTEM — the reference resolves when the package
+         is installed and is silently ignored when it isn't. Omitting it
+         broke EVERY new-Input-System project (field: CS0234 on a fresh
+         Unity 6 project, nothing imported). */
+      references: ["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"],
       includePlatforms: ["Editor"],
       excludePlatforms: [],
       allowUnsafeCode: false,
