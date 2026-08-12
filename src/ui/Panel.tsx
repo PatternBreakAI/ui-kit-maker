@@ -689,6 +689,32 @@ export function Panel() {
     }
     return out;
   }, [cloudPresets]);
+  /* Looks thumbs render in each look's own typeface, but a face used to
+     load only when a look was APPLIED — the rack sat in fallback lettering
+     until clicked (owner: "I have to click on the Looks thumbnails for the
+     fonts to load"). Harvest every family the thumb markup actually names
+     — starters, cloud packs, user saves — and warm them a few per idle
+     beat; the inline SVGs re-render themselves the moment a face lands. */
+  useEffect(() => {
+    const fams = new Set<string>();
+    const harvest = (svg?: string | null) => {
+      if (!svg) return;
+      for (const m of svg.matchAll(/font-family="'([^']+)'/g)) fams.add(m[1]);
+    };
+    userPresets.forEach((u) => harvest(u.thumb));
+    cloudPresets.forEach((p) => harvest(p.thumb ?? cloudArt[p.id]));
+    presetArt().forEach((s) => harvest(s.svg));
+    const queue = [...fams];
+    let stop = false;
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const pump = () => {
+      if (stop) return;
+      for (const f of queue.splice(0, 3)) { try { ensureFont(f); } catch { /* a face that won't load just stays fallback */ } }
+      if (queue.length) { if (idle) idle(pump, { timeout: 1500 }); else window.setTimeout(pump, 400); }
+    };
+    pump();
+    return () => { stop = true; };
+  }, [userPresets, cloudPresets, cloudArt]);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */

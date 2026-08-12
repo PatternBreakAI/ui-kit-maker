@@ -7443,20 +7443,61 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          material (owner: "fill in the area ... with the same material as
          the cup so it isn't hollow"). No overlay furnishing. */
       const dT = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      /* PROP FINISHES (owner: props "consciously colored contrasting" the
+         kit, trophy as the test): overlay picks a podium metal — the
+         trophy re-renders in gold/silver/bronze while shape, stroke and
+         softness stay the kit's, so it contrasts the palette without
+         leaving the family. Default = the kit's own material, as before. */
+      const FINISH: Record<string, Partial<Record<EffectRole, string>>> = {
+        gold: { Bevel: "#D99A2B", "Inner Fill": "#F5C761", Glow: "#FFE18E", Highlight: "#FFF3D0", Shadow: "#6E4A0E" },
+        silver: { Bevel: "#8E9AA8", "Inner Fill": "#CBD5DE", Glow: "#EAF1F7", Highlight: "#FFFFFF", Shadow: "#465059" },
+        bronze: { Bevel: "#A9683A", "Inner Fill": "#CE9058", Glow: "#EDBB8C", Highlight: "#F9E2C8", Shadow: "#5C3517" },
+      };
+      const finT = FINISH[opts.overlay ?? ""];
       /* the calming must reach STATE DESIGN FORKS too — a state edited in
          the Panel (hover glow, say) snapshots the ORIGINAL face/innerGlow
          into its fork, and the un-calmed copy brings the hollow bowl back
-         (owner: "reverts to its old bottomless version when I add a glow") */
-      const calmT = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"] }>(d: T): T => ({
+         (owner: "reverts to its old bottomless version when I add a glow").
+         A finish overrides role colors at both levels the same way. */
+      const calmT = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"]; effects?: GenConfig["effects"] }>(d: T): T => ({
         ...d,
         ...(d.face ? { face: { ...d.face, contrast: Math.min(d.face.contrast, 16), midpoint: 50 } } : {}),
-        ...(d.candy ? { candy: { ...d.candy, innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25) } } } : {}),
+        ...(d.candy ? { candy: {
+          ...d.candy,
+          innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25), ...(finT ? { color: null } : {}) },
+          /* a finish must reach the candy layers that carry LITERAL colors —
+             gloss tints and the pattern tile ship as hex in the kit, so a
+             gold cup was wearing a kit-blue gloss and facets. Re-point them
+             at the wells (all finish-overridden); the kit's TEXTURE identity
+             (pattern type, scale, gloss shape) stays. */
+          ...(finT ? {
+            gloss: { ...d.candy.gloss, fill: "highlight" as const },
+            pattern: { ...d.candy.pattern, color: null, ...(d.candy.pattern.wall ? { wall: { ...d.candy.pattern.wall, color: null } } : {}) },
+            aura: { ...d.candy.aura, color: null },
+          } : {}),
+        } } : {}),
+        ...(finT && d.effects ? { effects: { ...d.effects, ...finT } } : {}),
       });
+      /* the state glow renders as a clean OUTER halo hugging the whole
+         silhouette (owner: "I just need a glow around that one") — build's
+         interior aura leaks through the handle loops on a tall pierced
+         silhouette and reads as ghosting, so it's zeroed and replaced with
+         stacked drop-shadows over the finished art. padSvg restores the
+         stable glow-pad box. */
+      const adjT = cfg.states[state];
+      const glowT = (adjT?.glow ?? 0) / 100;
       const cfgT: GenConfig = {
         ...calmT(cfg),
         stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmT(d9)])) as GenConfig["stateDesigns"]),
+        ...(glowT > 0 ? { states: { ...cfg.states, [state]: { ...adjT, glow: 0 } } } : {}),
       };
-      return build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
+      const outT = build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
+      if (glowT <= 0 || state === "disabled") return outT;
+      const glowCT = effect(designFor(cfgT, state).effects, "Glow");
+      const rT1 = (dT * 0.045 * glowT).toFixed(1), rT2 = (dT * 0.11 * glowT).toFixed(1);
+      return padSvg(outT)
+        .replace(/(<svg[^>]*>)/, `$1<g style="filter: drop-shadow(0 0 ${rT1}px ${hexRgba(glowCT, 0.9)}) drop-shadow(0 0 ${rT2}px ${hexRgba(glowCT, 0.5)})">`)
+        .replace(/<\/svg>\s*$/, "</g></svg>");
     }
     case "gifticon": {
       /* Gift box — geometry first (owner): the specular shine and gloss
@@ -7476,13 +7517,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25) },
         } } : {}),
       });
+      // the same clean OUTER halo as the trophy — the bow loops pierce the
+      // silhouette, and build's interior aura ghosts through them
+      const adjF9 = cfg.states[state];
+      const glowF9 = (adjF9?.glow ?? 0) / 100;
       const cfgF: GenConfig = {
         ...calmF(cfg),
         stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmF(d9)])) as GenConfig["stateDesigns"]),
+        ...(glowF9 > 0 ? { states: { ...cfg.states, [state]: { ...adjF9, glow: 0 } } } : {}),
+      };
+      const haloF = (svg9: string): string => {
+        if (glowF9 <= 0 || state === "disabled") return svg9;
+        const gC = effect(designFor(cfgF, state).effects, "Glow");
+        const rA = (dF * 0.045 * glowF9).toFixed(1), rB = (dF * 0.11 * glowF9).toFixed(1);
+        return padSvg(svg9)
+          .replace(/(<svg[^>]*>)/, `$1<g style="filter: drop-shadow(0 0 ${rA}px ${hexRgba(gC, 0.9)}) drop-shadow(0 0 ${rB}px ${hexRgba(gC, 0.5)})">`)
+          .replace(/<\/svg>\s*$/, "</g></svg>");
       };
       const shellF = build(cfgF, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
       const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
-      if (!shellFM || opts.part === "base") return shellF;
+      if (!shellFM || opts.part === "base") return haloF(shellF);
       const [fx0, fy0, fw] = shellFM[1].split(" ").map(Number);
       /* The gift silhouette's 200-square viewBox maps onto the (square)
          shell box at fw/200 — verified against the rendered path bbox —
@@ -7494,14 +7548,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const sMap = fw / 200;
       const aX = (ax: number) => (fx0 + ax * sMap).toFixed(1), aY = (ay: number) => (fy0 + ay * sMap).toFixed(1);
       const dimF = state === "disabled" ? 0.45 : 1;
-      const lnW = (fw * 0.033).toFixed(1);
-      const lnC = hexRgba(darken(bevel, 0.52), 0.9);
+      // chonky, illustrated linework (owner) — the folds read as bold
+      // cartoon strokes, same voice as the outline but with real weight
+      const lnW = (fw * 0.058).toFixed(1);
+      const lnC = hexRgba(darken(bevel, 0.52), 0.95);
       const folds = `<g opacity="${dimF}" stroke="${lnC}" stroke-width="${lnW}" stroke-linecap="round" fill="none">
         <path d="M ${aX(31)} ${aY(95.6)} L ${aX(165)} ${aY(86.9)}"/>
         <path d="M ${aX(136)} ${aY(88.9)} L ${aX(136)} ${aY(181.5)}"/>
         <path d="M ${aX(146)} ${aY(53.2)} L ${aX(146)} ${aY(87.4)}"/>
       </g>`;
-      return inject(shellF, folds);
+      return haloF(inject(shellF, folds));
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.

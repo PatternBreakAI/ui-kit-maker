@@ -1781,6 +1781,9 @@ const kitTier = useGen((s) => s.tier);
         rk("gearicon", "Settings gear"),
         rk("gearicon", "Settings gear · Disabled", {}, undefined, "disabled"),
         rk("trophyicon", "Trophy"),
+        rk("trophyicon", "Trophy · Gold", { overlay: "gold" }),
+        rk("trophyicon", "Trophy · Silver", { overlay: "silver" }),
+        rk("trophyicon", "Trophy · Bronze", { overlay: "bronze" }),
         rk("trophyicon", "Trophy · Disabled", {}, undefined, "disabled"),
         rk("gifticon", "Gift box"),
         rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
@@ -2474,9 +2477,12 @@ const kitTier = useGen((s) => s.tier);
           <div className="kp-subhead">Trophy</div>
           <div className="kp-tray">
             <Piece id="trophyicon" caption="Trophy" scale={0.5} />
+            <Piece id="trophyicon" caption="Gold" overlay="gold" scale={0.5} />
+            <Piece id="trophyicon" caption="Silver" overlay="silver" scale={0.5} />
+            <Piece id="trophyicon" caption="Bronze" overlay="bronze" scale={0.5} />
             <Piece id="trophyicon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The prize cup wears the kit — crescent handles carry real daylight</span><span>No shell box; the cup mouth is a recessed opening, the base wears a name plate</span><span>A real button — hover and press work</span></div>
+          <div className="kp-meta"><span>The prize cup wears the kit — crescent handles carry real daylight</span><span>Podium finishes: gold, silver and bronze keep the kit's shapes but contrast its palette — pick them in the Board's assets tray too</span><span>A real button — hover and press work; the state glow rings the whole silhouette</span></div>
         </>)}
         {kitVisible("gifticon", releases, false) && (<>
           <div className="kp-subhead">Gift box</div>
