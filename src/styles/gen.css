@@ -1657,9 +1657,13 @@ button.kp-fact { cursor: pointer; }
 .bd-actions button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 9px; background: var(--card); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-actions button:hover { border-color: var(--ink); }
 .bd-actions .danger { color: #c4453d; }
-/* Fill/Fit — how an image backdrop meets the frame */
+/* Fill/Fit — how an image backdrop meets the frame (also the text tiers) */
 .bd-fitrow { margin-top: 8px; }
 .bd-fitrow button.on { border-color: #6fd6ff; color: #6fd6ff; background: rgba(111, 214, 255, .09); }
+/* plain-text ink row: color well + outline check on one line */
+.bd-inkrow { display: flex; align-items: center; gap: 10px; }
+.bd-inkrow input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line2); border-radius: 7px; background: none; cursor: pointer; }
+.bd-inkchk { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink2); cursor: pointer; }
 .bd-actions.one { grid-template-columns: 1fr; }
 .bd-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 11px; font-size: 11.5px; line-height: 1.5; color: var(--ink2); }
 .bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; border-radius: 10px; border: 1px solid var(--line2); background-size: cover; background-position: center; }

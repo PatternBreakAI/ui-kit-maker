@@ -878,6 +878,13 @@ export function BoardView({ playing }: { playing: boolean }) {
           onClick={() => useGen.getState().addStampToBoard()}>
           <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
         </button>
+        {/* the PLAIN tier (owner: "a delineation between splash text and
+            just good font usage") — same face, flat pickable color, for
+            labels that must READ against any backdrop */}
+        <button className="bd-stampbtn" title="Plain text in the kit's font — pick its color in the side rail; for labels that must stay readable"
+          onClick={() => useGen.getState().addStampToBoard(true)}>
+          <Type size={13} strokeWidth={2.2} /> Plain text — the kit's font, your color
+        </button>
         <div className="bd-scroll">
           {assets.map((g) => {
             // every typed word must land somewhere in the piece's haystack
@@ -1274,9 +1281,28 @@ export function BoardView({ playing }: { playing: boolean }) {
               const st = sel.stamp;
               const patch = (p: Partial<typeof st>) => useGen.getState().setBoardItemStamp(sel.id, p);
               return (<>
-                <div className="bd-h" style={{ marginTop: 14 }}>Type stamp</div>
+                <div className="bd-h" style={{ marginTop: 14 }}>{st.plain ? "Plain text" : "Type stamp"}</div>
                 <input className="bd-abname" value={st.text} maxLength={40} aria-label="Stamp text"
                   onChange={(e) => patch({ text: e.target.value })} />
+                {/* the two text tiers (owner): Splash = the kit's full
+                    lettering treatment; Plain = the same face, one flat
+                    pickable color, for labels that must READ anywhere */}
+                <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Text tier">
+                  <button className={!st.plain ? "on" : ""} role="radio" aria-checked={!st.plain}
+                    title="The kit's full splash lettering — gradients, outline, glints, the works"
+                    onClick={() => patch({ plain: undefined })}>Splash</button>
+                  <button className={st.plain ? "on" : ""} role="radio" aria-checked={!!st.plain}
+                    title="The kit's font at one flat color you pick — labels that stay readable on any backdrop"
+                    onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
+                </div>
+                {st.plain && (
+                  <label className="bd-slider bd-inkrow">Text color
+                    <input type="color" value={st.plain.color} aria-label="Plain text color"
+                      onChange={(e) => patch({ plain: { ...st.plain!, color: e.target.value } })} />
+                    <label className="bd-inkchk"><input type="checkbox" checked={!!st.plain.outline}
+                      onChange={(e) => patch({ plain: { ...st.plain!, outline: e.target.checked } })} /> Ink outline</label>
+                  </label>
+                )}
                 <label className="bd-slider">Type size · {st.size}%
                   <input type="range" min={25} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
                 </label>
@@ -1522,7 +1548,7 @@ export function BoardView({ playing }: { playing: boolean }) {
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
   /* a 400% specimen is a real engine render — memo it, or every board
      interaction re-renders every stamp (the tray-click sluggishness) */
-  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
   const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
