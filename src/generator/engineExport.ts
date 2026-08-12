@@ -1768,6 +1768,49 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   for (const f of figs) files.push(f);
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
+  /* assembly definitions — the kit's scripts compile into their OWN
+     assemblies. Without these, a second copy of the kit anywhere in the
+     project (a drop into an open subfolder, an unmerged macOS folder)
+     lands duplicate classes in Assembly-CSharp-Editor: CS0101, the WHOLE
+     editor assembly dies, and Unity silently keeps running stale code
+     while every tool looks alive (field: boards fell apart, rebuilds did
+     nothing — a full kit copy sat inside TextMesh Pro/Examples). With
+     asmdefs a duplicate only fails OUR assembly, the Console names both
+     folders, and the rest of the project keeps compiling. */
+  files.push({
+    path: "Editor/PatternBreak.Editor.asmdef",
+    data: JSON.stringify({
+      name: "PatternBreak.Editor",
+      rootNamespace: "",
+      references: ["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI"],
+      includePlatforms: ["Editor"],
+      excludePlatforms: [],
+      allowUnsafeCode: false,
+      overrideReferences: false,
+      precompiledReferences: [],
+      autoReferenced: true,
+      defineConstraints: [],
+      versionDefines: [],
+      noEngineReferences: false,
+    }, null, 2),
+  });
+  files.push({
+    path: "Runtime/PatternBreak.Runtime.asmdef",
+    data: JSON.stringify({
+      name: "PatternBreak.Runtime",
+      rootNamespace: "",
+      references: ["Unity.TextMeshPro", "UnityEngine.UI"],
+      includePlatforms: [],
+      excludePlatforms: [],
+      allowUnsafeCode: false,
+      overrideReferences: false,
+      precompiledReferences: [],
+      autoReferenced: true,
+      defineConstraints: [],
+      versionDefines: [],
+      noEngineReferences: false,
+    }, null, 2),
+  });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
@@ -1804,6 +1847,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      file byte-for-byte, and Apply() already walks ALL manifests. */
   const sharedScripts = new Set([
     "Editor/PatternBreakKitImporter.cs",
+    "Editor/PatternBreak.Editor.asmdef", "Runtime/PatternBreak.Runtime.asmdef",
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
     "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
