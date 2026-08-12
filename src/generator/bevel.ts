@@ -7443,10 +7443,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          material (owner: "fill in the area ... with the same material as
          the cup so it isn't hollow"). No overlay furnishing. */
       const dT = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      /* the calming must reach STATE DESIGN FORKS too — a state edited in
+         the Panel (hover glow, say) snapshots the ORIGINAL face/innerGlow
+         into its fork, and the un-calmed copy brings the hollow bowl back
+         (owner: "reverts to its old bottomless version when I add a glow") */
+      const calmT = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"] }>(d: T): T => ({
+        ...d,
+        ...(d.face ? { face: { ...d.face, contrast: Math.min(d.face.contrast, 16), midpoint: 50 } } : {}),
+        ...(d.candy ? { candy: { ...d.candy, innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25) } } } : {}),
+      });
       const cfgT: GenConfig = {
-        ...cfg,
-        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
-        candy: { ...cfg.candy, innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) } },
+        ...calmT(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmT(d9)])) as GenConfig["stateDesigns"]),
       };
       return build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
     }
@@ -7457,15 +7465,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          stroke — the lid's underside across the front, the front/side
          fold, and the lid's own fold. */
       const dF = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      // state design forks calm the same way — see the trophy's note
+      const calmF = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"] }>(d: T): T => ({
+        ...d,
+        ...(d.face ? { face: { ...d.face, contrast: Math.min(d.face.contrast, 16), midpoint: 50 } } : {}),
+        ...(d.candy ? { candy: {
+          ...d.candy,
+          gloss: { ...d.candy.gloss, on: false },
+          specular: { ...d.candy.specular, on: false },
+          innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25) },
+        } } : {}),
+      });
       const cfgF: GenConfig = {
-        ...cfg,
-        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
-        candy: {
-          ...cfg.candy,
-          gloss: { ...cfg.candy.gloss, on: false },
-          specular: { ...cfg.candy.specular, on: false },
-          innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) },
-        },
+        ...calmF(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmF(d9)])) as GenConfig["stateDesigns"]),
       };
       const shellF = build(cfgF, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
       const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
