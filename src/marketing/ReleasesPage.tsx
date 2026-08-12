@@ -32,7 +32,11 @@ const RELEASES: Release[] = [
       },
       {
         h: "Bars stretch the way they will in your game",
-        p: "Sliders, progress bars and segmented meters grow new side handles: pull an edge and the track re-renders wider — caps, knob and inset stay true instead of distorting, exactly like a nine-slice in an engine. Corners still scale the whole piece proportionally.",
+        p: "Sliders, progress bars, segmented meters and the VS health bar grow new side handles: pull an edge and the track re-renders wider — caps, knob and inset stay true instead of distorting, exactly like a nine-slice in an engine. Corners still scale the whole piece proportionally.",
+      },
+      {
+        h: "Blank panels: pull the edges, scale the corners",
+        p: "The blank panel now works in two modes. Grab any edge — left, right, top or bottom — and it stretches nine-slice style to the exact footprint your screen needs, the border and rim holding their designed weight. And because every pull is a fresh render, the gloss, pattern and grain are redrawn at the new size, never smeared. Corners still scale the whole panel proportionally, and Width and Height dials in the rail take exact numbers.",
       },
       {
         h: "Any board piece can become an asset",
@@ -69,6 +73,10 @@ const RELEASES: Release[] = [
       {
         h: "The Board bends to your hand",
         p: "Boards zoom with the toolbar, the side trays stretch to your liking (within safe rails), every piece has its own opacity dial, and the ghost joystick overlay is placeable straight from the assets tray.",
+      },
+      {
+        h: "A cleaner slate, and backdrops left in peace",
+        p: "A board's Clear button now clears the whole stage — pieces and background together, and it tells you exactly what's going before it goes. And the empty-stage hint no longer prints itself over a backdrop you just uploaded; it waits for a truly bare board.",
       },
       {
         h: "Faster, steadier, and honest about it",
