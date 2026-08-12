@@ -830,7 +830,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      aura sprite — kept beside the manifest's stateFx list, which drives the
      runtime that fades it */
   const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
-    "list-row", "item-slot", "iconbtn", "checkbox", "radio"]);
+    "list-row", "item-slot", "iconbtn", "checkbox", "radio",
+    /* the props glow in their own silhouette too — without an aura sprite
+       they fell to the generic radial blob (owner: "the glows are all
+       very generic in shape and don't follow the silhouette") */
+    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge"]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -1673,7 +1677,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          it's impossible for me to know" whether it hovered at all). */
       stateFx: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
                  ["chip", "chip"], ["tab", "tab"], ["datarow", "list-row"], ["slot", "item-slot"],
-                 ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"]] as const).flatMap(([pid, fam]) => {
+                 ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
+                 /* the props announce their states too (owner: "settings
+                    gear doesn't work on play", "trophy states aren't in") —
+                    glow + lift ride the same engine recipe as the buttons */
+                 ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"],
+                 ["firebutton", "firebutton"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -4476,6 +4485,8 @@ namespace PatternBreak {
             if (it.component == "typestamp" && !string.IsNullOrEmpty(it.label)
                 && System.Text.RegularExpressions.Regex.IsMatch(it.label.Trim(), "^[0-9][0-9.,:+xX% ]*$")) {
               var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
+              if (hlPf == null)
+                Debug.LogWarning("UI Kit Maker: numeric stamp '" + it.label.Trim() + "' stays a baked image — no HeroLabel prefab yet (it ships when the kit bakes its layered face; run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate).");
               if (hlPf != null) {
                 inst = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
                 inst.name = "Stamp (live) — " + it.label.Trim();
@@ -4712,6 +4723,7 @@ namespace PatternBreak {
         var sg = group[0].Value.AddComponent<SelectGroup>();
         sg.members = members;
         sg.selected = 0;
+        Debug.Log("UI Kit Maker: wired a select row — " + group.Count + " × " + NiceName(group[0].Key.component) + " (click one in Play mode, it holds its pressed face).");
       }
     }
     [MenuItem("Tools/PatternBreak/Rebuild Kit Board Scenes")]
@@ -6220,7 +6232,11 @@ namespace PatternBreak {
       srt.offsetMin = new Vector2(lane, 0f); srt.offsetMax = new Vector2(-lane, 0f);
       var handle = ImageObject("Handle", thumb, pngScale);
       handle.transform.SetParent(slideArea.transform, false);
-      handle.GetComponent<Image>().type = Image.Type.Simple;
+      var hImg = handle.GetComponent<Image>();
+      hImg.type = Image.Type.Simple;
+      // belt and braces: whatever a layout pass does to the rect, the
+      // knob stays round (field: "eggshaped handles")
+      hImg.preserveAspect = true;
       var hrt = handle.GetComponent<RectTransform>();
       hrt.sizeDelta = new Vector2(thumbW, thumbH);
       var sl = go.AddComponent<Slider>();
@@ -6246,6 +6262,7 @@ namespace PatternBreak {
       var ki = knob.GetComponent<Image>();
       ki.raycastTarget = false;
       ki.type = Image.Type.Simple;
+      ki.preserveAspect = true; // the knob stays round under any layout
       var krt = knob.GetComponent<RectTransform>();
       krt.anchorMin = new Vector2(0.5f, 0.5f); krt.anchorMax = new Vector2(0.5f, 0.5f);
       var tog = go.AddComponent<Toggle>();
@@ -6302,7 +6319,9 @@ namespace PatternBreak {
       float domeShellW = ShellCenterAnchor(wGo, go, "firebutton", m, out shlF) ? Mathf.Min(shlF.x, shlF.y) : domeW;
       var wRt = wGo.GetComponent<RectTransform>();
       wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
-      wRt.anchoredPosition += new Vector2(0f, domeShellW * 0.02f);
+      // the app seats the armed glyph a touch BELOW the dome's center
+      // (cy + kr·0.14) — the up-nudge read off-center (owner)
+      wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
       fb.weapon = wIm;
       // waiting chambers, tangent to the dome's upper-left arc
       var chambers = new Image[3];
