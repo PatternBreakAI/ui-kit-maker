@@ -335,7 +335,12 @@ export async function collectExportBoards(st: {
       exItems.push({
         component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
         w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
-        rot: b.rot ?? 0, label: b.label ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
+        /* the words the maker actually SAW: per-copy label first, the
+           kit-wide custom words second. Emitting only the per-copy label
+           left kit-wide words behind — the baked board PNG said BACK, the
+           live scene label reverted to the prefab's default TAB (owner:
+           "the custom stuff from the boards isn't coming through") */
+        rot: b.rot ?? 0, label: b.label ?? st.kitLabels[id] ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
       });
     }
     out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
@@ -3003,8 +3008,14 @@ simply isn't visible.
 ### The stretch-safe face (no compromise)
 
 When a kit wears a pattern, the wide pieces also ship **split into
-layers**, and the importer builds them as ready prefabs:
-**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+layers**, and the importer builds them as ready prefabs in their own
+folder — **Prefabs/Tiled face/** — so the two flavors never blur
+together: \`Prefabs/\` is the plain drag-in pieces, \`Prefabs/Tiled face/\`
+is the stretch-safe pattern flavor of the same names (panel, header,
+both buttons, list row, item slot). The buttons in there carry the same
+live label and engine-side states (glow, lift, label ink) as their
+plain siblings — no sprite swap, because swapping one layer of a
+layered build would double the pattern.
 
 Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
 hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
@@ -4952,8 +4963,16 @@ namespace PatternBreak {
        icon button, checkbox and radio arrived with no Button at all —
        their states shipped, nothing ever read them. */
     static Sprite State(string famDir, string name) {
-      var nine = S(famDir + "/base-" + name + ".9.png");
-      return nine != null ? nine : S(famDir + "/base-" + name + ".png");
+      /* FINDABLE-NAMES era first (button-primary-base-hover.9.png), the
+         legacy short names second. Probing only the short names is why a
+         renamed zip generated prefabs with NO states at all — hover,
+         pressed and disabled shipped, nothing ever found them (field:
+         "the button states aren't fully coming through"). */
+      var famName = Path.GetFileName(famDir);
+      var s = S(famDir + "/" + famName + "-base-" + name + ".9.png");
+      if (s == null) s = S(famDir + "/" + famName + "-base-" + name + ".png");
+      if (s == null) s = S(famDir + "/base-" + name + ".9.png");
+      return s != null ? s : S(famDir + "/base-" + name + ".png");
     }
     /* the glow and the lift, wired from the kit's own state dials. Only
        goes on pieces that actually swap — a panel has no hover to announce. */
@@ -4977,7 +4996,11 @@ namespace PatternBreak {
          for a family that ships no aura (owner, on the blob: "looks pretty
          generic… very big and not as soft comparatively"). */
       var baseSp = S(basePath);
-      var glowSp = S(Path.GetDirectoryName(basePath).Replace("\\\\", "/") + "/glow.png");
+      // renamed name first, legacy second — the short-name-only probe sent
+      // every renamed kit to the generic blob the owner already vetoed
+      var glowDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
+      var glowSp = S(glowDir + "/" + Path.GetFileName(glowDir) + "-glow.png");
+      if (glowSp == null) glowSp = S(glowDir + "/glow.png");
       fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/fx-glow.png");
       if (glowSp != null && baseSp != null && pngScale > 0)
         fx.glowPad = new Vector2(
@@ -5028,7 +5051,7 @@ namespace PatternBreak {
        over (Sliced) lays the gloss back on top. Stretch this to any width
        and the frame stretches, the pattern tiles at constant scale, and
        the gloss stays one sweep — what the app shows, at any size. */
-    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
+    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam, string label, Font kitFont, PBManifest m) {
       var under = S(root + "/assets/" + fam + "/" + fam + "-base-under.9.png");
       var over = S(root + "/assets/" + fam + "/" + fam + "-base-over.9.png");
       var tile = S(root + "/assets/fx/fx-face-tile.png");
@@ -5062,6 +5085,31 @@ namespace PatternBreak {
       oi.type = Image.Type.Sliced;
       oi.raycastTarget = false;
       StretchFull(ov.GetComponent<RectTransform>());
+      /* the layered build is still a real control (field: "No text on the
+         button primary"): same label and state dress as the plain prefab —
+         but NO sprite swap. Swapping the under layer to the full-material
+         state art would double the pattern and gloss; states ride the
+         engine side instead (Button for the click, StateFx for the kit's
+         glow and lift, label ink shifts via the same wiring). */
+      var famDirT = root + "/assets/" + fam;
+      if (State(famDirT, "hover") != null || State(famDirT, "pressed") != null || State(famDirT, "disabled") != null) {
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = ui;
+        btn.transition = Selectable.Transition.None;
+        WireStateFx(go, root, m, fam, famDirT + "/" + fam + "-base.9.png", pngScale);
+      }
+      if (label != null) {
+#if UNITY_2023_2_OR_NEWER
+        var bakedFaceT = BakedLabelFace(m, root, fam);
+        if (bakedFaceT != null) AddBakedLabel(go, label, root, bakedFaceT, m, fam);
+        else
+#endif
+        AddLabel(go, label, kitFont, root, m, fam);
+#if UNITY_2023_2_OR_NEWER
+        var labelRootT = FindOurLabelRoot(go);
+        if (labelRootT != null) WireLabelStates(go, labelRootT, m, fam);
+#endif
+      }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -5261,9 +5309,20 @@ namespace PatternBreak {
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
       if (TogglePrefabs(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale)) any = true;
-      // the wide, stateless pieces also get a stretch-safe variant when
-      // the kit wears a pattern (the plain Sliced prefab still ships)
-      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
+      /* the stretch-safe variants live in their OWN folder (owner: "we
+         need to draw a distinction between 9 slice elements and not…
+         two different folders") — Prefabs/ stays the drag-in pieces,
+         Prefabs/Tiled face/ is the pattern-true stretch flavor */
+      var tiledDir = dir + "/Tiled face";
+      bool hadTiledDir = AssetDatabase.IsValidFolder(tiledDir);
+      if (!hadTiledDir) AssetDatabase.CreateFolder(dir, "Tiled face");
+      bool anyTiled = false;
+      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) {
+        var tl = (tf == "button-primary" || tf == "button-secondary") ? DefaultLabel(tf) : null;
+        if (TiledFacePrefab(tiledDir, root, pngScale, tf, tl, kitFont, m)) { any = true; anyTiled = true; }
+      }
+      // a kit with no pattern builds no tiled faces — leave no empty folder
+      if (!anyTiled && !hadTiledDir) AssetDatabase.DeleteAsset(tiledDir);
 #if UNITY_2023_2_OR_NEWER
       if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
 #endif
@@ -5322,7 +5381,17 @@ namespace PatternBreak {
         foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { stage })) {
           var p = AssetDatabase.GUIDToAssetPath(g);
           var name = Path.GetFileName(p);
-          if (!have.Contains(name) && string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, dir + "/" + name))) added++;
+          if (have.Contains(name)) continue;
+          /* the staged layout carries subfolders (Tiled face) — a missing
+             prefab moves into the SAME subfolder, not the root */
+          var rel = p.Substring(stage.Length + 1);
+          var sub = Path.GetDirectoryName(rel).Replace("\\\\", "/");
+          var targetDir = dir;
+          if (!string.IsNullOrEmpty(sub)) {
+            targetDir = dir + "/" + sub;
+            if (!AssetDatabase.IsValidFolder(targetDir)) AssetDatabase.CreateFolder(dir, sub);
+          }
+          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) added++;
         }
       } finally {
         AssetDatabase.DeleteAsset(stage);
@@ -5346,7 +5415,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -5378,12 +5447,26 @@ namespace PatternBreak {
         var hover = State(famDir, "hover");
         var pressed = State(famDir, "pressed");
         var disabled = State(famDir, "disabled");
-        bool wantWiring = asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
+        /* the tiled-face builds are LAYERED art (root = base-under with
+           pattern + over children): a full-material sprite swap on them
+           doubles the pattern and gloss on hover. Their states are wired
+           at generation (Button, no swap; StateFx; label ink) — the
+           maintenance pass must not "heal" them into the wrong transition */
+        bool tiledBuild = spritePath.Contains("-base-under.") || spritePath.EndsWith("/base-under.9.png");
+        bool wantWiring = !tiledBuild && asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
         /* a prefab built by an older importer already has its Button, so the
            wiring branch never fires — it would have kept its quiet face swap
            forever without this (owner: "I'm not getting the glows on hover") */
-        bool wantFx = (hover != null || pressed != null || disabled != null)
+        bool wantFx = !tiledBuild && (hover != null || pressed != null || disabled != null)
           && asset.GetComponent<StateFx>() == null && HasStateFx(m, famName);
+        /* and where an earlier pass already swap-wired a tiled build, take
+           the wrong transition OFF (our mistake, ours to clean) — the
+           Button itself stays, clicks keep working */
+        bool wantUnswap = false;
+        if (tiledBuild) {
+          var selNow = asset.GetComponent<Selectable>();
+          wantUnswap = selNow != null && selNow.transition == Selectable.Transition.SpriteSwap;
+        }
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
         if (kitStyle != null) {
@@ -5453,7 +5536,7 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress && !wantFx) continue;
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -5480,6 +5563,17 @@ namespace PatternBreak {
           if (wantFx && contents.GetComponent<StateFx>() == null) {
             WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
+          }
+          if (wantUnswap) {
+            var selFix = contents.GetComponent<Selectable>();
+            if (selFix != null && selFix.transition == Selectable.Transition.SpriteSwap) {
+              selFix.transition = Selectable.Transition.None;
+              selFix.spriteState = new SpriteState();
+              // the layered build's states live engine-side — arm them now
+              if (contents.GetComponent<StateFx>() == null && HasStateFx(m, famName))
+                WireStateFx(contents, root, m, famName, famDir + "/" + famName + "-base.9.png", m.pngScale);
+              unswapped++; changed = true;
+            }
           }
 #if UNITY_2023_2_OR_NEWER
           if (wantDress) {
@@ -5538,6 +5632,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: rebuilt " + healed + " HeroLabel prefab(s) to the echo construction (one text, layer inks) — words preserved; placed copies healed with it.");
       if (purgedGhosts > 0)
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
+      if (unswapped > 0)
+        Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
