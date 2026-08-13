@@ -1894,38 +1894,53 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return G(out.join(""));
   }
 
-  /* Soft camo — TWO interlocking organic fields, rebuilt (owner: small
-     teal blobs on a background "is not camouflage"; the next cut ran 74%
-     and inverted figure and ground). Three MAJORS carry the cloth: a
-     north sweep entering the LEFT seam and leaving through the TOP, a
-     west riser entering the BOTTOM and leaving through the LEFT, and a
-     broad east ridge through the RIGHT seam dropping a tongue out the
-     BOTTOM. Every mouth overlaps a partner's body one tile over — ridge
-     into riser, riser onto the sweep's back, sweep's mouth into the
-     ridge's tongue — so the ink fuses into one winding landmass, and
-     the ground between the flows is drawn as geography too: lakes,
-     straits and bays wide enough to read as the second territory, never
-     as piping. Three mediums and one bean salt the open water. Measured
-     coverage 51% — balance is the point. Boundary anchors sit 10-15
-     apart with single broad turns (a same-height double hump reads as
-     "cat ears" tiled; a sub-8 pocket reads as an enclosed eye — both
-     found and removed in tiled renders). Patterns clip, so every
-     seam-crosser is re-stamped offset exactly ±100; corner crossers
-     carry all three copies. */
+  /* Soft camo — rebuilt BIGGER to the owner's reference sheet (2026-08-13):
+     a card shows only ~6-8 masses, several spanning half its width, ink and
+     ground in near-equal balance. TWO giants and ONE fat bean now carry the
+     cell, nothing smaller: the serpent (west lobe in through the LEFT seam,
+     ~12-unit pinched waist, cap out the TOP — the dumbbell read) and the
+     bay whale (broad back through the RIGHT seam, a gentle bay in its SW
+     underside, fat tongue out the BOTTOM). The tongue lands eleven units
+     wide on the serpent cap one tile down, so every whale melts into the
+     serpent below and the ink winds tile-to-tile as one diagonal chain —
+     at button scale that is one or two giant lobes swinging through the
+     face. Anchors run through one closed Catmull-Rom pass (the topo idiom)
+     for calm, few-turn edges, and sit 12+ apart: a tighter three-anchor
+     bay curled into a white spiral in a draft, and a 26-unit oval read as
+     polka dots tiled — the bean now runs 31 units on the flow's own
+     diagonal. Ground is drawn as geography too: lakes NE and mid-west, a
+     9-12 unit strait winding between serpent arm and whale back. Seam
+     stations stay irregular (top ink x 29-86 fused, left y 10-37, right
+     y 48-74) and no two landmarks share a row or column. Measured coverage
+     51%. Patterns clip, so each giant is restamped at its two seam offsets
+     plus the shared corner; the bean floats clear of every seam. */
   if (style === "softcamo") {
-    const T = (d: string, o = "") => `<path fill="${color}"${o ? ` transform="translate(${o})"` : ""} d="${d}"/>`;
-    const sweep = "M-10.0 15.0 C-9.5 12.2 -7.7 9.5 -4.0 8.0 C-0.3 6.5 7.3 5.2 12.0 6.0 C16.7 6.8 20.3 11.5 24.0 13.0 C27.7 14.5 31.0 16.0 34.0 15.0 C37.0 14.0 40.0 10.2 42.0 7.0 C44.0 3.8 44.2 -1.3 46.0 -4.0 C47.8 -6.7 50.5 -8.2 53.0 -9.0 C55.5 -9.8 58.8 -10.2 61.0 -9.0 C63.2 -7.8 65.5 -4.7 66.0 -2.0 C66.5 0.7 65.8 4.3 64.0 7.0 C62.2 9.7 58.0 12.2 55.0 14.0 C52.0 15.8 49.2 16.3 46.0 18.0 C42.8 19.7 39.7 22.5 36.0 24.0 C32.3 25.5 28.0 27.0 24.0 27.0 C20.0 27.0 15.7 23.8 12.0 24.0 C8.3 24.2 5.2 27.8 2.0 28.0 C-1.2 28.2 -5.0 27.2 -7.0 25.0 C-9.0 22.8 -10.5 17.8 -10.0 15.0 Z";
-    const riser = "M26.0 56.0 C28.8 57.2 29.5 59.3 30.0 62.0 C30.5 64.7 29.8 68.3 29.0 72.0 C28.2 75.7 24.5 80.2 25.0 84.0 C25.5 87.8 30.8 91.2 32.0 95.0 C33.2 98.8 33.0 103.3 32.0 107.0 C31.0 110.7 28.5 115.8 26.0 117.0 C23.5 118.2 19.0 116.3 17.0 114.0 C15.0 111.7 15.0 107.0 14.0 103.0 C13.0 99.0 12.8 94.0 11.0 90.0 C9.2 86.0 6.2 81.8 3.0 79.0 C-0.2 76.2 -5.5 75.5 -8.0 73.0 C-10.5 70.5 -12.3 66.7 -12.0 64.0 C-11.7 61.3 -8.5 57.7 -6.0 57.0 C-3.5 56.3 -0.2 60.3 3.0 60.0 C6.2 59.7 9.2 55.7 13.0 55.0 C16.8 54.3 23.2 54.8 26.0 56.0 Z";
-    const ridge = "M43.0 64.0 C43.8 60.8 46.5 58.3 50.0 56.0 C53.5 53.7 59.3 51.5 64.0 50.0 C68.7 48.5 73.7 46.8 78.0 47.0 C82.3 47.2 86.3 49.7 90.0 51.0 C93.7 52.3 97.2 53.3 100.0 55.0 C102.8 56.7 105.5 58.5 107.0 61.0 C108.5 63.5 109.5 67.2 109.0 70.0 C108.5 72.8 106.2 76.5 104.0 78.0 C101.8 79.5 99.0 78.5 96.0 79.0 C93.0 79.5 89.3 81.0 86.0 81.0 C82.7 81.0 79.0 78.0 76.0 79.0 C73.0 80.0 70.0 83.8 68.0 87.0 C66.0 90.2 64.8 94.8 64.0 98.0 C63.2 101.2 64.5 104.3 63.0 106.0 C61.5 107.7 56.8 109.7 55.0 108.0 C53.2 106.3 53.2 99.5 52.0 96.0 C50.8 92.5 49.2 90.5 48.0 87.0 C46.8 83.5 45.8 78.8 45.0 75.0 C44.2 71.2 42.2 67.2 43.0 64.0 Z";
-    const bean = "M74.0 99.0 C75.3 97.2 78.8 94.3 81.0 94.0 C83.2 93.7 85.8 95.3 87.0 97.0 C88.2 98.7 89.0 102.0 88.0 104.0 C87.0 106.0 83.5 108.8 81.0 109.0 C78.5 109.2 74.2 106.7 73.0 105.0 C71.8 103.3 72.7 100.8 74.0 99.0 Z";
+    const lp = (c: number[], ...at: [number, number][]) => {
+      const m = c.length >> 1;
+      const X = (i: number) => c[(((i % m) + m) % m) * 2];
+      const Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1];
+      let d = `M${n(X(0))} ${n(Y(0))}`;
+      for (let i = 0; i < m; i++)
+        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${n(X(i + 1))} ${n(Y(i + 1))}`;
+      return [[0, 0] as [number, number], ...at].map(([dx, dy]) =>
+        `<path fill="${color}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ""} d="${d}Z"/>`).join("");
+    };
+    const serpent = [
+      -22, 24, -14, 15, 2, 12, 18, 8, 28, 2, 36, -10, 50, -16, 62, -10,
+      68, -2, 63, 12, 50, 16, 37, 11, 26, 30, 10, 36, -8, 33, -18, 29,
+    ];
+    const whale = [
+      48, 59, 60, 50, 78, 44, 94, 47, 110, 50, 115, 62, 108, 70, 96, 76,
+      88, 88, 85, 98, 76, 110, 60, 108, 52, 93, 53, 80, 63, 71, 54, 62,
+    ];
+    const bean = [
+      43, 64, 40, 75, 26, 85, 13, 82, 16, 69, 30, 59,
+    ];
     return G(
-      T(sweep) + T(sweep, "0 100") + T(sweep, "100 0") + T(sweep, "100 100") +
-      T(riser) + T(riser, "0 -100") + T(riser, "100 0") + T(riser, "100 -100") +
-      T(ridge) + T(ridge, "0 -100") + T(ridge, "-100 0") + T(ridge, "-100 -100") +
-      T("M61.0 24.0 C61.5 21.7 66.2 17.0 69.0 15.0 C71.8 13.0 76.0 11.3 78.0 12.0 C80.0 12.7 81.5 16.7 81.0 19.0 C80.5 21.3 77.5 24.3 75.0 26.0 C72.5 27.7 68.3 29.3 66.0 29.0 C63.7 28.7 60.5 26.3 61.0 24.0 Z") +
-      T("M22.0 40.0 C22.5 38.3 28.5 35.8 32.0 35.0 C35.5 34.2 40.2 34.2 43.0 35.0 C45.8 35.8 49.5 38.3 49.0 40.0 C48.5 41.7 43.3 44.2 40.0 45.0 C36.7 45.8 32.0 45.8 29.0 45.0 C26.0 44.2 21.5 41.7 22.0 40.0 Z") +
-      T(bean) + T(bean, "0 -100") +
-      T("M76.0 36.0 C76.8 34.7 79.8 32.5 82.0 32.0 C84.2 31.5 87.7 32.0 89.0 33.0 C90.3 34.0 91.0 36.7 90.0 38.0 C89.0 39.3 85.2 40.7 83.0 41.0 C80.8 41.3 78.2 40.8 77.0 40.0 C75.8 39.2 75.2 37.3 76.0 36.0 Z"));
+      lp(serpent, [100, 0], [0, 100], [100, 100]) +
+      lp(whale, [-100, 0], [0, -100], [-100, -100]) +
+      lp(bean)
+    );
   }
 
   /* Chainmail — European 4-in-1: rings of radius .34p on a half-p lattice,
@@ -2133,6 +2148,71 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     const corners: [number, number][] = [[0, 0], [p, 0], [0, p], [p, p]];
     return line(flake(h, h, p * 0.29, 0), p * 0.029) +
       corners.map(([cx, cy]) => line(flake(cx, cy, p * 0.175, 30), p * 0.023)).join("");
+  }
+
+  /* Tiger stripes — the speed-lines heading gone full pelt (owner: "go
+     more tigerstripes"). One insight carries the drawing: at this 34°
+     grain, stepping (3,-2) tiles moves 360.5 units ALONG the stripes but
+     only 1.9 across — so a single lane of bands laid tip-to-tail over
+     that period cascades into parallel lanes 27.6 apart, phase-shifted
+     138.8, and the whole pelt is ONE broken mega-stripe. The lane cycle:
+     a long band, a forked band (the Y grows off its back, splits hard,
+     then the prongs run out parallel), a mid band, an aligned dash pair,
+     with two short interband flecks in the only two pockets the cascade
+     leaves open (placed by exhaustive search). Bodies hold a fat plateau
+     (up to 14 units) between long tapered points; slow damped wobble
+     keeps the sway organic and the tips calm. Spines are frozen
+     [x, y, half-width] triplets from tiled review; rails are offset per
+     sample and joined by Catmull-Rom cubics (the topo idiom), sides
+     smooth, tips sharp. Every neighbour gap ≥4.1 (torus-audited — no
+     accidental fusing), coverage 31%. Patterns clip, so any band whose
+     box leaves the cell is restamped offset exactly ±100; corner
+     crossers carry all three copies. */
+  if (style === "tigerstripes") {
+    // one lane cycle: long band, forked band, mid band, dash pair,
+    // two flecks, then the Y prong (its wide tail buried in its parent)
+    const T: number[][] = [
+      [-0.5, 99.3, 0, 8.3, 92, 1.5, 17.1, 84.7, 4.9, 26.9, 79, 7, 37.8, 75, 7, 48.2, 70.3, 7, 57.6, 63.9, 7, 66.9, 57.4, 6.3, 76.2, 50.8, 2.5, 85.1, 43.7, 0],
+      [-6.9, 39.4, 0, 2.1, 33.8, 2, 9.9, 26.4, 5.5, 17.8, 19, 6.6, 26.5, 12.8, 6.6, 35.8, 7.5, 6.6, 45.1, 2.1, 6.6, 54.1, -3.5, 5.5, 63.2, -9.1, 2, 71.7, -15.6, 0],
+      [-22, 78.5, 0, -13.2, 71.5, 4.9, -4.2, 64.8, 5.6, 6, 59.9, 5.6, 16.3, 55.2, 3.7, 25.2, 48.4, 0],
+      [32, 44.1, 0, 39.5, 40, 4.4, 46.3, 34.9, 5, 52.9, 29.5, 4.8, 60.2, 25.1, 0],
+      [67, 19.9, 0, 73.1, 15.7, 4.5, 79.8, 12.1, 4.6, 86.1, 8.1, 4.1, 91.8, 3.2, 0],
+      [65.4, 39.2, 0, 69.7, 36.6, 3.1, 74, 34, 3.4, 78.3, 31.4, 3.1, 82.6, 28.8, 0],
+      [79.4, 95.2, 0, 83.7, 92.6, 3.1, 88, 90, 3.4, 92.3, 87.4, 3.1, 96.6, 84.8, 0],
+      [16.9, 19.9, 3.4, 20.5, 12.8, 3.4, 24.5, 5.8, 3.4, 28.9, -0.9, 2.9, 33.6, -7.3, 1.1, 38.7, -13.5, 0],
+    ];
+    const out: string[] = [];
+    for (const c of T) {
+      const m = c.length / 3;
+      const P = (i: number, j: number) => c[Math.min(m - 1, Math.max(0, i)) * 3 + j];
+      const L: number[][] = [], R: number[][] = [];
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (let i = 0; i < m; i++) {
+        const tx = P(i + 1, 0) - P(i - 1, 0), ty = P(i + 1, 1) - P(i - 1, 1);
+        const tl = Math.hypot(tx, ty), w = P(i, 2);
+        L.push([P(i, 0) - (ty / tl) * w, P(i, 1) + (tx / tl) * w]);
+        R.push([P(i, 0) + (ty / tl) * w, P(i, 1) - (tx / tl) * w]);
+        x0 = Math.min(x0, P(i, 0) - w); x1 = Math.max(x1, P(i, 0) + w);
+        y0 = Math.min(y0, P(i, 1) - w); y1 = Math.max(y1, P(i, 1) + w);
+      }
+      // open Catmull-Rom → cubics down each rail; the corner joins at the
+      // rails' shared endpoints are what keep the two tips sharp
+      const run = (Q: number[][]) => {
+        let d = "";
+        const A = (i: number) => Q[Math.min(Q.length - 1, Math.max(0, i))];
+        for (let i = 0; i + 1 < Q.length; i++)
+          d += `C${n(A(i)[0] + (A(i + 1)[0] - A(i - 1)[0]) / 6)} ${n(A(i)[1] + (A(i + 1)[1] - A(i - 1)[1]) / 6)} ${n(A(i + 1)[0] - (A(i + 2)[0] - A(i)[0]) / 6)} ${n(A(i + 1)[1] - (A(i + 2)[1] - A(i)[1]) / 6)} ${n(A(i + 1)[0])} ${n(A(i + 1)[1])}`;
+        return d;
+      };
+      const d = `M${n(L[0][0])} ${n(L[0][1])}` + run(L) + run(R.slice().reverse()) + "Z";
+      // restamp wherever the band (bbox +3 for control-point overshoot)
+      // can reach the tile — each crosser re-enters the next tile exactly
+      for (let ox = -100; ox <= 100; ox += 100)
+        for (let oy = -100; oy <= 100; oy += 100)
+          if (x1 + ox > -3 && x0 + ox < 103 && y1 + oy > -3 && y0 + oy < 103)
+            out.push(`<path d="${d}"${ox || oy ? ` transform="translate(${ox} ${oy})"` : ""} fill="${color}"/>`);
+    }
+    return G(out.join(""));
   }
 
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
