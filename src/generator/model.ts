@@ -140,7 +140,10 @@ export const GLINT_STYLES: { id: GlintStyle; name: string }[] = [
 export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "halftone"
   | "houndstooth" | "plaid" | "diamonds" | "chevron" | "waves" | "scales"
   | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
-  | "skulls" | "crosses" | "bats" | "thorns" | "fleur";
+  | "skulls" | "crosses" | "bats" | "thorns" | "fleur"
+  | "circuit" | "hexcells" | "facets" | "speedlines" | "topo"
+  | "softcamo" | "chainmail" | "camoshards" | "bolts" | "pixelblocks"
+  | "animeburst" | "boltspop" | "snowflake";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -171,6 +174,22 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "bats", name: "Bats" },
   { id: "thorns", name: "Thorn vine" },
   { id: "fleur", name: "Fleur-de-lis" },
+  /* the fourth wave — ten game-surface patterns from the owner's
+     implementation brief (2026-08-13): tech, terrain, camo, energy and
+     retro reads. One contiguous block, names and order per the brief. */
+  { id: "circuit", name: "Circuit Board" },
+  { id: "hexcells", name: "Hex Cells" },
+  { id: "facets", name: "Crystal Facets" },
+  { id: "speedlines", name: "Speed Lines" },
+  { id: "topo", name: "Topographic Contours" },
+  { id: "softcamo", name: "Soft Camouflage" },
+  { id: "chainmail", name: "Chainmail" },
+  { id: "camoshards", name: "Camo Shards" },
+  { id: "bolts", name: "Lightning Bolts" },
+  { id: "pixelblocks", name: "Pixel Blocks" },
+  { id: "animeburst", name: "Anime Burst" },
+  { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
+  { id: "snowflake", name: "Snowflakes" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row

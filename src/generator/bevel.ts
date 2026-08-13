@@ -1660,7 +1660,9 @@ export function textPatternCell(style: string, ps: number, color: string): strin
      authored in a 100-unit cell and scaled to ps by a group transform —
      the drawings stay literal (and were approved from tiled renders),
      stroke widths scale with the cell like every hand-set width above. */
-  const G = (inner: string) => `<g transform="scale(${n(p / 100)})">${inner}</g>`;
+  // full precision: a tenth-rounded scale leaves a hairline clip band on
+  // two edges of every tile at off sizes — a faint grid the eye catches
+  const G = (inner: string) => `<g transform="scale(${(p / 100).toFixed(4)})">${inner}</g>`;
 
   /* Skulls — big/small polka rhythm: one skull centered, a small echo
      ON each corner (the halftone precedent) so quarters join whole
@@ -1710,6 +1712,424 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     `<path fill="${color}" d="M38.5 55 L61.5 55 L61.5 61.5 L38.5 61.5 Z"/>` +
     `<path fill="${color}" d="M45.5 60 C45.5 69.5 42.5 75.5 37 81 L50 75 L63 81 C57.5 75.5 54.5 69.5 54.5 60 Z"/>` +
     `<path fill="${color}" d="M50 -6 L54.5 0 L50 6 L45.5 0 Z M50 94 L54.5 100 L50 106 L45.5 100 Z M-6 50 L0 45.5 L6 50 L0 54.5 Z M106 50 L100 45.5 L94 50 L100 54.5 Z"/>`);
+
+  /* ── the fourth wave — ten game-surface patterns from the owner's
+     implementation brief (2026-08-13): tech, terrain, camo, energy and
+     retro reads. Same seamless-square contract as every wave; every cell
+     below was authored against a pixel harness (5×5 tile repeat, wrapped
+     edge continuation, coverage band, button/panel mocks) before landing
+     here. Menu order matches the brief exactly. */
+  /* Circuit board — a hand-routed PCB corner on a p/16 grid: orthogonal
+     runs with 45° jogs, open ring pads, terminal dots, junction dots at
+     tees and two SMD squares. Every run that leaves an edge is drawn
+     again offset ±p on that axis (the houndstooth idiom) so nets read
+     continuous across tiles; the y=8 run crosses the tile whole. */
+  if (style === "circuit") {
+    const g = p / 16, tw = p * 0.03;
+    const T = (pts: number[]) => {
+      let d = "";
+      for (let i = 0; i < pts.length; i += 2) d += `${i ? "L" : "M"}${n(pts[i] * g)} ${n(pts[i + 1] * g)}`;
+      return line(d, tw);
+    };
+    const pad = (x: number, y: number) =>
+      `<circle cx="${n(x * g)}" cy="${n(y * g)}" r="${n(g * 0.68)}" fill="none" stroke="${color}" stroke-width="${n(tw)}"/>`;
+    const dot = (x: number, y: number, r: number) =>
+      `<circle cx="${n(x * g)}" cy="${n(y * g)}" r="${n(r * g)}" fill="${color}"/>`;
+    const node = (x: number, y: number) =>
+      `<rect x="${n((x - 0.61) * g)}" y="${n((y - 0.61) * g)}" width="${n(1.22 * g)}" height="${n(1.22 * g)}" fill="${color}"/>`;
+    return [
+      // pad run jogging down 45°, exits right — redrawn -16 for the left re-entry
+      T([2.9, 2, 8.5, 2, 11, 4.5, 17.5, 4.5]), T([-13.1, 2, -7.5, 2, -5, 4.5, 1.5, 4.5]),
+      // full-width run with a routed detour dip; enters and exits at y=8
+      T([0, 8, 7, 8, 8.5, 9.5, 12, 9.5, 13.5, 8, 16, 8]),
+      // the x=4.5 bus column, split into a tee-off pair so both seams match
+      T([4.5, 0, 4.5, 2]), T([4.5, 8, 4.5, 16]),
+      // L-run from the pad pair down with a 45° jog left, ends at a dot
+      T([9.5, 7.4, 9.5, 12, 8, 13.5, 8, 14.9]),
+      // pad run exiting right at y=6.4 — redrawn -16 for the left re-entry
+      T([12.9, 6.4, 17.5, 6.4]), T([-3.1, 6.4, 1.5, 6.4]),
+      T([14.5, 8, 14.5, 10.65]), // stub from the y=8 run down to its pad
+      T([2.6, 12, 4.5, 12]), // node tap into the bus
+      // dot-to-dot vertical threaded through a node, exits bottom — redrawn -16
+      T([11, 12.4, 11, 18]), T([11, -3.6, 11, 2]),
+      T([13, 1.2, 15, 1.2]), // short jumper, top right
+      pad(2, 2), pad(9.5, 6.5), pad(12, 6.4), pad(14.5, 11.55),
+      dot(1.5, 4.5, 0.48), dot(8, 14.9, 0.48), dot(1.5, 6.4, 0.48), dot(11, 12.4, 0.48),
+      dot(11, 2, 0.48), dot(13, 1.2, 0.48), dot(15, 1.2, 0.48),
+      dot(4.5, 2, 0.37), dot(4.5, 8, 0.37), dot(9.5, 9.5, 0.37), dot(4.5, 12, 0.37), dot(14.5, 8, 0.37),
+      node(2, 12), node(11, 14.8),
+    ].join("");
+  }
+
+  /* Hex cells — the honeycomb drawn as the lattice really is: two zigzag
+     rails plus the short walls between them, so every shared edge is
+     stroked ONCE and tiling can never double a line. A regular hexagon
+     can't close a square tile (its periods sit at sqrt(3):3), so each
+     cell takes the mismatch as one uniform vertical stretch; rails
+     overrun both sides and the walls repeat across the seams, the
+     pattern clip trimming the excess. */
+  if (style === "hexcells") {
+    const s = p / 6, t = p / 3, w = p * 0.045;
+    const zig = (ya: number, yb: number) =>
+      line(`M${n(-q)} ${n(ya)} L0 ${n(yb)} L${n(q)} ${n(ya)} L${n(h)} ${n(yb)} L${n(h + q)} ${n(ya)} L${n(p)} ${n(yb)} L${n(p + q)} ${n(ya)}`, w, "butt");
+    return [
+      zig(s, t), zig(p - s, p - t),
+      line(`M${n(q)} ${n(-s)} V${n(s)} M${n(h + q)} ${n(-s)} V${n(s)} M${n(q)} ${n(p - s)} V${n(p + s)} M${n(h + q)} ${n(p - s)} V${n(p + s)}`, w, "butt"),
+      line(`M0 ${n(t)} V${n(p - t)} M${n(h)} ${n(t)} V${n(p - t)} M${n(p)} ${n(t)} V${n(p - t)}`, w, "butt"),
+    ].join("");
+  }
+
+  /* Crystal facets — a frozen slice of a toroidal triangulation: 14
+     shared vertices, 34 deduped edges, 20 facets (Delaunay triangles,
+     with pairs fused into quads wherever a vertex would collect a sixth
+     edge — so junctions stay 3-5 way, never starbursts). The table was
+     authored by seeded dart-throwing + Delaunay and frozen from tiled
+     review; any edge whose stroke comes near a seam is re-drawn offset
+     by ±p (near a corner: all four ways), so the mesh continues across
+     every tile edge with no boundary line and no doubled strokes. */
+  if (style === "facets") {
+    const vt = [[0.561, 0.023], [0.98, 0.37], [0.465, 0.48], [0.392, 0.846], [0.051, 0.988], [0.697, 0.655], [0.196, 0.693], [0.818, 0.124], [0.234, 0.277], [0.955, 0.647], [0.467, 0.248], [0.69, 0.343], [0.789, 0.898], [0.268, 0.051]];
+    const eg = [[1, 7, 0, 0], [4, 7, -1, 1], [2, 3, 0, 0], [2, 5, 0, 0], [3, 5, 0, 0], [1, 9, 0, 0], [6, 9, -1, 0], [3, 6, 0, 0], [4, 6, 0, 0], [0, 12, 0, -1], [7, 12, 0, -1], [0, 7, 0, 0], [4, 8, 0, 1], [1, 8, 1, 0], [6, 8, 0, 0], [2, 8, 0, 0], [5, 9, 0, 0], [8, 10, 0, 0], [2, 10, 0, 0], [5, 11, 0, 0], [1, 11, 0, 0], [2, 11, 0, 0], [7, 11, 0, 0], [0, 10, 0, 0], [10, 11, 0, 0], [9, 12, 0, 0], [5, 12, 0, 0], [4, 13, 0, 1], [10, 13, 0, 0], [0, 13, 0, 0], [4, 12, -1, 0], [0, 3, 0, -1], [6, 13, 0, 1], [3, 13, 0, 1]];
+    let d = "";
+    for (const [a, b, dx, dy] of eg) {
+      const x1 = vt[a][0], y1 = vt[a][1], x2 = vt[b][0] + dx, y2 = vt[b][1] + dy;
+      const seg = (ox: number, oy: number) =>
+        `M${n((x1 + ox) * p)} ${n((y1 + oy) * p)}L${n((x2 + ox) * p)} ${n((y2 + oy) * p)}`;
+      const xs = [0]; if (Math.min(x1, x2) < 0.06) xs.push(1); if (Math.max(x1, x2) > 0.94) xs.push(-1);
+      const ys = [0]; if (Math.min(y1, y2) < 0.06) ys.push(1); if (Math.max(y1, y2) > 0.94) ys.push(-1);
+      for (const ox of xs) for (const oy of ys) d += seg(ox, oy);
+    }
+    return line(d, p * 0.018);
+  }
+
+  /* Speed lines — comic-panel motion slashes: solid darts on one shared
+     30deg heading, each a blunt-tailed pentagon swelling to its belly a
+     third of the way in, then running out to a needle point. Nine hand-set
+     darts (two long, four medium, three short — no two alike); any dart
+     whose box leaves the tile is re-emitted at every ±p offset that still
+     touches it, so the streaks pass the seams unbroken. */
+  if (style === "speedlines") {
+    const vx = 0.866, vy = -0.5, nx = 0.5, ny = 0.866;
+    // [tail x, tail y, length, belly width, tail width, belly stop] — fractions of p
+    const T = [
+      [-0.10, 0.24, 0.92, 0.100, 0.027, 0.30],
+      [0.24, 0.88, 0.90, 0.096, 0.026, 0.31],
+      [0.55, 0.30, 0.56, 0.078, 0.022, 0.34],
+      [0.02, 0.635, 0.58, 0.075, 0.021, 0.34],
+      [0.06, 0.80, 0.54, 0.077, 0.021, 0.33],
+      [0.72, 0.895, 0.52, 0.073, 0.020, 0.35],
+      [0.35, 0.18, 0.30, 0.050, 0.015, 0.38],
+      [0.90, 0.62, 0.28, 0.047, 0.014, 0.38],
+      [0.62, 0.13, 0.26, 0.044, 0.013, 0.38],
+    ];
+    const darts = [];
+    for (const [tx, ty, len, bw, tw, bf] of T) {
+      const bx = tx + vx * len * bf, by = ty + vy * len * bf;
+      const pts = [
+        [tx + nx * tw / 2, ty + ny * tw / 2],
+        [bx + nx * bw / 2, by + ny * bw / 2],
+        [tx + vx * len, ty + vy * len],
+        [bx - nx * bw / 2, by - ny * bw / 2],
+        [tx - nx * tw / 2, ty - ny * tw / 2],
+      ];
+      const xs = pts.map((pt) => pt[0]), ys = pts.map((pt) => pt[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++)
+        if (x1 + ox > 0 && x0 + ox < 1 && y1 + oy > 0 && y0 + oy < 1)
+          darts.push(`<polygon fill="${color}" points="${pts.map((pt) => `${n((pt[0] + ox) * p)} ${n((pt[1] + oy) * p)}`).join(" ")}"/>`);
+    }
+    return darts.join("");
+  }
+
+  /* Topo — an actual landform, not blobs (owner: "lift a real topograph
+     for this then make seamless"). Authored from a doubly-periodic height
+     field — a meandering diagonal ridge carrying one big massif with a
+     spur lobe, a small col knoll, gully-notched slopes — and its contour
+     lines baked as sample runs. Catmull-Rom cubics thread each run; open
+     runs carry phantom samples lifted from the run that continues them
+     one tile over (walked until the curve clears the seam), so a stroke
+     leaves the tile on exactly the cubic its neighbour copy re-enters
+     with — the clip re-draw is bit-identical, not approximate. */
+  if (style === "topo") {
+    // [closed, x0,y0, ...] in the 100-cell; phantoms sit outside [0,100]
+    const T: number[][] = [
+      [0, 105, 58.9, 102.4, 57, 100, 55, 97.7, 52.8, 95.6, 50.4, 93.8, 47.9, 92.2, 45.1, 90.8, 42.3, 89.8, 39.3, 89.5, 36.1, 89.6, 33, 87.3, 30.8, 85.3, 28.3, 82.9, 26.3, 80, 24.9, 77, 23.9, 74.1, 22.8, 71.3, 21.2, 69, 19, 67.2, 16.4, 66.1, 13.5, 66.1, 10.3, 66.2, 7.2, 64.3, 4.9, 61.2, 4.3, 58.7, 2.4, 56.6, 0, 54.8, -2.6, 53.2, -5.3],
+      [0, 81.3, -6, 82.4, -2.9, 83.8, 0, 85.5, 2.4, 88.1, 4, 91, 4.9, 94, 5.2, 97, 5.4, 100, 5.5, 103.2, 5.7, 106.4, 6.1],
+      [0, -6, 5.2, -3, 5.4, 0, 5.5, 3.2, 5.7, 6.4, 6.1, 9.5, 7, 12.5, 8.3, 15, 10.3, 17, 12.8, 18.8, 15.5, 20.4, 18.3, 22.1, 21.1, 24, 23.7, 26, 26.2, 28.1, 28.7, 30.1, 31.2, 32.1, 33.7, 33.8, 36.5, 35.2, 39.4, 36.3, 42.4, 37.2, 45.5, 38, 48.6, 39.1, 51.7, 40.9, 54.4, 43.5, 56.3, 46.5, 57.4, 49.7, 58, 52.9, 58.4, 56.1, 58.8, 59.2, 59.6, 62.1, 60.9, 64.5, 63.1, 66.1, 65.9, 67.2, 68.9, 68.2, 72, 69.2, 75.1, 70.5, 78, 72.2, 80.8, 74.2, 83.3, 76.3, 85.8, 78.2, 88.4, 79.9, 91.1, 81.3, 94, 82.4, 97.1, 83.8, 100, 85.5, 102.4, 88.1, 104],
+      [0, 61.2, 104.3, 58.7, 102.4, 56.6, 100, 54.8, 97.4, 53.2, 94.7, 52, 91.8, 50.9, 88.8, 50, 85.7, 49.1, 82.7, 48.9, 79.5, 48.7, 76.4, 46, 75, 42.9, 75.3, 39.7, 75.3, 36.5, 75.5, 33.4, 75.9, 30.2, 76, 27.1, 75.7, 24, 74.9, 21.1, 73.7, 18.4, 72, 16, 69.9, 14, 67.5, 12.9, 64.5, 13, 61.4, 11.2, 59.1, 8.1, 59.5, 5, 58.9, 2.4, 57, 0, 55, -2.3, 52.8, -4.4, 50.4],
+      [0, -6.5, 13.9, -3.3, 13.5, 0, 13.5, 3.2, 13.9, 6.2, 14.9, 9, 16.4, 11.5, 18.5, 13.7, 20.7, 15.8, 23.2, 17.9, 25.6, 20, 28, 22.1, 30.4, 24.1, 32.8, 26, 35.4, 27.8, 38.1, 29.2, 40.9, 30.2, 43.9, 30.9, 47.1, 31.3, 50.2, 31.7, 53.4, 32.9, 56.3, 34.9, 58.8, 37.1, 61.2, 39, 63.7, 40.2, 66.6, 39, 69.4, 36.3, 71.1, 33.4, 72.4, 30.2, 73, 27.1, 72.6, 24.2, 71.2, 21.8, 69.2, 19.6, 66.8, 17.6, 64.3, 16, 61.6, 15.2, 58.5, 12.9, 56.6, 9.7, 56.2, 6.9, 54.7, 4.4, 52.6, 2.1, 50.5, 0, 48, -1.8, 45.3, -3.4, 42.4, -4.6, 39.3],
+      [0, 104.4, 52.6, 102.1, 50.5, 100, 48, 98.2, 45.3, 96.6, 42.4, 95.4, 39.3, 94.7, 36.1, 95.1, 32.9, 96, 29.7, 95.3, 26.7, 92.3, 25.4, 89.9, 23.1, 87.5, 21, 85.3, 18.6, 87.3, 16.2, 90.3, 14.8, 93.5, 13.9, 96.7, 13.5, 100, 13.5, 103.2, 13.9, 106.2, 14.9],
+      [0, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1, 7.2, 22.8, 10, 24.4, 12.5, 26.4, 14.8, 28.6, 17.1, 30.8, 19.2, 33.2, 21.2, 35.7, 23, 38.3, 24.5, 41.2, 25.5, 44.2, 26, 47.4, 25.9, 50.5, 25.7, 53.7, 26.9, 56.6, 29.4, 58.5, 31.9, 60.5, 34, 62.9, 34.8, 65.9, 33.6, 68.8, 30.8, 70.4, 27.7, 70.2, 25, 68.5, 22.9, 66.1, 21.3, 63.3, 19.8, 60.5, 18.4, 57.6, 16.5, 55.1, 13.5, 54.1, 10.5, 53, 7.9, 51.2, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1],
+      [0, 105.5, 49.1, 103.3, 46.7, 101.5, 44.1, 100, 41.3, 99, 38.3, 98.3, 35.2, 98.3, 32.1, 99.1, 29, 100, 26, 101.2, 23.1, 104.1, 22.1],
+      [1, 4.8, 28.8, 7.5, 29, 10, 30.2, 12.2, 31.7, 14.3, 33.5, 16.2, 35.5, 17.9, 37.7, 19.3, 40.1, 20.4, 42.6, 20.9, 45.3, 20.5, 48, 18.8, 50.2, 16.2, 50.9, 13.5, 50.5, 11, 49.2, 8.8, 47.7, 6.7, 45.8, 5, 43.7, 3.6, 41.3, 2.6, 38.7, 2.1, 36, 2.1, 33.3, 2.8, 30.6],
+      [1, 26.7, 61.6, 28.4, 61.8, 30, 62.7, 30.9, 64.2, 31, 65.9, 29.8, 67.2, 28, 67.1, 26.6, 66.1, 25.7, 64.5, 25.5, 62.8],
+      [1, 8.4, 38, 9.8, 37.8, 11.1, 38.6, 12.2, 39.7, 12.8, 41.1, 12.6, 42.6, 11.2, 42.9, 9.9, 42.1, 8.9, 40.9, 8.3, 39.5],
+    ];
+    const bez = (a: number[]) => {
+      const cl = a[0] > 0, c = a.slice(1), m = c.length >> 1;
+      const X = (i: number) => c[(((i % m) + m) % m) * 2], Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1];
+      const s = cl ? 0 : 1, e = cl ? m : m - 2;
+      let d = `M${X(s)} ${Y(s)}`;
+      for (let i = s; i < e; i++)
+        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${X(i + 1)} ${Y(i + 1)}`;
+      return d + (cl ? "Z" : "");
+    };
+    return G(T.map((r) => `<path d="${bez(r)}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="butt"/>`).join(""));
+  }
+
+  /* Soft camo — ONE organic field, twelve regions no two alike: pools,
+     beans and flowing bands at mixed headings, smooth closed cubics with
+     bulges and concave waists (owner: the first cut "reads as a grid of
+     the same blobs"). The lattice is hidden by geography, not luck: the
+     big masses cross the seams at IRREGULAR stations — vertical at y≈19,
+     68 and 90, horizontal at x≈13, 33 and 57 — so no landmark ever sits
+     whole inside one tile, and nothing lines up into a row or column.
+     Every crosser is re-drawn offset exactly ±100, so the tile closes
+     without a visible joint. Scaled EXACT, not by n(): a tenth-rounded
+     scale leaves a clip band on two edges of every tile — precisely the
+     grid read this cell exists to kill. */
+  if (style === "softcamo") {
+    const GX = (inner: string) => `<g transform="scale(${(p / 100).toFixed(4)})">${inner}</g>`;
+    const T = (d: string, o = "") => `<path fill="${color}"${o ? ` transform="translate(${o})"` : ""} d="${d}"/>`;
+    const band = "M72.7 6.1 C71.9 7.6 73.6 10.7 75.6 13.4 C77.7 16.1 81.5 20.1 85.1 22.5 C88.7 25.0 92.9 27.2 97.2 28.0 C101.5 28.8 107.3 28.7 110.9 27.3 C114.6 25.8 117.2 21.9 119.0 19.5 C120.8 17.2 122.5 14.4 121.8 13.1 C121.2 11.7 117.4 11.7 115.0 11.5 C112.5 11.3 109.5 11.4 107.1 11.7 C104.6 12.1 102.8 14.3 100.4 13.6 C98.1 12.8 96.3 9.0 92.9 7.5 C89.6 6.0 83.8 4.8 80.4 4.6 C77.0 4.4 73.5 4.7 72.7 6.1 Z";
+    const pool = "M71.7 98.9 C70.6 101.9 68.6 103.4 66.7 105.7 C64.8 107.9 62.8 111.8 60.3 112.3 C57.7 112.9 53.8 110.6 51.4 108.9 C49.0 107.3 47.1 104.6 46.1 102.3 C45.0 100.0 44.6 97.3 45.0 95.1 C45.5 92.9 47.3 91.1 48.8 89.1 C50.3 87.1 51.3 84.6 53.8 83.2 C56.4 81.8 61.0 79.9 64.2 80.7 C67.4 81.5 71.8 85.0 73.0 88.0 C74.3 91.1 72.7 96.0 71.7 98.9 Z";
+    const spud = "M108.7 64.4 C110.1 66.1 112.0 69.3 111.3 71.2 C110.7 73.0 106.9 74.3 104.8 75.4 C102.6 76.4 100.2 78.0 98.5 77.5 C96.7 76.9 95.3 73.7 94.2 71.9 C93.2 70.1 92.1 68.6 92.3 66.5 C92.5 64.4 93.6 60.3 95.4 59.4 C97.1 58.4 100.7 60.1 102.9 60.9 C105.1 61.8 107.3 62.7 108.7 64.4 Z";
+    const drop = "M19.7 109.7 C18.5 110.9 15.9 111.3 13.7 111.5 C11.4 111.6 7.8 111.8 6.4 110.6 C5.0 109.3 5.0 106.2 5.2 104.0 C5.4 101.8 6.2 99.3 7.7 97.6 C9.1 96.0 12.1 93.9 13.9 94.2 C15.6 94.5 17.2 97.8 18.4 99.4 C19.6 101.1 20.9 102.3 21.1 104.0 C21.3 105.7 21.0 108.4 19.7 109.7 Z";
+    const vine = "M1.5 50.8 C2.4 51.6 4.2 51.7 6.7 50.4 C9.1 49.1 13.4 45.3 16.2 43.0 C19.1 40.6 20.4 39.6 23.6 36.1 C26.8 32.7 33.1 27.1 35.5 22.2 C38.0 17.3 38.5 11.2 38.6 6.6 C38.7 2.0 37.2 -2.8 36.2 -5.3 C35.2 -7.8 33.7 -8.3 32.7 -8.2 C31.7 -8.1 30.5 -7.0 30.0 -4.7 C29.5 -2.4 30.5 1.9 29.8 5.5 C29.2 9.1 28.5 12.9 26.0 16.7 C23.5 20.5 18.0 25.3 15.0 28.4 C12.0 31.5 10.3 32.4 8.1 35.3 C5.8 38.2 2.4 43.0 1.3 45.6 C0.2 48.2 0.6 50.0 1.5 50.8 Z";
+    const seed = "M104.4 86.9 C105.1 87.9 104.4 90.3 103.7 91.7 C103.0 93.1 101.6 95.1 100.4 95.4 C99.3 95.7 97.6 94.4 96.5 93.5 C95.5 92.7 94.3 91.7 94.0 90.4 C93.7 89.2 93.9 86.7 94.8 85.8 C95.7 85.0 97.8 85.2 99.4 85.4 C101.0 85.6 103.7 85.9 104.4 86.9 Z";
+    return GX(
+      T(band) +
+      T(band, "-100 0") +
+      T(pool) +
+      T(pool, "0 -100") +
+      T("M30.4 36.1 C28.4 35.1 23.7 37.8 21.2 40.1 C18.6 42.4 16.5 46.6 15.1 50.1 C13.6 53.6 12.6 57.8 12.5 61.2 C12.5 64.7 13.2 68.2 14.5 70.7 C15.9 73.2 18.9 76.5 20.8 76.3 C22.7 76.0 24.8 71.5 26.0 69.3 C27.1 67.0 26.3 64.9 27.4 63.0 C28.6 61.1 32.0 60.4 33.1 57.7 C34.1 54.9 34.1 49.9 33.7 46.4 C33.3 42.8 32.5 37.2 30.4 36.1 Z") +
+      T(spud) +
+      T(spud, "-100 0") +
+      T(drop) +
+      T(drop, "0 -100") +
+      T("M54.8 40.5 C52.6 40.9 50.0 39.5 48.0 38.5 C46.0 37.6 43.9 36.6 42.7 34.7 C41.5 32.9 40.3 29.4 40.9 27.4 C41.5 25.5 44.4 23.9 46.3 23.2 C48.1 22.5 50.1 23.0 52.0 23.1 C53.9 23.2 55.8 22.7 57.4 23.6 C59.0 24.4 61.1 26.2 61.7 28.3 C62.4 30.4 62.5 34.1 61.4 36.1 C60.2 38.1 57.0 40.1 54.8 40.5 Z") +
+      T("M65.9 33.2 C64.6 34.0 64.3 37.9 64.8 40.7 C65.3 43.4 68.5 46.3 68.8 49.6 C69.1 52.9 66.5 57.4 66.5 60.3 C66.6 63.2 67.6 66.6 69.0 67.2 C70.4 67.7 72.9 66.7 75.1 63.6 C77.3 60.5 82.4 53.2 82.0 48.5 C81.6 43.8 75.5 38.1 72.8 35.6 C70.1 33.0 67.3 32.3 65.9 33.2 Z") +
+      T("M41.4 82.5 C40.5 83.5 37.8 83.9 36.1 83.9 C34.5 83.9 33.0 83.2 31.8 82.3 C30.5 81.5 29.3 80.3 28.8 78.8 C28.4 77.2 28.3 74.2 29.3 73.0 C30.2 71.8 33.1 71.2 34.7 71.4 C36.2 71.6 37.4 73.2 38.5 74.2 C39.7 75.2 40.9 76.3 41.4 77.7 C41.9 79.0 42.3 81.4 41.4 82.5 Z") +
+      T(vine) +
+      T(vine, "0 100") +
+      T(seed) +
+      T(seed, "-100 0") +
+      T("M97.6 38.4 C98.6 39.6 97.6 42.8 96.8 44.3 C96.1 45.9 94.6 47.0 93.2 47.7 C91.8 48.4 90.1 49.1 88.6 48.7 C87.1 48.3 84.5 46.6 84.1 45.1 C83.8 43.6 85.4 41.2 86.4 39.8 C87.5 38.4 88.6 37.2 90.5 36.9 C92.3 36.7 96.5 37.2 97.6 38.4 Z") +
+      T("M52.8 61.5 C52.8 62.8 50.5 64.0 49.1 64.6 C47.7 65.2 45.9 65.7 44.6 65.2 C43.3 64.6 41.5 62.7 41.4 61.5 C41.3 60.2 42.9 58.4 44.2 57.6 C45.4 56.9 47.5 56.2 48.9 56.8 C50.4 57.5 52.8 60.2 52.8 61.5 Z"));
+  }
+
+  /* Chainmail — European 4-in-1: rings of radius .34p on a half-p lattice,
+     rows staggered half a ring, so every ring overlaps six neighbours. The
+     over/under is arc segmentation alone: every ring is the SAME six arcs
+     (table below), gapped where it dives under a partner — one shared gap
+     phase weaves the whole lattice, so each overlapping pair alternates
+     over/under and reads linked, never stacked. Edge and corner rings are
+     restamped at ±p so the weave closes across the seam. */
+  if (style === "chainmail") {
+    const r = p * 0.34, sw = p * 0.05;
+    // one ring's six over-arcs [x0, y0, x1, y1] as fractions of p — the gaps
+    // sit on the under-crossings, 10° each side: room for the crossing stroke
+    const S = [
+      [0.2652, 0.2127, 0.1059, 0.3231], [-0.011, 0.3398, -0.2062, 0.2703],
+      [-0.2862, 0.1835, -0.322, -0.1092], [-0.2652, -0.2127, -0.1059, -0.3231],
+      [0.011, -0.3398, 0.2062, -0.2703], [0.2862, -0.1835, 0.322, 0.1092],
+    ];
+    const ring = (cx: number, cy: number) =>
+      `<path d="${S.map((s) => `M${n(cx + s[0] * p)} ${n(cy + s[1] * p)} A${n(r)} ${n(r)} 0 0 1 ${n(cx + s[2] * p)} ${n(cy + s[3] * p)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="${n(sw)}" stroke-linecap="butt"/>`;
+    const R = [[-q, q], [q, q], [3 * q, q], [5 * q, q], [0, 3 * q], [h, 3 * q], [p, 3 * q],
+      [0, -q], [h, -q], [p, -q], [-q, 5 * q], [q, 5 * q], [3 * q, 5 * q], [5 * q, 5 * q]];
+    return R.map((c) => ring(c[0], c[1])).join("");
+  }
+
+  /* Camo shards — shattered armor, rebuilt from the confetti take (owner:
+     "doesn't look shardy/badass enough"). Fewer, bigger, meaner: a master
+     splinter SNAPPED mid-blade with a slip offset across the break, a
+     lightning jag through the right seam, counter-angled slab impacts and
+     a boomerang dart against the steep blade cluster — straight cuts
+     only, needle tips and angled break faces, and the channels between
+     shards stay open so they read as fracture lines. Patterns clip, so
+     every seam-crosser is stamped again at ±p; S() does the stamping
+     (the SE corner slab carries all three copies). */
+  if (style === "camoshards") {
+    const S = (d: string, ...at: [number, number][]) =>
+      at.map(([dx, dy]) => `<path fill="${color}" transform="translate(${dx} ${dy})" d="${d}"/>`).join("");
+    const O: [number, number] = [0, 0];
+    return G(
+      // the king, snapped: top half, needle tip down to an angled break face
+      S("M64 2 L44 30 L36 56 L49 53 L56 34 Z", O) +
+      // king's bottom half, slip-offset across the fracture, out the bottom seam
+      S("M40 68 L31 58 L23 78 L20 104 L33 82 Z", O, [0, -100]) +
+      // lightning jag owning the top-right, arm through the right seam
+      S("M66 14 L92 7 L84 19 L108 13 L113 20 L72 38 L83 22 Z", O, [-100, 0]) +
+      // needle sliver, top-left
+      S("M28 4 L18 16 L11 31 L17 30 L24 18 Z", O) +
+      // counter wedge through the left seam
+      S("M-10 47 L-12 57 L25 50 L13 39 Z", O, [100, 0]) +
+      // fat counter slab, dead center
+      S("M53 55 L51 71 L83 57 L78 51 Z", O) +
+      // counter needle bridging the bolt-to-slab pocket
+      S("M58 48 L75 47 L90 42 L85 38 L73 43 Z", O) +
+      // boomerang dart, mid-left
+      S("M2 60 L16 74 L24 62 L16 62 Z", O) +
+      // steep blade, right flank
+      S("M99 59 L83 68 L73 84 L83 88 L93 76 Z", O) +
+      // impact slab through the SE corner — all three wrap copies
+      S("M79 91 L70 102 L110 104 L106 96 Z", O, [-100, 0], [0, -100], [-100, -100]) +
+      // chip in the center-south pocket
+      S("M57 72 L62 78 L69 82 L68 75 L64 74 Z", O) +
+      // steep needle on the king's left flank
+      S("M10 76 L5 81 L1 89 L7 89 L9 83 Z", O) +
+      // chip in the northwest pocket
+      S("M26 30 L30 36 L35 41 L36 35 L32 32 Z", O) +
+      // king's echo, near-parallel, through the bottom seam
+      S("M52 74 L38 90 L30 113 L41 113 L50 94 Z", O, [0, -100])
+    );
+  }
+
+  /* Lightning bolts — ONE canonical strike (7 hard vertices, flat top,
+     ~2.7:1 tall, tapering to the tip), every bolt leaning the same way.
+     Halftone rhythm: one centered, one ON each corner so quarters fuse
+     into whole bolts across every seam — a staggered half-cell field. */
+  if (style === "bolts") {
+    const V: [number, number][] = [
+      [0.009, -0.405], [0.147, -0.405], [0.037, -0.037], [0.152, -0.037],
+      [-0.12, 0.405], [-0.032, 0.046], [-0.152, 0.046],
+    ];
+    const bolt = (cx: number, cy: number) =>
+      `<path d="M${V.map(([fx, fy]) => `${n(cx + fx * p)} ${n(cy + fy * p)}`).join(" L")} Z" fill="${color}"/>`;
+    return bolt(h, h) + bolt(0, 0) + bolt(p, 0) + bolt(0, p) + bolt(p, p);
+  }
+
+  /* Pixel blocks — 8-bit debris on a strict 12×12 unit grid, in two
+     texture octaves: an S/Z of 2×2-unit superpixels and one solid
+     superpixel carry the chunky read, then single-unit T, plus, L and
+     step clusters, two bars, lone pixels and a spaced debris trail
+     carry the fine one. Each cluster is fused into ONE path so abutting
+     units can't hairline under group opacity. Distinct clusters never
+     touch — not even at corners, audited on the torus — because
+     corner-chains read as stripes under rotation. The bars cross a seam
+     and are drawn again offset by ±p; every coordinate is a whole unit,
+     so the wraps land on the grid exactly. */
+  if (style === "pixelblocks") {
+    const u12 = p / 12;
+    const poly = (pts: [number, number][]) =>
+      `<path d="M${pts.map(([X, Y]) => `${n(X * u12)} ${n(Y * u12)}`).join(" L")} Z" fill="${color}"/>`;
+    const box = (X: number, Y: number, W: number, H: number) =>
+      `<rect x="${n(X * u12)}" y="${n(Y * u12)}" width="${n(W * u12)}" height="${n(H * u12)}" fill="${color}"/>`;
+    return [
+      poly([[1, 0], [5, 0], [5, 2], [7, 2], [7, 4], [3, 4], [3, 2], [1, 2]]), // S/Z of superpixels
+      box(8, 1, 2, 2),  // 2x2 solid (one superpixel)
+      poly([[7, 7], [10, 7], [10, 8], [9, 8], [9, 9], [8, 9], [8, 8], [7, 8]]), // T
+      poly([[2, 5], [3, 5], [3, 6], [4, 6], [4, 7], [3, 7], [3, 8], [2, 8], [2, 7], [1, 7], [1, 6], [2, 6]]), // plus
+      poly([[9, 10], [10, 10], [10, 11], [11, 11], [11, 12], [9, 12]]), // small L
+      poly([[0, 8], [1, 8], [1, 9], [2, 9], [2, 10], [3, 10], [3, 11], [1, 11], [1, 10], [0, 10]]), // steps
+      box(10, 4, 3, 1), box(-2, 4, 3, 1), // bar across the side seam
+      box(6, 10, 1, 3), box(6, -2, 1, 3), // bar across the bottom seam
+      box(8, 4, 1, 1), box(11, 1, 1, 1), // lone pixels
+      box(4, 9, 1, 1), box(5, 7, 1, 1), box(6, 5, 1, 1), // debris trail
+    ].join("");
+  }
+
+  /* Anime burst — manga focus lines (owner: "an additional anime speed
+     lines — should radiate from an empty center outward"). One burst per
+     tile: tapered ink slivers, needle-thin at an empty oval (~2/5 of the
+     cell — a label sits there untouched) and thickening outward, the way
+     focus lines are ruled from the panel frame in toward the subject.
+     Angles, reaches and weights are hand-set — a uniform fan reads as a
+     clock face, not action — sixteen main rays plus a second order of
+     thin outer slivers for the halftone-ish in-between rhythm. Every
+     sliver ends in a point INSIDE the tile except four runaways that
+     cross an edge and are drawn again a full cell over, so each one
+     re-enters the next tile as that burst's incoming line — no chopped
+     stubs, no doubled ink at the seams, and each re-entry tip lands in a
+     gap of the neighbor's fan (placed against every native ray, with the
+     near-misses left as the hand-inked broken-continuation read). The
+     runaways carry their waist at HALF the run so they cross the seam
+     already tapering — a waist at the edge bulged there (checked at 4x).
+     Scaled with full precision instead of G() — a runaway must
+     wrap-match its re-draw exactly. */
+  if (style === "animeburst") {
+    const s = p / 100;
+    /* ray(deg, r0, r1, w, k): one sliver of the burst at (50,50) —
+       needle apex at r0 pointing at the center, widest (±w) at k of the
+       run, closing to a point at r1. dx/dy re-draw a runaway one cell
+       over for the seam wrap. */
+    const ray = (deg: number, r0: number, r1: number, w: number, k = 0.9, dx = 0, dy = 0) => {
+      const a = (deg * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+      const rm = r0 + (r1 - r0) * k;
+      const pt = (r: number, ox = 0, oy = 0) =>
+        `${n((50 + dx + r * ca + ox) * s)} ${n((50 + dy + r * sa + oy) * s)}`;
+      return `<path fill="${color}" d="M${pt(r0)} L${pt(rm, -sa * w, ca * w)} L${pt(r1)} L${pt(rm, sa * w, -ca * w)} Z"/>`;
+    };
+    const rays =
+      ray(8, 23, 68, 3.6, 0.5) + ray(27, 21, 52, 2.6) + ray(43, 19.5, 66, 3.2) + ray(71, 17.5, 46, 2.2) +
+      ray(95, 17.5, 63, 3.6, 0.5) + ray(112, 17.5, 50, 2.6) + ray(130, 19, 62, 3) + ray(152, 21, 45, 2.2) +
+      ray(171, 23, 34, 2) + ray(188, 23, 66, 3.6, 0.5) + ray(214, 20.5, 48, 2.4) + ray(231, 19, 60, 3) +
+      ray(255, 17.5, 44, 2.2) + ray(277, 17.5, 62, 3.6, 0.5) + ray(300, 18, 50, 2.6) + ray(332, 21, 54, 3) +
+      ray(58, 30, 52, 1.7) + ray(104, 32, 47, 1.5) + ray(140, 31, 56, 1.7) + ray(160, 33, 48, 1.4) +
+      ray(201, 31, 50, 1.5) + ray(243, 30, 48, 1.5) + ray(318, 30, 54, 1.7) + ray(341, 31, 44, 1.4);
+    const wraps =
+      ray(8, 23, 68, 3.6, 0.5, -100, 0) + ray(95, 17.5, 63, 3.6, 0.5, 0, -100) +
+      ray(188, 23, 66, 3.6, 0.5, 100, 0) + ray(277, 17.5, 62, 3.6, 0.5, 0, 100);
+    return rays + wraps;
+  }
+
+  /* Bolts, pop version — the angular bolt's fun-loving sibling (owner:
+     the shipped bolts read "too stiff" — this one goes arcade). ONE
+     canonical bolt, redrawn cartoon-chunky: fat tilted top, every
+     vertex softened with a short quadratic fillet, the long tail and
+     left flank carrying a hint of outward bow and the tip thrown left
+     so the whole glyph leans (squash-and-stretch, emoji-adjacent).
+     Three stamps of the same glyph at three sizes in a staggered
+     scatter — livelier than the halftone grid — and the two
+     edge-crossers are drawn again offset ±100 (≡ ±p under G) so tiles
+     join whole: the skulls-corner precedent. */
+  if (style === "boltspop") {
+    const bolt = "M41.9 12.4 Q45 5 53 4.4 L79 2.6 Q88 2 83 9.5 L64.8 36.8 Q62 41 67 41 L80 41 Q86 41 81.4 44.9 Q54.6 71.6 23.8 93.8 Q20 97 22.6 92.7 Q30.3 76 41.4 61.3 Q44 57 39 57 L29 57 Q23 57 25.3 51.5 Q31.8 31.1 41.9 12.4 Z";
+    const pop = (cx: number, cy: number, s: number, deg: number) =>
+      `<path fill="${color}" transform="translate(${cx} ${cy}) rotate(${deg}) scale(${s}) translate(-50 -50)" d="${bolt}"/>`;
+    // two voices, not three — the third small bolt read as noise (owner:
+    // "just remove the smaller bolt")
+    return G(
+      pop(30, 30, 0.62, -8) + pop(30, 130, 0.62, -8) +    // big — pokes past the top, drawn again +100 below
+      pop(90, 62, 0.48, -15) + pop(-10, 62, 0.48, -15));  // mid — crosses the right edge, drawn again −100 left
+  }
+
+  /* Snowflakes — ONE canonical six-fold flake, all stroked line (round
+     caps, ~p*0.03, so arms stay crisp at letterform sizes and in
+     Safari): six spokes off an open hex-ring hub, each arm carrying two
+     pairs of side branches at the crystal's 60°, the inner pair longer
+     so the arm tapers to its tip. Halftone rhythm (the skulls
+     precedent): a full flake centered plus a smaller echo ON each
+     corner, turned 30° so its arms point where the big one's gaps are —
+     quarters fuse whole across every seam. A drifting third flake at
+     ~0.55 was auditioned in two placements and both read as banding,
+     not snowfall — dropped. One path element per stamp: a wrapped
+     corner copy must raster byte-identically to its re-entry, and
+     grouping stamps into one path shifts the rasterizer's curve
+     flattening with the path bounds. */
+  if (style === "snowflake") {
+    const flake = (cx: number, cy: number, R: number, rot: number) => {
+      let d = "";
+      for (let i = 0; i < 6; i++) {
+        const a = ((rot + i * 60 - 90) * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+        d += `M${n(cx + ca * R * 0.3)} ${n(cy + sa * R * 0.3)}L${n(cx + ca * R)} ${n(cy + sa * R)}`;
+        for (const [t, b] of [[0.52, 0.3], [0.76, 0.2]])
+          for (const sg of [1, -1]) {
+            const ba = a + (sg * Math.PI) / 3, bx = cx + ca * R * t, by = cy + sa * R * t;
+            d += `M${n(bx)} ${n(by)}L${n(bx + Math.cos(ba) * R * b)} ${n(by + Math.sin(ba) * R * b)}`;
+          }
+      }
+      for (let i = 0; i < 6; i++) {
+        const a = ((rot + i * 60 - 90) * Math.PI) / 180;
+        d += `${i ? "L" : "M"}${n(cx + Math.cos(a) * R * 0.14)} ${n(cy + Math.sin(a) * R * 0.14)}`;
+      }
+      return d + "Z";
+    };
+    const corners: [number, number][] = [[0, 0], [p, 0], [0, p], [p, p]];
+    return line(flake(h, h, p * 0.29, 0), p * 0.029) +
+      corners.map(([cx, cy]) => line(flake(cx, cy, p * 0.175, 30), p * 0.023)).join("");
+  }
 
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
@@ -4718,7 +5138,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
-          inner += `<rect x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
+          // data-invring lets the engine export bake the panel RINGLESS and
+          // hand the selection to a live rig — the app keeps drawing it here
+          inner += `<rect data-invring="1" x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
         }
       }
       return inject(shell.replace("<svg ", '<svg data-invgrid="1" '), inner);

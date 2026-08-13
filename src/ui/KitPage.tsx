@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -37,6 +37,43 @@ function ChapterTabs() {
   const setPhase = useGen((s) => s.setPhase);
   const kitSizes = useGen((s) => s.kitSizes);
   const setKitSizeAll = useGen((s) => s.setKitSizeAll);
+  const releases = useGen((s) => s.componentReleases);
+  /* find a piece by name (owner: "I need search functionality in the
+     kit") — data-space search over the component list, then a walk-down
+     seek: chapters mount lazily, so the target may not exist in the DOM
+     until the page has scrolled near it */
+  const [q, setQ] = useState("");
+  const groupName = (id: KitComponentId) => {
+    const g = groupOf(id);
+    return g && typeof g === "object" ? g.name : "";
+  };
+  const found = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (t.length < 2) return [];
+    return KIT_COMPONENTS.filter((c) =>
+      kitVisible(c.id, releases ?? {}, false) &&
+      (c.name.toLowerCase().includes(t) || c.id.includes(t) || groupName(c.id).toLowerCase().includes(t)),
+    ).slice(0, 9);
+  }, [q, releases]);
+  const jumpTo = (id: string) => {
+    setQ("");
+    const scroller = document.querySelector(".canvas");
+    if (!scroller) return;
+    let tries = 0;
+    const seek = () => {
+      const el = document.querySelector<HTMLElement>(`[data-kp="${id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.remove("kp-glowonce"); void el.offsetWidth; el.classList.add("kp-glowonce");
+        window.setTimeout(() => el.classList.remove("kp-glowonce"), 1800);
+        return;
+      }
+      if (++tries > 40) return;
+      scroller.scrollBy({ top: 1200 });
+      window.setTimeout(seek, 60);
+    };
+    seek();
+  };
   // size is a KIT decision now — one switch up here instead of chips on
   // every cell. Mixed sizes (older saves) read as M until the next click
   // normalizes the kit.
@@ -73,6 +110,22 @@ function ChapterTabs() {
           <span className="kp-tabnum">{num}</span> {name}
         </button>
       ))}
+      <span className="kp-tabfind">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a piece…" aria-label="Find a component"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && found[0]) jumpTo(found[0].id);
+            if (e.key === "Escape") setQ("");
+          }} />
+        {found.length > 0 && (
+          <span className="kp-findlist" role="listbox">
+            {found.map((c) => (
+              <button key={c.id} role="option" onClick={() => jumpTo(c.id)}>
+                {c.name}<i>{groupName(c.id)}</i>
+              </button>
+            ))}
+          </span>
+        )}
+      </span>
       <span className="kp-tabsizes" role="group" aria-label="Kit size">
         <span className="kp-tabsizelab">Size</span>
         {(["m", "l"] as const).map((s) => (

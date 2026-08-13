@@ -14,6 +14,9 @@ const App = lazy(() => import("../App").then((m) => ({ default: m.App })));
 const SilhouetteLab = lazy(() =>
   import("../ui/SilhouetteLab").then((m) => ({ default: m.SilhouetteLab })),
 );
+const PatternLab = lazy(() =>
+  import("../ui/PatternLab").then((m) => ({ default: m.PatternLab })),
+);
 const AuthOverlay = lazy(() =>
   import("../auth/AuthOverlay").then((m) => ({ default: m.AuthOverlay })),
 );
@@ -70,8 +73,11 @@ const UnityPage = lazy(() =>
 
 // `?lab=silhouettes` is a boot-time dev harness, decided once and never at
 // runtime — it bypasses routing entirely, exactly as main.tsx did before.
+// `?lab=patterns` is the pattern wave's comparison harness, same contract.
 const IS_LAB =
   new URLSearchParams(window.location.search).get("lab") === "silhouettes";
+const IS_PATTERN_LAB =
+  new URLSearchParams(window.location.search).get("lab") === "patterns";
 
 // The editor is desktop-only for now: small screens and small touch devices
 // get a polite gate instead. The rest of the site stays fully mobile.
@@ -196,6 +202,13 @@ export function Shell() {
     return (
       <Suspense fallback={<RouteLoading />}>
         <SilhouetteLab />
+      </Suspense>
+    );
+  }
+  if (IS_PATTERN_LAB) {
+    return (
+      <Suspense fallback={<RouteLoading />}>
+        <PatternLab />
       </Suspense>
     );
   }

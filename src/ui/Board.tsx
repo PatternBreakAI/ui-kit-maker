@@ -8,7 +8,7 @@ import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bev
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
-import { LiveArt, stillSmil, stripSmil } from "./LiveArt";
+import { LiveArt, shellHit, stillSmil, stripSmil } from "./LiveArt";
 
 /* An SVG rasterized through an <img> — or downloaded and opened outside the
    app — is a SEALED document: it cannot see the page's loaded fonts, so any
@@ -1591,6 +1591,9 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
+/* depth guard for the shell-miss relay below — dispatchEvent is
+   synchronous, so a simple counter bounds any pathological stack */
+let boardRelay = 0;
 function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, onDragMove, onDragEnd, onExport }: {
   b: BoardItem; playing: boolean; selected: boolean;
   /** the ONE selected piece — toolbar and transform handles only render solo,
@@ -1694,6 +1697,34 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
         width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined }}
       {...(!playing ? {
         onPointerDown: (e: React.PointerEvent) => {
+          /* pointer honesty on the stage (owner: "you can click outside
+             of it and still grab the object"): the piece's box carries
+             the invisible glow pad, so a grab must land on the SHELL.
+             A miss hands the event to the next piece under the point —
+             the click that used to steal a neighbour now reaches it.
+             The relay may only DESCEND the hit stack (an overlapping
+             pair would otherwise ping-pong the event forever). */
+          const svgHit = (e.currentTarget as HTMLElement).querySelector("svg");
+          if (svgHit && !shellHit(svgHit, e.clientX, e.clientY)) {
+            const self = e.currentTarget as Element;
+            const stack = document.elementsFromPoint(e.clientX, e.clientY);
+            let iSelf = -1;
+            stack.forEach((el, i) => { if (self === el || self.contains(el)) iSelf = i; });
+            const below = iSelf >= 0
+              ? stack.slice(iSelf + 1).find((el) => el.closest?.(".board-item"))?.closest(".board-item")
+              : null;
+            if (below && below !== self && boardRelay < 8) {
+              boardRelay++;
+              try {
+                below.dispatchEvent(new PointerEvent("pointerdown", {
+                  bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY,
+                  pointerId: e.pointerId, button: e.button, buttons: e.buttons,
+                  pointerType: e.pointerType, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey,
+                }));
+              } finally { boardRelay--; }
+            }
+            return;
+          }
           onSelect(e);
           // a pen lifted mid-gesture can make capture throw — never fatal
           try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* gesture still works uncaptured */ }

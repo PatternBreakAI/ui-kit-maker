@@ -15,6 +15,7 @@ import { IMPORTED_SHAPES, validateImported, auditInset, type ImportedSilhouette 
 import { renderSkinRecipe, type ButtonSkinRecipe } from "../generator/skins";
 import { SKIN_RECIPES } from "../generator/skinRecipes";
 import { ensureFont } from "../generator/fonts";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 /* Engine-native material presets, mapped from the brief's palettes. The
    engine derives its face gradient from ONE Inner Fill hue (+contrast) and
@@ -350,6 +351,7 @@ function Card({ s, ov, globals }: {
 }
 
 export function SilhouetteLab() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const [ov, setOv] = useState<Overrides>({});
   const [diag, setDiag] = useState(true);
   const [flat, setFlat] = useState(true);

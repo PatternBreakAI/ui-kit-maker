@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 /* ── slant lab: in-place Safari instrumentation ───────────────────
    The isolated probe page (#/italicprobe) renders clean while the REAL
@@ -82,6 +83,7 @@ function inspect(svg: SVGSVGElement): CtxNote {
 }
 
 export function SlantLab() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const [applied, setApplied] = useState<string[]>([]);
   const [report, setReport] = useState("scanning…");
   const mark = (name: string) => setApplied((a) => (a.includes(name) ? a : [...a, name]));

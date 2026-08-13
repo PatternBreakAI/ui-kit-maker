@@ -3,6 +3,7 @@ import { useGen } from "@/generator/store";
 import type { GenConfig } from "@/generator/model";
 import { renderKit } from "@/generator/bevel";
 import { ensureFont } from "@/generator/fonts";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 /* ── the type-filter proof sheet ──────────────────────────────────
    Neither working session can run real Safari (containers ship Chromium
@@ -43,6 +44,7 @@ const CASES: { name: string; mut: Mut }[] = [
 const STRESS_FONTS = ["Silkscreen", "Bungee"];
 
 export function TypeProofPage() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const cfg = useGen((s) => s.cfg);
   const fonts = useMemo(() => [cfg.type.font, ...STRESS_FONTS.filter((f) => f !== cfg.type.font)], [cfg.type.font]);
   useEffect(() => { fonts.forEach(ensureFont); }, [fonts]);
