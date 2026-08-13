@@ -2881,7 +2881,7 @@ namespace PatternBreak {
      click). Hook onWeaponChanged for your inventory logic, or set
      'weapons' to your own sprites. */
   [AddComponentMenu("UI Kit Maker/Fire Button")]
-  public class FireButton : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler {
+  public class FireButton : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerDownHandler, IPointerUpHandler {
     [Tooltip("The armed glyph in the dome center.")]
     public Image weapon;
     [Tooltip("Waiting chambers, biggest first — their glyphs re-deal from the armed weapon.")]
@@ -2891,12 +2891,35 @@ namespace PatternBreak {
     public int armed = 0;
     [Tooltip("Swipe distance (px) that counts as a weapon switch.")]
     public float swipePx = 34f;
+    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive) — the kit's press sink, so the icon travels WITH the face instead of floating over the sunk artwork.")]
+    public float pressedLift = 0f;
     [System.Serializable] public class WeaponEvent : UnityEngine.Events.UnityEvent<int> {}
     public WeaponEvent onWeaponChanged = new WeaponEvent();
     float dragX; bool swiped;
     float pop; // 1 → 0 after a switch: the fresh glyph lands with a pop
     Vector3 weaponScale = Vector3.one;
+    Vector2 weaponSeat; bool seated, held;
     void Awake() { if (weapon != null) weaponScale = weapon.transform.localScale; DealNow(); }
+    /* the dome's pressed sprite carries its sink in the pixels, so the
+       glyph must make the same trip itself or it floats over the sunk
+       face (owner: "the icon needs to move with the face on press") */
+    public void OnPointerDown(PointerEventData e) {
+      var sel = GetComponent<Selectable>();
+      if (sel != null && !sel.interactable) return;
+      if (weapon == null || held) return;
+      if (!seated) { weaponSeat = weapon.rectTransform.anchoredPosition; seated = true; }
+      weapon.rectTransform.anchoredPosition = weaponSeat + new Vector2(0f, pressedLift);
+      held = true;
+    }
+    public void OnPointerUp(PointerEventData e) {
+      if (!held) return;
+      if (weapon != null && seated) weapon.rectTransform.anchoredPosition = weaponSeat;
+      held = false;
+    }
+    void OnDisable() {
+      if (held && weapon != null && seated) weapon.rectTransform.anchoredPosition = weaponSeat;
+      held = false;
+    }
     public void Cycle(int dir) {
       if (weapons.Length == 0) return;
       armed = ((armed + dir) % weapons.Length + weapons.Length) % weapons.Length;
@@ -3061,6 +3084,7 @@ namespace PatternBreak {
 
 /* Radar demo — one class per file (see BOARD_RIGS_RUNTIME). */
 const RADAR_DEMO_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
 
 namespace PatternBreak {
   /* Radar demo — a sweeping line and drifting blips over the mini-map
@@ -3073,16 +3097,55 @@ namespace PatternBreak {
     public RectTransform[] blips = new RectTransform[0];
     public float rpm = 8f;
     public float drift = 14f;
+    [Tooltip("Degrees the sweep art's painted ray sits from rotation zero. Retune if your own sweep sprite points elsewhere.")]
+    public float sweepRay = 90f;
+    [Tooltip("How fast a swept blip's flash fades, per second.")]
+    public float flashFade = 2.2f;
     Vector2[] p0;
+    Graphic[] gr;
+    Color[] c0;
+    Vector3[] s0;
+    float[] heat;
+    float prevA;
     void Start() {
       p0 = new Vector2[blips.Length];
-      for (int i = 0; i < blips.Length; i++) if (blips[i] != null) p0[i] = blips[i].anchoredPosition;
+      gr = new Graphic[blips.Length];
+      c0 = new Color[blips.Length];
+      s0 = new Vector3[blips.Length];
+      heat = new float[blips.Length];
+      for (int i = 0; i < blips.Length; i++) if (blips[i] != null) {
+        p0[i] = blips[i].anchoredPosition;
+        s0[i] = blips[i].localScale;
+        gr[i] = blips[i].GetComponent<Graphic>();
+        if (gr[i] != null) c0[i] = gr[i].color;
+      }
+      prevA = 0f;
     }
     void Update() {
-      if (sweep != null) sweep.localRotation = Quaternion.Euler(0f, 0f, -Time.time * 6f * rpm);
-      for (int i = 0; i < blips.Length; i++)
-        if (blips[i] != null)
-          blips[i].anchoredPosition = p0[i] + new Vector2(Mathf.Sin(Time.time * 0.7f + i * 2.1f), Mathf.Cos(Time.time * 0.55f + i * 1.3f)) * drift;
+      float a = -Time.time * 6f * rpm;
+      if (sweep != null) sweep.localRotation = Quaternion.Euler(0f, 0f, a);
+      // degrees the ray covered this frame (clamped so a hiccup can't
+      // flash the whole dial at once)
+      float swept = Mathf.Min(Mathf.Abs(a - prevA), 90f);
+      for (int i = 0; i < blips.Length; i++) {
+        if (blips[i] == null) continue;
+        blips[i].anchoredPosition = p0[i] + new Vector2(Mathf.Sin(Time.time * 0.7f + i * 2.1f), Mathf.Cos(Time.time * 0.55f + i * 1.3f)) * drift;
+        /* the pass-glow (owner: "when the radar passes a blip the blip
+           should glow for a little bit") — flash when the ray crossed
+           this blip's bearing during the frame, then cool */
+        var bp = blips[i].anchoredPosition;
+        float bearing = Mathf.Atan2(bp.y, bp.x) * Mathf.Rad2Deg;
+        float past = Mathf.DeltaAngle(a + sweepRay, bearing);
+        if (past >= 0f && past <= swept) heat[i] = 1f;
+        else heat[i] = Mathf.Max(0f, heat[i] - Time.deltaTime * flashFade);
+        blips[i].localScale = s0[i] * (1f + 0.45f * heat[i]);
+        if (gr[i] != null) {
+          var c = Color.Lerp(c0[i], Color.white, heat[i] * 0.65f);
+          c.a = Mathf.Lerp(c0[i].a, 1f, heat[i]);
+          gr[i].color = c;
+        }
+      }
+      prevA = a;
     }
   }
 }
@@ -6492,8 +6555,13 @@ namespace PatternBreak {
       var ws = new Sprite[nW]; int wi = 0;
       foreach (var wsp in weapons) if (wsp != null) ws[wi++] = wsp;
       fb.weapons = ws;
+      // the glyph rides the kit's press sink so it travels with the face
+      // (the dome's sink lives in its pressed sprite's pixels)
+      if (m != null && m.stateFx != null)
+        foreach (var f in m.stateFx)
+          if (f != null && f.family == "firebutton" && f.state == "pressed") { fb.pressedLift = f.lift; break; }
       fb.DealNow(); // strike the armed pose so the prefab reads in edit mode
-      // press/disabled ride Sprite Swap; the press sink is in the pixels
+      // press/disabled ride Sprite Swap; the DOME's press sink is in the pixels
       var btn = go.AddComponent<Button>();
       btn.targetGraphic = go.GetComponent<Image>();
       if (pressed != null || disabled != null) {
