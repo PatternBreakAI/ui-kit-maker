@@ -4276,13 +4276,35 @@ namespace PatternBreak {
        Play-mode dead-button causes are a duplicate EventSystem or the
        wrong module for the project's input setting). Generated once on
        first import, then it's yours; the menu below rebuilds it. ── */
+    /* Additive scene creation FAILS while the open scene is an unsaved
+       Untitled — the exact state of a brand-new project that never saved
+       a scene (field: every board "failed — Cannot create a new scene
+       additively with an untitled scene unsaved", an empty Scenes
+       folder). A PRISTINE Untitled loses nothing when replaced, so the
+       first generated scene builds in its slot; saving it titles the
+       editor and everything after goes additive as usual. A DIRTY
+       Untitled is the maker's unsaved work — never discard it: skip
+       loudly with the way out instead. */
+    static bool TryNewKitScene(out UnityEngine.SceneManagement.Scene scene, string what) {
+      var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+      bool untitled = string.IsNullOrEmpty(active.path);
+      if (untitled && active.isDirty) {
+        scene = default(UnityEngine.SceneManagement.Scene);
+        Debug.LogWarning("UI Kit Maker: " + what + " skipped — the open Untitled scene has unsaved changes, and Unity won't create scenes beside an unsaved Untitled scene. Save your scene (File > Save As…), then run the Rebuild menus under Tools > PatternBreak.");
+        return false;
+      }
+      scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
+        untitled ? UnityEditor.SceneManagement.NewSceneMode.Single : UnityEditor.SceneManagement.NewSceneMode.Additive);
+      return true;
+    }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
       if (File.Exists(scenePath)) return; // yours after first generation
       var guids = AssetDatabase.FindAssets("t:Prefab", new string[] { root + "/Prefabs" });
       if (guids.Length == 0) return; // prefabs not in yet — the next pass retries
-      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
-        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "the Playground scene")) return;
       try {
         /* field case: the user deleted the kit folder while the old
            Playground was still OPEN — its file is gone but the editor
@@ -4447,8 +4469,8 @@ namespace PatternBreak {
         if (!force && !pending) return;
         AssetDatabase.DeleteAsset(scenePath);
       }
-      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
-        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "board scene '" + bd.name + "'")) return;
       try {
         var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
         if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
