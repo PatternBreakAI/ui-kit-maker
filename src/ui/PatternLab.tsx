@@ -22,6 +22,8 @@ const WAVE: { id: string; name: string }[] = [
   { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
+  { id: "animeburst", name: "Anime Burst" },
+  { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
 ];
 
 /** One inline swatch: a rect filled with the live pattern cell. */
@@ -50,7 +52,7 @@ export function PatternLab() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#12141C", color: "#E9EDF7", fontFamily: "Inter, system-ui, sans-serif", padding: 28 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the ten</h1>
+      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the twelve</h1>
       <p style={{ margin: "0 0 18px", color: "#96A0B8", fontSize: 13 }}>
         Same swatch size, same color, same scale — density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
       </p>

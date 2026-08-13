@@ -142,7 +142,8 @@ export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "h
   | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
   | "skulls" | "crosses" | "bats" | "thorns" | "fleur"
   | "circuit" | "hexcells" | "facets" | "speedlines" | "topo"
-  | "softcamo" | "chainmail" | "camoshards" | "bolts" | "pixelblocks";
+  | "softcamo" | "chainmail" | "camoshards" | "bolts" | "pixelblocks"
+  | "animeburst" | "boltspop";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -186,6 +187,8 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
+  { id: "animeburst", name: "Anime Burst" },
+  { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row

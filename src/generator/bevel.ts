@@ -1660,7 +1660,9 @@ export function textPatternCell(style: string, ps: number, color: string): strin
      authored in a 100-unit cell and scaled to ps by a group transform —
      the drawings stay literal (and were approved from tiled renders),
      stroke widths scale with the cell like every hand-set width above. */
-  const G = (inner: string) => `<g transform="scale(${n(p / 100)})">${inner}</g>`;
+  // full precision: a tenth-rounded scale leaves a hairline clip band on
+  // two edges of every tile at off sizes — a faint grid the eye catches
+  const G = (inner: string) => `<g transform="scale(${(p / 100).toFixed(4)})">${inner}</g>`;
 
   /* Skulls — big/small polka rhythm: one skull centered, a small echo
      ON each corner (the halftone precedent) so quarters join whole
@@ -1839,80 +1841,81 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return darts.join("");
   }
 
-  /* Topographic contours — hand-set relief: a large 4-ring hill, a tilted
-     3-ring ridge, a small 3-ring knoll straddling the horizontal seam
-     (rings drawn at y AND y+100, the houndstooth idiom), plus two open
-     valley/ridge lines whose Catmull-Rom phantom neighbours wrap a full
-     cell in x — position and tangent stay continuous across the seam, and
-     both cross it flat so the butt-cap join can't nick. Nested tables
-     shrink monotonically: contours approach, never cross. */
+  /* Topo — an actual landform, not blobs (owner: "lift a real topograph
+     for this then make seamless"). Authored from a doubly-periodic height
+     field — a meandering diagonal ridge carrying one big massif with a
+     spur lobe, a small col knoll, gully-notched slopes — and its contour
+     lines baked as sample runs. Catmull-Rom cubics thread each run; open
+     runs carry phantom samples lifted from the run that continues them
+     one tile over (walked until the curve clears the seam), so a stroke
+     leaves the tile on exactly the cubic its neighbour copy re-enters
+     with — the clip re-draw is bit-identical, not approximate. */
   if (style === "topo") {
-    const K = p / 100, W = n(p * 0.02);
-    const bez = (pts: number[][], open?: boolean) => {
-      const m = pts.length;
-      const at = (i: number): number[] => open
-        ? (i < 0 ? [pts[m - 2][0] - 100, pts[m - 2][1]] : i >= m ? [pts[1][0] + 100, pts[1][1]] : pts[i])
-        : pts[(i + m) % m];
-      let d = `M${n(pts[0][0] * K)} ${n(pts[0][1] * K)}`;
-      for (let i = 0; i < (open ? m - 1 : m); i++) {
-        const a = at(i - 1), b = at(i), c = at(i + 1), e = at(i + 2);
-        d += `C${n((b[0] + (c[0] - a[0]) / 6) * K)} ${n((b[1] + (c[1] - a[1]) / 6) * K)} ${n((c[0] - (e[0] - b[0]) / 6) * K)} ${n((c[1] - (e[1] - b[1]) / 6) * K)} ${n(c[0] * K)} ${n(c[1] * K)}`;
-      }
-      return d + (open ? "" : "Z");
+    // [closed, x0,y0, ...] in the 100-cell; phantoms sit outside [0,100]
+    const T: number[][] = [
+      [0, 105, 58.9, 102.4, 57, 100, 55, 97.7, 52.8, 95.6, 50.4, 93.8, 47.9, 92.2, 45.1, 90.8, 42.3, 89.8, 39.3, 89.5, 36.1, 89.6, 33, 87.3, 30.8, 85.3, 28.3, 82.9, 26.3, 80, 24.9, 77, 23.9, 74.1, 22.8, 71.3, 21.2, 69, 19, 67.2, 16.4, 66.1, 13.5, 66.1, 10.3, 66.2, 7.2, 64.3, 4.9, 61.2, 4.3, 58.7, 2.4, 56.6, 0, 54.8, -2.6, 53.2, -5.3],
+      [0, 81.3, -6, 82.4, -2.9, 83.8, 0, 85.5, 2.4, 88.1, 4, 91, 4.9, 94, 5.2, 97, 5.4, 100, 5.5, 103.2, 5.7, 106.4, 6.1],
+      [0, -6, 5.2, -3, 5.4, 0, 5.5, 3.2, 5.7, 6.4, 6.1, 9.5, 7, 12.5, 8.3, 15, 10.3, 17, 12.8, 18.8, 15.5, 20.4, 18.3, 22.1, 21.1, 24, 23.7, 26, 26.2, 28.1, 28.7, 30.1, 31.2, 32.1, 33.7, 33.8, 36.5, 35.2, 39.4, 36.3, 42.4, 37.2, 45.5, 38, 48.6, 39.1, 51.7, 40.9, 54.4, 43.5, 56.3, 46.5, 57.4, 49.7, 58, 52.9, 58.4, 56.1, 58.8, 59.2, 59.6, 62.1, 60.9, 64.5, 63.1, 66.1, 65.9, 67.2, 68.9, 68.2, 72, 69.2, 75.1, 70.5, 78, 72.2, 80.8, 74.2, 83.3, 76.3, 85.8, 78.2, 88.4, 79.9, 91.1, 81.3, 94, 82.4, 97.1, 83.8, 100, 85.5, 102.4, 88.1, 104],
+      [0, 61.2, 104.3, 58.7, 102.4, 56.6, 100, 54.8, 97.4, 53.2, 94.7, 52, 91.8, 50.9, 88.8, 50, 85.7, 49.1, 82.7, 48.9, 79.5, 48.7, 76.4, 46, 75, 42.9, 75.3, 39.7, 75.3, 36.5, 75.5, 33.4, 75.9, 30.2, 76, 27.1, 75.7, 24, 74.9, 21.1, 73.7, 18.4, 72, 16, 69.9, 14, 67.5, 12.9, 64.5, 13, 61.4, 11.2, 59.1, 8.1, 59.5, 5, 58.9, 2.4, 57, 0, 55, -2.3, 52.8, -4.4, 50.4],
+      [0, -6.5, 13.9, -3.3, 13.5, 0, 13.5, 3.2, 13.9, 6.2, 14.9, 9, 16.4, 11.5, 18.5, 13.7, 20.7, 15.8, 23.2, 17.9, 25.6, 20, 28, 22.1, 30.4, 24.1, 32.8, 26, 35.4, 27.8, 38.1, 29.2, 40.9, 30.2, 43.9, 30.9, 47.1, 31.3, 50.2, 31.7, 53.4, 32.9, 56.3, 34.9, 58.8, 37.1, 61.2, 39, 63.7, 40.2, 66.6, 39, 69.4, 36.3, 71.1, 33.4, 72.4, 30.2, 73, 27.1, 72.6, 24.2, 71.2, 21.8, 69.2, 19.6, 66.8, 17.6, 64.3, 16, 61.6, 15.2, 58.5, 12.9, 56.6, 9.7, 56.2, 6.9, 54.7, 4.4, 52.6, 2.1, 50.5, 0, 48, -1.8, 45.3, -3.4, 42.4, -4.6, 39.3],
+      [0, 104.4, 52.6, 102.1, 50.5, 100, 48, 98.2, 45.3, 96.6, 42.4, 95.4, 39.3, 94.7, 36.1, 95.1, 32.9, 96, 29.7, 95.3, 26.7, 92.3, 25.4, 89.9, 23.1, 87.5, 21, 85.3, 18.6, 87.3, 16.2, 90.3, 14.8, 93.5, 13.9, 96.7, 13.5, 100, 13.5, 103.2, 13.9, 106.2, 14.9],
+      [0, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1, 7.2, 22.8, 10, 24.4, 12.5, 26.4, 14.8, 28.6, 17.1, 30.8, 19.2, 33.2, 21.2, 35.7, 23, 38.3, 24.5, 41.2, 25.5, 44.2, 26, 47.4, 25.9, 50.5, 25.7, 53.7, 26.9, 56.6, 29.4, 58.5, 31.9, 60.5, 34, 62.9, 34.8, 65.9, 33.6, 68.8, 30.8, 70.4, 27.7, 70.2, 25, 68.5, 22.9, 66.1, 21.3, 63.3, 19.8, 60.5, 18.4, 57.6, 16.5, 55.1, 13.5, 54.1, 10.5, 53, 7.9, 51.2, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1],
+      [0, 105.5, 49.1, 103.3, 46.7, 101.5, 44.1, 100, 41.3, 99, 38.3, 98.3, 35.2, 98.3, 32.1, 99.1, 29, 100, 26, 101.2, 23.1, 104.1, 22.1],
+      [1, 4.8, 28.8, 7.5, 29, 10, 30.2, 12.2, 31.7, 14.3, 33.5, 16.2, 35.5, 17.9, 37.7, 19.3, 40.1, 20.4, 42.6, 20.9, 45.3, 20.5, 48, 18.8, 50.2, 16.2, 50.9, 13.5, 50.5, 11, 49.2, 8.8, 47.7, 6.7, 45.8, 5, 43.7, 3.6, 41.3, 2.6, 38.7, 2.1, 36, 2.1, 33.3, 2.8, 30.6],
+      [1, 26.7, 61.6, 28.4, 61.8, 30, 62.7, 30.9, 64.2, 31, 65.9, 29.8, 67.2, 28, 67.1, 26.6, 66.1, 25.7, 64.5, 25.5, 62.8],
+      [1, 8.4, 38, 9.8, 37.8, 11.1, 38.6, 12.2, 39.7, 12.8, 41.1, 12.6, 42.6, 11.2, 42.9, 9.9, 42.1, 8.9, 40.9, 8.3, 39.5],
+    ];
+    const bez = (a: number[]) => {
+      const cl = a[0] > 0, c = a.slice(1), m = c.length >> 1;
+      const X = (i: number) => c[(((i % m) + m) % m) * 2], Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1];
+      const s = cl ? 0 : 1, e = cl ? m : m - 2;
+      let d = `M${X(s)} ${Y(s)}`;
+      for (let i = s; i < e; i++)
+        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${X(i + 1)} ${Y(i + 1)}`;
+      return d + (cl ? "Z" : "");
     };
-    const ring = (pts: number[][], dy = 0) =>
-      `<path d="${bez(dy ? pts.map((v) => [v[0], v[1] + dy]) : pts)}" fill="none" stroke="${color}" stroke-width="${W}" stroke-linejoin="round"/>`;
-    const flow = (pts: number[][]) =>
-      `<path d="${bez(pts, true)}" fill="none" stroke="${color}" stroke-width="${W}" stroke-linecap="butt"/>`;
-    const hill = [
-      [[84, 27], [78, 14], [63, 10], [47, 12], [33, 16], [22, 26], [26, 38], [39, 45], [56, 42], [72, 40]],
-      [[76, 27], [71, 17], [62, 15], [49, 17.5], [37.5, 21], [29.5, 27], [33, 35], [43, 39], [56, 35.5], [69, 34]],
-      [[69, 27], [63, 20.5], [53, 20], [44, 23.5], [39.5, 28.5], [43, 32.5], [51, 33], [62, 31.5]],
-      [[51.6, 26.6], [50.6, 24.8], [48.4, 24.6], [47.2, 26.3], [48.2, 28.2], [50.7, 28.4]],
-    ];
-    const ridge = [
-      [[67, 66], [58, 64], [47, 68], [37, 74], [31, 83], [38, 90], [51, 89], [62, 79]],
-      [[61, 70], [54, 69.5], [46, 73], [40, 78], [41, 83], [49, 85], [57, 82.5], [60, 74]],
-      [[54.5, 77.2], [53.5, 75], [51.4, 74.7], [49.9, 76.5], [50.8, 78.7], [53.2, 79.1]],
-    ];
-    const knoll = [
-      [[28.5, 1], [26, -7.5], [17, -11.5], [8.5, -8], [5.5, 0.5], [8.5, 8], [17, 11.5], [26, 8]],
-      [[22.5, 0.5], [20.5, -5], [16.5, -7], [11.5, -5], [10.5, 0.5], [12, 5], [16.5, 7], [21.5, 5]],
-      [[18.6, 0.3], [17.6, -1.8], [15.6, -2], [14.3, 0], [15.4, 1.9], [17.7, 1.7]],
-    ];
-    return [
-      ...hill.map((r) => ring(r)),
-      ...ridge.map((r) => ring(r)),
-      ...knoll.map((r) => ring(r) + ring(r, 100)),
-      flow([[0, 52], [12, 50], [26, 48], [42, 49.5], [56, 52.5], [66, 56.5], [76, 58.5], [88, 50], [100, 52]]),
-      flow([[0, 20], [12, 16.5], [29.5, 12], [42, 5.5], [58, 3], [74, 6], [88, 16], [100, 20]]),
-    ].join("");
+    return G(T.map((r) => `<path d="${bez(r)}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="butt"/>`).join(""));
   }
 
-  /* Soft camouflage — classic organic camo: bean/kidney islands drawn as
-     closed cubics whose control points sit on shared per-anchor tangents,
-     so every join stays round (authored from anchor+tangent tables, tuned
-     on tiled renders — two large, four medium, two small per tile). Three
-     islands RIDE the seams — left, bottom, right — each drawn again a full
-     tile over so the exact shape continues from the opposite edge; the
-     scale keeps 4 decimals because a 1-decimal factor drifts those wrap
-     copies apart at big cell sizes. */
+  /* Soft camo — ONE organic field, twelve regions no two alike: pools,
+     beans and flowing bands at mixed headings, smooth closed cubics with
+     bulges and concave waists (owner: the first cut "reads as a grid of
+     the same blobs"). The lattice is hidden by geography, not luck: the
+     big masses cross the seams at IRREGULAR stations — vertical at y≈19,
+     68 and 90, horizontal at x≈13, 33 and 57 — so no landmark ever sits
+     whole inside one tile, and nothing lines up into a row or column.
+     Every crosser is re-drawn offset exactly ±100, so the tile closes
+     without a visible joint. Scaled EXACT, not by n(): a tenth-rounded
+     scale leaves a clip band on two edges of every tile — precisely the
+     grid read this cell exists to kill. */
   if (style === "softcamo") {
-    const camo = (d: string, dx = 0, dy = 0) =>
-      `<path fill="${color}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ""} d="${d}"/>`;
-    const west = "M-3.0 3.0 C6.0 3.8 11.8 9.1 13.0 16.0 C14.2 22.9 8.4 25.0 8.0 30.0 C7.6 35.0 14.5 38.1 13.5 44.0 C12.5 49.9 9.9 58.4 2.0 57.0 C-5.9 55.6 -18.0 52.9 -19.0 46.0 C-20.0 39.1 -14.3 31.8 -13.0 27.0 C-11.7 22.2 -19.3 14.5 -15.0 12.0 C-10.7 9.5 -12.0 2.2 -3.0 3.0 Z";
-    const south = "M35.0 96.0 C37.1 90.4 38.2 82.7 45.0 84.5 C51.8 86.3 55.0 91.0 60.0 91.0 C65.0 91.0 69.2 83.4 75.0 85.0 C80.8 86.6 86.5 88.0 86.0 94.0 C85.5 100.0 83.5 108.2 76.0 107.5 C68.5 106.8 56.5 109.2 48.0 108.5 C39.5 107.8 32.9 101.6 35.0 96.0 Z";
-    const east = "M99.0 60.0 C104.4 61.0 110.0 63.5 110.5 69.0 C111.0 74.5 110.8 78.1 108.5 82.0 C106.3 85.9 102.7 93.2 98.0 91.5 C93.3 89.8 91.2 85.9 90.5 82.0 C89.8 78.1 94.4 77.4 95.0 74.0 C95.6 70.6 85.9 69.1 88.5 66.0 C91.1 62.9 93.6 59.0 99.0 60.0 Z";
-    return `<g transform="scale(${(p / 100).toFixed(4)})">` +
-      camo(west) + camo(west, 100, 0) +
-      camo(south) + camo(south, 0, -100) +
-      camo(east) + camo(east, -100, 0) +
-      camo("M39.0 33.0 C40.2 28.7 42.1 20.5 48.0 21.5 C53.9 22.5 58.2 18.7 63.0 20.0 C67.8 21.3 75.5 23.8 74.0 28.0 C72.5 32.2 68.0 37.9 63.0 37.5 C59.0 37.2 56.8 35.6 53.5 34.4 C48.8 32.7 38.0 36.9 39.0 33.0 Z") +
-      camo("M11.5 59.0 C13.5 55.5 16.2 49.2 21.0 50.5 C23.1 51.1 24.7 52.7 26.5 53.6 C28.4 54.6 31.7 53.2 33.0 55.0 C35.6 58.7 37.9 60.2 36.5 64.0 C35.1 67.8 33.8 73.4 28.5 72.0 C23.2 70.6 20.0 72.2 17.5 69.0 C15.0 65.8 9.5 62.5 11.5 59.0 Z") +
-      camo("M46.5 59.0 C48.4 54.9 48.1 48.5 54.0 49.5 C59.9 50.5 60.5 54.5 65.0 54.5 C69.5 54.5 71.0 47.9 75.5 50.0 C80.0 52.1 85.2 55.2 84.0 59.5 C82.8 63.8 79.0 68.9 72.0 68.3 C65.0 67.7 61.6 67.9 56.0 65.8 C50.4 63.7 44.6 63.1 46.5 59.0 Z") +
-      camo("M19.0 9.5 C19.7 7.6 20.6 4.9 23.0 5.5 C25.4 6.1 27.9 5.4 29.5 6.5 C31.1 7.6 33.1 8.4 32.0 10.0 C30.9 11.6 28.2 9.3 26.0 8.9 C23.8 8.5 18.3 11.4 19.0 9.5 Z") +
-      camo("M13.0 91.0 C13.4 88.8 14.0 85.3 16.5 85.5 C19.0 85.7 22.2 84.2 23.5 86.0 C24.8 87.8 27.8 88.5 26.5 90.0 C25.2 91.5 22.5 93.4 20.0 93.0 C17.5 92.6 12.6 93.2 13.0 91.0 Z") +
-      `</g>`;
+    const GX = (inner: string) => `<g transform="scale(${(p / 100).toFixed(4)})">${inner}</g>`;
+    const T = (d: string, o = "") => `<path fill="${color}"${o ? ` transform="translate(${o})"` : ""} d="${d}"/>`;
+    const band = "M72.7 6.1 C71.9 7.6 73.6 10.7 75.6 13.4 C77.7 16.1 81.5 20.1 85.1 22.5 C88.7 25.0 92.9 27.2 97.2 28.0 C101.5 28.8 107.3 28.7 110.9 27.3 C114.6 25.8 117.2 21.9 119.0 19.5 C120.8 17.2 122.5 14.4 121.8 13.1 C121.2 11.7 117.4 11.7 115.0 11.5 C112.5 11.3 109.5 11.4 107.1 11.7 C104.6 12.1 102.8 14.3 100.4 13.6 C98.1 12.8 96.3 9.0 92.9 7.5 C89.6 6.0 83.8 4.8 80.4 4.6 C77.0 4.4 73.5 4.7 72.7 6.1 Z";
+    const pool = "M71.7 98.9 C70.6 101.9 68.6 103.4 66.7 105.7 C64.8 107.9 62.8 111.8 60.3 112.3 C57.7 112.9 53.8 110.6 51.4 108.9 C49.0 107.3 47.1 104.6 46.1 102.3 C45.0 100.0 44.6 97.3 45.0 95.1 C45.5 92.9 47.3 91.1 48.8 89.1 C50.3 87.1 51.3 84.6 53.8 83.2 C56.4 81.8 61.0 79.9 64.2 80.7 C67.4 81.5 71.8 85.0 73.0 88.0 C74.3 91.1 72.7 96.0 71.7 98.9 Z";
+    const spud = "M108.7 64.4 C110.1 66.1 112.0 69.3 111.3 71.2 C110.7 73.0 106.9 74.3 104.8 75.4 C102.6 76.4 100.2 78.0 98.5 77.5 C96.7 76.9 95.3 73.7 94.2 71.9 C93.2 70.1 92.1 68.6 92.3 66.5 C92.5 64.4 93.6 60.3 95.4 59.4 C97.1 58.4 100.7 60.1 102.9 60.9 C105.1 61.8 107.3 62.7 108.7 64.4 Z";
+    const drop = "M19.7 109.7 C18.5 110.9 15.9 111.3 13.7 111.5 C11.4 111.6 7.8 111.8 6.4 110.6 C5.0 109.3 5.0 106.2 5.2 104.0 C5.4 101.8 6.2 99.3 7.7 97.6 C9.1 96.0 12.1 93.9 13.9 94.2 C15.6 94.5 17.2 97.8 18.4 99.4 C19.6 101.1 20.9 102.3 21.1 104.0 C21.3 105.7 21.0 108.4 19.7 109.7 Z";
+    const vine = "M1.5 50.8 C2.4 51.6 4.2 51.7 6.7 50.4 C9.1 49.1 13.4 45.3 16.2 43.0 C19.1 40.6 20.4 39.6 23.6 36.1 C26.8 32.7 33.1 27.1 35.5 22.2 C38.0 17.3 38.5 11.2 38.6 6.6 C38.7 2.0 37.2 -2.8 36.2 -5.3 C35.2 -7.8 33.7 -8.3 32.7 -8.2 C31.7 -8.1 30.5 -7.0 30.0 -4.7 C29.5 -2.4 30.5 1.9 29.8 5.5 C29.2 9.1 28.5 12.9 26.0 16.7 C23.5 20.5 18.0 25.3 15.0 28.4 C12.0 31.5 10.3 32.4 8.1 35.3 C5.8 38.2 2.4 43.0 1.3 45.6 C0.2 48.2 0.6 50.0 1.5 50.8 Z";
+    const seed = "M104.4 86.9 C105.1 87.9 104.4 90.3 103.7 91.7 C103.0 93.1 101.6 95.1 100.4 95.4 C99.3 95.7 97.6 94.4 96.5 93.5 C95.5 92.7 94.3 91.7 94.0 90.4 C93.7 89.2 93.9 86.7 94.8 85.8 C95.7 85.0 97.8 85.2 99.4 85.4 C101.0 85.6 103.7 85.9 104.4 86.9 Z";
+    return GX(
+      T(band) +
+      T(band, "-100 0") +
+      T(pool) +
+      T(pool, "0 -100") +
+      T("M30.4 36.1 C28.4 35.1 23.7 37.8 21.2 40.1 C18.6 42.4 16.5 46.6 15.1 50.1 C13.6 53.6 12.6 57.8 12.5 61.2 C12.5 64.7 13.2 68.2 14.5 70.7 C15.9 73.2 18.9 76.5 20.8 76.3 C22.7 76.0 24.8 71.5 26.0 69.3 C27.1 67.0 26.3 64.9 27.4 63.0 C28.6 61.1 32.0 60.4 33.1 57.7 C34.1 54.9 34.1 49.9 33.7 46.4 C33.3 42.8 32.5 37.2 30.4 36.1 Z") +
+      T(spud) +
+      T(spud, "-100 0") +
+      T(drop) +
+      T(drop, "0 -100") +
+      T("M54.8 40.5 C52.6 40.9 50.0 39.5 48.0 38.5 C46.0 37.6 43.9 36.6 42.7 34.7 C41.5 32.9 40.3 29.4 40.9 27.4 C41.5 25.5 44.4 23.9 46.3 23.2 C48.1 22.5 50.1 23.0 52.0 23.1 C53.9 23.2 55.8 22.7 57.4 23.6 C59.0 24.4 61.1 26.2 61.7 28.3 C62.4 30.4 62.5 34.1 61.4 36.1 C60.2 38.1 57.0 40.1 54.8 40.5 Z") +
+      T("M65.9 33.2 C64.6 34.0 64.3 37.9 64.8 40.7 C65.3 43.4 68.5 46.3 68.8 49.6 C69.1 52.9 66.5 57.4 66.5 60.3 C66.6 63.2 67.6 66.6 69.0 67.2 C70.4 67.7 72.9 66.7 75.1 63.6 C77.3 60.5 82.4 53.2 82.0 48.5 C81.6 43.8 75.5 38.1 72.8 35.6 C70.1 33.0 67.3 32.3 65.9 33.2 Z") +
+      T("M41.4 82.5 C40.5 83.5 37.8 83.9 36.1 83.9 C34.5 83.9 33.0 83.2 31.8 82.3 C30.5 81.5 29.3 80.3 28.8 78.8 C28.4 77.2 28.3 74.2 29.3 73.0 C30.2 71.8 33.1 71.2 34.7 71.4 C36.2 71.6 37.4 73.2 38.5 74.2 C39.7 75.2 40.9 76.3 41.4 77.7 C41.9 79.0 42.3 81.4 41.4 82.5 Z") +
+      T(vine) +
+      T(vine, "0 100") +
+      T(seed) +
+      T(seed, "-100 0") +
+      T("M97.6 38.4 C98.6 39.6 97.6 42.8 96.8 44.3 C96.1 45.9 94.6 47.0 93.2 47.7 C91.8 48.4 90.1 49.1 88.6 48.7 C87.1 48.3 84.5 46.6 84.1 45.1 C83.8 43.6 85.4 41.2 86.4 39.8 C87.5 38.4 88.6 37.2 90.5 36.9 C92.3 36.7 96.5 37.2 97.6 38.4 Z") +
+      T("M52.8 61.5 C52.8 62.8 50.5 64.0 49.1 64.6 C47.7 65.2 45.9 65.7 44.6 65.2 C43.3 64.6 41.5 62.7 41.4 61.5 C41.3 60.2 42.9 58.4 44.2 57.6 C45.4 56.9 47.5 56.2 48.9 56.8 C50.4 57.5 52.8 60.2 52.8 61.5 Z"));
   }
 
   /* Chainmail — European 4-in-1: rings of radius .34p on a half-p lattice,
@@ -1938,30 +1941,48 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return R.map((c) => ring(c[0], c[1])).join("");
   }
 
-  /* Camo shards — futuristic angular camo: hand-set 4-8-gon wedges, slabs
-     and bent boomerangs at mixed headings, no curved edges, the gaps
-     reading as fracture lines. The SE slash crosses the left seam, the
-     stepped slab the bottom, the corner quad all four corners — each drawn
-     again a full tile over, so the field fractures straight across seams. */
+  /* Camo shards — shattered armor, rebuilt from the confetti take (owner:
+     "doesn't look shardy/badass enough"). Fewer, bigger, meaner: a master
+     splinter SNAPPED mid-blade with a slip offset across the break, a
+     lightning jag through the right seam, counter-angled slab impacts and
+     a boomerang dart against the steep blade cluster — straight cuts
+     only, needle tips and angled break faces, and the channels between
+     shards stay open so they read as fracture lines. Patterns clip, so
+     every seam-crosser is stamped again at ±p; S() does the stamping
+     (the SE corner slab carries all three copies). */
   if (style === "camoshards") {
-    const shard = (d: string) => `<path fill="${color}" d="${d}"/>`;
-    const again = (d: string, dx: number, dy: number) => `<path fill="${color}" transform="translate(${dx} ${dy})" d="${d}"/>`;
-    const corner = "M90 94 L108 88 L112 104 L94 110 Z";
-    const slabL = "M-22 18 L-2 12 L18 30 L26 46 L12 48 L-8 32 Z";
-    const slabB = "M56 64 L70 60 L78 74 L72 108 L58 104 L50 86 L56 78 Z";
+    const S = (d: string, ...at: [number, number][]) =>
+      at.map(([dx, dy]) => `<path fill="${color}" transform="translate(${dx} ${dy})" d="${d}"/>`).join("");
+    const O: [number, number] = [0, 0];
     return G(
-      shard([
-        "M28 8 L50 2 L56 14 L42 14 L38 28 L26 22 Z",   // bent-L boomerang
-        "M4 58 L30 48 L44 56 L36 70 L12 74 Z",         // zigzag slab
-        "M80 48 L96 44 L98 54 L88 62 L78 58 Z",        // right slash
-        "M12 80 L34 76 L40 88 L28 96 L14 92 Z",        // low slab
-        "M52 36 L68 30 L72 42 L56 48 Z",                // mid wedge
-        "M14 6 L26 2 L24 12 L14 14 Z",                  // chip
-        "M84 68 L96 66 L92 80 L82 78 Z",                // chip
-      ].join(" ")) +
-      shard(slabL) + again(slabL, 100, 0) +
-      shard(slabB) + again(slabB, 0, -100) +
-      shard(corner) + again(corner, -100, 0) + again(corner, 0, -100) + again(corner, -100, -100)
+      // the king, snapped: top half, needle tip down to an angled break face
+      S("M64 2 L44 30 L36 56 L49 53 L56 34 Z", O) +
+      // king's bottom half, slip-offset across the fracture, out the bottom seam
+      S("M40 68 L31 58 L23 78 L20 104 L33 82 Z", O, [0, -100]) +
+      // lightning jag owning the top-right, arm through the right seam
+      S("M66 14 L92 7 L84 19 L108 13 L113 20 L72 38 L83 22 Z", O, [-100, 0]) +
+      // needle sliver, top-left
+      S("M28 4 L18 16 L11 31 L17 30 L24 18 Z", O) +
+      // counter wedge through the left seam
+      S("M-10 47 L-12 57 L25 50 L13 39 Z", O, [100, 0]) +
+      // fat counter slab, dead center
+      S("M53 55 L51 71 L83 57 L78 51 Z", O) +
+      // counter needle bridging the bolt-to-slab pocket
+      S("M58 48 L75 47 L90 42 L85 38 L73 43 Z", O) +
+      // boomerang dart, mid-left
+      S("M2 60 L16 74 L24 62 L16 62 Z", O) +
+      // steep blade, right flank
+      S("M99 59 L83 68 L73 84 L83 88 L93 76 Z", O) +
+      // impact slab through the SE corner — all three wrap copies
+      S("M79 91 L70 102 L110 104 L106 96 Z", O, [-100, 0], [0, -100], [-100, -100]) +
+      // chip in the center-south pocket
+      S("M57 72 L62 78 L69 82 L68 75 L64 74 Z", O) +
+      // steep needle on the king's left flank
+      S("M10 76 L5 81 L1 89 L7 89 L9 83 Z", O) +
+      // chip in the northwest pocket
+      S("M26 30 L30 36 L35 41 L36 35 L32 32 Z", O) +
+      // king's echo, near-parallel, through the bottom seam
+      S("M52 74 L38 90 L30 113 L41 113 L50 94 Z", O, [0, -100])
     );
   }
 
@@ -1979,25 +2000,98 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return bolt(h, h) + bolt(0, 0) + bolt(p, 0) + bolt(0, p) + bolt(p, p);
   }
 
-  /* Pixel blocks — 8-bit debris: hand-set clusters (step, Ls, T, bar,
-     domino, lone pixel) on a strict 8×8 unit grid, each fused into ONE
-     path so abutting units can't hairline under group opacity. The bar
-     and domino cross a seam and are drawn again offset by ±p — every
-     coordinate is a whole u, so the wraps land on the grid exactly. */
+  /* Pixel blocks — 8-bit debris on a strict 12×12 unit grid, in two
+     texture octaves: an S/Z of 2×2-unit superpixels and one solid
+     superpixel carry the chunky read, then single-unit T, plus, L and
+     step clusters, two bars, lone pixels and a spaced debris trail
+     carry the fine one. Each cluster is fused into ONE path so abutting
+     units can't hairline under group opacity. Distinct clusters never
+     touch — not even at corners, audited on the torus — because
+     corner-chains read as stripes under rotation. The bars cross a seam
+     and are drawn again offset by ±p; every coordinate is a whole unit,
+     so the wraps land on the grid exactly. */
   if (style === "pixelblocks") {
+    const u12 = p / 12;
     const poly = (pts: [number, number][]) =>
-      `<path d="M${pts.map(([X, Y]) => `${n(X * u)} ${n(Y * u)}`).join(" L")} Z" fill="${color}"/>`;
+      `<path d="M${pts.map(([X, Y]) => `${n(X * u12)} ${n(Y * u12)}`).join(" L")} Z" fill="${color}"/>`;
     const box = (X: number, Y: number, W: number, H: number) =>
-      `<rect x="${n(X * u)}" y="${n(Y * u)}" width="${n(W * u)}" height="${n(H * u)}" fill="${color}"/>`;
+      `<rect x="${n(X * u12)}" y="${n(Y * u12)}" width="${n(W * u12)}" height="${n(H * u12)}" fill="${color}"/>`;
     return [
-      poly([[1, 0], [3, 0], [3, 1], [4, 1], [4, 2], [2, 2], [2, 1], [1, 1]]), // step Z
-      poly([[0, 2], [1, 2], [1, 3], [2, 3], [2, 4], [0, 4]]),                 // small L
-      poly([[6, 2], [7, 2], [7, 4], [8, 4], [8, 5], [6, 5]]),                 // tall L
-      poly([[3, 4], [4, 4], [4, 5], [5, 5], [5, 6], [2, 6], [2, 5], [3, 5]]), // T
-      box(6, 6, 3, 1), box(-2, 6, 3, 1),                                      // bar across the side seam
-      box(5, 7, 1, 2), box(5, -1, 1, 2),                                      // domino across the bottom seam
-      box(3, 7, 1, 1),                                                        // lone pixel
+      poly([[1, 0], [5, 0], [5, 2], [7, 2], [7, 4], [3, 4], [3, 2], [1, 2]]), // S/Z of superpixels
+      box(8, 1, 2, 2),  // 2x2 solid (one superpixel)
+      poly([[7, 7], [10, 7], [10, 8], [9, 8], [9, 9], [8, 9], [8, 8], [7, 8]]), // T
+      poly([[2, 5], [3, 5], [3, 6], [4, 6], [4, 7], [3, 7], [3, 8], [2, 8], [2, 7], [1, 7], [1, 6], [2, 6]]), // plus
+      poly([[9, 10], [10, 10], [10, 11], [11, 11], [11, 12], [9, 12]]), // small L
+      poly([[0, 8], [1, 8], [1, 9], [2, 9], [2, 10], [3, 10], [3, 11], [1, 11], [1, 10], [0, 10]]), // steps
+      box(10, 4, 3, 1), box(-2, 4, 3, 1), // bar across the side seam
+      box(6, 10, 1, 3), box(6, -2, 1, 3), // bar across the bottom seam
+      box(8, 4, 1, 1), box(11, 1, 1, 1), // lone pixels
+      box(4, 9, 1, 1), box(5, 7, 1, 1), box(6, 5, 1, 1), // debris trail
     ].join("");
+  }
+
+  /* Anime burst — manga focus lines (owner: "an additional anime speed
+     lines — should radiate from an empty center outward"). One burst per
+     tile: tapered ink slivers, needle-thin at an empty oval (~2/5 of the
+     cell — a label sits there untouched) and thickening outward, the way
+     focus lines are ruled from the panel frame in toward the subject.
+     Angles, reaches and weights are hand-set — a uniform fan reads as a
+     clock face, not action — sixteen main rays plus a second order of
+     thin outer slivers for the halftone-ish in-between rhythm. Every
+     sliver ends in a point INSIDE the tile except four runaways that
+     cross an edge and are drawn again a full cell over, so each one
+     re-enters the next tile as that burst's incoming line — no chopped
+     stubs, no doubled ink at the seams, and each re-entry tip lands in a
+     gap of the neighbor's fan (placed against every native ray, with the
+     near-misses left as the hand-inked broken-continuation read). The
+     runaways carry their waist at HALF the run so they cross the seam
+     already tapering — a waist at the edge bulged there (checked at 4x).
+     Scaled with full precision instead of G() — a runaway must
+     wrap-match its re-draw exactly. */
+  if (style === "animeburst") {
+    const s = p / 100;
+    /* ray(deg, r0, r1, w, k): one sliver of the burst at (50,50) —
+       needle apex at r0 pointing at the center, widest (±w) at k of the
+       run, closing to a point at r1. dx/dy re-draw a runaway one cell
+       over for the seam wrap. */
+    const ray = (deg: number, r0: number, r1: number, w: number, k = 0.9, dx = 0, dy = 0) => {
+      const a = (deg * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+      const rm = r0 + (r1 - r0) * k;
+      const pt = (r: number, ox = 0, oy = 0) =>
+        `${n((50 + dx + r * ca + ox) * s)} ${n((50 + dy + r * sa + oy) * s)}`;
+      return `<path fill="${color}" d="M${pt(r0)} L${pt(rm, -sa * w, ca * w)} L${pt(r1)} L${pt(rm, sa * w, -ca * w)} Z"/>`;
+    };
+    const rays =
+      ray(8, 23, 68, 3.6, 0.5) + ray(27, 21, 52, 2.6) + ray(43, 19.5, 66, 3.2) + ray(71, 17.5, 46, 2.2) +
+      ray(95, 17.5, 63, 3.6, 0.5) + ray(112, 17.5, 50, 2.6) + ray(130, 19, 62, 3) + ray(152, 21, 45, 2.2) +
+      ray(171, 23, 34, 2) + ray(188, 23, 66, 3.6, 0.5) + ray(214, 20.5, 48, 2.4) + ray(231, 19, 60, 3) +
+      ray(255, 17.5, 44, 2.2) + ray(277, 17.5, 62, 3.6, 0.5) + ray(300, 18, 50, 2.6) + ray(332, 21, 54, 3) +
+      ray(58, 30, 52, 1.7) + ray(104, 32, 47, 1.5) + ray(140, 31, 56, 1.7) + ray(160, 33, 48, 1.4) +
+      ray(201, 31, 50, 1.5) + ray(243, 30, 48, 1.5) + ray(318, 30, 54, 1.7) + ray(341, 31, 44, 1.4);
+    const wraps =
+      ray(8, 23, 68, 3.6, 0.5, -100, 0) + ray(95, 17.5, 63, 3.6, 0.5, 0, -100) +
+      ray(188, 23, 66, 3.6, 0.5, 100, 0) + ray(277, 17.5, 62, 3.6, 0.5, 0, 100);
+    return rays + wraps;
+  }
+
+  /* Bolts, pop version — the angular bolt's fun-loving sibling (owner:
+     the shipped bolts read "too stiff" — this one goes arcade). ONE
+     canonical bolt, redrawn cartoon-chunky: fat tilted top, every
+     vertex softened with a short quadratic fillet, the long tail and
+     left flank carrying a hint of outward bow and the tip thrown left
+     so the whole glyph leans (squash-and-stretch, emoji-adjacent).
+     Three stamps of the same glyph at three sizes in a staggered
+     scatter — livelier than the halftone grid — and the two
+     edge-crossers are drawn again offset ±100 (≡ ±p under G) so tiles
+     join whole: the skulls-corner precedent. */
+  if (style === "boltspop") {
+    const bolt = "M41.9 12.4 Q45 5 53 4.4 L79 2.6 Q88 2 83 9.5 L64.8 36.8 Q62 41 67 41 L80 41 Q86 41 81.4 44.9 Q54.6 71.6 23.8 93.8 Q20 97 22.6 92.7 Q30.3 76 41.4 61.3 Q44 57 39 57 L29 57 Q23 57 25.3 51.5 Q31.8 31.1 41.9 12.4 Z";
+    const pop = (cx: number, cy: number, s: number, deg: number) =>
+      `<path fill="${color}" transform="translate(${cx} ${cy}) rotate(${deg}) scale(${s}) translate(-50 -50)" d="${bolt}"/>`;
+    return G(
+      pop(30, 30, 0.62, -8) + pop(30, 130, 0.62, -8) +    // big — pokes past the top, drawn again +100 below
+      pop(90, 62, 0.48, -15) + pop(-10, 62, 0.48, -15) +  // mid — crosses the right edge, drawn again −100 left
+      pop(54, 97, 0.38, -11) + pop(54, -3, 0.38, -11));   // small — straddles the bottom, drawn again −100 above
   }
 
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
