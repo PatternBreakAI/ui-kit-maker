@@ -65,7 +65,7 @@ export function PatternLab() {
       </p>
       <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20, flexWrap: "wrap", fontSize: 13 }}>
         <label>Scale{" "}
-          {[50, 100, 200].map((s) => (
+          {[50, 100, 200, 300, 400].map((s) => (
             <button key={s} onClick={() => setScalePct(s)}
               style={{ margin: "0 2px", padding: "4px 10px", borderRadius: 6, border: "1px solid #3A4152", background: scalePct === s ? "#2E5BE0" : "#1B1F2A", color: "#E9EDF7", cursor: "pointer" }}>
               {s}%

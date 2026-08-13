@@ -1813,7 +1813,7 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         {C.pattern.type !== "none" && (<>
-          <Slider label="Scale" value={C.pattern.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.scale = v; })} />
+          <Slider label="Scale" value={C.pattern.scale} min={10} max={260} unit="%" onChange={(v) => update((c) => { c.candy.pattern.scale = v; })} />
           <Slider label="Angle" value={C.pattern.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { c.candy.pattern.angle = v; })} />
           <Slider label="Opacity" value={C.pattern.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.pattern.opacity = v; })} />
           <label className="check"><input type="checkbox" checked={C.pattern.color === null}
@@ -1839,7 +1839,7 @@ export function Panel() {
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
         {C.pattern.wall && C.pattern.wall.type !== "none" && (<>
-          <Slider label="Scale" value={C.pattern.wall.scale} min={10} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.scale = v; })} />
+          <Slider label="Scale" value={C.pattern.wall.scale} min={10} max={260} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.scale = v; })} />
           <Slider label="Angle" value={C.pattern.wall.angle} min={0} max={180} unit="°" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.angle = v; })} />
           <Slider label="Opacity" value={C.pattern.wall.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { if (c.candy.pattern.wall) c.candy.pattern.wall.opacity = v; })} />
           <label className="check"><input type="checkbox" checked={C.pattern.wall.color === null}
