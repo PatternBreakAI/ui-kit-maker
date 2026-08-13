@@ -5,6 +5,7 @@ import { defaultConfig, clampWeight, fontByName } from "@/generator/model";
 import { renderKit } from "@/generator/bevel";
 import { tableLabelEm } from "@/generator/fontMetrics";
 import { ensureFont } from "@/generator/fonts";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 /* ── the italic clip probe ────────────────────────────────────────
    A Safari diagnostic, not a production surface. Outside review (ChatGPT,
@@ -120,6 +121,7 @@ const VARIANT_META: { key: keyof Variants; title: string; note: string }[] = [
 ];
 
 export function ItalicProbePage() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const cfg = useGen((s) => s.cfg);
   const rows = useMemo(() => {
     const mk = (name: string, note: string, build: () => { c: GenConfig; label: string }) => {

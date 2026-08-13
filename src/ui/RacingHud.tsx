@@ -8,6 +8,7 @@
    no WebGL, no raster. */
 import { useGen } from "@/generator/store";
 import { darken, hexMix, hexRgba, lighten } from "@/generator/model";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 const LEADERBOARD = [
   { position: 1, driver: "NOR", gap: "01:21.548", selected: false },
@@ -135,6 +136,7 @@ function TireTile({ t, line, well }: { t: (typeof TIRES)[number]; line: string; 
 }
 
 export function RacingHud() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const cfg = useGen((s) => s.cfg);
   const bevel = cfg.effects.Bevel ?? "#0E9CC9";
   const glow = cfg.effects.Glow ?? "#8FF0FF";

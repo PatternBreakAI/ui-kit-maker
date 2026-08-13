@@ -9,6 +9,7 @@
    will wear. */
 import { useState } from "react";
 import { textPatternCell } from "../generator/bevel";
+import { usePageScroll } from "@/shell/usePageScroll";
 
 const WAVE: { id: string; name: string }[] = [
   { id: "circuit", name: "Circuit Board" },
@@ -37,6 +38,7 @@ function Swatch(props: { id: string; w: number; h: number; ps: number; color: st
 }
 
 export function PatternLab() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
   const [scalePct, setScalePct] = useState(100);
   const [angle, setAngle] = useState(0);
   const [color, setColor] = useState("#1d819a");
