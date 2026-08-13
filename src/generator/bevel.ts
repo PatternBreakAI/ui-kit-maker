@@ -2088,10 +2088,11 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     const bolt = "M41.9 12.4 Q45 5 53 4.4 L79 2.6 Q88 2 83 9.5 L64.8 36.8 Q62 41 67 41 L80 41 Q86 41 81.4 44.9 Q54.6 71.6 23.8 93.8 Q20 97 22.6 92.7 Q30.3 76 41.4 61.3 Q44 57 39 57 L29 57 Q23 57 25.3 51.5 Q31.8 31.1 41.9 12.4 Z";
     const pop = (cx: number, cy: number, s: number, deg: number) =>
       `<path fill="${color}" transform="translate(${cx} ${cy}) rotate(${deg}) scale(${s}) translate(-50 -50)" d="${bolt}"/>`;
+    // two voices, not three — the third small bolt read as noise (owner:
+    // "just remove the smaller bolt")
     return G(
       pop(30, 30, 0.62, -8) + pop(30, 130, 0.62, -8) +    // big — pokes past the top, drawn again +100 below
-      pop(90, 62, 0.48, -15) + pop(-10, 62, 0.48, -15) +  // mid — crosses the right edge, drawn again −100 left
-      pop(54, 97, 0.38, -11) + pop(54, -3, 0.38, -11));   // small — straddles the bottom, drawn again −100 above
+      pop(90, 62, 0.48, -15) + pop(-10, 62, 0.48, -15));  // mid — crosses the right edge, drawn again −100 left
   }
 
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
