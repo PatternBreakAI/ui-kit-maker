@@ -413,11 +413,13 @@ export async function collectExportBoards(st: {
          shadow padding while the Unity sprite is cropped, so scaling by
          the outer box inflated every prefab by its padding ratio (owner:
          "weird sizing issues" — the baked boards, which carry their
-         padding inside the image, came out right). data-shell0 is the
-         shell's true box; the importer matches it against the manifest's
-         shell-in-sprite. */
+         padding inside the image, came out right). data-shell is the
+         DRAWN shell box (extrusion-headroom shift included); the importer
+         matches it against the manifest's shell-in-sprite, which speaks
+         the same drawn frame — these two must always read the SAME stamp,
+         or scene placement inherits the difference. */
       let pw = w, ph = h, pcx = cx, pcy = cy;
-      const shm2 = /data-shell0="([-\d. ]+)"/.exec(svg);
+      const shm2 = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
       const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(svg);
       if (shm2 && vbm2) {
         const [bx3, by3, bw4, bh4] = shm2[1].split(" ").map(Number);
@@ -911,11 +913,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
       /* shell-in-sprite, for shell-true scene sizing: the svg states its
-         shell box (data-shell0, viewBox units); the crop box places it
-         inside the shipped file's pixels */
+         shell box in viewBox units; the crop box places it inside the
+         shipped file's pixels. Use data-shell (the DRAWN box): the canvas
+         reserves the extrusion slider's full travel and translates all ink
+         down by the unused headroom, and data-shell0 predates that shift —
+         reading it seated every knob and fill exactly riseDy too high
+         (owner, twice, with screenshots). The crop measures drawn pixels,
+         so the row must speak the drawn frame. */
       let shellBox: AssetMeta["shell"] = null;
       {
-        const shm = /data-shell0="([-\d. ]+)"/.exec(q.svg);
+        const shm = /data-shell="([-\d. ]+)"/.exec(q.svg) ?? /data-shell0="([-\d. ]+)"/.exec(q.svg);
         const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         if (shm && vbm) {
           const [bx2, by2, bw3, bh3] = shm[1].split(" ").map(Number);
@@ -3174,11 +3181,12 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
     const m = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
     return { w: m ? +m[1] : 0, h: m ? +m[2] : 0 };
   };
-  /* the shell's box in the PLATE's coordinates: data-shell0 is stated in
-     viewBox units, and the renderer's glow pad pushes the viewBox origin
-     negative — miss that and every callout lands off the button */
+  /* the shell's box in the PLATE's coordinates: data-shell (the DRAWN
+     box — extrusion-headroom shift included) in viewBox units, and the
+     renderer's glow pad pushes the viewBox origin negative — miss either
+     and every callout lands off the button */
   const shellOf = (svg: string) => {
-    const m = /data-shell0="([-\d. ]+)"/.exec(svg);
+    const m = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
     const v = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
     if (!m || !v) return null;
     const [x, y, w, h] = m[1].split(" ").map(Number);
@@ -6327,7 +6335,16 @@ namespace PatternBreak {
       art.anchoredPosition += new Vector2(0f, upS);
       var fillGo = ImageObject("Fill", fill, pngScale);
       fillGo.transform.SetParent(area.transform, false);
-      fillGo.GetComponent<Image>().raycastTarget = false;
+      var fImg = fillGo.GetComponent<Image>();
+      fImg.raycastTarget = false;
+      /* the app CLIPS the full-run mercury at the value line; Filled mode
+         is that exact semantic (the Slider drives fillAmount and leaves
+         the rect alone). Sliced-into-the-value-rect drew a different
+         picture: caps intact, body squashed, gradient compressed. */
+      fImg.type = Image.Type.Filled;
+      fImg.fillMethod = Image.FillMethod.Horizontal;
+      fImg.fillOrigin = (int)Image.OriginHorizontal.Left;
+      fImg.fillAmount = 0.62f;
       var frt = fillGo.GetComponent<RectTransform>();
       frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
       frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
