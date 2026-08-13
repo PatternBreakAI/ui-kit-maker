@@ -4718,7 +4718,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
-          inner += `<rect x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
+          // data-invring lets the engine export bake the panel RINGLESS and
+          // hand the selection to a live rig — the app keeps drawing it here
+          inner += `<rect data-invring="1" x="${(cxI - 2).toFixed(1)}" y="${(cyI - 2).toFixed(1)}" width="${(cell + 4).toFixed(1)}" height="${(cell + 4).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotI ? 1 : 0.8)}" stroke-width="${hotI ? 3 : 2.2}" style="filter: drop-shadow(0 0 ${((hotI ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
         }
       }
       return inject(shell.replace("<svg ", '<svg data-invgrid="1" '), inner);

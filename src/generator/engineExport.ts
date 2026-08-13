@@ -98,6 +98,11 @@ export interface ExportBoardItemData {
       this against the family sprite's own flip and mirrors the instance
       when they disagree (belt-and-braces for the BACK-tab report) */
   flip?: boolean;
+  /** inventory grid only: the wells' boxes as fractions of the baked
+      raster, flattened x,y,w,h per cell — the scene builds live click
+      tiles from these and re-draws the selection ring itself */
+  cells?: number[];
+  cellSel?: number | null;
 }
 export interface ExportBoardData {
   name: string;
@@ -394,9 +399,33 @@ export async function collectExportBoards(st: {
            prefab, and it used to just vanish from the scene ("7 skipped").
            It travels as a BAKED SPRITE of the board's exact pixels, same
            pipeline as saved assets. */
-        const still = svg
+        let still = svg
           .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
           .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+        /* the inventory grid's tiles go LIVE in the scene (owner: "make
+           the inventory panel interactive in boards — just the tiles
+           clickable"): the panel bakes RINGLESS, the wells' boxes ride
+           along as fractions of the raster, and a rig re-draws the
+           selection over whichever tile is clicked. The well rects are
+           parsed, not re-derived — the drawn pixels are the truth. */
+        let cells: number[] | null = null, cellSel: number | null = null;
+        if (id === "invgrid") {
+          still = still.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
+          const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(still);
+          if (vb) {
+            const [vx, vy, vw, vh] = [+vb[1], +vb[2], +vb[3], +vb[4]];
+            cells = [];
+            const wellRe = /<rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)" rx="[\d.]+" fill="[^"]*" opacity="0\.9"\/>/g;
+            for (let mW; (mW = wellRe.exec(still)) && cells.length < 48; ) {
+              cells.push(
+                Math.round(((+mW[1] - vx) / vw) * 10000) / 10000, Math.round(((+mW[2] - vy) / vh) * 10000) / 10000,
+                Math.round((+mW[3] / vw) * 10000) / 10000, Math.round((+mW[4] / vh) * 10000) / 10000);
+            }
+            if (cells.length < 8) cells = null;
+            const vSel = Math.min(1, Math.max(0, b.v ?? st.kitVals[id] ?? 0.42));
+            cellSel = Math.min(11, Math.max(0, Math.round(vSel * 11)));
+          }
+        }
         const fdK = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
         const { bytes: pk } = await svgToPngBytes(svgK, 2);
@@ -406,6 +435,7 @@ export async function collectExportBoards(st: {
           component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
+          ...(cells ? { cells, cellSel } : {}),
         });
         continue;
       }
@@ -1451,6 +1481,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("fx/drop-shadow.png", blob("#04070E", 0.55), { component: "fx", part: "drop-shadow", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Soft shadow blob — scale/flatten under any piece." });
   await addPng("fx/glow.png", blob("#FFFFFF", 0.85), { component: "fx", part: "glow", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Radial glow blob — tint to the Glow role for auras and pulses." });
 
+  /* the inventory grid's SELECTION RING, the app's exact stroke-and-glow
+     recipe as its own sprite — the boards bake the panel ringless and a
+     rig moves this over whichever tile is clicked. Ships only when a
+     board actually places an inventory grid. */
+  if (st.boards?.some((bd) => bd.items.some((it) => it.component === "invgrid" && it.cells))) {
+    const rGlow = pieceCfg("invgrid").effects.Glow ?? "#8FF0FF";
+    const rr9 = parseInt(rGlow.slice(1, 3), 16), rg9 = parseInt(rGlow.slice(3, 5), 16), rb9 = parseInt(rGlow.slice(5, 7), 16);
+    const ringSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="264" viewBox="-12 -12 132 132">` +
+      `<rect x="0" y="0" width="108" height="108" rx="12" fill="none" stroke="${rGlow}" stroke-opacity="0.8" stroke-width="2.2" style="filter: drop-shadow(0 0 5px rgba(${rr9},${rg9},${rb9},0.6))"/></svg>`;
+    await addPng("invgrid/cell-ring.png", ringSvg, { component: "invgrid", part: "cellring", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Inventory selection ring — the scene rig moves it between tiles; scale it to your cell." });
+  }
+
   /* ── tintable white icon set (engine swaps freely) ────────────── */
   if (full) for (const [name, def] of Object.entries(STOCK_ICONS)) {
     const stroke = def.mode === "stroke";
@@ -1853,6 +1895,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSwitchGlide.cs", data: SWITCH_GLIDE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakFireButton.cs", data: FIREBUTTON_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
@@ -1892,6 +1936,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
+    "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
   ]);
   const rooted = files.map((f) => ({
@@ -2951,6 +2996,186 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script: the INVENTORY GRID rig — the baked panel's tiles go
+   live (owner: "make the inventory panel interactive in boards — just
+   the tiles clickable"). The panel sprite ships RINGLESS; the exported
+   cell boxes become transparent click targets and the app's own baked
+   selection ring rides whichever tile was clicked. One class per file. */
+const INVGRID_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Inventory grid selection. The LOOK is the baked board panel behind
+     this component; the rig owns only the clicks and the ring. Cells are
+     fractions of this rect (x, y, w, h per tile, y from the TOP — the
+     app's board space); hook onChanged(int) for your inventory logic. */
+  [AddComponentMenu("UI Kit Maker/Inv Grid Select")]
+  public class InvGridSelect : MonoBehaviour {
+    [Tooltip("Tile boxes as fractions of this rect, flattened x,y,w,h — y measured from the top edge.")]
+    public float[] cells = new float[0];
+    public int selected = 0;
+    [Tooltip("The kit's selection ring sprite (invgrid/cell-ring.png).")]
+    public Sprite ring;
+    [System.Serializable] public class PickEvent : UnityEngine.Events.UnityEvent<int> {}
+    public PickEvent onChanged = new PickEvent();
+    RectTransform ringRt;
+    void Awake() {
+      int n = cells.Length / 4;
+      for (int i = 0; i < n; i++) {
+        int idx = i;
+        var go = new GameObject("Tile " + (i + 1), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var rt = go.GetComponent<RectTransform>();
+        rt.SetParent(transform, false);
+        Anchor(rt, i, 0f);
+        var img = go.GetComponent<Image>();
+        img.color = Color.clear; // invisible, but it catches the click
+        var btn = go.AddComponent<Button>();
+        btn.transition = Selectable.Transition.None;
+        btn.onClick.AddListener(() => Pick(idx));
+      }
+      if (ring != null) {
+        var rGo = new GameObject("Selection ring", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        rGo.hideFlags = HideFlags.DontSave;
+        ringRt = rGo.GetComponent<RectTransform>();
+        ringRt.SetParent(transform, false);
+        var rImg = rGo.GetComponent<Image>();
+        rImg.sprite = ring;
+        rImg.raycastTarget = false;
+        Seat();
+      }
+    }
+    public void Pick(int i) { selected = i; Seat(); onChanged.Invoke(i); }
+    void Anchor(RectTransform rt, int i, float grow) {
+      float x = cells[i * 4], y = cells[i * 4 + 1], w = cells[i * 4 + 2], h = cells[i * 4 + 3];
+      // app space is y-down; anchors are y-up
+      rt.anchorMin = new Vector2(x - w * grow, 1f - (y + h * (1f + grow)));
+      rt.anchorMax = new Vector2(x + w * (1f + grow), 1f - (y - h * grow));
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+    }
+    void Seat() {
+      if (ringRt == null || cells.Length < 4) return;
+      int i = Mathf.Clamp(selected, 0, cells.Length / 4 - 1);
+      // the ring sprite carries its glow margin — overhang like the app's
+      Anchor(ringRt, i, 0.11f);
+      ringRt.SetAsLastSibling();
+    }
+  }
+}
+`;
+
+/* Runtime script: the CLAIM BURST — the app's gift-open celebration in
+   engine terms (owner: "supposed to have the claim explosion to white").
+   White-hot ignition of the piece's own aura, a scale pop, and a themed
+   particle throw in the kit's Bevel/Glow/Highlight inks — the exact
+   recipe LiveArt fires on the web. One class per file (Unity binding). */
+const CLAIMBURST_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  /* Claim burst — white-hot flash + themed particle throw on click.
+     Wired to the gift box by the importer; add it to anything that
+     should celebrate. Colors and the spark sprite are serialized at
+     import — nothing here invents a look. All children spawn on the
+     first click and are reused, so Update never allocates. */
+  [AddComponentMenu("UI Kit Maker/Claim Burst")]
+  public class ClaimBurst : MonoBehaviour, IPointerClickHandler {
+    [Tooltip("Soft silhouette sprite for the flash and the sparks — the piece's own aura (<family>-glow.png).")]
+    public Sprite spark;
+    [Tooltip("Particle inks, cycled — the kit's Bevel / Glow / Highlight wells.")]
+    public Color[] inks = new Color[0];
+    public int particles = 26;
+    [Tooltip("Throw distance as a fraction of the piece's width.")]
+    public float throwFrac = 0.75f;
+    public float flashSeconds = 0.42f;
+    public float life = 0.95f;
+    RectTransform rt;
+    Image flash;
+    RectTransform[] parts;
+    Vector2[] dirs;
+    float t = -1f;
+    Vector3 baseScale;
+    void Awake() { rt = GetComponent<RectTransform>(); baseScale = rt.localScale; }
+    void OnDisable() { if (t >= 0f) Settle(); }
+    public void OnPointerClick(PointerEventData e) { Fire(); }
+    public void Fire() {
+      if (t >= 0f) return;
+      if (flash == null) Build();
+      if (flash == null) return;
+      t = 0f;
+      float reach = rt.sizeDelta.x * throwFrac;
+      for (int i = 0; i < parts.Length; i++) {
+        // the app's own spread: even fan plus a small per-third stagger,
+        // distance stepping through the same 37-step lattice
+        float a = (i / (float)parts.Length) * Mathf.PI * 2f + (i % 3) * 0.31f;
+        float d = reach * (0.4f + ((i * 37) % 92) / 92f * 0.6f);
+        dirs[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d;
+        parts[i].gameObject.SetActive(true);
+        parts[i].anchoredPosition = Vector2.zero;
+      }
+      flash.gameObject.SetActive(true);
+    }
+    void Build() {
+      if (spark == null) return;
+      var fGo = new GameObject("Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      fGo.hideFlags = HideFlags.DontSave;
+      var fRt = fGo.GetComponent<RectTransform>();
+      fRt.SetParent(rt, false);
+      fRt.anchorMin = Vector2.zero; fRt.anchorMax = Vector2.one;
+      fRt.offsetMin = new Vector2(-8f, -8f); fRt.offsetMax = new Vector2(8f, 8f);
+      flash = fGo.GetComponent<Image>();
+      flash.sprite = spark;
+      flash.color = new Color(1f, 1f, 1f, 0f);
+      flash.raycastTarget = false;
+      parts = new RectTransform[Mathf.Max(0, particles)];
+      dirs = new Vector2[parts.Length];
+      for (int i = 0; i < parts.Length; i++) {
+        var p = new GameObject("Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        p.hideFlags = HideFlags.DontSave;
+        var pr = p.GetComponent<RectTransform>();
+        pr.SetParent(rt, false);
+        float s = 6f + ((i * 13) % 8);
+        pr.sizeDelta = new Vector2(s, s);
+        var pi = p.GetComponent<Image>();
+        pi.sprite = spark;
+        pi.raycastTarget = false;
+        pi.color = inks.Length > 0 ? inks[i % inks.Length] : Color.white;
+        p.SetActive(false);
+        parts[i] = pr;
+      }
+      fGo.SetActive(false);
+    }
+    void Settle() {
+      t = -1f;
+      rt.localScale = baseScale;
+      if (flash != null) flash.gameObject.SetActive(false);
+      if (parts != null) foreach (var p in parts) if (p != null) p.gameObject.SetActive(false);
+    }
+    void Update() {
+      if (t < 0f) return;
+      t += Time.unscaledDeltaTime;
+      // white-hot ignition, then cool — the app's 0.42s fxHot curve
+      float f = Mathf.Clamp01(t / flashSeconds);
+      if (flash != null) {
+        flash.color = new Color(1f, 1f, 1f, 0.95f * (1f - f * f));
+        flash.transform.SetAsLastSibling();
+      }
+      rt.localScale = baseScale * (1f + 0.12f * Mathf.Sin(f * Mathf.PI));
+      // the throw: fast out, easing to rest, fading through the back half
+      float u = Mathf.Clamp01(t / life);
+      float ease = 1f - (1f - u) * (1f - u);
+      for (int i = 0; i < parts.Length; i++) {
+        if (parts[i] == null) continue;
+        parts[i].anchoredPosition = dirs[i] * ease;
+        var img = parts[i].GetComponent<Image>();
+        var c = img.color; c.a = u < 0.5f ? 1f : 1f - (u - 0.5f) * 2f; img.color = c;
+      }
+      if (t >= life) Settle();
+    }
+  }
+}
+`;
+
 /* Runtime scripts: the BOARD RIGS — small behaviors that make placed
    scenes PLAY like the boards read (owner: difficulty selectable, the
    countdown counting, the damage number popping, the radar sweeping).
@@ -3860,7 +4085,7 @@ namespace PatternBreak {
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
-  [Serializable] class PBPalette { public string glow; public string highlight; public string markInk; public string radioInk; }
+  [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string markInk; public string radioInk; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
@@ -3868,7 +4093,7 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
@@ -4649,6 +4874,17 @@ namespace PatternBreak {
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
+            /* the inventory grid's tiles go LIVE over the baked panel:
+               the recorder shipped each well's box (the panel itself is
+               baked ringless) — the rig owns the clicks and the ring */
+            if (it.component == "invgrid" && it.cells != null && it.cells.Length >= 8) {
+              var ig = inst.AddComponent<InvGridSelect>();
+              ig.cells = it.cells;
+              ig.selected = Mathf.Max(0, it.cellSel);
+              ig.ring = S(root + "/assets/invgrid/invgrid-cell-ring.png");
+              if (ig.ring == null)
+                Debug.LogWarning("UI Kit Maker: inventory grid placed without its selection ring sprite — tiles still click, the ring just has nothing to draw. Re-export the kit to ship assets/invgrid/invgrid-cell-ring.png.");
+            }
             }
           } else {
             // composed rigs publish under their own prefab names
@@ -4760,6 +4996,9 @@ namespace PatternBreak {
                  leave such pieces at native size — the giant-tab report) */
               rt.sizeDelta = new Vector2(it.w, it.h);
             }
+            // the rect may differ from the prefab's now — refit the raycast
+            // to the drawn shell so clicks stop at the art on boards too
+            ShellRaycastPad(inst, it.component, m);
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
           /* per-copy words (the maker typed them on this copy in the app) —
@@ -5908,6 +6147,25 @@ namespace PatternBreak {
         btn.spriteState = ss;
         WireStateFx(go, root, m, baseAsset.component, basePath, pngScale);
       }
+      // interactive or not, the piece's raycast stops at its drawn shell
+      ShellRaycastPad(go, baseAsset.component, m);
+      /* the gift box CELEBRATES its claim — the app's white-hot ignition
+         + themed particle throw, wired to a click (owner: "supposed to
+         have the claim explosion to white") */
+      if (baseAsset.component == "gifticon") {
+        var cb = go.AddComponent<ClaimBurst>();
+        var cbGlow = S(root + "/assets/gifticon/gifticon-glow.png");
+        cb.spark = cbGlow != null ? cbGlow : S(root + "/assets/fx/fx-glow.png");
+        var inks = new List<Color>();
+        Color inkC;
+        if (m != null && m.palette != null) {
+          if (!string.IsNullOrEmpty(m.palette.bevel) && ColorUtility.TryParseHtmlString(m.palette.bevel, out inkC)) inks.Add(inkC);
+          if (!string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out inkC)) inks.Add(inkC);
+          if (!string.IsNullOrEmpty(m.palette.highlight) && ColorUtility.TryParseHtmlString(m.palette.highlight, out inkC)) inks.Add(inkC);
+        }
+        if (inks.Count == 0) inks.Add(Color.white);
+        cb.inks = inks.ToArray();
+      }
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
          "I didn't realize the text would be burned into the image"). One
@@ -6044,6 +6302,33 @@ namespace PatternBreak {
       rt.anchorMin = c; rt.anchorMax = c;
       rt.anchoredPosition = Vector2.zero;
       return true;
+    }
+    /* Clicks land on the DRAWN shell, not the padded crop: every sprite
+       carries glow/shadow headroom, so a raw Button pressed from well
+       outside its visible art — and one piece's invisible margin ate the
+       clicks aimed at the piece beside it (owner: "the v.1.1.0 has a very
+       large selection area"; the phantom press on the text above a
+       banner). Sliced pieces take absolute insets — their caps carry the
+       padding through any stretch — simple pieces take the fraction of
+       their current rect. */
+    static void ShellRaycastPad(GameObject host, string fam, PBManifest m) {
+      var row = ShellRowOf(host, fam, m);
+      var img = host.GetComponent<Image>();
+      var rt = host.GetComponent<RectTransform>();
+      if (row == null || img == null || img.sprite == null || rt == null) return;
+      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
+      if (rw < 4f || rh < 4f || row.shell.w < 4f || row.shell.h < 4f) return;
+      float padL = row.shell.x, padT = row.shell.y;
+      float padR = rw - row.shell.x - row.shell.w, padB = rh - row.shell.y - row.shell.h;
+      if (padL < 0f || padT < 0f || padR < 0f || padB < 0f) return; // a shell outside its crop is a lie — leave the raycast alone
+      if (img.type == Image.Type.Sliced) {
+        float ps = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+        img.raycastPadding = new Vector4(padL / ps, padB / ps, padR / ps, padT / ps);
+      } else if (rt.sizeDelta.x > 2f && rt.sizeDelta.y > 2f) {
+        img.raycastPadding = new Vector4(
+          padL / rw * rt.sizeDelta.x, padB / rh * rt.sizeDelta.y,
+          padR / rw * rt.sizeDelta.x, padT / rh * rt.sizeDelta.y);
+      }
     }
     static void AddSpecular(GameObject go, string root, string fam, PBManifest m) {
       if (m == null || m.assets == null) return;
@@ -6867,7 +7152,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -6906,6 +7191,10 @@ namespace PatternBreak {
            maintenance pass must not "heal" them into the wrong transition */
         bool tiledBuild = spritePath.Contains("-base-under.") || spritePath.EndsWith("/base-under.9.png");
         bool wantWiring = !tiledBuild && asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
+        /* click areas that stop at the drawn shell — prefabs from older
+           importers raycast their whole padded crop (owner: "very large
+           selection area"); pad any that still read zero */
+        bool wantPad = rootImg.raycastPadding == Vector4.zero && ShellRowOf(asset, famName, m) != null;
         /* a prefab built by an older importer already has its Button, so the
            wiring branch never fires — it would have kept its quiet face swap
            forever without this (owner: "I'm not getting the glows on hover") */
@@ -7033,7 +7322,7 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut) continue;
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -7060,6 +7349,11 @@ namespace PatternBreak {
           if (wantFx && contents.GetComponent<StateFx>() == null) {
             WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
+          }
+          if (wantPad) {
+            ShellRaycastPad(contents, famName, m);
+            var padImg = contents.GetComponent<Image>();
+            if (padImg != null && padImg.raycastPadding != Vector4.zero) { clickFit++; changed = true; }
           }
           if (wantUnswap) {
             var selFix = contents.GetComponent<Selectable>();

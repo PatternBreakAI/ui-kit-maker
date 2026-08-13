@@ -447,7 +447,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     window.setTimeout(() => setBurst(0), 1200);
   };
   const activate = (e: React.PointerEvent) => {
-    if ((kit?.label ?? "").toUpperCase().includes("CLAIM") || id === "pack") fireBurst();
+    // the gift box IS a claim — opening it earns the ignition (owner:
+    // "supposed to have the claim explosion to white")
+    if ((kit?.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon") fireBurst();
     // the combo numeral EXPLODES on click (owner ask): the claim burst's
     // particles plus a punchy scale pop on the art itself
     if (id === "combo") fireBurst();
