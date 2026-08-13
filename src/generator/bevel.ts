@@ -1,7 +1,7 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
 import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isDarkBg, userShapes } from "./model";
 import { iconGroup } from "./icons";
-import { silhouetteMeta } from "./silhouettes";
+import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
@@ -90,8 +90,24 @@ function glyphInkMap(raw: string, font: string, weight: number, italic: boolean,
       }
     }
   } catch { out = null; }
-  if (_inkCache.size > 300) _inkCache.clear();
-  _inkCache.set(key, out);
+  /* a sample taken before the face finished loading measured the FALLBACK
+     font's letterforms — usable this render, but NEVER cached, or the
+     stars keep the wrong glyph run forever even after the real face lands
+     (owner: "are the stars drifting away from the letterforms?").
+     fonts.check() alone can't gate this: it answers TRUE for a family
+     with nothing registered (nothing pending to load) — exactly the
+     pre-ensureFont window. Ready = the family is actually registered in
+     document.fonts AND its load settled. */
+  let ready = true;
+  try {
+    const fam = font.toLowerCase();
+    const registered = [...document.fonts].some((f) => f.family.replace(/['"]/g, "").toLowerCase() === fam);
+    ready = registered && document.fonts.check(`${weight || 400} ${INK_FS}px "${font}"`);
+  } catch { /* engines without FontFaceSet iteration: cache as before */ }
+  if (ready) {
+    if (_inkCache.size > 300) _inkCache.clear();
+    _inkCache.set(key, out);
+  }
   return out;
 }
 
@@ -1199,6 +1215,9 @@ export function mirrorPathX(d: string, cx: number): string {
 export function shapePath(shape: Shape, x: number, y: number, w: number, h: number, softness: number): string {
   // a ~flip id renders its base mirrored around the frame's center line
   if (shape.endsWith("~flip")) return mirrorPathX(shapePath(shape.slice(0, -5) as Shape, x, y, w, h, softness), x + w / 2);
+  // a permanent mirrored twin (Pointer Tag · Reverse) resolves the same way
+  const mirBase = MIRROR_SILHOUETTES[shape];
+  if (mirBase) return mirrorPathX(shapePath(mirBase as Shape, x, y, w, h, softness), x + w / 2);
   const imp = importedShape(shape);
   if (imp) {
     // Feasibility-lab imports fill the frame exactly — the lab exists to
@@ -1721,7 +1740,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  opaque — the engine stencil that clips the tiled pattern to the
    *  shape. Unset = the normal single-layer render, byte-for-byte as
    *  before. */
-  faceLayer?: "under" | "over" | "mask";
+  faceLayer?: "under" | "over" | "mask" | "specular";
   /** Glint BAKE knobs (alphabet-face export). The slab's rounded end-caps
    *  inside each glyph are what make glints read per-letter; a bandScale
    *  wide enough pushes the caps outside the glyph so adjacent baked
@@ -1748,9 +1767,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   };
   const secondary = !!opts.secondary;
   /* stretch-safe face layers: LU draws everything BELOW the pattern, LO
-     everything ABOVE it. Unset faceLayer = both, i.e. today's render. */
+     everything ABOVE it. Unset faceLayer = both, i.e. today's render.
+     "specular" = the streak ALONE (its clip, masks and blend intact) on a
+     transparent canvas — the engine overlays it as its own sprite so
+     nine-slicing can't smear the feather (owner: "translated very
+     bluntly"). */
   const LM = opts.faceLayer === "mask"; // the face silhouette alone, opaque
-  const LU = !LM && opts.faceLayer !== "over", LO = !LM && opts.faceLayer !== "under";
+  const LSP = opts.faceLayer === "specular";
+  const LU = !LM && !LSP && opts.faceLayer !== "over", LO = !LM && !LSP && opts.faceLayer !== "under";
   const D = designFor(cfg, opts.pinDesign && state !== "disabled" ? "default" : state);
   /* per-state icon rig — color/effects/weight/pose fork with the state,
      the glyph itself is component-wide (store.update enforces that) */
@@ -2459,9 +2483,21 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
              lettering — never in a counter or a letter gap. Explicit
              star sets (the bake/export knobs) keep their authored
              positions: those contracts are already per-glyph. */
-          let nx = tx0 + textW * st.f, ny = gy + fs * st.dy;
+          /* the light nudge and the offset dials move the TARGET, before
+             the snap — nudging after it shoved an already-snapped star
+             back off the letterform (owner: "stars are drifting"; the
+             worst measured 0.125em off-ink). The snap has the last word,
+             so every star ENDS on ink while still favoring the light. */
+          let nx = tx0 + textW * st.f + lx * fs * 0.06 + gdx, ny = gy + fs * st.dy + ly * fs * 0.06 + gdy;
           if (opts.glintStars === undefined) {
-            const ink = glyphInkMap(cased, T2.font, T2.weight, !!T2.italic, spacingEm);
+            /* SYNTHETIC italics sample UPRIGHT: the stars live inside the
+               label's skewX(-14) group, so the render shears star and
+               glyph together — but sampling with canvas "italic" applied
+               the canvas's OWN oblique on top, and every star landed
+               between the two shears (owner: "stars are drifting"; worst
+               measured 0.126em off-ink). A real italic face still samples
+               italic — canvas selects the same registered face. */
+            const ink = glyphInkMap(cased, T2.font, T2.weight, synthItal ? false : !!T2.italic, spacingEm);
             if (ink) {
               /* work in TRUE ink space: the layout's textW is an estimate
                  padded wider than the real glyph run, so mapping through
@@ -2479,7 +2515,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
               if (best) { nx = startX + (best[0] / INK_FS) * fs; ny = gy + (best[1] / INK_FS) * fs; }
             }
           }
-          return star4(nx + lx * fs * 0.06 + gdx, ny + ly * fs * 0.06 + gdy, fs * st.s, st.r);
+          return star4(nx, ny, fs * st.s, st.r);
         }).join("\n        ")}
       </g>`;
     if (GL2!.blend && GL2!.blend !== "normal") glintsLayer = `<g style="mix-blend-mode:${GL2!.blend}">${glintsLayer}</g>`;
@@ -2651,7 +2687,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
-    ${specular && LO ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
   </g>
 </g>
 </svg>`;
@@ -2793,7 +2829,9 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "buffframe", "cooldown", "stepper", "healthglobe", "xpbar", "vitalbar", "manarails", "questpanel", "choicelist",
   "invgrid", "rarityframe", "compass", "partyframe", "dmgnumber", "loottag", "crosshair", "hitmarker",
   "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "weaponwheel",
-  "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter", "pricebtn",
+  /* pricebtn left this list: its render case never read value, so the
+     Value slider showed and did nothing (workflow audit) */
+  "starrating", "pathconnector", "heartmeter", "booster", "spinwheel", "combo", "movecounter",
   "energymeter", "buildqueue", "unitplate", "popmeter", "endturn", "scorebug", "friendrow", "emotewheel",
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
@@ -2824,14 +2862,14 @@ const rarityOf = (cfg: GenConfig, v: number | undefined, fallback = 2) => {
 };
 
 /** Dimensional candy ball — knobs for toggles, switches and sliders. */
-function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string): string {
+function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string, shadow = true): string {
   const kid = "kn" + UID++;
   return `<defs><radialGradient id="${kid}" cx="0.35" cy="0.3" r="0.9">
     <stop offset="0" stop-color="#FFFFFF"/>
     <stop offset="0.55" stop-color="${lighten(base, 0.78)}"/>
     <stop offset="1" stop-color="${lighten(base, 0.3)}"/>
   </radialGradient></defs>
-  <ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>
+  ${shadow ? `<ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>` : ""}
   <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${kid})" stroke="${darken(base, 0.38)}" stroke-width="1.5"/>
   ${dot ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(3, r * 0.3).toFixed(1)}" fill="${dot}"/>` : ""}
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
@@ -3014,8 +3052,9 @@ export interface KitOpts {
    *  ("over") the pattern, so the pattern can tile independently and
    *  never shears when a nine-slice middle stretches. "mask" is the bare
    *  face silhouette, opaque — an engine stencil that clips the tiled
-   *  pattern to the shape. */
-  faceLayer?: "under" | "over" | "mask";
+   *  pattern to the shape. "specular" is the streak ALONE on transparency,
+   *  for the engine-composed specular overlay. */
+  faceLayer?: "under" | "over" | "mask" | "specular";
   sub?: string; max?: string; addBtn?: boolean; overlay?: string;
   /** Chosen slot values, keyed by slot id (see KIT_SLOTS in model.ts).
    *  The renderer validates against the slot's curated list — a choice
@@ -3087,6 +3126,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // an explicit per-part ink (a color slot) beats the type fill — the
     // effects (outline, shadow, glow) still ride the type treatment
     if (o2.ink) fill4 = o2.ink;
+    /* the LIST INK: one pinned color for every reading-text voice (owner:
+       "change the color of this list font and list fonts everywhere") —
+       under the per-part inks, over the display fill */
+    else if (o2.list && (T4.listInk ?? cfg.type.listInk)) fill4 = (T4.listInk ?? cfg.type.listInk)!;
     else if (T4.fillMode === "solid") fill4 = T4.fill;
     else if (T4.fillMode === "gradient") {
       defs4 += `<linearGradient id="${gid4}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient>`;
@@ -3280,7 +3323,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "secondary":
       return build(cfg, state, { x: 39, y: 30, h: 136 * k, fs: 42 * k, iconSize: 38 * k }, { secondary: true, label: opts.label ?? "Secondary", shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "small":
-      return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "iconbtn":
@@ -3288,14 +3331,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          export's bare shell — the glyph ships separately in icons/) */
       return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "chip":
-      return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "badge":
       // presented (count) → awarded (star) → disabled
       return state === "pressed"
         ? build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 0, iconSize: 52 * k }, { label: "", iconDef: opts.icon ?? STOCK_ICONS.star, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx })
         : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k, iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "tab":
-      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
+    case "tabback":
+      // the tab's mirror twin — same construction, reversed default
+      // silhouette (KIT_SHAPE), so both directions live in one kit
+      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "BACK", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "segment": {
       const w = 560 * k, h = 106 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
@@ -3356,9 +3403,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // compact premium proportion: shell ≈ 2–2.5× the knob diameter, with the
       // knob filling most of the inner height like a hardware switch
       const w = 148 * k, h = 102 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 4;
       const knobR = (h - bw * 2) / 2 - 8;
+      /* rig LAYERS (overlay knob): the wired Unity Switch assembles the
+         REAL component from these — bare track, knob with the ON dot,
+         knob with the OFF dot — so the working control is byte-true to
+         the piece the maker styled */
+      if (opts.overlay === "knob" || opts.overlay === "knob-off") {
+        const dotL = opts.overlay === "knob" ? glow : "#9AA1AC";
+        const cpad = Math.ceil(knobR + 20);
+        // shadowless: a merged cast shadow makes the standalone sprite an
+        // egg and Unity centers on the egg (field: "vertically distorted")
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL, false)}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.94"/>`);
       const kx = on ? 39 + w - inset - 5 - knobR : 39 + inset + 5 + knobR;
       const ky = 30 + h / 2;
       const dot = state === "disabled" ? "#A7AAB4" : on ? glow : "#9AA1AC";
@@ -3366,7 +3426,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "slider": {
       const w = 460 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw * 0.7 + 3;
       const gapPad = 5 * k;
       const bh = h - inset * 2 - gapPad * 2;
@@ -3377,6 +3436,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the component's outer boundary at 0% and 100% (it may overlap the
          inner track), and the fill ends at the thumb's center */
       const kr = h * 0.42;
+      /* rig LAYERS (overlay knob): the wired Unity Slider assembles the
+         REAL component from these three sprites, so the working control
+         matches the Board's piece exactly */
+      if (opts.overlay === "knob") {
+        const cpad = Math.ceil(kr + 20);
+        // shadowless: a merged cast shadow makes the standalone sprite an
+        // egg and Unity centers on the egg (field: "vertically distorted")
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC, undefined, false)}</svg>`;
+      }
+      if (opts.overlay === "fill") {
+        /* the mercury at 100% — the full silhouette-shaped run, no shell,
+           no well, no knob. Unity's Fill Rect scissors it to the live
+           value, exactly like the app's clip does. */
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
+          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const v01 = clamp(value ?? 0.62, 0, 1);
       const knobX = 39 + Math.max(kr + 1.5, Math.min(w - kr - 1.5, inset + gapPad + trackW * v01));
       const fillW = Math.max(0, knobX - bx);
@@ -3520,7 +3603,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "input": {
       const w = 560 * k, h = 124 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no well, no placeholder
+      if (opts.faceLayer === "specular") return track;
       const inset = bw + 4;
       const tyIn = 30 + h / 2 + 1 + (opts.textOy ?? cfg.type.oy ?? 0) * k;
       // the typeable area is the 9-slice text-safe zone: value and caret clip
@@ -3980,6 +4065,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const fsB = dB * (txtB.length > 1 ? 0.44 : 0.54);
       const gidB = "cb" + UID++;
       const totB = dB + padB * 2;
+      /* overlay "plain" ships the BARE circle for the engine: the count
+         becomes live text over it (owner: "the countdown numerics should
+         be dynamic — I'll want those to animate on play") */
+      const bareB = opts.overlay === "plain";
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${nB} notifications">
 <defs><radialGradient id="${gidB}" cx="0.35" cy="0.3" r="0.95">
   <stop offset="0" stop-color="${lighten(badgeB, 0.32)}"/>
@@ -3988,7 +4077,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </radialGradient></defs>
 <g${liveB ? ` style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"` : ""}>
   <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${Math.max(2, dB * 0.055).toFixed(1)}"/>
-  <text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>
+  ${bareB ? "" : `<text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>`}
 </g>
 </svg>`;
     }
@@ -6247,9 +6336,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         </g>
         <circle cx="${(pcx + pr * 0.72).toFixed(1)}" cy="${(cy + pr * 0.72).toFixed(1)}" r="${(8 * k).toFixed(1)}" fill="${PRES}" stroke="rgba(255,255,255,0.9)" stroke-width="2"${online && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(PRES, 0.7)})"` : ""}/>` +
         contentText(opts.label ?? "KAIRO_77", pcx + pr + 14 * k, cy - 10 * k, 21 * k * typeK, { keepCase: true }) +
-        infoText(online ? (opts.slots?.status ?? "In Match · Ranked").slice(0, 32) : "Last seen 2h ago", pcx + pr + 14 * k, cy + 15 * k, 14.5 * k, "start", 650) +
+        /* the STATUS is reading text — it speaks the LIST FACE (owner:
+           "the list font does not match the display font" — it was
+           hardcoded Inter). Quiet voice: plain dress, readout ink unless
+           the List ink pins a color. */
+        contentText(online ? (opts.slots?.status ?? "In Match · Ranked").slice(0, 32) : "Last seen 2h ago", pcx + pr + 14 * k, cy + 15 * k, 14.5 * k * Math.min(typeK, 1.2), { keepCase: true, list: true, plain: true, ink: cfg.type.listInk ?? infoInk }) +
         `<rect x="${joinX.toFixed(1)}" y="${(cy - joinH / 2).toFixed(1)}" width="${joinW.toFixed(1)}" height="${joinH.toFixed(1)}" rx="${(joinH / 2).toFixed(1)}" fill="${joinFill}" stroke="${online ? hexRgba(glow, 0.6) : "rgba(255,255,255,0.2)"}" stroke-width="1.4"${online && state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>` +
-        `<text x="${(joinX + joinW / 2).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="${joinInk}" text-anchor="middle" dominant-baseline="central">${esc(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE")}</text>`;
+        // the JOIN cap is a mini CTA — the kit's display face, plain dress
+        contentText(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE", joinX + joinW / 2, cy + 1, 15 * k, { anchor: "middle", plain: true, ink: joinInk, track: 6, keepCase: true });
       return inject(shell.replace("<svg ", '<svg data-friendrow="1" '), parts);
     }
     case "chatbubble": {
@@ -6282,7 +6376,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bodyH = inset * 2 + 30 * k + lines.length * lineH + 8 * k;
       const h = bodyH + Math.min(30, bodyH * 0.28);
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
-      let parts = infoText((opts.slots?.sender ?? "NOVA_KNIGHT").slice(0, 20), 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, "start", 800) +
+      // the sender is reading text — the LIST FACE speaks it (the timestamp
+      // stays a readout: small working numbers)
+      let parts = contentText((opts.slots?.sender ?? "NOVA_KNIGHT").slice(0, 20), 39 + inset + 12 * k, 30 + inset + 16 * k, 14 * k, { keepCase: true, list: true, plain: true, ink: cfg.type.listInk ?? infoInk }) +
         infoText((opts.slots?.time ?? "14:02").slice(0, 8), 39 + w - inset - 12 * k, 30 + inset + 16 * k, 13 * k, "end", 650);
       lines.forEach((ln, i) => {
         // message body = reading text → the list face, like dialogue lines
@@ -6621,6 +6717,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const needH = titleBase + (subOn ? lineAdv + fsS * 0.6 : fsT * 0.55) + (showBar ? 36 * k : 16 * k) + inset;
       const h = Math.max(128 * k, needH);
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 128 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no row content
+      if (opts.faceLayer === "specular") return track;
       const slotS = h - inset * 2 - 8;
       const sx = 39 + inset + 6, sy2 = 30 + inset + 4 + 2;
       const icon = opts.icon ?? STOCK_ICONS.user;
@@ -6728,7 +6826,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          PatternBreakJoystick runtime moves the thumb over the base */
       if (opts.part === "thumb") {
         const pad9 = 26, s9 = (kr2 + pad9) * 2;
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow)}</svg>`;
+        // shadowless (see the rig knobs): the merged shadow made the sprite
+        // bottom-heavy and the centered rig thumb read off-center
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow, false)}</svg>`;
       }
       const track = build(cfg, state, { x: 33, y: 27, h: d2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d2, shapeOverride: "pill" });
       const inset2 = bw + 5;
@@ -6754,6 +6854,35 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the wheel's, simplified: value cycles which weapon is armed; icon
          swaps the armed glyph; pressed sinks the dome; disabled grays. */
       const dF9 = ({ s: 170, m: 210, l: 260 } as const)[size];
+      /* rig LAYERS (overlay knob): each waiting-weapon chamber as its own
+         bare sprite — rim ring, well band, candy dome, NO glyph. The Unity
+         swipe rig overlays tintable icons/ glyphs and re-deals them as the
+         armed weapon cycles. Sizes must stay in step with the satellite
+         loop below (mr = dF9 · 0.205 · [1, 0.82, 0.68]). */
+      /* rig LAYER: the weapon glyphs PRE-THEMED like the app's armed icon
+         (owner: "make the icons more on-brand… follow what is there in
+         the boards") — outline underlay, lit fill and glow halo baked;
+         the Unity rig deals these sprites instead of tinting flat icons. */
+      const glyM9 = /^glyph-(sword|zap|flask|shield)$/.exec(opts.overlay ?? "");
+      if (glyM9) {
+        const gdef9 = { sword: STOCK_ICONS.sword, zap: STOCK_ICONS.zap, flask: STOCK_ICONS.flask, shield: STOCK_ICONS.shield }[glyM9[1] as "sword" | "zap" | "flask" | "shield"];
+        const gs9 = Math.round(dF9 * 0.5);
+        const gpad9 = Math.ceil(gs9 * 0.32);
+        const tone9 = hexMix(glow, "#FFFFFF", 0.15);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${gs9 + gpad9 * 2}" height="${gs9 + gpad9 * 2}" viewBox="0 0 ${gs9 + gpad9 * 2} ${gs9 + gpad9 * 2}">
+          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6)}</g></svg>`;
+      }
+      const satM9 = /^sat([123])$/.exec(opts.overlay ?? "");
+      if (satM9) {
+        const j9 = +satM9[1] - 1;
+        const mr9 = dF9 * 0.205 * [1, 0.82, 0.68][j9];
+        const rimS9 = state !== "disabled" ? bevel : "#8F949E";
+        const cpad9 = Math.ceil(mr9 + 16);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad9 * 2}" height="${cpad9 * 2}" viewBox="0 0 ${cpad9 * 2} ${cpad9 * 2}">
+          <circle cx="${cpad9}" cy="${cpad9}" r="${mr9.toFixed(1)}" fill="${rimS9}" stroke="${darken(rimS9, 0.38)}" stroke-width="1.5"/>
+          <circle cx="${cpad9}" cy="${cpad9}" r="${(mr9 * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
+          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC, undefined, false) + `</svg>`;
+      }
       // the shell's x/y margins grow to hold the carousel — satellites live
       // INSIDE the canvas so raster exports keep them (never in glow slack)
       const exF = Math.round(dF9 * 0.3);
@@ -6799,17 +6928,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           candyKnob(sx, sy, mr * 0.72, knobC) +
           themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2);
       });
+      /* overlay "plain" = the swipe rig's dome: pad, ticks and candy dome
+         with NO baked glyph and NO satellites — the runtime deals those */
+      const bare9 = opts.overlay === "plain";
       return inject(track,
         `<path d="${roundRect(x9 + inset9, y9 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
         candyKnob(cx9, cy9 + sink, krF, knobC) +
-        armedIc + sats);
+        (bare9 ? "" : armedIc + sats));
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.
          The icon is the replaceable media slot. */
       const s2 = ({ s: 104, m: 128, l: 168 } as Record<KitSize, number>)[size] * k;
       const track = build(cfg, state, { x: 33, y: 27, h: s2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: s2, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no well, no overlays
+      if (opts.faceLayer === "specular") return track;
       const inset = bw + 5;
       const cx2 = 33 + s2 / 2, cy2 = 27 + s2 / 2;
       const inner = s2 - inset * 2;
@@ -7443,12 +7577,61 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          material (owner: "fill in the area ... with the same material as
          the cup so it isn't hollow"). No overlay furnishing. */
       const dT = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const cfgT: GenConfig = {
-        ...cfg,
-        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
-        candy: { ...cfg.candy, innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) } },
+      /* PROP FINISHES (owner: props "consciously colored contrasting" the
+         kit, trophy as the test): overlay picks a podium metal — the
+         trophy re-renders in gold/silver/bronze while shape, stroke and
+         softness stay the kit's, so it contrasts the palette without
+         leaving the family. Default = the kit's own material, as before. */
+      const FINISH: Record<string, Partial<Record<EffectRole, string>>> = {
+        gold: { Bevel: "#D99A2B", "Inner Fill": "#F5C761", Glow: "#FFE18E", Highlight: "#FFF3D0", Shadow: "#6E4A0E" },
+        silver: { Bevel: "#8E9AA8", "Inner Fill": "#CBD5DE", Glow: "#EAF1F7", Highlight: "#FFFFFF", Shadow: "#465059" },
+        bronze: { Bevel: "#A9683A", "Inner Fill": "#CE9058", Glow: "#EDBB8C", Highlight: "#F9E2C8", Shadow: "#5C3517" },
       };
-      return build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
+      const finT = FINISH[opts.overlay ?? ""];
+      /* the calming must reach STATE DESIGN FORKS too — a state edited in
+         the Panel (hover glow, say) snapshots the ORIGINAL face/innerGlow
+         into its fork, and the un-calmed copy brings the hollow bowl back
+         (owner: "reverts to its old bottomless version when I add a glow").
+         A finish overrides role colors at both levels the same way. */
+      const calmT = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"]; effects?: GenConfig["effects"] }>(d: T): T => ({
+        ...d,
+        ...(d.face ? { face: { ...d.face, contrast: Math.min(d.face.contrast, 16), midpoint: 50 } } : {}),
+        ...(d.candy ? { candy: {
+          ...d.candy,
+          innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25), ...(finT ? { color: null } : {}) },
+          /* a finish must reach the candy layers that carry LITERAL colors —
+             gloss tints and the pattern tile ship as hex in the kit, so a
+             gold cup was wearing a kit-blue gloss and facets. Re-point them
+             at the wells (all finish-overridden); the kit's TEXTURE identity
+             (pattern type, scale, gloss shape) stays. */
+          ...(finT ? {
+            gloss: { ...d.candy.gloss, fill: "highlight" as const },
+            pattern: { ...d.candy.pattern, color: null, ...(d.candy.pattern.wall ? { wall: { ...d.candy.pattern.wall, color: null } } : {}) },
+            aura: { ...d.candy.aura, color: null },
+          } : {}),
+        } } : {}),
+        ...(finT && d.effects ? { effects: { ...d.effects, ...finT } } : {}),
+      });
+      /* the state glow renders as a clean OUTER halo hugging the whole
+         silhouette (owner: "I just need a glow around that one") — build's
+         interior aura leaks through the handle loops on a tall pierced
+         silhouette and reads as ghosting, so it's zeroed and replaced with
+         stacked drop-shadows over the finished art. padSvg restores the
+         stable glow-pad box. */
+      const adjT = cfg.states[state];
+      const glowT = (adjT?.glow ?? 0) / 100;
+      const cfgT: GenConfig = {
+        ...calmT(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmT(d9)])) as GenConfig["stateDesigns"]),
+        ...(glowT > 0 ? { states: { ...cfg.states, [state]: { ...adjT, glow: 0 } } } : {}),
+      };
+      const outT = build(cfgT, state, { x: 39, y: 30, h: dT, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dT, shapeOverride: sov });
+      if (glowT <= 0 || state === "disabled") return outT;
+      const glowCT = effect(designFor(cfgT, state).effects, "Glow");
+      const rT1 = (dT * 0.045 * glowT).toFixed(1), rT2 = (dT * 0.11 * glowT).toFixed(1);
+      return padSvg(outT)
+        .replace(/(<svg[^>]*>)/, `$1<g style="filter: drop-shadow(0 0 ${rT1}px ${hexRgba(glowCT, 0.9)}) drop-shadow(0 0 ${rT2}px ${hexRgba(glowCT, 0.5)})">`)
+        .replace(/<\/svg>\s*$/, "</g></svg>");
     }
     case "gifticon": {
       /* Gift box — geometry first (owner): the specular shine and gloss
@@ -7457,19 +7640,37 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          stroke — the lid's underside across the front, the front/side
          fold, and the lid's own fold. */
       const dF = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      // state design forks calm the same way — see the trophy's note
+      const calmF = <T extends { face?: GenConfig["face"]; candy?: GenConfig["candy"] }>(d: T): T => ({
+        ...d,
+        ...(d.face ? { face: { ...d.face, contrast: Math.min(d.face.contrast, 16), midpoint: 50 } } : {}),
+        ...(d.candy ? { candy: {
+          ...d.candy,
+          gloss: { ...d.candy.gloss, on: false },
+          specular: { ...d.candy.specular, on: false },
+          innerGlow: { ...d.candy.innerGlow, opacity: Math.min(d.candy.innerGlow.opacity, 20), size: Math.min(d.candy.innerGlow.size, 25) },
+        } } : {}),
+      });
+      // the same clean OUTER halo as the trophy — the bow loops pierce the
+      // silhouette, and build's interior aura ghosts through them
+      const adjF9 = cfg.states[state];
+      const glowF9 = (adjF9?.glow ?? 0) / 100;
       const cfgF: GenConfig = {
-        ...cfg,
-        face: { ...cfg.face, contrast: Math.min(cfg.face.contrast, 16), midpoint: 50 },
-        candy: {
-          ...cfg.candy,
-          gloss: { ...cfg.candy.gloss, on: false },
-          specular: { ...cfg.candy.specular, on: false },
-          innerGlow: { ...cfg.candy.innerGlow, opacity: Math.min(cfg.candy.innerGlow.opacity, 20), size: Math.min(cfg.candy.innerGlow.size, 25) },
-        },
+        ...calmF(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && calmF(d9)])) as GenConfig["stateDesigns"]),
+        ...(glowF9 > 0 ? { states: { ...cfg.states, [state]: { ...adjF9, glow: 0 } } } : {}),
+      };
+      const haloF = (svg9: string): string => {
+        if (glowF9 <= 0 || state === "disabled") return svg9;
+        const gC = effect(designFor(cfgF, state).effects, "Glow");
+        const rA = (dF * 0.045 * glowF9).toFixed(1), rB = (dF * 0.11 * glowF9).toFixed(1);
+        return padSvg(svg9)
+          .replace(/(<svg[^>]*>)/, `$1<g style="filter: drop-shadow(0 0 ${rA}px ${hexRgba(gC, 0.9)}) drop-shadow(0 0 ${rB}px ${hexRgba(gC, 0.5)})">`)
+          .replace(/<\/svg>\s*$/, "</g></svg>");
       };
       const shellF = build(cfgF, state, { x: 39, y: 30, h: dF, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dF, shapeOverride: sov });
       const shellFM = /data-shell0="([-\d. ]+)"/.exec(shellF);
-      if (!shellFM || opts.part === "base") return shellF;
+      if (!shellFM || opts.part === "base") return haloF(shellF);
       const [fx0, fy0, fw] = shellFM[1].split(" ").map(Number);
       /* The gift silhouette's 200-square viewBox maps onto the (square)
          shell box at fw/200 — verified against the rendered path bbox —
@@ -7481,14 +7682,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const sMap = fw / 200;
       const aX = (ax: number) => (fx0 + ax * sMap).toFixed(1), aY = (ay: number) => (fy0 + ay * sMap).toFixed(1);
       const dimF = state === "disabled" ? 0.45 : 1;
-      const lnW = (fw * 0.033).toFixed(1);
-      const lnC = hexRgba(darken(bevel, 0.52), 0.9);
+      // chonky, illustrated linework (owner) — the folds read as bold
+      // cartoon strokes, same voice as the outline but with real weight
+      const lnW = (fw * 0.058).toFixed(1);
+      const lnC = hexRgba(darken(bevel, 0.52), 0.95);
       const folds = `<g opacity="${dimF}" stroke="${lnC}" stroke-width="${lnW}" stroke-linecap="round" fill="none">
         <path d="M ${aX(31)} ${aY(95.6)} L ${aX(165)} ${aY(86.9)}"/>
         <path d="M ${aX(136)} ${aY(88.9)} L ${aX(136)} ${aY(181.5)}"/>
         <path d="M ${aX(146)} ${aY(53.2)} L ${aX(146)} ${aY(87.4)}"/>
       </g>`;
-      return inject(shellF, folds);
+      return haloF(inject(shellF, folds));
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.

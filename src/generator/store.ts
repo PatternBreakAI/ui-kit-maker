@@ -360,7 +360,9 @@ interface GenStore {
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
   /** Drop a type stamp on the active board. */
-  addStampToBoard: () => void;
+  /** Drop lettering on the board — the kit's full splash treatment, or
+   *  (plain = true) the PLAIN tier: kit face, flat pickable color. */
+  addStampToBoard: (plain?: boolean) => void;
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
@@ -620,6 +622,11 @@ export interface BoardItem {
     /** simple warp (owner) — one style, one amount, raster-remapped so
      *  stage, PNG and Unity bake stay pixel-identical */
     warp?: { style: "none" | "arc" | "flag" | "bulge"; amount: number };
+    /** PLAIN tier (owner: "a delineation between 'splash' text and just
+     *  good font usage") — the kit's face at a flat, PICKABLE color, every
+     *  layered treatment parked. The instance dials (shadow, glow, hue…)
+     *  still ride on top, and the piece exports exactly like a stamp. */
+    plain?: { color: string; outline?: boolean };
   };
 }
 
@@ -659,6 +666,45 @@ export function drawBoardNoise(ctx: CanvasRenderingContext2D, W: number, H: numb
   ctx.restore();
 }
 
+/** The overlay stack above the backdrop — tint wash (with its blend), its
+ *  grain, then the center scrim — ONE function so the stage, the board PNG
+ *  compositor and the Unity background bake composite identically (owner:
+ *  the scenes must look like the boards). */
+export function drawBoardOverlays(ctx: CanvasRenderingContext2D, W: number, H: number, bd: Pick<BoardDef, "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">) {
+  const ovMode = bd.ovMode ?? "none";
+  if (ovMode !== "none") {
+    const GCO: Record<string, GlobalCompositeOperation> = { normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", "soft-light": "soft-light" };
+    ctx.save();
+    ctx.globalCompositeOperation = GCO[bd.ovBlend ?? "normal"] ?? "source-over";
+    ctx.globalAlpha = (bd.ovStrength ?? 45) / 100;
+    if (ovMode === "vignette") {
+      const g = ctx.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.3, W / 2, H * 0.42, Math.hypot(W, H) * 0.58);
+      g.addColorStop(0, "rgba(4,7,14,0)");
+      g.addColorStop(1, "rgba(4,7,14,0.92)");
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = ovMode === "dark" ? "#060A14" : "#F4F6FF";
+    }
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
+  }
+  // center scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
+  if ((bd.ovCenter ?? 0) > 0) {
+    ctx.save();
+    ctx.globalAlpha = (bd.ovCenter ?? 0) / 100;
+    ctx.translate(W / 2, H * 0.46);
+    ctx.scale(W * 0.62, H * 0.62);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, "rgba(4,7,14,0.85)");
+    g.addColorStop(0.45, "rgba(4,7,14,0.5)");
+    g.addColorStop(1, "rgba(4,7,14,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-3, -3, 6, 6);
+    ctx.restore();
+  }
+}
+
 /** The warp's vertical paint reach (px at raster scale) — canvases pad by
  *  this so a bend never clips. */
 export function stampWarpPad(h: number, warp: { style: string; amount: number } | undefined): number {
@@ -694,7 +740,24 @@ export function warpStampRaster(src: CanvasImageSource, w: number, h: number, wa
 /** A stamp's artwork — the kit's full lettering treatment, shell off.
  *  Size scales the TYPE, so stamps stay vector-crisp at logo scale. */
 export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string {
-  return renderTypeSpecimen(cfg, st.text || "GAME TITLE", { mutate: (c) => { c.type.size = Math.max(8, c.type.size * st.size / 100); } });
+  return renderTypeSpecimen(cfg, st.text || "GAME TITLE", { mutate: (c) => {
+    c.type.size = Math.max(8, c.type.size * st.size / 100);
+    if (st.plain) {
+      /* flatten the whole splash recipe to "good font usage": same face,
+         metrics and case, one flat color, an optional simple ink outline */
+      const t = c.type;
+      t.fillMode = "solid"; t.fill = st.plain.color; t.fillOpacity = 100;
+      t.outline = { ...t.outline, on: !!st.plain.outline, color: darken(st.plain.color, 0.62), color2: null, width: Math.max(1.5, t.size * 0.05) };
+      t.shadow = { ...t.shadow, on: false };
+      t.emboss = { ...t.emboss, on: false };
+      t.glow = { ...t.glow, on: false };
+      if (t.shine) t.shine = { ...t.shine, on: false };
+      if (t.glints) t.glints = { ...t.glints, on: false };
+      if (t.stripes) t.stripes = { ...t.stripes, on: false };
+      if (t.inflate) t.inflate = { ...t.inflate, on: false };
+      t.highlight = undefined;
+    }
+  } });
 }
 
 /** One filter string for a stamp's adjust dials — the stage, the board PNG
@@ -1370,8 +1433,11 @@ export const useGen = create<GenStore>((set, get) => ({
     if (label === null || label === "") delete next.label; else next.label = label;
     return next;
   }),
-  addStampToBoard: () => {
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", x: 560, y: 420, stamp: { text: "GAME TITLE", size: 100 } };
+  addStampToBoard: (plain) => {
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", x: 560, y: 420,
+      stamp: plain ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } } : { text: "GAME TITLE", size: 100 },
+    };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ phase: "board", boardSel: item.id });
   },

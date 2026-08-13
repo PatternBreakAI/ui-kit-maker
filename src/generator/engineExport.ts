@@ -2,15 +2,15 @@
    The engine contract: NOTHING replaceable is baked. Every component
    ships as atomic, transparent PNGs (frames and surfaces as nine-slice
    with explicit margins), a manifest with native dimensions, slice
-   margins, pivots, tintability and usage, plus Unity import tooling and
-   Unreal UMG recipes. Labels are LIVE ENGINE TEXT — the manifest carries
+   margins, pivots, tintability and usage, plus Unity import tooling.
+   Labels are LIVE ENGINE TEXT — the manifest carries
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
-import type { BoardDef } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, stampSvg, warpStampRaster } from "./store";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, sanitizeUnitySlug } from "./model";
-import { renderKit, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import type { BoardDef, LibItem } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
+import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
@@ -29,10 +29,22 @@ interface AssetMeta {
   pivot: { x: number; y: number };
   tintable: boolean;
   usage: string;
+  /** The SHELL's box inside the shipped sprite, in file pixels (at
+   *  pngScale). Scenes size pieces shell-to-shell with it — scaling by
+   *  the sprite rect compared a glow-padded board box against a cropped
+   *  sprite and every prefab landed oversized (owner: "weird sizing"). */
+  shell?: { x: number; y: number; w: number; h: number } | null;
+  /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
+   *  scenes can honor a mirrored board copy against an unmirrored sprite
+   *  (and so field reports can name which side lost the flip). */
+  flip?: boolean;
 }
 
 export interface EngineExportState {
   cfg: GenConfig;
+  /** Release states for staged pieces — a staged prop family ships only
+      when released or actually placed on one of this export's boards. */
+  releases?: Parameters<typeof kitVisible>[1];
   kitDesigns: Partial<Record<KitComponentId, KitDesign>>;
   kitTextFill: Partial<Record<KitComponentId, string>>;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
@@ -79,6 +91,13 @@ export interface ExportBoardItemData {
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
+  /** render-variant overlay (trophy ~gold) — the importer swaps the
+      matching variant sprite onto the placed prefab; null = stock */
+  ov?: string | null;
+  /** the board copy's silhouette is MIRRORED (~flip) — the scene compares
+      this against the family sprite's own flip and mirrors the instance
+      when they disagree (belt-and-braces for the BACK-tab report) */
+  flip?: boolean;
 }
 export interface ExportBoardData {
   name: string;
@@ -112,6 +131,33 @@ const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
 /** Assemble the boards for a scene export: geometry from the same render
     recipe the Board stage uses, background bytes vault-first. Boards with
     no kit pieces are skipped (nothing to build a scene from). */
+/* Which board pieces arrive in scenes as LIVE prefabs, and under which
+   manifest family. The board stores editor ids ("primary") while the
+   importer names prefabs from sprite families ("button-primary" →
+   ButtonPrimary.prefab) — emitting the raw id sent the scene builder
+   looking for Primary.prefab and the piece was skipped (owner: "missing
+   the custom buttons"). Ids OUTSIDE this map ship no sprite family at
+   all (staged props, newer pieces), so those pieces travel as BAKED
+   SPRITES of exactly what the board showed instead. Keep in step with
+   the NINE table and the importer's prefab builders. */
+const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
+  primary: "button-primary", secondary: "button-secondary", small: "button-small",
+  chip: "chip", tab: "tab", tabback: "tab-back", input: "input", panel: "panel", header: "header-banner",
+  datarow: "list-row", slot: "item-slot",
+  iconbtn: "iconbtn", checkbox: "checkbox", radio: "radio", badge: "badge",
+  progress: "progress", joystick: "joystick", seasontrack: "seasontrack",
+  /* the prop pieces went live (owner: only TEXT stays baked) — identity
+     families shipped by the PROPS export block */
+  gearicon: "gearicon", trophyicon: "trophyicon", gifticon: "gifticon",
+  firebutton: "firebutton", endturn: "endturn", keycap: "keycap",
+  pricebtn: "pricebtn", countbadge: "countbadge",
+  /* the settings controls place as WIRED rigs (owner: "let's get those
+     settings screens working") — Slider / Switch prefabs, value-driven */
+  slider: "slider", toggle: "toggle",
+  // the mini-map places as the Minimap prefab (demo radar aboard)
+  minimap: "minimap",
+};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -120,16 +166,22 @@ export async function collectExportBoards(st: {
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitLabels: Partial<Record<KitComponentId, string>>;
   kitVals: Partial<Record<KitComponentId, number>>;
+  /** Per-component icon overrides — board pieces wear them on the stage,
+   *  so measurements and baked sprites must too (optional: older callers). */
+  kitIcons?: Partial<Record<KitComponentId, Parameters<typeof resolveKitIcon>[0]>>;
   /** Per-component design forks — the Board stage applies them, so the
    *  exported scenes must too (optional: older callers ship master-only). */
   kitDesigns?: Partial<Record<KitComponentId, Parameters<typeof applyKitDesign>[1]>>;
+  /** The saved-asset library — board pieces frozen from a reworked copy
+   *  (the BACK-button story). Needed so those pieces travel to Unity. */
+  library?: LibItem[];
 }): Promise<ExportBoardData[]> {
   const { getBgOriginal } = await import("./bgvault");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -177,27 +229,61 @@ export async function collectExportBoards(st: {
          decode ships the untouched bytes; the manifest keeps the dials. */
       const grade = boardBgFilter(bd);
       const grain = bd.bgNoise ?? 0;
-      if (bytes && (grade || grain > 0)) {
+      /* the scene must LOOK like the board (owner): a Fit-mode backdrop, an
+         overlay wash or the center scrim can't ride as live Unity layers —
+         so those boards flatten the WHOLE backdrop stack at board resolution
+         (stage floor, fit layout, grade, grain, wash, scrim, even the bg
+         opacity), the exact drawBoardOverlays recipe the PNG export uses.
+         The importer then places ONE finished image and adds nothing. */
+      const ovBake = bd.bgFit === "fit" || (bd.ovMode ?? "none") !== "none" || (bd.ovCenter ?? 0) > 0;
+      let baked = false;
+      if (bytes && (grade || grain > 0 || ovBake)) {
         try {
           const bmp = await createImageBitmap(new Blob([bytes.slice().buffer as ArrayBuffer]));
           const cv = document.createElement("canvas");
-          cv.width = bmp.width; cv.height = bmp.height;
-          const ctx = cv.getContext("2d")!;
-          if (grade) ctx.filter = grade;
-          ctx.drawImage(bmp, 0, 0);
-          ctx.filter = "none";
-          drawBoardNoise(ctx, cv.width, cv.height, grain);
+          const ctx0 = cv.getContext.bind(cv);
+          if (ovBake) {
+            cv.width = W; cv.height = H;
+            const ctx = ctx0("2d")!;
+            ctx.fillStyle = "#0D0F16"; // the stage floor behind a translucent bg
+            ctx.fillRect(0, 0, W, H);
+            ctx.globalAlpha = Math.min(1, Math.max(0, (bd.bgOpacity ?? 100) / 100));
+            if (bd.bgFit === "fit") {
+              const sc = Math.max(W / bmp.width, H / bmp.height) * 1.12;
+              ctx.filter = [grade, `blur(${Math.round(W * 0.014)}px) brightness(0.72)`].filter(Boolean).join(" ");
+              ctx.drawImage(bmp, (W - bmp.width * sc) / 2, (H - bmp.height * sc) / 2, bmp.width * sc, bmp.height * sc);
+              ctx.filter = grade || "none";
+              const sf = Math.min(W / bmp.width, H / bmp.height);
+              ctx.drawImage(bmp, (W - bmp.width * sf) / 2, (H - bmp.height * sf) / 2, bmp.width * sf, bmp.height * sf);
+            } else {
+              if (grade) ctx.filter = grade;
+              const s9 = Math.max(W / bmp.width, H / bmp.height);
+              ctx.drawImage(bmp, (W - bmp.width * s9) / 2, (H - bmp.height * s9) / 2, bmp.width * s9, bmp.height * s9);
+            }
+            ctx.filter = "none";
+            ctx.globalAlpha = 1;
+            drawBoardNoise(ctx, W, H, grain);
+            drawBoardOverlays(ctx, W, H, bd);
+          } else {
+            cv.width = bmp.width; cv.height = bmp.height;
+            const ctx = ctx0("2d")!;
+            if (grade) ctx.filter = grade;
+            ctx.drawImage(bmp, 0, 0);
+            ctx.filter = "none";
+            drawBoardNoise(ctx, cv.width, cv.height, grain);
+          }
           bmp.close();
-          const jpeg = ext === "jpg";
+          const jpeg = ext === "jpg" && !ovBake;
           const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
           if (blob) { bytes = new Uint8Array(await blob.arrayBuffer()); if (!jpeg) ext = "png"; }
+          if (ovBake) baked = true;
         } catch { /* undecodable — ship as-is */ }
       }
       if (bytes) {
         bg = {
-          file: `backgrounds/${slug}.${ext}`, bytes, original,
-          opacity: bd.bgOpacity ?? 100, blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
-          overlay: bd.ovMode ?? "none", overlayStrength: bd.ovStrength ?? 100,
+          file: `backgrounds/${slug}.${ext}`, bytes, original: baked ? false : original,
+          opacity: baked ? 100 : (bd.bgOpacity ?? 100), blur: bd.bgBlur ?? 0, saturation: bd.bgSat ?? 100, hue: bd.bgHue ?? 0, brightness: bd.bgBright ?? 100, contrast: bd.bgContrast ?? 100, noise: bd.bgNoise ?? 0,
+          overlay: baked ? "none" : (bd.ovMode ?? "none"), overlayStrength: bd.ovStrength ?? 100,
           overlayBlend: bd.ovBlend ?? "normal",
         };
       }
@@ -247,9 +333,52 @@ export async function collectExportBoards(st: {
         });
         continue;
       }
+      if (!b.kitId && b.libId) {
+        /* a SAVED ASSET — its look and words are a frozen snapshot by
+           design (the master is never touched), so it travels as a BAKED
+           SPRITE exactly like a stamp: faithful to the pixel, and Unity
+           shows the fork, not the master (owner: BACK arrived as the
+           master's TAB). SMIL loops strip first — rasterizing at t=0
+           leaves fade-in loops blank. */
+        const item = st.library?.find((l) => l.id === b.libId);
+        if (!item) continue;
+        const raw0 = item.kit
+          ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label ? { label: item.kit.label } : undefined)
+          : renderBevel(item.cfg, "default");
+        const still = raw0
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+        const fdL = fontByName(item.cfg.type.font);
+        const svgL = await inlineKitFace(still, item.cfg.type.font, fdL.name === item.cfg.type.font ? fdL.css ?? null : null);
+        const { bytes: pb } = await svgToPngBytes(svgL, 2);
+        const swL = parseFloat(/width="([\d.]+)"/.exec(still)?.[1] ?? "200");
+        const shL = parseFloat(/height="([\d.]+)"/.exec(still)?.[1] ?? "80");
+        const file = `boardstamps/${slug}-a${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: pb });
+        const kL = b.scale ?? 1;
+        const wL = swL * kL, hL = shL * kL;
+        const cxL = b.x + wL / 2, cyL = b.y + hL / 2;
+        const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
+        const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "libasset", cx: Math.round(cxL * 10) / 10, cy: Math.round(cyL * 10) / 10,
+          w: Math.round(wL * 10) / 10, h: Math.round(hL * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axL, ay: ayL,
+          anchor: `${ayL === 1 ? "top" : ayL === 0 ? "bottom" : "middle"}-${axL === 0 ? "left" : axL === 1 ? "right" : "center"}`,
+          stamp: file,
+        });
+        continue;
+      }
       const id = b.kitId!;
-      // the Board stage's own recipe — dims must match what the maker saw
-      const svg = renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: b.label ?? st.kitLabels[id], themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id] });
+      /* the Board stage's own recipe, WHOLE (Board.tsx svgOf): icon
+         override, variant overlay (~gold), 9-slice stretch — dims and
+         baked pixels must match what the maker saw */
+      const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      const svg = renderKit(cfgP, id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+        icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+        label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+        themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+      });
       const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
       const sh = parseFloat(/height="([\d.]+)"/.exec(svg)?.[1] ?? "80");
       const k = b.scale ?? 1;
@@ -259,10 +388,65 @@ export async function collectExportBoards(st: {
       // board y runs DOWN; Unity anchors run UP — top third = ay 1
       const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
       const anchor = `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`;
+      const fam = PREFAB_FAMILY[id];
+      if (!fam) {
+        /* no sprite family ships for this piece — it can never place as a
+           prefab, and it used to just vanish from the scene ("7 skipped").
+           It travels as a BAKED SPRITE of the board's exact pixels, same
+           pipeline as saved assets. */
+        const still = svg
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+        const fdK = fontByName(cfgP.type.font);
+        const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
+        const { bytes: pk } = await svgToPngBytes(svgK, 2);
+        const file = `boardstamps/${slug}-k${stampFiles.length + 1}.png`;
+        stampFiles.push({ file, bytes: pk });
+        exItems.push({
+          component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
+        });
+        continue;
+      }
+      /* prefab pieces size SHELL-TO-SHELL: the svg box carries glow and
+         shadow padding while the Unity sprite is cropped, so scaling by
+         the outer box inflated every prefab by its padding ratio (owner:
+         "weird sizing issues" — the baked boards, which carry their
+         padding inside the image, came out right). data-shell is the
+         DRAWN shell box (extrusion-headroom shift included); the importer
+         matches it against the manifest's shell-in-sprite, which speaks
+         the same drawn frame — these two must always read the SAME stamp,
+         or scene placement inherits the difference. */
+      let pw = w, ph = h, pcx = cx, pcy = cy;
+      const shm2 = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
+      const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(svg);
+      if (shm2 && vbm2) {
+        const [bx3, by3, bw4, bh4] = shm2[1].split(" ").map(Number);
+        pw = bw4 * k; ph = bh4 * k;
+        pcx = b.x + ((bx3 - +vbm2[1]) + bw4 / 2) * k;
+        pcy = b.y + ((by3 - +vbm2[2]) + bh4 / 2) * k;
+      }
+      const pax = pcx < W / 3 ? 0 : pcx > (2 * W) / 3 ? 1 : 0.5;
+      const pay = pcy < H / 3 ? 1 : pcy > (2 * H) / 3 ? 0 : 0.5;
       exItems.push({
-        component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
-        w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
-        rot: b.rot ?? 0, label: b.label ?? null, value: b.v ?? null, ax, ay, anchor, stamp: null,
+        component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
+        w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
+        /* the words the maker actually SAW: per-copy label first, the
+           kit-wide custom words second. Emitting only the per-copy label
+           left kit-wide words behind — the baked board PNG said BACK, the
+           live scene label reverted to the prefab's default TAB (owner:
+           "the custom stuff from the boards isn't coming through") */
+        rot: b.rot ?? 0, label: b.label ?? st.kitLabels[id] ?? null,
+        // the EFFECTIVE pose — the importer drives live content from it
+        // (count badge number, end-turn ring, slider value, switch on/off);
+        // instance value wins, and the settings rigs always send their
+        // render default so the scene strikes the pose the board showed
+        value: b.v ?? st.kitVals[id] ?? (id === "slider" ? 0.62 : id === "toggle" ? 1 : null), ax: pax, ay: pay,
+        anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
+        ov: b.ov ?? null,
+        // flip provenance — the silhouette THIS copy rendered with
+        ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape) ? { flip: true } : {}),
       });
     }
     out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
@@ -542,6 +726,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const slim = (c: GenConfig) => {
     c.candy.bloom.opacity = 0;
     c.candy.texture.amount = 0;
+    /* the SPECULAR STREAK leaves the sliced bake too (owner: "Specular
+       shine is being translated to unity very bluntly") — stretching the
+       center strip smeared its feathered window flat. It ships as its own
+       overlay sprite (<fam>/specular.png) that prefabs anchor
+       shell-to-shell, so it scales WITH the piece like the app's
+       proportional streak. Blend-mode speculars stay baked: Unity UI
+       composits plain alpha, and honest color beats a misplaced streak. */
+    if (!c.candy.specular.blend || c.candy.specular.blend === "normal") c.candy.specular.on = false;
   };
   /* Designed state renders — unlike shell(), state forks are KEPT: the
      hover/pressed/disabled looks are the kit's own recipes, baked so the
@@ -553,7 +745,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      smudged halo (owner: "the rollovers are weird and incorrect"). Calm
      the fork exactly like the master so all four states share base's
      geometry. */
-  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number) => {
+  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number, slimSpec = false) => {
     const c = clone(pieceCfg(id));
     /* forks are PARTIAL (designFor: every field falls back to the master
        independently) — calm only what a fork actually carries, or a
@@ -564,6 +756,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         g.candy.contact.opacity = 0;
         g.candy.bloom.opacity = 0;
         g.candy.texture.amount = 0; // sliced state sprites: no stretching grain
+        /* SLICED swap states drop the baked streak exactly like their base
+           (slim) — a hover that suddenly grows a smeared streak while the
+           base wears the clean overlay would pop. Full-canvas states
+           (icon button, checkbox, radio, props) keep it baked. */
+        if (slimSpec && (!g.candy.specular.blend || g.candy.specular.blend === "normal")) g.candy.specular.on = false;
       }
     };
     calm(c);
@@ -634,8 +831,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* families whose prefabs swap states, so they are the ones that get an
      aura sprite — kept beside the manifest's stateFx list, which drives the
      runtime that fades it */
-  const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
-    "list-row", "item-slot", "iconbtn", "checkbox", "radio"]);
+  const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back",
+    "list-row", "item-slot", "iconbtn", "checkbox", "radio",
+    /* the props glow in their own silhouette too — without an aura sprite
+       they fell to the generic radial blob (owner: "the glows are all
+       very generic in shape and don't follow the silhouette") */
+    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge"]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -711,6 +912,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
         grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
+      /* shell-in-sprite, for shell-true scene sizing: the svg states its
+         shell box in viewBox units; the crop box places it inside the
+         shipped file's pixels. Use data-shell (the DRAWN box): the canvas
+         reserves the extrusion slider's full travel and translates all ink
+         down by the unused headroom, and data-shell0 predates that shift —
+         reading it seated every knob and fill exactly riseDy too high
+         (owner, twice, with screenshots). The crop measures drawn pixels,
+         so the row must speak the drawn frame. */
+      let shellBox: AssetMeta["shell"] = null;
+      {
+        const shm = /data-shell="([-\d. ]+)"/.exec(q.svg) ?? /data-shell0="([-\d. ]+)"/.exec(q.svg);
+        const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (shm && vbm) {
+          const [bx2, by2, bw3, bh3] = shm[1].split(" ").map(Number);
+          shellBox = {
+            x: Math.round((bx2 - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)),
+            y: Math.round((by2 - +vbm[2]) * PNG_SCALE - (raster.box?.y0 ?? 0)),
+            w: Math.round(bw3 * PNG_SCALE), h: Math.round(bh3 * PNG_SCALE),
+          };
+        }
+      }
       // Last line of defence: whatever the cap math says, borders must leave
       // a real center strip or engines render nothing. Scale down to fit.
       const s = q.meta.nineSlice;
@@ -765,7 +987,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -807,14 +1029,25 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "small", family: "button-small", h: 100, usage: "Compact action button." },
     { id: "chip", family: "chip", h: 84, usage: "Pill / chip. Value text is live engine text." },
     { id: "tab", family: "tab", h: 84, usage: "Tab. Selected state = tint or the full-material variant." },
+    { id: "tabback", family: "tab-back", h: 84, usage: "Back tab — the tab\'s mirror twin (reversed pointer silhouette by default), so both directions ship in one kit." },
     { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
+  /* staged pieces obey the bay in the ENGINE zip too: they ship only
+     once RELEASED, or when this maker actually placed one on a board
+     (only an admin can place a staged piece) — same rule as shipProp */
+  const usedOnBoards0 = new Set<string>();
+  for (const bd0 of st.boards ?? []) for (const bi0 of bd0.items) usedOnBoards0.add(bi0.component);
+  // boards record FAMILY names ("tab-back"), not editor ids ("tabback") —
+  // comparing the id silently broke the placed-piece fallback (field: the
+  // owner's placed Back tab shipped nothing while still staged)
+  const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(PREFAB_FAMILY[id] ?? id);
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
+    if (n.id === "tabback" && !stagedShips("tabback")) continue;
     /* NOTHING replaceable is baked into a sprite. The input's "Type
        something…" used to ride along as art — the affordance reads well in
        the app, but in Unity it arrived welded to the surface and there was
@@ -828,9 +1061,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const slice = sliceOf(n.id, n.h);
     /* swap families crop base + states on ONE union box (the group) so the
        four sprites share a coordinate space — see rasterQueue */
-    const swap = ["primary", "secondary", "small", "chip", "tab", "slot", "datarow"].includes(n.id);
+    const swap = ["primary", "secondary", "small", "chip", "tab", "tabback", "slot", "datarow"].includes(n.id);
+    // flip provenance: which silhouette this bake actually wears
+    const famFlip = isFlipShape(st.kitShapes[n.id] ?? KIT_SHAPE[n.id] ?? st.cfg.shape);
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}) }, true, swap ? n.family : undefined);
     const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -839,10 +1074,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts),
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts, undefined, true),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
+    /* the SPECULAR STREAK as its own overlay (owner: "needs more nuance to
+       match the original") — the sliced base dropped it (slim); prefabs
+       anchor this sprite shell-to-shell above the face so the feathered
+       window scales with the piece instead of smearing through the
+       nine-slice. Blend-mode speculars stay baked, so no sprite ships. */
+    const spC = pieceCfg(n.id).candy.specular;
+    if (spC.on && spC.intensity > 1 && (!spC.blend || spC.blend === "normal"))
+      await addPng(`${n.family}/specular.png`, shell(n.id, { faceLayer: "specular", ...rowOpts }),
+        { component: n.family, part: "specular", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: "The kit's specular streak alone — overlay it (Simple image, anchored shell-to-shell; the prefabs wire this) so it scales with the piece. Deliberately NOT sliced." }, true);
   }
 
   /* ── controls: separated track / fill / thumb ─────────────────── */
@@ -856,13 +1101,6 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     svgWrap(w, h, grad("f", bevelC, glowC) +
       `<path d="${rr(0.5, 0.5, w - 1, h - 1, h / 2)}" fill="url(#f)"/>` +
       `<path d="${rr(w * 0.03, h * 0.09, w * 0.94, h * 0.34, h * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`);
-  const ballSvg = (d: number) => {
-    const r = d / 2 - 2;
-    return svgWrap(d, d,
-      `<defs><radialGradient id="b" cx="0.35" cy="0.3" r="0.9"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="${lighten(bevelC, 0.78)}"/><stop offset="1" stop-color="${lighten(bevelC, 0.3)}"/></radialGradient></defs>` +
-      `<circle cx="${d / 2}" cy="${d / 2}" r="${r}" fill="url(#b)" stroke="${darken(bevelC, 0.38)}" stroke-width="2"/>` +
-      `<ellipse cx="${d / 2 - r * 0.3}" cy="${d / 2 - r * 0.44}" rx="${r * 0.34}" ry="${r * 0.19}" fill="#FFFFFF" opacity="0.85"/>`);
-  };
   const barSlice = (h: number) => ({ left: h, right: h, top: Math.round(h * 0.9), bottom: Math.round(h * 0.9) });
 
   await addPng("progress/track.9.png", trackSvg(440, 44), { component: "progress", part: "track", nineSlice: barSlice(44), pivot: { x: 0, y: 0.5 }, tintable: true, usage: "Progress track. Stretch horizontally; fill goes above it." });
@@ -873,11 +1111,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   // the icon-button base: same silhouette, drop any art in the well.
   await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. Layer lit cells above." });
   await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — crop one cell for a tile, or scissor horizontally per lit count." });
-  await addPng("slider/track.9.png", trackSvg(440, 26), { component: "slider", part: "track", nineSlice: barSlice(26), pivot: { x: 0, y: 0.5 }, tintable: true, usage: "Slider track." });
-  await addPng("slider/fill.9.png", fillSvg(440, 20), { component: "slider", part: "fill", nineSlice: barSlice(20), pivot: { x: 0, y: 0.5 }, tintable: false, usage: "Slider filled run, up to the thumb." });
-  await addPng("slider/thumb.png", ballSvg(96), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider thumb (candy ball)." });
-  await addPng("toggle/track.9.png", capsule(220, 110, wellC, `<path d="${rr(6, 6, 208, 98, 49)}" fill="${hexRgba(bevelC, 0.25)}"/>`), { component: "toggle", part: "track", nineSlice: barSlice(110), pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Toggle track. Tint toward the accent when ON." });
-  await addPng("toggle/thumb.png", ballSvg(110), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Toggle knob — engine slides it between ends." });
+  /* the settings controls, COMPONENT-TRUE (owner: "let's get those
+     settings screens working this round") — the REAL slider and toggle
+     pieces split into rig layers: track, full-run mercury, candy knob.
+     The importer assembles a working Unity Slider / Switch from these,
+     so the live control is the piece the maker styled, not a generic
+     capsule approximation. Same filenames as the old synthesized strips —
+     existing projects upgrade in place. */
+  await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value." }, true);
+  await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
+  await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
+  await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
+  await addPng("toggle/thumb-off.png", shell("toggle", { overlay: "knob-off" }, slim, 1), { component: "toggle", part: "thumb-off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, OFF dot — the wired prefab shows it when the switch is off." }, true);
 
   /* affordance glyphs SHIP (owner call — the ghost marks, chevron and kit
      icon are how the pieces read; "none" per piece on uikitmaker.com is
@@ -931,6 +1177,82 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         { component: s.family, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` });
     }
+  }
+
+  /* ── PROP PIECES GO LIVE (owner: "too many things are board stamps and
+     not interactive… only text should be treated this way" / "the main
+     point of this kit is to be useful, not to just show examples").
+     Each ships a real sprite family so the importer builds a wired
+     prefab and board scenes place components, not pictures. Fixed-size
+     art, never sliced. A still-staged piece ships only when RELEASED or
+     actually placed on a board — only an admin can place a staged piece,
+     so their zip carries it while everyone else's stays clean. ── */
+  if (full) {
+    const usedOnBoards = new Set<string>();
+    for (const bd of st.boards ?? []) for (const bi of bd.items) usedOnBoards.add(bi.component);
+    const shipProp = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards.has(id);
+    const PROPS: { id: KitComponentId; states: ("hover" | "pressed" | "disabled")[]; value?: number; usage: string }[] = [
+      { id: "gearicon", states: ["hover", "pressed", "disabled"], usage: "Settings gear, hub baked in — wire as a Button; glow rides the engine aura." },
+      { id: "trophyicon", states: ["disabled"], usage: "Trophy, kit material. Podium finishes ship beside it (gold/silver/bronze) — swap the sprite for placements. States are calmed by design; glow is engine-composed." },
+      { id: "gifticon", states: ["disabled"], usage: "Gift box, fold lines baked (they are the drawing). States are calmed by design; glow is engine-composed." },
+      /* the full carousel pose stays as a pictorial reference; its state
+         swaps moved to the RIG's dome sprites (firebutton-dome-*) */
+      { id: "firebutton", states: [], value: 0, usage: "Fire button with quick-select carousel, full pose baked (reference/thumbnail). The WORKING piece is the Firebutton prefab: bare dome + chambers + live icons/ glyphs — swipe left/right cycles the armed weapon." },
+      { id: "endturn", states: ["hover", "pressed", "disabled"], value: 0, usage: "End-turn button, bare shell — the label is LIVE text and the countdown ring is endturn-arc (Filled/Radial360, drive fillAmount)." },
+      { id: "keycap", states: ["hover", "pressed", "disabled"], usage: "Key prompt cap, bare — the key glyph is LIVE text. Single-char width; wide keys (SPACE) stretch poorly, scale instead." },
+      { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — coin and ribbon plate baked (v1: ribbon words too), the PRICE is live text." },
+    ];
+    for (const p of PROPS) {
+      if (!shipProp(p.id)) continue;
+      await addPng(`${p.id}/base.png`, shell(p.id, {}, undefined, p.value),
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage }, true, p.id);
+      for (const stName of p.states)
+        await addPng(`${p.id}/base-${stName}.png`, stateShell(p.id, stName, {}, p.value),
+          { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` }, true, p.id);
+      if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
+        await addPng(`trophyicon/${fin}.png`, shell("trophyicon", { overlay: fin }),
+          { component: "trophyicon", part: fin, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${fin} podium finish — same geometry as base; swap it onto the Trophy prefab for placements.` }, true, "trophyicon");
+      if (p.id === "endturn")
+        await addPng("endturn/arc.png",
+          `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/></svg>`,
+          { component: "endturn", part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+            usage: "Countdown ring — Image Type Filled/Radial360, fillAmount = time left. The prefab tints it to the kit Glow and stages it at 0.7." });
+      if (p.id === "firebutton") {
+        /* the SWIPE RIG's layers (owner: "when you swipe left or right the
+           center icon changes… bring that wiring into Unity"): a bare dome
+           (no baked glyph, no satellites) with pressed/disabled twins in
+           one union-crop group (the press sink stays in the pixels), plus
+           each waiting-weapon chamber as its own bare sprite. The glyphs
+           ride icons/ (sword, zap, flask, shield — tintable) and the
+           FireButton runtime deals and re-deals them as the swipe cycles. */
+        await addPng("firebutton/dome.png", shell("firebutton", { overlay: "plain" }, undefined, 0),
+          { component: "firebutton", part: "dome", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Fire dome, bare — the armed glyph is a live icons/ layer on the FireButton prefab; swipe left/right cycles it." }, true, "firebutton-dome");
+        for (const stName of ["pressed", "disabled"] as const)
+          await addPng(`firebutton/dome-${stName}.png`, stateShell("firebutton", stName, { overlay: "plain" }, 0),
+            { component: "firebutton", part: `dome-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `${SWAP_USAGE[stName]} dome — Sprite Swap beside firebutton-dome.png; the press sink is in the pixels.` }, true, "firebutton-dome");
+        for (const sn of [1, 2, 3] as const)
+          await addPng(`firebutton/sat${sn}.png`, shell("firebutton", { overlay: `sat${sn}` }, undefined, 0),
+            { component: "firebutton", part: `sat${sn}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `Carousel chamber ${sn} (1 = biggest, the NEXT weapon) — bare; its glyph is a live layer the rig re-deals.` });
+        /* the arsenal, KIT-THEMED (owner: "make the icons more on-brand") —
+           the same treated glyphs the app draws: outline, lit fill, glow */
+        for (const wp of ["sword", "zap", "flask", "shield"] as const)
+          await addPng(`firebutton/glyph-${wp}.png`, shell("firebutton", { overlay: `glyph-${wp}` }, undefined, 0),
+            { component: "firebutton", part: `glyph-${wp}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `Weapon glyph, kit-themed (${wp}) — the Firebutton rig deals these across the dome and chambers; swap in your own art freely.` });
+      }
+    }
+    /* the count badge goes DYNAMIC: bare circle + live count text on the
+       prefab (owner: "the countdown numerics should be dynamic — I'll
+       want those to animate on play") */
+    if (shipProp("countbadge"))
+      await addPng("countbadge/base-plain.png", shell("countbadge", { overlay: "plain" }, undefined, 0.03),
+        { component: "countbadge", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: "Bare count circle — the number is LIVE text on the CountBadge prefab. Drive it and it animates." });
   }
 
   /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
@@ -1033,7 +1355,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   } catch { /* measurement is an upgrade, not a dependency — prefab falls back to full stretch */ }
   await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — Filled (Vertical) Image masked by the glass. The prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
   await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
-  await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "extras", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — render your map underneath, inside the well." });
+  /* its own component id so the wired Minimap prefab (RadarDemo sweep +
+     blips) can find its shell box in the manifest; the file stays in
+     extras/ so existing projects keep their sprite in place */
+  await addPng("extras/minimap.png", shell("minimap", { part: "shell" }), { component: "minimap", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — the Minimap prefab adds a demo radar sweep + blips (children named 'Demo …', delete freely and render your map inside the well)." });
   await addPng("extras/movecounter.png", shell("movecounter", { part: "shell" }, undefined, 0.8), { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption are live engine text." });
   await addPng("extras/achievement.png", shell("achievetoast", { part: "shell" }), { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title are live engine text." });
 
@@ -1062,16 +1387,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          lands in a tighter box and every gloss sits misplaced once the
          two are stretched over the same rect */
       const grp = `faceLayer-${fam}`;
-      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under" }, slim),
+      /* the face layers are SURFACES — demo content must not ride along.
+         The plain base already ships bare; the tiled list-row skipped the
+         bare-row opts and baked "Level 12 · Warrior" into the under layer
+         (owner: "is this level 2 warrior stuff meant to be a baked
+         image? the main point of this kit is to be useful"). */
+      const bare: Record<string, unknown> = cid === "datarow"
+        ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
+      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under", ...bare }, slim),
         { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
-      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over" }, slim),
+      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over", ...bare }, slim),
         { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
       /* the STENCIL: the face silhouette alone, opaque. Unity's Mask only
          alpha-clips when its graphic is hidden, so masking with a visible
          art layer gives a RECTANGULAR mask and the pattern spills past
          the shape (field: "pattern mask is off here"). A dedicated hidden
          mask sprite clips exactly, with no glow fringe to leak through. */
-      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask" }, slim),
+      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask", ...bare }, slim),
         { component: fam, part: "base-mask", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face STENCIL: the bare face silhouette. Put it on a hidden Mask (Show Mask Graphic OFF) with the tiled pattern as its child — that clips the pattern to the shape exactly." }, true, grp);
     }
     /* the face pattern as a seamless tile: one cell, drawn at the same
@@ -1362,8 +1694,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          nothing announces it (owner: "I'm not getting the glows on hover…
          it's impossible for me to know" whether it hovered at all). */
       stateFx: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
-                 ["chip", "chip"], ["tab", "tab"], ["datarow", "list-row"], ["slot", "item-slot"],
-                 ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"]] as const).flatMap(([pid, fam]) => {
+                 ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"], ["datarow", "list-row"], ["slot", "item-slot"],
+                 ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
+                 /* the props announce their states too (owner: "settings
+                    gear doesn't work on play", "trophy states aren't in") —
+                    glow + lift ride the same engine recipe as the buttons */
+                 ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"],
+                 ["firebutton", "firebutton"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -1381,7 +1718,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lift: Math.round((ps.default.lift - ps[sn].lift) * 10) / 10,
         }));
       }),
-      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"]] as const).flatMap(([pid, fam]) => {
+      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"]] as const).flatMap(([pid, fam]) => {
         const pc = pieceCfg(pid);
         return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = pc.stateDesigns[sn];
@@ -1398,7 +1735,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          these sizes correlate to what we output from the app"): each
          family's geometry font size x the kit-size factor x the Type Size
          dial over its 52 baseline — the same three numbers renderKit uses */
-      labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30]] as const).map(([pid, fam, fs]) => {
+      labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30], ["tabback", "tab-back", 30], ["header", "header-banner", 46]] as const).map(([pid, fam, fs]) => {
         const pc = pieceCfg(pid);
         const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
         /* x0.74 fit factor: the app WIDENS its shell to the word, a Unity
@@ -1406,7 +1743,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            three field passes ("too big" at 1.0/0.78, "too much vertical
            space" at 0.70 — the middle ground); per-font taste stays a
            per-label Inspector edit. */
-        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10 };
+        /* `scene` is the UNFITTED app-true size: a board copy's rect IS
+           the app's shell, sized to those very words, so scenes restore
+           full size (owner: "the buttons seem to change so much" — the
+           0.74 prefab fit shrank every placed word by a quarter) */
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10, scene: Math.round(fs * sk * (pc.type.size / 52) * 10) / 10 };
       }),
       /* markInk/radioInk — the SELECTED-mark tint for the wired Toggles,
          renderKit's own chain: the piece's Pressed-state icon color, else
@@ -1458,31 +1799,66 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   for (const f of figs) files.push(f);
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
+  /* assembly definitions — the kit's scripts compile into their OWN
+     assemblies. Without these, a second copy of the kit anywhere in the
+     project (a drop into an open subfolder, an unmerged macOS folder)
+     lands duplicate classes in Assembly-CSharp-Editor: CS0101, the WHOLE
+     editor assembly dies, and Unity silently keeps running stale code
+     while every tool looks alive (field: boards fell apart, rebuilds did
+     nothing — a full kit copy sat inside TextMesh Pro/Examples). With
+     asmdefs a duplicate only fails OUR assembly, the Console names both
+     folders, and the rest of the project keeps compiling. */
+  files.push({
+    path: "Editor/PatternBreak.Editor.asmdef",
+    data: JSON.stringify({
+      name: "PatternBreak.Editor",
+      rootNamespace: "",
+      /* Unity.InputSystem: the scene builder's EventSystem wiring is
+         #if ENABLE_INPUT_SYSTEM — the reference resolves when the package
+         is installed and is silently ignored when it isn't. Omitting it
+         broke EVERY new-Input-System project (field: CS0234 on a fresh
+         Unity 6 project, nothing imported). */
+      references: ["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"],
+      includePlatforms: ["Editor"],
+      excludePlatforms: [],
+      allowUnsafeCode: false,
+      overrideReferences: false,
+      precompiledReferences: [],
+      autoReferenced: true,
+      defineConstraints: [],
+      versionDefines: [],
+      noEngineReferences: false,
+    }, null, 2),
+  });
+  files.push({
+    path: "Runtime/PatternBreak.Runtime.asmdef",
+    data: JSON.stringify({
+      name: "PatternBreak.Runtime",
+      rootNamespace: "",
+      references: ["Unity.TextMeshPro", "UnityEngine.UI"],
+      includePlatforms: [],
+      excludePlatforms: [],
+      allowUnsafeCode: false,
+      overrideReferences: false,
+      precompiledReferences: [],
+      autoReferenced: true,
+      defineConstraints: [],
+      versionDefines: [],
+      noEngineReferences: false,
+    }, null, 2),
+  });
   files.push({ path: "Runtime/PatternBreakHeroLabel.cs", data: HERO_LABEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakLabelStateInk.cs", data: LABEL_STATE_INK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSwitchGlide.cs", data: SWITCH_GLIDE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakFireButton.cs", data: FIREBUTTON_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
-
-  /* ── Unreal: UMG recipes with this kit's real margins (full kit) ── */
-  if (full) {
-    const m = (fam: string) => manifest.find((a) => a.component === fam && a.part === "base")?.nineSlice;
-    const bm = m("button-primary"); const pm = m("panel");
-    files.push({ path: "unreal/README.md", data: UNREAL_README });
-    files.push({
-      path: "unreal/UMG_Recipes.md",
-      data: UNREAL_RECIPES
-        .replace("__BTN_MARGIN__", bm ? `${bm.left}, ${bm.top}, ${bm.right}, ${bm.bottom}` : "48, 40, 48, 40")
-        .replace("__PANEL_MARGIN__", pm ? `${pm.left}, ${pm.top}, ${pm.right}, ${pm.bottom}` : "64, 64, 64, 64")
-        .replace(/__FONT__/g, st.cfg.type.font),
-    });
-    files.push({
-      path: "unreal/SliceMargins.csv",
-      data: "Name,Left,Top,Right,Bottom\n" + manifest.filter((a) => a.nineSlice)
-        .map((a) => `${a.component}/${a.part},${a.nineSlice!.left},${a.nineSlice!.top},${a.nineSlice!.right},${a.nineSlice!.bottom}`).join("\n"),
-    });
-  }
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
   if (full && catalog) {
@@ -1510,8 +1886,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      file byte-for-byte, and Apply() already walks ALL manifests. */
   const sharedScripts = new Set([
     "Editor/PatternBreakKitImporter.cs",
+    "Editor/PatternBreak.Editor.asmdef", "Runtime/PatternBreak.Runtime.asmdef",
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
+    "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
+    "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
+    "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
   ]);
   const rooted = files.map((f) => ({
@@ -2415,6 +2795,299 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script: the switch knob's glide. Pairs with a Unity Toggle so
+   the Switch prefab MOVES like the app's piece — knob slides between
+   ends and swaps its ON/OFF dot. */
+const SWITCH_GLIDE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Switch glide — pairs with the Toggle on the same object: the knob
+     slides between the track's ends and swaps its ON/OFF sprite, like
+     the switch on uikitmaker.com. The LOOK is edited there; this script
+     only moves what shipped. */
+  [AddComponentMenu("UI Kit Maker/Switch Glide")]
+  [RequireComponent(typeof(Toggle))]
+  public class SwitchGlide : MonoBehaviour {
+    public RectTransform knob;
+    public Sprite onSprite;
+    public Sprite offSprite;
+    [Tooltip("Knob-center offset from the track center at each end, in px. 0 = automatic from the shipped sprites.")]
+    public float travel = 0f;
+    [Tooltip("Seconds for the full end-to-end glide.")]
+    public float glideTime = 0.12f;
+    Toggle tog;
+    float target;
+    bool moving;
+    float End {
+      get {
+        if (travel > 0.01f) return travel;
+        var rt = (RectTransform)transform;
+        float kw = knob != null ? knob.rect.width : 0f;
+        float kh = knob != null ? knob.rect.height : 0f;
+        // the knob's edge gap mirrors its vertical gap — the app's geometry
+        return Mathf.Max(4f, (rt.rect.width - kw) * 0.5f - (rt.rect.height - kh) * 0.5f);
+      }
+    }
+    void Awake() {
+      tog = GetComponent<Toggle>();
+      tog.onValueChanged.AddListener(OnFlip);
+      Snap();
+    }
+    void OnDestroy() { if (tog != null) tog.onValueChanged.RemoveListener(OnFlip); }
+    /* jump straight to the current pose — scene builds and pose changes
+       from code call this so nothing animates in edit mode */
+    public void Snap() {
+      if (tog == null) tog = GetComponent<Toggle>();
+      if (knob == null || tog == null) return;
+      target = tog.isOn ? End : -End;
+      knob.anchoredPosition = new Vector2(target, knob.anchoredPosition.y);
+      Dress();
+      moving = false;
+    }
+    void OnFlip(bool on) { target = on ? End : -End; Dress(); moving = true; }
+    void Dress() {
+      if (knob == null) return;
+      var img = knob.GetComponent<Image>();
+      if (img == null) return;
+      var want = tog != null && tog.isOn ? onSprite : offSprite;
+      if (want != null) img.sprite = want;
+    }
+    void Update() {
+      if (!moving || knob == null) return;
+      var p = knob.anchoredPosition;
+      float step = Mathf.Abs(End) * 2f * (Time.unscaledDeltaTime / Mathf.Max(0.02f, glideTime));
+      p.x = Mathf.MoveTowards(p.x, target, step);
+      knob.anchoredPosition = p;
+      if (Mathf.Approximately(p.x, target)) moving = false;
+    }
+  }
+}
+`;
+
+/* Runtime script: the fire button's quick-select carousel — swipe across
+   the dome to cycle the armed weapon, the center glyph swaps with a pop
+   and the waiting chambers re-deal (owner: "when you swipe left or right
+   the center icon changes… bring that wiring / animation into Unity"). */
+const FIREBUTTON_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  /* Fire button quick-select. Swipe left/right across the dome to cycle
+     the armed weapon — the center glyph swaps and the waiting chambers
+     re-deal, like the carousel on uikitmaker.com. A plain tap still
+     presses (the Button beside this fires; a real swipe suppresses the
+     click). Hook onWeaponChanged for your inventory logic, or set
+     'weapons' to your own sprites. */
+  [AddComponentMenu("UI Kit Maker/Fire Button")]
+  public class FireButton : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler {
+    [Tooltip("The armed glyph in the dome center.")]
+    public Image weapon;
+    [Tooltip("Waiting chambers, biggest first — their glyphs re-deal from the armed weapon.")]
+    public Image[] chambers = new Image[0];
+    [Tooltip("The arsenal, in cycle order. Ships with sword / zap / flask / shield from icons/.")]
+    public Sprite[] weapons = new Sprite[0];
+    public int armed = 0;
+    [Tooltip("Swipe distance (px) that counts as a weapon switch.")]
+    public float swipePx = 34f;
+    [System.Serializable] public class WeaponEvent : UnityEngine.Events.UnityEvent<int> {}
+    public WeaponEvent onWeaponChanged = new WeaponEvent();
+    float dragX; bool swiped;
+    float pop; // 1 → 0 after a switch: the fresh glyph lands with a pop
+    Vector3 weaponScale = Vector3.one;
+    void Awake() { if (weapon != null) weaponScale = weapon.transform.localScale; DealNow(); }
+    public void Cycle(int dir) {
+      if (weapons.Length == 0) return;
+      armed = ((armed + dir) % weapons.Length + weapons.Length) % weapons.Length;
+      pop = 1f;
+      DealNow();
+      onWeaponChanged.Invoke(armed);
+    }
+    /* deal the current arsenal onto the glyph layers — public so scene
+       builds can strike a pose in edit mode */
+    public void DealNow() {
+      if (weapons.Length == 0) return;
+      if (weapon != null) weapon.sprite = weapons[((armed % weapons.Length) + weapons.Length) % weapons.Length];
+      for (int i = 0; i < chambers.Length; i++)
+        if (chambers[i] != null) chambers[i].sprite = weapons[(((armed + 1 + i) % weapons.Length) + weapons.Length) % weapons.Length];
+    }
+    public void OnBeginDrag(PointerEventData e) { dragX = 0f; swiped = false; }
+    public void OnDrag(PointerEventData e) {
+      dragX += e.delta.x;
+      if (!swiped && Mathf.Abs(dragX) >= swipePx) { swiped = true; Cycle(dragX > 0f ? 1 : -1); }
+    }
+    public void OnEndDrag(PointerEventData e) { dragX = 0f; swiped = false; }
+    void Update() {
+      if (pop <= 0f || weapon == null) return;
+      pop = Mathf.Max(0f, pop - Time.unscaledDeltaTime * 6f);
+      float sc = 1f + 0.18f * Mathf.Sin(pop * Mathf.PI);
+      weapon.transform.localScale = weaponScale * sc;
+    }
+  }
+}
+`;
+
+/* Runtime scripts: the BOARD RIGS — small behaviors that make placed
+   scenes PLAY like the boards read (owner: difficulty selectable, the
+   countdown counting, the damage number popping, the radar sweeping).
+   ONE CLASS PER FILE: Unity binds a saved component to its script file
+   only when the file holds a single class — four classes in one file
+   left every one of them "referenced script missing" on scene load
+   (field: dead difficulty row, static countdown, frozen radar). The
+   file name keeps SelectGroup so existing installs overwrite in place. */
+const BOARD_RIGS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Select group — a row of buttons (difficulty keycaps, tab strips)
+     where clicking one holds its pressed face and releases the others.
+     The scene builder wires rows of 2+ keycaps/tabs automatically; hook
+     onChanged(int) for your own logic. */
+  [AddComponentMenu("UI Kit Maker/Select Group")]
+  public class SelectGroup : MonoBehaviour {
+    public Button[] members = new Button[0];
+    public int selected = 0;
+    [System.Serializable] public class PickEvent : UnityEngine.Events.UnityEvent<int> {}
+    public PickEvent onChanged = new PickEvent();
+    Sprite[] rest;
+    void Awake() {
+      rest = new Sprite[members.Length];
+      for (int i = 0; i < members.Length; i++) {
+        if (members[i] == null) continue;
+        var img = members[i].targetGraphic as Image;
+        rest[i] = img != null ? img.sprite : null;
+        int idx = i;
+        members[i].onClick.AddListener(() => Pick(idx));
+      }
+      Apply();
+    }
+    public void Pick(int i) { selected = i; Apply(); onChanged.Invoke(i); }
+    void Apply() {
+      for (int i = 0; i < members.Length; i++) {
+        if (members[i] == null) continue;
+        var img = members[i].targetGraphic as Image;
+        if (img == null) continue;
+        var press = members[i].spriteState.pressedSprite;
+        img.sprite = i == selected && press != null ? press : rest[i];
+      }
+    }
+  }
+}
+`;
+
+/* Countdown label — one class per file (see BOARD_RIGS_RUNTIME). */
+const COUNTDOWN_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Countdown label — a numeric stamp that actually counts (owner: the
+     numerics should animate on play). Parses m:ss from the label at
+     start, or set seconds yourself; loops for the demo, onElapsed for
+     real use. Pairs with a HeroLabel on the same object. */
+  [AddComponentMenu("UI Kit Maker/Countdown Label")]
+  public class CountdownLabel : MonoBehaviour {
+    [Tooltip("-1 = parse from the label's current text (m:ss or s).")]
+    public float seconds = -1f;
+    public bool loop = true;
+    [System.Serializable] public class DoneEvent : UnityEngine.Events.UnityEvent {}
+    public DoneEvent onElapsed = new DoneEvent();
+    float t; HeroLabel hl; bool armed;
+    void Start() {
+#if UNITY_2023_2_OR_NEWER
+      hl = GetComponent<HeroLabel>();
+      if (seconds < 0f) {
+        seconds = 60f;
+        if (hl != null && !string.IsNullOrEmpty(hl.text)) {
+          var parts = hl.text.Trim().Split(':');
+          float mm, ss;
+          if (parts.Length == 2 && float.TryParse(parts[0], out mm) && float.TryParse(parts[1], out ss)) seconds = mm * 60f + ss;
+          else if (parts.Length == 1 && float.TryParse(parts[0], out ss)) seconds = ss;
+        }
+      }
+      t = seconds; armed = true;
+#endif
+    }
+    void Update() {
+#if UNITY_2023_2_OR_NEWER
+      if (!armed || hl == null) return;
+      t -= Time.deltaTime;
+      if (t <= 0f) { onElapsed.Invoke(); if (loop) t = seconds; else { t = 0f; armed = false; } }
+      int whole = Mathf.Max(0, Mathf.CeilToInt(t));
+      string txt = (whole / 60) + ":" + (whole % 60).ToString("00");
+      if (txt != hl.text) hl.SetText(txt);
+#endif
+    }
+  }
+}
+`;
+
+/* Pop number — one class per file (see BOARD_RIGS_RUNTIME). */
+const POP_NUMBER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Pop number — the damage-number beat: pop, drift up, fade, repeat.
+     A looping demo out of the box; call Show(n) from your game to fire
+     one real pop with a new value. */
+  [AddComponentMenu("UI Kit Maker/Pop Number")]
+  public class PopNumber : MonoBehaviour {
+    public float period = 1.6f;
+    public bool demoLoop = true;
+    float t; Vector3 s0; Vector2 p0; RectTransform rt; CanvasGroup cg; HeroLabel hl;
+    void Start() {
+      rt = (RectTransform)transform; s0 = rt.localScale; p0 = rt.anchoredPosition;
+      hl = GetComponent<HeroLabel>();
+      cg = gameObject.GetComponent<CanvasGroup>();
+      if (cg == null) cg = gameObject.AddComponent<CanvasGroup>();
+    }
+    public void Show(int n) {
+#if UNITY_2023_2_OR_NEWER
+      if (hl != null) hl.SetText(n.ToString("N0"));
+#endif
+      t = 0f; demoLoop = false; enabled = true;
+    }
+    void Update() {
+      if (rt == null) return;
+      t += Time.deltaTime;
+      float f = (t % period) / period;
+      if (!demoLoop && t >= period) { rt.localScale = s0; rt.anchoredPosition = p0; cg.alpha = 1f; enabled = false; return; }
+      float pop = 1f + 0.22f * Mathf.Exp(-6f * f) * Mathf.Sin(10f * f);
+      rt.localScale = s0 * pop;
+      rt.anchoredPosition = p0 + new Vector2(0f, 26f * f);
+      cg.alpha = f < 0.75f ? 1f : 1f - (f - 0.75f) / 0.25f;
+    }
+  }
+}
+`;
+
+/* Radar demo — one class per file (see BOARD_RIGS_RUNTIME). */
+const RADAR_DEMO_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Radar demo — a sweeping line and drifting blips over the mini-map
+     frame, so the piece reads alive on day one. Everything it moves is
+     named "Demo …": delete those children and drive your own icons, or
+     keep the component and repoint the fields. */
+  [AddComponentMenu("UI Kit Maker/Radar Demo")]
+  public class RadarDemo : MonoBehaviour {
+    public RectTransform sweep;
+    public RectTransform[] blips = new RectTransform[0];
+    public float rpm = 8f;
+    public float drift = 14f;
+    Vector2[] p0;
+    void Start() {
+      p0 = new Vector2[blips.Length];
+      for (int i = 0; i < blips.Length; i++) if (blips[i] != null) p0[i] = blips[i].anchoredPosition;
+    }
+    void Update() {
+      if (sweep != null) sweep.localRotation = Quaternion.Euler(0f, 0f, -Time.time * 6f * rpm);
+      for (int i = 0; i < blips.Length; i++)
+        if (blips[i] != null)
+          blips[i].anchoredPosition = p0[i] + new Vector2(Mathf.Sin(Time.time * 0.7f + i * 2.1f), Mathf.Cos(Time.time * 0.55f + i * 1.3f)) * drift;
+    }
+  }
+}
+`;
+
 /* Runtime script #4: the season track's CONTENT rig — the look is baked
    art (edited on uikitmaker.com), the content is live engine text this
    component owns and lays out. Prototyper-first Inspector (owner). */
@@ -2508,11 +3181,12 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
     const m = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
     return { w: m ? +m[1] : 0, h: m ? +m[2] : 0 };
   };
-  /* the shell's box in the PLATE's coordinates: data-shell0 is stated in
-     viewBox units, and the renderer's glow pad pushes the viewBox origin
-     negative — miss that and every callout lands off the button */
+  /* the shell's box in the PLATE's coordinates: data-shell (the DRAWN
+     box — extrusion-headroom shift included) in viewBox units, and the
+     renderer's glow pad pushes the viewBox origin negative — miss either
+     and every callout lands off the button */
   const shellOf = (svg: string) => {
-    const m = /data-shell0="([-\d. ]+)"/.exec(svg);
+    const m = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
     const v = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
     if (!m || !v) return null;
     const [x, y, w, h] = m[1].split(" ").map(Number);
@@ -2949,8 +3623,14 @@ simply isn't visible.
 ### The stretch-safe face (no compromise)
 
 When a kit wears a pattern, the wide pieces also ship **split into
-layers**, and the importer builds them as ready prefabs:
-**Panel (tiled face)** and **Header banner (tiled face)** in Prefabs/.
+layers**, and the importer builds them as ready prefabs in their own
+folder — **Prefabs/Tiled face/** — so the two flavors never blur
+together: \`Prefabs/\` is the plain drag-in pieces, \`Prefabs/Tiled face/\`
+is the stretch-safe pattern flavor of the same names (panel, header,
+both buttons, list row, item slot). The buttons in there carry the same
+live label and engine-side states (glow, lift, label ink) as their
+plain siblings — no sprite swap, because swapping one layer of a
+layered build would double the pattern.
 
 Inside: \`base-under.9\` (shell, rim, fill — Sliced) at the bottom, then a
 hidden \`base-mask.9\` carrying a **Mask** with *Show Mask Graphic* OFF —
@@ -3099,7 +3779,8 @@ using TMPro;
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; }
+  [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -3120,11 +3801,11 @@ namespace PatternBreak {
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
-  [Serializable] class PBLabelSize { public string family; public float size; }
+  [Serializable] class PBLabelSize { public string family; public float size; public float scene; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
@@ -3237,7 +3918,7 @@ namespace PatternBreak {
         PBManifest m = null;
         try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (m == null) continue;
-        foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab" }) {
+        foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back" }) {
           var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
           if (pf == null) continue;
           var inkc = pf.GetComponent<LabelStateInk>();
@@ -3494,7 +4175,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) MaintainExamplePrefabs(root, manifest);
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest); GenerateMissingPrefabs(root, manifest); }
 #if UNITY_2023_2_OR_NEWER
       if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
 #endif
@@ -3509,9 +4190,17 @@ namespace PatternBreak {
       // Scenes can't be created mid-import, hence the delayCall.
       if (!File.Exists(root + "/Playground.unity"))
         EditorApplication.delayCall += () => BuildPlayground(root);
+      else if (prev != null)
+        /* the Playground never rebuilds itself ("yours after first
+           generation") — but a kit UPDATE leaving it stale in SILENCE
+           read as "same problem" in the field. Say where the fresh one
+           is. */
+        Debug.Log("UI Kit Maker: Playground.unity kept as-is (yours). This update may have changed sizes or added pieces — Tools > PatternBreak > Rebuild Kit Playground Scene builds a fresh one.");
       // the maker's board scenes ride the same after-import beat — each
       // builds once, then it's yours (existing scenes are never touched)
       EditorApplication.delayCall += () => BuildBoardScenes(root, manifest);
+      if (prev != null && manifest.boards != null && manifest.boards.Length > 0)
+        Debug.Log("UI Kit Maker: existing board scenes are kept (yours) — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and content fixes.");
 
       // ── the receipt ──
       var receipt = new PBLock();
@@ -3602,13 +4291,35 @@ namespace PatternBreak {
        Play-mode dead-button causes are a duplicate EventSystem or the
        wrong module for the project's input setting). Generated once on
        first import, then it's yours; the menu below rebuilds it. ── */
+    /* Additive scene creation FAILS while the open scene is an unsaved
+       Untitled — the exact state of a brand-new project that never saved
+       a scene (field: every board "failed — Cannot create a new scene
+       additively with an untitled scene unsaved", an empty Scenes
+       folder). A PRISTINE Untitled loses nothing when replaced, so the
+       first generated scene builds in its slot; saving it titles the
+       editor and everything after goes additive as usual. A DIRTY
+       Untitled is the maker's unsaved work — never discard it: skip
+       loudly with the way out instead. */
+    static bool TryNewKitScene(out UnityEngine.SceneManagement.Scene scene, string what) {
+      var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+      bool untitled = string.IsNullOrEmpty(active.path);
+      if (untitled && active.isDirty) {
+        scene = default(UnityEngine.SceneManagement.Scene);
+        Debug.LogWarning("UI Kit Maker: " + what + " skipped — the open Untitled scene has unsaved changes, and Unity won't create scenes beside an unsaved Untitled scene. Save your scene (File > Save As…), then run the Rebuild menus under Tools > PatternBreak.");
+        return false;
+      }
+      scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
+        untitled ? UnityEditor.SceneManagement.NewSceneMode.Single : UnityEditor.SceneManagement.NewSceneMode.Additive);
+      return true;
+    }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
       if (File.Exists(scenePath)) return; // yours after first generation
       var guids = AssetDatabase.FindAssets("t:Prefab", new string[] { root + "/Prefabs" });
       if (guids.Length == 0) return; // prefabs not in yet — the next pass retries
-      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
-        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "the Playground scene")) return;
       try {
         /* field case: the user deleted the kit folder while the old
            Playground was still OPEN — its file is gone but the editor
@@ -3650,34 +4361,77 @@ namespace PatternBreak {
           if (p != null) prefabs.Add(p);
         }
         prefabs.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
-        /* Everything hangs off one Board, and the Board is scaled to fit the
-           canvas at the end. A full kit is wider than 1920 laid out at 1:1,
-           and the old code just let the later columns run off the right-hand
-           edge: invisible when you press Play, and in the Scene view you had
-           to go hunting outside the canvas frame to grab them (owner: "it's
-           really difficult dragging these elements around"). Set the Board's
-           scale back to 1 for a 1:1 board. */
+        /* v2 — a true mini UI kit (owner: "laid out like a true mini-ui
+           kit with sections and labels… filled with all kinds of
+           different components"): pieces group into labeled sections, one
+           of each (the tiled-face twins stay in Prefabs/, not here — the
+           repeats were most of the noise), flowing rows with real
+           gutters. Everything hangs off one Board scaled to fit at the
+           end. */
+        var SECTIONS = new (string title, string[] names)[] {
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
+          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick" }),
+          ("BARS & METERS", new[] { "ProgressBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
+          ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
+          ("PROPS", new[] { "Gearicon", "Trophyicon", "Gifticon", "Firebutton" }),
+        };
+        var byName = new Dictionary<string, GameObject>();
+        foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
+        var claimed = new HashSet<string>();
+        foreach (var sec in SECTIONS) foreach (var n in sec.names) claimed.Add(n);
+        // future prefabs never vanish: everything unclaimed lands in MORE
+        var moreNames = new List<string>();
+        foreach (var p in prefabs) if (!claimed.Contains(p.name) && !p.name.Contains("(tiled face)") && p.name != "HeroLabel") moreNames.Add(p.name);
         var boardGo = new GameObject("Board", typeof(RectTransform));
         boardGo.transform.SetParent(canvasGo.transform, false);
         var board = boardGo.GetComponent<RectTransform>();
         board.anchorMin = new Vector2(0f, 1f); board.anchorMax = new Vector2(0f, 1f);
         board.pivot = new Vector2(0f, 1f);
-        float colX = 90f, y = -90f, colMaxW = 0f, deepest = 0f; int placed = 0;
-        foreach (var prefab in prefabs) {
-          var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
-          inst.transform.SetParent(board, false);
-          var rt = inst.GetComponent<RectTransform>();
-          if (rt == null) continue;
-          float w = Mathf.Max(80f, rt.sizeDelta.x), h = Mathf.Max(40f, rt.sizeDelta.y);
-          if (y - h < -1020f && y < -91f) { colX += colMaxW + 70f; y = -90f; colMaxW = 0f; }
-          rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
-          rt.anchoredPosition = new Vector2(colX + w * 0.5f, y - h * 0.5f);
-          y -= h + 44f;
-          if (-y > deepest) deepest = -y;
-          if (w > colMaxW) colMaxW = w;
-          placed++;
+        float rowW = 1760f, gut = 40f, y = -70f, widest = 0f; int placed = 0;
+        var allSecs = new List<(string title, string[] names)>(SECTIONS);
+        if (moreNames.Count > 0) allSecs.Add(("MORE", moreNames.ToArray()));
+        foreach (var sec in allSecs) {
+          // does this kit ship anything for the section?
+          bool anyIn = false;
+          foreach (var n in sec.names) if (byName.ContainsKey(n)) { anyIn = true; break; }
+          if (!anyIn) continue;
+#if UNITY_2023_2_OR_NEWER
+          var head = new GameObject(sec.title, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+          head.transform.SetParent(board, false);
+          var ht = head.GetComponent<TextMeshProUGUI>();
+          ht.text = sec.title;
+          ht.fontSize = 30f; ht.fontStyle = FontStyles.Bold;
+          ht.color = new Color(0.59f, 0.63f, 0.72f);
+          ht.alignment = TextAlignmentOptions.MidlineLeft;
+          var hrt = head.GetComponent<RectTransform>();
+          hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(0f, 1f); hrt.pivot = new Vector2(0f, 1f);
+          hrt.sizeDelta = new Vector2(rowW, 40f);
+          hrt.anchoredPosition = new Vector2(90f, y);
+          y -= 56f;
+#endif
+          float x = 90f, rowH = 0f;
+          foreach (var n in sec.names) {
+            GameObject pf;
+            if (!byName.TryGetValue(n, out pf)) continue;
+            var inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
+            inst.transform.SetParent(board, false);
+            var rt = inst.GetComponent<RectTransform>();
+            if (rt == null) continue;
+            float w = Mathf.Max(80f, rt.sizeDelta.x), h = Mathf.Max(40f, rt.sizeDelta.y);
+            // oversized furniture scales down to sit in the flow
+            float ps2 = Mathf.Min(1f, Mathf.Min(300f / h, 620f / w));
+            if (x + w * ps2 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(x + w * ps2 * 0.5f, y - h * ps2 * 0.5f);
+            if (ps2 < 1f) rt.localScale = new Vector3(ps2, ps2, 1f);
+            x += w * ps2 + gut;
+            if (h * ps2 > rowH) rowH = h * ps2;
+            if (x > widest) widest = x;
+            placed++;
+          }
+          y -= rowH + 84f; // section breath
         }
-        float boardW = colX + colMaxW + 90f, boardH = Mathf.Max(deepest + 90f, 200f);
+        float boardW = Mathf.Max(widest + 50f, 800f), boardH = Mathf.Max(-y + 40f, 200f);
         board.sizeDelta = new Vector2(boardW, boardH);
         // shrink to fit, never blow up a small kit past 1:1
         float fit = Mathf.Min(1f, Mathf.Min(1920f / boardW, 1080f / boardH));
@@ -3722,11 +4476,16 @@ namespace PatternBreak {
       if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
       var scenePath = dir + "/" + BoardSlug(bd.name) + ".unity";
       if (File.Exists(scenePath)) {
-        if (!force) return; // yours after first generation
+        /* yours after first generation — EXCEPT a scene we know shipped
+           incomplete (pieces skipped because prefabs hadn't generated on
+           the first import beat): that one self-heals on the next pass
+           instead of asking the maker to remember a menu path */
+        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false);
+        if (!force && !pending) return;
         AssetDatabase.DeleteAsset(scenePath);
       }
-      var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
-        UnityEditor.SceneManagement.NewSceneSetup.EmptyScene, UnityEditor.SceneManagement.NewSceneMode.Additive);
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "board scene '" + bd.name + "'")) return;
       try {
         var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
         if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
@@ -3784,21 +4543,73 @@ namespace PatternBreak {
           }
         }
         int placed = 0, missing = 0;
+        var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
         if (bd.items != null) foreach (var it in bd.items) {
-          GameObject inst; RectTransform rt;
+          GameObject inst = null; RectTransform rt = null;
           if (!string.IsNullOrEmpty(it.stamp)) {
+#if UNITY_2023_2_OR_NEWER
+            /* NUMERIC type stamps go LIVE (owner: "750 should be animating
+               on play… :56 should be counting down"): the layered kit face
+               rebuilds the stamp's look as REAL text, and a rig moves it —
+               a colon reads as a countdown, plain digits as a damage pop.
+               Words stay baked pixels, exactly as before. */
+            if (it.component == "typestamp" && !string.IsNullOrEmpty(it.label)
+                && System.Text.RegularExpressions.Regex.IsMatch(it.label.Trim(), "^[0-9][0-9.,:+xX% ]*$")) {
+              var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
+              if (hlPf == null)
+                Debug.LogWarning("UI Kit Maker: numeric stamp '" + it.label.Trim() + "' stays a baked image — no HeroLabel prefab yet (it ships when the kit bakes its layered face; run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate).");
+              if (hlPf != null) {
+                inst = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
+                inst.name = "Stamp (live) — " + it.label.Trim();
+                inst.transform.SetParent(canvasGo.transform, false);
+                rt = inst.GetComponent<RectTransform>();
+                rt.sizeDelta = new Vector2(it.w * 1.2f, it.h * 1.25f);
+                var hlN = inst.GetComponent<HeroLabel>();
+                if (hlN != null) { hlN.fontSize = it.h * 0.78f; hlN.SetText(it.label.Trim()); }
+                if (it.label.Contains(":")) inst.AddComponent<CountdownLabel>();
+                else inst.AddComponent<PopNumber>();
+              }
+            }
+#endif
+            if (inst == null) {
             /* a type stamp — its baked sprite (adjust dials, shadow and
                glow already in the pixels), a plain Image, no prefab */
             var ssp = S(root + "/" + it.stamp);
             if (ssp == null) { missing++; continue; }
-            inst = new GameObject("Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // baked kit pieces read as themselves in the hierarchy, not as "Stamp"
+            var bakedName = it.component == "typestamp" || it.component == "libasset"
+              ? "Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label)
+              : NiceName(it.component) + " (baked)";
+            inst = new GameObject(bakedName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             inst.transform.SetParent(canvasGo.transform, false);
             var simg = inst.GetComponent<Image>();
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
+            }
           } else {
-            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(it.component) + ".prefab");
+            // composed rigs publish under their own prefab names
+            var pfName = NiceName(it.component);
+            if (it.component == "progress") pfName = "ProgressBar";
+            else if (it.component == "joystick") pfName = "Joystick";
+            else if (it.component == "seasontrack") pfName = "SeasonTrack";
+            else if (it.component == "toggle") pfName = "Switch";
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+            /* a STRETCHED piece smears its face pattern through the
+               nine-slice center (owner: "look at how the pattern inside
+               the button scales") — the tiled-face build is made for
+               exactly this: the frame stretches, the pattern keeps its
+               rhythm. Swap it in whenever the board stretched the piece
+               beyond its native aspect and the kit ships one. */
+            PBAsset baseGeo = null;
+            foreach (var aG in m.assets) if (aG != null && aG.component == it.component && aG.part == "base" && aG.shell != null) { baseGeo = aG; break; }
+            if (baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
+              float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
+              if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
+                var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
+                if (tfPf != null) pf = tfPf;
+              }
+            }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
             inst.transform.SetParent(canvasGo.transform, false);
@@ -3813,21 +4624,163 @@ namespace PatternBreak {
           float axBoard = it.ax * bd.w;
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
-          if (string.IsNullOrEmpty(it.stamp) && rt.sizeDelta.x > 1f) {
-            float s = it.w / rt.sizeDelta.x;
-            rt.localScale = new Vector3(s, s, 1f);
+          if (string.IsNullOrEmpty(it.stamp)) {
+            if (rt.sizeDelta.x > 1f) {
+              /* SHELL-TO-SHELL sizing: the board records the shell's box
+                 and the manifest records where that shell sits inside the
+                 sprite. Scaling by the sprite rect compared a glow-padded
+                 board box against a cropped sprite — every prefab landed
+                 oversized by its padding ratio (owner: "weird sizing
+                 issues", while the baked boards came out right). */
+              float ps = m.pngScale > 0 ? m.pngScale : 2;
+              var rootImg2 = inst.GetComponent<Image>();
+              var rootSp = rootImg2 != null ? rootImg2.sprite : null;
+              /* the prefab's ROOT sprite names the truth — rig roots are
+                 not "base" (Slider roots on -track, Firebutton on -dome),
+                 so match the manifest row to the sprite actually worn,
+                 falling back to the family's base */
+              PBAsset baseA = null;
+              if (rootSp != null) foreach (var a in m.assets) {
+                if (a == null || a.component != it.component || a.file == null) continue;
+                if (a.file.EndsWith("/" + rootSp.name + ".png")) { baseA = a; break; }
+              }
+              if (baseA == null) foreach (var a in m.assets) if (a != null && a.component == it.component && a.part == "base") { baseA = a; break; }
+              var shl = baseA != null ? baseA.shell : null;
+              float s;
+              if (shl != null && shl.w > 4f && rootSp != null && rootSp.rect.width > 1f) {
+                /* RECT-PROOF: scale from the SPRITE's own pixels, not the
+                   prefab rect — an old prefab with a stale rect (the 2x
+                   PLAY buttons) sizes true anyway, because the shell's
+                   fraction of the sprite survives any rect stretch */
+                s = (it.w / rt.sizeDelta.x) * (rootSp.rect.width / shl.w);
+                /* STRETCHED pieces (bar / panel gestures widen the shell):
+                   a width-only uniform scale would fatten the whole piece
+                   vertically. Hold the TRUE vertical scale and let the
+                   sliced rect carry the extra width — caps, knobs and
+                   label sizes keep their proportions, the footprint is
+                   exactly the board's. */
+                float sH = shl.h > 4f && rt.sizeDelta.y > 1f ? (it.h / rt.sizeDelta.y) * (rootSp.rect.height / shl.h) : s;
+                bool slicedRoot = rootSp.border.sqrMagnitude > 0.5f;
+                if (slicedRoot && sH > 0.01f && Mathf.Abs(s / sH - 1f) > 0.08f) {
+                  float fxW = shl.w / rootSp.rect.width; // shell's fraction of the sprite
+                  rt.sizeDelta = new Vector2(it.w / (sH * fxW), rt.sizeDelta.y);
+                  s = sH;
+                }
+                float fx = (shl.x + shl.w / 2f) / rootSp.rect.width;
+                float fy = (shl.y + shl.h / 2f) / rootSp.rect.height;
+                float dxS = rt.sizeDelta.x * (fx - 0.5f);
+                float dyS = rt.sizeDelta.y * (fy - 0.5f);
+                rt.anchoredPosition += new Vector2(-dxS * s, dyS * s);
+              } else s = it.w / rt.sizeDelta.x;
+              rt.localScale = new Vector3(s, s, 1f);
+              /* FLIP fidelity (owner: "the back button doesn't respect the
+                 flip"): the board copy's silhouette and the family sprite's
+                 own flip are both recorded — when they disagree, mirror the
+                 instance and counter-mirror its words so they stay
+                 readable. Logged either way a divergence shows, so field
+                 reports can finally name which side lost the flip. */
+              if (baseA != null && it.flip != baseA.flip) {
+                var lsF = rt.localScale; lsF.x = -lsF.x; rt.localScale = lsF;
+#if UNITY_2023_2_OR_NEWER
+                var lrM = FindOurLabelRoot(inst);
+                if (lrM != null) {
+                  var lrt9 = lrM.GetComponent<RectTransform>();
+                  var l2 = lrt9.localScale; l2.x = -l2.x; lrt9.localScale = l2;
+                }
+#endif
+                Debug.Log("UI Kit Maker: '" + bd.name + "' — " + NiceName(it.component) + " mirrored to match the board (board flipped: " + it.flip + ", sprite flipped: " + baseA.flip + ").");
+              }
+            } else {
+              /* a stretch-anchored prefab root reports no sizeDelta — after
+                 the point re-anchoring above its rect IS its sizeDelta, so
+                 size it to the board footprint directly (the skip used to
+                 leave such pieces at native size — the giant-tab report) */
+              rt.sizeDelta = new Vector2(it.w, it.h);
+            }
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
           /* per-copy words (the maker typed them on this copy in the app) —
-             the label is LIVE text, so the override is one string set */
+             the override must speak to the stack's OWNER: setting the TMP
+             text alone left HeroLabel's own words in charge, and it
+             re-imposed the prefab default on the next rebuild (field:
+             three PLAYs where PLAY / STORE / OPTIONS were typed) */
           if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.label)) {
+#if UNITY_2023_2_OR_NEWER
+            var hlOv = inst.GetComponentInChildren<HeroLabel>(true);
+            float trueSize = LabelSizeScene(m, it.component);
+            if (hlOv != null) {
+              // app-true size first, then SetText re-lays the stack
+              if (trueSize > 0f) hlOv.fontSize = trueSize;
+              hlOv.SetText(it.label);
+            } else {
+              var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
+              if (tmp != null) {
+                tmp.text = it.label;
+                if (trueSize > 0f) { tmp.enableAutoSizing = false; tmp.fontSize = trueSize; }
+              }
+            }
+            /* longer words than the prefab default WRAPPED inside the
+               fixed label box (field: BACK → "BAC K") — one line, shrink
+               to fit instead */
+            foreach (var wt in inst.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+#pragma warning disable 0618
+              wt.enableWordWrapping = false;
+#pragma warning restore 0618
+              wt.overflowMode = TMPro.TextOverflowModes.Overflow;
+            }
+#else
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
+#endif
+          }
+          if (string.IsNullOrEmpty(it.stamp)) {
+            /* LIVE CONTENT from the board's pose (owner: components, not
+               pictures — and the numerics dynamic so they animate) */
+            if (!string.IsNullOrEmpty(it.ov)) {
+              // variant overlay (trophy ~gold): swap the matching sprite,
+              // same union-cropped geometry as base
+              var vsp = S(root + "/assets/" + it.component + "/" + it.component + "-" + it.ov + ".png");
+              var vim = inst.GetComponent<Image>();
+              if (vsp != null && vim != null) vim.sprite = vsp;
+            }
+            if (it.component == "countbadge" && it.value > 0f) {
+              var cntT = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
+              if (cntT != null) cntT.text = Mathf.Clamp(Mathf.RoundToInt(it.value * 99f), 1, 99).ToString();
+            }
+            if (it.component == "endturn" && it.value > 0f) {
+              var arcT = inst.transform.Find("Arc");
+              if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
+            }
+            /* the settings rigs strike the board's pose (the exporter
+               always sends these two an explicit value) */
+            if (it.component == "slider") {
+              var slC = inst.GetComponent<Slider>();
+              if (slC != null) slC.SetValueWithoutNotify(Mathf.Clamp01(it.value));
+            }
+            if (it.component == "toggle") {
+              var tgC = inst.GetComponent<Toggle>();
+              if (tgC != null) tgC.SetIsOnWithoutNotify(it.value > 0.5f);
+              var glC = inst.GetComponent<SwitchGlide>();
+              if (glC != null) glC.Snap();
+            }
+            if (it.component == "firebutton" && it.value > 0f) {
+              var fbC = inst.GetComponent<FireButton>();
+              if (fbC != null) { fbC.armed = Mathf.Min(3, Mathf.FloorToInt(Mathf.Clamp01(it.value) * 4f)); fbC.DealNow(); }
+            }
+            // rows of keycaps/tabs become working select groups (below)
+            if ((it.component == "keycap" || it.component == "tab") && inst.GetComponent<Button>() != null)
+              selectRows.Add(new KeyValuePair<PBBoardItem, GameObject>(it, inst));
           }
           placed++;
         }
-        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
-          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — re-run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate)" : "") + ". Open " + scenePath + " and press Play.");
+        WireSelectRows(selectRows);
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath)) {
+          // remember incompleteness so the after-prefabs pass rebuilds THIS
+          // scene automatically; a complete build clears the marker
+          if (missing > 0) SessionState.SetBool("pbBoardPending:" + scenePath, true);
+          else SessionState.EraseBool("pbBoardPending:" + scenePath);
+          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — it rebuilds itself once prefabs finish, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
+        }
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the board scene at " + scenePath + ".");
       } finally {
@@ -3836,6 +4789,36 @@ namespace PatternBreak {
       }
     }
 
+    /* DIFFICULTY-style rows become WORKING controls (owner: "can we get
+       difficulty working? … it looks better than the out of the box Unity
+       version"): 2+ keycaps (or tabs) sharing a line get a SelectGroup —
+       click one, it holds its pressed face, the others release. */
+    static void WireSelectRows(List<KeyValuePair<PBBoardItem, GameObject>> row) {
+      var used = new bool[row.Count];
+      for (int i = 0; i < row.Count; i++) {
+        if (used[i]) continue;
+        var group = new List<KeyValuePair<PBBoardItem, GameObject>>();
+        group.Add(row[i]); used[i] = true;
+        for (int j = i + 1; j < row.Count; j++) {
+          if (used[j] || row[j].Key.component != row[i].Key.component) continue;
+          if (Mathf.Abs(row[j].Key.cy - row[i].Key.cy) > Mathf.Max(row[i].Key.h, row[j].Key.h) * 0.6f) continue;
+          group.Add(row[j]); used[j] = true;
+        }
+        if (group.Count < 2) continue;
+        group.Sort((a, b2) => a.Key.cx.CompareTo(b2.Key.cx));
+        var members = new Button[group.Count];
+        bool ok = true;
+        for (int g2 = 0; g2 < group.Count; g2++) {
+          members[g2] = group[g2].Value.GetComponent<Button>();
+          if (members[g2] == null) ok = false;
+        }
+        if (!ok) continue;
+        var sg = group[0].Value.AddComponent<SelectGroup>();
+        sg.members = members;
+        sg.selected = 0;
+        Debug.Log("UI Kit Maker: wired a select row — " + group.Count + " × " + NiceName(group[0].Key.component) + " (click one in Play mode, it holds its pressed face).");
+      }
+    }
     [MenuItem("Tools/PatternBreak/Rebuild Kit Board Scenes")]
     public static void RebuildBoardScenes() {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
@@ -4567,6 +5550,13 @@ namespace PatternBreak {
     }
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
+    /* the app-true label size for BOARD SCENES — the 0.74-fitted size is
+       for loose prefab rects; a placed copy's rect is the app's own shell */
+    static float LabelSizeScene(PBManifest m, string family) {
+      if (m != null && m.labelSizes != null)
+        foreach (var e in m.labelSizes) if (e.family == family && e.scene > 0f) return e.scene;
+      return 0f;
+    }
     static float LabelSize(PBManifest m, string family) {
       // the app's own per-family size, shipped in the manifest; the single
       // style.labelSize covers older zips
@@ -4597,6 +5587,9 @@ namespace PatternBreak {
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      // the word centers on the FACE, not the sprite rect (extrusion pulls
+      // the rect's center below the shell — labels read low without this)
+      ShellStretch(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
       if (layersFa != null && strokeInk != null) {
@@ -4783,6 +5776,9 @@ namespace PatternBreak {
       var face = EnsureTmpFace(root, m, kitFont);
       if (face != null) {
         AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, LabelSize(m, family));
+        // center on the FACE, not the sprite rect (see AddBakedLabel)
+        var lr0 = FindOurLabelRoot(parent);
+        if (lr0 != null) ShellStretch(lr0, parent, family, m);
         return;
       }
 #endif
@@ -4791,6 +5787,7 @@ namespace PatternBreak {
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      ShellStretch(go, parent, family, m);
       var t = go.GetComponent<Text>();
       t.text = text;
       t.alignment = TextAnchor.MiddleCenter;
@@ -4854,6 +5851,57 @@ namespace PatternBreak {
          child named so its job is obvious — retype it, bind it to your
          field's placeholder slot, or select it and press Delete. */
       if (baseAsset.component == "input") AddPlaceholder(go, root, m, kitFont);
+      /* the end-turn countdown ring, LIVE: Filled/Radial360 over the bare
+         shell, tinted to the kit Glow, staged at 0.7 — drive fillAmount
+         and it animates (owner: "the countdown numerics should be
+         dynamic") */
+      if (baseAsset.component == "endturn") {
+        var arcSp = S(root + "/assets/endturn/endturn-arc.png");
+        if (arcSp != null) {
+          var arcGo = ImageObject("Arc", arcSp, pngScale);
+          arcGo.transform.SetParent(go.transform, false);
+          var ai = arcGo.GetComponent<Image>();
+          ai.type = Image.Type.Filled;
+          ai.fillMethod = Image.FillMethod.Radial360;
+          ai.fillOrigin = (int)Image.Origin360.Top;
+          ai.fillAmount = 0.7f;
+          ai.raycastTarget = false;
+          Color arcC;
+          if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out arcC)) ai.color = arcC;
+          var art2 = arcGo.GetComponent<RectTransform>();
+          // the ring hugs the SHELL, not the sprite rect (extrusion air)
+          Vector2 shlA;
+          var hostSz9 = ShellCenterAnchor(arcGo, go, baseAsset.component, m, out shlA) ? shlA : go.GetComponent<RectTransform>().sizeDelta;
+          float ring = Mathf.Min(hostSz9.x, hostSz9.y) * 0.92f;
+          art2.sizeDelta = new Vector2(ring, ring);
+        }
+      }
+      /* the badge shell reads unfinished bare (owner: "shouldn't this
+         have an icon or something?") — it carries the kit's star glyph as
+         a swappable child, tinted like the app's mark: delete it, retint
+         it, or drop your own art in its place */
+      if (baseAsset.component == "badge") {
+        var glyph = S(root + "/assets/icons/star.png");
+        if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
+        if (glyph != null) {
+          var gGo = ImageObject("Icon", glyph, pngScale);
+          gGo.transform.SetParent(go.transform, false);
+          var gi = gGo.GetComponent<Image>();
+          gi.raycastTarget = false;
+          string gTint = m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.markInk) ? m.palette.markInk : (m != null && m.palette != null ? m.palette.glow : null);
+          Color gc2;
+          if (!string.IsNullOrEmpty(gTint) && ColorUtility.TryParseHtmlString(gTint, out gc2)) gi.color = gc2;
+          var grt = gGo.GetComponent<RectTransform>();
+          // shell-true proportions (the sprite rect over-measures with air)
+          Vector2 shlB;
+          var badgeSz = ShellCenterAnchor(gGo, go, baseAsset.component, m, out shlB) ? shlB : go.GetComponent<RectTransform>().sizeDelta;
+          float side = Mathf.Min(badgeSz.x, badgeSz.y) * 0.44f;
+          grt.sizeDelta = new Vector2(side, side);
+          // optical center: the shield's point hangs low — sit the glyph
+          // slightly above true center like the app does
+          grt.anchoredPosition = new Vector2(0f, badgeSz.y * 0.06f);
+        }
+      }
       if (label != null) {
 #if UNITY_2023_2_OR_NEWER
         // exact pixels first: the baked faces when the kit ships them and
@@ -4870,9 +5918,103 @@ namespace PatternBreak {
       var labelRoot = FindOurLabelRoot(go);
       if (labelRoot != null) WireLabelStates(go, labelRoot, m, baseAsset.component);
 #endif
+      // last child = drawn last: the streak crosses the label, like the app
+      AddSpecular(go, root, baseAsset.component, m);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    /* the ENGINE-COMPOSED specular streak (owner: "translated very
+       bluntly, needs more nuance") — the sliced base dropped the baked
+       streak, and this overlays <fam>-specular.png anchored SHELL-TO-SHELL:
+       the manifest records each sprite's shell box, so the child's anchors
+       land its shell exactly on the root's shell no matter how either was
+       cropped, and the streak scales WITH the piece instead of smearing
+       through the nine-slice. */
+    /* the SHELL is the shared reference frame for prefab CONTENT.
+       Sprites are cropped with extrusion depth, glow slack and asymmetric
+       margins in the pixels, so the sprite rect's center is NOT the
+       face's center — a rect-centered label or icon reads low and off
+       (owner: "the stacking is off… at the prefab level"). These helpers
+       anchor children to the manifest's measured shell box instead, so
+       content sits exactly where the app drew it, on every family, every
+       kit, every future export. */
+    static PBAsset ShellRowOf(GameObject host, string fam, PBManifest m) {
+      if (m == null || m.assets == null) return null;
+      var img = host.GetComponent<Image>();
+      var sp2 = img != null ? img.sprite : null;
+      if (sp2 == null) return null;
+      PBAsset byBase = null;
+      foreach (var a in m.assets) {
+        if (a == null || a.component != fam || a.shell == null || a.shell.w < 2f) continue;
+        if (a.file != null && a.file.EndsWith("/" + sp2.name + ".png")) return a;
+        if (byBase == null && a.part == "base") byBase = a;
+      }
+      return byBase;
+    }
+    /* stretch a child over the shell box (labels, placeholders) */
+    static bool ShellStretch(GameObject child, GameObject host, string fam, PBManifest m) {
+      var row = ShellRowOf(host, fam, m);
+      var img = host.GetComponent<Image>();
+      if (row == null || img == null || img.sprite == null) return false;
+      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
+      if (rw < 2f || rh < 2f) return false;
+      var rt = child.GetComponent<RectTransform>();
+      rt.anchorMin = new Vector2(row.shell.x / rw, 1f - (row.shell.y + row.shell.h) / rh);
+      rt.anchorMax = new Vector2((row.shell.x + row.shell.w) / rw, 1f - row.shell.y / rh);
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      return true;
+    }
+    /* pin a child to the shell's CENTER and report the shell's size in
+       the host's rect units (icons, rings, counters, thumbs) */
+    static bool ShellCenterAnchor(GameObject child, GameObject host, string fam, PBManifest m, out Vector2 shellSize) {
+      shellSize = Vector2.zero;
+      var row = ShellRowOf(host, fam, m);
+      var img = host.GetComponent<Image>();
+      if (row == null || img == null || img.sprite == null) return false;
+      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
+      if (rw < 2f || rh < 2f) return false;
+      var hostRt = host.GetComponent<RectTransform>();
+      shellSize = new Vector2(hostRt.sizeDelta.x * (row.shell.w / rw), hostRt.sizeDelta.y * (row.shell.h / rh));
+      var rt = child.GetComponent<RectTransform>();
+      var c = new Vector2((row.shell.x + row.shell.w / 2f) / rw, 1f - (row.shell.y + row.shell.h / 2f) / rh);
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = Vector2.zero;
+      return true;
+    }
+    static void AddSpecular(GameObject go, string root, string fam, PBManifest m) {
+      if (m == null || m.assets == null) return;
+      var sp = S(root + "/assets/" + fam + "/" + fam + "-specular.png");
+      if (sp == null) return;
+      var rootImg = go.GetComponent<Image>();
+      var rootSp = rootImg != null ? rootImg.sprite : null;
+      if (rootSp == null || rootSp.rect.width < 2f) return;
+      PBAsset specRow = null, rootRow = null;
+      foreach (var a in m.assets) {
+        if (a == null || a.component != fam) continue;
+        if (a.part == "specular" && a.shell != null) specRow = a;
+        if (a.file != null && a.shell != null && a.file.EndsWith("/" + rootSp.name + ".png")) rootRow = a;
+      }
+      if (specRow == null || rootRow == null) return;
+      var shR = rootRow.shell; var shS = specRow.shell;
+      if (shR.w < 2f || shR.h < 2f || shS.w < 2f || shS.h < 2f) return;
+      float rw = rootSp.rect.width, rh = rootSp.rect.height;
+      float sw = sp.rect.width, sh = sp.rect.height;
+      // child size as a fraction of the root rect, shell-to-shell
+      float cw = (sw / shS.w) * (shR.w / rw);
+      float ch = (sh / shS.h) * (shR.h / rh);
+      // sprite space is y-down, anchors are y-up — flip the vertical
+      float ax0 = shR.x / rw - (shS.x / sw) * cw;
+      float ayTop = 1f - (shR.y / rh - (shS.y / sh) * ch);
+      var sGo = new GameObject("Specular", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      sGo.transform.SetParent(go.transform, false);
+      var im = sGo.GetComponent<Image>();
+      im.sprite = sp;
+      im.raycastTarget = false;
+      var rtS = sGo.GetComponent<RectTransform>();
+      rtS.anchorMin = new Vector2(ax0, ayTop - ch);
+      rtS.anchorMax = new Vector2(ax0 + cw, ayTop);
+      rtS.offsetMin = Vector2.zero; rtS.offsetMax = Vector2.zero;
     }
     /* A state sprite is nine-sliced on the stretchy families and plain on
        the round ones (an icon button or a radio has nothing to stretch), so
@@ -4880,8 +6022,16 @@ namespace PatternBreak {
        icon button, checkbox and radio arrived with no Button at all —
        their states shipped, nothing ever read them. */
     static Sprite State(string famDir, string name) {
-      var nine = S(famDir + "/base-" + name + ".9.png");
-      return nine != null ? nine : S(famDir + "/base-" + name + ".png");
+      /* FINDABLE-NAMES era first (button-primary-base-hover.9.png), the
+         legacy short names second. Probing only the short names is why a
+         renamed zip generated prefabs with NO states at all — hover,
+         pressed and disabled shipped, nothing ever found them (field:
+         "the button states aren't fully coming through"). */
+      var famName = Path.GetFileName(famDir);
+      var s = S(famDir + "/" + famName + "-base-" + name + ".9.png");
+      if (s == null) s = S(famDir + "/" + famName + "-base-" + name + ".png");
+      if (s == null) s = S(famDir + "/base-" + name + ".9.png");
+      return s != null ? s : S(famDir + "/base-" + name + ".png");
     }
     /* the glow and the lift, wired from the kit's own state dials. Only
        goes on pieces that actually swap — a panel has no hover to announce. */
@@ -4905,7 +6055,11 @@ namespace PatternBreak {
          for a family that ships no aura (owner, on the blob: "looks pretty
          generic… very big and not as soft comparatively"). */
       var baseSp = S(basePath);
-      var glowSp = S(Path.GetDirectoryName(basePath).Replace("\\\\", "/") + "/glow.png");
+      // renamed name first, legacy second — the short-name-only probe sent
+      // every renamed kit to the generic blob the owner already vetoed
+      var glowDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
+      var glowSp = S(glowDir + "/" + Path.GetFileName(glowDir) + "-glow.png");
+      if (glowSp == null) glowSp = S(glowDir + "/glow.png");
       fx.glowSprite = glowSp != null ? glowSp : S(root + "/assets/fx/fx-glow.png");
       if (glowSp != null && baseSp != null && pngScale > 0)
         fx.glowPad = new Vector2(
@@ -4926,6 +6080,11 @@ namespace PatternBreak {
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
       if (family == "tab") return "TAB";
+      if (family == "tab-back") return "BACK";
+      if (family == "endturn") return "END TURN";
+      if (family == "keycap") return "E";
+      if (family == "pricebtn") return "$4.99";
+      if (family == "header-banner") return "SETTINGS";
       return "PLAY";
     }
     static bool ProgressPrefab(string dir, string root, int pngScale) {
@@ -4956,7 +6115,7 @@ namespace PatternBreak {
        over (Sliced) lays the gloss back on top. Stretch this to any width
        and the frame stretches, the pattern tiles at constant scale, and
        the gloss stays one sweep — what the app shows, at any size. */
-    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam) {
+    static bool TiledFacePrefab(string dir, string root, int pngScale, string fam, string label, Font kitFont, PBManifest m) {
       var under = S(root + "/assets/" + fam + "/" + fam + "-base-under.9.png");
       var over = S(root + "/assets/" + fam + "/" + fam + "-base-over.9.png");
       var tile = S(root + "/assets/fx/fx-face-tile.png");
@@ -4990,13 +6149,84 @@ namespace PatternBreak {
       oi.type = Image.Type.Sliced;
       oi.raycastTarget = false;
       StretchFull(ov.GetComponent<RectTransform>());
+      /* the layered build is still a real control (field: "No text on the
+         button primary"): same label and state dress as the plain prefab —
+         but NO sprite swap. Swapping the under layer to the full-material
+         state art would double the pattern and gloss; states ride the
+         engine side instead (Button for the click, StateFx for the kit's
+         glow and lift, label ink shifts via the same wiring). */
+      var famDirT = root + "/assets/" + fam;
+      if (State(famDirT, "hover") != null || State(famDirT, "pressed") != null || State(famDirT, "disabled") != null) {
+        var btn = go.AddComponent<Button>();
+        btn.targetGraphic = ui;
+        btn.transition = Selectable.Transition.None;
+        WireStateFx(go, root, m, fam, famDirT + "/" + fam + "-base.9.png", pngScale);
+      }
+      if (label != null) {
+#if UNITY_2023_2_OR_NEWER
+        var bakedFaceT = BakedLabelFace(m, root, fam);
+        if (bakedFaceT != null) AddBakedLabel(go, label, root, bakedFaceT, m, fam);
+        else
+#endif
+        AddLabel(go, label, kitFont, root, m, fam);
+#if UNITY_2023_2_OR_NEWER
+        var labelRootT = FindOurLabelRoot(go);
+        if (labelRootT != null) WireLabelStates(go, labelRootT, m, fam);
+#endif
+      }
+      /* the press must move the WHOLE piece, not just the words (field:
+         "only the text goes down, not the entire button"): the plain
+         prefab's face sinks inside its pressed SPRITE, but the layered
+         build swaps nothing — so the sink rides StateFx as a lift, and
+         the label's own shift zeroes (it moves WITH the piece now; both
+         shifting doubled the ride) */
+      float sinkT = ExpectedShift(m, fam, "pressed");
+      if (sinkT != 0f && go.GetComponent<Selectable>() != null) {
+        var fxT = go.GetComponent<StateFx>();
+        if (fxT == null) fxT = go.AddComponent<StateFx>();
+        if (Mathf.Approximately(fxT.pressedLift, 0f)) fxT.pressedLift = -sinkT;
+        var inkT = go.GetComponent<LabelStateInk>();
+        if (inkT != null) { inkT.pressedShift = 0f; inkT.hoverShift = 0f; }
+      }
+      // last child = drawn last: the streak crosses the label, like the app
+      AddSpecular(go, root, fam, m);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the count badge, LIVE: bare circle + real text digits — drive the
+       number and it animates (owner: "the countdown numerics should be
+       dynamic"). No Button: it is an indicator, not a control. */
+    static bool CountBadgePrefab(string dir, string root, int pngScale, PBManifest m) {
+      var bg = S(root + "/assets/countbadge/countbadge-base-plain.png");
+      if (bg == null) return false;
+      var go = ImageObject("CountBadge", bg, pngScale);
+      go.GetComponent<Image>().raycastTarget = false;
+#if UNITY_2023_2_OR_NEWER
+      var tGo = new GameObject("Count", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      tGo.transform.SetParent(go.transform, false);
+      var tm = tGo.GetComponent<TextMeshProUGUI>();
+      tm.text = "3";
+      tm.alignment = TextAlignmentOptions.Center;
+      tm.fontStyle = FontStyles.Bold;
+      tm.color = Color.white;
+      tm.raycastTarget = false;
+      // the digits center on the circle SHELL, not the padded sprite rect
+      Vector2 shlC;
+      var hostSz = ShellCenterAnchor(tGo, go, "countbadge", m, out shlC) ? shlC : go.GetComponent<RectTransform>().sizeDelta;
+      var trt = tGo.GetComponent<RectTransform>();
+      trt.sizeDelta = hostSz;
+      tm.enableAutoSizing = true;
+      tm.fontSizeMin = 8f;
+      tm.fontSizeMax = hostSz.y * 0.6f;
+#endif
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/CountBadge.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
     /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
        drop it on a Canvas, press Play, drag. Value is the direction. */
-    static bool JoystickPrefab(string dir, string root, int pngScale) {
+    static bool JoystickPrefab(string dir, string root, int pngScale, PBManifest m) {
       var baseSp = S(root + "/assets/joystick/joystick-base.png");
       var thumbSp = S(root + "/assets/joystick/joystick-thumb.png");
       if (baseSp == null || thumbSp == null) return false;
@@ -5006,10 +6236,274 @@ namespace PatternBreak {
       th.GetComponent<Image>().raycastTarget = false;
       var stick = go.AddComponent<TouchStick>();
       stick.thumb = th.GetComponent<RectTransform>();
-      float half = (baseSp.rect.width / pngScale) * 0.5f;
+      /* the thumb RESTS ON THE WELL'S CENTER — the base sprite's rect
+         center drifts off the well (padded canvas), and a rect-centered
+         thumb read low-left (owner). Travel radius comes from the shell
+         too, so the thumb never leaves the pad. */
+      Vector2 shlJ;
+      float half = ShellCenterAnchor(th, go, "joystick", m, out shlJ)
+        ? Mathf.Min(shlJ.x, shlJ.y) * 0.5f
+        : (baseSp.rect.width / pngScale) * 0.5f;
       float thumbHalf = (thumbSp.rect.width / pngScale) * 0.5f;
       stick.radius = Mathf.Max(20f, half - thumbHalf - 6f);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Joystick.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the MINI-MAP, ALIVE (owner: "can we get some movement on the radar?
+       … loosely wired up for real world use") — the kit frame plus a
+       RadarDemo: sweeping line, two drifting blips, everything it moves
+       named "Demo …" so a dev deletes the demo in two keystrokes and
+       drives their own icons through the same component. */
+    static bool MinimapPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var sp = S(root + "/assets/extras/extras-minimap.png");
+      if (sp == null) return false;
+      var go = ImageObject("Minimap", sp, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Simple;
+      var radar = go.AddComponent<RadarDemo>();
+      Color tint = Color.white;
+      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) ColorUtility.TryParseHtmlString(m.palette.glow, out tint);
+      var sweep = new GameObject("Demo Sweep", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      sweep.transform.SetParent(go.transform, false);
+      var swIm = sweep.GetComponent<Image>();
+      swIm.raycastTarget = false;
+      swIm.color = new Color(tint.r, tint.g, tint.b, 0.55f);
+      Vector2 shlM;
+      bool anchored = ShellCenterAnchor(sweep, go, "minimap", m, out shlM);
+      float wellR = anchored ? Mathf.Min(shlM.x, shlM.y) * 0.38f : go.GetComponent<RectTransform>().sizeDelta.x * 0.3f;
+      var swRt = sweep.GetComponent<RectTransform>();
+      swRt.pivot = new Vector2(0f, 0.5f);
+      swRt.sizeDelta = new Vector2(wellR, 2.5f);
+      radar.sweep = swRt;
+      var blipSp = S(root + "/assets/icons/dot.png");
+      var blips = new RectTransform[2];
+      for (int i = 0; i < 2; i++) {
+        var bGo = new GameObject("Demo Blip " + (i + 1), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bGo.transform.SetParent(go.transform, false);
+        var bIm = bGo.GetComponent<Image>();
+        bIm.raycastTarget = false;
+        bIm.color = tint;
+        if (blipSp != null) bIm.sprite = blipSp;
+        Vector2 shl2;
+        ShellCenterAnchor(bGo, go, "minimap", m, out shl2);
+        var bRt = bGo.GetComponent<RectTransform>();
+        bRt.sizeDelta = new Vector2(9f, 9f);
+        bRt.anchoredPosition = new Vector2(i == 0 ? -wellR * 0.35f : wellR * 0.3f, i == 0 ? wellR * 0.25f : -wellR * 0.4f);
+        blips[i] = bRt;
+      }
+      radar.blips = blips;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Minimap.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the settings SLIDER, WIRED (owner: "let's get those settings screens
+       working this round") — a real Unity Slider dressed in the
+       component's own layers: shell+well track, silhouette-true mercury,
+       candy knob. Drag it in Play mode and it IS the Board's piece. */
+    static bool SliderPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/slider/slider-track.9.png");
+      var fill = S(root + "/assets/slider/slider-fill.9.png");
+      var thumb = S(root + "/assets/slider/slider-thumb.png");
+      if (track == null || fill == null || thumb == null) return false;
+      var go = ImageObject("Slider", track, pngScale);
+      var rt = go.GetComponent<RectTransform>();
+      float trackW = rt.sizeDelta.x, trackH = rt.sizeDelta.y;
+      float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
+      float thumbW = thumb.rect.width / pngScale, thumbH = thumb.rect.height / pngScale;
+      /* the moving parts must ride the SHELL line, not the rect center —
+         the track sprite's extrusion pads its bottom, so the rect center
+         sits BELOW the visible bar and every rect-centered child landed
+         ~8-10px south of the well (owner, with the exact number). The
+         manifest's shell box says where the bar really is. */
+      float upS = 0f;
+      if (m != null && m.assets != null) {
+        foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "slider" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f && track.rect.height > 1f)
+            upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+          break;
+        }
+      }
+      // the mercury's inset inside the shell, straight from the sprites
+      float inX = Mathf.Max(2f, (trackW - fillW) * 0.5f);
+      float inY = Mathf.Max(2f, (trackH - fillH) * 0.5f);
+      var area = new GameObject("Fill Area", typeof(RectTransform));
+      area.transform.SetParent(go.transform, false);
+      var art = area.GetComponent<RectTransform>();
+      art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
+      art.offsetMin = new Vector2(inX, inY); art.offsetMax = new Vector2(-inX, -inY);
+      art.anchoredPosition += new Vector2(0f, upS);
+      var fillGo = ImageObject("Fill", fill, pngScale);
+      fillGo.transform.SetParent(area.transform, false);
+      var fImg = fillGo.GetComponent<Image>();
+      fImg.raycastTarget = false;
+      /* the app CLIPS the full-run mercury at the value line; Filled mode
+         is that exact semantic (the Slider drives fillAmount and leaves
+         the rect alone). Sliced-into-the-value-rect drew a different
+         picture: caps intact, body squashed, gradient compressed. */
+      fImg.type = Image.Type.Filled;
+      fImg.fillMethod = Image.FillMethod.Horizontal;
+      fImg.fillOrigin = (int)Image.OriginHorizontal.Left;
+      fImg.fillAmount = 0.62f;
+      var frt = fillGo.GetComponent<RectTransform>();
+      frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+      frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      var slideArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+      slideArea.transform.SetParent(go.transform, false);
+      var srt = slideArea.GetComponent<RectTransform>();
+      srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
+      // endpoint clamp like the app: the knob stays inside the shell
+      float lane = thumbW * 0.5f + 2f;
+      srt.offsetMin = new Vector2(lane, 0f); srt.offsetMax = new Vector2(-lane, 0f);
+      srt.anchoredPosition += new Vector2(0f, upS); // knob rides the bar, not the rect
+      var handle = ImageObject("Handle", thumb, pngScale);
+      handle.transform.SetParent(slideArea.transform, false);
+      var hImg = handle.GetComponent<Image>();
+      hImg.type = Image.Type.Simple;
+      // belt and braces: whatever a layout pass does to the rect, the
+      // knob stays round (field: "eggshaped handles")
+      hImg.preserveAspect = true;
+      var hrt = handle.GetComponent<RectTransform>();
+      hrt.sizeDelta = new Vector2(thumbW, thumbH);
+      var sl = go.AddComponent<Slider>();
+      sl.fillRect = frt;
+      sl.handleRect = hrt;
+      sl.targetGraphic = handle.GetComponent<Image>();
+      sl.value = 0.62f;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Slider.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the settings SWITCH, WIRED — Unity Toggle + SwitchGlide: the candy
+       knob slides across the component's own track and swaps its ON/OFF
+       dot, exactly like the piece on the Board. */
+    static bool SwitchPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/toggle/toggle-track.9.png");
+      var knobOn = S(root + "/assets/toggle/toggle-thumb.png");
+      var knobOff = S(root + "/assets/toggle/toggle-thumb-off.png");
+      if (track == null || knobOn == null) return false;
+      var go = ImageObject("Switch", track, pngScale);
+      var knob = ImageObject("Knob", knobOn, pngScale);
+      knob.transform.SetParent(go.transform, false);
+      var ki = knob.GetComponent<Image>();
+      ki.raycastTarget = false;
+      ki.type = Image.Type.Simple;
+      ki.preserveAspect = true; // the knob stays round under any layout
+      var krt = knob.GetComponent<RectTransform>();
+      krt.anchorMin = new Vector2(0.5f, 0.5f); krt.anchorMax = new Vector2(0.5f, 0.5f);
+      /* the knob rides the SHELL line, not the rect center — the track
+         sprite's extrusion pads its bottom, so a rect-centered knob sat
+         ~8-10px south of the switch's well (owner, with the number) */
+      if (m != null && m.assets != null) {
+        foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "toggle" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f && track.rect.height > 1f)
+            krt.anchoredPosition = new Vector2(0f, (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * (track.rect.height / pngScale));
+          break;
+        }
+      }
+      var tog = go.AddComponent<Toggle>();
+      tog.targetGraphic = go.GetComponent<Image>();
+      tog.isOn = true;
+      var glide = go.AddComponent<SwitchGlide>();
+      glide.knob = krt;
+      glide.onSprite = knobOn;
+      glide.offSprite = knobOff != null ? knobOff : knobOn;
+      glide.Snap();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Switch.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the FIRE BUTTON, WIRED (owner: "when you swipe left or right the
+       center icon changes… is it possible to bring that wiring /
+       animation into Unity") — bare dome + waiting chambers + live
+       tintable glyphs + the FireButton swipe runtime. Geometry mirrors
+       the app's carousel: chamber sprites ship at their true sizes and
+       sit tangent to the dome at -90 / -135 / -180 degrees. */
+    static bool FireButtonPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var dome = S(root + "/assets/firebutton/firebutton-dome.png");
+      if (dome == null) return false;
+      var pressed = S(root + "/assets/firebutton/firebutton-dome-pressed.png");
+      var disabled = S(root + "/assets/firebutton/firebutton-dome-disabled.png");
+      /* the arsenal, KIT-THEMED first (owner: "make the icons more
+         on-brand… follow what is there in the boards"): the pre-themed
+         glyph bakes carry the app's outline + lit fill + glow halo; the
+         flat icons/ set is only the fallback for old zips, tinted. */
+      string[] wNames = new string[] { "sword", "zap", "flask", "shield" };
+      var weapons = new Sprite[4];
+      bool themed = false;
+      for (int wn = 0; wn < 4; wn++) {
+        weapons[wn] = S(root + "/assets/firebutton/firebutton-glyph-" + wNames[wn] + ".png");
+        if (weapons[wn] != null) themed = true;
+        else weapons[wn] = S(root + "/assets/icons/" + wNames[wn] + ".png");
+      }
+      var go = ImageObject("Firebutton", dome, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Simple;
+      var rt = go.GetComponent<RectTransform>();
+      float domeW = rt.sizeDelta.x;
+      // fallback ink for flat glyphs: the Glow role lifted toward white
+      Color ink = Color.white;
+      if (!themed && m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) {
+        Color g2; if (ColorUtility.TryParseHtmlString(m.palette.glow, out g2)) ink = Color.Lerp(g2, Color.white, 0.15f);
+      }
+      var fb = go.AddComponent<FireButton>();
+      // the armed glyph, centered on the dome's SHELL
+      var wGo = new GameObject("Weapon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      wGo.transform.SetParent(go.transform, false);
+      var wIm = wGo.GetComponent<Image>();
+      wIm.raycastTarget = false; wIm.preserveAspect = true; wIm.color = ink;
+      Vector2 shlF;
+      float domeShellW = ShellCenterAnchor(wGo, go, "firebutton", m, out shlF) ? Mathf.Min(shlF.x, shlF.y) : domeW;
+      var wRt = wGo.GetComponent<RectTransform>();
+      wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
+      // the app seats the armed glyph a touch BELOW the dome's center
+      // (cy + kr·0.14) — the up-nudge read off-center (owner)
+      wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
+      fb.weapon = wIm;
+      // waiting chambers, tangent to the dome's upper-left arc
+      var chambers = new Image[3];
+      float[] ang = new float[] { -90f, -135f, -180f };
+      for (int i = 0; i < 3; i++) {
+        var satSp = S(root + "/assets/firebutton/firebutton-sat" + (i + 1) + ".png");
+        if (satSp == null) continue;
+        var sGo = ImageObject("Chamber" + (i + 1), satSp, pngScale);
+        sGo.transform.SetParent(go.transform, false);
+        var sIm = sGo.GetComponent<Image>();
+        sIm.raycastTarget = false; sIm.type = Image.Type.Simple;
+        // chambers orbit the SHELL center, tangent to the dome's edge
+        Vector2 shlS9;
+        ShellCenterAnchor(sGo, go, "firebutton", m, out shlS9);
+        var sRt = sGo.GetComponent<RectTransform>();
+        float satW = sRt.sizeDelta.x;
+        float orbit = domeShellW * 0.5f + satW * 0.5f - 3f;
+        float a = ang[i] * Mathf.Deg2Rad;
+        // app space is y-down: -90° = straight up, the arc walks left
+        sRt.anchoredPosition = new Vector2(Mathf.Cos(a), -Mathf.Sin(a)) * orbit;
+        var gGo = new GameObject("Glyph", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        gGo.transform.SetParent(sGo.transform, false);
+        var gIm = gGo.GetComponent<Image>();
+        gIm.raycastTarget = false; gIm.preserveAspect = true; gIm.color = ink;
+        gGo.GetComponent<RectTransform>().sizeDelta = new Vector2(satW, satW) * 0.72f;
+        chambers[i] = gIm;
+      }
+      fb.chambers = chambers;
+      // the arsenal — a missing glyph just shortens the cycle
+      int nW = 0; foreach (var wsp in weapons) if (wsp != null) nW++;
+      var ws = new Sprite[nW]; int wi = 0;
+      foreach (var wsp in weapons) if (wsp != null) ws[wi++] = wsp;
+      fb.weapons = ws;
+      fb.DealNow(); // strike the armed pose so the prefab reads in edit mode
+      // press/disabled ride Sprite Swap; the press sink is in the pixels
+      var btn = go.AddComponent<Button>();
+      btn.targetGraphic = go.GetComponent<Image>();
+      if (pressed != null || disabled != null) {
+        btn.transition = Selectable.Transition.SpriteSwap;
+        var st2 = btn.spriteState;
+        st2.pressedSprite = pressed;
+        st2.disabledSprite = disabled;
+        btn.spriteState = st2;
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Firebutton.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -5020,8 +6514,11 @@ namespace PatternBreak {
        and hides it natively. The designed ghost-mark prefabs stay too. */
     static bool TogglePrefabs(string dir, string root, int pngScale, PBManifest m) {
       bool any = false;
-      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.52f, m != null && m.palette != null ? m.palette.markInk : null)) any = true;
-      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.34f, m != null && m.palette != null ? m.palette.radioInk : null)) any = true;
+      // marks slightly inset + aspect-true (owner: the native toggles
+      // "look terrible" — the stretched, edge-kissing marks were most of it)
+      if (ToggleOne(dir, root, pngScale, m, "checkbox/checkbox-base-plain.png", "icons/check.png", "CheckboxToggle", 0.44f, m != null && m.palette != null ? m.palette.markInk : null)) any = true;
+      if (ToggleOne(dir, root, pngScale, m, "radio/radio-base-plain.png", "icons/dot.png", "RadioToggle", 0.3f, m != null && m.palette != null ? m.palette.radioInk : null)) any = true;
+      if (CountBadgePrefab(dir, root, pngScale, m)) any = true;
       return any;
     }
     static bool ToggleOne(string dir, string root, int pngScale, PBManifest m, string bgPath, string markPath, string name, float markScale, string ink) {
@@ -5033,6 +6530,7 @@ namespace PatternBreak {
       markGo.transform.SetParent(go.transform, false);
       var mi = markGo.GetComponent<Image>();
       mi.raycastTarget = false;
+      mi.preserveAspect = true; // a stretched mark reads broken instantly
       // the mark wears the kit's mark ink (the maker's Pressed-state icon
       // color when set), like the app's lit check — old manifests ship no
       // markInk and fall back to the Glow role, the tint they always had
@@ -5176,15 +6674,8 @@ namespace PatternBreak {
       return true;
     }
 #endif
-    static bool GeneratePrefabs(string root, PBManifest m) {
+    static bool RunPrefabBuilders(string dir, string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
-      bool createdHere = false;
-      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
-        var created = AssetDatabase.CreateFolder(root, "Prefabs");
-        if (string.IsNullOrEmpty(created)) return false;
-        createdHere = true;
-      }
-      var dir = root + "/Prefabs";
       bool any = false;
       // the kit's own face, shipped in fonts/ with its license — labels wire to it
       Font kitFont = null;
@@ -5192,23 +6683,40 @@ namespace PatternBreak {
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
       if (ProgressPrefab(dir, root, pngScale)) any = true;
       // the RIGS: working controls composed from their layer sprites
-      if (JoystickPrefab(dir, root, pngScale)) any = true;
+      if (JoystickPrefab(dir, root, pngScale, m)) any = true;
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
+      if (MinimapPrefab(dir, root, pngScale, m)) any = true;
       if (TogglePrefabs(dir, root, pngScale, m)) any = true;
+      if (SliderPrefab(dir, root, pngScale, m)) any = true;
+      if (SwitchPrefab(dir, root, pngScale, m)) any = true;
+      if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale)) any = true;
-      // the wide, stateless pieces also get a stretch-safe variant when
-      // the kit wears a pattern (the plain Sliced prefab still ships)
-      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) if (TiledFacePrefab(dir, root, pngScale, tf)) any = true;
+      /* the stretch-safe variants live in their OWN folder (owner: "we
+         need to draw a distinction between 9 slice elements and not…
+         two different folders") — Prefabs/ stays the drag-in pieces,
+         Prefabs/Tiled face/ is the pattern-true stretch flavor */
+      var tiledDir = dir + "/Tiled face";
+      bool hadTiledDir = AssetDatabase.IsValidFolder(tiledDir);
+      if (!hadTiledDir) AssetDatabase.CreateFolder(dir, "Tiled face");
+      bool anyTiled = false;
+      foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) {
+        var tl = (tf == "button-primary" || tf == "button-secondary" || tf == "header-banner") ? DefaultLabel(tf) : null;
+        if (TiledFacePrefab(tiledDir, root, pngScale, tf, tl, kitFont, m)) { any = true; anyTiled = true; }
+      }
+      // a kit with no pattern builds no tiled faces — leave no empty folder
+      if (!anyTiled && !hadTiledDir) AssetDatabase.DeleteAsset(tiledDir);
 #if UNITY_2023_2_OR_NEWER
       if (SeasonTrackPrefab(dir, root, pngScale, m)) any = true;
 #endif
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
-      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab" };
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras" };
+      /* firebutton joined the composed rigs: FireButtonPrefab builds the
+         wired swipe carousel, so the generic base-sprite prefab bows out */
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton" };
       foreach (var a in m.assets) {
         if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
         if (skip.Contains(a.component)) continue;
@@ -5219,11 +6727,60 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
+      return any;
+    }
+    static bool GeneratePrefabs(string root, PBManifest m) {
+      bool createdHere = false;
+      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) {
+        var created = AssetDatabase.CreateFolder(root, "Prefabs");
+        if (string.IsNullOrEmpty(created)) return false;
+        createdHere = true;
+      }
+      var dir = root + "/Prefabs";
+      bool any = RunPrefabBuilders(dir, root, m);
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
       return any;
+    }
+    /* MaintainExamplePrefabs' surgical sibling: a kit UPDATE can carry
+       components this project has never had prefabs for (the "7 skipped,
+       no prefab yet" board-scene report) — build exactly those, never
+       touching an existing prefab (yours after first generation). The
+       builders run into a staging folder; only names the project lacks
+       move over, the rest is discarded. */
+    static void GenerateMissingPrefabs(string root, PBManifest m) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir) || m == null) return;
+      var have = new HashSet<string>();
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
+        have.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(g)));
+      var stage = root + "/PrefabsStaging";
+      if (AssetDatabase.IsValidFolder(stage)) AssetDatabase.DeleteAsset(stage);
+      if (string.IsNullOrEmpty(AssetDatabase.CreateFolder(root, "PrefabsStaging"))) return;
+      int added = 0;
+      try {
+        RunPrefabBuilders(stage, root, m);
+        foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { stage })) {
+          var p = AssetDatabase.GUIDToAssetPath(g);
+          var name = Path.GetFileName(p);
+          if (have.Contains(name)) continue;
+          /* the staged layout carries subfolders (Tiled face) — a missing
+             prefab moves into the SAME subfolder, not the root */
+          var rel = p.Substring(stage.Length + 1);
+          var sub = Path.GetDirectoryName(rel).Replace("\\\\", "/");
+          var targetDir = dir;
+          if (!string.IsNullOrEmpty(sub)) {
+            targetDir = dir + "/" + sub;
+            if (!AssetDatabase.IsValidFolder(targetDir)) AssetDatabase.CreateFolder(dir, sub);
+          }
+          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) added++;
+        }
+      } finally {
+        AssetDatabase.DeleteAsset(stage);
+      }
+      if (added > 0) Debug.Log("UI Kit Maker: " + added + " new prefab(s) added for this kit's newer pieces — existing prefabs untouched.");
     }
     /* Per-import maintenance for OUR example prefabs — the two things that
        must track the kit even though "your prefabs are yours" (owner field
@@ -5242,7 +6799,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -5274,12 +6831,57 @@ namespace PatternBreak {
         var hover = State(famDir, "hover");
         var pressed = State(famDir, "pressed");
         var disabled = State(famDir, "disabled");
-        bool wantWiring = asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
+        /* the tiled-face builds are LAYERED art (root = base-under with
+           pattern + over children): a full-material sprite swap on them
+           doubles the pattern and gloss on hover. Their states are wired
+           at generation (Button, no swap; StateFx; label ink) — the
+           maintenance pass must not "heal" them into the wrong transition */
+        bool tiledBuild = spritePath.Contains("-base-under.") || spritePath.EndsWith("/base-under.9.png");
+        bool wantWiring = !tiledBuild && asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
         /* a prefab built by an older importer already has its Button, so the
            wiring branch never fires — it would have kept its quiet face swap
            forever without this (owner: "I'm not getting the glows on hover") */
-        bool wantFx = (hover != null || pressed != null || disabled != null)
+        bool wantFx = !tiledBuild && (hover != null || pressed != null || disabled != null)
           && asset.GetComponent<StateFx>() == null && HasStateFx(m, famName);
+        /* and where an earlier pass already swap-wired a tiled build, take
+           the wrong transition OFF (our mistake, ours to clean) — the
+           Button itself stays, clicks keep working */
+        bool wantUnswap = false;
+        if (tiledBuild) {
+          var selNow = asset.GetComponent<Selectable>();
+          wantUnswap = selNow != null && selNow.transition == Selectable.Transition.SpriteSwap;
+        }
+        /* the root rect tracks the CURRENT sprite: a prefab generated by an
+           older importer keeps the sizeDelta of the sprite it was born
+           with — crop and scale fixes since then never reach it, and every
+           scene placement inherits the stale rect (field: 2x PLAY buttons
+           beside a perfectly sized fresh joystick). Converging restores
+           our own generation contract; words, wiring and user children
+           are untouched. */
+        bool wantResize = false;
+        {
+          float psR = m != null && m.pngScale > 0 ? m.pngScale : 2;
+          var rrt = asset.GetComponent<RectTransform>();
+          if (rrt != null) {
+            var wantSz = new Vector2(rootImg.sprite.rect.width / psR, rootImg.sprite.rect.height / psR);
+            if (Mathf.Abs(rrt.sizeDelta.x - wantSz.x) > 0.75f || Mathf.Abs(rrt.sizeDelta.y - wantSz.y) > 0.75f) wantResize = true;
+          }
+        }
+        /* the ENGINE-COMPOSED specular converges too: a kit that ships
+           <fam>-specular.png hands the overlay child to prefabs from
+           older importers; a kit whose specular turned off (no manifest
+           row anymore) takes the stale child back off */
+        bool specShips = false;
+        if (m != null && m.assets != null)
+          foreach (var aS in m.assets) { if (aS != null && aS.component == famName && aS.part == "specular") { specShips = true; break; } }
+        var specNow = asset.transform.Find("Specular");
+        bool wantSpecAdd = specShips && specNow == null;
+        bool wantSpecCut = false;
+        if (!specShips && specNow != null) {
+          var specImg = specNow.GetComponent<Image>();
+          wantSpecCut = specImg != null && specImg.sprite != null
+            && AssetDatabase.GetAssetPath(specImg.sprite).Replace("\\\\", "/").StartsWith(root + "/assets/");
+        }
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
         if (kitStyle != null) {
@@ -5339,6 +6941,20 @@ namespace PatternBreak {
               var hlProbe = probeRoot.GetComponent<HeroLabel>();
               if (hlProbe != null && hlProbe.authoredHeight < 0.5f) wantDress = true;
             }
+            /* SHELL-ANCHOR convergence: a label root still stretched over
+               the sprite RECT (older importer) sits low — extrusion pulls
+               the rect's center off the face (owner: "the stacking is
+               off… at the prefab level"). Re-dress onto the shell box. */
+            if (!wantDress) {
+              var rowSA = ShellRowOf(asset, famName, m);
+              var prtSA = probeRoot.GetComponent<RectTransform>();
+              if (rowSA != null && prtSA != null && rootImg.sprite != null && rootImg.sprite.rect.width > 2f) {
+                float rwSA = rootImg.sprite.rect.width, rhSA = rootImg.sprite.rect.height;
+                var wantMinSA = new Vector2(rowSA.shell.x / rwSA, 1f - (rowSA.shell.y + rowSA.shell.h) / rhSA);
+                var wantMaxSA = new Vector2((rowSA.shell.x + rowSA.shell.w) / rwSA, 1f - rowSA.shell.y / rhSA);
+                if ((prtSA.anchorMin - wantMinSA).sqrMagnitude > 0.0004f || (prtSA.anchorMax - wantMaxSA).sqrMagnitude > 0.0004f) wantDress = true;
+              }
+            }
             if (!wantDress && HasStateInk(m, famName)) {
               var inkNow = asset.GetComponent<LabelStateInk>();
               if (inkNow == null
@@ -5349,7 +6965,7 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress && !wantFx) continue;
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -5376,6 +6992,34 @@ namespace PatternBreak {
           if (wantFx && contents.GetComponent<StateFx>() == null) {
             WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
+          }
+          if (wantUnswap) {
+            var selFix = contents.GetComponent<Selectable>();
+            if (selFix != null && selFix.transition == Selectable.Transition.SpriteSwap) {
+              selFix.transition = Selectable.Transition.None;
+              selFix.spriteState = new SpriteState();
+              // the layered build's states live engine-side — arm them now
+              if (contents.GetComponent<StateFx>() == null && HasStateFx(m, famName))
+                WireStateFx(contents, root, m, famName, famDir + "/" + famName + "-base.9.png", m.pngScale);
+              unswapped++; changed = true;
+            }
+          }
+          if (wantResize) {
+            var rrtC = contents.GetComponent<RectTransform>();
+            var imgC = contents.GetComponent<Image>();
+            if (rrtC != null && imgC != null && imgC.sprite != null) {
+              float psC = m != null && m.pngScale > 0 ? m.pngScale : 2;
+              rrtC.sizeDelta = new Vector2(imgC.sprite.rect.width / psC, imgC.sprite.rect.height / psC);
+              resized++; changed = true;
+            }
+          }
+          if (wantSpecAdd && contents.transform.Find("Specular") == null) {
+            AddSpecular(contents, root, famName, m);
+            if (contents.transform.Find("Specular") != null) { speced++; changed = true; }
+          }
+          if (wantSpecCut) {
+            var cutT = contents.transform.Find("Specular");
+            if (cutT != null) { UnityEngine.Object.DestroyImmediate(cutT.gameObject); speced++; changed = true; }
           }
 #if UNITY_2023_2_OR_NEWER
           if (wantDress) {
@@ -5434,6 +7078,12 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: rebuilt " + healed + " HeroLabel prefab(s) to the echo construction (one text, layer inks) — words preserved; placed copies healed with it.");
       if (purgedGhosts > 0)
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
+      if (unswapped > 0)
+        Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
+      if (resized > 0)
+        Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — prefabs generated by an older importer kept the sprite dimensions they were born with, and board scenes inherited the stale size.");
+      if (speced > 0)
+        Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
@@ -5736,55 +7386,3 @@ namespace PatternBreak {
 }
 `;
 
-const UNREAL_README = `# PatternBreak kit — Unreal import
-
-1. Import assets/ into Content/PatternBreak (drag the folder in).
-2. UMG widgets cannot ship as text — build them once from
-   UMG_Recipes.md; every margin below is exact for THIS kit export.
-3. SliceMargins.csv imports as a DataTable if you want the margins
-   available to Blueprints/code.
-4. All labels are live TextBlocks in the kit's display face (see
-   kit-manifest.json > typography). Never bake copy into textures.
-`;
-
-const UNREAL_RECIPES = `# UMG recipes — exact values for this export
-
-Margins below are Slate brush margins as FRACTIONS of the image size —
-Unreal wants 0..0.5 per side. Compute: side_px / image_px (values are also
-in SliceMargins.csv in pixels).
-
-## Button
-- Widget: Button (or Border + Button for flat-variant layering)
-- Style > Normal/Hovered/Pressed brush: assets/button-primary/button-primary-base.9.png
-  - Draw As: Box
-  - Margin (px at export scale): __BTN_MARGIN__  -> divide by the PNG size per side
-- Child: TextBlock, font "__FONT__" (live text), plus an optional Image for the icon (assets/icons/*, tinted).
-
-## Panel / window
-- Border widget, brush assets/panel/panel-base.9.png, Draw As: Box
-- Margin (px): __PANEL_MARGIN__
-
-## Progress bar
-- ProgressBar widget
-- Style > Background Image: assets/progress/progress-track.9.png (Box)
-- Style > Fill Image: assets/progress/progress-fill.9.png (Box)
-- Percent is bound to live data.
-
-## Slider
-- Slider widget
-- Style > Normal Bar: assets/slider/slider-track.9.png; Fill: assets/slider/slider-fill.9.png
-- Style > Normal Thumb: assets/slider/slider-thumb.png (Draw As: Image)
-
-## Toggle
-- CheckBox widget styled as a switch:
-  Unchecked/Checked Image: assets/toggle/toggle-track.9.png (tint the checked state
-  toward the palette glow), thumb via a child Image animated between ends.
-
-## Checkbox / Radio
-- CheckBox widget: Unchecked Image assets/checkbox/checkbox-base.png;
-  Checked = base + assets/icons/check.png (tinted) layered above.
-  Prefer Unity's own Toggle? **CheckboxToggle.prefab** and
-  **RadioToggle.prefab** are wired ones — bare well + the kit's mark as
-  the Toggle's graphic, isOn does the rest (group radios with a
-  ToggleGroup). Both flavors ship; pick per screen.
-`;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
@@ -45,10 +45,10 @@ async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
-  { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  { name: "Containers & overlays", ids: ["panel", "header", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
-  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "gifticon"] },
+  { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
   { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
@@ -741,40 +741,9 @@ export function BoardView({ playing }: { playing: boolean }) {
     }
     // background film grain — independent of the overlay (owner: "noise")
     drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
-    // the overlay layer composites exactly like the live stage: tint (with
-    // its blend mode) first, then film grain riding an overlay blend
-    const ovMode = bd.ovMode ?? "none";
-    if (ovMode !== "none") {
-      const GCO: Record<string, GlobalCompositeOperation> = { normal: "source-over", multiply: "multiply", screen: "screen", overlay: "overlay", "soft-light": "soft-light" };
-      ctx.save();
-      ctx.globalCompositeOperation = GCO[bd.ovBlend ?? "normal"] ?? "source-over";
-      ctx.globalAlpha = (bd.ovStrength ?? 45) / 100;
-      if (ovMode === "vignette") {
-        const g = ctx.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.3, W / 2, H * 0.42, Math.hypot(W, H) * 0.58);
-        g.addColorStop(0, "rgba(4,7,14,0)");
-        g.addColorStop(1, "rgba(4,7,14,0.92)");
-        ctx.fillStyle = g;
-      } else {
-        ctx.fillStyle = ovMode === "dark" ? "#060A14" : "#F4F6FF";
-      }
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-      drawBoardNoise(ctx, W, H, bd.ovNoise ?? 0);
-    }
-    // center scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
-    if ((bd.ovCenter ?? 0) > 0) {
-      ctx.save();
-      ctx.globalAlpha = (bd.ovCenter ?? 0) / 100;
-      ctx.translate(W / 2, H * 0.46);
-      ctx.scale(W * 0.62, H * 0.62);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-      g.addColorStop(0, "rgba(4,7,14,0.85)");
-      g.addColorStop(0.45, "rgba(4,7,14,0.5)");
-      g.addColorStop(1, "rgba(4,7,14,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(-3, -3, 6, 6);
-      ctx.restore();
-    }
+    // the overlay stack (tint + its grain + center scrim) — one shared
+    // recipe with the Unity background bake, so the two can't drift
+    drawBoardOverlays(ctx, W, H, bd);
     for (const b of bd.items) {
       const { svg: svg0, cfg: pc } = svgOf(b);
       if (!svg0) continue;
@@ -877,6 +846,13 @@ export function BoardView({ playing }: { playing: boolean }) {
         <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
           onClick={() => useGen.getState().addStampToBoard()}>
           <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
+        </button>
+        {/* the PLAIN tier (owner: "a delineation between splash text and
+            just good font usage") — same face, flat pickable color, for
+            labels that must READ against any backdrop */}
+        <button className="bd-stampbtn" title="Plain text in the kit's font — pick its color in the side rail; for labels that must stay readable"
+          onClick={() => useGen.getState().addStampToBoard(true)}>
+          <Type size={13} strokeWidth={2.2} /> Plain text — the kit's font, your color
         </button>
         <div className="bd-scroll">
           {assets.map((g) => {
@@ -1274,9 +1250,28 @@ export function BoardView({ playing }: { playing: boolean }) {
               const st = sel.stamp;
               const patch = (p: Partial<typeof st>) => useGen.getState().setBoardItemStamp(sel.id, p);
               return (<>
-                <div className="bd-h" style={{ marginTop: 14 }}>Type stamp</div>
+                <div className="bd-h" style={{ marginTop: 14 }}>{st.plain ? "Plain text" : "Type stamp"}</div>
                 <input className="bd-abname" value={st.text} maxLength={40} aria-label="Stamp text"
                   onChange={(e) => patch({ text: e.target.value })} />
+                {/* the two text tiers (owner): Splash = the kit's full
+                    lettering treatment; Plain = the same face, one flat
+                    pickable color, for labels that must READ anywhere */}
+                <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Text tier">
+                  <button className={!st.plain ? "on" : ""} role="radio" aria-checked={!st.plain}
+                    title="The kit's full splash lettering — gradients, outline, glints, the works"
+                    onClick={() => patch({ plain: undefined })}>Splash</button>
+                  <button className={st.plain ? "on" : ""} role="radio" aria-checked={!!st.plain}
+                    title="The kit's font at one flat color you pick — labels that stay readable on any backdrop"
+                    onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
+                </div>
+                {st.plain && (
+                  <label className="bd-slider bd-inkrow">Text color
+                    <input type="color" value={st.plain.color} aria-label="Plain text color"
+                      onChange={(e) => patch({ plain: { ...st.plain!, color: e.target.value } })} />
+                    <label className="bd-inkchk"><input type="checkbox" checked={!!st.plain.outline}
+                      onChange={(e) => patch({ plain: { ...st.plain!, outline: e.target.checked } })} /> Ink outline</label>
+                  </label>
+                )}
                 <label className="bd-slider">Type size · {st.size}%
                   <input type="range" min={25} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
                 </label>
@@ -1520,9 +1515,18 @@ export function BoardView({ playing }: { playing: boolean }) {
    object URLs that revoke their predecessor — the old data-URL-per-tick
    version could park hundreds of MB in renderer memory during one drag. */
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
+  /* glint stars snap to REAL letterform ink — a stamp rendered before its
+     face finished loading snapped to the fallback font's run (the drifting
+     stars). Re-render when faces land; the un-cached ink map re-samples. */
+  const [fontTick, setFontTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setFontTick((t) => t + 1);
+    try { document.fonts?.addEventListener?.("loadingdone", bump); } catch { /* engines without FontFaceSet events */ }
+    return () => { try { document.fonts?.removeEventListener?.("loadingdone", bump); } catch { /* symmetric */ } };
+  }, []);
   /* a 400% specimen is a real engine render — memo it, or every board
      interaction re-renders every stamp (the tray-click sluggishness) */
-  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
   const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
