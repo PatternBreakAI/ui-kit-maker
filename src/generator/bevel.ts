@@ -1841,81 +1841,91 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return darts.join("");
   }
 
-  /* Topo — an actual landform, not blobs (owner: "lift a real topograph
-     for this then make seamless"). Authored from a doubly-periodic height
-     field — a meandering diagonal ridge carrying one big massif with a
-     spur lobe, a small col knoll, gully-notched slopes — and its contour
-     lines baked as sample runs. Catmull-Rom cubics thread each run; open
-     runs carry phantom samples lifted from the run that continues them
-     one tile over (walked until the curve clears the seam), so a stroke
-     leaves the tile on exactly the cubic its neighbour copy re-enters
-     with — the clip re-draw is bit-identical, not approximate. */
+  /* Topo — a slice of an elevation map, not contour badges (owner: the
+     old cell read as "repeated little contour icons… isolated puddles").
+     ONE terrain system: genuine iso-lines of a single doubly-periodic
+     height field — a dominant diagonal grain, its profile flattened
+     toward a triangle wave so the six levels cut the flanks at EVEN
+     stations (no doubled lines), with a lazy S-meander; riding it, a
+     flat-topped summit whose two nested rings sit off-center (never a
+     bullseye), a two-lobed valley bean in the trough, a low foothill
+     ring across the top seam and a knoll that only bulges the flow.
+     Four long open contours thread every tile together. Sparse samples
+     joined by Catmull-Rom cubics keep the lines calm, and iso-lines of
+     one field can never cross (closest approach anywhere: 4.2 units,
+     checked against every relative translate). */
   if (style === "topo") {
-    // [closed, x0,y0, ...] in the 100-cell; phantoms sit outside [0,100]
+    // [1, x,y ...] closed ring | [0, wx,wy, x,y ...] open run that repeats
+    // one tile over per winding (wx,wy); indices past the end pull the next
+    // period simply by adding the winding offset — the phantom-sample idiom,
+    // so the cubic that leaves the tile IS the cubic the neighbour re-enters
+    // with. Coordinates authored in the 100-cell, tenth-rounded.
     const T: number[][] = [
-      [0, 105, 58.9, 102.4, 57, 100, 55, 97.7, 52.8, 95.6, 50.4, 93.8, 47.9, 92.2, 45.1, 90.8, 42.3, 89.8, 39.3, 89.5, 36.1, 89.6, 33, 87.3, 30.8, 85.3, 28.3, 82.9, 26.3, 80, 24.9, 77, 23.9, 74.1, 22.8, 71.3, 21.2, 69, 19, 67.2, 16.4, 66.1, 13.5, 66.1, 10.3, 66.2, 7.2, 64.3, 4.9, 61.2, 4.3, 58.7, 2.4, 56.6, 0, 54.8, -2.6, 53.2, -5.3],
-      [0, 81.3, -6, 82.4, -2.9, 83.8, 0, 85.5, 2.4, 88.1, 4, 91, 4.9, 94, 5.2, 97, 5.4, 100, 5.5, 103.2, 5.7, 106.4, 6.1],
-      [0, -6, 5.2, -3, 5.4, 0, 5.5, 3.2, 5.7, 6.4, 6.1, 9.5, 7, 12.5, 8.3, 15, 10.3, 17, 12.8, 18.8, 15.5, 20.4, 18.3, 22.1, 21.1, 24, 23.7, 26, 26.2, 28.1, 28.7, 30.1, 31.2, 32.1, 33.7, 33.8, 36.5, 35.2, 39.4, 36.3, 42.4, 37.2, 45.5, 38, 48.6, 39.1, 51.7, 40.9, 54.4, 43.5, 56.3, 46.5, 57.4, 49.7, 58, 52.9, 58.4, 56.1, 58.8, 59.2, 59.6, 62.1, 60.9, 64.5, 63.1, 66.1, 65.9, 67.2, 68.9, 68.2, 72, 69.2, 75.1, 70.5, 78, 72.2, 80.8, 74.2, 83.3, 76.3, 85.8, 78.2, 88.4, 79.9, 91.1, 81.3, 94, 82.4, 97.1, 83.8, 100, 85.5, 102.4, 88.1, 104],
-      [0, 61.2, 104.3, 58.7, 102.4, 56.6, 100, 54.8, 97.4, 53.2, 94.7, 52, 91.8, 50.9, 88.8, 50, 85.7, 49.1, 82.7, 48.9, 79.5, 48.7, 76.4, 46, 75, 42.9, 75.3, 39.7, 75.3, 36.5, 75.5, 33.4, 75.9, 30.2, 76, 27.1, 75.7, 24, 74.9, 21.1, 73.7, 18.4, 72, 16, 69.9, 14, 67.5, 12.9, 64.5, 13, 61.4, 11.2, 59.1, 8.1, 59.5, 5, 58.9, 2.4, 57, 0, 55, -2.3, 52.8, -4.4, 50.4],
-      [0, -6.5, 13.9, -3.3, 13.5, 0, 13.5, 3.2, 13.9, 6.2, 14.9, 9, 16.4, 11.5, 18.5, 13.7, 20.7, 15.8, 23.2, 17.9, 25.6, 20, 28, 22.1, 30.4, 24.1, 32.8, 26, 35.4, 27.8, 38.1, 29.2, 40.9, 30.2, 43.9, 30.9, 47.1, 31.3, 50.2, 31.7, 53.4, 32.9, 56.3, 34.9, 58.8, 37.1, 61.2, 39, 63.7, 40.2, 66.6, 39, 69.4, 36.3, 71.1, 33.4, 72.4, 30.2, 73, 27.1, 72.6, 24.2, 71.2, 21.8, 69.2, 19.6, 66.8, 17.6, 64.3, 16, 61.6, 15.2, 58.5, 12.9, 56.6, 9.7, 56.2, 6.9, 54.7, 4.4, 52.6, 2.1, 50.5, 0, 48, -1.8, 45.3, -3.4, 42.4, -4.6, 39.3],
-      [0, 104.4, 52.6, 102.1, 50.5, 100, 48, 98.2, 45.3, 96.6, 42.4, 95.4, 39.3, 94.7, 36.1, 95.1, 32.9, 96, 29.7, 95.3, 26.7, 92.3, 25.4, 89.9, 23.1, 87.5, 21, 85.3, 18.6, 87.3, 16.2, 90.3, 14.8, 93.5, 13.9, 96.7, 13.5, 100, 13.5, 103.2, 13.9, 106.2, 14.9],
-      [0, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1, 7.2, 22.8, 10, 24.4, 12.5, 26.4, 14.8, 28.6, 17.1, 30.8, 19.2, 33.2, 21.2, 35.7, 23, 38.3, 24.5, 41.2, 25.5, 44.2, 26, 47.4, 25.9, 50.5, 25.7, 53.7, 26.9, 56.6, 29.4, 58.5, 31.9, 60.5, 34, 62.9, 34.8, 65.9, 33.6, 68.8, 30.8, 70.4, 27.7, 70.2, 25, 68.5, 22.9, 66.1, 21.3, 63.3, 19.8, 60.5, 18.4, 57.6, 16.5, 55.1, 13.5, 54.1, 10.5, 53, 7.9, 51.2, 5.5, 49.1, 3.3, 46.7, 1.5, 44.1, 0, 41.3, -1, 38.3, -1.7, 35.2, -1.7, 32.1, -0.9, 29, 0, 26, 1.2, 23.1, 4.1, 22.1],
-      [0, 105.5, 49.1, 103.3, 46.7, 101.5, 44.1, 100, 41.3, 99, 38.3, 98.3, 35.2, 98.3, 32.1, 99.1, 29, 100, 26, 101.2, 23.1, 104.1, 22.1],
-      [1, 4.8, 28.8, 7.5, 29, 10, 30.2, 12.2, 31.7, 14.3, 33.5, 16.2, 35.5, 17.9, 37.7, 19.3, 40.1, 20.4, 42.6, 20.9, 45.3, 20.5, 48, 18.8, 50.2, 16.2, 50.9, 13.5, 50.5, 11, 49.2, 8.8, 47.7, 6.7, 45.8, 5, 43.7, 3.6, 41.3, 2.6, 38.7, 2.1, 36, 2.1, 33.3, 2.8, 30.6],
-      [1, 26.7, 61.6, 28.4, 61.8, 30, 62.7, 30.9, 64.2, 31, 65.9, 29.8, 67.2, 28, 67.1, 26.6, 66.1, 25.7, 64.5, 25.5, 62.8],
-      [1, 8.4, 38, 9.8, 37.8, 11.1, 38.6, 12.2, 39.7, 12.8, 41.1, 12.6, 42.6, 11.2, 42.9, 9.9, 42.1, 8.9, 40.9, 8.3, 39.5],
+      [1, 57.4, 26.4, 57.3, 31.3, 59, 35.8, 61.5, 40.1, 63.5, 44.5, 65.4, 49, 68.1, 53, 72.1, 55.9, 76.8, 57.1, 81.5, 56.2, 84.2, 52.4, 83.5, 47.6, 81.7, 43.1, 78.7, 39.3, 74.7, 36.3, 71, 33.2, 68.1, 29.3, 64.9, 25.6, 60.7, 23.4],
+      [0, 1, 1, 0, -44.8, 4.3, -42.3, 8.6, -39.8, 12.6, -37, 16.2, -33.6, 19.1, -29.6, 20.9, -25, 22, -20.2, 22.8, -15.3, 24, -10.5, 26.4, -6.2, 30.2, -3.1, 34.8, -1.3, 39.6, 0, 44.3, 1.3, 48.9, 3.2, 53.4, 5.4, 57.8, 7.6, 61.8, 10.4, 64.8, 14.3, 67.4, 18.6, 70.2, 22.7, 73.1, 26.6, 76.5, 30.2, 80.2, 33.5, 83.7, 37, 86.7, 41, 89.3, 45.2, 92.2, 49.2, 95.9, 52.5],
+      [0, 1, 1, 0, -24.7, 1.7, -20, 3.6, -15.3, 6.1, -10.9, 9, -6.8, 12.1, -2.8, 15.4, 1.1, 18.7, 4.9, 22.3, 8.4, 26.4, 11.4, 30.7, 13.9, 35.3, 16, 40, 18, 44.5, 20.2, 48.3, 23.4, 50.6, 27.9, 52.1, 32.7, 53.9, 37.5, 55.7, 42.2, 57.4, 46.9, 59.1, 51.7, 61.8, 55.9, 65.7, 59.1, 70.2, 61.4, 75, 62.7, 80, 63.3, 85.1, 63.7, 90, 64.7, 94.5, 67, 97.8, 70.7],
+      [0, 1, 1, 0, 1.1, 2.4, 5.6, 3.8, 10.5, 6.8, 14.4, 11.5, 16.3, 16.4, 17.7, 21.1, 19.6, 25.6, 21.9, 29.9, 24.6, 34.1, 27.5, 38.1, 30.7, 41.5, 34.4, 43.9, 38.9, 45.2, 43.8, 45.5, 48.8, 45.4, 53.9, 45.8, 58.9, 47.7, 63.6, 51.3, 67.2, 55.7, 69.6, 60.5, 71.4, 65.3, 72.9, 70.2, 74.4, 74.9, 76.3, 79.2, 79, 82.8, 82.5, 86, 86.5, 89.3, 90.4, 92.9, 93.9, 96.7, 97.3],
+      [0, 1, 1, 0, 42.5, 4, 45.6, 8.3, 48.1, 13, 50, 17.8, 51.7, 22.4, 53.9, 26.4, 56.9, 30.2, 60.4, 33.3, 64.3, 35.5, 68.9, 37, 73.7, 38.7, 78.5, 41.3, 82.8, 45.1, 86.1, 49.5, 88.7, 53.5, 91.8, 56.8, 95.6, 61.6, 96, 66.4, 94.4, 71, 96.1, 72.5, 100.8, 73.2, 105.8, 75.1, 110.5, 77.8, 114.8, 80.8, 118.9, 83.8, 123, 87, 127, 90.1, 130.9, 93.2, 134.9, 96.5, 138.8],
+      [1, 0.4, 22.2, -3.1, 25.4, -2.6, 30.4, -0.4, 34.9, 2.9, 38.8, 6.8, 41.9, 11.4, 44.2, 16.2, 45.5, 21.2, 46.6, 25.8, 48.7, 29.9, 51.6, 34.5, 53.5, 38.5, 50.9, 39.4, 46, 38.2, 41.1, 35.6, 36.8, 32.3, 33, 28.7, 29.4, 24.7, 26.3, 20.2, 23.9, 15.5, 22.2, 10.5, 21.5, 5.4, 21.5],
+      [1, 79.3, 2.9, 80, 7.8, 83, 11.9, 86.9, 15, 91.7, 16.3, 94.8, 12.6, 95.6, 7.7, 94.2, 2.9, 90.8, -0.7, 86.2, -2.8, 81.5, -1.5],
+      [1, 4.3, 29.7, 5.6, 34.5, 9.4, 37.9, 14, 40.1, 19.1, 41.2, 24.2, 41.2, 28, 38.7, 26.2, 33.9, 22.6, 30.2, 18.1, 27.8, 13.2, 26.4, 8.1, 26.6],
     ];
-    const bez = (a: number[]) => {
-      const cl = a[0] > 0, c = a.slice(1), m = c.length >> 1;
-      const X = (i: number) => c[(((i % m) + m) % m) * 2], Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1];
-      const s = cl ? 0 : 1, e = cl ? m : m - 2;
-      let d = `M${X(s)} ${Y(s)}`;
-      for (let i = s; i < e; i++)
-        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${X(i + 1)} ${Y(i + 1)}`;
-      return d + (cl ? "Z" : "");
-    };
-    return G(T.map((r) => `<path d="${bez(r)}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="butt"/>`).join(""));
+    const out: string[] = [];
+    for (const r of T) {
+      const cl = r[0] === 1, wx = cl ? 0 : r[1] * 100, wy = cl ? 0 : r[2] * 100;
+      const c = r.slice(cl ? 1 : 3), m = c.length >> 1;
+      const X = (i: number) => c[(((i % m) + m) % m) * 2] + Math.floor(i / m) * wx;
+      const Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1] + Math.floor(i / m) * wy;
+      let d = `M${n(X(0))} ${n(Y(0))}`;
+      let x0 = X(0), x1 = x0, y0 = Y(0), y1 = y0;
+      for (let i = 0; i < m; i++) {
+        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${n(X(i + 1))} ${n(Y(i + 1))}`;
+        x0 = Math.min(x0, X(i + 1)); x1 = Math.max(x1, X(i + 1));
+        y0 = Math.min(y0, Y(i + 1)); y1 = Math.max(y1, Y(i + 1));
+      }
+      if (cl) d += "Z";
+      // restamp at ±100 wherever the curve (plus stroke) can reach the tile —
+      // every crosser continues from the opposite edge with zero mismatch
+      for (let ox = -100; ox <= 100; ox += 100)
+        for (let oy = -100; oy <= 100; oy += 100)
+          if (x1 + ox > -1.5 && x0 + ox < 101.5 && y1 + oy > -1.5 && y0 + oy < 101.5)
+            out.push(`<path d="${d}"${ox || oy ? ` transform="translate(${ox} ${oy})"` : ""} fill="none" stroke="${color}" stroke-width="2" stroke-linecap="butt"/>`);
+    }
+    return G(out.join(""));
   }
 
-  /* Soft camo — ONE organic field, twelve regions no two alike: pools,
-     beans and flowing bands at mixed headings, smooth closed cubics with
-     bulges and concave waists (owner: the first cut "reads as a grid of
-     the same blobs"). The lattice is hidden by geography, not luck: the
-     big masses cross the seams at IRREGULAR stations — vertical at y≈19,
-     68 and 90, horizontal at x≈13, 33 and 57 — so no landmark ever sits
-     whole inside one tile, and nothing lines up into a row or column.
-     Every crosser is re-drawn offset exactly ±100, so the tile closes
-     without a visible joint. Scaled EXACT, not by n(): a tenth-rounded
-     scale leaves a clip band on two edges of every tile — precisely the
-     grid read this cell exists to kill. */
+  /* Soft camo — TWO interlocking organic fields, rebuilt (owner: small
+     teal blobs on a background "is not camouflage"; the next cut ran 74%
+     and inverted figure and ground). Three MAJORS carry the cloth: a
+     north sweep entering the LEFT seam and leaving through the TOP, a
+     west riser entering the BOTTOM and leaving through the LEFT, and a
+     broad east ridge through the RIGHT seam dropping a tongue out the
+     BOTTOM. Every mouth overlaps a partner's body one tile over — ridge
+     into riser, riser onto the sweep's back, sweep's mouth into the
+     ridge's tongue — so the ink fuses into one winding landmass, and
+     the ground between the flows is drawn as geography too: lakes,
+     straits and bays wide enough to read as the second territory, never
+     as piping. Three mediums and one bean salt the open water. Measured
+     coverage 51% — balance is the point. Boundary anchors sit 10-15
+     apart with single broad turns (a same-height double hump reads as
+     "cat ears" tiled; a sub-8 pocket reads as an enclosed eye — both
+     found and removed in tiled renders). Patterns clip, so every
+     seam-crosser is re-stamped offset exactly ±100; corner crossers
+     carry all three copies. */
   if (style === "softcamo") {
-    const GX = (inner: string) => `<g transform="scale(${(p / 100).toFixed(4)})">${inner}</g>`;
     const T = (d: string, o = "") => `<path fill="${color}"${o ? ` transform="translate(${o})"` : ""} d="${d}"/>`;
-    const band = "M72.7 6.1 C71.9 7.6 73.6 10.7 75.6 13.4 C77.7 16.1 81.5 20.1 85.1 22.5 C88.7 25.0 92.9 27.2 97.2 28.0 C101.5 28.8 107.3 28.7 110.9 27.3 C114.6 25.8 117.2 21.9 119.0 19.5 C120.8 17.2 122.5 14.4 121.8 13.1 C121.2 11.7 117.4 11.7 115.0 11.5 C112.5 11.3 109.5 11.4 107.1 11.7 C104.6 12.1 102.8 14.3 100.4 13.6 C98.1 12.8 96.3 9.0 92.9 7.5 C89.6 6.0 83.8 4.8 80.4 4.6 C77.0 4.4 73.5 4.7 72.7 6.1 Z";
-    const pool = "M71.7 98.9 C70.6 101.9 68.6 103.4 66.7 105.7 C64.8 107.9 62.8 111.8 60.3 112.3 C57.7 112.9 53.8 110.6 51.4 108.9 C49.0 107.3 47.1 104.6 46.1 102.3 C45.0 100.0 44.6 97.3 45.0 95.1 C45.5 92.9 47.3 91.1 48.8 89.1 C50.3 87.1 51.3 84.6 53.8 83.2 C56.4 81.8 61.0 79.9 64.2 80.7 C67.4 81.5 71.8 85.0 73.0 88.0 C74.3 91.1 72.7 96.0 71.7 98.9 Z";
-    const spud = "M108.7 64.4 C110.1 66.1 112.0 69.3 111.3 71.2 C110.7 73.0 106.9 74.3 104.8 75.4 C102.6 76.4 100.2 78.0 98.5 77.5 C96.7 76.9 95.3 73.7 94.2 71.9 C93.2 70.1 92.1 68.6 92.3 66.5 C92.5 64.4 93.6 60.3 95.4 59.4 C97.1 58.4 100.7 60.1 102.9 60.9 C105.1 61.8 107.3 62.7 108.7 64.4 Z";
-    const drop = "M19.7 109.7 C18.5 110.9 15.9 111.3 13.7 111.5 C11.4 111.6 7.8 111.8 6.4 110.6 C5.0 109.3 5.0 106.2 5.2 104.0 C5.4 101.8 6.2 99.3 7.7 97.6 C9.1 96.0 12.1 93.9 13.9 94.2 C15.6 94.5 17.2 97.8 18.4 99.4 C19.6 101.1 20.9 102.3 21.1 104.0 C21.3 105.7 21.0 108.4 19.7 109.7 Z";
-    const vine = "M1.5 50.8 C2.4 51.6 4.2 51.7 6.7 50.4 C9.1 49.1 13.4 45.3 16.2 43.0 C19.1 40.6 20.4 39.6 23.6 36.1 C26.8 32.7 33.1 27.1 35.5 22.2 C38.0 17.3 38.5 11.2 38.6 6.6 C38.7 2.0 37.2 -2.8 36.2 -5.3 C35.2 -7.8 33.7 -8.3 32.7 -8.2 C31.7 -8.1 30.5 -7.0 30.0 -4.7 C29.5 -2.4 30.5 1.9 29.8 5.5 C29.2 9.1 28.5 12.9 26.0 16.7 C23.5 20.5 18.0 25.3 15.0 28.4 C12.0 31.5 10.3 32.4 8.1 35.3 C5.8 38.2 2.4 43.0 1.3 45.6 C0.2 48.2 0.6 50.0 1.5 50.8 Z";
-    const seed = "M104.4 86.9 C105.1 87.9 104.4 90.3 103.7 91.7 C103.0 93.1 101.6 95.1 100.4 95.4 C99.3 95.7 97.6 94.4 96.5 93.5 C95.5 92.7 94.3 91.7 94.0 90.4 C93.7 89.2 93.9 86.7 94.8 85.8 C95.7 85.0 97.8 85.2 99.4 85.4 C101.0 85.6 103.7 85.9 104.4 86.9 Z";
-    return GX(
-      T(band) +
-      T(band, "-100 0") +
-      T(pool) +
-      T(pool, "0 -100") +
-      T("M30.4 36.1 C28.4 35.1 23.7 37.8 21.2 40.1 C18.6 42.4 16.5 46.6 15.1 50.1 C13.6 53.6 12.6 57.8 12.5 61.2 C12.5 64.7 13.2 68.2 14.5 70.7 C15.9 73.2 18.9 76.5 20.8 76.3 C22.7 76.0 24.8 71.5 26.0 69.3 C27.1 67.0 26.3 64.9 27.4 63.0 C28.6 61.1 32.0 60.4 33.1 57.7 C34.1 54.9 34.1 49.9 33.7 46.4 C33.3 42.8 32.5 37.2 30.4 36.1 Z") +
-      T(spud) +
-      T(spud, "-100 0") +
-      T(drop) +
-      T(drop, "0 -100") +
-      T("M54.8 40.5 C52.6 40.9 50.0 39.5 48.0 38.5 C46.0 37.6 43.9 36.6 42.7 34.7 C41.5 32.9 40.3 29.4 40.9 27.4 C41.5 25.5 44.4 23.9 46.3 23.2 C48.1 22.5 50.1 23.0 52.0 23.1 C53.9 23.2 55.8 22.7 57.4 23.6 C59.0 24.4 61.1 26.2 61.7 28.3 C62.4 30.4 62.5 34.1 61.4 36.1 C60.2 38.1 57.0 40.1 54.8 40.5 Z") +
-      T("M65.9 33.2 C64.6 34.0 64.3 37.9 64.8 40.7 C65.3 43.4 68.5 46.3 68.8 49.6 C69.1 52.9 66.5 57.4 66.5 60.3 C66.6 63.2 67.6 66.6 69.0 67.2 C70.4 67.7 72.9 66.7 75.1 63.6 C77.3 60.5 82.4 53.2 82.0 48.5 C81.6 43.8 75.5 38.1 72.8 35.6 C70.1 33.0 67.3 32.3 65.9 33.2 Z") +
-      T("M41.4 82.5 C40.5 83.5 37.8 83.9 36.1 83.9 C34.5 83.9 33.0 83.2 31.8 82.3 C30.5 81.5 29.3 80.3 28.8 78.8 C28.4 77.2 28.3 74.2 29.3 73.0 C30.2 71.8 33.1 71.2 34.7 71.4 C36.2 71.6 37.4 73.2 38.5 74.2 C39.7 75.2 40.9 76.3 41.4 77.7 C41.9 79.0 42.3 81.4 41.4 82.5 Z") +
-      T(vine) +
-      T(vine, "0 100") +
-      T(seed) +
-      T(seed, "-100 0") +
-      T("M97.6 38.4 C98.6 39.6 97.6 42.8 96.8 44.3 C96.1 45.9 94.6 47.0 93.2 47.7 C91.8 48.4 90.1 49.1 88.6 48.7 C87.1 48.3 84.5 46.6 84.1 45.1 C83.8 43.6 85.4 41.2 86.4 39.8 C87.5 38.4 88.6 37.2 90.5 36.9 C92.3 36.7 96.5 37.2 97.6 38.4 Z") +
-      T("M52.8 61.5 C52.8 62.8 50.5 64.0 49.1 64.6 C47.7 65.2 45.9 65.7 44.6 65.2 C43.3 64.6 41.5 62.7 41.4 61.5 C41.3 60.2 42.9 58.4 44.2 57.6 C45.4 56.9 47.5 56.2 48.9 56.8 C50.4 57.5 52.8 60.2 52.8 61.5 Z"));
+    const sweep = "M-10.0 15.0 C-9.5 12.2 -7.7 9.5 -4.0 8.0 C-0.3 6.5 7.3 5.2 12.0 6.0 C16.7 6.8 20.3 11.5 24.0 13.0 C27.7 14.5 31.0 16.0 34.0 15.0 C37.0 14.0 40.0 10.2 42.0 7.0 C44.0 3.8 44.2 -1.3 46.0 -4.0 C47.8 -6.7 50.5 -8.2 53.0 -9.0 C55.5 -9.8 58.8 -10.2 61.0 -9.0 C63.2 -7.8 65.5 -4.7 66.0 -2.0 C66.5 0.7 65.8 4.3 64.0 7.0 C62.2 9.7 58.0 12.2 55.0 14.0 C52.0 15.8 49.2 16.3 46.0 18.0 C42.8 19.7 39.7 22.5 36.0 24.0 C32.3 25.5 28.0 27.0 24.0 27.0 C20.0 27.0 15.7 23.8 12.0 24.0 C8.3 24.2 5.2 27.8 2.0 28.0 C-1.2 28.2 -5.0 27.2 -7.0 25.0 C-9.0 22.8 -10.5 17.8 -10.0 15.0 Z";
+    const riser = "M26.0 56.0 C28.8 57.2 29.5 59.3 30.0 62.0 C30.5 64.7 29.8 68.3 29.0 72.0 C28.2 75.7 24.5 80.2 25.0 84.0 C25.5 87.8 30.8 91.2 32.0 95.0 C33.2 98.8 33.0 103.3 32.0 107.0 C31.0 110.7 28.5 115.8 26.0 117.0 C23.5 118.2 19.0 116.3 17.0 114.0 C15.0 111.7 15.0 107.0 14.0 103.0 C13.0 99.0 12.8 94.0 11.0 90.0 C9.2 86.0 6.2 81.8 3.0 79.0 C-0.2 76.2 -5.5 75.5 -8.0 73.0 C-10.5 70.5 -12.3 66.7 -12.0 64.0 C-11.7 61.3 -8.5 57.7 -6.0 57.0 C-3.5 56.3 -0.2 60.3 3.0 60.0 C6.2 59.7 9.2 55.7 13.0 55.0 C16.8 54.3 23.2 54.8 26.0 56.0 Z";
+    const ridge = "M43.0 64.0 C43.8 60.8 46.5 58.3 50.0 56.0 C53.5 53.7 59.3 51.5 64.0 50.0 C68.7 48.5 73.7 46.8 78.0 47.0 C82.3 47.2 86.3 49.7 90.0 51.0 C93.7 52.3 97.2 53.3 100.0 55.0 C102.8 56.7 105.5 58.5 107.0 61.0 C108.5 63.5 109.5 67.2 109.0 70.0 C108.5 72.8 106.2 76.5 104.0 78.0 C101.8 79.5 99.0 78.5 96.0 79.0 C93.0 79.5 89.3 81.0 86.0 81.0 C82.7 81.0 79.0 78.0 76.0 79.0 C73.0 80.0 70.0 83.8 68.0 87.0 C66.0 90.2 64.8 94.8 64.0 98.0 C63.2 101.2 64.5 104.3 63.0 106.0 C61.5 107.7 56.8 109.7 55.0 108.0 C53.2 106.3 53.2 99.5 52.0 96.0 C50.8 92.5 49.2 90.5 48.0 87.0 C46.8 83.5 45.8 78.8 45.0 75.0 C44.2 71.2 42.2 67.2 43.0 64.0 Z";
+    const bean = "M74.0 99.0 C75.3 97.2 78.8 94.3 81.0 94.0 C83.2 93.7 85.8 95.3 87.0 97.0 C88.2 98.7 89.0 102.0 88.0 104.0 C87.0 106.0 83.5 108.8 81.0 109.0 C78.5 109.2 74.2 106.7 73.0 105.0 C71.8 103.3 72.7 100.8 74.0 99.0 Z";
+    return G(
+      T(sweep) + T(sweep, "0 100") + T(sweep, "100 0") + T(sweep, "100 100") +
+      T(riser) + T(riser, "0 -100") + T(riser, "100 0") + T(riser, "100 -100") +
+      T(ridge) + T(ridge, "0 -100") + T(ridge, "-100 0") + T(ridge, "-100 -100") +
+      T("M61.0 24.0 C61.5 21.7 66.2 17.0 69.0 15.0 C71.8 13.0 76.0 11.3 78.0 12.0 C80.0 12.7 81.5 16.7 81.0 19.0 C80.5 21.3 77.5 24.3 75.0 26.0 C72.5 27.7 68.3 29.3 66.0 29.0 C63.7 28.7 60.5 26.3 61.0 24.0 Z") +
+      T("M22.0 40.0 C22.5 38.3 28.5 35.8 32.0 35.0 C35.5 34.2 40.2 34.2 43.0 35.0 C45.8 35.8 49.5 38.3 49.0 40.0 C48.5 41.7 43.3 44.2 40.0 45.0 C36.7 45.8 32.0 45.8 29.0 45.0 C26.0 44.2 21.5 41.7 22.0 40.0 Z") +
+      T(bean) + T(bean, "0 -100") +
+      T("M76.0 36.0 C76.8 34.7 79.8 32.5 82.0 32.0 C84.2 31.5 87.7 32.0 89.0 33.0 C90.3 34.0 91.0 36.7 90.0 38.0 C89.0 39.3 85.2 40.7 83.0 41.0 C80.8 41.3 78.2 40.8 77.0 40.0 C75.8 39.2 75.2 37.3 76.0 36.0 Z"));
   }
 
   /* Chainmail — European 4-in-1: rings of radius .34p on a half-p lattice,
@@ -1941,48 +1951,42 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return R.map((c) => ring(c[0], c[1])).join("");
   }
 
-  /* Camo shards — shattered armor, rebuilt from the confetti take (owner:
-     "doesn't look shardy/badass enough"). Fewer, bigger, meaner: a master
-     splinter SNAPPED mid-blade with a slip offset across the break, a
-     lightning jag through the right seam, counter-angled slab impacts and
-     a boomerang dart against the steep blade cluster — straight cuts
-     only, needle tips and angled break faces, and the channels between
-     shards stay open so they read as fracture lines. Patterns clip, so
-     every seam-crosser is stamped again at ±p; S() does the stamping
-     (the SE corner slab carries all three copies). */
+  /* Camo shards — camouflage first, angular second (owner: the confetti
+     take — scattered polygons, thin shards — "is not camouflage"). Soft
+     camo's macrostructure cut with hard edges: FOUR large landmasses
+     carry ~86% of the ink — a Z-massif over the top seam, a notched
+     plate through the right, a zigzag slab out the bottom, a stepped
+     gate through the left — two medium slabs plug the central pockets,
+     and exactly three tilted spall flakes, nothing smaller. Straight
+     cuts only, mixed headings, ~47% coverage so ground and ink compete
+     as equals. The lattice hides the same way soft camo's does: seam
+     stations are irregular (top x≈3–40, bottom x≈70–90, right y≈19–40,
+     left y≈50–75), so no landmark repeats on a row or column. Patterns
+     clip, so every crosser is stamped again offset exactly ±100 — S()
+     does the stamping — and every pair of masses keeps ≥5 units of
+     channel on the torus, audited numerically: a touching pair reads
+     as an accident, not a cut. */
   if (style === "camoshards") {
     const S = (d: string, ...at: [number, number][]) =>
-      at.map(([dx, dy]) => `<path fill="${color}" transform="translate(${dx} ${dy})" d="${d}"/>`).join("");
-    const O: [number, number] = [0, 0];
+      [[0, 0] as [number, number], ...at].map(([dx, dy]) =>
+        `<path fill="${color}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ""} d="${d}"/>`).join("");
     return G(
-      // the king, snapped: top half, needle tip down to an angled break face
-      S("M64 2 L44 30 L36 56 L49 53 L56 34 Z", O) +
-      // king's bottom half, slip-offset across the fracture, out the bottom seam
-      S("M40 68 L31 58 L23 78 L20 104 L33 82 Z", O, [0, -100]) +
-      // lightning jag owning the top-right, arm through the right seam
-      S("M66 14 L92 7 L84 19 L108 13 L113 20 L72 38 L83 22 Z", O, [-100, 0]) +
-      // needle sliver, top-left
-      S("M28 4 L18 16 L11 31 L17 30 L24 18 Z", O) +
-      // counter wedge through the left seam
-      S("M-10 47 L-12 57 L25 50 L13 39 Z", O, [100, 0]) +
-      // fat counter slab, dead center
-      S("M53 55 L51 71 L83 57 L78 51 Z", O) +
-      // counter needle bridging the bolt-to-slab pocket
-      S("M58 48 L75 47 L90 42 L85 38 L73 43 Z", O) +
-      // boomerang dart, mid-left
-      S("M2 60 L16 74 L24 62 L16 62 Z", O) +
-      // steep blade, right flank
-      S("M99 59 L83 68 L73 84 L83 88 L93 76 Z", O) +
-      // impact slab through the SE corner — all three wrap copies
-      S("M79 91 L70 102 L110 104 L106 96 Z", O, [-100, 0], [0, -100], [-100, -100]) +
-      // chip in the center-south pocket
-      S("M57 72 L62 78 L69 82 L68 75 L64 74 Z", O) +
-      // steep needle on the king's left flank
-      S("M10 76 L5 81 L1 89 L7 89 L9 83 Z", O) +
-      // chip in the northwest pocket
-      S("M26 30 L30 36 L35 41 L36 35 L32 32 Z", O) +
-      // king's echo, near-parallel, through the bottom seam
-      S("M52 74 L38 90 L30 113 L41 113 L50 94 Z", O, [0, -100])
+      // north massif: Z-mass over the top seam, arm reaching east
+      S("M2 -16 L28 -20 L40 -10 L33 -2 L52 6 L56 15 L42 20 L29 14 L21 26 L8 16 Z", [0, 100]) +
+      // east plate: notched slab through the right seam, arm out at y~34
+      S("M74 18 L92 14 L102 20 L97 30 L112 34 L103 43 L87 42 L79 34 L66 24 Z", [-100, 0]) +
+      // south slab: zigzag landmass out the bottom seam, exiting east
+      S("M48 58 L66 64 L78 68 L74 80 L88 85 L90 102 L70 108 L60 96 L48 88 L54 72 Z", [0, -100]) +
+      // west gate: stepped mass through the left seam at low stations
+      S("M-14 54 L6 48 L18 56 L12 68 L22 74 L6 78 L-8 72 Z", [100, 0]) +
+      // mid slab: trapezoid dead center, interlocking all four larges
+      S("M44 32 L62 28 L70 40 L58 48 L45 44 Z") +
+      // mid wedge: clipped-corner block plugging the west-center pocket
+      S("M23 35 L35 32 L38 42 L31 50 L24 46 Z") +
+      // three tilted spall flakes, the only smalls
+      S("M26 61 L32 59 L33 65 L27 67 Z") +
+      S("M36 74 L43 72 L44 77 L38 80 Z") +
+      S("M73 53 L79 51 L80 57 L74 59 Z")
     );
   }
 
