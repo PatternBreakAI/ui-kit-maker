@@ -16,6 +16,48 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "Scenes to the pixel",
+    items: [
+      {
+        h: "Settings screens that play",
+        p: "A Pro engine export's slider and switch arrive as real, wired Unity controls: drag the knob and it glides along your styled track; click the switch and the candy knob slides across and trades its ON/OFF dot. The values you posed on the Board arrive live too — scenes open with every slider at its mark and every switch already thrown.",
+      },
+      {
+        h: "Knobs land exactly where you drew them",
+        p: "We measured the export against the app, pixel by pixel, and retired a subtle seating offset that could float a knob and its fill a few pixels off the bar on deep-relief kits. Every slider knob, fill and switch knob now sits on its track to the pixel, at any extrusion depth — and the slider's fill is clipped at the value line the way the app draws it, so the mercury's gradient never compresses. Measured, not eyeballed.",
+      },
+      {
+        h: "The fire button carries your arsenal",
+        p: "Swipe across the fire button in a scene and the center glyph cycles through your weapons — drawn in your kit's own inks, outline, glow and all — exactly the carousel the Board previews. Tap, and it deals.",
+      },
+      {
+        h: "Patterns keep their rhythm when pieces stretch",
+        p: "Stretch a patterned piece wide on a board and the Unity scene now swaps in a tiled face: the frame stretches, the pattern tiles at its designed scale, and the gloss stays one clean sweep. No more smeared texture on wide buttons.",
+      },
+      {
+        h: "Your words keep their size",
+        p: "Labels placed on boards used to arrive in scenes a shade smaller than the Board showed. They now land at exactly the size you set — the export carries both the prefab's fitted size and the scene's true one, and uses the right one in the right place.",
+      },
+      {
+        h: "Fresh Unity projects, first try",
+        p: "The importer now stands up cleanly in a brand-new project: its scripts live behind their own assembly definitions (a stray second copy of the kit can no longer take the editor down with it), the input-system reference resolves itself, and the scene builder no longer trips over an unsaved Untitled scene. When anything is skipped, the Console says exactly what and why — and every import announces its build stamp, so you always know which zip you're running.",
+      },
+      {
+        h: "Boards click back",
+        p: "Difficulty rows select like the radio groups they are, countdowns tick m:ss, damage numbers pop on cue, and the minimap sweeps its radar behind a clearly-labeled demo script you can delete. The gloss highlight also rides into every prefab as its own overlay layer, drawn last — just like the app draws it.",
+      },
+      {
+        h: "A reading voice for lists",
+        p: "Friend rows, chat lines and other list surfaces stop borrowing a hardcoded face: they follow your kit's List font, and a new List ink control in Typography gives them their own color apart from the display voice.",
+      },
+      {
+        h: "Pointer tags point both ways",
+        p: "The Pointer Tag silhouette gains its mirror twin — Pointer Tag · Reverse — a true pixel mirror with the text box swapped to match, so BACK and NEXT can bracket a screen with matching geometry.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "The Board grows up",
     items: [
       {
