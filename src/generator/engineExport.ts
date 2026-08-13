@@ -1034,7 +1034,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (only an admin can place a staged piece) — same rule as shipProp */
   const usedOnBoards0 = new Set<string>();
   for (const bd0 of st.boards ?? []) for (const bi0 of bd0.items) usedOnBoards0.add(bi0.component);
-  const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(id);
+  // boards record FAMILY names ("tab-back"), not editor ids ("tabback") —
+  // comparing the id silently broke the placed-piece fallback (field: the
+  // owner's placed Back tab shipped nothing while still staged)
+  const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(PREFAB_FAMILY[id] ?? id);
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
     if (n.id === "tabback" && !stagedShips("tabback")) continue;
@@ -1733,7 +1736,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            three field passes ("too big" at 1.0/0.78, "too much vertical
            space" at 0.70 — the middle ground); per-font taste stays a
            per-label Inspector edit. */
-        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10 };
+        /* `scene` is the UNFITTED app-true size: a board copy's rect IS
+           the app's shell, sized to those very words, so scenes restore
+           full size (owner: "the buttons seem to change so much" — the
+           0.74 prefab fit shrank every placed word by a quarter) */
+        return { family: fam, size: Math.round(fs * sk * (pc.type.size / 52) * 0.74 * 10) / 10, scene: Math.round(fs * sk * (pc.type.size / 52) * 10) / 10 };
       }),
       /* markInk/radioInk — the SELECTED-mark tint for the wired Toggles,
          renderKit's own chain: the piece's Pressed-state icon color, else
@@ -3786,7 +3793,7 @@ namespace PatternBreak {
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
-  [Serializable] class PBLabelSize { public string family; public float size; }
+  [Serializable] class PBLabelSize { public string family; public float size; public float scene; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
@@ -4580,6 +4587,21 @@ namespace PatternBreak {
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
             var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+            /* a STRETCHED piece smears its face pattern through the
+               nine-slice center (owner: "look at how the pattern inside
+               the button scales") — the tiled-face build is made for
+               exactly this: the frame stretches, the pattern keeps its
+               rhythm. Swap it in whenever the board stretched the piece
+               beyond its native aspect and the kit ships one. */
+            PBAsset baseGeo = null;
+            foreach (var aG in m.assets) if (aG != null && aG.component == it.component && aG.part == "base" && aG.shell != null) { baseGeo = aG; break; }
+            if (baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
+              float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
+              if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
+                var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
+                if (tfPf != null) pf = tfPf;
+              }
+            }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
             inst.transform.SetParent(canvasGo.transform, false);
@@ -4677,10 +4699,17 @@ namespace PatternBreak {
           if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.label)) {
 #if UNITY_2023_2_OR_NEWER
             var hlOv = inst.GetComponentInChildren<HeroLabel>(true);
-            if (hlOv != null) hlOv.SetText(it.label);
-            else {
+            float trueSize = LabelSizeScene(m, it.component);
+            if (hlOv != null) {
+              // app-true size first, then SetText re-lays the stack
+              if (trueSize > 0f) hlOv.fontSize = trueSize;
+              hlOv.SetText(it.label);
+            } else {
               var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
-              if (tmp != null) tmp.text = it.label;
+              if (tmp != null) {
+                tmp.text = it.label;
+                if (trueSize > 0f) { tmp.enableAutoSizing = false; tmp.fontSize = trueSize; }
+              }
             }
             /* longer words than the prefab default WRAPPED inside the
                fixed label box (field: BACK → "BAC K") — one line, shrink
@@ -5513,6 +5542,13 @@ namespace PatternBreak {
     }
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
+    /* the app-true label size for BOARD SCENES — the 0.74-fitted size is
+       for loose prefab rects; a placed copy's rect is the app's own shell */
+    static float LabelSizeScene(PBManifest m, string family) {
+      if (m != null && m.labelSizes != null)
+        foreach (var e in m.labelSizes) if (e.family == family && e.scene > 0f) return e.scene;
+      return 0f;
+    }
     static float LabelSize(PBManifest m, string family) {
       // the app's own per-family size, shipped in the manifest; the single
       // style.labelSize covers older zips
@@ -6647,7 +6683,7 @@ namespace PatternBreak {
       if (!hadTiledDir) AssetDatabase.CreateFolder(dir, "Tiled face");
       bool anyTiled = false;
       foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) {
-        var tl = (tf == "button-primary" || tf == "button-secondary") ? DefaultLabel(tf) : null;
+        var tl = (tf == "button-primary" || tf == "button-secondary" || tf == "header-banner") ? DefaultLabel(tf) : null;
         if (TiledFacePrefab(tiledDir, root, pngScale, tf, tl, kitFont, m)) { any = true; anyTiled = true; }
       }
       // a kit with no pattern builds no tiled faces — leave no empty folder
