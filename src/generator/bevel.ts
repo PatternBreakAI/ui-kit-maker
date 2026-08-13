@@ -2095,6 +2095,42 @@ export function textPatternCell(style: string, ps: number, color: string): strin
       pop(90, 62, 0.48, -15) + pop(-10, 62, 0.48, -15));  // mid — crosses the right edge, drawn again −100 left
   }
 
+  /* Snowflakes — ONE canonical six-fold flake, all stroked line (round
+     caps, ~p*0.03, so arms stay crisp at letterform sizes and in
+     Safari): six spokes off an open hex-ring hub, each arm carrying two
+     pairs of side branches at the crystal's 60°, the inner pair longer
+     so the arm tapers to its tip. Halftone rhythm (the skulls
+     precedent): a full flake centered plus a smaller echo ON each
+     corner, turned 30° so its arms point where the big one's gaps are —
+     quarters fuse whole across every seam. A drifting third flake at
+     ~0.55 was auditioned in two placements and both read as banding,
+     not snowfall — dropped. One path element per stamp: a wrapped
+     corner copy must raster byte-identically to its re-entry, and
+     grouping stamps into one path shifts the rasterizer's curve
+     flattening with the path bounds. */
+  if (style === "snowflake") {
+    const flake = (cx: number, cy: number, R: number, rot: number) => {
+      let d = "";
+      for (let i = 0; i < 6; i++) {
+        const a = ((rot + i * 60 - 90) * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+        d += `M${n(cx + ca * R * 0.3)} ${n(cy + sa * R * 0.3)}L${n(cx + ca * R)} ${n(cy + sa * R)}`;
+        for (const [t, b] of [[0.52, 0.3], [0.76, 0.2]])
+          for (const sg of [1, -1]) {
+            const ba = a + (sg * Math.PI) / 3, bx = cx + ca * R * t, by = cy + sa * R * t;
+            d += `M${n(bx)} ${n(by)}L${n(bx + Math.cos(ba) * R * b)} ${n(by + Math.sin(ba) * R * b)}`;
+          }
+      }
+      for (let i = 0; i < 6; i++) {
+        const a = ((rot + i * 60 - 90) * Math.PI) / 180;
+        d += `${i ? "L" : "M"}${n(cx + Math.cos(a) * R * 0.14)} ${n(cy + Math.sin(a) * R * 0.14)}`;
+      }
+      return d + "Z";
+    };
+    const corners: [number, number][] = [[0, 0], [p, 0], [0, p], [p, p]];
+    return line(flake(h, h, p * 0.29, 0), p * 0.029) +
+      corners.map(([cx, cy]) => line(flake(cx, cy, p * 0.175, 30), p * 0.023)).join("");
+  }
+
   return `<rect width="${n(h)}" height="${n(p)}" fill="${color}"/>`; // stripes
 }
 
