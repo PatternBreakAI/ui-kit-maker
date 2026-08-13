@@ -1,6 +1,6 @@
-import type { GenConfig, GenStateName } from "./model";
-import { fontByName, STATE_NAMES } from "./model";
-import { renderBevel, glowPadOf } from "./bevel";
+import type { GenConfig, GenStateName, KitComponentId, KitDesign, KitSize, Shape } from "./model";
+import { fontByName, STATE_NAMES, KIT_COMPONENTS, KIT_SLICEABLE, applyKitDesign, applyKitTextFill, effKitSize, kitVisible, resolveKitIcon } from "./model";
+import { renderBevel, renderKit, glowPadOf } from "./bevel";
 
 // Export utilities — every artifact derives from the same renderer string.
 
@@ -473,6 +473,163 @@ ${cards}
 
 export function downloadHtml(cfg: GenConfig, name: string) {
   download(name, new Blob([buildHtml(cfg)], { type: "text/html" }));
+}
+
+/* ── the WEB KIT — the whole kit as a drop-in zip ──────────────────────
+   The single-file HTML export was one button and a promise; this is the
+   artifact the front door describes: every released piece of the kit as
+   baked 2x PNG assets, a kit.css of ready classes (state swaps on
+   :hover/:active/[disabled], and true nine-slice border-image "--fluid"
+   variants for the stretchable families), and an index.html showcase.
+   BAKED OUTPUT ONLY — pixels, styles and a licence; the generator stays
+   home. Fonts are inlined before rastering, so the zip needs no network
+   and no font files. */
+export interface WebKitState {
+  cfg: GenConfig;
+  kitDesigns?: Partial<Record<KitComponentId, KitDesign>>;
+  kitTextFill?: Partial<Record<KitComponentId, string | null>>;
+  kitShapes?: Partial<Record<KitComponentId, Shape>>;
+  kitSizes?: Partial<Record<KitComponentId, KitSize | null>>;
+  kitLabels?: Partial<Record<KitComponentId, string | null>>;
+  kitIcons?: Partial<Record<KitComponentId, unknown>>;
+  kitVals?: Partial<Record<KitComponentId, number>>;
+  releases?: Record<string, string>;
+  kitName?: string | null;
+}
+
+export async function downloadWebKit(
+  st: WebKitState,
+  licence?: string,
+  onProgress?: (done: number, total: number, label: string) => void,
+): Promise<void> {
+  const { cfg } = st;
+  const kitName = (st.kitName || "UI Kit").trim() || "UI Kit";
+  const stripLoops = (svg: string) => svg
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+    .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+  const pieces = KIT_COMPONENTS.filter((c) => kitVisible(c.id, (st.releases ?? {}) as never, false));
+  const files: { path: string; data: string | Uint8Array }[] = [];
+  const cssRules: string[] = [];
+  const cards: string[] = [];
+  const fluidCards: string[] = [];
+  const stamp = new Date().toISOString().slice(0, 10);
+  const header = (comment: [string, string]) =>
+    `${comment[0]} ${kitName} — made with UI Kit Maker · uikitmaker.com · ${stamp}\n` +
+    `${comment[0]} Licensed to the exporting account — see LICENCE.txt ${comment[1]}\n`;
+
+  const total = pieces.length;
+  let done = 0;
+  for (const pc of pieces) {
+    const id = pc.id;
+    onProgress?.(done++, total, pc.name);
+    const cfgP = applyKitTextFill(applyKitDesign(cfg, st.kitDesigns?.[id]), st.kitTextFill?.[id]);
+    const states: GenStateName[] = (["default", "hover", "pressed", "disabled"] as GenStateName[])
+      .filter((s) => s === "default" || cfgP.visible[s as Exclude<GenStateName, "default">]);
+    let w0 = 0, h0 = 0;
+    let defaultBytes: Uint8Array | null = null;
+    let ok = true;
+    for (const state of states) {
+      try {
+        const svg = stripLoops(renderKit(
+          cfgP, id, effKitSize(st.kitSizes?.[id] ?? undefined), state, st.kitVals?.[id], st.kitShapes?.[id],
+          { label: st.kitLabels?.[id] ?? undefined, icon: resolveKitIcon(st.kitIcons?.[id] as never, undefined) },
+        ));
+        const fd = fontByName(cfgP.type.font);
+        const svgK = await inlineKitFace(svg, cfgP.type.font, fd.name === cfgP.type.font ? fd.css ?? null : null);
+        const { bytes, w, h } = await svgToPngBytes(svgK, 2);
+        files.push({ path: `assets/${id}-${state}.png`, data: bytes });
+        if (state === "default") { w0 = w; h0 = h; defaultBytes = bytes; }
+      } catch {
+        // a piece that fails to render must not sink the zip — skip it
+        // loudly in the README count instead
+        ok = false;
+        break;
+      }
+    }
+    if (!ok || !w0) continue;
+    const dw = Math.round(w0 / 2), dh = Math.round(h0 / 2);
+    const has = (s: GenStateName) => states.includes(s);
+    cssRules.push(
+      `.uik-${id} { display: inline-block; border: 0; padding: 0; width: ${dw}px; height: ${dh}px;` +
+      ` background: url(assets/${id}-default.png) center / contain no-repeat; cursor: pointer; -webkit-tap-highlight-color: transparent; }` +
+      (has("hover") ? `\n.uik-${id}:hover { background-image: url(assets/${id}-hover.png); }` : "") +
+      (has("pressed") ? `\n.uik-${id}:active { background-image: url(assets/${id}-pressed.png); }` : "") +
+      (has("disabled") ? `\n.uik-${id}[disabled], .uik-${id}.is-disabled { background-image: url(assets/${id}-disabled.png); cursor: default; }` : ""));
+    cards.push(`<figure><button class="uik-${id}" aria-label="${pc.name}"></button><figcaption>${pc.name}</figcaption></figure>`);
+
+    /* the stretchable families additionally ship a --fluid class: true
+       nine-slice via border-image, measured from the baked pixels — the
+       same caps-stay-crisp behavior the engine export gives Unity */
+    if (KIT_SLICEABLE[id] && defaultBytes) {
+      try {
+        const bmp = await createImageBitmap(new Blob([defaultBytes.buffer as ArrayBuffer], { type: "image/png" }));
+        const cv = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(w0, h0) : Object.assign(document.createElement("canvas"), { width: w0, height: h0 });
+        const cx = cv.getContext("2d") as CanvasRenderingContext2D;
+        cx.drawImage(bmp, 0, 0);
+        const sl = measureSliceRGBA(cx.getImageData(0, 0, w0, h0).data, w0, h0, 2);
+        if (sl) {
+          const bw = `${Math.round(sl.top / 2)}px ${Math.round(sl.right / 2)}px ${Math.round(sl.bottom / 2)}px ${Math.round(sl.left / 2)}px`;
+          const slice = `${Math.round(sl.top)} ${Math.round(sl.right)} ${Math.round(sl.bottom)} ${Math.round(sl.left)}`;
+          cssRules.push(
+            `.uik-${id}--fluid { display: inline-block; border-style: solid; border-width: ${bw};` +
+            ` border-image: url(assets/${id}-default.png) ${slice} fill stretch; background: none; padding: 0;` +
+            ` width: ${dw + 90}px; height: ${dh}px; cursor: pointer; }` +
+            (has("hover") ? `\n.uik-${id}--fluid:hover { border-image-source: url(assets/${id}-hover.png); }` : "") +
+            (has("pressed") ? `\n.uik-${id}--fluid:active { border-image-source: url(assets/${id}-pressed.png); }` : "") +
+            (has("disabled") ? `\n.uik-${id}--fluid[disabled] { border-image-source: url(assets/${id}-disabled.png); cursor: default; }` : ""));
+          fluidCards.push(`<figure><button class="uik-${id}--fluid" aria-label="${pc.name} (fluid)"></button><figcaption>${pc.name} · stretched</figcaption></figure>`);
+        }
+      } catch { /* fluid variant is a bonus — the fixed class already shipped */ }
+    }
+  }
+  onProgress?.(total, total, "writing the zip");
+
+  const dark = isDarkBgHex(cfg.canvas);
+  const ink = dark ? "rgba(235,238,255,0.62)" : "rgba(28,32,44,0.6)";
+  files.push({ path: "kit.css", data: header(["/*", "*/"]) + cssRules.join("\n") + "\n" });
+  files.push({
+    path: "index.html",
+    data: `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
+      header(["<!--", "-->"]) +
+      `<title>${kitName} — web kit</title>\n<link rel="stylesheet" href="kit.css">\n<style>\n` +
+      `  * { margin: 0; box-sizing: border-box; }\n` +
+      `  body { min-height: 100vh; background: ${cfg.canvas}; font-family: system-ui, sans-serif; padding: 44px 28px 64px; }\n` +
+      `  h1 { font-size: 19px; color: ${dark ? "#EBEEFF" : "#1C202C"}; margin-bottom: 4px; }\n` +
+      `  .hint { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: ${ink}; margin-bottom: 30px; }\n` +
+      `  h2 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: ${ink}; margin: 34px 0 16px; }\n` +
+      `  .grid { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-end; }\n` +
+      `  figure { display: flex; flex-direction: column; align-items: center; gap: 7px; max-width: 100%; }\n` +
+      `  figure > * { max-width: 100%; }\n` +
+      `  figcaption { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: ${ink}; }\n` +
+      `  footer { margin-top: 44px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: ${ink}; opacity: .75; }\n` +
+      `</style>\n</head>\n<body>\n<h1>${kitName}</h1>\n<div class="hint">every piece is live — hover and press · classes in kit.css · assets are 2× PNG</div>\n` +
+      `<div class="grid">\n${cards.join("\n")}\n</div>\n` +
+      (fluidCards.length ? `<h2>Fluid — nine-slice border-image, stretch to any width</h2>\n<div class="grid">\n${fluidCards.join("\n")}\n</div>\n` : "") +
+      `<footer>Made with UI Kit Maker · PatternBreak · see LICENCE.txt</footer>\n</body>\n</html>\n`,
+  });
+  files.push({
+    path: "LICENCE.txt",
+    data: licence ?? `${kitName} — exported from UI Kit Maker (uikitmaker.com) on ${stamp}.\nLicensed to the exporting account for use in its projects.\n`,
+  });
+  files.push({
+    path: "README.md",
+    data: `# ${kitName} — web kit\n\nDrop \`kit.css\` and \`assets/\` into your project and use the classes:\n\n` +
+      "```html\n<link rel=\"stylesheet\" href=\"kit.css\">\n<button class=\"uik-primary\" aria-label=\"Play\"></button>\n```\n\n" +
+      `Every class swaps its baked art on hover / press / disabled. The \`--fluid\` variants use nine-slice border-image — set any width and the caps stay crisp.\n` +
+      `Assets are 2× PNG with the piece's glow padding included; the words are baked into the art (re-export from uikitmaker.com to change them).\n` +
+      `${pieces.length} pieces shipped. Open \`index.html\` to see everything live.\n`,
+  });
+  download(`${kitName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "ui-kit"}-web.zip`, makeZip(files));
+}
+
+// two hexes were the old hardcode; parse the luma instead so any canvas
+// gets readable captions
+function isDarkBgHex(hex: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return true;
+  const v = parseInt(m[1], 16);
+  const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
 }
 
 /** Full settings as a portable JSON file — re-importable, and shareable as a

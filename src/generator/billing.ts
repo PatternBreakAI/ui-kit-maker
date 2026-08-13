@@ -126,6 +126,9 @@ export async function requestExportGrant(kind: ExportKind): Promise<ExportGrant 
     issuedAt: String(body.issuedAt ?? ""),
     licensedTo: String(body.licensedTo ?? ""),
     licence: String(body.licence ?? ""),
+    // the server decides the payload scope — dropping it here silently
+    // downgraded every grant to the caller's default
+    ...(body.scope === "free" || body.scope === "full" ? { scope: body.scope } : {}),
   };
 }
 

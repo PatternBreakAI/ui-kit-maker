@@ -7,7 +7,7 @@ import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
 import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel } from "@/generator/bevel";
-import { downloadSvg, downloadPng, downloadHtml, downloadSettings, downloadGameKit, copyText, inlineKitFace } from "@/generator/exportUtils";
+import { downloadSvg, downloadPng, downloadWebKit, downloadSettings, downloadGameKit, copyText, inlineKitFace } from "@/generator/exportUtils";
 import { fetchKitFont } from "@/generator/engineExport";
 import { fontByName } from "@/generator/model";
 import { guardedExport } from "@/generator/exportGate";
@@ -39,6 +39,9 @@ export function TopBar() {
   const cloud = useCloudStatus();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setCopied] = useState(false);
+  // the web-kit zip renders the whole kit — minutes, not a blink; the
+  // menu row stays open and narrates so the wait never reads as a hang
+  const [htmlProg, setHtmlProg] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -84,8 +87,16 @@ export function TopBar() {
     const ok = await copyText(svg());
     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1400); }
   });
-  const dlHtml = () => void guardedExport("html", handlers, () =>
-    downloadHtml(cfg, `ui-${cfg.presetId}.html`));
+  const dlHtml = () => void guardedExport("html", handlers, (g) => {
+    const st = useGen.getState();
+    return downloadWebKit({
+      cfg,
+      kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes,
+      kitSizes: st.kitSizes, kitLabels: st.kitLabels, kitIcons: st.kitIcons,
+      kitVals: st.kitVals, releases: st.componentReleases, kitName: st.kitName,
+    }, g.licence, (d, tot, label) => setHtmlProg(d >= tot ? null : `${d + 1}/${tot} · ${label}`))
+      .finally(() => setHtmlProg(null));
+  });
   const dlGameKit = () => void guardedExport("gamekit", handlers, (g) =>
     downloadGameKit(cfg, g.licence));
 
@@ -208,8 +219,8 @@ export function TopBar() {
                 <Image size={15} strokeWidth={1.8} /> {t("exportPng")} {tcaps.pngScaleMax}×
               </button>
               {may("html") ? (
-                <button onClick={() => { dlHtml(); setMenuOpen(false); }}>
-                  <FileDown size={15} strokeWidth={1.8} /> {t("downloadHtml")}
+                <button disabled={htmlProg !== null} onClick={() => { if (!htmlProg) dlHtml(); }}>
+                  <FileDown size={15} strokeWidth={1.8} /> {htmlProg ? `Building web kit… ${htmlProg}` : t("downloadHtml")}
                 </button>
               ) : (
                 <button className="lockedmi" title={`HTML export is a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("downloadHtml"))}</button>
