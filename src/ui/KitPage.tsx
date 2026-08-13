@@ -1737,6 +1737,8 @@ const kitTier = useGen((s) => s.tier);
         rk("chip", "Chip · Hover", {}, undefined, "hover"),
         rk("tab", "Tab · Selected", {}, undefined, "pressed"),
         rk("tab", "Tab · Disabled", {}, undefined, "disabled"),
+        rk("tabback", "Back tab · Selected", {}, undefined, "pressed"),
+        rk("tabback", "Back tab · Disabled", {}, undefined, "disabled"),
         rk("badge", "Badge · Awarded", {}, undefined, "pressed"),
         rk("toggle", "Toggle · Off", {}, 0),
         rk("toggle", "Toggle · Disabled", {}, 1, "disabled"),
@@ -2441,6 +2443,7 @@ const kitTier = useGen((s) => s.tier);
       <Sec n="06" title="Navigation" note="Tabs, a segmented switch and the three-slice banner. Caps never distort; text never enters the tails.">
         <div className="kp-tray">
           <Piece id="tab" caption="Tab" label="HOME" />
+          <Piece id="tabback" caption="Back tab" label="BACK" />
           <Piece id="tab" caption="Tab" label="STORE" />
           <Piece id="segment" caption="Segmented control" value={1} />
         </div>

@@ -3339,6 +3339,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k, iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "tab":
       return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
+    case "tabback":
+      // the tab's mirror twin — same construction, reversed default
+      // silhouette (KIT_SHAPE), so both directions live in one kit
+      return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "BACK", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "segment": {
       const w = 560 * k, h = 106 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });

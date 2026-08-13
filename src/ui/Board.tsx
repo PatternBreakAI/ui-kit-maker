@@ -45,7 +45,7 @@ async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
-  { name: "Containers & overlays", ids: ["panel", "header", "tab", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  { name: "Containers & overlays", ids: ["panel", "header", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },

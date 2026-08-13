@@ -1021,7 +1021,7 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], s
 /* ── kit ───────────────────────────────────────────────────────── */
 export type KitComponentId =
   | "primary" | "secondary" | "small" | "ghost" | "iconbtn"
-  | "chip" | "badge" | "tab" | "segment" | "header"
+  | "chip" | "badge" | "tab" | "tabback" | "segment" | "header"
   | "checkbox" | "radio" | "toggle"
   | "slider" | "progress" | "segbar" | "emblembar" | "vsbar" | "hotbar" | "input" | "dropdown" | "panel"
   | "resource" | "datarow" | "slot" | "orb" | "ring" | "joystick"
@@ -1539,6 +1539,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "chip", name: "Pill / Chip" },
   { id: "badge", name: "Badge" },
   { id: "tab", name: "Small tab" },
+  /* the tab's mirror twin — BOTH directions in one kit (owner). Staged:
+     admin-only until released from the bay, per the standing rule. */
+  { id: "tabback", name: "Back tab", staged: true },
   { id: "segment", name: "Segmented control" },
   { id: "header", name: "Header banner" },
   { id: "checkbox", name: "Checkbox" },
@@ -1625,7 +1628,7 @@ export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id
    field AND the Board's per-instance text chip, so the two surfaces can't
    drift (owner: two START buttons on one board need different words). */
 export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
-  "primary", "secondary", "small", "ghost", "chip", "tab", "header", "badge",
+  "primary", "secondary", "small", "ghost", "chip", "tab", "tabback", "header", "badge",
   "resource", "input", "dropdown", "bignum", "ammo", "dialog", "toast",
   "tooltip", "keycap", "padbtn", "loadbar", "setrow", "searchfield",
   "nameplate", "currency", "xpbar", "questpanel", "dialoguebox", "partyframe",
@@ -1862,6 +1865,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   achievetoast: "pill",
   chip: "doboBracket",
   tab: "kenneyTag",
+  tabback: "kenneyTagRev",
   badge: "shield",
   panel: "kenneyRect",
   resource: "pill",
@@ -1886,7 +1890,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
    export scales them to sprite px. */
 export const KIT_SLICEABLE: Partial<Record<KitComponentId, string>> = {
   primary: "button-primary", secondary: "button-secondary", small: "button-small",
-  chip: "chip", tab: "tab", input: "input", panel: "panel", header: "header-banner",
+  chip: "chip", tab: "tab", tabback: "tab-back", input: "input", panel: "panel", header: "header-banner",
   datarow: "list-row", slot: "item-slot",
 };
 export interface KitSlice { left: number; right: number; top: number; bottom: number }

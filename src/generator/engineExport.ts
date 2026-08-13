@@ -142,7 +142,7 @@ const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
    the NINE table and the importer's prefab builders. */
 const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   primary: "button-primary", secondary: "button-secondary", small: "button-small",
-  chip: "chip", tab: "tab", input: "input", panel: "panel", header: "header-banner",
+  chip: "chip", tab: "tab", tabback: "tab-back", input: "input", panel: "panel", header: "header-banner",
   datarow: "list-row", slot: "item-slot",
   iconbtn: "iconbtn", checkbox: "checkbox", radio: "radio", badge: "badge",
   progress: "progress", joystick: "joystick", seasontrack: "seasontrack",
@@ -829,7 +829,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* families whose prefabs swap states, so they are the ones that get an
      aura sprite — kept beside the manifest's stateFx list, which drives the
      runtime that fades it */
-  const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab",
+  const GLOW_FAMS = new Set(["button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back",
     "list-row", "item-slot", "iconbtn", "checkbox", "radio",
     /* the props glow in their own silhouette too — without an aura sprite
        they fell to the generic radial blob (owner: "the glows are all
@@ -1022,14 +1022,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "small", family: "button-small", h: 100, usage: "Compact action button." },
     { id: "chip", family: "chip", h: 84, usage: "Pill / chip. Value text is live engine text." },
     { id: "tab", family: "tab", h: 84, usage: "Tab. Selected state = tint or the full-material variant." },
+    { id: "tabback", family: "tab-back", h: 84, usage: "Back tab — the tab\'s mirror twin (reversed pointer silhouette by default), so both directions ship in one kit." },
     { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
+  /* staged pieces obey the bay in the ENGINE zip too: they ship only
+     once RELEASED, or when this maker actually placed one on a board
+     (only an admin can place a staged piece) — same rule as shipProp */
+  const usedOnBoards0 = new Set<string>();
+  for (const bd0 of st.boards ?? []) for (const bi0 of bd0.items) usedOnBoards0.add(bi0.component);
+  const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(id);
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
+    if (n.id === "tabback" && !stagedShips("tabback")) continue;
     /* NOTHING replaceable is baked into a sprite. The input's "Type
        something…" used to ride along as art — the affordance reads well in
        the app, but in Unity it arrived welded to the surface and there was
@@ -1043,7 +1051,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const slice = sliceOf(n.id, n.h);
     /* swap families crop base + states on ONE union box (the group) so the
        four sprites share a coordinate space — see rasterQueue */
-    const swap = ["primary", "secondary", "small", "chip", "tab", "slot", "datarow"].includes(n.id);
+    const swap = ["primary", "secondary", "small", "chip", "tab", "tabback", "slot", "datarow"].includes(n.id);
     // flip provenance: which silhouette this bake actually wears
     const famFlip = isFlipShape(st.kitShapes[n.id] ?? KIT_SHAPE[n.id] ?? st.cfg.shape);
     await addPng(`${n.family}/base.9.png`, fullSvg,
@@ -1676,7 +1684,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          nothing announces it (owner: "I'm not getting the glows on hover…
          it's impossible for me to know" whether it hovered at all). */
       stateFx: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
-                 ["chip", "chip"], ["tab", "tab"], ["datarow", "list-row"], ["slot", "item-slot"],
+                 ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"], ["datarow", "list-row"], ["slot", "item-slot"],
                  ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
                  /* the props announce their states too (owner: "settings
                     gear doesn't work on play", "trophy states aren't in") —
@@ -1700,7 +1708,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lift: Math.round((ps.default.lift - ps[sn].lift) * 10) / 10,
         }));
       }),
-      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"]] as const).flatMap(([pid, fam]) => {
+      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"]] as const).flatMap(([pid, fam]) => {
         const pc = pieceCfg(pid);
         return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
           const f = pc.stateDesigns[sn];
@@ -1717,7 +1725,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          these sizes correlate to what we output from the app"): each
          family's geometry font size x the kit-size factor x the Type Size
          dial over its 52 baseline — the same three numbers renderKit uses */
-      labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30], ["header", "header-banner", 46]] as const).map(([pid, fam, fs]) => {
+      labelSizes: ([["primary", "button-primary", 42], ["secondary", "button-secondary", 42], ["small", "button-small", 32], ["chip", "chip", 28], ["tab", "tab", 30], ["tabback", "tab-back", 30], ["header", "header-banner", 46]] as const).map(([pid, fam, fs]) => {
         const pc = pieceCfg(pid);
         const sk = ({ s: 0.72, m: 1, l: 1.22 } as const)[effKitSize(st.kitSizes[pid])] ?? 1; // bevel's SIZE_K
         /* x0.74 fit factor: the app WIDENS its shell to the word, a Unity
@@ -3895,7 +3903,7 @@ namespace PatternBreak {
         PBManifest m = null;
         try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (m == null) continue;
-        foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab" }) {
+        foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back" }) {
           var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
           if (pf == null) continue;
           var inkc = pf.GetComponent<LabelStateInk>();
@@ -4324,7 +4332,7 @@ namespace PatternBreak {
            gutters. Everything hangs off one Board scaled to fit at the
            end. */
         var SECTIONS = new (string title, string[] names)[] {
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab" }),
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
           ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick" }),
           ("BARS & METERS", new[] { "ProgressBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
           ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
@@ -6006,6 +6014,7 @@ namespace PatternBreak {
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
       if (family == "tab") return "TAB";
+      if (family == "tab-back") return "BACK";
       if (family == "endturn") return "END TURN";
       if (family == "keycap") return "E";
       if (family == "pricebtn") return "$4.99";
@@ -6626,7 +6635,7 @@ namespace PatternBreak {
 #endif
       /* every family with a "base" sprite becomes a prefab; the composed
          controls and pure parts opt out (they're layers, not pieces) */
-      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "endturn", "keycap", "pricebtn", "header-banner" };
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
