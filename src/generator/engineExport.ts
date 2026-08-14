@@ -4741,9 +4741,30 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: Playground.unity kept as-is (yours). This update may have changed sizes or added pieces — Tools > PatternBreak > Rebuild Kit Playground Scene builds a fresh one.");
       // the maker's board scenes ride the same after-import beat — each
       // builds once, then it's yours (existing scenes are never touched)
-      EditorApplication.delayCall += () => BuildBoardScenes(root, manifest);
-      if (prev != null && manifest.boards != null && manifest.boards.Length > 0)
-        Debug.Log("UI Kit Maker: existing board scenes are kept (yours) — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and content fixes.");
+      EditorApplication.delayCall += () => {
+        BuildBoardScenes(root, manifest);
+        /* a kit UPDATE leaves existing scenes wearing their FIRST build's
+           sizing and words — new sprites on old decisions (field: the
+           flame button back at its default proportions and label). A
+           Console line was too quiet for that; ASK, once, at the moment
+           it matters. "Keep mine" is a real answer — the scenes are the
+           maker's after generation. */
+        if (prev != null && manifest.boards != null && manifest.boards.Length > 0) {
+          bool anyKept = false;
+          foreach (var bd in manifest.boards)
+            if (File.Exists(root + "/Scenes/" + BoardSlug(bd.name) + ".unity")) { anyKept = true; break; }
+          if (anyKept && EditorUtility.DisplayDialog("UI Kit Maker — board scenes",
+              "This kit update changed the export, but your board scenes keep the sizes and words they were FIRST built with (they are yours after generation).\\n\\nRebuild them from this update now? Hand edits inside those scenes will be redone.",
+              "Rebuild scenes", "Keep mine")) {
+            foreach (var bd in manifest.boards) {
+              try { BuildBoardScene(root, manifest, bd, true); }
+              catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
+            }
+          } else if (anyKept) {
+            Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready.");
+          }
+        }
+      };
 
       // ── the receipt ──
       var receipt = new PBLock();
