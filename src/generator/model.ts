@@ -142,7 +142,7 @@ export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "h
   | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
   | "skulls" | "crosses" | "bats" | "thorns" | "fleur"
   | "circuit" | "hexcells" | "facets" | "speedlines" | "topo"
-  | "softcamo" | "chainmail" | "camoshards" | "bolts" | "pixelblocks"
+  | "chainmail" | "bolts" | "pixelblocks"
   | "animeburst" | "boltspop" | "snowflake" | "tigerstripes"
   | "camoangular" | "camoclassic" | "fire";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
@@ -183,9 +183,7 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "facets", name: "Crystal Facets" },
   { id: "speedlines", name: "Speed Lines" },
   { id: "topo", name: "Topographic Contours" },
-  { id: "softcamo", name: "Soft Camouflage" },
   { id: "chainmail", name: "Chainmail" },
-  { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
   { id: "animeburst", name: "Anime Burst" },

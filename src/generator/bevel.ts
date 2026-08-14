@@ -1580,6 +1580,12 @@ export function textPatternCell(style: string, ps: number, color: string): strin
   const line = (d: string, w: number, cap = "round") =>
     `<path d="${d}" fill="none" stroke="${color}" stroke-width="${n(w)}" stroke-linecap="${cap}"/>`;
 
+  // Retired cells (2026-08-14): the owner's drawn camos replaced the
+  // generated pair. Kits that saved or shared the old ids keep
+  // rendering camouflage — each resolves to its successor.
+  if (style === "softcamo") style = "camoclassic";
+  if (style === "camoshards") style = "camoangular";
+
   if (style === "dots") return `<circle cx="${n(h)}" cy="${n(h)}" r="${n(p * 0.22)}" fill="${color}"/>`;
   if (style === "stars") return `<path d="${starPath(ps)}" fill="${color}"/>`;
   if (style === "checker") return `<rect width="${n(h)}" height="${n(h)}" fill="${color}"/><rect x="${n(h)}" y="${n(h)}" width="${n(h)}" height="${n(h)}" fill="${color}"/>`;
@@ -1894,55 +1900,6 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     return G(out.join(""));
   }
 
-  /* Soft camo — rebuilt BIGGER to the owner's reference sheet (2026-08-13):
-     a card shows only ~6-8 masses, several spanning half its width, ink and
-     ground in near-equal balance. TWO giants and ONE fat bean now carry the
-     cell, nothing smaller: the serpent (west lobe in through the LEFT seam,
-     ~12-unit pinched waist, cap out the TOP — the dumbbell read) and the
-     bay whale (broad back through the RIGHT seam, a gentle bay in its SW
-     underside, fat tongue out the BOTTOM). The tongue lands eleven units
-     wide on the serpent cap one tile down, so every whale melts into the
-     serpent below and the ink winds tile-to-tile as one diagonal chain —
-     at button scale that is one or two giant lobes swinging through the
-     face. Anchors run through one closed Catmull-Rom pass (the topo idiom)
-     for calm, few-turn edges, and sit 12+ apart: a tighter three-anchor
-     bay curled into a white spiral in a draft, and a 26-unit oval read as
-     polka dots tiled — the bean now runs 31 units on the flow's own
-     diagonal. Ground is drawn as geography too: lakes NE and mid-west, a
-     9-12 unit strait winding between serpent arm and whale back. Seam
-     stations stay irregular (top ink x 29-86 fused, left y 10-37, right
-     y 48-74) and no two landmarks share a row or column. Measured coverage
-     51%. Patterns clip, so each giant is restamped at its two seam offsets
-     plus the shared corner; the bean floats clear of every seam. */
-  if (style === "softcamo") {
-    const lp = (c: number[], ...at: [number, number][]) => {
-      const m = c.length >> 1;
-      const X = (i: number) => c[(((i % m) + m) % m) * 2];
-      const Y = (i: number) => c[(((i % m) + m) % m) * 2 + 1];
-      let d = `M${n(X(0))} ${n(Y(0))}`;
-      for (let i = 0; i < m; i++)
-        d += `C${n(X(i) + (X(i + 1) - X(i - 1)) / 6)} ${n(Y(i) + (Y(i + 1) - Y(i - 1)) / 6)} ${n(X(i + 1) - (X(i + 2) - X(i)) / 6)} ${n(Y(i + 1) - (Y(i + 2) - Y(i)) / 6)} ${n(X(i + 1))} ${n(Y(i + 1))}`;
-      return [[0, 0] as [number, number], ...at].map(([dx, dy]) =>
-        `<path fill="${color}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ""} d="${d}Z"/>`).join("");
-    };
-    const serpent = [
-      -22, 24, -14, 15, 2, 12, 18, 8, 28, 2, 36, -10, 50, -16, 62, -10,
-      68, -2, 63, 12, 50, 16, 37, 11, 26, 30, 10, 36, -8, 33, -18, 29,
-    ];
-    const whale = [
-      48, 59, 60, 50, 78, 44, 94, 47, 110, 50, 115, 62, 108, 70, 96, 76,
-      88, 88, 85, 98, 76, 110, 60, 108, 52, 93, 53, 80, 63, 71, 54, 62,
-    ];
-    const bean = [
-      43, 64, 40, 75, 26, 85, 13, 82, 16, 69, 30, 59,
-    ];
-    return G(
-      lp(serpent, [100, 0], [0, 100], [100, 100]) +
-      lp(whale, [-100, 0], [0, -100], [-100, -100]) +
-      lp(bean)
-    );
-  }
-
   /* Chainmail — European 4-in-1: rings of radius .34p on a half-p lattice,
      rows staggered half a ring, so every ring overlaps six neighbours. The
      over/under is arc segmentation alone: every ring is the SAME six arcs
@@ -1964,45 +1921,6 @@ export function textPatternCell(style: string, ps: number, color: string): strin
     const R = [[-q, q], [q, q], [3 * q, q], [5 * q, q], [0, 3 * q], [h, 3 * q], [p, 3 * q],
       [0, -q], [h, -q], [p, -q], [-q, 5 * q], [q, 5 * q], [3 * q, 5 * q], [5 * q, 5 * q]];
     return R.map((c) => ring(c[0], c[1])).join("");
-  }
-
-  /* Camo shards — camouflage first, angular second (owner: the confetti
-     take — scattered polygons, thin shards — "is not camouflage"). Soft
-     camo's macrostructure cut with hard edges: FOUR large landmasses
-     carry ~86% of the ink — a Z-massif over the top seam, a notched
-     plate through the right, a zigzag slab out the bottom, a stepped
-     gate through the left — two medium slabs plug the central pockets,
-     and exactly three tilted spall flakes, nothing smaller. Straight
-     cuts only, mixed headings, ~47% coverage so ground and ink compete
-     as equals. The lattice hides the same way soft camo's does: seam
-     stations are irregular (top x≈3–40, bottom x≈70–90, right y≈19–40,
-     left y≈50–75), so no landmark repeats on a row or column. Patterns
-     clip, so every crosser is stamped again offset exactly ±100 — S()
-     does the stamping — and every pair of masses keeps ≥5 units of
-     channel on the torus, audited numerically: a touching pair reads
-     as an accident, not a cut. */
-  if (style === "camoshards") {
-    const S = (d: string, ...at: [number, number][]) =>
-      [[0, 0] as [number, number], ...at].map(([dx, dy]) =>
-        `<path fill="${color}"${dx || dy ? ` transform="translate(${dx} ${dy})"` : ""} d="${d}"/>`).join("");
-    return G(
-      // north massif: Z-mass over the top seam, arm reaching east
-      S("M2 -16 L28 -20 L40 -10 L33 -2 L52 6 L56 15 L42 20 L29 14 L21 26 L8 16 Z", [0, 100]) +
-      // east plate: notched slab through the right seam, arm out at y~34
-      S("M74 18 L92 14 L102 20 L97 30 L112 34 L103 43 L87 42 L79 34 L66 24 Z", [-100, 0]) +
-      // south slab: zigzag landmass out the bottom seam, exiting east
-      S("M48 58 L66 64 L78 68 L74 80 L88 85 L90 102 L70 108 L60 96 L48 88 L54 72 Z", [0, -100]) +
-      // west gate: stepped mass through the left seam at low stations
-      S("M-14 54 L6 48 L18 56 L12 68 L22 74 L6 78 L-8 72 Z", [100, 0]) +
-      // mid slab: trapezoid dead center, interlocking all four larges
-      S("M44 32 L62 28 L70 40 L58 48 L45 44 Z") +
-      // mid wedge: clipped-corner block plugging the west-center pocket
-      S("M23 35 L35 32 L38 42 L31 50 L24 46 Z") +
-      // three tilted spall flakes, the only smalls
-      S("M26 61 L32 59 L33 65 L27 67 Z") +
-      S("M36 74 L43 72 L44 77 L38 80 Z") +
-      S("M73 53 L79 51 L80 57 L74 59 Z")
-    );
   }
 
   /* Lightning bolts — ONE canonical strike (7 hard vertices, flat top,

@@ -17,9 +17,7 @@ const WAVE: { id: string; name: string }[] = [
   { id: "facets", name: "Crystal Facets" },
   { id: "speedlines", name: "Speed Lines" },
   { id: "topo", name: "Topographic Contours" },
-  { id: "softcamo", name: "Soft Camouflage" },
   { id: "chainmail", name: "Chainmail" },
-  { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
   { id: "animeburst", name: "Anime Burst" },
@@ -47,9 +45,9 @@ function Swatch(props: { id: string; w: number; h: number; ps: number; color: st
   return <span dangerouslySetInnerHTML={{ __html: svg }} style={{ display: "block", lineHeight: 0 }} />;
 }
 
-/* the review roster: the correction brief's six, plus the reference-scale
-   round (bigger softcamo already aboard; tigerstripes is new) */
-const SIX = ["topo", "softcamo", "tigerstripes", "camoangular", "camoclassic", "fire", "chainmail", "camoshards", "bolts", "pixelblocks"];
+/* the review roster: the correction brief's survivors plus the
+   owner-drawn wave (softcamo and camoshards retired 2026-08-14) */
+const SIX = ["topo", "tigerstripes", "camoangular", "camoclassic", "fire", "chainmail", "bolts", "pixelblocks"];
 
 export function PatternLab() {
   usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
@@ -64,7 +62,7 @@ export function PatternLab() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#12141C", color: "#E9EDF7", fontFamily: "Inter, system-ui, sans-serif", padding: 28 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the seventeen</h1>
+      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the fifteen</h1>
       <p style={{ margin: "0 0 18px", color: "#96A0B8", fontSize: 13 }}>
         Same swatch size, same color, same scale — density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
       </p>
