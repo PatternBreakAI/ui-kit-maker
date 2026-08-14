@@ -734,7 +734,7 @@ export interface GenConfig extends StateDesign {
    *  site: they ride the document, every app render and the Unity export
    *  alike (owner: edge shine + wipe shine, user-toggleable). Off by
    *  default; hydrate() fills them into older documents. */
-  idle?: { wipe: boolean; edge: boolean };
+  idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode };
   /** Bar-fill styling layers (see BarFx) — optional, defaults off. */
   barFx?: BarFx;
   /** Dragger ball on sliders, toggles and joysticks — null = derived from

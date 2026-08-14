@@ -4259,39 +4259,35 @@ function inject(track: string, extra: string): string {
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-/* Idle motion: edge shine — a GLOW that travels the silhouette's
-   perimeter (owner: "a radial gradient, white in the center to
-   transparent at the edges, fluctuating its radius as it travels…
-   it should sit on top of everything"). Appended as the LAST child, so
-   it rides above every layer, unclipped — the halo spills past the
-   edge like a real light. SMIL carries it (the house idiom): the base
-   element is opacity-0, so stripSmil'd rasters never show it, and the
-   kit page's still-loops pause lands inside the rest window (travel
-   occupies the cycle's back half; the pause point sits at 1.2s). The
-   radius WOBBLES while easing smaller across the journey, and the
-   whole orb fades out at the end. */
-export function addEdgeShine(svg: string): string {
+/* Idle motion: edge shine — the traveling LINE, glowing (owner: back to
+   the line, "but can you make the line glow?"). One dash runs the face
+   silhouette — shrinking across its journey, flickering at points,
+   resting between laps — and it glows by LAYERING: a wide soft halo and
+   a mid bloom under the crisp core, all inheriting the same animated
+   dash state from their group, so the three travel as one light. The
+   group's BASE attributes park it invisible (dasharray 0, opacity 0):
+   rasters and engines that never load the stylesheet never see it.
+   Appended last, above every layer, unclipped. */
+export function addEdgeShine(svg: string, o?: { ink?: string; dur?: number; blend?: string }): string {
   const fc = /<clipPath id="([A-Za-z0-9]+)fc"><path d="([^"]+)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
   if (!fc || !vb) return svg;
-  const [, id, faceP] = fc;
+  const faceP = fc[2];
   const vh = Number(vb[4]);
-  const R = vh * 0.11;
-  const rv = (k: number) => (R * k).toFixed(1);
-  // deterministic per-geometry stagger — stable across re-renders
-  const delay = ((faceP.length * 7 + Math.round(vh)) % 5) * 1.4;
-  const dur = 9;
-  const grad = `<radialGradient id="${id}egg"><stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>`;
-  const orb = `<g class="kit-edgeshine" opacity="0">` +
-    `<animate attributeName="opacity" values="0;0;0.95;0.9;0.95;0;0" keyTimes="0;0.55;0.58;0.8;0.9;0.96;1" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
-    `<circle r="${rv(1)}" fill="url(#${id}egg)">` +
-    `<animateMotion path="${faceP}" keyPoints="0;0;1;1" keyTimes="0;0.55;0.96;1" calcMode="linear" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
-    `<animate attributeName="r" values="${rv(1)};${rv(0.72)};${rv(1.12)};${rv(0.62)};${rv(0.95)};${rv(0.5)};${rv(0.78)};${rv(0.42)}" keyTimes="0;0.6;0.66;0.73;0.79;0.86;0.91;1" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
-    `</circle></g>`;
-  return svg.replace("</defs>", grad + "</defs>").replace(/<\/svg>\s*$/, orb + "</svg>");
+  const core = Math.max(2, vh * 0.02);
+  // the light wears the kit's own glow ink (owner: "match whatever the
+  // glow color is, not always white") — halo and bloom in the ink, the
+  // core lightened toward white so it reads hot, like a lit tube
+  const ink = o?.ink ?? "#FFFFFF";
+  const lane = (wk: number, so: number, col: string) =>
+    `<path d="${faceP}" pathLength="100" stroke="${col}" stroke-width="${(core * wk).toFixed(1)}" stroke-opacity="${so}"/>`;
+  const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
+  const line = `<g class="kit-edgeshine" fill="none" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${st ? ` style="${st}"` : ""}>` +
+    lane(4.2, 0.22, ink) + lane(2.2, 0.4, ink) + lane(1, 0.95, lighten(ink, 0.45)) + `</g>`;
+  return svg.replace(/<\/svg>\s*$/, line + "</svg>");
 }
 
-export function addShine(svg: string): string {
+export function addShine(svg: string, o?: { dur?: number; blend?: string }): string {
   const fc = /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
   if (!fc || !vb) return svg;
@@ -4299,7 +4295,11 @@ export function addShine(svg: string): string {
   const [, vx, vy, vw, vh] = vb.map(Number);
   const bw = vw * 0.3;
   const grad = `<linearGradient id="${id}shn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.4"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
-  const band = `<g clip-path="url(#${id}fc)"><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  /* the document's Frequency and Blend ride as inline style — the dur var
+     outranks the page default while the kit page's per-piece DELAY var
+     still cascades, so the stagger survives an owner-set tempo */
+  const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
+  const band = `<g clip-path="url(#${id}fc)"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 

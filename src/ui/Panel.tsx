@@ -1178,7 +1178,21 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={!!cfg.idle?.wipe}
           onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
         <label className="check"><input type="checkbox" checked={!!cfg.idle?.edge}
-          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
+          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a glowing line runs the silhouette</label>
+        {(cfg.idle?.wipe || cfg.idle?.edge) && (
+          <>
+            <Slider label="Frequency" value={cfg.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}
+              onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, freq: v }; })} />
+            <label className="fieldbox" style={{ minWidth: 0 }}>
+              <span className="fl">Blend mode</span>
+              <select value={cfg.idle?.blend ?? "normal"} aria-label="Idle motion blend mode"
+                onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, blend: e.target.value as BlendMode }; })}>
+                {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </label>
+            <div className="helper">Frequency is the seconds from one pass to the next; each piece still keeps its own offset. Blend recolors how the light lays over the art — screen and overlay read most like light.</div>
+          </>
+        )}
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
           <div className="helper">This state has its own design — edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
         )}

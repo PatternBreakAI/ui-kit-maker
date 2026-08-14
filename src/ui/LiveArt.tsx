@@ -203,8 +203,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       // the document's own idle wipe joins the host-driven shine — same
       // clipped, staggered glint either way; the edge orb goes on LAST so
       // it rides above everything
-      const shined = shine || cfg.idle?.wipe ? addShine(out) : out;
-      return cfg.idle?.edge ? addEdgeShine(shined) : shined;
+      const io = { dur: cfg.idle?.freq, blend: cfg.idle?.blend };
+      const shined = shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? io : undefined) : out;
+      return cfg.idle?.edge ? addEdgeShine(shined, { ...io, ink: cfg.candy.aura.color ?? cfg.effects.Glow }) : shined;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );
