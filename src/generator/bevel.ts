@@ -3960,6 +3960,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"/>` : ""}
   </g>
 </g>
 </svg>`;

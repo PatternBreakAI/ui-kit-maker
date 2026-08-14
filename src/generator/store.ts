@@ -141,6 +141,7 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   } as GenConfig;
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
+  if (!cfg.idle) cfg.idle = { wipe: false, edge: false };
   /* A fork is a COMPLETE design snapshot — the engine reads type/shape/
      bevel off every one without asking. One saved sparse (an ancient
      format, an interrupted write) completes against the master here, so

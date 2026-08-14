@@ -11,6 +11,7 @@ import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
@@ -1017,7 +1018,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...q.meta });
+      const idleOutline = st.cfg.idle?.edge && q.meta.part === "base" ? sampleOutline(q.svg) : null;
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -1595,6 +1597,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     path: "kit-manifest.json",
     data: JSON.stringify({
       kit: st.kitName,
+      // idle motion — the kit's resting-state animations (owner spec);
+      // the importer wires removable rigs only when these say so
+      idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0 },
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -1898,6 +1903,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
@@ -1981,6 +1987,42 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
 }
 
 // exported for direct verification — the bake runs headless-testable this way
+/* Idle motion: the edge-shine spark needs the silhouette to walk. The
+   rendered svg's face clip IS that outline — flattened, the largest loop
+   resampled to 48 even arc-length stations, stored as full-image
+   fractions (y down) so the Unity runtime maps them straight through the
+   piece's rect. Sampled only on base sprites, only when the kit turned
+   the idle edge on. */
+function sampleOutline(svg: string): number[] | null {
+  const fc = /<clipPath id="[A-Za-z0-9]+fc"><path d="([^"]+)"/.exec(svg);
+  const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+  if (!fc || !vb) return null;
+  const loops = flattenPath(fc[1], 10);
+  if (!loops.length) return null;
+  const P = (pt: unknown): [number, number] => Array.isArray(pt) ? [pt[0], pt[1]] : [(pt as { x: number }).x, (pt as { y: number }).y];
+  const loop = loops.reduce((a, b) => (b.length > a.length ? b : a)).map(P);
+  if (loop.length < 3) return null;
+  const seg: number[] = [0];
+  for (let i = 1; i <= loop.length; i++) {
+    const a = loop[i - 1], b = loop[i % loop.length];
+    seg.push(seg[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  const total = seg[seg.length - 1];
+  if (!total) return null;
+  const [, x0s, y0s, ws, hs] = vb;
+  const x0 = +x0s, y0 = +y0s, w = +ws, h = +hs;
+  const N = 48, out: number[] = [];
+  for (let k = 0; k < N; k++) {
+    const d = (k / N) * total;
+    let i = 1;
+    while (i < seg.length - 1 && seg[i] < d) i++;
+    const t = (d - seg[i - 1]) / Math.max(1e-6, seg[i] - seg[i - 1]);
+    const a = loop[i - 1], b = loop[i % loop.length];
+    out.push(+(((a[0] + (b[0] - a[0]) * t) - x0) / w).toFixed(4), +(((a[1] + (b[1] - a[1]) * t) - y0) / h).toFixed(4));
+  }
+  return out;
+}
+
 export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } | null; metrics: string; pointSize: number } | null> {
   const family = base.type.font;
   const weight = base.type.weight;
@@ -1994,7 +2036,8 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   const ascent = (fmRef.fontBoundingBoxAscent ?? 41) * BAKE_S;
   const descent = (fmRef.fontBoundingBoxDescent ?? 11) * BAKE_S;
 
-  /* the type effects' full blur reach, reserved on EVERY bake render — the
+  
+/* the type effects' full blur reach, reserved on EVERY bake render — the
      specimen svg says overflow:visible, but a raster clips at the canvas
      edge, and a strong glow baked a hard-edged slab into each glyph cell
      (owner, Unity: "any way to prevent this clipping on the glow?"). The
@@ -2465,6 +2508,129 @@ namespace PatternBreak {
       }
       // the halo follows in MirrorHost — the piece's y carries the lift
       MirrorHost();
+    }
+  }
+}
+`;
+
+const IDLE_SHINE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Idle motion, half one: the wipe — a soft highlight band sweeps the
+     piece and rests, clipped to the piece's own silhouette by a Mask on
+     the host image (the app's clipped, staggered glint, same recipe).
+     Fully procedural: no sprite assets, one tiny gradient texture shared
+     by every band. Delete the component and the piece is untouched. */
+  [AddComponentMenu("UI Kit Maker/Wipe Shine")]
+  public class WipeShine : MonoBehaviour {
+    [Tooltip("Seconds from one sweep to the next.")] public float period = 9f;
+    [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
+    [Range(0f, 1f)] public float strength = 0.38f;
+    public float tilt = -14f;
+    float phase; RectTransform rt, bandRt; Image band; Mask mask; bool ownMask;
+    static Sprite bandSprite;
+    void OnEnable() {
+      rt = GetComponent<RectTransform>();
+      if (bandSprite == null) {
+        var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false);
+        var px = new Color[64];
+        for (int i = 0; i < 64; i++) { float t = Mathf.Sin(i / 63f * Mathf.PI); px[i] = new Color(1f, 1f, 1f, t * t); }
+        tex.SetPixels(px); tex.Apply(); tex.wrapMode = TextureWrapMode.Clamp; tex.hideFlags = HideFlags.DontSave;
+        bandSprite = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(.5f, .5f));
+        bandSprite.hideFlags = HideFlags.DontSave;
+      }
+      mask = GetComponent<Mask>();
+      if (mask == null && GetComponent<Image>() != null) { mask = gameObject.AddComponent<Mask>(); mask.showMaskGraphic = true; ownMask = true; }
+      var go = new GameObject(name + " Wipe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      band = go.GetComponent<Image>();
+      band.sprite = bandSprite; band.raycastTarget = false; band.color = new Color(1f, 1f, 1f, 0f);
+      bandRt = (RectTransform)go.transform;
+      bandRt.SetParent(rt, false);
+      bandRt.localRotation = Quaternion.Euler(0f, 0f, tilt);
+      // deterministic stagger, so a menu of pieces never flashes in unison
+      phase = -(Mathf.Abs(name.GetHashCode()) % 1000) / 1000f * period;
+    }
+    void OnDisable() {
+      if (band != null) Destroy(band.gameObject);
+      if (ownMask && mask != null) Destroy(mask);
+      band = null; mask = null; ownMask = false;
+    }
+    void Update() {
+      if (band == null || rt == null) return;
+      phase += Time.unscaledDeltaTime;
+      float t = phase % period;
+      if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      float w = rt.rect.width, h = rt.rect.height;
+      bandRt.sizeDelta = new Vector2(w * 0.3f, h * 2.4f);
+      float u = t / sweep;
+      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-w * 0.75f, w * 0.75f, u), 0f);
+      band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
+    }
+  }
+
+  /* Idle motion, half two: the edge shine — a spark that runs the piece's
+     silhouette, shrinking as it travels, flickering along the journey,
+     then resting (owner: "gets smaller and fades out… points of
+     flicker"). The outline arrives from kit-manifest as even arc-length
+     stations in image fractions (y down), so the walk is constant-speed
+     with a plain index lerp. Procedural radial glow, no assets. */
+  [AddComponentMenu("UI Kit Maker/Edge Shine")]
+  public class EdgeShine : MonoBehaviour {
+    [Tooltip("Seconds from one run to the next.")] public float period = 11f;
+    [Tooltip("Seconds one lap takes.")] public float run = 2.6f;
+    public Color color = Color.white;
+    [Tooltip("Outline stations as image fractions (x0,y0,x1,y1..., y down) — from kit-manifest.")]
+    public float[] outline;
+    float phase; int seed; RectTransform rt, sparkRt; Image spark;
+    static Sprite glowSprite;
+    void OnEnable() {
+      rt = GetComponent<RectTransform>();
+      if (glowSprite == null) {
+        const int S = 32;
+        var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+        var px = new Color[S * S];
+        for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) {
+          float d = Vector2.Distance(new Vector2(x, y), new Vector2(S / 2f - .5f, S / 2f - .5f)) / (S / 2f);
+          float a = Mathf.Clamp01(1f - d); a *= a;
+          px[y * S + x] = new Color(1f, 1f, 1f, a);
+        }
+        tex.SetPixels(px); tex.Apply(); tex.wrapMode = TextureWrapMode.Clamp; tex.hideFlags = HideFlags.DontSave;
+        glowSprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+        glowSprite.hideFlags = HideFlags.DontSave;
+      }
+      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      spark = go.GetComponent<Image>();
+      spark.sprite = glowSprite; spark.raycastTarget = false; spark.color = new Color(color.r, color.g, color.b, 0f);
+      sparkRt = (RectTransform)go.transform;
+      sparkRt.SetParent(rt, false);
+      sparkRt.anchorMin = sparkRt.anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
+      seed = Mathf.Abs(name.GetHashCode());
+      phase = -(seed % 1000) / 1000f * period;
+    }
+    void OnDisable() { if (spark != null) Destroy(spark.gameObject); spark = null; }
+    void Update() {
+      if (spark == null || rt == null || outline == null || outline.Length < 8) return;
+      phase += Time.unscaledDeltaTime;
+      float t = phase % period;
+      if (t < 0f || t > run) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
+      float u = t / run;
+      int n = outline.Length / 2;
+      float fi = u * n;
+      int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
+      float ft = fi - (int)fi;
+      float fx = Mathf.Lerp(outline[i0 * 2], outline[i1 * 2], ft);
+      float fy = Mathf.Lerp(outline[i0 * 2 + 1], outline[i1 * 2 + 1], ft);
+      float w = rt.rect.width, h = rt.rect.height;
+      sparkRt.anchoredPosition = new Vector2(fx * w, -fy * h);
+      // the journey: shrink, fade, and flicker at deterministic stations
+      float size = Mathf.Clamp(h * 0.26f, 10f, 44f) * Mathf.Lerp(1f, 0.3f, u);
+      sparkRt.sizeDelta = new Vector2(size, size);
+      uint step = (uint)(u * 24f) * 2654435761u + (uint)seed;
+      float flicker = 0.45f + 0.55f * (((step >> 9) & 1023u) / 1023f);
+      spark.color = new Color(color.r, color.g, color.b, Mathf.Sin(u * Mathf.PI) * flicker);
     }
   }
 }
@@ -4101,7 +4267,8 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; }
+  [Serializable] class PBIdle { public int wipe; public int edge; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -4129,7 +4296,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -6225,6 +6392,14 @@ namespace PatternBreak {
       }
       // interactive or not, the piece's raycast stops at its drawn shell
       ShellRaycastPad(go, baseAsset.component, m);
+      /* Idle motion (owner spec): the kit's own resting-state animations,
+         wired only when the manifest says the kit turned them on. Both are
+         removable components — delete them and the piece is exactly what
+         it was. Edge shine skips sliced pieces: a stretched nine-slice no
+         longer matches the authored outline. */
+      if (m != null && m.idle != null && m.idle.wipe == 1 && go.GetComponent<WipeShine>() == null) go.AddComponent<WipeShine>();
+      if (m != null && m.idle != null && m.idle.edge == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null)
+        go.AddComponent<EdgeShine>().outline = baseAsset.outline;
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
          have the claim explosion to white") */

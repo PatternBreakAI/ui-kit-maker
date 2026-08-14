@@ -200,7 +200,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
-      return shine ? addShine(out) : out;
+      // the document's own idle wipe joins the host-driven shine — same
+      // clipped, staggered glint either way
+      return shine || cfg.idle?.wipe ? addShine(out) : out;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );

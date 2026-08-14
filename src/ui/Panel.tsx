@@ -1169,6 +1169,16 @@ export function Panel() {
             </button>
           )}
         </div>
+        {/* Idle motion — the kit's own resting-state animations. They ride
+            the document into every render and the Unity export (owner:
+            edge shine + wipe shine, user-toggleable, off by default). */}
+        <div className="ctl" style={{ marginTop: 12 }}>
+          <label>Idle motion</label>
+        </div>
+        <label className="check"><input type="checkbox" checked={!!cfg.idle?.wipe}
+          onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
+        <label className="check"><input type="checkbox" checked={!!cfg.idle?.edge}
+          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
           <div className="helper">This state has its own design — edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
         )}
@@ -2186,9 +2196,9 @@ export function Panel() {
         )}
         {focus ? (
           <>
-            <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-20} max={20} unit="px"
+            <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-60} max={60} unit="px"
               onChange={(v) => setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
-            <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-20} max={20} unit="px"
+            <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-60} max={60} unit="px"
               onChange={(v) => setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             <div className="helper">
               Component-specific — these nudges belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at its current size and never move anything else.
@@ -2202,8 +2212,11 @@ export function Panel() {
           </>
         ) : (
           <>
-            <Slider label="Nudge Y" value={T2.oy ?? 0} min={-20} max={20} unit="px" onChange={(v) => update((c) => { c.type.oy = v; })} />
-            <Slider label="Nudge X" value={T2.ox ?? 0} min={-20} max={20} unit="px" onChange={(v) => update((c) => { c.type.ox = v; })} />
+            {/* ±60, was ±20: an imported silhouette can carry its visual weight far
+            off-center (owner, flame button: "nudged as far as I can go") —
+            optical centering by hand needs the longer leash */}
+            <Slider label="Nudge Y" value={T2.oy ?? 0} min={-60} max={60} unit="px" onChange={(v) => update((c) => { c.type.oy = v; })} />
+            <Slider label="Nudge X" value={T2.ox ?? 0} min={-60} max={60} unit="px" onChange={(v) => update((c) => { c.type.ox = v; })} />
           </>
         )}
         {/* weight follows the face's real capabilities — variable axes get a
