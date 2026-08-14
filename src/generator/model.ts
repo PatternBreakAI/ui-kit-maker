@@ -144,7 +144,8 @@ export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "h
   | "circuit" | "hexcells" | "facets" | "speedlines" | "topo"
   | "chainmail" | "bolts" | "pixelblocks"
   | "animeburst" | "boltspop" | "snowflake" | "tigerstripes"
-  | "camoangular" | "camoclassic" | "fire";
+  | "camoangular" | "camoclassic" | "fire"
+  | "zebra" | "leopard" | "dirt" | "grime" | "muertos";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -190,10 +191,15 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
   { id: "snowflake", name: "Snowflakes" },
   { id: "tigerstripes", name: "Tiger Stripes" },
-  // the owner-drawn wave (patterns.zip, 2026-08-14)
+  // the owner-drawn waves (patterns.zip + patterns2.zip, 2026-08-14)
   { id: "camoangular", name: "Camo · Angular" },
   { id: "camoclassic", name: "Camo · Classic" },
   { id: "fire", name: "Flames" },
+  { id: "zebra", name: "Zebra" },
+  { id: "leopard", name: "Leopard" },
+  { id: "dirt", name: "Dirt" },
+  { id: "grime", name: "Grime" },
+  { id: "muertos", name: "Día de los Muertos" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row

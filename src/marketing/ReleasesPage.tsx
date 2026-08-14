@@ -16,6 +16,16 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "The menagerie",
+    items: [
+      {
+        h: "Five more hand-drawn patterns",
+        p: "Zebra, Leopard, Dirt, Grime and Día de los Muertos join the shelf — animal pelts, weathered grunge, and a sugar-skull lace with every petal and eye socket drawn by hand. Like the rest of the drawn wave, they recolor to your ink, tile seamlessly at any scale, and ride into every export, Unity and web alike.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "The hand-drawn wave",
     items: [
       {

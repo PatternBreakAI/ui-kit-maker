@@ -27,6 +27,11 @@ const WAVE: { id: string; name: string }[] = [
   { id: "camoangular", name: "Camo · Angular" },
   { id: "camoclassic", name: "Camo · Classic" },
   { id: "fire", name: "Flames" },
+  { id: "zebra", name: "Zebra" },
+  { id: "leopard", name: "Leopard" },
+  { id: "dirt", name: "Dirt" },
+  { id: "grime", name: "Grime" },
+  { id: "muertos", name: "Día de los Muertos" },
 ];
 
 /** One inline swatch: a rect filled with the live pattern cell. dispW
@@ -45,9 +50,9 @@ function Swatch(props: { id: string; w: number; h: number; ps: number; color: st
   return <span dangerouslySetInnerHTML={{ __html: svg }} style={{ display: "block", lineHeight: 0 }} />;
 }
 
-/* the review roster: the correction brief's survivors plus the
-   owner-drawn wave (softcamo and camoshards retired 2026-08-14) */
-const SIX = ["topo", "tigerstripes", "camoangular", "camoclassic", "fire", "chainmail", "bolts", "pixelblocks"];
+/* the review roster: the correction brief's survivors plus both
+   owner-drawn waves (softcamo and camoshards retired 2026-08-14) */
+const SIX = ["topo", "tigerstripes", "camoangular", "camoclassic", "fire", "zebra", "leopard", "dirt", "grime", "muertos", "chainmail", "bolts", "pixelblocks"];
 
 export function PatternLab() {
   usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
@@ -62,7 +67,7 @@ export function PatternLab() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#12141C", color: "#E9EDF7", fontFamily: "Inter, system-ui, sans-serif", padding: 28 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the fifteen</h1>
+      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the twenty</h1>
       <p style={{ margin: "0 0 18px", color: "#96A0B8", fontSize: 13 }}>
         Same swatch size, same color, same scale — density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
       </p>
