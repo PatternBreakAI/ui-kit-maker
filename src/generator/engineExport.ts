@@ -1999,10 +1999,14 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
      edge, and a strong glow baked a hard-edged slab into each glyph cell
      (owner, Unity: "any way to prevent this clipping on the glow?"). The
      SAME pad goes to the calibration render too, so pen/baseline and every
-     variant stay in one coordinate frame. Reach mirrors the engine's own
-     margins (bevel: glow size*0.8*3; shadow |x|+|y|+blur*1.5). */
+     variant stay in one coordinate frame. The glow reach is FOUR sigma —
+     the live filter region rides fs-slack past its 3-sigma envelope, but a
+     baked cell crops hard at its edge, and 3-sigma still carries ~1% of
+     peak there: a visible line (dev field report: the falloff "gets cut
+     off pretty abruptly"). Past 4-sigma the residual is ~0.01% — the shell
+     blurs' precedent. Shadow keeps the engine's own margin. */
   const fxPad = Math.ceil(Math.max(
-    base.type.glow.on ? base.type.glow.size * 0.8 * 3 : 0,
+    base.type.glow.on ? base.type.glow.size * 0.8 * 4 : 0,
     base.type.shadow.on ? Math.abs(base.type.shadow.x) + Math.abs(base.type.shadow.y) + base.type.shadow.blur * 1.5 : 0,
   ));
 
@@ -2158,8 +2162,15 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   const FEATHER_KEEP = 12 * BAKE_S;
   type Slab = { l: number; t: number; r: number; b: number };
   const featherCell = (g: Baked, m: Slab): HTMLCanvasElement | null => {
-    const zl = Math.max(0, m.l - FEATHER_KEEP), zr = Math.max(0, m.r - FEATHER_KEEP);
-    const zt = Math.max(0, m.t - FEATHER_KEEP), zb = Math.max(0, m.b - FEATHER_KEEP);
+    /* the shelter yields when the slab is modest: the fixed KEEP on a
+       ~40px slab left a below-minimum zone, so mid-size glows shipped
+       with their hard crop edge intact (dev field report: the falloff
+       "gets cut off pretty abruptly"). The zone now claims up to 8px·S
+       or 40% of the slab — whichever is smaller — whenever the full
+       shelter would starve it; truly tiny slabs still pass untouched. */
+    const zone = (mm: number) => Math.max(mm - FEATHER_KEEP, Math.min(8 * BAKE_S, mm * 0.4));
+    const zl = Math.max(0, zone(m.l)), zr = Math.max(0, zone(m.r));
+    const zt = Math.max(0, zone(m.t)), zb = Math.max(0, zone(m.b));
     const Z = 4 * BAKE_S; // a zone thinner than this can't fade convincingly
     if (zl < Z && zr < Z && zt < Z && zb < Z) return null;
     const out = document.createElement("canvas");
@@ -2347,32 +2358,56 @@ namespace PatternBreak {
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
     }
     void BuildGlow() {
-      var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
+      /* the halo is DECOR, not layout — and the exemption must exist BEFORE
+         the layout group ever meets the child. Parenting a bare Image first
+         queued a rebuild that measured the aura sprite as a real cell, and
+         a HorizontalLayoutGroup bunched the whole menu around it (dev field
+         report, round two: prefabs "spawn in grouped in one place"). */
+      go.GetComponent<LayoutElement>().ignoreLayout = true;
       glowRt = go.GetComponent<RectTransform>();
       glowRt.SetParent(rt.parent, false);
       glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
-      /* the halo is DECOR, not layout: without this, a Vertical/Horizontal
-         Layout Group counts the spawned sibling as a real child and spaces
-         the whole menu apart at runtime (dev field report: "glow objects
-         throw off layout groups") */
-      var le = go.AddComponent<LayoutElement>();
-      le.ignoreLayout = true;
-      glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
-      glowRt.pivot = rt.pivot;
-      glowRt.localScale = rt.localScale;
-      /* sit exactly where the piece sits. Forgetting this parked every halo
-         at the parent's anchor origin instead of behind its own button —
-         one big blob in the corner (owner: "obviously not aligned, that's
-         it cut off screen on the upper left"). */
-      glowRt.anchoredPosition = rt.anchoredPosition;
-      // the aura sprite is the piece plus a fixed overhang, so the pad is an
-      // ADDITIVE offset — correct whether the piece is fixed or stretched
-      glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
       glowImg = go.GetComponent<Image>();
       glowImg.sprite = glowSprite;
       glowImg.raycastTarget = false;
       glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+      MirrorHost();
+    }
+    /* The halo MIRRORS the host's frame — anchors, pivot, scale, slot and
+       size — instead of copying it once. A layout group owns its children's
+       frames and rewrites them whenever it pleases, and a HORIZONTAL group
+       varies exactly the axis the old event-driven copy never carried (dev
+       field report: auras stacked in one place, spread on first mouse-over,
+       never sat right). Following every frame is the only honest contract.
+       Change-guarded: a quiet frame costs six compares and writes nothing,
+       so no canvas is dirtied at rest — the Playground slowdown of old was
+       per-frame ALLOCATION, and this allocates nothing. */
+    void MirrorHost() {
+      if (glowRt == null || rt == null) return;
+      if (glowRt.anchorMin != rt.anchorMin) glowRt.anchorMin = rt.anchorMin;
+      if (glowRt.anchorMax != rt.anchorMax) glowRt.anchorMax = rt.anchorMax;
+      if (glowRt.pivot != rt.pivot) glowRt.pivot = rt.pivot;
+      if (glowRt.localScale != rt.localScale) glowRt.localScale = rt.localScale;
+      // the aura sprite is the piece plus a fixed overhang, so the pad is an
+      // ADDITIVE offset — correct whether the piece is fixed or stretched
+      var size = rt.sizeDelta + glowPad * 2f;
+      if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
+      // the piece's own y already carries the lift — the halo just sits
+      // exactly where the piece sits, no lift math of its own
+      if (glowRt.anchoredPosition != rt.anchoredPosition) glowRt.anchoredPosition = rt.anchoredPosition;
+    }
+    void LateUpdate() {
+      if (rt == null) return;
+      /* adopt outside moves the dimension callback never hears about: a
+         layout group can re-flow us WITHOUT a size change (a sibling added
+         to the row shifts everyone sideways and, centered, vertically). A
+         y we didn't write ourselves belongs to the layout — it becomes the
+         new resting base the press sink measures from. */
+      float cur = rt.anchoredPosition.y;
+      if (!settling && (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f)) { baseY = cur; lastWroteY = cur; }
+      MirrorHost();
     }
     /* a layout group repositions and resizes us AFTER OnEnable — adopt its
        slot as the new resting base and re-seat the halo, or the press sink
@@ -2383,7 +2418,6 @@ namespace PatternBreak {
       if (rt == null) return;
       float cur = rt.anchoredPosition.y;
       if (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f) baseY = cur;
-      if (glowRt != null) glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
       Push(true);
     }
     float Target(out float lift) {
@@ -2429,9 +2463,8 @@ namespace PatternBreak {
         rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
         lastWroteY = baseY + liftNow;
       }
-      // the halo rides the lift with the piece — x too, in case a layout
-      // group re-flowed the column sideways
-      if (glowRt != null && rt != null) glowRt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+      // the halo follows in MirrorHost — the piece's y carries the lift
+      MirrorHost();
     }
   }
 }

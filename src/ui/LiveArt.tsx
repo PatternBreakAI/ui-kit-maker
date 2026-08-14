@@ -82,9 +82,18 @@ export const stripSmil = (svg: string): string =>
 export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: number, clientY: number, slop = 14): boolean {
   if (!svgEl) return true;
   const stamp = svgEl.getAttribute("data-shell")?.split(" ").map(Number);
+  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite)) return true;
+  return shellRectHit(svgEl, stamp, clientX, clientY, slop);
+}
+
+/** The mapping half of shellHit, for an EXPLICIT shell rect (viewBox
+ *  units) — so a caller can test a REMEMBERED shell against the current
+ *  render instead of the one stamped on it. */
+export function shellRectHit(svgEl: SVGSVGElement | null | undefined, stamp: number[], clientX: number, clientY: number, slop = 14): boolean {
+  if (!svgEl) return true;
   const vb = svgEl.viewBox?.baseVal;
   const r = svgEl.getBoundingClientRect();
-  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite) || !vb?.width || !r.width) return true;
+  if (!vb?.width || !r.width) return true;
   const k = r.width / vb.width;
   const x0 = r.left + (stamp[0] - vb.x) * k - slop;
   const y0 = r.top + (stamp[1] - vb.y) * k - slop;
@@ -492,8 +501,26 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       tweenVal(settled + dir / 3, 420, "inout");
     }
   };
-  // the hit test the handlers share: the shell, not the glow-padded canvas
-  const hit = (e: { clientX: number; clientY: number }) => shellHit(ref.current?.querySelector("svg"), e.clientX, e.clientY);
+  /* The hit test the handlers share: the shell, not the glow-padded
+     canvas — and a STABLE shell. Each state renders its own svg, and the
+     hover state's lift moves the drawn shell up: hit-testing only the
+     current stamp let the hitbox slide out from under a cursor parked
+     near an edge, which un-hovered, dropped the art back, re-hovered —
+     jitter (dev field report: "the hitbox shifts when hovering, moving
+     out from under the mouse"). The default state's shell is remembered
+     and unioned in, so the region that granted a state never stops
+     granting it — the browser twin of the Unity raycast pads. */
+  const defShell = useRef<number[] | null>(null);
+  useEffect(() => {
+    if (live !== "default") return;
+    const stamp = ref.current?.querySelector("svg")?.getAttribute("data-shell")?.split(" ").map(Number);
+    if (stamp?.length === 4 && stamp.every(Number.isFinite)) defShell.current = stamp;
+  });
+  const hit = (e: { clientX: number; clientY: number }) => {
+    const svg = ref.current?.querySelector("svg");
+    return shellHit(svg, e.clientX, e.clientY) ||
+      (live !== "default" && !!defShell.current && shellRectHit(svg, defShell.current, e.clientX, e.clientY));
+  };
   const playHandlers = inert ? {} : {
     onPointerEnter: (e: React.PointerEvent) => { if (hit(e)) setLive(e.buttons === 1 ? "pressed" : "hover"); },
     onPointerLeave: (e: React.PointerEvent) => { if (e.buttons !== 1) { setLive("default"); sliding.current = false; } pressedHere.current = false; },
