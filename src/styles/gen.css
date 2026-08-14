@@ -1051,6 +1051,13 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    exports and engines that never load this stylesheet never see it.
    Same stagger vars as the wipe, so pieces never fire in unison. */
 .kit-edgeshine { animation: kit-edgeshine var(--shine-dur, 9s) linear var(--shine-delay, 0s) infinite; }
+/* Idle motion, per-piece override rows — label left, one chip group right,
+   nothing wraps (owner: "the wipe shine ui is horrible"). */
+.idlepiece { margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.idlepiece .sublabel { margin-bottom: 4px; }
+.idlerow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
+.idlerow > span { font-size: 12.5px; white-space: nowrap; opacity: 0.85; }
+.idlerow .idlechips { display: flex; gap: 4px; flex: none; }
 @keyframes kit-edgeshine {
   0%   { stroke-dasharray: 14 86; stroke-dashoffset: 0;    opacity: 0; }
   2%   { opacity: .95; }
@@ -1075,8 +1082,11 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    crown. The editor canvas is untouched (no .kitpage ancestor). The
    infinite motion demos and attention pulses rest the same way. */
 .kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
-.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-shine { animation: kit-shine 1.5s cubic-bezier(.33,.1,.3,1) .05s 1 both; }
-.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-edgeshine { animation: kit-edgeshine 2.2s linear .05s 1 both; }
+/* No rollover one-shots for the idle shines here — a gallery where every
+   piece flashes as the pointer crosses it read as chaos, not craft
+   (owner: "the idle animations are happening on rollover in the kit...
+   it's pretty chaotic"). On the kit page the shines live ONLY on the
+   hero stage — one element, the page's crown. */
 .kitpage .kp-herostage .kit-shine, .kitpage .kp-herostage .kit-edgeshine { animation-play-state: running; }
 .kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
 .kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }

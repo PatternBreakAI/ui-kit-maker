@@ -1196,10 +1196,12 @@ export function Panel() {
           onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
-            Board and Unity export all follow. Absent chips = follow kit. */}
+            Board and Unity export all follow. Absent chips = follow kit.
+            Laid out as label-left / chips-right rows that never wrap
+            (owner: "the wipe shine ui is horrible, please clean this up"). */}
         {focus && (
-          <div className="ctl" style={{ marginTop: 8 }}>
-            <div className="sublabel">This piece only — {KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</div>
+          <div className="idlepiece">
+            <div className="sublabel">This piece only <em>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</em></div>
             {(["wipe", "edge"] as const).map((k) => {
               const ov = kitDesigns[focus]?.idle?.[k];
               const setOv = (v: boolean | undefined) => {
@@ -1211,11 +1213,14 @@ export function Panel() {
                 setKitDesign(focus, Object.keys(next).length ? next : null);
               };
               return (
-                <span className="fl" key={k}>{k === "wipe" ? "Wipe shine" : "Edge shine"}
-                  <button className={`allstateschip${ov === undefined ? " on" : ""}`} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
-                  <button className={`allstateschip${ov === true ? " on" : ""}`} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
-                  <button className={`allstateschip${ov === false ? " on" : ""}`} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
-                </span>
+                <div className="idlerow" key={k}>
+                  <span>{k === "wipe" ? "Wipe shine" : "Edge shine"}</span>
+                  <div className="idlechips">
+                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
+                    <button className={`allstateschip${ov === true ? " on" : ""}`} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
+                    <button className={`allstateschip${ov === false ? " on" : ""}`} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
+                  </div>
+                </div>
               );
             })}
           </div>
