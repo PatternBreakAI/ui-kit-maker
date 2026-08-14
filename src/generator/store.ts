@@ -1686,7 +1686,7 @@ export const useGen = create<GenStore>((set, get) => ({
          restyle it */
       const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
       const merged = clone2(applyKitDesign(get().cfg, get().kitDesigns[id]));
-      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon, ...(get().kitDesigns[id]?.idle ? { idle: get().kitDesigns[id]!.idle } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon, ...(get().kitDesigns[id]?.idle ? { idle: get().kitDesigns[id]!.idle } : {}), ...(get().kitDesigns[id]?.contentMargin !== undefined ? { contentMargin: get().kitDesigns[id]!.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
       locks[id] = true;
@@ -2045,7 +2045,7 @@ export const useGen = create<GenStore>((set, get) => ({
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -2222,7 +2222,7 @@ export const useGen = create<GenStore>((set, get) => ({
          writes through and keeps following the master. */
       const iconPin = !!kdPrev?.icon || JSON.stringify(work.icon) !== JSON.stringify(cfg.icon);
       if (!iconPin) cfg.icon = work.icon;
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}) };
+      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}), ...(kdPrev?.contentMargin !== undefined ? { contentMargin: kdPrev.contentMargin } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });

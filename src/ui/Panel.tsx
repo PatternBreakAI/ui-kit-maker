@@ -792,6 +792,9 @@ export function Panel() {
         // state forks pin wholesale — that's their storage grain
         for (const t of targets) setKitDesign(t, { ...(useGen.getState().kitDesigns[t] ?? {}), stateDesigns: merged.stateDesigns });
       }
+      // content margin is not state-forked — carry a change on the working
+      // copy out to the piece level so the pin below sees it
+      merged.contentMargin = t.contentMargin;
     } else {
       fn(merged);
       // v70: pin only the paths this edit changed — the rest keeps following
@@ -813,12 +816,20 @@ export function Panel() {
       const di = iconRigDiff(before.icon, merged.icon);
       if (di) pinAll({ icon: di });
     }
+    /* Content margin pins to the piece on first touch too — its whole job
+       is fitting a label to ONE silhouette's decorated ends, and a focused
+       edit writing it kit-wide was exactly the owner's "the new scaling
+       affected every component" on the flame button. */
+    if (before.contentMargin !== merged.contentMargin) {
+      pinAll({ contentMargin: merged.contentMargin });
+    }
     // replay only the non-design portion onto the parent — design keys,
-    // state adjustments AND the icon rig stay pinned to the piece
+    // state adjustments, the icon rig AND the content margin stay pinned
+    // to the piece
     const mClone = JSON.parse(JSON.stringify(cfgMaster)) as GenConfig;
     fn(mClone);
-    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; return JSON.stringify(p); };
-    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; });
+    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; delete p.contentMargin; return JSON.stringify(p); };
+    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; const keepCm = c.contentMargin; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; c.contentMargin = keepCm; });
   };
   const setPreset = (id: string) => {
     if (!focus) { setPresetParent(id); return; }
@@ -1552,7 +1563,10 @@ export function Panel() {
         <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
         <div className="helper">
-          Breathing room between every label and its silhouette's ends, kit-wide.
+          Breathing room between every label and its silhouette's ends.
+          Kit-wide from the master — but while a piece is focused, the change
+          saves into that piece only, so one showpiece silhouette can breathe
+          differently without moving the rest.
           Push it up when a word crowds the decoration; pull it negative to hug tighter.
         </div>
       </Section>
