@@ -1765,6 +1765,9 @@ export function mergeKitDesign(base: KitDesign | null | undefined, d: KitDesign)
  *  "whatever still differs from the parent today"; identical fields resume
  *  following the parent design (the kit auto-updates again). */
 export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitComponentId, KitDesign>>): { forks: Partial<Record<KitComponentId, KitDesign>>; changed: boolean } {
+  // stored and cloud-shipped forks alike land here — a non-map (a mangled
+  // write, a null) migrates to the empty map instead of crashing the boot
+  if (!forks || typeof forks !== "object" || Array.isArray(forks)) return { forks: {}, changed: true };
   const out: Partial<Record<KitComponentId, KitDesign>> = {};
   let changed = false;
   const isFull = (kd: KitDesign) => DESIGN_KEYS.every((k) => (kd as Record<string, unknown>)[k] !== undefined);

@@ -2384,7 +2384,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     return iconOnly ? Math.max(h, cwX + bpX * 2) : Math.max(g0.minW ?? 230 * K, cwX + pLX + pRX);
   };
   const forks = (["hover", "pressed", "disabled"] as const)
-    .map((s) => cfg.stateDesigns?.[s]).filter(Boolean) as StateDesign[];
+    .map((s) => cfg.stateDesigns?.[s])
+    // a fork without a type can't widen the frame — the master already
+    // counts, and reading .type off one used to crash the whole render
+    .filter((f) => !!f && !!f.type) as StateDesign[];
   const minW = opts.fixedW ?? Math.max(stateWidth(cfg), ...forks.map(stateWidth));
   const w = opts.fixedW ?? Math.min(g0.maxW ?? 980, minW);
   /* a FIXED frame can't grow for its content, but the safe-area story must
