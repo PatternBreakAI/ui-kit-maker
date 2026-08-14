@@ -3960,7 +3960,6 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
-    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4260,6 +4259,38 @@ function inject(track: string, extra: string): string {
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
+/* Idle motion: edge shine — a GLOW that travels the silhouette's
+   perimeter (owner: "a radial gradient, white in the center to
+   transparent at the edges, fluctuating its radius as it travels…
+   it should sit on top of everything"). Appended as the LAST child, so
+   it rides above every layer, unclipped — the halo spills past the
+   edge like a real light. SMIL carries it (the house idiom): the base
+   element is opacity-0, so stripSmil'd rasters never show it, and the
+   kit page's still-loops pause lands inside the rest window (travel
+   occupies the cycle's back half; the pause point sits at 1.2s). The
+   radius WOBBLES while easing smaller across the journey, and the
+   whole orb fades out at the end. */
+export function addEdgeShine(svg: string): string {
+  const fc = /<clipPath id="([A-Za-z0-9]+)fc"><path d="([^"]+)"/.exec(svg);
+  const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+  if (!fc || !vb) return svg;
+  const [, id, faceP] = fc;
+  const vh = Number(vb[4]);
+  const R = vh * 0.11;
+  const rv = (k: number) => (R * k).toFixed(1);
+  // deterministic per-geometry stagger — stable across re-renders
+  const delay = ((faceP.length * 7 + Math.round(vh)) % 5) * 1.4;
+  const dur = 9;
+  const grad = `<radialGradient id="${id}egg"><stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>`;
+  const orb = `<g class="kit-edgeshine" opacity="0">` +
+    `<animate attributeName="opacity" values="0;0;0.95;0.9;0.95;0;0" keyTimes="0;0.55;0.58;0.8;0.9;0.96;1" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
+    `<circle r="${rv(1)}" fill="url(#${id}egg)">` +
+    `<animateMotion path="${faceP}" keyPoints="0;0;1;1" keyTimes="0;0.55;0.96;1" calcMode="linear" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
+    `<animate attributeName="r" values="${rv(1)};${rv(0.72)};${rv(1.12)};${rv(0.62)};${rv(0.95)};${rv(0.5)};${rv(0.78)};${rv(0.42)}" keyTimes="0;0.6;0.66;0.73;0.79;0.86;0.91;1" dur="${dur}s" begin="${delay.toFixed(1)}s" repeatCount="indefinite"/>` +
+    `</circle></g>`;
+  return svg.replace("</defs>", grad + "</defs>").replace(/<\/svg>\s*$/, orb + "</svg>");
+}
+
 export function addShine(svg: string): string {
   const fc = /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);

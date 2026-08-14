@@ -2625,12 +2625,13 @@ namespace PatternBreak {
       float fy = Mathf.Lerp(outline[i0 * 2 + 1], outline[i1 * 2 + 1], ft);
       float w = rt.rect.width, h = rt.rect.height;
       sparkRt.anchoredPosition = new Vector2(fx * w, -fy * h);
-      // the journey: shrink, fade, and flicker at deterministic stations
-      float size = Mathf.Clamp(h * 0.26f, 10f, 44f) * Mathf.Lerp(1f, 0.3f, u);
+      // the journey (owner spec): the glow's RADIUS fluctuates as it
+      // travels — a slow ease smaller with a deterministic wobble riding
+      // it — while the alpha holds through the run and fades at the end
+      float wobble = 1f + 0.28f * Mathf.Sin(u * 19f + (seed % 7));
+      float size = Mathf.Clamp(h * 0.3f, 12f, 52f) * Mathf.Lerp(1f, 0.45f, u) * wobble;
       sparkRt.sizeDelta = new Vector2(size, size);
-      uint step = (uint)(u * 24f) * 2654435761u + (uint)seed;
-      float flicker = 0.45f + 0.55f * (((step >> 9) & 1023u) / 1023f);
-      spark.color = new Color(color.r, color.g, color.b, Mathf.Sin(u * Mathf.PI) * flicker);
+      spark.color = new Color(color.r, color.g, color.b, Mathf.Clamp01(Mathf.Sin(u * Mathf.PI) * 1.4f));
     }
   }
 }

@@ -7,7 +7,7 @@ import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
-import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
+import { renderBevel, renderKit, padSvg, addShine, addEdgeShine } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
 import type { GenStateName } from "@/generator/model";
 import { KitPage } from "./KitPage";
@@ -121,7 +121,7 @@ export function CanvasView() {
   const heroSvg = useMemo(
     // the document's idle wipe rides the design canvas too — same clipped
     // glint LiveArt applies on the playing surfaces
-    () => ((sv: string) => (cfg.idle?.wipe && displayed !== "disabled" ? addShine(sv) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, kitVals[focus] ?? (focus === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
+    () => ((sv: string) => { const a = cfg.idle?.wipe && displayed !== "disabled" ? addShine(sv) : sv; return cfg.idle?.edge && displayed !== "disabled" ? addEdgeShine(a) : a; })(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, kitVals[focus] ?? (focus === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, kitBar, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns]
   );
   // Fixed order, selected included — the stack never reshuffles.
@@ -432,7 +432,7 @@ export function CanvasView() {
                   only the hero pays per frame — three extra engine renders per
                   tick were most of the drag's main-thread bill, and the cards
                   catch up the instant the pointer rests */}
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (cfg.idle?.wipe && s !== "disabled" ? addShine(sv) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => { const a = cfg.idle?.wipe && s !== "disabled" ? addShine(sv) : sv; return cfg.idle?.edge && s !== "disabled" ? addEdgeShine(a) : a; })(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
             </button>
           ))}
         </div>

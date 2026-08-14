@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
-import { addShine, renderBevel, renderKit, padSvg } from "@/generator/bevel";
+import { addShine, addEdgeShine, renderBevel, renderKit, padSvg } from "@/generator/bevel";
 
 /** What a piece of live art is: the master button (no kit), or one kit
  *  component with optional per-instance overrides. */
@@ -201,8 +201,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
       // the document's own idle wipe joins the host-driven shine — same
-      // clipped, staggered glint either way
-      return shine || cfg.idle?.wipe ? addShine(out) : out;
+      // clipped, staggered glint either way; the edge orb goes on LAST so
+      // it rides above everything
+      const shined = shine || cfg.idle?.wipe ? addShine(out) : out;
+      return cfg.idle?.edge ? addEdgeShine(shined) : shined;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );
