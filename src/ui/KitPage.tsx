@@ -1558,7 +1558,7 @@ export function KitPage() {
       st.setUnitySlug(want);
       st.resetUnityKitVer();
       const pid = st.openProjectId;
-      if (pid) void updateProjectDoc(pid, useGen.getState().kitPayload());
+      if (pid) void useGen.getState().kitPayloadWithBoards().then((d) => updateProjectDoc(pid, d));
     }
     return want;
   };

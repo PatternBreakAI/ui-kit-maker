@@ -1735,6 +1735,20 @@ export function Panel() {
             })}
           </div>
           </>)}
+          {/* the glyph's position, per piece — every silhouette has its own
+              center of gravity (owner, on the flame set: "these all have
+              different centers of gravity... maybe separate x.y nudge
+              controls for each in component properties"). Rendered for
+              every glyph CARRIER, not just the swappables — primary and
+              secondary wear the master glyph and need the same per-piece
+              seat. Focused edits pin through the rig-pin machinery, and
+              the position holds across all four states by design. */}
+          {(iconSwappable || iconTogglable) && !finLocked && (<>
+            {!iconSwappable && <div className="sublabel">Icon</div>}
+            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.ox = v; })} />
+            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.oy = v; })} />
+            <div className="helper">These belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at every state — the rest of the kit's glyphs stay put.</div>
+          </>)}
         </Section>
       )}
 

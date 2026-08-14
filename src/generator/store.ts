@@ -409,6 +409,7 @@ interface GenStore {
   /** The curated, portable kit snapshot — the single payload contract behind
       both share links and named cloud projects (v76). */
   kitPayload: () => Record<string, unknown>;
+  kitPayloadWithBoards: () => Promise<Record<string, unknown>>;
   /** Unity bridge identity (spec I1, revised): the slug follows the kit's
       CURRENT name at export time. Same name → same slug, so re-exports keep
       overwriting in place; a different name is a different kit (or a
@@ -1396,7 +1397,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const n = act?.items.length ?? 0;
     const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId, x: 80 + (n % 3) * 340, y: 80 + Math.floor(n / 3) * 220 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
-    set({ phase: "board", boardSel: item.id });
+    set({ phase: "board", boardSel: item.id, zoom: 1 });
   },
   addBoardItems: (items) => {
     // starter templates: a full set of pieces, pre-sized and pre-placed
@@ -1470,7 +1471,7 @@ export const useGen = create<GenStore>((set, get) => ({
       stamp: plain ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } } : { text: "GAME TITLE", size: 100 },
     };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
-    set({ phase: "board", boardSel: item.id });
+    set({ phase: "board", boardSel: item.id, zoom: 1 });
   },
   setBoardItemStamp: (id, patch) => mutateItem(get, set, `stamp:${id}`, id, (b) => (
     b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(25, Math.min(400, patch.size ?? b.stamp.size)) } } : b
@@ -1567,6 +1568,16 @@ export const useGen = create<GenStore>((set, get) => ({
       bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
     };
   },
+  /* Save kit carries the BOARDS too (owner: "when i save a kit, I expect
+     to save the boards with it when i reopen it") — in the same
+     travelling form the settings export uses: uploaded backdrops embedded
+     from the vault as data URLs, session blob: urls stripped. The fat
+     pixels live only in this one-shot payload — the local document keeps
+     vault keys, so undo history and the workspace sync stay lean. */
+  kitPayloadWithBoards: async () => {
+    const st = get();
+    return { ...st.kitPayload(), boards: await exportableBoards(st.boards) };
+  },
   loadKitPayload: (p, opts) => {
     const st = get();
     const viewer = opts?.viewer ?? true;
@@ -1630,6 +1641,12 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     // a settings import stays in the editor; project opens land on the kit
     set({ ...next, viewer, phase: opts?.phase ?? "kit", openProjectId: viewer ? null : (opts?.projectId ?? null) });
+    /* boards ride the project document (owner: "when i save a kit, I
+       expect to save the boards with it when i reopen it") — an OWNED
+       open replaces the workspace boards with the project's, re-vaulting
+       any embedded backdrops. Older saves without boards leave the local
+       ones alone, and shared/viewer links never touch them. */
+    if (!viewer && Array.isArray((p as { boards?: unknown[] }).boards)) void importBoards((p as { boards: unknown[] }).boards);
   },
   openProjectId: null,
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
@@ -2431,7 +2448,11 @@ export const useGen = create<GenStore>((set, get) => ({
      Play slims the whole control tray, which reads as the app breaking
      (owner: "the left tray isn't expanded... when I roundtrip"). Play is
      a per-visit gesture, never a stowaway. */
-  setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" ? { zoom: 1 } : {}) }),
+  /* the Board (like the kit page) always arrives fitted — inheriting the
+     editor's zoom made the stage land half-off-screen (owner: "everytime
+     we click to the board it should be sized to fit"). fitOf() multiplies
+     the shared zoom, so 1 IS the fitted view. */
+  setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" || p === "board" ? { zoom: 1 } : {}) }),
   setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
   setKitSizeAll: (s) => {
     pushHistory(get());

@@ -419,7 +419,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
+    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
@@ -682,7 +682,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
-      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      // the editor's per-size text nudges, slot choices and sub-labels ride
+      // along — without them the board (and its PNGs) trailed the editor
+      // (owner: "changing the speedo component in edit did not update it
+      // on the the board")
+      const bSize = kitSizes[b.kitId] ?? "l";
+      return { svg: renderKit(pc, b.kitId, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -1629,7 +1634,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onDragEnd: () => void;
   onExport: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -1769,6 +1774,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              the measurement observer behind it) quiet between real edits. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+              sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
+              textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined,
@@ -1778,7 +1785,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
             kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape, label: item!.kit.label, value: item!.kit.v } : undefined} />
         )}
       </div>
-      {selected && (
+      {/* Play is for feeling the screen, not editing it — the selection
+          box stays in Design (owner: "when I click play in boards i
+          don't want to see the item's bounding box") */}
+      {selected && !playing && (
         <i className="board-selbox" aria-hidden="true" style={dim?.shell
           ? { left: dim.shell[0] * sc, top: dim.shell[1] * sc, width: dim.shell[2] * sc, height: dim.shell[3] * sc }
           : { left: 0, top: 0, width: "100%", height: "100%" }} />

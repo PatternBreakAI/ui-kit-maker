@@ -91,7 +91,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
        (the community launch); Pro and admin default private and keep
        their toggle. RLS enforces the same line server-side. */
     const canPrivate = st.tier === "pro" || st.isAdmin;
-    const { project, error } = await saveProject(name, st.kitPayload(), !canPrivate || shareDef);
+    const { project, error } = await saveProject(name, await st.kitPayloadWithBoards(), !canPrivate || shareDef);
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
@@ -112,7 +112,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   const doUpdate = async (p: CloudProject) => {
     if (!window.confirm(`Overwrite “${p.name}” with the kit currently on screen?`)) return;
     setBusy(true); setNote(null);
-    const error = await updateProjectDoc(p.id, useGen.getState().kitPayload());
+    const error = await updateProjectDoc(p.id, await useGen.getState().kitPayloadWithBoards());
     setBusy(false);
     if (error) { setNote(error); return; }
     setNote(`“${p.name}” updated.`);
