@@ -145,7 +145,7 @@ export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "h
   | "chainmail" | "bolts" | "pixelblocks"
   | "animeburst" | "boltspop" | "snowflake" | "tigerstripes"
   | "camoangular" | "camoclassic" | "fire"
-  | "zebra" | "leopard" | "reptile" | "dirt" | "grime" | "muertos";
+  | "zebra" | "leopard" | "dirt" | "grime" | "muertos";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -191,14 +191,12 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
   { id: "snowflake", name: "Snowflakes" },
   { id: "tigerstripes", name: "Tiger Stripes" },
-  // the owner-drawn waves (patterns.zip + patterns2.zip, 2026-08-14);
-  // the drawn skulls tile also took over the "skulls" id above
+  // the owner-drawn waves (patterns.zip + patterns2.zip, 2026-08-14)
   { id: "camoangular", name: "Camo · Angular" },
   { id: "camoclassic", name: "Camo · Classic" },
   { id: "fire", name: "Flames" },
   { id: "zebra", name: "Zebra" },
   { id: "leopard", name: "Leopard" },
-  { id: "reptile", name: "Reptile" },
   { id: "dirt", name: "Dirt" },
   { id: "grime", name: "Grime" },
   { id: "muertos", name: "Día de los Muertos" },
