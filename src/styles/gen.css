@@ -1044,12 +1044,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    and --shine-dur (set per-piece in KitPage) so the sweep never fires in
    unison across the screen. */
 @keyframes kit-shine { 0% { transform: translateX(0); } 9%, 100% { transform: translateX(175%); } }
-/* Idle motion: edge shine — the glowing line runs the silhouette once per
-   cycle, shrinking as it travels, flickering at points, then resting
-   (owner spec). Animated on the GROUP: the dash state inherits to the
-   halo, bloom and core lanes, so the three travel as one light. Base
-   attributes park it invisible — rasters never carry it. Same stagger
-   vars as the wipe, so pieces never fire in unison. */
+/* Idle motion: edge shine — the spark runs the silhouette once per cycle,
+   shrinking as it travels, flickering along the journey, then resting
+   (owner: "gets smaller and fades out… points of flicker"). The BASE
+   attributes park it invisible (dasharray 0, opacity 0), so raster
+   exports and engines that never load this stylesheet never see it.
+   Same stagger vars as the wipe, so pieces never fire in unison. */
 .kit-edgeshine { animation: kit-edgeshine var(--shine-dur, 9s) linear var(--shine-delay, 0s) infinite; }
 @keyframes kit-edgeshine {
   0%   { stroke-dasharray: 14 86; stroke-dashoffset: 0;    opacity: 0; }
@@ -1076,7 +1076,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    infinite motion demos and attention pulses rest the same way. */
 .kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
 .kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-shine { animation: kit-shine 1.5s cubic-bezier(.33,.1,.3,1) .05s 1 both; }
-.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-edgeshine { animation: kit-edgeshine 2.4s linear .05s 1 both; }
+.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-edgeshine { animation: kit-edgeshine 2.2s linear .05s 1 both; }
 .kitpage .kp-herostage .kit-shine, .kitpage .kp-herostage .kit-edgeshine { animation-play-state: running; }
 .kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
 .kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }

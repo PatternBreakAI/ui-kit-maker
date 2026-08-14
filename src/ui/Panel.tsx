@@ -1178,7 +1178,7 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={!!cfg.idle?.wipe}
           onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
         <label className="check"><input type="checkbox" checked={!!cfg.idle?.edge}
-          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a glowing line runs the silhouette</label>
+          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {(cfg.idle?.wipe || cfg.idle?.edge) && (
           <>
             <Slider label="Frequency" value={cfg.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}

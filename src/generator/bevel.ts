@@ -3960,6 +3960,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg)}/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4255,38 +4256,24 @@ function inject(track: string, extra: string): string {
   return track.replace("</g>\n</svg>", extra + "</g>\n</svg>");
 }
 
+/* Idle motion: edge shine — the original traveling line (owner: back to
+   the first cut, no glow). The line itself is drawn INLINE in the shell
+   markup (the idle-edge path beside the gloss/specular layers), in the
+   SAME coordinate space as the face clip — so it hugs the edge by
+   construction, under every transform the face itself wears. Its base
+   attributes park it invisible (dasharray 0, opacity 0): rasters and
+   engines that never load gen.css never see it. This helper carries the
+   two owner controls onto that path: Frequency (--shine-dur) and Blend
+   (mix-blend-mode). */
+function idleShineStyle(cfg: GenConfig): string {
+  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
+  return st ? ` style="${st}"` : "";
+}
+
 /** Overlay a specular shine band, clipped to the component's face (the
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-/* Idle motion: edge shine — the traveling LINE, glowing (owner: back to
-   the line, "but can you make the line glow?"). One dash runs the face
-   silhouette — shrinking across its journey, flickering at points,
-   resting between laps — and it glows by LAYERING: a wide soft halo and
-   a mid bloom under the crisp core, all inheriting the same animated
-   dash state from their group, so the three travel as one light. The
-   group's BASE attributes park it invisible (dasharray 0, opacity 0):
-   rasters and engines that never load the stylesheet never see it.
-   Appended last, above every layer, unclipped. */
-export function addEdgeShine(svg: string, o?: { ink?: string; dur?: number; blend?: string }): string {
-  const fc = /<clipPath id="([A-Za-z0-9]+)fc"><path d="([^"]+)"/.exec(svg);
-  const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
-  if (!fc || !vb) return svg;
-  const faceP = fc[2];
-  const vh = Number(vb[4]);
-  const core = Math.max(2, vh * 0.02);
-  // the light wears the kit's own glow ink (owner: "match whatever the
-  // glow color is, not always white") — halo and bloom in the ink, the
-  // core lightened toward white so it reads hot, like a lit tube
-  const ink = o?.ink ?? "#FFFFFF";
-  const lane = (wk: number, so: number, col: string) =>
-    `<path d="${faceP}" pathLength="100" stroke="${col}" stroke-width="${(core * wk).toFixed(1)}" stroke-opacity="${so}"/>`;
-  const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
-  const line = `<g class="kit-edgeshine" fill="none" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${st ? ` style="${st}"` : ""}>` +
-    lane(4.2, 0.22, ink) + lane(2.2, 0.4, ink) + lane(1, 0.95, lighten(ink, 0.45)) + `</g>`;
-  return svg.replace(/<\/svg>\s*$/, line + "</svg>");
-}
-
 export function addShine(svg: string, o?: { dur?: number; blend?: string }): string {
   const fc = /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);

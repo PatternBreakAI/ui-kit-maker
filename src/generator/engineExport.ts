@@ -1600,8 +1600,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // idle motion — the kit's resting-state animations (owner spec);
       // the importer wires removable rigs only when these say so
       idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
-        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal",
-        ink: st.cfg.candy.aura.color ?? st.cfg.effects.Glow ?? "#FFFFFF" },
+        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal" },
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -2585,7 +2584,7 @@ namespace PatternBreak {
     public Color color = Color.white;
     [Tooltip("Outline stations as image fractions (x0,y0,x1,y1..., y down) — from kit-manifest.")]
     public float[] outline;
-    float phase; int seed; RectTransform rt, sparkRt; Image spark; Image[] trail; RectTransform[] trailRt;
+    float phase; int seed; RectTransform rt, sparkRt; Image spark;
     static Sprite glowSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
@@ -2602,58 +2601,37 @@ namespace PatternBreak {
         glowSprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
         glowSprite.hideFlags = HideFlags.DontSave;
       }
-      /* the app draws a glowing LINE segment — here that's a comet: a
-         bright head with a fading tail of glow sprites trailing it along
-         the outline, which reads as a short glowing line in motion */
-      trail = new Image[4]; trailRt = new RectTransform[4];
-      for (int i = 0; i < trail.Length; i++) {
-        var go = new GameObject(name + " Edge " + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        go.hideFlags = HideFlags.DontSave;
-        trail[i] = go.GetComponent<Image>();
-        trail[i].sprite = glowSprite; trail[i].raycastTarget = false; trail[i].color = new Color(color.r, color.g, color.b, 0f);
-        trailRt[i] = (RectTransform)go.transform;
-        trailRt[i].SetParent(rt, false);
-        trailRt[i].anchorMin = trailRt[i].anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
-      }
-      spark = trail[0]; sparkRt = trailRt[0];
+      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      spark = go.GetComponent<Image>();
+      spark.sprite = glowSprite; spark.raycastTarget = false; spark.color = new Color(color.r, color.g, color.b, 0f);
+      sparkRt = (RectTransform)go.transform;
+      sparkRt.SetParent(rt, false);
+      sparkRt.anchorMin = sparkRt.anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
       seed = Mathf.Abs(name.GetHashCode());
       phase = -(seed % 1000) / 1000f * period;
     }
-    void OnDisable() {
-      if (trail != null) foreach (var t in trail) if (t != null) Destroy(t.gameObject);
-      trail = null; trailRt = null; spark = null;
-    }
+    void OnDisable() { if (spark != null) Destroy(spark.gameObject); spark = null; }
     void Update() {
       if (spark == null || rt == null || outline == null || outline.Length < 8) return;
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
-      if (t < 0f || t > run) {
-        if (spark.color.a != 0f) foreach (var tr in trail) tr.color = new Color(color.r, color.g, color.b, 0f);
-        return;
-      }
+      if (t < 0f || t > run) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
       float u = t / run;
       int n = outline.Length / 2;
+      float fi = u * n;
+      int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
+      float ft = fi - (int)fi;
+      float fx = Mathf.Lerp(outline[i0 * 2], outline[i1 * 2], ft);
+      float fy = Mathf.Lerp(outline[i0 * 2 + 1], outline[i1 * 2 + 1], ft);
       float w = rt.rect.width, h = rt.rect.height;
-      // the line's journey (owner spec): it shrinks across the lap and
-      // flickers at deterministic points; the tail follows the head at
-      // shrinking sizes and fading alphas — a glowing line in motion
-      float baseSize = Mathf.Clamp(h * 0.22f, 8f, 38f) * Mathf.Lerp(1f, 0.35f, u);
+      sparkRt.anchoredPosition = new Vector2(fx * w, -fy * h);
+      // the journey: shrink, fade, and flicker at deterministic stations
+      float size = Mathf.Clamp(h * 0.26f, 10f, 44f) * Mathf.Lerp(1f, 0.3f, u);
+      sparkRt.sizeDelta = new Vector2(size, size);
       uint step = (uint)(u * 24f) * 2654435761u + (uint)seed;
-      float flicker = 0.55f + 0.45f * (((step >> 9) & 1023u) / 1023f);
-      float env = Mathf.Clamp01(Mathf.Sin(u * Mathf.PI) * 1.5f) * flicker;
-      for (int k = 0; k < trail.Length; k++) {
-        float uk = Mathf.Max(0f, u - k * 0.018f);
-        float fi = uk * n;
-        int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
-        float ft = fi - (int)fi;
-        float fx = Mathf.Lerp(outline[i0 * 2], outline[i1 * 2], ft);
-        float fy = Mathf.Lerp(outline[i0 * 2 + 1], outline[i1 * 2 + 1], ft);
-        trailRt[k].anchoredPosition = new Vector2(fx * w, -fy * h);
-        float fall = 1f - k / (float)trail.Length;
-        float size = baseSize * (0.55f + 0.45f * fall);
-        trailRt[k].sizeDelta = new Vector2(size, size);
-        trail[k].color = new Color(color.r, color.g, color.b, env * fall);
-      }
+      float flicker = 0.45f + 0.55f * (((step >> 9) & 1023u) / 1023f);
+      spark.color = new Color(color.r, color.g, color.b, Mathf.Sin(u * Mathf.PI) * flicker);
     }
   }
 }
@@ -4290,7 +4268,7 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
-  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; public string ink; }
+  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -6427,11 +6405,9 @@ namespace PatternBreak {
       if (m != null && m.idle != null && m.idle.edge == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
         var es = go.AddComponent<EdgeShine>();
         es.outline = baseAsset.outline;
+        // Frequency travels; Blend stays app-side for now — UGUI needs
+        // a dedicated shader for a true screen mix
         if (m.idle.freq > 0.5f) es.period = m.idle.freq;
-        // the light wears the kit's glow ink (blend modes stay app-side
-        // for now — UGUI needs a dedicated shader for a true screen mix)
-        Color ink;
-        if (!string.IsNullOrEmpty(m.idle.ink) && ColorUtility.TryParseHtmlString(m.idle.ink, out ink)) es.color = ink;
       }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
