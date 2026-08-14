@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
-import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
+import { putBgOriginal, normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -433,12 +433,27 @@ export function BoardView({ playing }: { playing: boolean }) {
   const [vidUrl, setVidUrl] = useState("");
   const [vidBusy, setVidBusy] = useState(false);
   const [vidErr, setVidErr] = useState<string | null>(null);
+  /* a video backdrop mints a POSTER — its first frame, vaulted like an
+     uploaded image (owner: "a screenshot of the first frame so that
+     there is a background of some sort"). The still travels everywhere
+     the video can't — the saved project, another machine, the Unity
+     scene — and the playing video sits above it here. A CORS-shy remote
+     host just skips the poster; the video keeps working. */
+  const setVideoBg = (url: string, name: string) => {
+    const bid = useGen.getState().activeBoard;
+    setBoardBg({ bgVideo: url, bgImage: null, bgShow: true });
+    void captureVideoPoster(url).then(async (blob) => {
+      if (!blob) return;
+      const assetId = await putBgOriginal(blob, name);
+      if (assetId && useGen.getState().activeBoard === bid) setBoardBg({ bgVideo: url, bgImage: null, bgAssetId: assetId, bgShow: true });
+    });
+  };
   const applyVideoUrl = async () => {
     setVidErr(null); setVidBusy(true);
     const r = await checkVideoUrl(vidUrl);
     setVidBusy(false);
     if (r.err) { setVidErr(r.err); return; }
-    setBoardBg({ bgVideo: r.url!, bgImage: null, bgShow: true });
+    setVideoBg(r.url!, "video poster");
     setVidUrl("");
   };
   // session object URLs die with the tab — restore them from the vault
@@ -1389,7 +1404,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               {BACKDROPS.map((bk) => (
                 <button key={bk.url} className="bd-bgthumb" title={bk.name}
                   aria-pressed={act.bgImage === bk.url || act.bgVideo === bk.url}
-                  onClick={() => setBoardBg(bk.video ? { bgVideo: bk.url, bgImage: null, bgShow: true } : { bgImage: bk.url, bgVideo: null, bgShow: true })}>
+                  onClick={() => (bk.video ? setVideoBg(bk.url, "backdrop poster") : setBoardBg({ bgImage: bk.url, bgVideo: null, bgShow: true }))}>
                   {bk.video ? <video src={bk.url} muted preload="metadata" playsInline /> : <img src={bk.url} alt="" loading="lazy" />}
                   <i>{bk.name}</i>
                 </button>
@@ -1476,7 +1491,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) {
-                  if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
+                  if (f.type.startsWith("video/")) setVideoBg(URL.createObjectURL(f), f.name + " (poster)");
                   /* ONE copy, in the vault: the ship copy (≤1920) is also
                      the display image, served as a session object URL — the
                      board DOC carries only the tiny bgAssetId, so history,

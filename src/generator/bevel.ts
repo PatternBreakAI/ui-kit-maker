@@ -4512,12 +4512,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 
   /* v67: icons inherit the SAME treatment as type, in every self-drawn
      site — gradient/solid fill, outline pass, disabled dimming. */
-  const themedIcon = (defI: IconDef, xI0: number, yI0: number, sI: number, tone: string, swI = 2.2): string => {
+  const themedIcon = (defI: IconDef, xI0: number, yI0: number, sI: number, tone: string, swI = 2.2, pin = false): string => {
     /* the Icons nudge reaches self-drawn glyphs too — the dials promise
        kit-wide reach and the weapon glyph must obey them (owner: "nudge
        doesn't work on the icon here", the Kill feed). Same px unit as
-       built icons, scaled by this piece's size factor. */
-    const xI = xI0 + (cfg.icon.ox || 0) * k, yI = yI0 + (cfg.icon.oy || 0) * k;
+       built icons, scaled by this piece's size factor. `pin` opts a call
+       OUT: auto-orbited glyphs (the fire button's satellite carousel) own
+       their placement, so only the piece's MAIN glyph rides the dials
+       (owner: "the 3 orbiting icons are perfect, I only need to be able
+       to edit the xy of the middle icon"). */
+    const xI = xI0 + (pin ? 0 : (cfg.icon.ox || 0) * k), yI = yI0 + (pin ? 0 : (cfg.icon.oy || 0) * k);
     const T4 = cfg.type;
     if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
@@ -8163,7 +8167,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const gpad9 = Math.ceil(gs9 * 0.32);
         const tone9 = hexMix(glow, "#FFFFFF", 0.15);
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${gs9 + gpad9 * 2}" height="${gs9 + gpad9 * 2}" viewBox="0 0 ${gs9 + gpad9 * 2} ${gs9 + gpad9 * 2}">
-          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6)}</g></svg>`;
+          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6, true)}</g></svg>`;
       }
       const satM9 = /^sat([123])$/.exec(opts.overlay ?? "");
       if (satM9) {
@@ -8219,7 +8223,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${mr.toFixed(1)}" fill="${miniRim}" stroke="${darken(miniRim, 0.38)}" stroke-width="1.5"/>
           <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(mr * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
           candyKnob(sx, sy, mr * 0.72, knobC) +
-          themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2);
+          themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2, true);
       });
       /* overlay "plain" = the swipe rig's dome: pad, ticks and candy dome
          with NO baked glyph and NO satellites — the runtime deals those */

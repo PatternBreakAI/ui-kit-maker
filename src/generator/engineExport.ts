@@ -195,7 +195,9 @@ export async function collectExportBoards(st: {
     seen.add(slug);
 
     let bg: ExportBoardData["bg"] = null;
-    if (bd.bgImage && (bd.bgShow ?? true)) {
+    // a video board carries no bgImage locally, but its vaulted POSTER
+    // (the first frame) still gives the scene a background
+    if ((bd.bgImage || bd.bgAssetId) && (bd.bgShow ?? true)) {
       let bytes: Uint8Array | null = null, ext = "png", original = false;
       if (bd.bgAssetId) {
         const rec = await getBgOriginal(bd.bgAssetId);
@@ -205,7 +207,7 @@ export async function collectExportBoards(st: {
           original = true;
         }
       }
-      if (!bytes) {
+      if (!bytes && bd.bgImage) {
         const d = dataUrlBytes(bd.bgImage);
         if (d) { bytes = d.bytes; ext = d.ext; }
         else if (bd.bgImage.startsWith("/")) {
@@ -1955,6 +1957,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
+    /* the idle-shine runtime is SHARED like every other runtime script —
+       it missed this list on its first ship, landed per-slug OUTSIDE the
+       PatternBreak.Runtime assembly, and the shared Editor importer could
+       not resolve WipeShine/EdgeShine (field: CS0246, "latest kit export
+       isn't firing in unity" — the whole importer died). */
+    "Runtime/PatternBreakIdleShine.cs",
   ]);
   const rooted = files.map((f) => ({
     ...f,
@@ -4621,6 +4629,15 @@ namespace PatternBreak {
         AssetDatabase.StopAssetEditing();
       }
 
+      /* self-heal a mis-shipped runtime: PatternBreakIdleShine.cs briefly
+         landed PER-SLUG (outside the PatternBreak.Runtime assembly), where
+         the shared Editor importer could not see its types — CS0246 and a
+         dead import. The shared copy ships correctly now; the stray twin
+         deletes itself so old installs come back to life on the next drop. */
+      if (File.Exists(root + "/Runtime/PatternBreakIdleShine.cs")) {
+        AssetDatabase.DeleteAsset(root + "/Runtime/PatternBreakIdleShine.cs");
+        Debug.Log("UI Kit Maker: removed a stray per-kit PatternBreakIdleShine.cs — the shared Runtime copy owns those types now.");
+      }
       /* ── I3: anything the last receipt knew that this manifest dropped
          stays on disk and gets named — deletion is a human's click. ONE
          exception: the great renaming (dev field report: sixteen identical

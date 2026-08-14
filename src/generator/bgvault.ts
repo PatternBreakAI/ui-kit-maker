@@ -89,3 +89,29 @@ export async function hasBgOriginal(id: string): Promise<boolean> {
 export async function delBgOriginal(id: string): Promise<void> {
   await tx("readwrite", (s) => s.delete(id));
 }
+
+/** First frame of a video as a JPEG poster blob (long side ≤1920) — the
+ *  still that stands in wherever the video itself can't travel: the saved
+ *  project, another machine, the Unity scene (owner: "a screenshot of the
+ *  first frame so that there is a background of some sort"). Remote hosts
+ *  must speak CORS; a refusal resolves null and the board stays video-only. */
+export function captureVideoPoster(url: string): Promise<Blob | null> {
+  return new Promise((res) => {
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "auto";
+    v.crossOrigin = "anonymous";
+    const done = (b: Blob | null) => { v.removeAttribute("src"); res(b); };
+    v.onloadeddata = () => {
+      try {
+        const k = Math.min(1, 1920 / Math.max(v.videoWidth || 1, v.videoHeight || 1));
+        const cv = document.createElement("canvas");
+        cv.width = Math.max(2, Math.round(v.videoWidth * k));
+        cv.height = Math.max(2, Math.round(v.videoHeight * k));
+        cv.getContext("2d")!.drawImage(v, 0, 0, cv.width, cv.height);
+        cv.toBlob((b) => done(b), "image/jpeg", 0.9);
+      } catch { done(null); }
+    };
+    v.onerror = () => done(null);
+    v.src = url;
+  });
+}
