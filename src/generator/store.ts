@@ -1686,7 +1686,7 @@ export const useGen = create<GenStore>((set, get) => ({
          restyle it */
       const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
       const merged = clone2(applyKitDesign(get().cfg, get().kitDesigns[id]));
-      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon } };
+      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon, ...(get().kitDesigns[id]?.idle ? { idle: get().kitDesigns[id]!.idle } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
       locks[id] = true;
@@ -2045,7 +2045,7 @@ export const useGen = create<GenStore>((set, get) => ({
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -2105,6 +2105,12 @@ export const useGen = create<GenStore>((set, get) => ({
     const focus0 = get().focus;
     const lockedId = focus0 && get().kitDesigns[focus0] ? focus0 : null;
     const work = lockedId ? clone2(applyKitDesign(cfg, get().kitDesigns[lockedId])) : cfg;
+    /* idle motion is SHARED state: the Panel's kit toggles must reach the
+       master even while a piece is focused, and a piece's own idle fork
+       (edited via its chips, never via update) must not leak back into the
+       master through the merged working view — so the view carries the
+       master's idle, always */
+    if (lockedId) work.idle = cfg.idle ? { ...cfg.idle } : cfg.idle;
     const sel = get().selectedState;
     const allStates = get().allStates;
     /* pre-edit snapshot of the surface being edited — the all-states pass
@@ -2205,6 +2211,7 @@ export const useGen = create<GenStore>((set, get) => ({
       cfg.content = work.content;
       cfg.visible = work.visible; cfg.canvas = work.canvas; cfg.presetId = work.presetId;
       cfg.knob = work.knob; cfg.barFx = work.barFx; cfg.rarity = work.rarity;
+      cfg.idle = work.idle;
       /* state ADJUSTMENTS isolate to the piece too — "edits save into this
          piece" must hold for the Global sliders. Pin on first touch (or keep
          an existing pin); an untouched piece keeps following the master. */
@@ -2215,7 +2222,7 @@ export const useGen = create<GenStore>((set, get) => ({
          writes through and keeps following the master. */
       const iconPin = !!kdPrev?.icon || JSON.stringify(work.icon) !== JSON.stringify(cfg.icon);
       if (!iconPin) cfg.icon = work.icon;
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}) };
+      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });

@@ -1018,7 +1018,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      const idleOutline = st.cfg.idle?.edge && q.meta.part === "base" ? sampleOutline(q.svg) : null;
+      // per-piece forks can arm the edge shine even when the kit default is
+      // off, so any armed fork keeps the outlines flowing into the manifest
+      const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
       manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
@@ -1601,6 +1603,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // the importer wires removable rigs only when these say so
       idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
         freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal" },
+      /* per-piece idle forks (owner: shine on/off per component) — keyed by
+         sprite family; -1 follows the kit toggle, 0/1 pin off/on */
+      idleForks: Object.entries(st.kitDesigns ?? {}).flatMap(([cid, kd]) => {
+        const i = kd?.idle;
+        if (!i || (i.wipe === undefined && i.edge === undefined)) return [];
+        const fam = KIT_SLICEABLE[cid as KitComponentId] ?? NINE.find((n) => n.id === (cid as KitComponentId))?.family ?? cid;
+        return [{ family: fam, wipe: i.wipe === undefined ? -1 : i.wipe ? 1 : 0, edge: i.edge === undefined ? -1 : i.edge ? 1 : 0 }];
+      }),
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -4269,6 +4279,7 @@ namespace PatternBreak {
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
+  [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -4297,7 +4308,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -6398,16 +6409,22 @@ namespace PatternBreak {
          removable components — delete them and the piece is exactly what
          it was. Edge shine skips sliced pieces: a stretched nine-slice no
          longer matches the authored outline. */
-      if (m != null && m.idle != null && m.idle.wipe == 1 && go.GetComponent<WipeShine>() == null) {
+      int shineW = m != null && m.idle != null ? m.idle.wipe : 0;
+      int shineE = m != null && m.idle != null ? m.idle.edge : 0;
+      // per-piece forks (owner: shine on/off per component) — a fork's -1
+      // follows the kit toggle; 0/1 pin this family off/on regardless
+      if (m != null && m.idleForks != null)
+        foreach (var fk in m.idleForks) if (fk.family == baseAsset.component) { if (fk.wipe >= 0) shineW = fk.wipe; if (fk.edge >= 0) shineE = fk.edge; }
+      if (shineW == 1 && go.GetComponent<WipeShine>() == null) {
         var ws = go.AddComponent<WipeShine>();
-        if (m.idle.freq > 0.5f) ws.period = m.idle.freq;
+        if (m.idle != null && m.idle.freq > 0.5f) ws.period = m.idle.freq;
       }
-      if (m != null && m.idle != null && m.idle.edge == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
+      if (shineE == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
         var es = go.AddComponent<EdgeShine>();
         es.outline = baseAsset.outline;
         // Frequency travels; Blend stays app-side for now — UGUI needs
         // a dedicated shader for a true screen mix
-        if (m.idle.freq > 0.5f) es.period = m.idle.freq;
+        if (m.idle != null && m.idle.freq > 0.5f) es.period = m.idle.freq;
       }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to

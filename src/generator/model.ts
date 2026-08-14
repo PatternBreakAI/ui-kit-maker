@@ -1696,6 +1696,11 @@ export type KitDesign = DeepPartial<StateDesign> & {
    *  time a focused piece's state sliders move, so "edits save into this
    *  piece" holds for the Global section too. Absent = follow the master. */
   states?: GenConfig["states"];
+  /** Per-piece idle-motion override (owner: "turn the shine animations
+   *  on/off per component") — each flag pins this piece's wipe or edge
+   *  shine ON or OFF; an absent flag follows the kit's Idle motion
+   *  toggles. Timing (Frequency/Blend) always stays kit-wide. */
+  idle?: { wipe?: boolean; edge?: boolean };
   /** Per-piece icon RIG (size, offsets, rotation, colors…) — pinned the
    *  first time a focused piece's icon dials move, so resizing one glyph
    *  can't resize every glyph in the kit. Absent = follow the master rig. */
@@ -1721,6 +1726,7 @@ export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig
   if (!kd) return cfg;
   const out = { ...cfg, stateDesigns: kd.stateDesigns ?? cfg.stateDesigns, states: kd.states ?? cfg.states } as GenConfig;
   if (kd.icon !== undefined) out.icon = deepMergeDesign(cfg.icon, kd.icon) as IconCfg;
+  if (kd.idle) out.idle = { wipe: false, edge: false, ...cfg.idle, ...kd.idle };
   const src = cfg as unknown as Record<string, unknown>, o = out as unknown as Record<string, unknown>;
   for (const k of DESIGN_KEYS) {
     const ov = (kd as Record<string, unknown>)[k];
@@ -1808,6 +1814,7 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
       ...(kd.stateDesigns && Object.keys(kd.stateDesigns).length ? { stateDesigns: kd.stateDesigns } : {}),
       ...(kd.states ? { states: kd.states } : {}),
       ...(kd.icon !== undefined ? { icon: kd.icon } : {}),
+      ...(kd.idle ? { idle: kd.idle } : {}),
     };
     if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }

@@ -1175,17 +1175,47 @@ export function Panel() {
         <div className="ctl" style={{ marginTop: 12 }}>
           <label>Idle motion</label>
         </div>
-        <label className="check"><input type="checkbox" checked={!!cfg.idle?.wipe}
+        {/* the kit toggles read the MASTER config on purpose: with a piece
+            focused, the merged view wears that piece's own idle fork, and a
+            checkbox showing the fork's value would fight it — click after
+            click with nothing moving (probe-caught) */}
+        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
           onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
-        <label className="check"><input type="checkbox" checked={!!cfg.idle?.edge}
+        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
           onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
-        {(cfg.idle?.wipe || cfg.idle?.edge) && (
+        {/* Per-piece override (owner: "turn the shine animations on/off per
+            component") — rides the piece's design fork, so the kit page,
+            Board and Unity export all follow. Absent chips = follow kit. */}
+        {focus && (
+          <div className="ctl" style={{ marginTop: 8 }}>
+            <div className="sublabel">This piece only — {KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</div>
+            {(["wipe", "edge"] as const).map((k) => {
+              const ov = kitDesigns[focus]?.idle?.[k];
+              const setOv = (v: boolean | undefined) => {
+                const cur = kitDesigns[focus] ?? {};
+                const idle = { ...cur.idle } as { wipe?: boolean; edge?: boolean };
+                if (v === undefined) delete idle[k]; else idle[k] = v;
+                const next = { ...cur };
+                if (Object.keys(idle).length) next.idle = idle; else delete next.idle;
+                setKitDesign(focus, Object.keys(next).length ? next : null);
+              };
+              return (
+                <span className="fl" key={k}>{k === "wipe" ? "Wipe shine" : "Edge shine"}
+                  <button className={`allstateschip${ov === undefined ? " on" : ""}`} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
+                  <button className={`allstateschip${ov === true ? " on" : ""}`} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
+                  <button className={`allstateschip${ov === false ? " on" : ""}`} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {(cfgMaster.idle?.wipe || cfgMaster.idle?.edge || Object.values(kitDesigns).some((kd) => kd?.idle?.wipe || kd?.idle?.edge)) && (
           <>
-            <Slider label="Frequency" value={cfg.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}
+            <Slider label="Frequency" value={cfgMaster.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}
               onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, freq: v }; })} />
             <label className="fieldbox" style={{ minWidth: 0 }}>
               <span className="fl">Blend mode</span>
-              <select value={cfg.idle?.blend ?? "normal"} aria-label="Idle motion blend mode"
+              <select value={cfgMaster.idle?.blend ?? "normal"} aria-label="Idle motion blend mode"
                 onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, blend: e.target.value as BlendMode }; })}>
                 {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
