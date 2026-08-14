@@ -98,8 +98,14 @@ const freshReload = () => {
   window.location.replace(`${pathname}?r=${Date.now()}${hash}`);
 };
 
-/* The stale-build card in the visitor's own language (ui-generator-lang —
-   the same key the landing header and MarketingFooter selectors write). */
+/* The crash cards in the visitor's own language (ui-generator-lang — the
+   same key the landing header and MarketingFooter selectors write). Two
+   voices: STALE for a failed chunk fetch after a redeploy (a reload truly
+   fixes it), GLITCH for everything else — for months every crash wore the
+   "fresh version" costume, so a data bug read as deploy trouble and the
+   screenshots that reached us carried no cause. The glitch card says what
+   broke and offers the store's safe mode (`?safe` boots factory-fresh
+   without touching the saved document). */
 const STALE_MSG: Record<string, [string, string, string]> = {
   en: ["A fresh version just shipped — ", "reload", " to pick it up."],
   zh: ["新版本刚刚上线——点击", "刷新", "即可使用。"],
@@ -109,32 +115,61 @@ const STALE_MSG: Record<string, [string, string, string]> = {
   de: ["Eine neue Version ist gerade live gegangen — ", "neu laden", ", und sie ist da."],
   ja: ["新しいバージョンが公開されました——", "再読み込み", "してご利用ください。"],
 };
-const staleMsg = (): [string, string, string] => {
+const GLITCH_MSG: Record<string, [string, string, string]> = {
+  en: ["Something glitched — ", "reload", " to try again."],
+  zh: ["出了点小问题——点击", "刷新", "重试。"],
+  fr: ["Un pépin est survenu — ", "rechargez", " pour réessayer."],
+  es: ["Algo falló — ", "recarga", " para intentarlo de nuevo."],
+  it: ["Qualcosa è andato storto — ", "ricarica", " per riprovare."],
+  de: ["Etwas ist schiefgelaufen — ", "neu laden", " und erneut versuchen."],
+  ja: ["問題が発生しました——", "再読み込み", "でやり直せます。"],
+};
+const SAFE_MSG: Record<string, [string, string, string]> = {
+  en: ["Still stuck? ", "Open in safe mode", " — it starts fresh and leaves your saved work untouched."],
+  zh: ["还是不行？", "以安全模式打开", "——不会改动您保存的作品。"],
+  fr: ["Toujours bloqué ? ", "Ouvrez en mode sans échec", " — vos créations enregistrées restent intactes."],
+  es: ["¿Sigue igual? ", "Abre en modo seguro", " — tu trabajo guardado queda intacto."],
+  it: ["Ancora bloccato? ", "Apri in modalità sicura", " — il tuo lavoro salvato resta intatto."],
+  de: ["Klemmt es weiter? ", "Im abgesicherten Modus öffnen", " — deine gespeicherte Arbeit bleibt unberührt."],
+  ja: ["それでも直らない場合は", "セーフモードで開く", "——保存済みの作品はそのまま残ります。"],
+};
+const cardMsg = (map: Record<string, [string, string, string]>): [string, string, string] => {
   let l = "en";
   try { l = localStorage.getItem("ui-generator-lang") || "en"; } catch { /* private mode */ }
-  return STALE_MSG[l] ?? STALE_MSG.en;
+  return map[l] ?? map.en;
 };
 
-class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
+const isChunkErr = (msg: string) =>
+  /dynamically imported module|Loading chunk|module script failed|Failed to fetch/i.test(msg);
+
+const safeBoot = () => {
+  const { pathname, hash } = window.location;
+  window.location.replace(`${pathname}?safe${hash}`);
+};
+
+class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean; msg: string }> {
+  state = { failed: false, msg: "" };
+  static getDerivedStateFromError(err: unknown) {
+    return { failed: true, msg: String((err as Error)?.message ?? err) };
+  }
   componentDidCatch(err: unknown) {
     const msg = String((err as Error)?.message ?? err);
-    const chunkErr = /dynamically imported module|Loading chunk|module script failed|Failed to fetch/i.test(msg);
     /* A time window, not a one-shot: with several deploys close together a
        tab can hit stale chunks more than once, and the old boolean guard
        left it stranded on the reload card. freshReload busts the CDN's
        index.html cache; the 20s window still prevents a loop. */
     let last = 0;
     try { last = Number(sessionStorage.getItem("fd-chunk-reload") ?? 0) || 0; } catch { /* private mode */ }
-    if (chunkErr && Date.now() - last > 20_000) {
+    if (isChunkErr(msg) && Date.now() - last > 20_000) {
       try { sessionStorage.setItem("fd-chunk-reload", String(Date.now())); } catch { /* private mode */ }
       freshReload();
     }
   }
   render() {
     if (this.state.failed) {
-      const m = staleMsg();
+      const stale = isChunkErr(this.state.msg);
+      const m = cardMsg(stale ? STALE_MSG : GLITCH_MSG);
+      const s = cardMsg(SAFE_MSG);
       return (
         <div className="route-loading" role="alert">
           <span className="route-loading__label">
@@ -142,6 +177,20 @@ class RouteBoundary extends Component<{ children: ReactNode }, { failed: boolean
             <button className="fd-linkbtn" onClick={freshReload}>{m[1]}</button>
             {m[2]}
           </span>
+          {!stale && (
+            <>
+              <span className="route-loading__label" style={{ display: "block", marginTop: 10 }}>
+                {s[0]}
+                <button className="fd-linkbtn" onClick={safeBoot}>{s[1]}</button>
+                {s[2]}
+              </span>
+              {/* the cause, small — this line is what turns a user's
+                  screenshot into a diagnosis */}
+              <span style={{ display: "block", marginTop: 14, fontSize: 11.5, opacity: 0.55, fontFamily: "ui-monospace, monospace" }}>
+                {this.state.msg.slice(0, 160)}
+              </span>
+            </>
+          )}
         </div>
       );
     }

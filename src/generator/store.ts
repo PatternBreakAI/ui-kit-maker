@@ -141,10 +141,18 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   } as GenConfig;
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
-  // state forks saved before newer candy/icon tokens existed get them merged in
-  for (const sd of Object.values(cfg.stateDesigns)) {
-    if (sd?.candy) sd.candy = mergeCandy(d.candy, sd.candy);
-    if (sd?.icon) sd.icon = { ...d.icon, ...sd.icon };
+  /* A fork is a COMPLETE design snapshot — the engine reads type/shape/
+     bevel off every one without asking. One saved sparse (an ancient
+     format, an interrupted write) completes against the master here, so
+     the state renders as "master plus whatever the fork recorded" instead
+     of crashing the boot. Then forks saved before newer candy/icon tokens
+     existed get those merged in, as before. */
+  for (const [k, sd0] of Object.entries(cfg.stateDesigns) as [keyof GenConfig["stateDesigns"], unknown][]) {
+    if (!sd0 || typeof sd0 !== "object") { delete cfg.stateDesigns[k]; continue; }
+    const sd = { ...pickDesign(cfg), ...sd0 } as NonNullable<GenConfig["stateDesigns"][keyof GenConfig["stateDesigns"]]>;
+    if (sd.candy) sd.candy = mergeCandy(d.candy, sd.candy);
+    if (sd.icon) sd.icon = { ...d.icon, ...sd.icon };
+    cfg.stateDesigns[k] = sd;
   }
   /* pattern.zone lived for one day (2026-08-06) before the wall got its own
      spec — fold it in so those kits render pixel-identical: wall/both mirror
@@ -867,7 +875,22 @@ const BOARD_KEY = "ui-generator-board";
 export const SAFE_BOOT = typeof location !== "undefined" && /[?&#]safe\b/.test(location.href);
 function loadJson<T>(key: string, fallback: T): T {
   if (SAFE_BOOT) return fallback;
-  try { const raw = localStorage.getItem(key); if (raw) return JSON.parse(raw) as T; } catch { /* ignore */ }
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const v = JSON.parse(raw) as T;
+      /* Shape gate: a mangled stored value (interrupted write, ancient
+         build's format) must fall back, never reach the store — one stored
+         "null" here used to take the whole editor down at boot. The
+         fallback declares the expected kind; a null fallback accepts
+         anything non-crashing (those callers discriminate themselves). */
+      const ok = fallback === null || (
+        Array.isArray(fallback) ? Array.isArray(v)
+          : typeof fallback === "object" ? typeof v === "object" && v !== null && !Array.isArray(v)
+            : typeof v === typeof fallback);
+      if (ok) return v;
+    }
+  } catch { /* ignore */ }
   return fallback;
 }
 function saveJson(key: string, v: unknown) {
@@ -1035,16 +1058,23 @@ function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
   if (Array.isArray(raw)) {
     // v1 format: a single flat item list — wrap it as Board 1
     const aspect: "169" | "mobile" = loadJson<string>("ui-generator-boardaspect", "169") === "mobile" ? "mobile" : "169";
-    return { boards: [{ id: "ab1", name: "Board 1", aspect, items: raw as BoardItem[] }], activeBoard: "ab1" };
+    return { boards: [{ id: "ab1", name: "Board 1", aspect, items: (raw as BoardItem[]).filter(Boolean) }], activeBoard: "ab1" };
   }
-  if (raw && typeof raw === "object" && Array.isArray((raw as { boards?: unknown }).boards) && (raw as { boards: BoardDef[] }).boards.length) {
-    const bs = (raw as { boards: BoardDef[] }).boards.map((b) => ({
-      ...b,
-      bgImage: b.bgImage && !b.bgImage.startsWith("blob:") ? b.bgImage : null,
-      bgVideo: b.bgVideo && !b.bgVideo.startsWith("blob:") ? b.bgVideo : null,
-    }));
-    const act = (raw as { active?: string }).active;
-    return { boards: bs, activeBoard: act && bs.some((b) => b.id === act) ? act : bs[0].id };
+  if (raw && typeof raw === "object" && Array.isArray((raw as { boards?: unknown }).boards)) {
+    /* a null board or one with no item list (an interrupted save) must not
+       sink the boot — drop it, keep the rest */
+    const bs = ((raw as { boards: unknown[] }).boards
+      .filter((b) => !!b && typeof b === "object" && Array.isArray((b as BoardDef).items)) as BoardDef[])
+      .map((b) => ({
+        ...b,
+        items: b.items.filter(Boolean),
+        bgImage: typeof b.bgImage === "string" && !b.bgImage.startsWith("blob:") ? b.bgImage : null,
+        bgVideo: typeof b.bgVideo === "string" && !b.bgVideo.startsWith("blob:") ? b.bgVideo : null,
+      }));
+    if (bs.length) {
+      const act = (raw as { active?: string }).active;
+      return { boards: bs, activeBoard: act && bs.some((b) => b.id === act) ? act : bs[0].id };
+    }
   }
   return { boards: [{ id: "ab1", name: "Board 1", aspect: "169", items: [] }], activeBoard: "ab1" };
 }

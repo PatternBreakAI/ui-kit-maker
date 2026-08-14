@@ -17,14 +17,16 @@ const WAVE: { id: string; name: string }[] = [
   { id: "facets", name: "Crystal Facets" },
   { id: "speedlines", name: "Speed Lines" },
   { id: "topo", name: "Topographic Contours" },
-  { id: "softcamo", name: "Soft Camouflage" },
   { id: "chainmail", name: "Chainmail" },
-  { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
   { id: "animeburst", name: "Anime Burst" },
   { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
   { id: "snowflake", name: "Snowflakes" },
+  { id: "tigerstripes", name: "Tiger Stripes" },
+  { id: "camoangular", name: "Camo · Angular" },
+  { id: "camoclassic", name: "Camo · Classic" },
+  { id: "fire", name: "Flames" },
 ];
 
 /** One inline swatch: a rect filled with the live pattern cell. dispW
@@ -43,8 +45,9 @@ function Swatch(props: { id: string; w: number; h: number; ps: number; color: st
   return <span dangerouslySetInnerHTML={{ __html: svg }} style={{ display: "block", lineHeight: 0 }} />;
 }
 
-/* the correction brief's review roster — these six only */
-const SIX = ["topo", "softcamo", "chainmail", "camoshards", "bolts", "pixelblocks"];
+/* the review roster: the correction brief's survivors plus the
+   owner-drawn wave (softcamo and camoshards retired 2026-08-14) */
+const SIX = ["topo", "tigerstripes", "camoangular", "camoclassic", "fire", "chainmail", "bolts", "pixelblocks"];
 
 export function PatternLab() {
   usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (owner report)
@@ -59,13 +62,13 @@ export function PatternLab() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#12141C", color: "#E9EDF7", fontFamily: "Inter, system-ui, sans-serif", padding: 28 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the thirteen</h1>
+      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the fifteen</h1>
       <p style={{ margin: "0 0 18px", color: "#96A0B8", fontSize: 13 }}>
         Same swatch size, same color, same scale — density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
       </p>
       <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20, flexWrap: "wrap", fontSize: 13 }}>
         <label>Scale{" "}
-          {[50, 100, 200].map((s) => (
+          {[50, 100, 200, 300, 400].map((s) => (
             <button key={s} onClick={() => setScalePct(s)}
               style={{ margin: "0 2px", padding: "4px 10px", borderRadius: 6, border: "1px solid #3A4152", background: scalePct === s ? "#2E5BE0" : "#1B1F2A", color: "#E9EDF7", cursor: "pointer" }}>
               {s}%

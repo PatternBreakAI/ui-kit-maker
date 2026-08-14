@@ -16,6 +16,36 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "The hand-drawn wave",
+    items: [
+      {
+        h: "Four patterns, drawn by hand",
+        p: "Tiger Stripes, Camo · Angular, Camo · Classic and Flames join the pattern menu — drawn in the studio as real vector tiles, not generated. The engine keeps the drawings exactly as they left the pen: they recolor to your ink, tile seamlessly at any scale, and ride into every export. They retire the generated Soft Camouflage and Camo Shards — kits that used those keep rendering camouflage, upgraded to the drawn pair.",
+      },
+      {
+        h: "A deeper pattern shelf",
+        p: "Circuit Board, Hex Cells, Crystal Facets, Speed Lines, Topographic Contours, Chainmail, Lightning Bolts (plus a friendlier Pop variant), Pixel Blocks, Anime Burst and Snowflakes fill out the menu — every one a seamless tile that stays crisp at any size, on the face or the extruded wall. And the pattern Scale dial now reaches 260, so a single motif can sweep across a whole panel.",
+      },
+      {
+        h: "Your kit as a web page",
+        p: "The HTML download grew up: a Pro export now packs your entire kit — every piece, every state — as crisp 2× images with a stylesheet that wires hover, press and disabled for you, fluid nine-slice variants for the stretchy families, a showcase page to browse it all offline, and your licence in the box. Drop the folder into any site or web game and your kit just works.",
+      },
+      {
+        h: "Find any piece by name",
+        p: "The kit page grew a search box: type a few letters and jump straight to any component, instead of scrolling the shelf to find the one speedometer.",
+      },
+      {
+        h: "Little moments, wired",
+        p: "The gift box erupts in a white flash the instant it's claimed — in the app and in exported Unity scenes alike. Inventory tiles select with a click and a highlight ring that travels to Unity too, and the Board only grabs a piece when you click its actual artwork, so stacked pieces stop stealing each other's clicks.",
+      },
+      {
+        h: "The app forgives a bad save",
+        p: "If anything saved in your browser ever gets mangled — an interrupted save, an ancient format — the editor now sets that one value aside and opens anyway, instead of going dark. And on a genuinely bad day, the error screen says what actually happened and offers a safe mode that starts fresh without touching your saved work.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "Scenes to the pixel",
     items: [
       {

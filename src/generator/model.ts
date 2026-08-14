@@ -142,8 +142,9 @@ export type PatternType = "none" | "stripes" | "dots" | "stars" | "checker" | "h
   | "triangles" | "twill" | "crosshatch" | "grid" | "sprinkles"
   | "skulls" | "crosses" | "bats" | "thorns" | "fleur"
   | "circuit" | "hexcells" | "facets" | "speedlines" | "topo"
-  | "softcamo" | "chainmail" | "camoshards" | "bolts" | "pixelblocks"
-  | "animeburst" | "boltspop" | "snowflake";
+  | "chainmail" | "bolts" | "pixelblocks"
+  | "animeburst" | "boltspop" | "snowflake" | "tigerstripes"
+  | "camoangular" | "camoclassic" | "fire";
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "none", name: "None" },
   { id: "stripes", name: "Stripes" },
@@ -182,14 +183,17 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: "facets", name: "Crystal Facets" },
   { id: "speedlines", name: "Speed Lines" },
   { id: "topo", name: "Topographic Contours" },
-  { id: "softcamo", name: "Soft Camouflage" },
   { id: "chainmail", name: "Chainmail" },
-  { id: "camoshards", name: "Camo Shards" },
   { id: "bolts", name: "Lightning Bolts" },
   { id: "pixelblocks", name: "Pixel Blocks" },
   { id: "animeburst", name: "Anime Burst" },
   { id: "boltspop", name: "Lightning Bolts \u00b7 Pop" },
   { id: "snowflake", name: "Snowflakes" },
+  { id: "tigerstripes", name: "Tiger Stripes" },
+  // the owner-drawn wave (patterns.zip, 2026-08-14)
+  { id: "camoangular", name: "Camo · Angular" },
+  { id: "camoclassic", name: "Camo · Classic" },
+  { id: "fire", name: "Flames" },
 ];
 
 /** Extra styling layers for bar fills — progress, sliders and data-row
@@ -1764,6 +1768,9 @@ export function mergeKitDesign(base: KitDesign | null | undefined, d: KitDesign)
  *  "whatever still differs from the parent today"; identical fields resume
  *  following the parent design (the kit auto-updates again). */
 export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitComponentId, KitDesign>>): { forks: Partial<Record<KitComponentId, KitDesign>>; changed: boolean } {
+  // stored and cloud-shipped forks alike land here — a non-map (a mangled
+  // write, a null) migrates to the empty map instead of crashing the boot
+  if (!forks || typeof forks !== "object" || Array.isArray(forks)) return { forks: {}, changed: true };
   const out: Partial<Record<KitComponentId, KitDesign>> = {};
   let changed = false;
   const isFull = (kd: KitDesign) => DESIGN_KEYS.every((k) => (kd as Record<string, unknown>)[k] !== undefined);
