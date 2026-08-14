@@ -944,8 +944,14 @@ export async function exportableBoards(bs: BoardDef[]): Promise<Record<string, u
   }));
 }
 
+/* imports race: two fast project opens both fire importBoards, and the
+   LAST resolver used to win regardless of which project the user is now
+   looking at (review catch: "B's kit with A's boards"). Every call takes
+   a ticket; only the newest may write. */
+let importTicket = 0;
 export async function importBoards(raw: unknown): Promise<boolean> {
   if (!Array.isArray(raw) || !raw.length) return false;
+  const ticket = ++importTicket;
   const stamp = Date.now().toString(36);
   const boards: BoardDef[] = [];
   for (const [bi, rb] of (raw as unknown[]).entries()) {
@@ -960,13 +966,19 @@ export async function importBoards(raw: unknown): Promise<boolean> {
       : [];
     // strings that end up in CSS url() get the same strictness as
     // loadKitPayload's travelling stage: known-safe shapes only
+    let vaulted = false;
     if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
       try {
         const blob = await (await fetch(b.bgData)).blob();
         const key = await putBgOriginal(blob, "imported backdrop");
-        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); }
+        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); vaulted = true; }
       } catch { /* backdrop stays absent */ }
-    } else {
+    }
+    /* every non-vaulted path sanitizes the SAME way — a failed re-vault
+       used to keep whatever bgImage/bgAssetId the doc carried (review
+       catch: doc strings end up in CSS url(), and a foreign bgAssetId
+       can alias an unrelated local vault entry) */
+    if (!vaulted) {
       b.bgAssetId = null;
       if (typeof b.bgImage === "string" && !/^(\/|https:\/\/)/.test(b.bgImage)) delete (b as Partial<BoardDef>).bgImage;
     }
@@ -975,6 +987,7 @@ export async function importBoards(raw: unknown): Promise<boolean> {
     boards.push(b);
   }
   if (!boards.length) return false;
+  if (ticket !== importTicket) return false; // a newer open superseded this one
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
   return true;
@@ -1397,7 +1410,9 @@ export const useGen = create<GenStore>((set, get) => ({
     const n = act?.items.length ?? 0;
     const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId, x: 80 + (n % 3) * 340, y: 80 + Math.floor(n / 3) * 220 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
-    set({ phase: "board", boardSel: item.id, zoom: 1 });
+    // arriving AT the board fits the view; adding while already standing
+    // on it must not stomp the zoom the user chose (review catch)
+    set({ phase: "board", boardSel: item.id, ...(get().phase !== "board" ? { zoom: 1 } : {}) });
   },
   addBoardItems: (items) => {
     // starter templates: a full set of pieces, pre-sized and pre-placed
@@ -1471,7 +1486,7 @@ export const useGen = create<GenStore>((set, get) => ({
       stamp: plain ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } } : { text: "GAME TITLE", size: 100 },
     };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
-    set({ phase: "board", boardSel: item.id, zoom: 1 });
+    set({ phase: "board", boardSel: item.id });
   },
   setBoardItemStamp: (id, patch) => mutateItem(get, set, `stamp:${id}`, id, (b) => (
     b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(25, Math.min(400, patch.size ?? b.stamp.size)) } } : b
@@ -1576,7 +1591,16 @@ export const useGen = create<GenStore>((set, get) => ({
      vault keys, so undo history and the workspace sync stay lean. */
   kitPayloadWithBoards: async () => {
     const st = get();
-    return { ...st.kitPayload(), boards: await exportableBoards(st.boards) };
+    let boards = await exportableBoards(st.boards);
+    /* the project doc is one jsonb row — several multi-MB backdrops can
+       push it past what the API accepts (review catch: no size guard
+       anywhere). Over budget, the LAYOUTS still save; the images stay in
+       this browser's vault. */
+    if (JSON.stringify(boards).length > 8_000_000) {
+      console.warn("UI Kit Maker: board backdrops exceed the project-document budget — layouts saved, backdrop images stay in this browser.");
+      boards = boards.map((b) => { const o = { ...b }; delete o.bgData; return o; });
+    }
+    return { ...st.kitPayload(), boards };
   },
   loadKitPayload: (p, opts) => {
     const st = get();
@@ -1644,9 +1668,20 @@ export const useGen = create<GenStore>((set, get) => ({
     /* boards ride the project document (owner: "when i save a kit, I
        expect to save the boards with it when i reopen it") — an OWNED
        open replaces the workspace boards with the project's, re-vaulting
-       any embedded backdrops. Older saves without boards leave the local
-       ones alone, and shared/viewer links never touch them. */
-    if (!viewer && Array.isArray((p as { boards?: unknown[] }).boards)) void importBoards((p as { boards: unknown[] }).boards);
+       any embedded backdrops. A PROJECT open without boards resets the
+       stage to one fresh board — leaving the previous project's boards
+       standing let a later Update write them into the WRONG project's
+       doc (review catch: cross-project contamination). Settings imports
+       (no projectId) only replace when boards are present, and viewer /
+       share links never touch the workspace boards at all. */
+    const pBoards = (p as { boards?: unknown[] }).boards;
+    if (!viewer && Array.isArray(pBoards) && pBoards.length) void importBoards(pBoards);
+    else if (!viewer && opts?.projectId) {
+      importTicket++; // supersede any in-flight board import
+      const fresh: BoardDef = { id: "ab" + Date.now().toString(36), name: "Board 1", aspect: "169", items: [] };
+      set({ boards: [fresh], activeBoard: fresh.id, boardSel: null, boardPast: [], boardFuture: [] });
+      saveBoards(get);
+    }
   },
   openProjectId: null,
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),

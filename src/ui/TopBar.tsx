@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
-import { useGen, hydrate, getDefault, isTouched, exportableBoards, importBoards } from "@/generator/store";
+import { useGen, hydrate, getDefault, isTouched, exportableBoards } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
@@ -112,9 +112,10 @@ export function TopBar() {
         const ws = parsed.__workspace as Record<string, unknown> | undefined;
         delete parsed.__workspace;
         if (ws && typeof ws === "object") {
+          // boards ride the payload — loadKitPayload runs importBoards
+          // itself now; a second call here raced it and double-vaulted
+          // every backdrop (review catch)
           useGen.getState().loadKitPayload({ cfg: hydrate(parsed), ...ws }, { viewer: false, phase: "master" });
-          // boards ride the same file (owner) — backdrops re-vault async
-          if (Array.isArray(ws.boards)) void importBoards(ws.boards);
         } else {
           replaceConfig(hydrate(parsed));
         }

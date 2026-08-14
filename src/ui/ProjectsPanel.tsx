@@ -91,7 +91,11 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
        (the community launch); Pro and admin default private and keep
        their toggle. RLS enforces the same line server-side. */
     const canPrivate = st.tier === "pro" || st.isAdmin;
-    const { project, error } = await saveProject(name, await st.kitPayloadWithBoards(), !canPrivate || shareDef);
+    /* boards (and their embedded backdrop images) ride PRIVATE saves only —
+       a public doc is fetchable by anyone and feeds the gallery, and a
+       user's uploaded photos must never ship there (review catch) */
+    const pub = !canPrivate || shareDef;
+    const { project, error } = await saveProject(name, pub ? st.kitPayload() : await st.kitPayloadWithBoards(), pub);
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
@@ -99,7 +103,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   };
 
   const doOpen = async (p: CloudProject) => {
-    if (confirmReplace && !window.confirm(`Open “${p.name}”? It replaces the kit on screen — save the current one as a project first if you want to keep it.`)) return;
+    if (confirmReplace && !window.confirm(`Open “${p.name}”? It replaces the kit on screen AND the boards — save the current work as a project first if you want to keep either.`)) return;
     setBusy(true); setNote(null);
     const { doc, error } = await loadProjectDoc(p.id);
     setBusy(false);
@@ -112,7 +116,8 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   const doUpdate = async (p: CloudProject) => {
     if (!window.confirm(`Overwrite “${p.name}” with the kit currently on screen?`)) return;
     setBusy(true); setNote(null);
-    const error = await updateProjectDoc(p.id, await useGen.getState().kitPayloadWithBoards());
+    // same privacy line as saving: a public project's doc never carries boards
+    const error = await updateProjectDoc(p.id, p.is_public ? useGen.getState().kitPayload() : await useGen.getState().kitPayloadWithBoards());
     setBusy(false);
     if (error) { setNote(error); return; }
     setNote(`“${p.name}” updated.`);

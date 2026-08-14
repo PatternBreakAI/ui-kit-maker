@@ -463,6 +463,10 @@ export function HeroGL() {
       }
     } catch { /* ignore */ }
     const onDown = (e: PointerEvent) => {
+      /* the HAND tool outranks the spin: with pan mode on, the drag
+         belongs to the page — let it bubble to the scroller untouched
+         (review catch: the stop below made the hero a pan dead zone) */
+      if (useGen.getState().panMode) return;
       /* claim the gesture outright: without this the browser ALSO runs a
          text-selection drag under the spin, and selection auto-scrolls the
          page (owner: "it scrolls the page up and down along with it").

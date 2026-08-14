@@ -815,6 +815,24 @@ export function Panel() {
     if (JSON.stringify(before.icon) !== JSON.stringify(merged.icon)) {
       const di = iconRigDiff(before.icon, merged.icon);
       if (di) pinAll({ icon: di });
+      /* the GLYPH and its POSITION are one decision for the piece — the
+         state branch already mirrors them into pinned state icon forks;
+         a Default edit must too, or a piece with a forked hover icon
+         keeps the OLD position in that state and the glyph jumps between
+         states (review catch). */
+      const gk = ["show", "placement", "only", "ox", "oy"] as const;
+      const dRec = (di ?? {}) as Record<string, unknown>;
+      if (di && merged.stateDesigns && (dRec.def !== undefined || gk.some((k3) => dRec[k3] !== undefined))) {
+        let touched = false;
+        for (const sd of Object.values(merged.stateDesigns)) {
+          if (!sd?.icon) continue;
+          if (dRec.def !== undefined) { sd.icon.def = merged.icon.def; touched = true; }
+          for (const k3 of gk) if (dRec[k3] !== undefined) { (sd.icon[k3] as unknown) = merged.icon[k3]; touched = true; }
+        }
+        if (touched) {
+          for (const t of targets) setKitDesign(t, { ...(useGen.getState().kitDesigns[t] ?? {}), stateDesigns: merged.stateDesigns });
+        }
+      }
     }
     /* Content margin pins to the piece on first touch too — its whole job
        is fitting a label to ONE silhouette's decorated ends, and a focused

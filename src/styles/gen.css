@@ -1085,9 +1085,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 /* No rollover one-shots for the idle shines here — a gallery where every
    piece flashes as the pointer crosses it read as chaos, not craft
    (owner: "the idle animations are happening on rollover in the kit...
-   it's pretty chaotic"). On the kit page the shines live ONLY on the
-   hero stage — one element, the page's crown. */
-.kitpage .kp-herostage .kit-shine, .kitpage .kp-herostage .kit-edgeshine { animation-play-state: running; }
+   it's pretty chaotic"). The kit page RESTS, full stop: its hero is the
+   WebGL schematic (no CSS shine to run), so the shines live on the
+   editor, the Board and every Play surface instead. */
 .kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
 .kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }
 .kitpage :hover > .kp-ringpulse { animation-play-state: running; }

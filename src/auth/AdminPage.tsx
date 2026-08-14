@@ -237,6 +237,10 @@ export function AdminPage() {
   useEffect(() => {
     if (!cloudConfig()) { setGate("nocloud"); return; }
     if (cloud.state === "off" || cloud.state === "signedout") {
+      // the desk CLOSES when the session ends — a cross-tab sign-out or a
+      // failed token refresh mid-visit must not leave the census on screen
+      // (review catch: `allowed` was never revoked)
+      setAllowed(null);
       // boot passes through "signedout" before a session restores — give
       // it a beat before concluding, then say so instead of bouncing
       setGate("checking");
@@ -417,15 +421,26 @@ export function AdminPage() {
               <div className="fd-card__title">The desk needs you signed in</div>
               <p className="fd-lead">This browser has no session here yet. Preview and live are separate sign-ins — a fresh preview build always starts signed out, even when the live site remembers you.</p>
               <button className="fd-ghost" onClick={() => navigate("#/account")}>Go sign in</button>
+              <button className="fd-ghost" onClick={() => navigate("#/")}>Back to the site</button>
             </div>
           ) : gate === "denied" ? (
             <div className="fd-card">
               <div className="fd-card__title">This account isn't on the admin list</div>
               <p className="fd-lead">You're signed in, but this profile doesn't carry the admin flag — or the check itself failed mid-flight. If this is the admin account, try once more.</p>
-              <button className="fd-ghost" onClick={() => { setGate("checking"); void myProfileTier().then((p) => { if (p.admin) setAllowed(true); else setGate("denied"); }); }}>Check again</button>
+              <button className="fd-ghost" onClick={() => {
+                // a session that ended since the card rendered means SIGN IN,
+                // not "still not an admin" (review catch)
+                if (cloud.state !== "synced" && cloud.state !== "syncing" && cloud.state !== "error") { setGate("signedout"); return; }
+                setGate("checking");
+                void myProfileTier().then((p) => { if (p.admin) setAllowed(true); else setGate("denied"); });
+              }}>Check again</button>
+              <button className="fd-ghost" onClick={() => navigate("#/")}>Back to the site</button>
             </div>
           ) : gate === "nocloud" ? (
-            <p className="fd-lead">This build has no cloud configured — the desk lives on the deployed site.</p>
+            <div className="fd-card">
+              <p className="fd-lead">This build has no cloud configured — the desk lives on the deployed site.</p>
+              <button className="fd-ghost" onClick={() => navigate("#/")}>Back to the site</button>
+            </div>
           ) : (
             <p className="fd-lead"><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Checking credentials…</p>
           )}

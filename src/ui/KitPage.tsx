@@ -9,7 +9,7 @@ import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/generator/engineExport";
-import { updateProjectDoc } from "@/generator/cloud";
+import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt, stillSmil } from "./LiveArt";
@@ -1558,7 +1558,17 @@ export function KitPage() {
       st.setUnitySlug(want);
       st.resetUnityKitVer();
       const pid = st.openProjectId;
-      if (pid) void useGen.getState().kitPayloadWithBoards().then((d) => updateProjectDoc(pid, d));
+      if (pid) void (async () => {
+        /* patch ONLY the slug fields into the saved doc — a whole-doc
+           write from here silently replaced the project's saved boards
+           with whatever the workspace held (review catch), and dropped
+           the error besides */
+        const { doc } = await loadProjectDoc(pid);
+        if (!doc) return;
+        const st2 = useGen.getState();
+        const err = await updateProjectDoc(pid, { ...(doc as Record<string, unknown>), unitySlug: st2.unitySlug, unityKitVer: st2.unityKitVer });
+        if (err) console.warn("UI Kit Maker: Unity slug writeback failed —", err);
+      })();
     }
     return want;
   };
