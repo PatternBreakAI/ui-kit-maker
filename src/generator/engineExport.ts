@@ -4199,6 +4199,49 @@ namespace PatternBreak {
     /* One click, whole truth — the debugging loop this kit went through
        pried these facts loose one screenshot at a time: play mode? build
        queued? which export build? fonts in the zip? faces assembled? */
+    /* Hierarchy right-click → UI Kit Maker → piece (dev field report: "a
+       nice feature might be to get the UI Kit prefabs in the right click
+       menu — I found myself looking for them there like other UI
+       elements"). Each entry drops the kit's generated prefab under the
+       clicked object — or the scene's first Canvas — centered and
+       undo-able. With several kits in one project the first manifest
+       found wins, the same rule Kit Status lives by. */
+    static void PlaceKitPrefab(string fam, MenuCommand cmd) {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        EditorUtility.DisplayDialog("UI Kit Maker", "No kit in this project yet — drop the UIKitMaker folder from the export zip into Assets/ first.", "OK");
+        return;
+      }
+      var root = Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/");
+      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+      if (pf == null) {
+        EditorUtility.DisplayDialog("UI Kit Maker", NiceName(fam) + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
+        return;
+      }
+      var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+      Transform parent = null;
+      var ctxGo = cmd != null ? cmd.context as GameObject : null;
+      if (ctxGo != null) parent = ctxGo.transform;
+      if (parent == null) { var cv = UnityEngine.Object.FindFirstObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
+      if (parent != null) go.transform.SetParent(parent, false);
+      var prt = go.transform as RectTransform;
+      if (prt != null) prt.anchoredPosition = Vector2.zero;
+      Undo.RegisterCreatedObjectUndo(go, "Place " + NiceName(fam));
+      Selection.activeGameObject = go;
+    }
+    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("button-primary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("button-secondary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("button-small", c); }
+    [MenuItem("GameObject/UI Kit Maker/Chip", false, 13)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("chip", c); }
+    [MenuItem("GameObject/UI Kit Maker/Tab", false, 14)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("tab", c); }
+    [MenuItem("GameObject/UI Kit Maker/Slider", false, 15)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("slider", c); }
+    [MenuItem("GameObject/UI Kit Maker/Toggle", false, 16)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("toggle", c); }
+    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 17)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("checkbox", c); }
+    [MenuItem("GameObject/UI Kit Maker/Radio", false, 18)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("radio", c); }
+    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 19)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("progress", c); }
+    [MenuItem("GameObject/UI Kit Maker/Panel", false, 20)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("panel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 21)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("input", c); }
+
     [MenuItem("Tools/PatternBreak/Kit Status")]
     public static void KitStatus() {
       var sb = new System.Text.StringBuilder();

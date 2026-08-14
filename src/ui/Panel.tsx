@@ -176,8 +176,12 @@ function Section({ id, title, summary, right, children }: {
   );
 }
 
-function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
+function Slider({ label, value, min, max, unit, step, onChange, disabled, def }: {
   label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
+  /** The document-default for this dial — arming it makes double-click a
+   *  reset (dev field report: "I'd love to be able to double click a
+   *  slider or value to reset it to default"). */
+  def?: number;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
   /* Drags coalesce to ONE update per animation frame, latest value wins.
@@ -203,7 +207,9 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
   return (
     <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)}
+        onDoubleClick={def !== undefined ? () => emit(def) : undefined}
+        title={def !== undefined ? "Double-click resets to default" : undefined} />
       <span className="valbox">
         <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
@@ -1138,16 +1144,16 @@ export function Panel() {
         <div className="helper">{allStates
           ? <>Hover or press the button on the canvas to feel the states live. <b>All states</b> is on — every edit becomes the value for all four states.</>
           : <>Hover or press the button on the canvas to feel the states live. These sliders shape only <b>{STATE_LABEL[selectedState]}</b>.</>}</div>
-        <Slider label="Brightness" value={adj.brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
-        <Slider label="Saturation" value={adj.saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
-        <Slider label="Glow" value={adj.glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
+        <Slider label="Brightness" value={adj.brightness} def={defaultStates()[selectedState].brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
+        <Slider label="Saturation" value={adj.saturation ?? 0} def={defaultStates()[selectedState].saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
+        <Slider label="Glow" value={adj.glow} def={defaultStates()[selectedState].glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
         <label className="check"><input type="checkbox" checked={C.aura.color === null}
           onChange={(e) => update((c) => { c.candy.aura.color = e.target.checked ? null : (c.effects.Glow ?? "#8FF0FF"); })} /> Glow color from Color map</label>
         {C.aura.color !== null && (
           <Well label="Glow color" value={C.aura.color} onChange={(v) => update((c) => { c.candy.aura.color = v; })} />
         )}
-        <Slider label="Lift" value={adj.lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
-        <Slider label="Opacity" value={adj.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
+        <Slider label="Lift" value={adj.lift} def={defaultStates()[selectedState].lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
+        <Slider label="Opacity" value={adj.opacity} def={defaultStates()[selectedState].opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
         <div className="actionrow">
           <button className="resetstate" onClick={() => update((c) => { c.states[selectedState] = defaultStates()[selectedState]; })}>
             <RotateCcw size={13} strokeWidth={2} /> Reset {STATE_LABEL[selectedState]}

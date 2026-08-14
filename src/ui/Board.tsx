@@ -30,6 +30,25 @@ async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
   return rules.length ? svg.replace(/(<svg[^>]*>)/, `$1<style>${rules.join("")}</style>`) : svg;
 }
 
+/* One piece as a TRANSPARENT-background PNG at 2× — the same sealed
+   document as the SVG download, rasterized (dev field report: "export
+   items as pngs without the background, not just as .svgs"). SMIL loops
+   are stripped so the raster lands on the settled pose. */
+async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: string) {
+  const svg = stripSmil(await svgWithFaces(pc.svg, pc.cfg));
+  const w = +(/width="([\d.]+)"/.exec(svg)?.[1] ?? 300), h = +(/height="([\d.]+)"/.exec(svg)?.[1] ?? 150);
+  const img = new Image();
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = () => rej(new Error("piece raster failed"));
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  });
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(1, Math.round(w * 2)); cv.height = Math.max(1, Math.round(h * 2));
+  cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height);
+  cv.toBlob((bl) => { if (bl) download(`${name}.png`, bl); }, "image/png");
+}
+
 /* ── The Board v3 — a vertical stack of named artboards ────────────
    Left: searchable asset drawer (live kit components + saved pieces).
    Center: every artboard in a scrolling column; each has its own name,
@@ -1342,8 +1361,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}>
-                <Download size={13} strokeWidth={2.2} /> Export asset
+              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
+                title="This piece as a crisp, infinitely scalable SVG">
+                <Download size={13} strokeWidth={2.2} /> SVG
+              </button>
+              <button onClick={() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); }}
+                title="This piece as a transparent-background PNG at 2× — drops straight into an engine or a mockup">
+                <Download size={13} strokeWidth={2.2} /> PNG
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
                 <Trash2 size={13} strokeWidth={2.2} /> Remove

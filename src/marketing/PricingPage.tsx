@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
+import { usePageScroll } from "@/shell/usePageScroll";
 import { openAuth } from "@/shell/authOverlay";
 import { cloudConfig } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -118,6 +119,7 @@ function Price({ amount, per }: { amount: string; per?: string }) {
 }
 
 export function PricingPage() {
+  usePageScroll(); // gen.css pins <body> for the editor — unpin, or the page can't scroll (dev field report: "the pricing page doesn't seem to scroll")
   const status = useCloudStatus();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

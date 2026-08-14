@@ -1651,6 +1651,13 @@ button.kp-fact { cursor: pointer; }
 .bd-snap { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .bd-export { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--bg, #fff); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .bd-export:hover { opacity: .88; }
+/* dark mode flips --ink light, and these two leaned on a --bg variable
+   that never existed — white text on a light pill, pale numerals on a
+   white field (dev field report: "washed out text in dark mode in the
+   board editor"). The pill takes the rail convention: dark ink on the
+   light chip; the fields join the dark-card family. */
+[data-theme="dark"] .bd-export { color: #17181c; }
+[data-theme="dark"] .bd-row2 input { background: var(--card); }
 .bd-frame { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 36px 16px 18px; }
 .bd-meta { position: absolute; top: 12px; left: 20px; font-size: 11px; font-weight: 600; color: var(--ink2); }
 .bd-stage { position: relative; border-radius: 14px; overflow: hidden; background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30); }
