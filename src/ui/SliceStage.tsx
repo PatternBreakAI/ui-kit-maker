@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { KIT_COMPONENTS, applyKitDesign } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, baseOf } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import { measureAutoSlice, renderSliceSprite, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
@@ -37,6 +37,7 @@ export function SliceStage() {
   const kitDesigns = useGen((s) => s.kitDesigns);
   const pat = useMemo(() => patternZones(cfg, kitDesigns[cid]), [cfg, kitDesigns, cid]);
 
+  const kitClones = useGen((s) => s.kitClones);
   const cur = kitSlices[cid] ?? null;
   const [probe, setProbe] = useState<SliceProbe | null>(null);
   const [zoom, setZoom] = useState<number | null>(null); // null = fit
@@ -48,7 +49,8 @@ export function SliceStage() {
   const dragRef = useRef<{ k: keyof KitSlice; rect: DOMRect } | null>(null);
   const [fitZ, setFitZ] = useState(1);
 
-  const name = KIT_COMPONENTS.find((c) => c.id === cid)?.name ?? cid;
+  // a duplicated piece slices under its own name — the roster knows bases
+  const name = kitClones[cid]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(cid))?.name ?? cid;
   const seed = probe?.auto ?? null;
   const on = !!cur;
   const vals = cur ?? seed;

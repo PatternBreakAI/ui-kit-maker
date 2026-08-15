@@ -8,8 +8,8 @@ import { useGen, fileToBgDataUrl } from "@/generator/store";
 import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
-import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon } from "@/generator/model";
-import type { GenStateName } from "@/generator/model";
+import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
+import type { GenStateName, KitComponentId } from "@/generator/model";
 import { KitPage } from "./KitPage";
 import { LiveArt, shellHit } from "./LiveArt";
 import { BoardView } from "./Board";
@@ -21,7 +21,12 @@ const capOf = (s: GenStateName) =>
   s === "default" ? t("stDefault") : s === "hover" ? t("stHover") : s === "pressed" ? t("stPressed") : t("stDisabled");
 
 export function CanvasView() {
-  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg, sliceStage } = useGen();
+  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
+  /* clone-aware: a duplicated piece RENDERS through its base (renderKit and
+     LiveArt refuse clone ids), its name lives in the clone registry, and
+     every map read stays keyed by the piece's own id */
+  const fBase = focus ? baseOf(focus) : null;
+  const pieceLabel = (id: string) => kitClones[id]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(id as KitComponentId))?.name ?? id;
   // the state-preview cards trail the live cfg by a frame during drags —
   // they are references, not the thing being edited (see the scard render)
   const scardCfg = useDeferredValue(cfg);
@@ -115,7 +120,7 @@ export function CanvasView() {
   const fOy = focus ? kitTextOy[`${focus}:${fSize}`] : undefined;
   const fOx = focus ? kitTextOx[`${focus}:${fSize}`] : undefined;
   // bar-family config for the hero: dock + segments follow the store
-  const fBar = focus === "progress" || focus === "segbar" ? kitBar[focus] : undefined;
+  const fBar = focus && (fBase === "progress" || fBase === "segbar") ? kitBar[focus] : undefined;
   // the focused piece's idle-motion fork wins over the kit's toggles (the
   // edge line rides applyKitDesign; the wipe wrapper reads this instead)
   const fWipe = (focus ? kitDesigns[focus]?.idle?.wipe : undefined) ?? cfg.idle?.wipe;
@@ -124,7 +129,7 @@ export function CanvasView() {
   const heroSvg = useMemo(
     // the document's idle wipe rides the design canvas too — same clipped
     // glint LiveArt applies on the playing surfaces
-    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, displayed, kitVals[focus] ?? (focus === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, kind: focus === "panel" ? (kitKind ?? undefined) : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
+    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, kitBar, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitDesigns]
   );
   // Fixed order, selected included — the stack never reshuffles.
@@ -211,22 +216,22 @@ export function CanvasView() {
             {focus && (
               <span className="focusrow">
                 <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
-                  <PenTool size={13} strokeWidth={2} /> Editing: {KIT_COMPONENTS.find((c) => c.id === focus)?.name} — back to button
+                  <PenTool size={13} strokeWidth={2} /> Editing: {pieceLabel(focus)} — back to button
                 </button>
                 {/* the ⓘ lives on the BANNER, always visible while a
                     component is focused — it was buried in a collapsed
                     panel section before, and the owner rightly never
                     found it. The banner is chrome, not art, so the
                     pristine-canvas rule holds. */}
-                {KIT_LESSONS[focus] && (
+                {KIT_LESSONS[baseOf(focus)] && (
                   <button className={`focuschip focuschip--info${lessonOpen ? " on" : ""}`} aria-expanded={lessonOpen}
-                    title={`About ${KIT_COMPONENTS.find((c) => c.id === focus)?.name} — what it is, what's editable, where it comes from`}
+                    title={`About ${pieceLabel(focus)} — what it is, what's editable, where it comes from`}
                     onClick={() => setLessonOpen(!lessonOpen)}>
                     <Info size={13} strokeWidth={2.2} />
                   </button>
                 )}
-                {lessonOpen && KIT_LESSONS[focus] && (
-                  <div className="lessonpop"><LessonBody cid={focus} /></div>
+                {lessonOpen && KIT_LESSONS[baseOf(focus)] && (
+                  <div className="lessonpop"><LessonBody cid={baseOf(focus)} /></div>
                 )}
               </span>
             )}
@@ -244,11 +249,11 @@ export function CanvasView() {
               <div className="hero-slot hot" onPointerDown={(e) => e.stopPropagation()}>
                 <LiveArt playing scale={1} stablePad
                   cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus])}
-                  kit={{ id: focus, size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], value: kitVals[focus],
+                  kit={{ id: baseOf(focus), size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], value: kitVals[focus],
                     icon: resolveKitIcon(kitIcons[focus], undefined), textOy: fOy, textOx: fOx,
                     dock: fDock, bar: fBar,
-                    row: focus === "datarow" ? kitRow : undefined,
-                    kind: focus === "panel" ? (kitKind ?? undefined) : undefined,
+                    row: baseOf(focus) === "datarow" ? kitRow : undefined,
+                    kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined,
                     themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }} />
               </div>
             ) : (
@@ -424,12 +429,12 @@ export function CanvasView() {
 
       {phase === "master" && sideStates.length > 0 && (
         <div className="stack" aria-label="State previews">
-          {(focus === "toggle"
+          {(fBase === "toggle"
             ? ([["default", "On", 1], ["pressed", "Off", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
             /* the badge's rollover shows the COUNT face wearing the kit's
                hover recipe — without this card that face is unreachable in
                the editor (the owner's "ghost rollover") */
-            : focus === "badge"
+            : fBase === "badge"
             ? ([["default", "Presented", 1], ["hover", "Rollover", 1], ["pressed", "Awarded", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
             : sideStates.map((s) => [s, capOf(s), undefined] as [GenStateName, string, number | undefined])
           ).map(([s, cap, v]) => (
@@ -440,7 +445,7 @@ export function CanvasView() {
                   only the hero pays per frame — three extra engine renders per
                   tick were most of the drag's main-thread bill, and the cards
                   catch up the instant the pointer rests */}
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), focus, fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: focus === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitLabels[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
             </button>
           ))}
         </div>

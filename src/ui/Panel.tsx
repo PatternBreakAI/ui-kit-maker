@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, EDGE_SHINE_DEAF } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -549,6 +549,53 @@ function NameAction({ icon, label, title, defaultName, placeholder, withDate, on
   );
 }
 
+/* Duplicating a piece forces a NAME and a CLASSIFICATION up front (owner
+   mandate) — an unnamed copy is the next back-button debacle waiting to
+   happen. Same in-place pattern as NameAction, with the classification as
+   a second mandatory field: commit stays disabled until both are filled
+   (the empty placeholder option never counts as a choice). */
+function DupAction({ icon, label, title, defaultName, onCommit }: {
+  icon: React.ReactNode; label: string; title?: string; defaultName?: string;
+  onCommit: (name: string, kind: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (open) { inputRef.current?.focus(); inputRef.current?.select(); } }, [open]);
+  const ready = !!name.trim() && !!kind;
+  const commit = () => {
+    if (!ready) return;
+    onCommit(name.trim(), kind);
+    setOpen(false);
+    setKind("");
+  };
+  if (!open) return (
+    <button title={title} onClick={() => { setName(defaultName ?? ""); setOpen(true); }}>{icon} {label}</button>
+  );
+  return (
+    <div className="namerow">
+      <input ref={inputRef} className="tinput" value={name} placeholder="Name — e.g. Flame button" maxLength={80} aria-label={`${label} — name`}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) commit();
+          if (e.key === "Escape") setOpen(false);
+        }} />
+      <select className="tinput" value={kind} aria-label={`${label} — classification`}
+        onChange={(e) => setKind(e.target.value)}>
+        <option value="" disabled>Classification…</option>
+        {CLONE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+      </select>
+      <button className="chipbtn" title="Create the copy" aria-label={`${label} — confirm`} disabled={!ready} onClick={commit}>
+        <CheckCircle2 size={14} strokeWidth={2.2} />
+      </button>
+      <button className="chipbtn" title="Cancel" aria-label={`${label} — cancel`} onClick={() => setOpen(false)}>
+        <X size={14} strokeWidth={2.2} />
+      </button>
+    </div>
+  );
+}
+
 /* A pack's release date is a plain day: the drop happens at UTC midnight,
    so a pack dated the 1st is live everywhere on the 1st. */
 function dayToISO(d: string): string | null {
@@ -652,11 +699,17 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
   const [parentErr, setParentErr] = useState<string | null>(null);
+  /* Clone-aware identity: a duplicated piece GATES and RENDERS through its
+     base component (baseOf), while every data map — designs, labels, icons,
+     nudge keys, slices — stays keyed by the piece's OWN id; resolving data
+     through the base would restyle the base. Names come from the clone
+     registry first, the roster only knows bases. */
+  const pieceLabel = (id: string) => kitClones[id]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(id as KitComponentId))?.name ?? id;
   /* the state flag announces itself, then gets out of the way (owner:
      "['Styling Pressed'] needs to disappear after a few seconds and you
      should be able to turn it off — from right there"). Every state switch
@@ -901,15 +954,15 @@ export function Panel() {
 
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
-  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "firebutton", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel", "cardback", "pack", "orderticket", "rewardcard"] as KitComponentId[]).includes(focus);
+  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "firebutton", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel", "cardback", "pack", "orderticket", "rewardcard"] as KitComponentId[]).includes(baseOf(focus));
   /* the icon on/off rides every text line whose component can wear a glyph
      (owner call) — swappables plus the master-icon carriers. iconbtn is
      icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
-  const iconTogglable = !!focus && focus !== "iconbtn" &&
-    (iconSwappable || focus === "primary" || focus === "secondary");
-  const labelEditable = !!focus && KIT_LABEL_EDITABLE.has(focus);
+  const iconTogglable = !!focus && baseOf(focus) !== "iconbtn" &&
+    (iconSwappable || baseOf(focus) === "primary" || baseOf(focus) === "secondary");
+  const labelEditable = !!focus && KIT_LABEL_EDITABLE.has(baseOf(focus));
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
-  const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(focus);
+  const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(baseOf(focus));
   const subFieldName: Partial<Record<KitComponentId, string>> = { combo: "Plate word — e.g. COMBO!" };
   useEffect(() => {
     if (!ICONS_ENABLED && !iconSwappable) return;
@@ -1041,7 +1094,7 @@ export function Panel() {
       {/* search concierge: "slicing" typed with no sliceable piece focused
           used to answer NOTHING (owner hit this on the live preview) — the
           control lives per piece, so the search hands over the pieces */}
-      {/slic|nine/i.test(panelQuery) && (!focus || !KIT_SLICEABLE[focus]) && (
+      {/slic|nine/i.test(panelQuery) && (!focus || !KIT_SLICEABLE[baseOf(focus)]) && (
         <div className="searchpoint">
           <b>Unity slicing is set on each piece</b>
           <p>The master button ships as the Primary button — pick a piece and its slicing (measured borders, your numbers, the big pixel editor) opens in Component content.</p>
@@ -1089,7 +1142,7 @@ export function Panel() {
            just lives in one quiet row now. Three scopes: the whole kit, the
            focused piece's FAMILY, or the piece alone. ── */}
       {(() => {
-        const fname = focus ? (KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus) : null;
+        const fname = focus ? pieceLabel(focus) : null;
         const pinned = !!(focus && kitDesigns[focus]);
         const frozen = !!(focus && kitLocks[focus]);
         return (
@@ -1171,6 +1224,33 @@ export function Panel() {
                     onClick={() => toggleKitLock(focus)}>
                     <Lock size={12} strokeWidth={2.2} /> Lock — finished
                   </button>
+                  {/* the duplicate verb (owner mandate: "edit the main
+                      button and ONLY the main button") — datarow and panel
+                      sit out because their content lives in store
+                      singletons a copy would share */}
+                  {!CLONE_INELIGIBLE.has(baseOf(focus)) && (
+                    <DupAction icon={<Copy size={12} strokeWidth={2.2} />} label="Duplicate this piece"
+                      title="Copy this piece as its own kit citizen — same look now, its own styling from here on"
+                      defaultName={`${pieceLabel(focus)} copy`}
+                      onCommit={(n, kind) => {
+                        const id = duplicateKitPiece(focus, n, kind);
+                        if (id) setFocus(id as KitComponentId);
+                      }} />
+                  )}
+                  {isCloneId(focus as string) && (
+                    <>
+                      <NameAction icon={<PenTool size={12} strokeWidth={2.2} />} label="Rename"
+                        title="Rename this copy — its classification and styling stay"
+                        defaultName={pieceLabel(focus)}
+                        onCommit={(n) => renameKitClone(focus, n)} />
+                      <button title="Delete this copy — the piece it was copied from stays"
+                        onClick={() => {
+                          if (window.confirm(`Delete “${pieceLabel(focus)}”? The ${KIT_COMPONENTS.find((c) => c.id === baseOf(focus))?.name ?? baseOf(focus)} it copies stays.`)) removeKitClone(focus);
+                        }}>
+                        <Trash2 size={12} strokeWidth={2.2} /> Delete copy
+                      </button>
+                    </>
+                  )}
                 </div>
                 {parentErr && <div className="helper parenterr" role="alert">{parentErr}</div>}
               </>
@@ -1247,13 +1327,13 @@ export function Panel() {
             (owner: "the wipe shine ui is horrible, please clean this up"). */}
         {focus && (
           <div className="idlepiece">
-            <div className="sublabel">This piece only <em>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</em></div>
+            <div className="sublabel">This piece only <em>{pieceLabel(focus)}</em></div>
             {/* a locked piece silently ignores setKitDesign — say so instead
                 of presenting chips that click without effect */}
             {!!kitLocks[focus] && (
               <div className="helper">This piece is locked — its shine chips are on hold until you unlock it.</div>
             )}
-            {(["wipe", "edge"] as const).filter((k) => k === "wipe" || !EDGE_SHINE_DEAF.has(focus)).map((k) => {
+            {(["wipe", "edge"] as const).filter((k) => k === "wipe" || !EDGE_SHINE_DEAF.has(baseOf(focus))).map((k) => {
               const ov = kitDesigns[focus]?.idle?.[k];
               const setOv = (v: boolean | undefined) => {
                 const cur = kitDesigns[focus] ?? {};
@@ -1274,7 +1354,7 @@ export function Panel() {
                 </div>
               );
             })}
-            {EDGE_SHINE_DEAF.has(focus) && (
+            {EDGE_SHINE_DEAF.has(baseOf(focus)) && (
               <div className="helper">Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run.</div>
             )}
           </div>
@@ -1470,13 +1550,13 @@ export function Panel() {
       {/* ── A2 · Silhouette — pure geometry, material stays ── */}
       <Section id="silhouette" title={t("secSilhouette")} summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
         {focus && (
-          <div className="helper">Picking a silhouette restyles <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</b> only — its shell, wells and fills all follow. Leave edit mode to change the whole kit.</div>
+          <div className="helper">Picking a silhouette restyles <b>{pieceLabel(focus)}</b> only — its shell, wells and fills all follow. Leave edit mode to change the whole kit.</div>
         )}
         {/* v56: corner smoothness lives at the TOP of the section, always
             visible — it was buried under the import notes and vanished for
             pills, which read as "missing" */}
         {(() => {
-          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
           const isGothicSil = !!silhouetteMeta(effSil)?.gothicCut;
           return (<>
             <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
@@ -1492,7 +1572,7 @@ export function Panel() {
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
           {["All", ...SILHOUETTE_CATEGORIES.filter((cat) =>
-            SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)),
+            SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)),
           )].map((cat) => (
             <button key={cat} className={silCat === cat ? "on" : ""} role="radio" aria-checked={silCat === cat}
               onClick={() => setSilCat(cat)}>{cat}</button>
@@ -1502,17 +1582,17 @@ export function Panel() {
           {SILHOUETTES
             /* unlisted previews stay out of the public picker while they're
                being evaluated — admins see them to test */
-            .filter((m) => !m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)
+            .filter((m) => !m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)
             /* retired stock shapes leave the picker for everyone — but only
                the picker. A kit already built on one keeps rendering, and an
                admin still sees it (with the × lit) so it can be restored. */
-            .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id)
+            .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)
             .filter((m) => silCat === "All" || m.category === silCat)
             .map((m) => {
               const retired = hiddenSilhouettes.includes(m.id);
               const stock = m.id.startsWith("stock:");
               return (
-            <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
+            <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
               title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
               onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
@@ -1536,7 +1616,7 @@ export function Panel() {
           /* the mirror toggle — always present so it never "vanishes";
              disabled (with the reason) on outlines the geometry audit
              measured as mirror-symmetric, where flipping changes nothing */
-          const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
           const base = baseShape(live);
           const canFlip = !!silhouetteMeta(base)?.flippable || base.startsWith("user:");
           return (
@@ -1559,7 +1639,7 @@ export function Panel() {
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
-              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette`}
+              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette`}
                 onClick={() => { if (focus) setKitShape(focus, u.id); else update((c) => { c.shape = u.id; }); }}>
                 <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(u.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
                 <span>{u.name}</span>
@@ -1650,16 +1730,16 @@ export function Panel() {
           toggle, compass, dials…) carry no text or glyph but DO carry a
           value — without it their slider had no section to live in
           (owner: "I clicked the component editor and nothing"). ── */}
-      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[focus] || KIT_LESSONS[focus] || VALUE_DRIVEN.has(focus) || KIT_SLICEABLE[focus]))) && focus && (
+      {(iconSwappable || labelEditable || (focus && (KIT_SLOTS[baseOf(focus)] || KIT_LESSONS[baseOf(focus)] || VALUE_DRIVEN.has(baseOf(focus)) || KIT_SLICEABLE[baseOf(focus)]))) && focus && (
         <Section id="kiticon" title={t("secKitIcon")}
           summary={<span>{(iconSwappable || iconTogglable)
             ? (kitIcons[focus] === "none" ? "no icon" : ((kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"))
-            : (VALUE_DRIVEN.has(focus) ? `value ${Math.round((kitVals[focus] ?? 0.62) * 100)}%` : null)}</span>}>
-          {KIT_LESSONS[focus] && <InfoCard cid={focus} />}
+            : (VALUE_DRIVEN.has(baseOf(focus)) ? `value ${Math.round((kitVals[focus] ?? 0.62) * 100)}%` : null)}</span>}>
+          {KIT_LESSONS[baseOf(focus)] && <InfoCard cid={baseOf(focus)} />}
           {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked — the look is frozen, but these words and data fields are yours to edit.</div>}
-          {(KIT_SLOTS[focus] ?? []).some((sl) => sl.kind === "free") && (
+          {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free") && (
             <div className="slotgrid">
-              {(KIT_SLOTS[focus] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
+              {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
                 <label key={slot.id} className="slotcell">
                   <span>{slot.name}</span>
                   <input className="tinput" value={kitSlotVals[focus]?.[slot.id] ?? ""}
@@ -1673,7 +1753,7 @@ export function Panel() {
               slider" note has been promising (owner: "i don't see the
               component's value slider anywhere"). Stages the resting
               pose; Play mode still animates on top. */}
-          {VALUE_DRIVEN.has(focus) && (<>
+          {VALUE_DRIVEN.has(baseOf(focus)) && (<>
             <Slider label="Value" value={Math.round((kitVals[focus] ?? 0.62) * 100)} min={0} max={100} unit="%"
               onChange={(v) => setKitVal(focus, v / 100)} />
             {kitVals[focus] !== undefined ? (
@@ -1685,8 +1765,8 @@ export function Panel() {
               <div className="helper">The resting pose — bars fill, needles point, rarity tiers pick, toggles flip. The kit page, the Board and exports all hold this frame.</div>
             )}
           </>)}
-          {KIT_SLICEABLE[focus] && <SliceEditor cid={focus} />}
-          {(KIT_SLOTS[focus] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
+          {KIT_SLICEABLE[baseOf(focus)] && <SliceEditor cid={focus} />}
+          {(KIT_SLOTS[baseOf(focus)] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
             /* many options wear a dropdown — a 12-way radio row per slot
                would be a wall of chips (the emote wheel has eight slots) */
             <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }}>
@@ -1740,7 +1820,7 @@ export function Panel() {
           ) : null)}
           {labelEditable && (<>
             <div className="sublabel">Text</div>
-            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(focus)}
+            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(baseOf(focus))}
               placeholder="Specimen text (leave empty for defaults)" aria-label="Component text"
               onChange={(e) => setKitLabel(focus, e.target.value)} />
             {iconTogglable && !finLocked && (
@@ -1750,12 +1830,12 @@ export function Panel() {
           </>)}
           {subEditable && (
             <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24}
-              placeholder={subFieldName[focus] ?? "Secondary text"} aria-label="Secondary text"
+              placeholder={subFieldName[baseOf(focus)] ?? "Secondary text"} aria-label="Secondary text"
               onChange={(e) => setKitSub(focus, e.target.value)} />
           )}
           {iconSwappable && !finLocked && (<>
           <div className="sublabel">Icon</div>
-          <div className="helper">Swap the glyph on <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Color is right below; size, weight & effects live under <b>Typography → Icons</b>.</div>
+          <div className="helper">Swap the glyph on <b>{pieceLabel(focus)}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Color is right below; size, weight & effects live under <b>Typography → Icons</b>.</div>
           {/* the color, where a human looks for it (owner) — same state and
               routing as the Typography → Icons swatch, just surfaced here */}
           <label className="check"><input type="checkbox" checked={IC.color === null}
@@ -1816,13 +1896,13 @@ export function Panel() {
             {!iconSwappable && <div className="sublabel">Icon</div>}
             <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.ox = v; })} />
             <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.oy = v; })} />
-            <div className="helper">These belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at every state — the rest of the kit's glyphs stay put.</div>
+            <div className="helper">These belong to <b>{pieceLabel(focus)}</b> at every state — the rest of the kit's glyphs stay put.</div>
           </>)}
         </Section>
       )}
 
       {/* ── v61: Bar — the dock system + segment settings ── */}
-      {focus && (focus === "progress" || focus === "segbar") && (
+      {focus && (baseOf(focus) === "progress" || baseOf(focus) === "segbar") && (
         <Section id="barsec" title={t("secBar")}
           summary={<span>{(kitBar[focus]?.dock ?? false) ? "docked" : "plain"}</span>}>
           <div className="sublabel">Emblem socket</div>
@@ -1838,10 +1918,12 @@ export function Panel() {
             </div>
           )}
           <div className="helper">A silhouette-aware mini shell riding the bar's end — the full candy stack at emblem size. Its glyph comes from <b>Component content</b> above; remove the icon there for an empty socket (drop art in-engine).</div>
-          {focus === "segbar" && (<>
+          {baseOf(focus) === "segbar" && (<>
             <div className="sublabel">Segments</div>
-            <Slider label="Segments" value={kitBar.segbar?.segments ?? 5} min={2} max={12} unit="" onChange={(v) => setKitBar("segbar", { segments: v })} />
-            <Slider label="Gap" value={kitBar.segbar?.gap ?? 6} min={2} max={14} unit="px" onChange={(v) => setKitBar("segbar", { gap: v })} />
+            {/* keyed by the FOCUSED piece, not the "segbar" literal — a
+                duplicate keeps its own cell count */}
+            <Slider label="Segments" value={kitBar[focus]?.segments ?? 5} min={2} max={12} unit="" onChange={(v) => setKitBar(focus, { segments: v })} />
+            <Slider label="Gap" value={kitBar[focus]?.gap ?? 6} min={2} max={14} unit="px" onChange={(v) => setKitBar(focus, { gap: v })} />
             {/* smooth mode is parked (owner call) — cells light one by one;
                 the renderer snaps regardless, so the toggle would lie */}
             <div className="helper">Cells light one by one — stamina pips.</div>
@@ -1931,7 +2013,7 @@ export function Panel() {
         {(() => {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
-          const effShape = focus ? (kitShapes[focus] ?? KIT_SHAPE[focus] ?? D.shape) : D.shape;
+          const effShape = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
           // goth3 runs uncapped like the classics (owner: "remove the 4
           // limit and see what happens with these")
           const wMin = effShape === "banner" ? 13 : 2, wMax = effShape === "banner" ? 33 : 34;
@@ -2205,7 +2287,7 @@ export function Panel() {
 
       {/* ── Data row — its own control model: two independent text groups,
             slot toggles, safe bounds. Objectives share this editor. ── */}
-      {(focus === "datarow") && (
+      {(!!focus && baseOf(focus) === "datarow") && (
         <Section id="datarowsec" title={t("secDataRow")}>
           <div className="sublabel">Text group A — title</div>
           <input className="tinput" value={kitRow.title} maxLength={32} aria-label="Row title"
@@ -2247,8 +2329,8 @@ export function Panel() {
             master's specimen text only shows when nothing is focused */}
         {focus && labelEditable ? (
           <>
-            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(focus)} aria-label="Label text"
-              placeholder={`${KIT_COMPONENTS.find((c) => c.id === focus)?.name} text — empty for the default`}
+            <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(baseOf(focus))} aria-label="Label text"
+              placeholder={`${pieceLabel(focus)} text — empty for the default`}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
             {iconTogglable && (
               <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
@@ -2256,10 +2338,10 @@ export function Panel() {
             )}
             {subEditable && (
               <input className="tinput" value={kitSubs[focus] ?? ""} maxLength={24} aria-label="Secondary text"
-                placeholder={subFieldName[focus] ?? "Secondary text"}
+                placeholder={subFieldName[baseOf(focus)] ?? "Secondary text"}
                 onChange={(e) => setKitSub(focus, e.target.value)} />
             )}
-            <div className="helper">This text belongs to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> — the kit page, the Board and exports follow. Clear it to fall back to the default.</div>
+            <div className="helper">This text belongs to <b>{pieceLabel(focus)}</b> — the kit page, the Board and exports follow. Clear it to fall back to the default.</div>
           </>
         ) : (
           <input className="tinput" value={cfg.content.label} maxLength={32} aria-label="Label text"
@@ -2337,7 +2419,7 @@ export function Panel() {
         {/* stacked labels only — the gap between lines, % of factory leading
             (owner: "leading controls for the type, at least here"). Shown
             exactly where it acts; widen the list as more stacks adopt it. */}
-        {focus === "endturn" && (
+        {!!focus && baseOf(focus) === "endturn" && (
           <Slider label="Leading" value={T2.leading ?? 100} min={60} max={220} unit="%" onChange={(v) => update((c) => { c.type.leading = v; })} />
         )}
         {focus ? (
@@ -2347,7 +2429,7 @@ export function Panel() {
             <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-60} max={60} unit="px"
               onChange={(v) => setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             <div className="helper">
-              Component-specific — these nudges belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at its current size and never move anything else.
+              Component-specific — these nudges belong to <b>{pieceLabel(focus)}</b> at its current size and never move anything else.
               {(kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined || kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined) && (
                 <button className="chipbtn" style={{ marginLeft: 8 }} title="Clear this component's nudges — follow the theme again"
                   onClick={() => { setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, null); setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, null); }}>
@@ -2411,7 +2493,7 @@ export function Panel() {
             showing it dead-but-dimmed buried the live well below a checkbox.
             Swap in the pin editor right here instead. */}
         {focus && kitTextFill[focus] ? (() => {
-          const fname = KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus;
+          const fname = pieceLabel(focus);
           return (<>
             <Well label={`Fill — ${fname} only`} value={kitTextFill[focus]!} onChange={(v) => setKitTextFill(focus, v)} />
             <button className="resetstate" title="Unpin the per-piece text color — this piece follows the kit's fills again"
@@ -2464,7 +2546,7 @@ export function Panel() {
         {/* per-piece text color — the escape hatch from "changing text color
             changes it everywhere". Only offered while a component is focused. */}
         {focus && (() => {
-          const fname = KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus;
+          const fname = pieceLabel(focus);
           return (<>
             <div className="sublabel">This piece only</div>
             <label className="check"><input type="checkbox" checked={!!kitTextFill[focus]}
@@ -2602,13 +2684,13 @@ export function Panel() {
             Same state as the text-line checkbox — the focused piece's
             "none" override, or the master's icon.show when nothing is
             focused. iconbtn is icon-only, so no kill switch there. */}
-        {focus !== "iconbtn" && (
+        {(!focus || baseOf(focus) !== "iconbtn") && (
           <label className="check"><input type="checkbox"
             checked={focus ? kitIcons[focus] !== "none" : cfg.icon.show}
             onChange={(e) => {
               if (focus) setKitIcon(focus, e.target.checked ? null : "none");
               else update((c) => { c.icon.show = e.target.checked; });
-            }} /> Icon at the end of the text{focus ? ` — ${KIT_COMPONENTS.find((c) => c.id === focus)?.name}` : ""}</label>
+            }} /> Icon at the end of the text{focus ? ` — ${pieceLabel(focus)}` : ""}</label>
         )}
         {selectedState !== "default" && (
           <div className="helper">Editing <b>{STATE_LABEL[selectedState]}</b> — these dials pin to this state; the other states keep following the main icon.</div>
@@ -2763,7 +2845,7 @@ export function Panel() {
         <button className={`randbtn${justAdded ? " okflash" : ""}`} title="Approve this component and save it to the library"
           onClick={() => {
             // a focused kit piece saves under its own name — it stays that piece
-            addToLibrary(focus ? (KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? "Component") : (cfg.content.label || "Component"));
+            addToLibrary(focus ? pieceLabel(focus) : (cfg.content.label || "Component"));
             setJustAdded(true);
             useGen.setState((st) => ({ open: { ...st.open, library: true } }));
             window.setTimeout(() => setJustAdded(false), 1800);

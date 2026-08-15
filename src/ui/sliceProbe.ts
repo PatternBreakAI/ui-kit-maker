@@ -1,5 +1,5 @@
 import { useGen } from "@/generator/store";
-import { applyKitDesign, applyKitTextFill, effKitSize } from "@/generator/model";
+import { applyKitDesign, applyKitTextFill, baseOf, effKitSize } from "@/generator/model";
 import type { GenConfig, KitComponentId, KitSlice } from "@/generator/model";
 import { renderKit } from "@/generator/bevel";
 
@@ -25,7 +25,9 @@ export async function measureAutoSlice(cid: KitComponentId): Promise<SliceProbe 
     c.shadow.opacity = 0;
     c.candy.contact.opacity = 0;
     for (const g of Object.values(c.states)) g.glow = 0;
-    const svg = renderKit(c, cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { label: "", icon: null });
+    // a duplicated piece measures through its BASE geometry — renderKit
+    // refuses clone ids; every map read above stays keyed to the piece
+    const svg = renderKit(c, baseOf(cid), effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { label: "", icon: null });
     const cv = await new Promise<HTMLCanvasElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => { const k = document.createElement("canvas"); k.width = img.width; k.height = img.height; k.getContext("2d")!.drawImage(img, 0, 0); resolve(k); };
