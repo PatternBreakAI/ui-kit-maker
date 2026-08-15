@@ -5,7 +5,7 @@ import { putBgOriginal, normalizeShipCopy, captureVideoPoster } from "@/generato
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { LiveArt, shellHit, stillSmil, stripSmil } from "./LiveArt";
@@ -419,7 +419,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
+    cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
@@ -685,6 +685,26 @@ export function BoardView({ playing }: { playing: boolean }) {
     }));
   }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
 
+  /* the user's duplicated pieces — live kit citizens like the stock roster
+     above. Thumbs render the BASE component wearing the clone's own design
+     fork (that fork is the whole point of a clone); a staged base keeps
+     its clones admin-only, same gate as the stock entry */
+  const cloneAssets = useMemo(() => {
+    const tc = clone(cfg);
+    for (const s of Object.values(tc.states)) s.glow = 0;
+    return Object.entries(kitClones)
+      .filter(([, c]) => kitVisible(c.base, componentReleases, isAdmin))
+      .map(([cid, c]) => {
+        const key = cid as KitComponentId; // per-piece maps are clone-keyed
+        const baseName = KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base;
+        return {
+          id: cid, kitId: key, name: c.name,
+          hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
+          svg: renderKit(applyKitTextFill(applyKitDesign(tc, kitDesigns[key]), kitTextFill[key]), c.base, "s", "default", undefined, kitShapes[key], { icon: resolveKitIcon(kitIcons[key], undefined), label: kitLabels[key] }),
+        };
+      });
+  }, [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
+
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
 
@@ -695,14 +715,17 @@ export function BoardView({ playing }: { playing: boolean }) {
      state" that their component fork had tamed). */
   const svgOf = (b: BoardItem): { svg: string; cfg: GenConfig } => {
     if (b.kitId) {
-      const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
+      // a CLONE item renders its base component (renderKit refuses clone
+      // ids) while every per-piece read stays keyed by the item's own id
+      const bBase = baseOf(b.kitId);
+      const kb = bBase === "progress" || bBase === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
       // the editor's per-size text nudges, slot choices and sub-labels ride
       // along — without them the board (and its PNGs) trailed the editor
       // (owner: "changing the speedo component in edit did not update it
       // on the the board")
       const bSize = kitSizes[b.kitId] ?? "l";
-      return { svg: renderKit(pc, b.kitId, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -712,7 +735,9 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
-    if (b.kitId) return KIT_COMPONENTS.find((c) => c.id === b.kitId)?.name ?? b.kitId;
+    // clone-registry first — a copy-* id must never surface as a name
+    const kid = b.kitId;
+    if (kid) return kitClones[kid]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(kid))?.name ?? kid;
     return library.find((l) => l.id === b.libId)?.name ?? "Piece";
   };
 
@@ -917,6 +942,30 @@ export function BoardView({ playing }: { playing: boolean }) {
               </div>
             );
           })}
+          {/* the user's clones place as LIVE items — kitId carries the
+              clone id, so the stage keeps following its edits */}
+          {cloneAssets.length > 0 && (() => {
+            const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+            const items = cloneAssets.filter((it) => terms.every((t) => it.hay.includes(t)));
+            if (!items.length) return null;
+            return (
+              <div>
+                <div className="bd-cat">Your components</div>
+                <div className="bd-grid">
+                  {items.map((it) => (
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
+                      onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, x: 0, y: 0 } as BoardItem).svg })}
+                      onPointerLeave={() => setPreview(null)}>
+                      <span dangerouslySetInnerHTML={{ __html: it.svg }} />
+                      <i>{it.name}</i>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {library.length > 0 && (
             <div>
               <div className="bd-cat">Saved components</div>
@@ -1245,7 +1294,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             {/* instance dials live HERE too — the floating toolbar overlaps
                 neighbours in tight stacks (owner: "placement of controls is
                 problematic"); the rail is always readable */}
-            {sel.kitId && STRETCHABLE.has(sel.kitId) && (
+            {sel.kitId && STRETCHABLE.has(baseOf(sel.kitId)) && (
               <label className="bd-slider" title="9-slice width — the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
                 Width · {Math.round((sel.stretch ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretch ?? 1) * 100)}
@@ -1253,7 +1302,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onDoubleClick={() => useGen.getState().stretchBoardItem(sel.id, 1, sel.x)} />
               </label>
             )}
-            {sel.kitId && STRETCHABLE_V.has(sel.kitId) && (
+            {sel.kitId && STRETCHABLE_V.has(baseOf(sel.kitId)) && (
               <label className="bd-slider" title="9-slice height — the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
                 Height · {Math.round((sel.stretchY ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretchY ?? 1) * 100)}
@@ -1267,7 +1316,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 onChange={(e) => useGen.getState().setBoardItemOpacity(sel.id, +e.target.value)}
                 onDoubleClick={() => useGen.getState().setBoardItemOpacity(sel.id, null)} />
             </label>
-            {sel.kitId && VALUE_DRIVEN.has(sel.kitId) && (
+            {sel.kitId && VALUE_DRIVEN.has(baseOf(sel.kitId)) && (
               <label className="bd-slider" title="Value — this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
                 Value — this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
                 <input type="range" min={0} max={100} value={Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}
@@ -1275,8 +1324,8 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onDoubleClick={() => useGen.getState().setBoardItemVal(sel.id, null)} />
               </label>
             )}
-            {sel.kitId && KIT_LABEL_EDITABLE.has(sel.kitId) && (
-              <input className="bd-abname" maxLength={labelMaxOf(sel.kitId)} aria-label="Instance text"
+            {sel.kitId && KIT_LABEL_EDITABLE.has(baseOf(sel.kitId)) && (
+              <input className="bd-abname" maxLength={labelMaxOf(baseOf(sel.kitId))} aria-label="Instance text"
                 title="Text — this copy only. Clear the field to follow the kit again."
                 placeholder={kitLabels[sel.kitId] || "Text — this copy"}
                 value={sel.label ?? ""}
@@ -1649,7 +1698,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onDragEnd: () => void;
   onExport: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
+  const { cfg, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -1786,14 +1835,16 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              editor and Kit page — the master design (and its state recipes)
              must never leak past a fork here. forkCfg is memoized above:
              a stable object identity is what keeps LiveArt's svg memo (and
-             the measurement observer behind it) quiet between real edits. */
+             the measurement observer behind it) quiet between real edits.
+             A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
+             ids) while every per-piece read stays keyed by b.kitId. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
-            kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
-              dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
-              bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
-              row: b.kitId === "datarow" ? kitRow : undefined,
+              dock: (baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
+              bar: baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar" ? kitBar[b.kitId] : undefined,
+              row: baseOf(b.kitId) === "datarow" ? kitRow : undefined,
               themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }} />
         ) : (
           <LiveArt cfg={item!.cfg} playing={playing} anchorContent
@@ -1832,14 +1883,14 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                      into a named asset — the master keeps its own life */
                   <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset. The master component stays untouched."
                     onClick={() => {
-                      const def = b.label ?? KIT_COMPONENTS.find((c) => c.id === b.kitId)?.name ?? "My asset";
+                      const def = b.label ?? kitClones[b.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(b.kitId!))?.name ?? "My asset";
                       const name = window.prompt("Save this piece to your assets as:", def);
                       if (name?.trim()) useGen.getState().saveBoardItemAsAsset(b.id, name.trim());
                     }}>
                     <BookmarkPlus size={12} strokeWidth={2.2} />
                   </button>
                 )}
-                {b.kitId && VALUE_DRIVEN.has(b.kitId) && (
+                {b.kitId && VALUE_DRIVEN.has(baseOf(b.kitId)) && (
                   /* THIS instance's pose — rarity tier, fill level, needle
                      angle — without touching the kit-wide staged value, so a
                      board can show every tier at once. Double-click clears. */
@@ -1861,12 +1912,12 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                     value={b.stamp.size}
                     onChange={(e) => useGen.getState().setBoardItemStamp(b.id, { size: +e.target.value })} />
                 </>)}
-                {b.kitId && KIT_LABEL_EDITABLE.has(b.kitId) && (
+                {b.kitId && KIT_LABEL_EDITABLE.has(baseOf(b.kitId)) && (
                   /* THIS instance's words — two START buttons on one screen
                      can say START and OPTIONS. The kit's design keeps
                      flowing through; only the text is pinned. Empty =
                      follow the kit again. */
-                  <input type="text" className="bd-ptext" maxLength={labelMaxOf(b.kitId)}
+                  <input type="text" className="bd-ptext" maxLength={labelMaxOf(baseOf(b.kitId))}
                     title="Text — this copy only. Clear the field to follow the kit again."
                     aria-label="Instance text"
                     placeholder={kitLabels[b.kitId] || "Text — this copy"}
@@ -1890,7 +1941,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                 belong to the vertical 9-SLICE handles — edges stretch, corners
                 scale, one meaning per handle. */}
             {([[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0], [0.5, 1]] as const)
-              .filter(([hx]) => !(hx === 0.5 && b.kitId && STRETCHABLE_V.has(b.kitId)))
+              .filter(([hx]) => !(hx === 0.5 && b.kitId && STRETCHABLE_V.has(baseOf(b.kitId))))
               .map(([hx, hy]) => {
               const bar = hx === 0.5;
               return (
@@ -1937,7 +1988,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
             })}
             {/* the bar family's SIDE handles — 9-slice stretch, not scale:
                 the track re-renders wider while the far edge stays planted */}
-            {b.kitId && STRETCHABLE.has(b.kitId) && ([0, 1] as const).map((shx2) => (
+            {b.kitId && STRETCHABLE.has(baseOf(b.kitId)) && ([0, 1] as const).map((shx2) => (
               <span key={`s${shx2}`} className="bd-rszwrap" style={{ left: (sh[0] + shx2 * sh[2]) * sc, top: (sh[1] + 0.5 * sh[3]) * sc }}>
                 <span className="bd-rsz2 bd-rszside" role="slider"
                   aria-label="Stretch piece horizontally (9-slice)" aria-valuenow={Math.round((b.stretch ?? 1) * 100)}
@@ -1966,7 +2017,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
             ))}
             {/* the blank panel's TOP/BOTTOM handles — vertical 9-slice: the
                 shell re-renders taller while the far edge stays planted */}
-            {b.kitId && STRETCHABLE_V.has(b.kitId) && ([0, 1] as const).map((shy2) => (
+            {b.kitId && STRETCHABLE_V.has(baseOf(b.kitId)) && ([0, 1] as const).map((shy2) => (
               <span key={`v${shy2}`} className="bd-rszwrap" style={{ left: (sh[0] + 0.5 * sh[2]) * sc, top: (sh[1] + shy2 * sh[3]) * sc }}>
                 <span className="bd-rsz2 bd-rszside bd-rszside--v" role="slider"
                   aria-label="Stretch piece vertically (9-slice)" aria-valuenow={Math.round((b.stretchY ?? 1) * 100)}

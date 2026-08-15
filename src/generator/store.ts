@@ -1287,7 +1287,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setCanvasMode: (m) => set({ canvasMode: m }),
   library: loadJson<LibItem[]>(LIB_KEY, []),
   addToLibrary: (name) => {
-    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill } = get();
+    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitLabels } = get();
     let cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
     // a locked component saves with its locked look — the snapshot IS the piece
     if (focus && kitDesigns[focus]) cfg = applyKitDesign(cfg, kitDesigns[focus]);
@@ -1300,8 +1300,11 @@ export const useGen = create<GenStore>((set, get) => ({
       const ox = kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`];
       if (ox !== undefined) cfg.type.ox = ox;
     }
+    // a focused CLONE saves under its BASE id — LibKit.id must name a real
+    // component (libThumb and the Board render by it). The clone's look is
+    // already baked above through its own keys; its words ride along here.
     const kit: LibKit | undefined = focus
-      ? { id: focus, size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[focus] }
+      ? { id: baseOf(focus), size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)], ...(kitLabels[focus] ? { label: kitLabels[focus] } : {}) }
       : undefined;
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, ...(kit ? { kit } : {}) };
     const library = [...get().library, item];
@@ -1420,9 +1423,14 @@ export const useGen = create<GenStore>((set, get) => ({
     if (oy !== undefined) cfg.type.oy = oy;
     const ox = st.kitTextOx[`${b.kitId}:${sz}`];
     if (ox !== undefined) cfg.type.ox = ox;
+    // a CLONE item bakes its BASE id too (the snapshot renders by it) —
+    // the design/text/nudge reads above already went through its own keys.
+    // The label pins what the stage shows: instance words, else the
+    // piece's own kit words.
+    const lbl = b.label ?? st.kitLabels[b.kitId];
     const kit: LibKit = {
-      id: b.kitId, size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[b.kitId],
-      ...(b.label ? { label: b.label } : {}),
+      id: baseOf(b.kitId), size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[baseOf(b.kitId)],
+      ...(lbl ? { label: lbl } : {}),
       ...(b.v !== undefined ? { v: b.v } : {}),
     };
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };

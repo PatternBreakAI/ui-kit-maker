@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -38,10 +38,12 @@ function ChapterTabs() {
   const kitSizes = useGen((s) => s.kitSizes);
   const setKitSizeAll = useGen((s) => s.setKitSizeAll);
   const releases = useGen((s) => s.componentReleases);
+  const kitClones = useGen((s) => s.kitClones);
+  const isAdmin = useGen((s) => s.isAdmin);
   /* find a piece by name (owner: "I need search functionality in the
-     kit") — data-space search over the component list, then a walk-down
-     seek: chapters mount lazily, so the target may not exist in the DOM
-     until the page has scrolled near it */
+     kit") — data-space search over the component list plus the user's own
+     clones, then a walk-down seek: chapters mount lazily, so the target
+     may not exist in the DOM until the page has scrolled near it */
   const [q, setQ] = useState("");
   const groupName = (id: KitComponentId) => {
     const g = groupOf(id);
@@ -50,11 +52,19 @@ function ChapterTabs() {
   const found = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (t.length < 2) return [];
-    return KIT_COMPONENTS.filter((c) =>
+    // a clone answers to its own name, its classification and its base
+    // component's name; visibility follows the chapter's gate (base
+    // released — or the admin, who sees staged-base clones there)
+    const clones = Object.entries(kitClones)
+      .filter(([, c]) => kitVisible(c.base, releases ?? {}, isAdmin))
+      .filter(([cid, c]) => `${c.name} ${c.kind} ${KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base} ${cid}`.toLowerCase().includes(t))
+      .map(([cid, c]) => ({ id: cid, name: c.name, tag: c.kind }));
+    const stock = KIT_COMPONENTS.filter((c) =>
       kitVisible(c.id, releases ?? {}, false) &&
       (c.name.toLowerCase().includes(t) || c.id.includes(t) || groupName(c.id).toLowerCase().includes(t)),
-    ).slice(0, 9);
-  }, [q, releases]);
+    ).map((c) => ({ id: c.id as string, name: c.name, tag: groupName(c.id) }));
+    return [...clones, ...stock].slice(0, 9);
+  }, [q, releases, kitClones, isAdmin]);
   const jumpTo = (id: string) => {
     setQ("");
     const scroller = document.querySelector(".canvas");
@@ -78,6 +88,10 @@ function ChapterTabs() {
   // every cell. Mixed sizes (older saves) read as M until the next click
   // normalizes the kit.
   const sizeAll: KitSize = Object.values(kitSizes).some((v) => effKitSize(v) === "m") ? "m" : "l";
+  // the user's clones carry their own chapter — its tab exists only while
+  // visible clones do (same pre-document seat as the staging bay)
+  const hasClones = Object.values(kitClones).some((c) => kitVisible(c.base, releases ?? {}, isAdmin));
+  const chapters: [string, string, string][] = hasClones ? [["yours", "00", "Your components"], ...CHAPTERS] : CHAPTERS;
   const [activeChap, setActiveChap] = useState("foundations");
   useEffect(() => {
     const scroller = document.querySelector(".canvas");
@@ -86,7 +100,9 @@ function ChapterTabs() {
     const read = () => {
       raf = 0;
       const marks = [...document.querySelectorAll<HTMLElement>("[data-chap]")];
-      let current = "foundations";
+      // above every mark, the FIRST chapter is current — which is the
+      // clones chapter whenever one exists
+      let current = marks[0]?.dataset.chap ?? "foundations";
       for (const m of marks) if (m.getBoundingClientRect().top < 280) current = m.dataset.chap ?? current;
       setActiveChap((prev) => (prev === current ? prev : current));
     };
@@ -97,7 +113,7 @@ function ChapterTabs() {
   }, []);
   return (
     <nav className="kp-tabsbar" aria-label="Kit chapters">
-      {CHAPTERS.map(([id, num, name]) => (
+      {chapters.map(([id, num, name]) => (
         <button key={id} className={activeChap === id ? "on" : ""}
           onClick={() => {
             setActiveChap(id);
@@ -120,7 +136,7 @@ function ChapterTabs() {
           <span className="kp-findlist" role="listbox">
             {found.map((c) => (
               <button key={c.id} role="option" onClick={() => jumpTo(c.id)}>
-                {c.name}<i>{groupName(c.id)}</i>
+                {c.name}<i>{c.tag}</i>
               </button>
             ))}
           </span>
@@ -296,7 +312,11 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
+  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
+  /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
+     through its BASE component — renderKit and LiveArt refuse clone ids —
+     while every per-piece map read stays keyed by the piece's own id */
+  const base = baseOf(p.id);
   // an explicit size (the Primary ramp) is fixed; everything else follows the
   // kit-wide size from the floating nav's M/L switch
   // the documentation shows medium and large only — a stored Small reads as Medium
@@ -321,9 +341,9 @@ function usePiece(p: PieceOpts) {
     locked: !!kitLocks[p.id],
     pinned: !!kitDesigns[p.id],
     size,
-    name: KIT_COMPONENTS.find((c) => c.id === p.id)?.name ?? p.id,
+    name: kitClones[p.id]?.name ?? KIT_COMPONENTS.find((c) => c.id === base)?.name ?? p.id,
     kit: {
-      id: p.id, size, shape: p.shape ?? kitShapes[p.id],
+      id: base, size, shape: p.shape ?? kitShapes[p.id],
       // user content overrides beat the specimen's demo text and glyph;
       // an explicit "no icon" instance stays empty
       // slot POSES keep their identity (same rule as the catalog's rk()):
@@ -339,11 +359,11 @@ function usePiece(p: PieceOpts) {
       textOx: kitTextOx[`${p.id}:${size}`],
       // data rows follow the row model everywhere; a variant's explicit
       // label/sub still wins for its own line
-      row: p.id === "datarow" ? kitRow : undefined,
+      row: base === "datarow" ? kitRow : undefined,
       kind: p.kind, tone: p.tone,
       // bar-family config: the user's per-component settings ride over the
       // specimen's defaults; the dock glyph follows the icon-swap system
-      ...(p.id === "progress" || p.id === "segbar" ? (() => {
+      ...(base === "progress" || base === "segbar" ? (() => {
         const kb = kitBar[p.id];
         // a specimen that DEMOS the dock always keeps it — the panel toggle
         // drives the plain variants, the hero and the Board
@@ -529,7 +549,8 @@ function pieceName(id: KitComponentId): string {
    cards — release is the one gate that lets a piece join the body. */
 function useStagedHidden(id: KitComponentId): boolean {
   const rel = useGen((s) => s.componentReleases);
-  return !kitVisible(id, rel, false);
+  // a clone gates on its BASE — a copy of a staged piece leaks the piece
+  return !kitVisible(baseOf(id), rel, false);
 }
 
 /** One specced piece: live art + a caption rail with edit, sizes and export. */
@@ -540,7 +561,7 @@ function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolea
   // the bay is the ONE place a staged piece renders — its cards opt out of
   // the gate that keeps staged pieces off every public surface
   if (stagedHidden && !p.bay) return null;
-  if (tier === "guest" && !GUEST_KIT.has(p.id)) return <LockedPiece caption={p.caption} />;
+  if (tier === "guest" && !GUEST_KIT.has(baseOf(p.id))) return <LockedPiece caption={p.caption} />;
   return <PieceInner {...p} />;
 }
 function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
@@ -570,8 +591,11 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
             if (!vectorOk) { if (tier2 === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
             const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            // a clone exports through its base component wearing the
+            // clone-keyed reads; the file is named after the caption —
+            // which IS the clone's name on a clone card
             downloadSvg(
-              renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), p.id, size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
+              renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), baseOf(p.id), size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
                 { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
               `kit-${variant}-${size}.svg`
             );
@@ -1376,7 +1400,7 @@ function KitDebugStrip() {
 }
 
 export function KitPage() {
-  const { cfg, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
+  const { cfg, kitClones, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load
@@ -2247,6 +2271,34 @@ const kitTier = useGen((s) => s.tier);
               </p>
             )}
           </Sec>
+        );
+      })()}
+
+      {/* ── 00 · your components — duplicated pieces, filed by the
+          classification chosen at creation. Cards run through the same
+          Piece machinery as the catalog: base geometry, the clone's own
+          entries. A clone of a staged base renders for the admin alone
+          (bay rules); the chapter — and its tab — exists only while
+          visible clones do. ── */}
+      {(() => {
+        const vis = Object.entries(kitClones).filter(([, c]) => kitVisible(c.base, releases, isAdmin));
+        if (!vis.length) return null;
+        // an unknown classification (a hand-edited save) files under Other
+        const kindOf = (k: string) => ((CLONE_KINDS as readonly string[]).includes(k) ? k : "Other");
+        const groups = CLONE_KINDS.map((kind) => ({ kind, list: vis.filter(([, c]) => kindOf(c.kind) === kind) })).filter((g) => g.list.length);
+        return (
+          <>
+            <Chapter n="00" id="yours" label="Your components" blurb="Pieces you duplicated — each renders through its base component and restyles alone." />
+            {groups.map((g, i) => (
+              <Sec key={g.kind} n={String(i + 1).padStart(2, "0")} title={g.kind}>
+                <div className="kp-tray">
+                  {g.list.map(([cid, c]) => (
+                    <Piece key={cid} id={cid as KitComponentId} caption={c.name} bay={isAdmin} />
+                  ))}
+                </div>
+              </Sec>
+            ))}
+          </>
         );
       })()}
 
