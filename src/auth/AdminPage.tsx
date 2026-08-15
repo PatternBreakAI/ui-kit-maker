@@ -5,8 +5,8 @@ import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHidd
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
-import { hydrate } from "@/generator/store";
-import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
+import { hydrate, healStateIconPins } from "@/generator/store";
+import { applyKitDesign, applyKitTextFill, effKitSize, migrateKitDesigns, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { ensureDocFonts } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
@@ -97,23 +97,63 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
   }, [doc]);
   const out = useMemo(() => {
     try {
-      const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
-      const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
+      /* the same healing the editor runs on project OPEN — the desk reads
+         raw saved docs, and older saves store per-piece forks as FULL
+         design snapshots. Applied verbatim, a snapshot fork freezes that
+         piece at the look it wore when the fork was minted — the badge
+         rendered an old design while the editor (which migrates on load)
+         showed today's. Migrate first, exactly like loadKitPayload. */
+      const cfg = healStateIconPins(hydrate(doc.cfg as Record<string, unknown>) as GenConfig);
+      const designs = migrateKitDesigns(cfg, (doc.kitDesigns ?? {}) as Partial<Record<KitComponentId, KitDesign>>).forks;
       const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
       const labels = (doc.kitLabels ?? {}) as Record<string, string>;
       const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
-      const piece = (cid: KitComponentId, size: "s" | "m" | "l", v?: number) =>
-        tightenSvg(renderKit(
+      /* the WHOLE per-piece story, not just the style forks — the bench
+         used to drop kitShapes / sizes / icons / values / bar config and
+         the per-size type-seat nudges, so a heavily tuned kit previewed
+         as an older version of itself (owner: "the thumbnail isn't
+         grabbing the latest imagery"). Same plumbing as the kit page's
+         usePiece, doc-fed. Sizes are the kit's own: the seat nudges are
+         keyed per size, so forcing a display size un-seats the type. */
+      const shapes = (doc.kitShapes ?? {}) as Record<string, Shape>;
+      const sizes = (doc.kitSizes ?? {}) as Record<string, KitSize>;
+      const icons = (doc.kitIcons ?? {}) as Record<string, Parameters<typeof resolveKitIcon>[0]>;
+      const vals = (doc.kitVals ?? {}) as Record<string, number>;
+      const subs = (doc.kitSubs ?? {}) as Record<string, string>;
+      const oy = (doc.kitTextOy ?? {}) as Record<string, number>;
+      const ox = (doc.kitTextOx ?? {}) as Record<string, number>;
+      const bars = (doc.kitBar ?? {}) as Record<string, { dock?: boolean; dockSide?: "left" | "right"; segments?: number; gap?: number; snap?: boolean }>;
+      /* size follows the kit page's rule EXACTLY: effKitSize(unset) is L,
+         so a kit whose sizes map is empty (the nav's L state) previews at
+         L here too. The old fixed display sizes rendered the minis a size
+         class below the kit page — smaller geometry, smaller type,
+         sparser pattern — which read as a stale badge (owner report,
+         round two). The card's CSS clamps the box; the ART must be the
+         kit's own size. */
+      const piece = (cid: KitComponentId, v?: number) => {
+        const size = effKitSize(sizes[cid]);
+        const kb = bars[cid];
+        return tightenSvg(renderKit(
           applyKitTextFill(applyKitDesign(cfg, designs[cid]), fills[cid]),
-          cid, size, "default", v, undefined,
-          { label: labels[cid], slots: slots[cid] },
+          cid, size, "default", vals[cid] ?? v, shapes[cid],
+          {
+            label: labels[cid], slots: slots[cid], sub: subs[cid],
+            icon: resolveKitIcon(icons[cid], undefined),
+            textOy: oy[`${cid}:${size}`], textOx: ox[`${cid}:${size}`],
+            themedText: !!designs[cid]?.type || !!fills[cid],
+            ...(cid === "progress" && kb ? {
+              dock: kb.dock ? { icon: resolveKitIcon(icons[cid], undefined), side: kb.dockSide ?? "left" } : null,
+              bar: { segments: kb.segments, gap: kb.gap, snap: kb.snap },
+            } : {}),
+          },
         ), 18);
+      };
       const html =
-        `<div class="cg-hero">${piece("primary" as KitComponentId, "l")}</div>` +
+        `<div class="cg-hero">${piece("primary" as KitComponentId)}</div>` +
         `<div class="cg-minis">${[
-          piece("progress" as KitComponentId, "s", 0.62),
-          piece("toggle" as KitComponentId, "s", 1),
-          piece("badge" as KitComponentId, "s"),
+          piece("progress" as KitComponentId, 0.62),
+          piece("toggle" as KitComponentId, 1),
+          piece("badge" as KitComponentId),
         ].map((s) => `<span>${s}</span>`).join("")}</div>`;
       const bg = doc.bgImage;
       const stage = typeof bg === "string" && /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(bg) ? bg : null;
