@@ -107,6 +107,9 @@ export interface ExportBoardItemData {
       extrusion, bloom) and its center's offset from the shell center
       (board y runs down). The importer sizes the art child with these. */
   posedW?: number; posedH?: number; posedDx?: number; posedDy?: number;
+  /** the copy's designed states at the same posed crop — Sprite Swap
+      skins for the art child (press sink and state looks in the pixels) */
+  posedHover?: string; posedPressed?: string; posedDisabled?: string;
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -510,6 +513,7 @@ export async function collectExportBoards(st: {
          and the scene wears it 1:1 instead of stretching the nine-slice. */
       let posed: string | null = null;
       let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
+      let posedStates: { hover?: string; pressed?: string; disabled?: string } | null = null;
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
@@ -555,6 +559,7 @@ export async function collectExportBoards(st: {
              shifts by the same ratio, so the SHELL still lands precisely
              where the board drew it. */
           const pb3 = shellBoxOf(ps2);
+          let cropBox: [number, number, number, number] | null = null;
           if (pb3) {
             let box: [number, number, number, number] = pb3;
             const ab = await svgAlphaBox(ps2, 2, 8).catch(() => null);
@@ -567,6 +572,7 @@ export async function collectExportBoards(st: {
               const ux = Math.min(ax, pb3[0]), uy = Math.min(ay, pb3[1]);
               box = [ux, uy, Math.max(ax1, pb3[0] + pb3[2]) - ux, Math.max(ay1, pb3[1] + pb3[3]) - uy];
             }
+            cropBox = box;
             ps2 = ps2
               .replace(/viewBox="[^"]+"/, `viewBox="${box[0].toFixed(1)} ${box[1].toFixed(1)} ${box[2].toFixed(1)} ${box[3].toFixed(1)}"`)
               .replace(/width="[\d.]+"/, `width="${box[2].toFixed(1)}"`)
@@ -579,9 +585,42 @@ export async function collectExportBoards(st: {
             };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
-          const fileP = `boardstamps/${slug}-pose${stampFiles.length + 1}.png`;
+          const poseN = stampFiles.length + 1;
+          const fileP = `boardstamps/${slug}-pose${poseN}.png`;
           stampFiles.push({ file: fileP, bytes: pbp });
           posed = fileP;
+          /* the copy's DESIGNED states, posed too — retiring Sprite Swap
+             left press moving only the label's own shift while the body
+             sat still (owner: "only the text play animates down, the
+             button stays static"). Same crop box as the default bake, so
+             the swap never jumps a pixel. */
+          if (cropBox) {
+            posedStates = {};
+            for (const stN of ["hover", "pressed", "disabled"] as const) {
+              let ssv = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
+                icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+                label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+                themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+              });
+              const domS = new DOMParser().parseFromString(ssv, "image/svg+xml");
+              for (const nS of Array.from(domS.querySelectorAll('[data-part="label"]'))) nS.remove();
+              ssv = new XMLSerializer().serializeToString(domS.documentElement)
+                .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+                .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+              if (/<text/.test(ssv)) {
+                const fdS = fontByName(cfgP.type.font);
+                ssv = await inlineKitFace(ssv, cfgP.type.font, fdS.name === cfgP.type.font ? fdS.css ?? null : null);
+              }
+              ssv = ssv
+                .replace(/viewBox="[^"]+"/, `viewBox="${cropBox[0].toFixed(1)} ${cropBox[1].toFixed(1)} ${cropBox[2].toFixed(1)} ${cropBox[3].toFixed(1)}"`)
+                .replace(/width="[\d.]+"/, `width="${cropBox[2].toFixed(1)}"`)
+                .replace(/height="[\d.]+"/, `height="${cropBox[3].toFixed(1)}"`);
+              const { bytes: pbS } = await svgToPngBytes(ssv, 2);
+              const fS = `boardstamps/${slug}-pose${poseN}-${stN}.png`;
+              stampFiles.push({ file: fS, bytes: pbS });
+              posedStates[stN] = fS;
+            }
+          }
         }
       } catch { /* the sliced prefab remains the honest fallback */ }
       exItems.push({
@@ -607,6 +646,12 @@ export async function collectExportBoards(st: {
         ...(posed && posedBox ? {
           posedW: Math.round(posedBox.w * 10) / 10, posedH: Math.round(posedBox.h * 10) / 10,
           posedDx: Math.round(posedBox.dx * 10) / 10, posedDy: Math.round(posedBox.dy * 10) / 10,
+        } : {}),
+        /* posed STATE skins — Sprite Swap slots for the art child */
+        ...(posed && posedStates ? {
+          ...(posedStates.hover ? { posedHover: posedStates.hover } : {}),
+          ...(posedStates.pressed ? { posedPressed: posedStates.pressed } : {}),
+          ...(posedStates.disabled ? { posedDisabled: posedStates.disabled } : {}),
         } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
@@ -4474,7 +4519,7 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -5386,9 +5431,9 @@ namespace PatternBreak {
                  specular overlay all speak shell coordinates) and an ART
                  CHILD wears the sprite at its own crop box, overhang and
                  all — a shell-tight root image cut the extrusion's reach
-                 (owner: "bottom extrusion is cut off"). Sprite Swap
-                 retires on this copy (sliced state skins would not match
-                 the pose); State FX keeps hover and press alive. */
+                 (owner: "bottom extrusion is cut off"). Sprite Swap rides
+                 the art child with POSED state skins (the sliced skins
+                 would not match the pose); State FX keeps the glow. */
               var psp = S(root + "/" + it.posed);
               var pimg = inst.GetComponent<Image>();
               if (psp != null && pimg != null) {
@@ -5412,6 +5457,23 @@ namespace PatternBreak {
                 art.type = Image.Type.Simple;
                 art.preserveAspect = false;
                 art.raycastTarget = false;
+                /* the copy's designed states, posed at the SAME crop —
+                   Sprite Swap on the ART child, so press sinks the body
+                   exactly like the app (owner: "only the text play
+                   animates down, the button stays static") */
+                var pspH = string.IsNullOrEmpty(it.posedHover) ? null : S(root + "/" + it.posedHover);
+                var pspP2 = string.IsNullOrEmpty(it.posedPressed) ? null : S(root + "/" + it.posedPressed);
+                var pspD = string.IsNullOrEmpty(it.posedDisabled) ? null : S(root + "/" + it.posedDisabled);
+                if (pbtn != null && (pspH != null || pspP2 != null || pspD != null)) {
+                  pbtn.transition = Selectable.Transition.SpriteSwap;
+                  pbtn.targetGraphic = art;
+                  var ssP = new SpriteState();
+                  ssP.highlightedSprite = pspH;
+                  ssP.selectedSprite = null; // resting face after a click, like the prefabs
+                  ssP.pressedSprite = pspP2;
+                  ssP.disabledSprite = pspD;
+                  pbtn.spriteState = ssP;
+                }
                 /* the label scales SHELL-to-shell like everything else here.
                    HeroLabel's authoredHeight is the prefab RECT height — the
                    sprite box, crop padding and extrusion included — while
