@@ -5402,6 +5402,23 @@ namespace PatternBreak {
                 art.type = Image.Type.Simple;
                 art.preserveAspect = false;
                 art.raycastTarget = false;
+                /* the label scales SHELL-to-shell like everything else here.
+                   HeroLabel's authoredHeight is the prefab RECT height — the
+                   sprite box, crop padding and extrusion included — while
+                   this root wears the SHELL box, so the type undersized by
+                   that ratio (owner: "type is too small"). Re-anchor it to
+                   the shell the scales actually speak. */
+                var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
+                if (hl2 != null) {
+                  PBAsset baseA3 = null;
+                  foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
+                  float ps3 = m.pngScale > 0 ? m.pngScale : 2;
+                  if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
+                }
+                /* the posed pixels carry the kit's own specular streak — the
+                   prefab's overlay child would draw a second one on top */
+                var spT = inst.transform.Find("Specular");
+                if (spT != null) spT.gameObject.SetActive(false);
               } else if (psp == null) {
                 Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
               }
