@@ -626,6 +626,31 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
    always names the state being styled */
 const STATEFLAG_HUSH_KEY = "ui-generator-stateflag-hush";
 
+/* The silhouette drawing template (owner: "an svg template for silhouette
+   creation that registered users can download directly from the app") — a
+   guided canvas with the import rules ON the page: end zones that stay as
+   drawn, the calm stretching middle, one filled shape touching all four
+   edges. The GUIDES layer is labeled to be deleted before export. */
+const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400">
+  <!-- UI Kit Maker silhouette template. Draw ONE filled shape on the SHAPE layer
+       (replace the sample), DELETE the GUIDES layer, then save as plain SVG and
+       import it in the app's Silhouette section. -->
+  <g id="GUIDES-delete-me-before-export">
+    <rect x="1" y="1" width="1198" height="398" fill="none" stroke="#8B93A8" stroke-width="2" stroke-dasharray="10 8"/>
+    <rect x="0" y="0" width="220" height="400" fill="#5B8DEF" opacity="0.1"/>
+    <rect x="980" y="0" width="220" height="400" fill="#5B8DEF" opacity="0.1"/>
+    <text x="110" y="32" font-family="monospace" font-size="17" fill="#5B8DEF" text-anchor="middle">END ZONE</text>
+    <text x="1090" y="32" font-family="monospace" font-size="17" fill="#5B8DEF" text-anchor="middle">END ZONE</text>
+    <text x="600" y="32" font-family="monospace" font-size="17" fill="#8B93A8" text-anchor="middle">CALM MIDDLE - this part stretches</text>
+    <text x="600" y="358" font-family="monospace" font-size="14" fill="#8B93A8" text-anchor="middle">Ends stay exactly as drawn - keep spikes and ornaments inside the end zones, let the shape touch all four edges.</text>
+    <text x="600" y="380" font-family="monospace" font-size="14" fill="#8B93A8" text-anchor="middle">ONE filled shape, flattened - no strokes, groups or images. Delete this GUIDES layer, save as SVG, import.</text>
+  </g>
+  <g id="SHAPE-replace-this-sample">
+    <path fill="#E6E9F2" d="M 60 0 L 1140 0 L 1200 200 L 1140 400 L 60 400 L 0 200 Z"/>
+  </g>
+</svg>
+`;
+
 export function Panel() {
   const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
@@ -1562,6 +1587,21 @@ export function Panel() {
             });
           }} />
         </label>
+        {/* the guided drawing canvas (owner: "an svg template for
+            silhouette creation that registered users can download
+            directly from the app") — a free account is the key */}
+        <button className="fileadd" title={tier === "guest" ? "A free account unlocks the template" : "A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"}
+          onClick={() => {
+            if (tier === "guest") { openAuth("signin"); return; }
+            const blob = new Blob([SIL_TEMPLATE], { type: "image/svg+xml" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "uikitmaker-silhouette-template.svg";
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+          }}>
+          <PenTool size={13} strokeWidth={2} /> Silhouette template (SVG)
+        </button>
         </div>
         {shapeErr && <div className="helper" role="alert">{shapeErr}</div>}
         {/* spec copy is DESIGNER language by owner mandate ("simplify this

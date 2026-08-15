@@ -175,3 +175,15 @@ per the product owner).
 Sequencing: P1 ✅ → P2 ✅ → P3 ✅ → P4 ✅ → P5 ✅ — the set is COMPLETE at 115. Each pack lands as
 its own version so the kit page grows a chapter at a time, and pack
 names double as marketing beats ("the RPG pack just dropped").
+
+## Academy / tutorial notes (owner, 2026-08-15)
+
+- When the Academy (Unity story page) gets built, include a tutorial on
+  SHOWPIECE silhouettes using the owner's flame button as the worked
+  example: importing a one-off statement shape, per-piece content margin,
+  the posed-bake story in Unity, and when to reach for a showpiece vs a
+  workhorse silhouette.
+- The flame silhouette itself is slated for the PUBLIC rack as a new
+  "Showpiece" category (one-off statement buttons — decorated, direction-
+  al, built to star rather than to tile). Needs the owner's original SVG
+  (flame button 4) to land; name and tags assigned at landing.
