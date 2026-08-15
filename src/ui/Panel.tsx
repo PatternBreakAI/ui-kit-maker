@@ -424,7 +424,7 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
           ? `Auto reads the corner curves off the real pixels — this piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).`
           : "Auto reads the corner curves off the real pixels at export."}</div>
       {patOn && (
-        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. Keep the stretch modest, or size the piece near its final proportions before export.</div>
+        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. That only bites when a prefab is hand-stretched inside Unity; board copies posed away from these proportions ship as the app&apos;s own render instead.</div>
       )}
     </div>
   );
