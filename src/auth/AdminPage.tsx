@@ -5,8 +5,8 @@ import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHidd
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
-import { hydrate } from "@/generator/store";
-import { applyKitDesign, applyKitTextFill, effKitSize, resolveKitIcon, type GenConfig, type KitComponentId, type KitSize, type Shape } from "@/generator/model";
+import { hydrate, healStateIconPins } from "@/generator/store";
+import { applyKitDesign, applyKitTextFill, effKitSize, migrateKitDesigns, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { ensureDocFonts } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
@@ -97,8 +97,14 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
   }, [doc]);
   const out = useMemo(() => {
     try {
-      const cfg = hydrate(doc.cfg as Record<string, unknown>) as GenConfig;
-      const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
+      /* the same healing the editor runs on project OPEN — the desk reads
+         raw saved docs, and older saves store per-piece forks as FULL
+         design snapshots. Applied verbatim, a snapshot fork freezes that
+         piece at the look it wore when the fork was minted — the badge
+         rendered an old design while the editor (which migrates on load)
+         showed today's. Migrate first, exactly like loadKitPayload. */
+      const cfg = healStateIconPins(hydrate(doc.cfg as Record<string, unknown>) as GenConfig);
+      const designs = migrateKitDesigns(cfg, (doc.kitDesigns ?? {}) as Partial<Record<KitComponentId, KitDesign>>).forks;
       const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
       const labels = (doc.kitLabels ?? {}) as Record<string, string>;
       const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
@@ -127,7 +133,7 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
             label: labels[cid], slots: slots[cid], sub: subs[cid],
             icon: resolveKitIcon(icons[cid], undefined),
             textOy: oy[`${cid}:${size}`], textOx: ox[`${cid}:${size}`],
-            themedText: !!(designs[cid] as { type?: unknown } | undefined)?.type || !!fills[cid],
+            themedText: !!designs[cid]?.type || !!fills[cid],
             ...(cid === "progress" && kb ? {
               dock: kb.dock ? { icon: resolveKitIcon(icons[cid], undefined), side: kb.dockSide ?? "left" } : null,
               bar: { segments: kb.segments, gap: kb.gap, snap: kb.snap },
