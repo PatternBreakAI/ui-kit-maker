@@ -44,6 +44,13 @@ interface AssetMeta {
    *  prefab's default rect so the label fits at drag-in — the labeless
    *  natural rect squished fluid silhouettes under overflowing text. */
   prefW?: number; prefH?: number;
+  /** The app's EXACT label metrics, parsed from the ghosted bake's own
+   *  <text> node (base rows of labeled families): center offset from the
+   *  shell CENTER in design px (y down — frame-invariant, so the importer
+   *  can seat in sprite space) and the true rendered font size (fit-downs
+   *  included). The app centers words in the CONTENT zone, not the shell
+   *  (owner: "we are always cheating right a bit" on the flame). */
+  labelDx?: number; labelDy?: number; labelFs?: number;
 }
 
 export interface EngineExportState {
@@ -110,6 +117,10 @@ export interface ExportBoardItemData {
   /** the copy's designed states at the same posed crop — Sprite Swap
       skins for the art child (press sink and state looks in the pixels) */
   posedHover?: string; posedPressed?: string; posedDisabled?: string;
+  /** the copy's OWN label center offset from the shell center, board px
+      (y down) — the scene seats the live words exactly where this copy
+      drew them, not where the stock bake did */
+  posedLabelDx?: number; posedLabelDy?: number;
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -514,6 +525,7 @@ export async function collectExportBoards(st: {
       let posed: string | null = null;
       let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
       let posedStates: { hover?: string; pressed?: string; disabled?: string } | null = null;
+      let posedLabelPx: { dx: number; dy: number } | null = null;
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
@@ -541,6 +553,20 @@ export async function collectExportBoards(st: {
             label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
           });
+          /* the copy's OWN label metrics, parsed BEFORE the strip — this
+             copy's words center differently than the stock bake, and the
+             scene must seat the live text exactly where the app drew it.
+             Offsets vs the shell0 center (the text's own frame); the crop
+             block below converts to board px. */
+          let posedLabelRaw: { dx: number; dy: number } | null = null;
+          {
+            const lg2 = ps2.slice(ps2.indexOf('data-part="label"'));
+            const tm2 = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg2);
+            const s0m2 = /data-shell0="([-\d. ]+)"/.exec(ps2);
+            const s02 = s0m2?.[1].split(" ").map(Number);
+            if (tm2 && s02 && s02.length === 4)
+              posedLabelRaw = { dx: +tm2[1] - (s02[0] + s02[2] / 2), dy: +tm2[2] - (s02[1] + s02[3] / 2) };
+          }
           // the label leaves the pixels — it rides the prefab as live text
           const dom2 = new DOMParser().parseFromString(ps2, "image/svg+xml");
           for (const n2 of Array.from(dom2.querySelectorAll('[data-part="label"]'))) n2.remove();
@@ -583,6 +609,8 @@ export async function collectExportBoards(st: {
               dx: ((box[0] + box[2] / 2) - (pb3[0] + pb3[2] / 2)) * kx2,
               dy: ((box[1] + box[3] / 2) - (pb3[1] + pb3[3] / 2)) * ky2,
             };
+            // shell-center offsets are frame-invariant → straight to board px
+            if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
           const poseN = stampFiles.length + 1;
@@ -646,6 +674,12 @@ export async function collectExportBoards(st: {
         ...(posed && posedBox ? {
           posedW: Math.round(posedBox.w * 10) / 10, posedH: Math.round(posedBox.h * 10) / 10,
           posedDx: Math.round(posedBox.dx * 10) / 10, posedDy: Math.round(posedBox.dy * 10) / 10,
+        } : {}),
+        /* the copy's live label seats at ITS OWN center — board px offsets
+           from the shell center, straight from this copy's render */
+        ...(posed && posedLabelPx ? {
+          posedLabelDx: Math.round(posedLabelPx.dx * 10) / 10,
+          posedLabelDy: Math.round(posedLabelPx.dy * 10) / 10,
         } : {}),
         /* posed STATE skins — Sprite Swap slots for the art child */
         ...(posed && posedStates ? {
@@ -1299,8 +1333,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       if (lV && lV.length === 4 && lV[2] > 4 && lV[3] > 4)
         pref = { prefW: Math.round(lV[2] * 10) / 10, prefH: Math.round(lV[3] * 10) / 10 };
     }
+    /* the ghosted bake still carries the label <text> invisibly — its x is
+       the word's true center (text-anchor middle on every labeled family),
+       its y pairs with data-shell0 (the node sits inside the rise/lift
+       transforms), its font-size is the true rendered size. Offsets from
+       the shell CENTER are frame-invariant, so ship those. */
+    let labelMeta: { labelDx: number; labelDy: number; labelFs: number } | null = null;
+    if (word !== undefined) {
+      const lg = fullSvg.slice(fullSvg.indexOf('data-part="label"'));
+      const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
+      const s0m = /data-shell0="([-\d. ]+)"/.exec(fullSvg) ?? /data-shell="([-\d. ]+)"/.exec(fullSvg);
+      const s0 = s0m?.[1].split(" ").map(Number);
+      if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
+        labelMeta = {
+          labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
+          labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
+          labelFs: Math.round(+tm[3] * 10) / 10,
+        };
+      }
+    }
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}) }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}) }, true, swap ? n.family : undefined);
     const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -4494,7 +4547,7 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -4519,7 +4572,7 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -5486,6 +5539,19 @@ namespace PatternBreak {
                   foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
                   float ps3 = m.pngScale > 0 ? m.pngScale : 2;
                   if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
+                  /* re-seat the label root for the SHELL-box root: its
+                     prefab anchors are sprite-rect fractions and mis-sit
+                     here. Full stretch + this copy's OWN label offset
+                     (board px, from its render) — the words land exactly
+                     where the app drew them. NO font change here: the
+                     authoredHeight override above already supplies the
+                     board scale, and a size here would double-scale. */
+                  var hlRt2 = hl2.GetComponent<RectTransform>();
+                  if (hlRt2 != null) {
+                    hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
+                    hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
+                    hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+                  }
                 }
                 /* the posed pixels carry the kit's own specular streak — the
                    prefab's overlay child would draw a second one on top */
@@ -5592,6 +5658,11 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
             var hlOv = inst.GetComponentInChildren<HeroLabel>(true);
             float trueSize = LabelSizeScene(m, it.component);
+            /* the parsed labelFs is the app's exact rendered size (it also
+               captures fit-downs LabelSizeScene can't see, e.g. header's
+               fixed-width squeeze) — prefer it when the manifest ships it */
+            var rowOv = LabelRow(m, it.component);
+            if (rowOv != null && rowOv.labelFs > 1f) trueSize = rowOv.labelFs;
             if (hlOv != null) {
               // app-true size first, then SetText re-lays the stack
               if (trueSize > 0f) hlOv.fontSize = trueSize;
@@ -6466,14 +6537,20 @@ namespace PatternBreak {
     }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
+      /* the APP-TRUE size beats the calibrated shrink when the manifest
+         ships it — with labeled-geometry bakes the prefab rect IS the true
+         worded footprint, so the exact size fits by construction */
+      var lrow = LabelRow(m, family);
+      if (lrow != null && lrow.labelFs > 1f) ls = lrow.labelFs;
       var go = new GameObject("Label", typeof(RectTransform));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-      // the word centers on the FACE, not the sprite rect (extrusion pulls
-      // the rect's center below the shell — labels read low without this)
-      ShellStretch(go, parent, family, m);
+      // the word centers on the CONTENT zone, not the sprite rect (extrusion
+      // pulls the rect's center below the shell, and asymmetric silhouettes
+      // pull the content off the shell center)
+      ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
       if (layersFa != null && strokeInk != null) {
@@ -6656,13 +6733,15 @@ namespace PatternBreak {
       rt.offsetMax = new Vector2(-ph.left, rt.offsetMax.y);
     }
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
+      var lrowA = LabelRow(m, family);
+      float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
 #if UNITY_2023_2_OR_NEWER
       var face = EnsureTmpFace(root, m, kitFont);
       if (face != null) {
-        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, LabelSize(m, family));
-        // center on the FACE, not the sprite rect (see AddBakedLabel)
+        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, lsA);
+        // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
-        if (lr0 != null) ShellStretch(lr0, parent, family, m);
+        if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
         return;
       }
 #endif
@@ -6671,11 +6750,11 @@ namespace PatternBreak {
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-      ShellStretch(go, parent, family, m);
+      ShellSeatLabel(go, parent, family, m);
       var t = go.GetComponent<Text>();
       t.text = text;
       t.alignment = TextAnchor.MiddleCenter;
-      t.fontSize = 40;
+      t.fontSize = Mathf.RoundToInt(lsA);
       t.color = Color.white;
       t.raycastTarget = false;
       // the kit's own face ships in fonts/ (license beside it) and wires
@@ -6886,6 +6965,35 @@ namespace PatternBreak {
       return byBase;
     }
     /* stretch a child over the shell box (labels, placeholders) */
+    /* the family's BASE row — the one carrying the label metrics (labelFs
+       et al live only there; variant rows a piece might wear do not) */
+    static PBAsset LabelRow(PBManifest m, string fam) {
+      if (m == null || m.assets == null) return null;
+      foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") return a;
+      return null;
+    }
+    /* the label's anchor-shift off the shell box, in sprite-rect fractions —
+       shared by the seat below and the redress probe, so they can never
+       disagree and re-dress forever */
+    static Vector2 LabelSeatShift(PBAsset row, Sprite sp, PBManifest m) {
+      if (row == null || row.labelFs <= 1f || sp == null || sp.rect.width < 2f || sp.rect.height < 2f) return Vector2.zero;
+      float ps = m != null && m.pngScale > 0 ? m.pngScale : 2;
+      return new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+    }
+    /* ShellStretch, then slide the seat to the label's TRUE center — the
+       app centers words in the CONTENT zone, not the shell (the flame's
+       tail owns the left; owner: "we are always cheating right a bit...
+       it's important to get this right"). Anchors, not anchoredPosition,
+       so the seat scales with any resize and LabelStateInk's base stays
+       untouched. */
+    static void ShellSeatLabel(GameObject child, GameObject host, string fam, PBManifest m) {
+      ShellStretch(child, host, fam, m);
+      var img = host.GetComponent<Image>();
+      var shift = LabelSeatShift(LabelRow(m, fam), img != null ? img.sprite : null, m);
+      if (shift == Vector2.zero) return;
+      var rt = child.GetComponent<RectTransform>();
+      rt.anchorMin += shift; rt.anchorMax += shift;
+    }
     static bool ShellStretch(GameObject child, GameObject host, string fam, PBManifest m) {
       var row = ShellRowOf(host, fam, m);
       var img = host.GetComponent<Image>();
@@ -7890,12 +7998,17 @@ namespace PatternBreak {
             // STACKS are judged by the GROUP contract (HeroLabel owns the
             // size; auto-fit is forced OFF per layer — the old per-layer
             // demand would rebuild every healthy stack on every import)
+            /* expected size mirrors the dresser exactly: labelFs (app-true)
+               when the manifest ships it, LabelSize otherwise — probes and
+               dresser disagreeing is an infinite re-dress every import */
+            var probeRow = LabelRow(m, famName);
+            float wantLs = probeRow != null && probeRow.labelFs > 1f ? probeRow.labelFs : LabelSize(m, famName);
             var hlSize = probeRoot.GetComponent<HeroLabel>();
             if (!wantDress && hlSize != null) {
-              if (!Mathf.Approximately(hlSize.fontSize, LabelSize(m, famName))) wantDress = true;
+              if (!Mathf.Approximately(hlSize.fontSize, wantLs)) wantDress = true;
             } else if (!wantDress) {
               var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
-              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
+              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, wantLs)))
                 wantDress = true;
             }
             /* dead or stale state wiring re-converges: a script-identity
@@ -7919,8 +8032,11 @@ namespace PatternBreak {
               var prtSA = probeRoot.GetComponent<RectTransform>();
               if (rowSA != null && prtSA != null && rootImg.sprite != null && rootImg.sprite.rect.width > 2f) {
                 float rwSA = rootImg.sprite.rect.width, rhSA = rootImg.sprite.rect.height;
-                var wantMinSA = new Vector2(rowSA.shell.x / rwSA, 1f - (rowSA.shell.y + rowSA.shell.h) / rhSA);
-                var wantMaxSA = new Vector2((rowSA.shell.x + rowSA.shell.w) / rwSA, 1f - rowSA.shell.y / rhSA);
+                // the label seat rides the shell box PLUS the content shift —
+                // the probe must expect exactly what ShellSeatLabel writes
+                var shiftSA = LabelSeatShift(probeRow, rootImg.sprite, m);
+                var wantMinSA = new Vector2(rowSA.shell.x / rwSA, 1f - (rowSA.shell.y + rowSA.shell.h) / rhSA) + shiftSA;
+                var wantMaxSA = new Vector2((rowSA.shell.x + rowSA.shell.w) / rwSA, 1f - rowSA.shell.y / rhSA) + shiftSA;
                 if ((prtSA.anchorMin - wantMinSA).sqrMagnitude > 0.0004f || (prtSA.anchorMax - wantMaxSA).sqrMagnitude > 0.0004f) wantDress = true;
               }
             }
