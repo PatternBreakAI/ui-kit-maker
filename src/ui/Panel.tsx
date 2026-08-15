@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, EDGE_SHINE_DEAF } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -1237,6 +1237,9 @@ export function Panel() {
           onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
         <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
           onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
+        {/* where the motion actually plays — judging it on the kit page reads
+            as a dead control (the gallery rests by design, fcc7b6c) */}
+        <div className="helper">Shines play on the editor canvas, boards, Play mode and in Unity. The kit page gallery rests on purpose — judge the motion here or on a board.</div>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.
@@ -1245,7 +1248,12 @@ export function Panel() {
         {focus && (
           <div className="idlepiece">
             <div className="sublabel">This piece only <em>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</em></div>
-            {(["wipe", "edge"] as const).map((k) => {
+            {/* a locked piece silently ignores setKitDesign — say so instead
+                of presenting chips that click without effect */}
+            {!!kitLocks[focus] && (
+              <div className="helper">This piece is locked — its shine chips are on hold until you unlock it.</div>
+            )}
+            {(["wipe", "edge"] as const).filter((k) => k === "wipe" || !EDGE_SHINE_DEAF.has(focus)).map((k) => {
               const ov = kitDesigns[focus]?.idle?.[k];
               const setOv = (v: boolean | undefined) => {
                 const cur = kitDesigns[focus] ?? {};
@@ -1259,13 +1267,16 @@ export function Panel() {
                 <div className="idlerow" key={k}>
                   <span>{k === "wipe" ? "Wipe shine" : "Edge shine"}</span>
                   <div className="idlechips">
-                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
-                    <button className={`allstateschip${ov === true ? " on" : ""}`} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
-                    <button className={`allstateschip${ov === false ? " on" : ""}`} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
+                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={!!kitLocks[focus]} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
+                    <button className={`allstateschip${ov === true ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
+                    <button className={`allstateschip${ov === false ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
                   </div>
                 </div>
               );
             })}
+            {EDGE_SHINE_DEAF.has(focus) && (
+              <div className="helper">Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run.</div>
+            )}
           </div>
         )}
         {(cfgMaster.idle?.wipe || cfgMaster.idle?.edge || Object.values(kitDesigns).some((kd) => kd?.idle?.wipe || kd?.idle?.edge)) && (

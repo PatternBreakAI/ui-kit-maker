@@ -1697,6 +1697,18 @@ export const PINNED_CHROME = new Set<KitComponentId>([
   "rewardtray", "scorebug", "scrollbar", "seasontrack", "setrow", "stopwatch",
 ]);
 
+/* Components whose bespoke renderers build a custom root and never emit
+   the silhouette edge-shine path — on these the per-piece Edge chip would
+   be a dead control, so the Panel hides that row and says why (full-kit
+   engine sweep, 2026-08-15: 101 components emit, these 28 don't). */
+export const EDGE_SHINE_DEAF = new Set<KitComponentId>([
+  "bignum", "capturemeter", "chest", "circuit", "combo", "cooldown",
+  "countbadge", "crosshair", "dmgarc", "dmgnumber", "emotewheel",
+  "equipselector", "giftbox", "healthglobe", "hitmarker", "lives",
+  "magazine", "orb", "pagedots", "pathconnector", "reticle", "ring",
+  "spinner", "spinwheel", "steps", "timerdigits", "waypoint", "weaponwheel",
+]);
+
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the
    parent design live. (Full-snapshot forks froze a component forever: one

@@ -5697,6 +5697,12 @@ namespace PatternBreak {
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
 #endif
+            /* a copy whose typed words say CLAIM celebrates its click —
+               the same ignition + themed throw the app plays (owner: the
+               claim animation must survive the trip into Unity). The
+               prefab may already carry one (gift box, claim button). */
+            if (it.label.ToUpperInvariant().Contains("CLAIM") && inst.GetComponent<ClaimBurst>() == null)
+              AddClaimBurst(inst, root, it.component, m);
           }
           if (string.IsNullOrEmpty(it.stamp)) {
             /* LIVE CONTENT from the board's pose (owner: components, not
@@ -6787,6 +6793,24 @@ namespace PatternBreak {
       }
       return sb.Length > 0 ? sb.ToString() : "Piece";
     }
+    /* the claim celebration, attachable anywhere: the piece's own aura
+       sprite + the kit's effect inks — the exact recipe the importer has
+       always wired to the gift box, shared so prefabs and board copies
+       whose visible words say CLAIM celebrate identically. */
+    static void AddClaimBurst(GameObject host, string root, string family, PBManifest m) {
+      var cb = host.AddComponent<ClaimBurst>();
+      var cbGlow = S(root + "/assets/" + family + "/" + family + "-glow.png");
+      cb.spark = cbGlow != null ? cbGlow : S(root + "/assets/fx/fx-glow.png");
+      var inks = new List<Color>();
+      Color inkC;
+      if (m != null && m.palette != null) {
+        if (!string.IsNullOrEmpty(m.palette.bevel) && ColorUtility.TryParseHtmlString(m.palette.bevel, out inkC)) inks.Add(inkC);
+        if (!string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out inkC)) inks.Add(inkC);
+        if (!string.IsNullOrEmpty(m.palette.highlight) && ColorUtility.TryParseHtmlString(m.palette.highlight, out inkC)) inks.Add(inkC);
+      }
+      if (inks.Count == 0) inks.Add(Color.white);
+      cb.inks = inks.ToArray();
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -6852,21 +6876,12 @@ namespace PatternBreak {
       }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
-         have the claim explosion to white") */
-      if (baseAsset.component == "gifticon") {
-        var cb = go.AddComponent<ClaimBurst>();
-        var cbGlow = S(root + "/assets/gifticon/gifticon-glow.png");
-        cb.spark = cbGlow != null ? cbGlow : S(root + "/assets/fx/fx-glow.png");
-        var inks = new List<Color>();
-        Color inkC;
-        if (m != null && m.palette != null) {
-          if (!string.IsNullOrEmpty(m.palette.bevel) && ColorUtility.TryParseHtmlString(m.palette.bevel, out inkC)) inks.Add(inkC);
-          if (!string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out inkC)) inks.Add(inkC);
-          if (!string.IsNullOrEmpty(m.palette.highlight) && ColorUtility.TryParseHtmlString(m.palette.highlight, out inkC)) inks.Add(inkC);
-        }
-        if (inks.Count == 0) inks.Add(Color.white);
-        cb.inks = inks.ToArray();
-      }
+         have the claim explosion to white"). Any family whose live words
+         say CLAIM earns the same celebration, and the Claim button piece
+         always does — matching the app's rule exactly. */
+      if (baseAsset.component == "gifticon" || baseAsset.component == "claimbtn"
+          || (label != null && label.ToUpperInvariant().Contains("CLAIM")))
+        AddClaimBurst(go, root, baseAsset.component, m);
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
          "I didn't realize the text would be burned into the image"). One

@@ -424,8 +424,13 @@ export function CanvasView() {
 
       {phase === "master" && sideStates.length > 0 && (
         <div className="stack" aria-label="State previews">
-          {(focus === "toggle" || focus === "badge"
-            ? ([["default", focus === "toggle" ? "On" : "Presented", 1], ["pressed", focus === "toggle" ? "Off" : "Awarded", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
+          {(focus === "toggle"
+            ? ([["default", "On", 1], ["pressed", "Off", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
+            /* the badge's rollover shows the COUNT face wearing the kit's
+               hover recipe — without this card that face is unreachable in
+               the editor (the owner's "ghost rollover") */
+            : focus === "badge"
+            ? ([["default", "Presented", 1], ["hover", "Rollover", 1], ["pressed", "Awarded", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
             : sideStates.map((s) => [s, capOf(s), undefined] as [GenStateName, string, number | undefined])
           ).map(([s, cap, v]) => (
             <button className={`scard clickable${s === selectedState ? " sel" : ""}`} key={s}

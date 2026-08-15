@@ -186,6 +186,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // switches light up when flipped, they never grow — hover/press stays off
     // checkboxes, toggles and radios so the value change IS the feedback
     : id === "checkbox" || id === "toggle" || id === "radio" || id === "orb" ? (kit?.baseState ?? "default")
+    /* while alive, the open flag is the SOLE authority for a badge/dropdown
+       resting pose — falling back to an authored baseState of "pressed"
+       after a click-off left rest=star while rollover drew the count face
+       (the owner's "ghost rollover": hover swapped faces, not styling) */
+    : (id === "dropdown" || id === "badge") && playing ? (live === "default" ? "default" : live)
     : playing ? (live === "default" ? (kit?.baseState ?? "default") : live)
     : (kit?.baseState ?? "default");
 
@@ -460,8 +465,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
   const activate = (e: React.PointerEvent) => {
     // the gift box IS a claim — opening it earns the ignition (owner:
-    // "supposed to have the claim explosion to white")
-    if ((kit?.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon") fireBurst();
+    // "supposed to have the claim explosion to white"). The check reads the
+    // EFFECTIVE label — per-instance word, else the kit-wide one the renderer
+    // actually draws — so a flame button whose visible words say CLAIM
+    // celebrates however the label was set; the Claim button piece always does.
+    if ((kit?.label ?? cfg.content.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon" || id === "claimbtn") fireBurst();
     // the combo numeral EXPLODES on click (owner ask): the claim burst's
     // particles plus a punchy scale pop on the art itself
     if (id === "combo") fireBurst();
