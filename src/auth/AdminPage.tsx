@@ -123,8 +123,15 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
       const oy = (doc.kitTextOy ?? {}) as Record<string, number>;
       const ox = (doc.kitTextOx ?? {}) as Record<string, number>;
       const bars = (doc.kitBar ?? {}) as Record<string, { dock?: boolean; dockSide?: "left" | "right"; segments?: number; gap?: number; snap?: boolean }>;
-      const piece = (cid: KitComponentId, fallSize: "s" | "m" | "l", v?: number) => {
-        const size = effKitSize(sizes[cid] ?? fallSize);
+      /* size follows the kit page's rule EXACTLY: effKitSize(unset) is L,
+         so a kit whose sizes map is empty (the nav's L state) previews at
+         L here too. The old fixed display sizes rendered the minis a size
+         class below the kit page — smaller geometry, smaller type,
+         sparser pattern — which read as a stale badge (owner report,
+         round two). The card's CSS clamps the box; the ART must be the
+         kit's own size. */
+      const piece = (cid: KitComponentId, v?: number) => {
+        const size = effKitSize(sizes[cid]);
         const kb = bars[cid];
         return tightenSvg(renderKit(
           applyKitTextFill(applyKitDesign(cfg, designs[cid]), fills[cid]),
@@ -142,11 +149,11 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
         ), 18);
       };
       const html =
-        `<div class="cg-hero">${piece("primary" as KitComponentId, "l")}</div>` +
+        `<div class="cg-hero">${piece("primary" as KitComponentId)}</div>` +
         `<div class="cg-minis">${[
-          piece("progress" as KitComponentId, "s", 0.62),
-          piece("toggle" as KitComponentId, "s", 1),
-          piece("badge" as KitComponentId, "s"),
+          piece("progress" as KitComponentId, 0.62),
+          piece("toggle" as KitComponentId, 1),
+          piece("badge" as KitComponentId),
         ].map((s) => `<span>${s}</span>`).join("")}</div>`;
       const bg = doc.bgImage;
       const stage = typeof bg === "string" && /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(bg) ? bg : null;
