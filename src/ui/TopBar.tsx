@@ -252,7 +252,10 @@ export function TopBar() {
                 void (async () => {
                   const st = useGen.getState();
                   downloadSettings(cfg, {
-                    kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
+                    // the clone REGISTRY rides with its entries — the maps
+                    // below already carry clone-keyed rows, and without the
+                    // registry an import would strand them id-less
+                    kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
                     kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs,
                     kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
                     kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,

@@ -9,7 +9,7 @@
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
-import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -430,11 +430,18 @@ export async function collectExportBoards(st: {
         continue;
       }
       const id = b.kitId!;
+      /* a CLONE item resolves IDENTITY through its base — renderKit and
+         the family tables refuse clone ids — while every per-piece map
+         read below stays keyed by the item's OWN id (the clone's fork is
+         the truth). A copy-* id must never reach the manifest: it would
+         leak into zip paths and send the importer's prefab lookups
+         hunting for a family that doesn't exist. */
+      const idBase = baseOf(id);
       /* the Board stage's own recipe, WHOLE (Board.tsx svgOf): icon
          override, variant overlay (~gold), 9-slice stretch — dims and
          baked pixels must match what the maker saw */
       const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
-      const svg = renderKit(cfgP, id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+      const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
         themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -448,7 +455,7 @@ export async function collectExportBoards(st: {
       // board y runs DOWN; Unity anchors run UP — top third = ay 1
       const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
       const anchor = `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`;
-      const fam = PREFAB_FAMILY[id];
+      const fam = PREFAB_FAMILY[idBase];
       if (!fam) {
         /* no sprite family ships for this piece — it can never place as a
            prefab, and it used to just vanish from the scene ("7 skipped").
@@ -464,7 +471,7 @@ export async function collectExportBoards(st: {
            selection over whichever tile is clicked. The well rects are
            parsed, not re-derived — the drawn pixels are the truth. */
         let cells: number[] | null = null, cellSel: number | null = null;
-        if (id === "invgrid") {
+        if (idBase === "invgrid") {
           still = still.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
           const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(still);
           if (vb) {
@@ -487,7 +494,9 @@ export async function collectExportBoards(st: {
         const file = `boardstamps/${slug}-k${stampFiles.length + 1}.png`;
         stampFiles.push({ file, bytes: pk });
         exItems.push({
-          component: id, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
+          // base id even for a clone — the baked pixels above already wear
+          // the clone's fork, and the importer only knows base names
+          component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
           ...(cells ? { cells, cellSel } : {}),
@@ -543,12 +552,16 @@ export async function collectExportBoards(st: {
         /* the family sprite bakes at its STOCK-WORD geometry now — the
            divergence test must measure against the same words, or every
            stock-proportioned copy would falsely re-pose */
-        const natural = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[id] ?? "", icon: null });
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] ?? "", icon: null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
-        if (Math.abs(poseAspect / natAspect - 1) > 0.08) {
-          let ps2 = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+        /* a CLONE item ALWAYS poses: the family sprites bake the BASE's
+           look, so the clone's own design, its designed state skins and
+           its label seat exist nowhere else in the zip — they must travel
+           as pixels regardless of how closely the pose matches */
+        if (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08) {
+          let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -625,7 +638,7 @@ export async function collectExportBoards(st: {
           if (cropBox) {
             posedStates = {};
             for (const stN of ["hover", "pressed", "disabled"] as const) {
-              let ssv = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
+              let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
                 icon: resolveKitIcon(st.kitIcons?.[id], undefined),
                 label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
                 themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -664,7 +677,7 @@ export async function collectExportBoards(st: {
         // (count badge number, end-turn ring, slider value, switch on/off);
         // instance value wins, and the settings rigs always send their
         // render default so the scene strikes the pose the board showed
-        value: b.v ?? st.kitVals[id] ?? (id === "slider" ? 0.62 : id === "toggle" ? 1 : null), ax: pax, ay: pay,
+        value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
         ...(posed ? { posed } : {}),
         /* the posed ART's own footprint: crop box mapped to board px, and
@@ -689,7 +702,7 @@ export async function collectExportBoards(st: {
         } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
-        ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape) ? { flip: true } : {}),
+        ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[idBase] ?? st.cfg.shape) ? { flip: true } : {}),
       });
     }
     out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });

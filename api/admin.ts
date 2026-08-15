@@ -519,8 +519,10 @@ export async function POST(req: Request): Promise<Response> {
        (owner: "I want ALL changes I make to any look to port over").
        A saved project keeps its per-piece layer beside the config; a
        studio preset already carries its own inside it. Locks are workflow,
-       not look — they stay behind. */
-    const KIT_LAYER = ["kitShapes", "kitDesigns", "kitTextFill", "kitLabels", "kitSubs",
+       not look — they stay behind. The clone REGISTRY (kitClones) must
+       ride with the clone-keyed rows the other maps already freeze, or a
+       designated kit's duplicated pieces arrive id-less. */
+    const KIT_LAYER = ["kitClones", "kitShapes", "kitDesigns", "kitTextFill", "kitLabels", "kitSubs",
       "kitIcons", "kitSlotVals", "kitVals", "kitBar", "kitTextOy", "kitTextOx", "kitSizes", "kitRow"];
     const srcCfg = (proj.doc.cfg ?? {}) as Record<string, unknown>;
     let presetCfg: Record<string, unknown> = srcCfg;
