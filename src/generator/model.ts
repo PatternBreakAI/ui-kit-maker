@@ -1652,8 +1652,40 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
 ];
 const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
 for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
-/** The group a piece belongs to, or null when it stands alone. */
-export const groupOf = (id: KitComponentId | null | undefined) => (id ? GROUP_OF.get(id) ?? null : null);
+/** The group a piece belongs to, or null when it stands alone. A CLONE
+ *  deliberately stands alone: group restyles fan out over the static
+ *  member list, so a one-off duplicate is never swept by a family edit —
+ *  which is the whole reason it exists. */
+export const groupOf = (id: KitPieceId | null | undefined) => (id ? GROUP_OF.get(id as KitComponentId) ?? null : null);
+
+/* ── Componentization: duplicated pieces (owner mandate, 2026-08-15 —
+   "edit the main button and ONLY the main button"; the flame-button
+   hours and the back-button debacle both trace to one piece's special
+   needs restyling a whole family). A clone is a full kit citizen: its
+   own entries in every per-piece map, its own name and classification,
+   rendering ALWAYS through its base component's geometry. Clone ids
+   stay OUT of the KitComponentId union on purpose — renderKit and
+   LiveArt refuse them at compile time, so every host is forced through
+   baseOf() and the resolution sweep stays verifiable.
+
+   Id grammar: `copy-<mint4>-<base>` — no colon (the `${id}:${size}`
+   nudge keys parse with split(":")), no tilde (the Board's variant
+   suffix), zip-path and CSS-class safe. The mint is FIXED WIDTH so the
+   base recovers by slicing, no registry in hand. */
+export type ClonePieceId = `copy-${string}`;
+export type KitPieceId = KitComponentId | ClonePieceId;
+export interface KitClone { base: KitComponentId; name: string; kind: string; createdAt: string }
+/** The forced classification at creation — files the clone on the kit
+ *  page and (later) names its Unity folder. */
+export const CLONE_KINDS = ["Action", "Navigation", "HUD", "Reward", "Decor", "Other"] as const;
+export const isCloneId = (id: string): id is ClonePieceId => id.startsWith("copy-");
+export const baseOf = (id: KitPieceId): KitComponentId => (isCloneId(id) ? (id.slice(10) as KitComponentId) : id);
+export const mintCloneId = (base: KitComponentId): ClonePieceId =>
+  `copy-${Array.from({ length: 4 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("")}-${base}`;
+/** Pieces whose CONTENT lives in store singletons (kitRow, kitKind), not
+ *  per-piece maps — a clone would share content with its base, so they
+ *  sit out of duplication until that content moves per-piece. */
+export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
