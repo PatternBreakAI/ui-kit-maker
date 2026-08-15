@@ -6,7 +6,7 @@ import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { hydrate } from "@/generator/store";
-import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
+import { applyKitDesign, applyKitTextFill, effKitSize, resolveKitIcon, type GenConfig, type KitComponentId, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { ensureDocFonts } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
@@ -102,12 +102,39 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
       const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
       const labels = (doc.kitLabels ?? {}) as Record<string, string>;
       const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
-      const piece = (cid: KitComponentId, size: "s" | "m" | "l", v?: number) =>
-        tightenSvg(renderKit(
+      /* the WHOLE per-piece story, not just the style forks — the bench
+         used to drop kitShapes / sizes / icons / values / bar config and
+         the per-size type-seat nudges, so a heavily tuned kit previewed
+         as an older version of itself (owner: "the thumbnail isn't
+         grabbing the latest imagery"). Same plumbing as the kit page's
+         usePiece, doc-fed. Sizes are the kit's own: the seat nudges are
+         keyed per size, so forcing a display size un-seats the type. */
+      const shapes = (doc.kitShapes ?? {}) as Record<string, Shape>;
+      const sizes = (doc.kitSizes ?? {}) as Record<string, KitSize>;
+      const icons = (doc.kitIcons ?? {}) as Record<string, Parameters<typeof resolveKitIcon>[0]>;
+      const vals = (doc.kitVals ?? {}) as Record<string, number>;
+      const subs = (doc.kitSubs ?? {}) as Record<string, string>;
+      const oy = (doc.kitTextOy ?? {}) as Record<string, number>;
+      const ox = (doc.kitTextOx ?? {}) as Record<string, number>;
+      const bars = (doc.kitBar ?? {}) as Record<string, { dock?: boolean; dockSide?: "left" | "right"; segments?: number; gap?: number; snap?: boolean }>;
+      const piece = (cid: KitComponentId, fallSize: "s" | "m" | "l", v?: number) => {
+        const size = effKitSize(sizes[cid] ?? fallSize);
+        const kb = bars[cid];
+        return tightenSvg(renderKit(
           applyKitTextFill(applyKitDesign(cfg, designs[cid]), fills[cid]),
-          cid, size, "default", v, undefined,
-          { label: labels[cid], slots: slots[cid] },
+          cid, size, "default", vals[cid] ?? v, shapes[cid],
+          {
+            label: labels[cid], slots: slots[cid], sub: subs[cid],
+            icon: resolveKitIcon(icons[cid], undefined),
+            textOy: oy[`${cid}:${size}`], textOx: ox[`${cid}:${size}`],
+            themedText: !!(designs[cid] as { type?: unknown } | undefined)?.type || !!fills[cid],
+            ...(cid === "progress" && kb ? {
+              dock: kb.dock ? { icon: resolveKitIcon(icons[cid], undefined), side: kb.dockSide ?? "left" } : null,
+              bar: { segments: kb.segments, gap: kb.gap, snap: kb.snap },
+            } : {}),
+          },
         ), 18);
+      };
       const html =
         `<div class="cg-hero">${piece("primary" as KitComponentId, "l")}</div>` +
         `<div class="cg-minis">${[
