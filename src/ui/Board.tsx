@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
-import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
+import { putBgOriginal, normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -28,6 +28,25 @@ async function svgWithFaces(svg: string, pc: GenConfig): Promise<string> {
     if (uri) rules.push(`@font-face{font-family:"${fam.replace(/"/g, "")}";src:url(${uri}) format("woff2");}`);
   }
   return rules.length ? svg.replace(/(<svg[^>]*>)/, `$1<style>${rules.join("")}</style>`) : svg;
+}
+
+/* One piece as a TRANSPARENT-background PNG at 2× — the same sealed
+   document as the SVG download, rasterized (dev field report: "export
+   items as pngs without the background, not just as .svgs"). SMIL loops
+   are stripped so the raster lands on the settled pose. */
+async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: string) {
+  const svg = stripSmil(await svgWithFaces(pc.svg, pc.cfg));
+  const w = +(/width="([\d.]+)"/.exec(svg)?.[1] ?? 300), h = +(/height="([\d.]+)"/.exec(svg)?.[1] ?? 150);
+  const img = new Image();
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = () => rej(new Error("piece raster failed"));
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  });
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(1, Math.round(w * 2)); cv.height = Math.max(1, Math.round(h * 2));
+  cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height);
+  cv.toBlob((bl) => { if (bl) download(`${name}.png`, bl); }, "image/png");
 }
 
 /* ── The Board v3 — a vertical stack of named artboards ────────────
@@ -400,7 +419,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar,
+    cfg, boards, activeBoard, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
@@ -414,12 +433,27 @@ export function BoardView({ playing }: { playing: boolean }) {
   const [vidUrl, setVidUrl] = useState("");
   const [vidBusy, setVidBusy] = useState(false);
   const [vidErr, setVidErr] = useState<string | null>(null);
+  /* a video backdrop mints a POSTER — its first frame, vaulted like an
+     uploaded image (owner: "a screenshot of the first frame so that
+     there is a background of some sort"). The still travels everywhere
+     the video can't — the saved project, another machine, the Unity
+     scene — and the playing video sits above it here. A CORS-shy remote
+     host just skips the poster; the video keeps working. */
+  const setVideoBg = (url: string, name: string) => {
+    const bid = useGen.getState().activeBoard;
+    setBoardBg({ bgVideo: url, bgImage: null, bgShow: true });
+    void captureVideoPoster(url).then(async (blob) => {
+      if (!blob) return;
+      const assetId = await putBgOriginal(blob, name);
+      if (assetId && useGen.getState().activeBoard === bid) setBoardBg({ bgVideo: url, bgImage: null, bgAssetId: assetId, bgShow: true });
+    });
+  };
   const applyVideoUrl = async () => {
     setVidErr(null); setVidBusy(true);
     const r = await checkVideoUrl(vidUrl);
     setVidBusy(false);
     if (r.err) { setVidErr(r.err); return; }
-    setBoardBg({ bgVideo: r.url!, bgImage: null, bgShow: true });
+    setVideoBg(r.url!, "video poster");
     setVidUrl("");
   };
   // session object URLs die with the tab — restore them from the vault
@@ -663,7 +697,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (b.kitId) {
       const kb = b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined;
       const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
-      return { svg: renderKit(pc, b.kitId, kitSizes[b.kitId] ?? "l", "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      // the editor's per-size text nudges, slot choices and sub-labels ride
+      // along — without them the board (and its PNGs) trailed the editor
+      // (owner: "changing the speedo component in edit did not update it
+      // on the the board")
+      const bSize = kitSizes[b.kitId] ?? "l";
+      return { svg: renderKit(pc, b.kitId, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: b.kitId === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
@@ -1342,8 +1381,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}>
-                <Download size={13} strokeWidth={2.2} /> Export asset
+              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
+                title="This piece as a crisp, infinitely scalable SVG">
+                <Download size={13} strokeWidth={2.2} /> SVG
+              </button>
+              <button onClick={() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); }}
+                title="This piece as a transparent-background PNG at 2× — drops straight into an engine or a mockup">
+                <Download size={13} strokeWidth={2.2} /> PNG
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
                 <Trash2 size={13} strokeWidth={2.2} /> Remove
@@ -1360,7 +1404,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               {BACKDROPS.map((bk) => (
                 <button key={bk.url} className="bd-bgthumb" title={bk.name}
                   aria-pressed={act.bgImage === bk.url || act.bgVideo === bk.url}
-                  onClick={() => setBoardBg(bk.video ? { bgVideo: bk.url, bgImage: null, bgShow: true } : { bgImage: bk.url, bgVideo: null, bgShow: true })}>
+                  onClick={() => (bk.video ? setVideoBg(bk.url, "backdrop poster") : setBoardBg({ bgImage: bk.url, bgVideo: null, bgShow: true }))}>
                   {bk.video ? <video src={bk.url} muted preload="metadata" playsInline /> : <img src={bk.url} alt="" loading="lazy" />}
                   <i>{bk.name}</i>
                 </button>
@@ -1447,7 +1491,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) {
-                  if (f.type.startsWith("video/")) setBoardBg({ bgVideo: URL.createObjectURL(f), bgImage: null, bgShow: true });
+                  if (f.type.startsWith("video/")) setVideoBg(URL.createObjectURL(f), f.name + " (poster)");
                   /* ONE copy, in the vault: the ship copy (≤1920) is also
                      the display image, served as a session object URL — the
                      board DOC carries only the tiny bgAssetId, so history,
@@ -1605,7 +1649,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onDragEnd: () => void;
   onExport: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -1745,6 +1789,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              the measurement observer behind it) quiet between real edits. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent
             kit={{ id: b.kitId, size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+              sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
+              textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (b.kitId === "progress" || b.kitId === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
               bar: b.kitId === "progress" || b.kitId === "segbar" ? kitBar[b.kitId] : undefined,
               row: b.kitId === "datarow" ? kitRow : undefined,
@@ -1754,7 +1800,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
             kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape, label: item!.kit.label, value: item!.kit.v } : undefined} />
         )}
       </div>
-      {selected && (
+      {/* Play is for feeling the screen, not editing it — the selection
+          box stays in Design (owner: "when I click play in boards i
+          don't want to see the item's bounding box") */}
+      {selected && !playing && (
         <i className="board-selbox" aria-hidden="true" style={dim?.shell
           ? { left: dim.shell[0] * sc, top: dim.shell[1] * sc, width: dim.shell[2] * sc, height: dim.shell[3] * sc }
           : { left: 0, top: 0, width: "100%", height: "100%" }} />

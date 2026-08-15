@@ -11,6 +11,7 @@ import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { applyKitDesign, applyKitTextFill, darken, lighten, hexRgba, fontByName, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
@@ -38,6 +39,18 @@ interface AssetMeta {
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
   flip?: boolean;
+  /** The shell's footprint measured WITH the prefab's stock words, design
+   *  px (base rows of labeled families only). The importer grows the
+   *  prefab's default rect so the label fits at drag-in — the labeless
+   *  natural rect squished fluid silhouettes under overflowing text. */
+  prefW?: number; prefH?: number;
+  /** The app's EXACT label metrics, parsed from the ghosted bake's own
+   *  <text> node (base rows of labeled families): center offset from the
+   *  shell CENTER in design px (y down — frame-invariant, so the importer
+   *  can seat in sprite space) and the true rendered font size (fit-downs
+   *  included). The app centers words in the CONTENT zone, not the shell
+   *  (owner: "we are always cheating right a bit" on the flame). */
+  labelDx?: number; labelDy?: number; labelFs?: number;
 }
 
 export interface EngineExportState {
@@ -91,6 +104,23 @@ export interface ExportBoardItemData {
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
+  /** a POSED bake for a prefab piece whose board pose diverges from the
+      family sprite's natural aspect — the engine's own render at the
+      exact board proportions, label stripped (words stay live). The
+      scene wears it 1:1 on an ART CHILD instead of stretching the
+      nine-slice; the item's own rect stays the SHELL footprint. */
+  posed?: string | null;
+  /** the posed art's footprint in board px (crop box: shell + overhang —
+      extrusion, bloom) and its center's offset from the shell center
+      (board y runs down). The importer sizes the art child with these. */
+  posedW?: number; posedH?: number; posedDx?: number; posedDy?: number;
+  /** the copy's designed states at the same posed crop — Sprite Swap
+      skins for the art child (press sink and state looks in the pixels) */
+  posedHover?: string; posedPressed?: string; posedDisabled?: string;
+  /** the copy's OWN label center offset from the shell center, board px
+      (y down) — the scene seats the live words exactly where this copy
+      drew them, not where the stock bake did */
+  posedLabelDx?: number; posedLabelDy?: number;
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -163,6 +193,19 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   minimap: "minimap",
 };
 
+/* The stock words each labeled family's prefab wears (mirror of the
+   importer's DefaultLabel). The sliced family sprites BAKE at this labeled
+   geometry — a fluid silhouette draws its true decorated ends at the width
+   the words need, with the content group rendered invisible so the pixels
+   stay labeless (owner: "how can we get the prefab to look more like the
+   button in the kit"). The posed-divergence test measures its natural
+   aspect against the same words, so a board copy at stock proportions
+   rides the sliced prefab and only true re-poses bake. */
+const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
+  primary: "PLAY", secondary: "PLAY", small: "PLAY",
+  chip: "NEW", tab: "TAB", tabback: "BACK", header: "SETTINGS",
+};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -181,7 +224,7 @@ export async function collectExportBoards(st: {
    *  (the BACK-button story). Needed so those pieces travel to Unity. */
   library?: LibItem[];
 }): Promise<ExportBoardData[]> {
-  const { getBgOriginal } = await import("./bgvault");
+  const { getBgOriginal, captureVideoPoster } = await import("./bgvault");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
@@ -194,7 +237,9 @@ export async function collectExportBoards(st: {
     seen.add(slug);
 
     let bg: ExportBoardData["bg"] = null;
-    if (bd.bgImage && (bd.bgShow ?? true)) {
+    // a video board carries no bgImage locally, but its vaulted POSTER
+    // (the first frame) still gives the scene a background
+    if ((bd.bgImage || bd.bgAssetId || bd.bgVideo) && (bd.bgShow ?? true)) {
       let bytes: Uint8Array | null = null, ext = "png", original = false;
       if (bd.bgAssetId) {
         const rec = await getBgOriginal(bd.bgAssetId);
@@ -204,7 +249,7 @@ export async function collectExportBoards(st: {
           original = true;
         }
       }
-      if (!bytes) {
+      if (!bytes && bd.bgImage) {
         const d = dataUrlBytes(bd.bgImage);
         if (d) { bytes = d.bytes; ext = d.ext; }
         else if (bd.bgImage.startsWith("/")) {
@@ -227,6 +272,16 @@ export async function collectExportBoards(st: {
             }
           } catch { /* scene ships without a backdrop */ }
         }
+      }
+      if (!bytes && bd.bgVideo) {
+        /* a video board with NO vaulted poster — boards from before posters
+           existed, or a capture that failed at set time. Grab the first
+           frame NOW, at export (owner: "it didn't bring in the video
+           snapshot"); a CORS-refusing host still ships no backdrop. */
+        try {
+          const pb0 = await captureVideoPoster(bd.bgVideo);
+          if (pb0) { bytes = new Uint8Array(await pb0.arrayBuffer()); ext = "jpg"; }
+        } catch { /* scene ships without a backdrop */ }
       }
       /* the whole darkroom BAKES into the shipped pixels — hue, saturation,
          brightness, contrast, blur AND the seeded grain are deterministic
@@ -459,6 +514,143 @@ export async function collectExportBoards(st: {
       }
       const pax = pcx < W / 3 ? 0 : pcx > (2 * W) / 3 ? 1 : 0.5;
       const pay = pcy < H / 3 ? 1 : pcy > (2 * H) / 3 ? 0 : 0.5;
+      /* ── the POSED bake: a fluid silhouette redraws its decorated ends
+         at every width in the app, but a sliced sprite can only stretch
+         pixels — and the field showed the difference (owner: "the back of
+         the flame button looks scrunched up", with the app's render as
+         the reference). When this copy's pose diverges from the family
+         sprite's natural aspect, bake the engine's own render at the
+         exact board proportions — label stripped, the words stay live —
+         and the scene wears it 1:1 instead of stretching the nine-slice. */
+      let posed: string | null = null;
+      let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
+      let posedStates: { hover?: string; pressed?: string; disabled?: string } | null = null;
+      let posedLabelPx: { dx: number; dy: number } | null = null;
+      try {
+        const shellCfg = (src: GenConfig) => {
+          const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
+          c2.shadow.opacity = 0;
+          c2.candy.contact.opacity = 0;
+          for (const s2 of Object.values(c2.states)) s2.glow = 0;
+          return c2;
+        };
+        const shellBoxOf = (s: string): [number, number, number, number] | null => {
+          const m2 = /data-shell="([-\d. ]+)"/.exec(s) ?? /data-shell0="([-\d. ]+)"/.exec(s);
+          if (!m2) return null;
+          const v2 = m2[1].split(" ").map(Number);
+          return v2.length === 4 && v2.every(Number.isFinite) ? (v2 as [number, number, number, number]) : null;
+        };
+        /* the family sprite bakes at its STOCK-WORD geometry now — the
+           divergence test must measure against the same words, or every
+           stock-proportioned copy would falsely re-pose */
+        const natural = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[id] ?? "", icon: null });
+        const nb = shellBoxOf(natural);
+        const poseAspect = ph > 0 ? pw / ph : 1;
+        const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
+        if (Math.abs(poseAspect / natAspect - 1) > 0.08) {
+          let ps2 = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          /* the copy's OWN label metrics, parsed BEFORE the strip — this
+             copy's words center differently than the stock bake, and the
+             scene must seat the live text exactly where the app drew it.
+             Offsets vs the shell0 center (the text's own frame); the crop
+             block below converts to board px. */
+          let posedLabelRaw: { dx: number; dy: number } | null = null;
+          {
+            const lg2 = ps2.slice(ps2.indexOf('data-part="label"'));
+            const tm2 = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg2);
+            const s0m2 = /data-shell0="([-\d. ]+)"/.exec(ps2);
+            const s02 = s0m2?.[1].split(" ").map(Number);
+            if (tm2 && s02 && s02.length === 4)
+              posedLabelRaw = { dx: +tm2[1] - (s02[0] + s02[2] / 2), dy: +tm2[2] - (s02[1] + s02[3] / 2) };
+          }
+          // the label leaves the pixels — it rides the prefab as live text
+          const dom2 = new DOMParser().parseFromString(ps2, "image/svg+xml");
+          for (const n2 of Array.from(dom2.querySelectorAll('[data-part="label"]'))) n2.remove();
+          ps2 = new XMLSerializer().serializeToString(dom2.documentElement)
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          if (/<text/.test(ps2)) {
+            const fdP = fontByName(cfgP.type.font);
+            ps2 = await inlineKitFace(ps2, cfgP.type.font, fdP.name === cfgP.type.font ? fdP.css ?? null : null);
+          }
+          /* crop to the DRAWN box, not the shell box — the extrusion (and
+             bloom) reach past the shell, and a shell-tight crop cut the
+             extrusion's bottom off in the scene (owner: "bottom extrusion
+             is cut off"). The scene rect then maps shell→board exactly:
+             the sprite grows by its overhang and the item's rect grows and
+             shifts by the same ratio, so the SHELL still lands precisely
+             where the board drew it. */
+          const pb3 = shellBoxOf(ps2);
+          let cropBox: [number, number, number, number] | null = null;
+          if (pb3) {
+            let box: [number, number, number, number] = pb3;
+            const ab = await svgAlphaBox(ps2, 2, 8).catch(() => null);
+            const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(ps2);
+            if (ab && vbm3) {
+              const pad = 2; // soft AA tails below the alpha threshold
+              const ax = +vbm3[1] + ab.x0 / 2 - pad, ay = +vbm3[2] + ab.y0 / 2 - pad;
+              const ax1 = +vbm3[1] + (ab.x1 + 1) / 2 + pad, ay1 = +vbm3[2] + (ab.y1 + 1) / 2 + pad;
+              // union with the shell so a sparse render can never crop inside it
+              const ux = Math.min(ax, pb3[0]), uy = Math.min(ay, pb3[1]);
+              box = [ux, uy, Math.max(ax1, pb3[0] + pb3[2]) - ux, Math.max(ay1, pb3[1] + pb3[3]) - uy];
+            }
+            cropBox = box;
+            ps2 = ps2
+              .replace(/viewBox="[^"]+"/, `viewBox="${box[0].toFixed(1)} ${box[1].toFixed(1)} ${box[2].toFixed(1)} ${box[3].toFixed(1)}"`)
+              .replace(/width="[\d.]+"/, `width="${box[2].toFixed(1)}"`)
+              .replace(/height="[\d.]+"/, `height="${box[3].toFixed(1)}"`);
+            const kx2 = pw / pb3[2], ky2 = ph / pb3[3];
+            posedBox = {
+              w: box[2] * kx2, h: box[3] * ky2,
+              dx: ((box[0] + box[2] / 2) - (pb3[0] + pb3[2] / 2)) * kx2,
+              dy: ((box[1] + box[3] / 2) - (pb3[1] + pb3[3] / 2)) * ky2,
+            };
+            // shell-center offsets are frame-invariant → straight to board px
+            if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
+          }
+          const { bytes: pbp } = await svgToPngBytes(ps2, 2);
+          const poseN = stampFiles.length + 1;
+          const fileP = `boardstamps/${slug}-pose${poseN}.png`;
+          stampFiles.push({ file: fileP, bytes: pbp });
+          posed = fileP;
+          /* the copy's DESIGNED states, posed too — retiring Sprite Swap
+             left press moving only the label's own shift while the body
+             sat still (owner: "only the text play animates down, the
+             button stays static"). Same crop box as the default bake, so
+             the swap never jumps a pixel. */
+          if (cropBox) {
+            posedStates = {};
+            for (const stN of ["hover", "pressed", "disabled"] as const) {
+              let ssv = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
+                icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+                label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+                themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+              });
+              const domS = new DOMParser().parseFromString(ssv, "image/svg+xml");
+              for (const nS of Array.from(domS.querySelectorAll('[data-part="label"]'))) nS.remove();
+              ssv = new XMLSerializer().serializeToString(domS.documentElement)
+                .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+                .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+              if (/<text/.test(ssv)) {
+                const fdS = fontByName(cfgP.type.font);
+                ssv = await inlineKitFace(ssv, cfgP.type.font, fdS.name === cfgP.type.font ? fdS.css ?? null : null);
+              }
+              ssv = ssv
+                .replace(/viewBox="[^"]+"/, `viewBox="${cropBox[0].toFixed(1)} ${cropBox[1].toFixed(1)} ${cropBox[2].toFixed(1)} ${cropBox[3].toFixed(1)}"`)
+                .replace(/width="[\d.]+"/, `width="${cropBox[2].toFixed(1)}"`)
+                .replace(/height="[\d.]+"/, `height="${cropBox[3].toFixed(1)}"`);
+              const { bytes: pbS } = await svgToPngBytes(ssv, 2);
+              const fS = `boardstamps/${slug}-pose${poseN}-${stN}.png`;
+              stampFiles.push({ file: fS, bytes: pbS });
+              posedStates[stN] = fS;
+            }
+          }
+        }
+      } catch { /* the sliced prefab remains the honest fallback */ }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
@@ -474,6 +666,27 @@ export async function collectExportBoards(st: {
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (id === "slider" ? 0.62 : id === "toggle" ? 1 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
+        ...(posed ? { posed } : {}),
+        /* the posed ART's own footprint: crop box mapped to board px, and
+           its center's offset from the shell center (board y runs down).
+           The item's rect above stays the SHELL — labels, state fx and
+           anchors all speak shell coordinates; the art child wears these. */
+        ...(posed && posedBox ? {
+          posedW: Math.round(posedBox.w * 10) / 10, posedH: Math.round(posedBox.h * 10) / 10,
+          posedDx: Math.round(posedBox.dx * 10) / 10, posedDy: Math.round(posedBox.dy * 10) / 10,
+        } : {}),
+        /* the copy's live label seats at ITS OWN center — board px offsets
+           from the shell center, straight from this copy's render */
+        ...(posed && posedLabelPx ? {
+          posedLabelDx: Math.round(posedLabelPx.dx * 10) / 10,
+          posedLabelDy: Math.round(posedLabelPx.dy * 10) / 10,
+        } : {}),
+        /* posed STATE skins — Sprite Swap slots for the art child */
+        ...(posed && posedStates ? {
+          ...(posedStates.hover ? { posedHover: posedStates.hover } : {}),
+          ...(posedStates.pressed ? { posedPressed: posedStates.pressed } : {}),
+          ...(posedStates.disabled ? { posedDisabled: posedStates.disabled } : {}),
+        } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
         ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape) ? { flip: true } : {}),
@@ -775,8 +988,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      smudged halo (owner: "the rollovers are weird and incorrect"). Calm
      the fork exactly like the master so all four states share base's
      geometry. */
-  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number, slimSpec = false) => {
+  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number, slimSpec = false, mutate?: (c: GenConfig) => void) => {
     const c = clone(pieceCfg(id));
+    mutate?.(c); // labeled-geometry bakes ghost the content group (opacity 0)
     /* forks are PARTIAL (designFor: every field falls back to the master
        independently) — calm only what a fork actually carries, or a
        face-only fork crashes the whole export */
@@ -1017,7 +1231,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...q.meta });
+      // per-piece forks can arm the edge shine even when the kit default is
+      // off, so any armed fork keeps the outlines flowing into the manifest
+      const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -1066,6 +1283,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
+  /* the prefab's DEFAULT rect wears the kit's WORDS — see PREF_LABEL at
+     module scope (the labeled-geometry bakes and the posed-divergence
+     test read the same map). */
   /* staged pieces obey the bay in the ENGINE zip too: they ship only
      once RELEASED, or when this maker actually placed one on a board
      (only an admin can place a staged piece) — same rule as shipProp */
@@ -1087,16 +1307,54 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const rowOpts: Record<string, unknown> = n.id === "datarow"
       ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never }
       : n.id === "input" ? { placeholder: false } : {};
-    const fullSvg = shell(n.id, rowOpts, slim);
+    /* LABELED-GEOMETRY bake: a fluid silhouette redraws its decorated ends
+       at whatever width its words need — baked labeless, the shell hugged
+       nothing and the prefab stretched ~2x to fit its live label, smearing
+       the middle (owner: prefab vs scene screenshots). So labeled families
+       render WITH their stock words and the content group at opacity 0:
+       true geometry, labeless pixels. The words themselves stay live text. */
+    const word = PREF_LABEL[n.id];
+    const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
+    const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
+    const fullSvg = shell(n.id, wordOpts, ghost(slim));
     const slice = sliceOf(n.id, n.h);
     /* swap families crop base + states on ONE union box (the group) so the
        four sprites share a coordinate space — see rasterQueue */
     const swap = ["primary", "secondary", "small", "chip", "tab", "tabback", "slot", "datarow"].includes(n.id);
     // flip provenance: which silhouette this bake actually wears
     const famFlip = isFlipShape(st.kitShapes[n.id] ?? KIT_SHAPE[n.id] ?? st.cfg.shape);
+    let pref: { prefW: number; prefH: number } | null = null;
+    if (word !== undefined) {
+      /* with the bake itself labeled, prefW ≈ the sprite's own shell — the
+         rect math in FamilyPrefab degrades to identity, kept as the truth
+         anchor if bake and measurement ever diverge */
+      const lShm = /data-shell="([-\d. ]+)"/.exec(fullSvg);
+      const lV = lShm?.[1].split(" ").map(Number);
+      if (lV && lV.length === 4 && lV[2] > 4 && lV[3] > 4)
+        pref = { prefW: Math.round(lV[2] * 10) / 10, prefH: Math.round(lV[3] * 10) / 10 };
+    }
+    /* the ghosted bake still carries the label <text> invisibly — its x is
+       the word's true center (text-anchor middle on every labeled family),
+       its y pairs with data-shell0 (the node sits inside the rise/lift
+       transforms), its font-size is the true rendered size. Offsets from
+       the shell CENTER are frame-invariant, so ship those. */
+    let labelMeta: { labelDx: number; labelDy: number; labelFs: number } | null = null;
+    if (word !== undefined) {
+      const lg = fullSvg.slice(fullSvg.indexOf('data-part="label"'));
+      const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
+      const s0m = /data-shell0="([-\d. ]+)"/.exec(fullSvg) ?? /data-shell="([-\d. ]+)"/.exec(fullSvg);
+      const s0 = s0m?.[1].split(" ").map(Number);
+      if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
+        labelMeta = {
+          labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
+          labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
+          labelFs: Math.round(+tm[3] * 10) / 10,
+        };
+      }
+    }
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}) }, true, swap ? n.family : undefined);
-    const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}) }, true, swap ? n.family : undefined);
+    const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
     /* interactive pieces ship their DESIGNED states for engine Sprite Swap —
@@ -1104,7 +1362,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts, undefined, true),
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? (c) => { c.transparency.content = 0; } : undefined),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
@@ -1112,10 +1370,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        match the original") — the sliced base dropped it (slim); prefabs
        anchor this sprite shell-to-shell above the face so the feathered
        window scales with the piece instead of smearing through the
-       nine-slice. Blend-mode speculars stay baked, so no sprite ships. */
+       nine-slice. Blend-mode speculars stay baked, so no sprite ships.
+       Same labeled geometry as base, or the anchored overlay would stretch. */
     const spC = pieceCfg(n.id).candy.specular;
     if (spC.on && spC.intensity > 1 && (!spC.blend || spC.blend === "normal"))
-      await addPng(`${n.family}/specular.png`, shell(n.id, { faceLayer: "specular", ...rowOpts }),
+      await addPng(`${n.family}/specular.png`, shell(n.id, { faceLayer: "specular", ...wordOpts }, ghost()),
         { component: n.family, part: "specular", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: "The kit's specular streak alone — overlay it (Simple image, anchored shell-to-shell; the prefabs wire this) so it scales with the piece. Deliberately NOT sliced." }, true);
   }
@@ -1422,18 +1681,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          bare-row opts and baked "Level 12 · Warrior" into the under layer
          (owner: "is this level 2 warrior stuff meant to be a baked
          image? the main point of this kit is to be useful"). */
-      const bare: Record<string, unknown> = cid === "datarow"
+      const bare0: Record<string, unknown> = cid === "datarow"
         ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
-      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under", ...bare }, slim),
+      /* labeled families' face layers share the base sprite's LABELED
+         geometry (see the NINE loop) — mixed-width layers would misalign
+         the tiled-face stack */
+      const wordF = PREF_LABEL[cid as KitComponentId];
+      const bare: Record<string, unknown> = wordF !== undefined ? { ...bare0, label: wordF } : bare0;
+      const slimF = wordF !== undefined ? (c: GenConfig) => { slim(c); c.transparency.content = 0; } : slim;
+      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under", ...bare }, slimF),
         { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
-      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over", ...bare }, slim),
+      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over", ...bare }, slimF),
         { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
       /* the STENCIL: the face silhouette alone, opaque. Unity's Mask only
          alpha-clips when its graphic is hidden, so masking with a visible
          art layer gives a RECTANGULAR mask and the pattern spills past
          the shape (field: "pattern mask is off here"). A dedicated hidden
          mask sprite clips exactly, with no glow fringe to leak through. */
-      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask", ...bare }, slim),
+      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask", ...bare }, slimF),
         { component: fam, part: "base-mask", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face STENCIL: the bare face silhouette. Put it on a hidden Mask (Show Mask Graphic OFF) with the tiled pattern as its child — that clips the pattern to the shape exactly." }, true, grp);
     }
     /* the face pattern as a seamless tile: one cell, drawn at the same
@@ -1595,6 +1860,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     path: "kit-manifest.json",
     data: JSON.stringify({
       kit: st.kitName,
+      // idle motion — the kit's resting-state animations (owner spec);
+      // the importer wires removable rigs only when these say so
+      idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
+        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal" },
+      /* per-piece idle forks (owner: shine on/off per component) — keyed by
+         sprite family; -1 follows the kit toggle, 0/1 pin off/on */
+      idleForks: Object.entries(st.kitDesigns ?? {}).flatMap(([cid, kd]) => {
+        const i = kd?.idle;
+        if (!i || (i.wipe === undefined && i.edge === undefined)) return [];
+        const fam = KIT_SLICEABLE[cid as KitComponentId] ?? NINE.find((n) => n.id === (cid as KitComponentId))?.family ?? cid;
+        return [{ family: fam, wipe: i.wipe === undefined ? -1 : i.wipe ? 1 : 0, edge: i.edge === undefined ? -1 : i.edge ? 1 : 0 }];
+      }),
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -1898,6 +2175,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
@@ -1938,6 +2216,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
+    /* the idle-shine runtime is SHARED like every other runtime script —
+       it missed this list on its first ship, landed per-slug OUTSIDE the
+       PatternBreak.Runtime assembly, and the shared Editor importer could
+       not resolve WipeShine/EdgeShine (field: CS0246, "latest kit export
+       isn't firing in unity" — the whole importer died). */
+    "Runtime/PatternBreakIdleShine.cs",
   ]);
   const rooted = files.map((f) => ({
     ...f,
@@ -1981,6 +2265,42 @@ async function rasterInk(svg: string, scale: number): Promise<{ cv: HTMLCanvasEl
 }
 
 // exported for direct verification — the bake runs headless-testable this way
+/* Idle motion: the edge-shine spark needs the silhouette to walk. The
+   rendered svg's face clip IS that outline — flattened, the largest loop
+   resampled to 48 even arc-length stations, stored as full-image
+   fractions (y down) so the Unity runtime maps them straight through the
+   piece's rect. Sampled only on base sprites, only when the kit turned
+   the idle edge on. */
+function sampleOutline(svg: string): number[] | null {
+  const fc = /<clipPath id="[A-Za-z0-9]+fc"><path d="([^"]+)"/.exec(svg);
+  const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+  if (!fc || !vb) return null;
+  const loops = flattenPath(fc[1], 10);
+  if (!loops.length) return null;
+  const P = (pt: unknown): [number, number] => Array.isArray(pt) ? [pt[0], pt[1]] : [(pt as { x: number }).x, (pt as { y: number }).y];
+  const loop = loops.reduce((a, b) => (b.length > a.length ? b : a)).map(P);
+  if (loop.length < 3) return null;
+  const seg: number[] = [0];
+  for (let i = 1; i <= loop.length; i++) {
+    const a = loop[i - 1], b = loop[i % loop.length];
+    seg.push(seg[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  const total = seg[seg.length - 1];
+  if (!total) return null;
+  const [, x0s, y0s, ws, hs] = vb;
+  const x0 = +x0s, y0 = +y0s, w = +ws, h = +hs;
+  const N = 48, out: number[] = [];
+  for (let k = 0; k < N; k++) {
+    const d = (k / N) * total;
+    let i = 1;
+    while (i < seg.length - 1 && seg[i] < d) i++;
+    const t = (d - seg[i - 1]) / Math.max(1e-6, seg[i] - seg[i - 1]);
+    const a = loop[i - 1], b = loop[i % loop.length];
+    out.push(+(((a[0] + (b[0] - a[0]) * t) - x0) / w).toFixed(4), +(((a[1] + (b[1] - a[1]) * t) - y0) / h).toFixed(4));
+  }
+  return out;
+}
+
 export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Array; layerPngs: { fill?: Uint8Array; stroke?: Uint8Array; shadow?: Uint8Array; glints?: Uint8Array } | null; metrics: string; pointSize: number } | null> {
   const family = base.type.font;
   const weight = base.type.weight;
@@ -1994,15 +2314,20 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   const ascent = (fmRef.fontBoundingBoxAscent ?? 41) * BAKE_S;
   const descent = (fmRef.fontBoundingBoxDescent ?? 11) * BAKE_S;
 
-  /* the type effects' full blur reach, reserved on EVERY bake render — the
+  
+/* the type effects' full blur reach, reserved on EVERY bake render — the
      specimen svg says overflow:visible, but a raster clips at the canvas
      edge, and a strong glow baked a hard-edged slab into each glyph cell
      (owner, Unity: "any way to prevent this clipping on the glow?"). The
      SAME pad goes to the calibration render too, so pen/baseline and every
-     variant stay in one coordinate frame. Reach mirrors the engine's own
-     margins (bevel: glow size*0.8*3; shadow |x|+|y|+blur*1.5). */
+     variant stay in one coordinate frame. The glow reach is FOUR sigma —
+     the live filter region rides fs-slack past its 3-sigma envelope, but a
+     baked cell crops hard at its edge, and 3-sigma still carries ~1% of
+     peak there: a visible line (dev field report: the falloff "gets cut
+     off pretty abruptly"). Past 4-sigma the residual is ~0.01% — the shell
+     blurs' precedent. Shadow keeps the engine's own margin. */
   const fxPad = Math.ceil(Math.max(
-    base.type.glow.on ? base.type.glow.size * 0.8 * 3 : 0,
+    base.type.glow.on ? base.type.glow.size * 0.8 * 4 : 0,
     base.type.shadow.on ? Math.abs(base.type.shadow.x) + Math.abs(base.type.shadow.y) + base.type.shadow.blur * 1.5 : 0,
   ));
 
@@ -2158,8 +2483,15 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
   const FEATHER_KEEP = 12 * BAKE_S;
   type Slab = { l: number; t: number; r: number; b: number };
   const featherCell = (g: Baked, m: Slab): HTMLCanvasElement | null => {
-    const zl = Math.max(0, m.l - FEATHER_KEEP), zr = Math.max(0, m.r - FEATHER_KEEP);
-    const zt = Math.max(0, m.t - FEATHER_KEEP), zb = Math.max(0, m.b - FEATHER_KEEP);
+    /* the shelter yields when the slab is modest: the fixed KEEP on a
+       ~40px slab left a below-minimum zone, so mid-size glows shipped
+       with their hard crop edge intact (dev field report: the falloff
+       "gets cut off pretty abruptly"). The zone now claims up to 8px·S
+       or 40% of the slab — whichever is smaller — whenever the full
+       shelter would starve it; truly tiny slabs still pass untouched. */
+    const zone = (mm: number) => Math.max(mm - FEATHER_KEEP, Math.min(8 * BAKE_S, mm * 0.4));
+    const zl = Math.max(0, zone(m.l)), zr = Math.max(0, zone(m.r));
+    const zt = Math.max(0, zone(m.t)), zb = Math.max(0, zone(m.b));
     const Z = 4 * BAKE_S; // a zone thinner than this can't fade convincingly
     if (zl < Z && zr < Z && zt < Z && zb < Z) return null;
     const out = document.createElement("canvas");
@@ -2347,32 +2679,56 @@ namespace PatternBreak {
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
     }
     void BuildGlow() {
-      var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
+      /* the halo is DECOR, not layout — and the exemption must exist BEFORE
+         the layout group ever meets the child. Parenting a bare Image first
+         queued a rebuild that measured the aura sprite as a real cell, and
+         a HorizontalLayoutGroup bunched the whole menu around it (dev field
+         report, round two: prefabs "spawn in grouped in one place"). */
+      go.GetComponent<LayoutElement>().ignoreLayout = true;
       glowRt = go.GetComponent<RectTransform>();
       glowRt.SetParent(rt.parent, false);
       glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
-      /* the halo is DECOR, not layout: without this, a Vertical/Horizontal
-         Layout Group counts the spawned sibling as a real child and spaces
-         the whole menu apart at runtime (dev field report: "glow objects
-         throw off layout groups") */
-      var le = go.AddComponent<LayoutElement>();
-      le.ignoreLayout = true;
-      glowRt.anchorMin = rt.anchorMin; glowRt.anchorMax = rt.anchorMax;
-      glowRt.pivot = rt.pivot;
-      glowRt.localScale = rt.localScale;
-      /* sit exactly where the piece sits. Forgetting this parked every halo
-         at the parent's anchor origin instead of behind its own button —
-         one big blob in the corner (owner: "obviously not aligned, that's
-         it cut off screen on the upper left"). */
-      glowRt.anchoredPosition = rt.anchoredPosition;
-      // the aura sprite is the piece plus a fixed overhang, so the pad is an
-      // ADDITIVE offset — correct whether the piece is fixed or stretched
-      glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
       glowImg = go.GetComponent<Image>();
       glowImg.sprite = glowSprite;
       glowImg.raycastTarget = false;
       glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+      MirrorHost();
+    }
+    /* The halo MIRRORS the host's frame — anchors, pivot, scale, slot and
+       size — instead of copying it once. A layout group owns its children's
+       frames and rewrites them whenever it pleases, and a HORIZONTAL group
+       varies exactly the axis the old event-driven copy never carried (dev
+       field report: auras stacked in one place, spread on first mouse-over,
+       never sat right). Following every frame is the only honest contract.
+       Change-guarded: a quiet frame costs six compares and writes nothing,
+       so no canvas is dirtied at rest — the Playground slowdown of old was
+       per-frame ALLOCATION, and this allocates nothing. */
+    void MirrorHost() {
+      if (glowRt == null || rt == null) return;
+      if (glowRt.anchorMin != rt.anchorMin) glowRt.anchorMin = rt.anchorMin;
+      if (glowRt.anchorMax != rt.anchorMax) glowRt.anchorMax = rt.anchorMax;
+      if (glowRt.pivot != rt.pivot) glowRt.pivot = rt.pivot;
+      if (glowRt.localScale != rt.localScale) glowRt.localScale = rt.localScale;
+      // the aura sprite is the piece plus a fixed overhang, so the pad is an
+      // ADDITIVE offset — correct whether the piece is fixed or stretched
+      var size = rt.sizeDelta + glowPad * 2f;
+      if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
+      // the piece's own y already carries the lift — the halo just sits
+      // exactly where the piece sits, no lift math of its own
+      if (glowRt.anchoredPosition != rt.anchoredPosition) glowRt.anchoredPosition = rt.anchoredPosition;
+    }
+    void LateUpdate() {
+      if (rt == null) return;
+      /* adopt outside moves the dimension callback never hears about: a
+         layout group can re-flow us WITHOUT a size change (a sibling added
+         to the row shifts everyone sideways and, centered, vertically). A
+         y we didn't write ourselves belongs to the layout — it becomes the
+         new resting base the press sink measures from. */
+      float cur = rt.anchoredPosition.y;
+      if (!settling && (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f)) { baseY = cur; lastWroteY = cur; }
+      MirrorHost();
     }
     /* a layout group repositions and resizes us AFTER OnEnable — adopt its
        slot as the new resting base and re-seat the halo, or the press sink
@@ -2383,7 +2739,6 @@ namespace PatternBreak {
       if (rt == null) return;
       float cur = rt.anchoredPosition.y;
       if (float.IsNaN(lastWroteY) || Mathf.Abs(cur - lastWroteY) > 0.01f) baseY = cur;
-      if (glowRt != null) glowRt.sizeDelta = rt.sizeDelta + glowPad * 2f;
       Push(true);
     }
     float Target(out float lift) {
@@ -2429,9 +2784,131 @@ namespace PatternBreak {
         rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
         lastWroteY = baseY + liftNow;
       }
-      // the halo rides the lift with the piece — x too, in case a layout
-      // group re-flowed the column sideways
-      if (glowRt != null && rt != null) glowRt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+      // the halo follows in MirrorHost — the piece's y carries the lift
+      MirrorHost();
+    }
+  }
+}
+`;
+
+const IDLE_SHINE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Idle motion, half one: the wipe — a soft highlight band sweeps the
+     piece and rests, clipped to the piece's own silhouette by a Mask on
+     the host image (the app's clipped, staggered glint, same recipe).
+     Fully procedural: no sprite assets, one tiny gradient texture shared
+     by every band. Delete the component and the piece is untouched. */
+  [AddComponentMenu("UI Kit Maker/Wipe Shine")]
+  public class WipeShine : MonoBehaviour {
+    [Tooltip("Seconds from one sweep to the next.")] public float period = 9f;
+    [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
+    [Range(0f, 1f)] public float strength = 0.38f;
+    public float tilt = -14f;
+    float phase; RectTransform rt, bandRt; Image band; Mask mask; bool ownMask;
+    static Sprite bandSprite;
+    void OnEnable() {
+      rt = GetComponent<RectTransform>();
+      if (bandSprite == null) {
+        var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false);
+        var px = new Color[64];
+        for (int i = 0; i < 64; i++) { float t = Mathf.Sin(i / 63f * Mathf.PI); px[i] = new Color(1f, 1f, 1f, t * t); }
+        tex.SetPixels(px); tex.Apply(); tex.wrapMode = TextureWrapMode.Clamp; tex.hideFlags = HideFlags.DontSave;
+        bandSprite = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(.5f, .5f));
+        bandSprite.hideFlags = HideFlags.DontSave;
+      }
+      mask = GetComponent<Mask>();
+      if (mask == null && GetComponent<Image>() != null) { mask = gameObject.AddComponent<Mask>(); mask.showMaskGraphic = true; ownMask = true; }
+      var go = new GameObject(name + " Wipe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      band = go.GetComponent<Image>();
+      band.sprite = bandSprite; band.raycastTarget = false; band.color = new Color(1f, 1f, 1f, 0f);
+      bandRt = (RectTransform)go.transform;
+      bandRt.SetParent(rt, false);
+      bandRt.localRotation = Quaternion.Euler(0f, 0f, tilt);
+      // deterministic stagger, so a menu of pieces never flashes in unison
+      phase = -(Mathf.Abs(name.GetHashCode()) % 1000) / 1000f * period;
+    }
+    void OnDisable() {
+      if (band != null) Destroy(band.gameObject);
+      if (ownMask && mask != null) Destroy(mask);
+      band = null; mask = null; ownMask = false;
+    }
+    void Update() {
+      if (band == null || rt == null) return;
+      phase += Time.unscaledDeltaTime;
+      float t = phase % period;
+      if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      float w = rt.rect.width, h = rt.rect.height;
+      bandRt.sizeDelta = new Vector2(w * 0.3f, h * 2.4f);
+      float u = t / sweep;
+      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-w * 0.75f, w * 0.75f, u), 0f);
+      band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
+    }
+  }
+
+  /* Idle motion, half two: the edge shine — a spark that runs the piece's
+     silhouette, shrinking as it travels, flickering along the journey,
+     then resting (owner: "gets smaller and fades out… points of
+     flicker"). The outline arrives from kit-manifest as even arc-length
+     stations in image fractions (y down), so the walk is constant-speed
+     with a plain index lerp. Procedural radial glow, no assets. */
+  [AddComponentMenu("UI Kit Maker/Edge Shine")]
+  public class EdgeShine : MonoBehaviour {
+    [Tooltip("Seconds from one run to the next.")] public float period = 11f;
+    [Tooltip("Seconds one lap takes.")] public float run = 2.6f;
+    public Color color = Color.white;
+    [Tooltip("Outline stations as image fractions (x0,y0,x1,y1..., y down) — from kit-manifest.")]
+    public float[] outline;
+    float phase; int seed; RectTransform rt, sparkRt; Image spark;
+    static Sprite glowSprite;
+    void OnEnable() {
+      rt = GetComponent<RectTransform>();
+      if (glowSprite == null) {
+        const int S = 32;
+        var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+        var px = new Color[S * S];
+        for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) {
+          float d = Vector2.Distance(new Vector2(x, y), new Vector2(S / 2f - .5f, S / 2f - .5f)) / (S / 2f);
+          float a = Mathf.Clamp01(1f - d); a *= a;
+          px[y * S + x] = new Color(1f, 1f, 1f, a);
+        }
+        tex.SetPixels(px); tex.Apply(); tex.wrapMode = TextureWrapMode.Clamp; tex.hideFlags = HideFlags.DontSave;
+        glowSprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+        glowSprite.hideFlags = HideFlags.DontSave;
+      }
+      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      spark = go.GetComponent<Image>();
+      spark.sprite = glowSprite; spark.raycastTarget = false; spark.color = new Color(color.r, color.g, color.b, 0f);
+      sparkRt = (RectTransform)go.transform;
+      sparkRt.SetParent(rt, false);
+      sparkRt.anchorMin = sparkRt.anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
+      seed = Mathf.Abs(name.GetHashCode());
+      phase = -(seed % 1000) / 1000f * period;
+    }
+    void OnDisable() { if (spark != null) Destroy(spark.gameObject); spark = null; }
+    void Update() {
+      if (spark == null || rt == null || outline == null || outline.Length < 8) return;
+      phase += Time.unscaledDeltaTime;
+      float t = phase % period;
+      if (t < 0f || t > run) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
+      float u = t / run;
+      int n = outline.Length / 2;
+      float fi = u * n;
+      int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
+      float ft = fi - (int)fi;
+      float fx = Mathf.Lerp(outline[i0 * 2], outline[i1 * 2], ft);
+      float fy = Mathf.Lerp(outline[i0 * 2 + 1], outline[i1 * 2 + 1], ft);
+      float w = rt.rect.width, h = rt.rect.height;
+      sparkRt.anchoredPosition = new Vector2(fx * w, -fy * h);
+      // the journey: shrink, fade, and flicker at deterministic stations
+      float size = Mathf.Clamp(h * 0.26f, 10f, 44f) * Mathf.Lerp(1f, 0.3f, u);
+      sparkRt.sizeDelta = new Vector2(size, size);
+      uint step = (uint)(u * 24f) * 2654435761u + (uint)seed;
+      float flicker = 0.45f + 0.55f * (((step >> 9) & 1023u) / 1023f);
+      spark.color = new Color(color.r, color.g, color.b, Mathf.Sin(u * Mathf.PI) * flicker);
     }
   }
 }
@@ -3650,6 +4127,16 @@ fresh copy.
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
 
+**Scene pieces vs Prefabs — the working contract.** A board scene is a
+FINISHED composition: every piece on it was crafted at its exact size,
+words and pose on uikitmaker.com, and it arrives here pixel-faithful to
+that intent. Treat scene pieces as final art with live words — retype a
+label, nudge a position, wire an OnClick, and ship. When you need a NEW
+button, a different size, or real customization, **start from
+${root}/Prefabs/** — those are the elastic, resizable versions built for
+exactly that. Reshaping a scene piece by hand fights art that was
+already resolved; the prefab is the piece that wants your hands on it.
+
 ---
 
 ## 03 · States — designed, shipped, pre-wired
@@ -4068,7 +4555,9 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; }
+  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
+  [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -4093,10 +4582,10 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -4166,6 +4655,49 @@ namespace PatternBreak {
     /* One click, whole truth — the debugging loop this kit went through
        pried these facts loose one screenshot at a time: play mode? build
        queued? which export build? fonts in the zip? faces assembled? */
+    /* Hierarchy right-click → UI Kit Maker → piece (dev field report: "a
+       nice feature might be to get the UI Kit prefabs in the right click
+       menu — I found myself looking for them there like other UI
+       elements"). Each entry drops the kit's generated prefab under the
+       clicked object — or the scene's first Canvas — centered and
+       undo-able. With several kits in one project the first manifest
+       found wins, the same rule Kit Status lives by. */
+    static void PlaceKitPrefab(string fam, MenuCommand cmd) {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        EditorUtility.DisplayDialog("UI Kit Maker", "No kit in this project yet — drop the UIKitMaker folder from the export zip into Assets/ first.", "OK");
+        return;
+      }
+      var root = Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/");
+      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+      if (pf == null) {
+        EditorUtility.DisplayDialog("UI Kit Maker", NiceName(fam) + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
+        return;
+      }
+      var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+      Transform parent = null;
+      var ctxGo = cmd != null ? cmd.context as GameObject : null;
+      if (ctxGo != null) parent = ctxGo.transform;
+      if (parent == null) { var cv = UnityEngine.Object.FindFirstObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
+      if (parent != null) go.transform.SetParent(parent, false);
+      var prt = go.transform as RectTransform;
+      if (prt != null) prt.anchoredPosition = Vector2.zero;
+      Undo.RegisterCreatedObjectUndo(go, "Place " + NiceName(fam));
+      Selection.activeGameObject = go;
+    }
+    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("button-primary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("button-secondary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("button-small", c); }
+    [MenuItem("GameObject/UI Kit Maker/Chip", false, 13)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("chip", c); }
+    [MenuItem("GameObject/UI Kit Maker/Tab", false, 14)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("tab", c); }
+    [MenuItem("GameObject/UI Kit Maker/Slider", false, 15)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("slider", c); }
+    [MenuItem("GameObject/UI Kit Maker/Toggle", false, 16)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("toggle", c); }
+    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 17)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("checkbox", c); }
+    [MenuItem("GameObject/UI Kit Maker/Radio", false, 18)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("radio", c); }
+    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 19)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("progress", c); }
+    [MenuItem("GameObject/UI Kit Maker/Panel", false, 20)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("panel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 21)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("input", c); }
+
     [MenuItem("Tools/PatternBreak/Kit Status")]
     public static void KitStatus() {
       var sb = new System.Text.StringBuilder();
@@ -4366,6 +4898,15 @@ namespace PatternBreak {
         AssetDatabase.StopAssetEditing();
       }
 
+      /* self-heal a mis-shipped runtime: PatternBreakIdleShine.cs briefly
+         landed PER-SLUG (outside the PatternBreak.Runtime assembly), where
+         the shared Editor importer could not see its types — CS0246 and a
+         dead import. The shared copy ships correctly now; the stray twin
+         deletes itself so old installs come back to life on the next drop. */
+      if (File.Exists(root + "/Runtime/PatternBreakIdleShine.cs")) {
+        AssetDatabase.DeleteAsset(root + "/Runtime/PatternBreakIdleShine.cs");
+        Debug.Log("UI Kit Maker: removed a stray per-kit PatternBreakIdleShine.cs — the shared Runtime copy owns those types now.");
+      }
       /* ── I3: anything the last receipt knew that this manifest dropped
          stays on disk and gets named — deletion is a human's click. ONE
          exception: the great renaming (dev field report: sixteen identical
@@ -4486,9 +5027,30 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: Playground.unity kept as-is (yours). This update may have changed sizes or added pieces — Tools > PatternBreak > Rebuild Kit Playground Scene builds a fresh one.");
       // the maker's board scenes ride the same after-import beat — each
       // builds once, then it's yours (existing scenes are never touched)
-      EditorApplication.delayCall += () => BuildBoardScenes(root, manifest);
-      if (prev != null && manifest.boards != null && manifest.boards.Length > 0)
-        Debug.Log("UI Kit Maker: existing board scenes are kept (yours) — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and content fixes.");
+      EditorApplication.delayCall += () => {
+        BuildBoardScenes(root, manifest);
+        /* a kit UPDATE leaves existing scenes wearing their FIRST build's
+           sizing and words — new sprites on old decisions (field: the
+           flame button back at its default proportions and label). A
+           Console line was too quiet for that; ASK, once, at the moment
+           it matters. "Keep mine" is a real answer — the scenes are the
+           maker's after generation. */
+        if (prev != null && manifest.boards != null && manifest.boards.Length > 0) {
+          bool anyKept = false;
+          foreach (var bd in manifest.boards)
+            if (File.Exists(root + "/Scenes/" + BoardSlug(bd.name) + ".unity")) { anyKept = true; break; }
+          if (anyKept && EditorUtility.DisplayDialog("UI Kit Maker — board scenes",
+              "This kit update changed the export, but your board scenes keep the sizes and words they were FIRST built with (they are yours after generation).\\n\\nRebuild them from this update now? Hand edits inside those scenes will be redone.",
+              "Rebuild scenes", "Keep mine")) {
+            foreach (var bd in manifest.boards) {
+              try { BuildBoardScene(root, manifest, bd, true); }
+              catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
+            }
+          } else if (anyKept) {
+            Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready.");
+          }
+        }
+      };
 
       // ── the receipt ──
       var receipt = new PBLock();
@@ -4902,7 +5464,7 @@ namespace PatternBreak {
                beyond its native aspect and the kit ships one. */
             PBAsset baseGeo = null;
             foreach (var aG in m.assets) if (aG != null && aG.component == it.component && aG.part == "base" && aG.shell != null) { baseGeo = aG; break; }
-            if (baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
+            if (string.IsNullOrEmpty(it.posed) && baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
               float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
               if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
                 var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
@@ -4924,7 +5486,103 @@ namespace PatternBreak {
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
           if (string.IsNullOrEmpty(it.stamp)) {
-            if (rt.sizeDelta.x > 1f) {
+            if (!string.IsNullOrEmpty(it.posed)) {
+              /* the POSED bake is this copy's exact pixels at its board
+                 proportions — worn 1:1, no slicing, no scale math (owner:
+                 "the back of the flame button looks scrunched up"). The
+                 ROOT keeps the SHELL footprint (labels, state fx and the
+                 specular overlay all speak shell coordinates) and an ART
+                 CHILD wears the sprite at its own crop box, overhang and
+                 all — a shell-tight root image cut the extrusion's reach
+                 (owner: "bottom extrusion is cut off"). Sprite Swap rides
+                 the art child with POSED state skins (the sliced skins
+                 would not match the pose); State FX keeps the glow. */
+              var psp = S(root + "/" + it.posed);
+              var pimg = inst.GetComponent<Image>();
+              if (psp != null && pimg != null) {
+                pimg.sprite = null;
+                pimg.color = new Color(1f, 1f, 1f, 0f); // invisible, still the button's raycast body
+                var pbtn = inst.GetComponent<Button>();
+                if (pbtn != null) pbtn.transition = Selectable.Transition.None;
+                rt.sizeDelta = new Vector2(it.w, it.h);
+                rt.localScale = Vector3.one;
+                var artGo = new GameObject("Posed art", typeof(RectTransform), typeof(Image));
+                var artRt = artGo.GetComponent<RectTransform>();
+                artRt.SetParent(rt, false);
+                artRt.SetSiblingIndex(0); // under the label stack and overlays
+                artRt.anchorMin = new Vector2(0.5f, 0.5f);
+                artRt.anchorMax = new Vector2(0.5f, 0.5f);
+                artRt.pivot = new Vector2(0.5f, 0.5f);
+                artRt.sizeDelta = new Vector2(it.posedW > 1f ? it.posedW : it.w, it.posedH > 1f ? it.posedH : it.h);
+                artRt.anchoredPosition = new Vector2(it.posedDx, -it.posedDy); // board y runs down
+                var art = artGo.GetComponent<Image>();
+                art.sprite = psp;
+                art.type = Image.Type.Simple;
+                art.preserveAspect = false;
+                art.raycastTarget = false;
+                /* the copy's designed states, posed at the SAME crop —
+                   Sprite Swap on the ART child, so press sinks the body
+                   exactly like the app (owner: "only the text play
+                   animates down, the button stays static") */
+                var pspH = string.IsNullOrEmpty(it.posedHover) ? null : S(root + "/" + it.posedHover);
+                var pspP2 = string.IsNullOrEmpty(it.posedPressed) ? null : S(root + "/" + it.posedPressed);
+                var pspD = string.IsNullOrEmpty(it.posedDisabled) ? null : S(root + "/" + it.posedDisabled);
+                if (pbtn != null && (pspH != null || pspP2 != null || pspD != null)) {
+                  pbtn.transition = Selectable.Transition.SpriteSwap;
+                  pbtn.targetGraphic = art;
+                  var ssP = new SpriteState();
+                  ssP.highlightedSprite = pspH;
+                  ssP.selectedSprite = null; // resting face after a click, like the prefabs
+                  ssP.pressedSprite = pspP2;
+                  ssP.disabledSprite = pspD;
+                  pbtn.spriteState = ssP;
+                }
+                /* the label scales SHELL-to-shell like everything else here.
+                   HeroLabel's authoredHeight is the prefab RECT height — the
+                   sprite box, crop padding and extrusion included — while
+                   this root wears the SHELL box, so the type undersized by
+                   that ratio (owner: "type is too small"). Re-anchor it to
+                   the shell the scales actually speak. */
+                var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
+                if (hl2 != null) {
+                  PBAsset baseA3 = null;
+                  foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
+                  float ps3 = m.pngScale > 0 ? m.pngScale : 2;
+                  if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
+                  /* re-seat the label root for the SHELL-box root: its
+                     prefab anchors are sprite-rect fractions and mis-sit
+                     here. Full stretch + this copy's OWN label offset
+                     (board px, from its render) — the words land exactly
+                     where the app drew them. NO font change here: the
+                     authoredHeight override above already supplies the
+                     board scale, and a size here would double-scale. */
+                  var hlRt2 = hl2.GetComponent<RectTransform>();
+                  if (hlRt2 != null) {
+                    hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
+                    hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
+                    hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+                  }
+                }
+                /* the posed pixels carry the kit's own specular streak — the
+                   prefab's overlay child would draw a second one on top */
+                var spT = inst.transform.Find("Specular");
+                if (spT != null) spT.gameObject.SetActive(false);
+                /* WipeShine masks its band with OUR image — a null-sprite,
+                   alpha-0 root makes that stencil pass NOTHING and the whole
+                   child stack vanishes the moment play starts (owner: "when
+                   I go to play the scene the button disappears"). The sweep
+                   moves to the art child, whose pixels give the mask
+                   something real to hold on to. */
+                var ws0 = inst.GetComponent<WipeShine>();
+                if (ws0 != null) {
+                  ws0.enabled = false;
+                  var ws1 = artGo.AddComponent<WipeShine>();
+                  ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
+                }
+              } else if (psp == null) {
+                Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
+              }
+            } else if (rt.sizeDelta.x > 1f) {
               /* SHELL-TO-SHELL sizing: the board records the shell's box
                  and the manifest records where that shell sits inside the
                  sprite. Scaling by the sprite rect compared a glow-padded
@@ -5010,6 +5668,11 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
             var hlOv = inst.GetComponentInChildren<HeroLabel>(true);
             float trueSize = LabelSizeScene(m, it.component);
+            /* the parsed labelFs is the app's exact rendered size (it also
+               captures fit-downs LabelSizeScene can't see, e.g. header's
+               fixed-width squeeze) — prefer it when the manifest ships it */
+            var rowOv = LabelRow(m, it.component);
+            if (rowOv != null && rowOv.labelFs > 1f) trueSize = rowOv.labelFs;
             if (hlOv != null) {
               // app-true size first, then SetText re-lays the stack
               if (trueSize > 0f) hlOv.fontSize = trueSize;
@@ -5034,6 +5697,12 @@ namespace PatternBreak {
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
 #endif
+            /* a copy whose typed words say CLAIM celebrates its click —
+               the same ignition + themed throw the app plays (owner: the
+               claim animation must survive the trip into Unity). The
+               prefab may already carry one (gift box, claim button). */
+            if (it.label.ToUpperInvariant().Contains("CLAIM") && inst.GetComponent<ClaimBurst>() == null)
+              AddClaimBurst(inst, root, it.component, m);
           }
           if (string.IsNullOrEmpty(it.stamp)) {
             /* LIVE CONTENT from the board's pose (owner: components, not
@@ -5884,14 +6553,20 @@ namespace PatternBreak {
     }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
+      /* the APP-TRUE size beats the calibrated shrink when the manifest
+         ships it — with labeled-geometry bakes the prefab rect IS the true
+         worded footprint, so the exact size fits by construction */
+      var lrow = LabelRow(m, family);
+      if (lrow != null && lrow.labelFs > 1f) ls = lrow.labelFs;
       var go = new GameObject("Label", typeof(RectTransform));
       go.transform.SetParent(parent.transform, false);
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-      // the word centers on the FACE, not the sprite rect (extrusion pulls
-      // the rect's center below the shell — labels read low without this)
-      ShellStretch(go, parent, family, m);
+      // the word centers on the CONTENT zone, not the sprite rect (extrusion
+      // pulls the rect's center below the shell, and asymmetric silhouettes
+      // pull the content off the shell center)
+      ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
       if (layersFa != null && strokeInk != null) {
@@ -6074,13 +6749,15 @@ namespace PatternBreak {
       rt.offsetMax = new Vector2(-ph.left, rt.offsetMax.y);
     }
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
+      var lrowA = LabelRow(m, family);
+      float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
 #if UNITY_2023_2_OR_NEWER
       var face = EnsureTmpFace(root, m, kitFont);
       if (face != null) {
-        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, LabelSize(m, family));
-        // center on the FACE, not the sprite rect (see AddBakedLabel)
+        AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, lsA);
+        // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
-        if (lr0 != null) ShellStretch(lr0, parent, family, m);
+        if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
         return;
       }
 #endif
@@ -6089,11 +6766,11 @@ namespace PatternBreak {
       var rt = go.GetComponent<RectTransform>();
       rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
       rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-      ShellStretch(go, parent, family, m);
+      ShellSeatLabel(go, parent, family, m);
       var t = go.GetComponent<Text>();
       t.text = text;
       t.alignment = TextAnchor.MiddleCenter;
-      t.fontSize = 40;
+      t.fontSize = Mathf.RoundToInt(lsA);
       t.color = Color.white;
       t.raycastTarget = false;
       // the kit's own face ships in fonts/ (license beside it) and wires
@@ -6116,6 +6793,24 @@ namespace PatternBreak {
       }
       return sb.Length > 0 ? sb.ToString() : "Piece";
     }
+    /* the claim celebration, attachable anywhere: the piece's own aura
+       sprite + the kit's effect inks — the exact recipe the importer has
+       always wired to the gift box, shared so prefabs and board copies
+       whose visible words say CLAIM celebrate identically. */
+    static void AddClaimBurst(GameObject host, string root, string family, PBManifest m) {
+      var cb = host.AddComponent<ClaimBurst>();
+      var cbGlow = S(root + "/assets/" + family + "/" + family + "-glow.png");
+      cb.spark = cbGlow != null ? cbGlow : S(root + "/assets/fx/fx-glow.png");
+      var inks = new List<Color>();
+      Color inkC;
+      if (m != null && m.palette != null) {
+        if (!string.IsNullOrEmpty(m.palette.bevel) && ColorUtility.TryParseHtmlString(m.palette.bevel, out inkC)) inks.Add(inkC);
+        if (!string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out inkC)) inks.Add(inkC);
+        if (!string.IsNullOrEmpty(m.palette.highlight) && ColorUtility.TryParseHtmlString(m.palette.highlight, out inkC)) inks.Add(inkC);
+      }
+      if (inks.Count == 0) inks.Add(Color.white);
+      cb.inks = inks.ToArray();
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -6125,7 +6820,15 @@ namespace PatternBreak {
       img.sprite = baseSp;
       bool sliced = baseAsset.nineSlice != null && (baseAsset.nineSlice.left + baseAsset.nineSlice.right + baseAsset.nineSlice.top + baseAsset.nineSlice.bottom) > 0;
       img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
-      if (pngScale > 0)
+      if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
+        /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
+           natural rect squishes a fluid silhouette under overflowing text.
+           Grow the rect so the SHELL matches the labeled footprint the app
+           shows — the sliced middle carries the width, caps stay true. */
+        float rw = baseSp.rect.width * baseAsset.prefW / baseAsset.shell.w;
+        float rh = baseAsset.prefH > 4f ? baseSp.rect.height * baseAsset.prefH / baseAsset.shell.h : (pngScale > 0 ? baseSp.rect.height / pngScale : baseSp.rect.height);
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(rw, rh);
+      } else if (pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
       var famDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
       var hover = State(famDir, "hover");
@@ -6149,23 +6852,36 @@ namespace PatternBreak {
       }
       // interactive or not, the piece's raycast stops at its drawn shell
       ShellRaycastPad(go, baseAsset.component, m);
+      /* Idle motion (owner spec): the kit's own resting-state animations,
+         wired only when the manifest says the kit turned them on. Both are
+         removable components — delete them and the piece is exactly what
+         it was. Edge shine skips sliced pieces: a stretched nine-slice no
+         longer matches the authored outline. */
+      int shineW = m != null && m.idle != null ? m.idle.wipe : 0;
+      int shineE = m != null && m.idle != null ? m.idle.edge : 0;
+      // per-piece forks (owner: shine on/off per component) — a fork's -1
+      // follows the kit toggle; 0/1 pin this family off/on regardless
+      if (m != null && m.idleForks != null)
+        foreach (var fk in m.idleForks) if (fk.family == baseAsset.component) { if (fk.wipe >= 0) shineW = fk.wipe; if (fk.edge >= 0) shineE = fk.edge; }
+      if (shineW == 1 && go.GetComponent<WipeShine>() == null) {
+        var ws = go.AddComponent<WipeShine>();
+        if (m.idle != null && m.idle.freq > 0.5f) ws.period = m.idle.freq;
+      }
+      if (shineE == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
+        var es = go.AddComponent<EdgeShine>();
+        es.outline = baseAsset.outline;
+        // Frequency travels; Blend stays app-side for now — UGUI needs
+        // a dedicated shader for a true screen mix
+        if (m.idle != null && m.idle.freq > 0.5f) es.period = m.idle.freq;
+      }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
-         have the claim explosion to white") */
-      if (baseAsset.component == "gifticon") {
-        var cb = go.AddComponent<ClaimBurst>();
-        var cbGlow = S(root + "/assets/gifticon/gifticon-glow.png");
-        cb.spark = cbGlow != null ? cbGlow : S(root + "/assets/fx/fx-glow.png");
-        var inks = new List<Color>();
-        Color inkC;
-        if (m != null && m.palette != null) {
-          if (!string.IsNullOrEmpty(m.palette.bevel) && ColorUtility.TryParseHtmlString(m.palette.bevel, out inkC)) inks.Add(inkC);
-          if (!string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out inkC)) inks.Add(inkC);
-          if (!string.IsNullOrEmpty(m.palette.highlight) && ColorUtility.TryParseHtmlString(m.palette.highlight, out inkC)) inks.Add(inkC);
-        }
-        if (inks.Count == 0) inks.Add(Color.white);
-        cb.inks = inks.ToArray();
-      }
+         have the claim explosion to white"). Any family whose live words
+         say CLAIM earns the same celebration, and the Claim button piece
+         always does — matching the app's rule exactly. */
+      if (baseAsset.component == "gifticon" || baseAsset.component == "claimbtn"
+          || (label != null && label.ToUpperInvariant().Contains("CLAIM")))
+        AddClaimBurst(go, root, baseAsset.component, m);
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
          "I didn't realize the text would be burned into the image"). One
@@ -6274,6 +6990,35 @@ namespace PatternBreak {
       return byBase;
     }
     /* stretch a child over the shell box (labels, placeholders) */
+    /* the family's BASE row — the one carrying the label metrics (labelFs
+       et al live only there; variant rows a piece might wear do not) */
+    static PBAsset LabelRow(PBManifest m, string fam) {
+      if (m == null || m.assets == null) return null;
+      foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") return a;
+      return null;
+    }
+    /* the label's anchor-shift off the shell box, in sprite-rect fractions —
+       shared by the seat below and the redress probe, so they can never
+       disagree and re-dress forever */
+    static Vector2 LabelSeatShift(PBAsset row, Sprite sp, PBManifest m) {
+      if (row == null || row.labelFs <= 1f || sp == null || sp.rect.width < 2f || sp.rect.height < 2f) return Vector2.zero;
+      float ps = m != null && m.pngScale > 0 ? m.pngScale : 2;
+      return new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+    }
+    /* ShellStretch, then slide the seat to the label's TRUE center — the
+       app centers words in the CONTENT zone, not the shell (the flame's
+       tail owns the left; owner: "we are always cheating right a bit...
+       it's important to get this right"). Anchors, not anchoredPosition,
+       so the seat scales with any resize and LabelStateInk's base stays
+       untouched. */
+    static void ShellSeatLabel(GameObject child, GameObject host, string fam, PBManifest m) {
+      ShellStretch(child, host, fam, m);
+      var img = host.GetComponent<Image>();
+      var shift = LabelSeatShift(LabelRow(m, fam), img != null ? img.sprite : null, m);
+      if (shift == Vector2.zero) return;
+      var rt = child.GetComponent<RectTransform>();
+      rt.anchorMin += shift; rt.anchorMax += shift;
+    }
     static bool ShellStretch(GameObject child, GameObject host, string fam, PBManifest m) {
       var row = ShellRowOf(host, fam, m);
       var img = host.GetComponent<Image>();
@@ -7278,12 +8023,17 @@ namespace PatternBreak {
             // STACKS are judged by the GROUP contract (HeroLabel owns the
             // size; auto-fit is forced OFF per layer — the old per-layer
             // demand would rebuild every healthy stack on every import)
+            /* expected size mirrors the dresser exactly: labelFs (app-true)
+               when the manifest ships it, LabelSize otherwise — probes and
+               dresser disagreeing is an infinite re-dress every import */
+            var probeRow = LabelRow(m, famName);
+            float wantLs = probeRow != null && probeRow.labelFs > 1f ? probeRow.labelFs : LabelSize(m, famName);
             var hlSize = probeRoot.GetComponent<HeroLabel>();
             if (!wantDress && hlSize != null) {
-              if (!Mathf.Approximately(hlSize.fontSize, LabelSize(m, famName))) wantDress = true;
+              if (!Mathf.Approximately(hlSize.fontSize, wantLs)) wantDress = true;
             } else if (!wantDress) {
               var sizeTmp = probeRoot.GetComponentInChildren<TextMeshProUGUI>(true);
-              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, LabelSize(m, famName))))
+              if (sizeTmp != null && (!sizeTmp.enableAutoSizing || !Mathf.Approximately(sizeTmp.fontSizeMax, wantLs)))
                 wantDress = true;
             }
             /* dead or stale state wiring re-converges: a script-identity
@@ -7307,8 +8057,11 @@ namespace PatternBreak {
               var prtSA = probeRoot.GetComponent<RectTransform>();
               if (rowSA != null && prtSA != null && rootImg.sprite != null && rootImg.sprite.rect.width > 2f) {
                 float rwSA = rootImg.sprite.rect.width, rhSA = rootImg.sprite.rect.height;
-                var wantMinSA = new Vector2(rowSA.shell.x / rwSA, 1f - (rowSA.shell.y + rowSA.shell.h) / rhSA);
-                var wantMaxSA = new Vector2((rowSA.shell.x + rowSA.shell.w) / rwSA, 1f - rowSA.shell.y / rhSA);
+                // the label seat rides the shell box PLUS the content shift —
+                // the probe must expect exactly what ShellSeatLabel writes
+                var shiftSA = LabelSeatShift(probeRow, rootImg.sprite, m);
+                var wantMinSA = new Vector2(rowSA.shell.x / rwSA, 1f - (rowSA.shell.y + rowSA.shell.h) / rhSA) + shiftSA;
+                var wantMaxSA = new Vector2((rowSA.shell.x + rowSA.shell.w) / rwSA, 1f - rowSA.shell.y / rhSA) + shiftSA;
                 if ((prtSA.anchorMin - wantMinSA).sqrMagnitude > 0.0004f || (prtSA.anchorMax - wantMaxSA).sqrMagnitude > 0.0004f) wantDress = true;
               }
             }

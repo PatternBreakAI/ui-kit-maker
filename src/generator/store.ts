@@ -5,7 +5,7 @@ import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
-import { renderBevel, renderTypeSpecimen } from "./bevel";
+import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
@@ -141,6 +141,7 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   } as GenConfig;
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
+  if (!cfg.idle) cfg.idle = { wipe: false, edge: false };
   /* A fork is a COMPLETE design snapshot — the engine reads type/shape/
      bevel off every one without asking. One saved sparse (an ancient
      format, an interrupted write) completes against the master here, so
@@ -408,6 +409,7 @@ interface GenStore {
   /** The curated, portable kit snapshot — the single payload contract behind
       both share links and named cloud projects (v76). */
   kitPayload: () => Record<string, unknown>;
+  kitPayloadWithBoards: () => Promise<Record<string, unknown>>;
   /** Unity bridge identity (spec I1, revised): the slug follows the kit's
       CURRENT name at export time. Same name → same slug, so re-exports keep
       overwriting in place; a different name is a different kit (or a
@@ -748,7 +750,7 @@ export function warpStampRaster(src: CanvasImageSource, w: number, h: number, wa
 /** A stamp's artwork — the kit's full lettering treatment, shell off.
  *  Size scales the TYPE, so stamps stay vector-crisp at logo scale. */
 export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string {
-  return renderTypeSpecimen(cfg, st.text || "GAME TITLE", { mutate: (c) => {
+  const out = renderTypeSpecimen(cfg, st.text || "GAME TITLE", { textClip: !st.plain, mutate: (c) => {
     c.type.size = Math.max(8, c.type.size * st.size / 100);
     if (st.plain) {
       /* flatten the whole splash recipe to "good font usage": same face,
@@ -766,6 +768,12 @@ export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): s
       t.highlight = undefined;
     }
   } });
+  /* the kit's idle wipe rides the stamp masked to the LETTERFORMS — the
+     specimen face is invisible, and sweeping its rectangle showed hard
+     edges (owner: "it is showing its edges"). Plain stamps stay flat by
+     contract; rasters never see the band (it parks off-canvas until the
+     page's CSS animates it). */
+  return !st.plain && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, blend: cfg.idle.blend, clip: "text" }) : out;
 }
 
 /** One filter string for a stamp's adjust dials — the stage, the board PNG
@@ -942,8 +950,14 @@ export async function exportableBoards(bs: BoardDef[]): Promise<Record<string, u
   }));
 }
 
+/* imports race: two fast project opens both fire importBoards, and the
+   LAST resolver used to win regardless of which project the user is now
+   looking at (review catch: "B's kit with A's boards"). Every call takes
+   a ticket; only the newest may write. */
+let importTicket = 0;
 export async function importBoards(raw: unknown): Promise<boolean> {
   if (!Array.isArray(raw) || !raw.length) return false;
+  const ticket = ++importTicket;
   const stamp = Date.now().toString(36);
   const boards: BoardDef[] = [];
   for (const [bi, rb] of (raw as unknown[]).entries()) {
@@ -958,13 +972,19 @@ export async function importBoards(raw: unknown): Promise<boolean> {
       : [];
     // strings that end up in CSS url() get the same strictness as
     // loadKitPayload's travelling stage: known-safe shapes only
+    let vaulted = false;
     if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
       try {
         const blob = await (await fetch(b.bgData)).blob();
         const key = await putBgOriginal(blob, "imported backdrop");
-        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); }
+        if (key) { b.bgAssetId = key; b.bgImage = URL.createObjectURL(blob); vaulted = true; }
       } catch { /* backdrop stays absent */ }
-    } else {
+    }
+    /* every non-vaulted path sanitizes the SAME way — a failed re-vault
+       used to keep whatever bgImage/bgAssetId the doc carried (review
+       catch: doc strings end up in CSS url(), and a foreign bgAssetId
+       can alias an unrelated local vault entry) */
+    if (!vaulted) {
       b.bgAssetId = null;
       if (typeof b.bgImage === "string" && !/^(\/|https:\/\/)/.test(b.bgImage)) delete (b as Partial<BoardDef>).bgImage;
     }
@@ -973,6 +993,7 @@ export async function importBoards(raw: unknown): Promise<boolean> {
     boards.push(b);
   }
   if (!boards.length) return false;
+  if (ticket !== importTicket) return false; // a newer open superseded this one
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
   return true;
@@ -1395,7 +1416,9 @@ export const useGen = create<GenStore>((set, get) => ({
     const n = act?.items.length ?? 0;
     const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId, x: 80 + (n % 3) * 340, y: 80 + Math.floor(n / 3) * 220 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
-    set({ phase: "board", boardSel: item.id });
+    // arriving AT the board fits the view; adding while already standing
+    // on it must not stomp the zoom the user chose (review catch)
+    set({ phase: "board", boardSel: item.id, ...(get().phase !== "board" ? { zoom: 1 } : {}) });
   },
   addBoardItems: (items) => {
     // starter templates: a full set of pieces, pre-sized and pre-placed
@@ -1566,6 +1589,25 @@ export const useGen = create<GenStore>((set, get) => ({
       bgImage: st.bgImage && st.bgImage.startsWith("data:") ? st.bgImage : null,
     };
   },
+  /* Save kit carries the BOARDS too (owner: "when i save a kit, I expect
+     to save the boards with it when i reopen it") — in the same
+     travelling form the settings export uses: uploaded backdrops embedded
+     from the vault as data URLs, session blob: urls stripped. The fat
+     pixels live only in this one-shot payload — the local document keeps
+     vault keys, so undo history and the workspace sync stay lean. */
+  kitPayloadWithBoards: async () => {
+    const st = get();
+    let boards = await exportableBoards(st.boards);
+    /* the project doc is one jsonb row — several multi-MB backdrops can
+       push it past what the API accepts (review catch: no size guard
+       anywhere). Over budget, the LAYOUTS still save; the images stay in
+       this browser's vault. */
+    if (JSON.stringify(boards).length > 8_000_000) {
+      console.warn("UI Kit Maker: board backdrops exceed the project-document budget — layouts saved, backdrop images stay in this browser.");
+      boards = boards.map((b) => { const o = { ...b }; delete o.bgData; return o; });
+    }
+    return { ...st.kitPayload(), boards };
+  },
   loadKitPayload: (p, opts) => {
     const st = get();
     const viewer = opts?.viewer ?? true;
@@ -1629,6 +1671,23 @@ export const useGen = create<GenStore>((set, get) => ({
     }
     // a settings import stays in the editor; project opens land on the kit
     set({ ...next, viewer, phase: opts?.phase ?? "kit", openProjectId: viewer ? null : (opts?.projectId ?? null) });
+    /* boards ride the project document (owner: "when i save a kit, I
+       expect to save the boards with it when i reopen it") — an OWNED
+       open replaces the workspace boards with the project's, re-vaulting
+       any embedded backdrops. A PROJECT open without boards resets the
+       stage to one fresh board — leaving the previous project's boards
+       standing let a later Update write them into the WRONG project's
+       doc (review catch: cross-project contamination). Settings imports
+       (no projectId) only replace when boards are present, and viewer /
+       share links never touch the workspace boards at all. */
+    const pBoards = (p as { boards?: unknown[] }).boards;
+    if (!viewer && Array.isArray(pBoards) && pBoards.length) void importBoards(pBoards);
+    else if (!viewer && opts?.projectId) {
+      importTicket++; // supersede any in-flight board import
+      const fresh: BoardDef = { id: "ab" + Date.now().toString(36), name: "Board 1", aspect: "169", items: [] };
+      set({ boards: [fresh], activeBoard: fresh.id, boardSel: null, boardPast: [], boardFuture: [] });
+      saveBoards(get);
+    }
   },
   openProjectId: null,
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
@@ -1685,7 +1744,7 @@ export const useGen = create<GenStore>((set, get) => ({
          restyle it */
       const clone2 = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
       const merged = clone2(applyKitDesign(get().cfg, get().kitDesigns[id]));
-      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon } };
+      const kitDesigns = { ...get().kitDesigns, [id]: { ...pickDesign(merged), stateDesigns: merged.stateDesigns ?? {}, states: merged.states, icon: merged.icon, ...(get().kitDesigns[id]?.idle ? { idle: get().kitDesigns[id]!.idle } : {}), ...(get().kitDesigns[id]?.contentMargin !== undefined ? { contentMargin: get().kitDesigns[id]!.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
       locks[id] = true;
@@ -2044,7 +2103,7 @@ export const useGen = create<GenStore>((set, get) => ({
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -2104,6 +2163,12 @@ export const useGen = create<GenStore>((set, get) => ({
     const focus0 = get().focus;
     const lockedId = focus0 && get().kitDesigns[focus0] ? focus0 : null;
     const work = lockedId ? clone2(applyKitDesign(cfg, get().kitDesigns[lockedId])) : cfg;
+    /* idle motion is SHARED state: the Panel's kit toggles must reach the
+       master even while a piece is focused, and a piece's own idle fork
+       (edited via its chips, never via update) must not leak back into the
+       master through the merged working view — so the view carries the
+       master's idle, always */
+    if (lockedId) work.idle = cfg.idle ? { ...cfg.idle } : cfg.idle;
     const sel = get().selectedState;
     const allStates = get().allStates;
     /* pre-edit snapshot of the surface being edited — the all-states pass
@@ -2204,6 +2269,7 @@ export const useGen = create<GenStore>((set, get) => ({
       cfg.content = work.content;
       cfg.visible = work.visible; cfg.canvas = work.canvas; cfg.presetId = work.presetId;
       cfg.knob = work.knob; cfg.barFx = work.barFx; cfg.rarity = work.rarity;
+      cfg.idle = work.idle;
       /* state ADJUSTMENTS isolate to the piece too — "edits save into this
          piece" must hold for the Global sliders. Pin on first touch (or keep
          an existing pin); an untouched piece keeps following the master. */
@@ -2214,7 +2280,7 @@ export const useGen = create<GenStore>((set, get) => ({
          writes through and keeps following the master. */
       const iconPin = !!kdPrev?.icon || JSON.stringify(work.icon) !== JSON.stringify(cfg.icon);
       if (!iconPin) cfg.icon = work.icon;
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}) };
+      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}), ...(kdPrev?.contentMargin !== undefined ? { contentMargin: kdPrev.contentMargin } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });
@@ -2423,7 +2489,11 @@ export const useGen = create<GenStore>((set, get) => ({
      Play slims the whole control tray, which reads as the app breaking
      (owner: "the left tray isn't expanded... when I roundtrip"). Play is
      a per-visit gesture, never a stowaway. */
-  setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" ? { zoom: 1 } : {}) }),
+  /* the Board (like the kit page) always arrives fitted — inheriting the
+     editor's zoom made the stage land half-off-screen (owner: "everytime
+     we click to the board it should be sized to fit"). fitOf() multiplies
+     the shared zoom, so 1 IS the fitted view. */
+  setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" || p === "board" ? { zoom: 1 } : {}) }),
   setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
   setKitSizeAll: (s) => {
     pushHistory(get());

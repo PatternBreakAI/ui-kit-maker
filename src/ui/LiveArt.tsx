@@ -82,9 +82,18 @@ export const stripSmil = (svg: string): string =>
 export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: number, clientY: number, slop = 14): boolean {
   if (!svgEl) return true;
   const stamp = svgEl.getAttribute("data-shell")?.split(" ").map(Number);
+  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite)) return true;
+  return shellRectHit(svgEl, stamp, clientX, clientY, slop);
+}
+
+/** The mapping half of shellHit, for an EXPLICIT shell rect (viewBox
+ *  units) — so a caller can test a REMEMBERED shell against the current
+ *  render instead of the one stamped on it. */
+export function shellRectHit(svgEl: SVGSVGElement | null | undefined, stamp: number[], clientX: number, clientY: number, slop = 14): boolean {
+  if (!svgEl) return true;
   const vb = svgEl.viewBox?.baseVal;
   const r = svgEl.getBoundingClientRect();
-  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite) || !vb?.width || !r.width) return true;
+  if (!vb?.width || !r.width) return true;
   const k = r.width / vb.width;
   const x0 = r.left + (stamp[0] - vb.x) * k - slop;
   const y0 = r.top + (stamp[1] - vb.y) * k - slop;
@@ -177,13 +186,18 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // switches light up when flipped, they never grow — hover/press stays off
     // checkboxes, toggles and radios so the value change IS the feedback
     : id === "checkbox" || id === "toggle" || id === "radio" || id === "orb" ? (kit?.baseState ?? "default")
+    /* while alive, the open flag is the SOLE authority for a badge/dropdown
+       resting pose — falling back to an authored baseState of "pressed"
+       after a click-off left rest=star while rollover drew the count face
+       (the owner's "ghost rollover": hover swapped faces, not styling) */
+    : (id === "dropdown" || id === "badge") && playing ? (live === "default" ? "default" : live)
     : playing ? (live === "default" ? (kit?.baseState ?? "default") : live)
     : (kit?.baseState ?? "default");
 
   // hosts pass fresh kit literals every render — key on the fields, not the
   // object, so the (string-building) renderer only runs when something changed
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
     : "";
   const svg = useMemo(
     () => {
@@ -191,7 +205,10 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
-      return shine ? addShine(out) : out;
+      // the document's own idle wipe joins the host-driven shine — same
+      // clipped, staggered glint either way; the edge line already rides
+      // inside the render (the renderer draws it beside the face layers)
+      return shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? { dur: cfg.idle?.freq, blend: cfg.idle?.blend } : undefined) : out;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -448,8 +465,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
   const activate = (e: React.PointerEvent) => {
     // the gift box IS a claim — opening it earns the ignition (owner:
-    // "supposed to have the claim explosion to white")
-    if ((kit?.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon") fireBurst();
+    // "supposed to have the claim explosion to white"). The check reads the
+    // EFFECTIVE label — per-instance word, else the kit-wide one the renderer
+    // actually draws — so a flame button whose visible words say CLAIM
+    // celebrates however the label was set; the Claim button piece always does.
+    if ((kit?.label ?? cfg.content.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon" || id === "claimbtn") fireBurst();
     // the combo numeral EXPLODES on click (owner ask): the claim burst's
     // particles plus a punchy scale pop on the art itself
     if (id === "combo") fireBurst();
@@ -492,8 +512,26 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       tweenVal(settled + dir / 3, 420, "inout");
     }
   };
-  // the hit test the handlers share: the shell, not the glow-padded canvas
-  const hit = (e: { clientX: number; clientY: number }) => shellHit(ref.current?.querySelector("svg"), e.clientX, e.clientY);
+  /* The hit test the handlers share: the shell, not the glow-padded
+     canvas — and a STABLE shell. Each state renders its own svg, and the
+     hover state's lift moves the drawn shell up: hit-testing only the
+     current stamp let the hitbox slide out from under a cursor parked
+     near an edge, which un-hovered, dropped the art back, re-hovered —
+     jitter (dev field report: "the hitbox shifts when hovering, moving
+     out from under the mouse"). The default state's shell is remembered
+     and unioned in, so the region that granted a state never stops
+     granting it — the browser twin of the Unity raycast pads. */
+  const defShell = useRef<number[] | null>(null);
+  useEffect(() => {
+    if (live !== "default") return;
+    const stamp = ref.current?.querySelector("svg")?.getAttribute("data-shell")?.split(" ").map(Number);
+    if (stamp?.length === 4 && stamp.every(Number.isFinite)) defShell.current = stamp;
+  });
+  const hit = (e: { clientX: number; clientY: number }) => {
+    const svg = ref.current?.querySelector("svg");
+    return shellHit(svg, e.clientX, e.clientY) ||
+      (live !== "default" && !!defShell.current && shellRectHit(svg, defShell.current, e.clientX, e.clientY));
+  };
   const playHandlers = inert ? {} : {
     onPointerEnter: (e: React.PointerEvent) => { if (hit(e)) setLive(e.buttons === 1 ? "pressed" : "hover"); },
     onPointerLeave: (e: React.PointerEvent) => { if (e.buttons !== 1) { setLive("default"); sliding.current = false; } pressedHere.current = false; },

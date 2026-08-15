@@ -3025,6 +3025,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  so adjacent letters' bands align into streaks crossing the word
    *  (owner reference: the MIAMI glint field). */
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Emit the letterform clipPath even with glints off — type specimens
+   *  use it to mask the idle wipe to the glyph ink (their shell is
+   *  invisible, so the face clip would sweep a ghost rectangle). */
+  textClip?: boolean;
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -3704,6 +3708,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const GL2 = T2.glints;
   const glintsOn = !!GL2?.on && showText && !disabled;
   let glintsDefs = "", glintsLayer = "";
+  /* the letterform clip serves two riders: the glint slabs below, and the
+     type specimens' letterform-masked wipe (addShine clip:"text") — their
+     shell is invisible, so the face clip would sweep a ghost rectangle */
+  if ((glintsOn || (opts.textClip && showText)) && label) {
+    const gy0 = cy + 1 + textOy * K;
+    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy0.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+  }
   if (glintsOn) {
     const gOp = clamp((GL2!.opacity ?? 55) / 100, 0, 1);
     const gy = cy + 1 + textOy * K;
@@ -3718,7 +3729,6 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const rot = Math.atan2(ly, lx) * 180 / Math.PI + 90;
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
-    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
     /* style picks the clipped body + which stars ride along; the bake knobs
        (glintBands/glintStars, alphabet-face export) keep overriding — they
        normalize per-glyph treatment and always speak slab. */
@@ -3960,6 +3970,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
+    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg)}/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4043,6 +4054,9 @@ export interface SpecimenOpts {
   glintBand?: number;
   glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Emit the letterform clipPath even with glints off — stamps mask the
+   *  idle wipe to the glyph ink with it (addShine clip:"text"). */
+  textClip?: boolean;
   /** Extra canvas on every side, in viewBox units. Atlas bakes pass the
    *  type effects' full blur reach here: overflow:visible lets glyphs
    *  paint past the viewBox in a BROWSER, but a raster clips at the
@@ -4067,12 +4081,16 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   c.candy.extrusion.depth = 0;
   c.stateDesigns = {};
   for (const s of Object.values(c.states)) { s.glow = 0; s.lift = 0; s.opacity = 100; }
+  /* the shell is INVISIBLE here — an edge shine would trace the outline of
+     a rectangle nobody can see (owner, on a board stamp: "it is showing its
+     edges"). The wipe stays available, letterform-masked via textClip. */
+  if (c.idle) c.idle = { ...c.idle, edge: false };
   if (opts.keepCase) c.type.case = "none";
   if (opts.highlight !== undefined) c.type.highlight = opts.highlight;
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands, textClip: opts.textClip });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
@@ -4255,19 +4273,42 @@ function inject(track: string, extra: string): string {
   return track.replace("</g>\n</svg>", extra + "</g>\n</svg>");
 }
 
+/* Idle motion: edge shine — the original traveling line (owner: back to
+   the first cut, no glow). The line itself is drawn INLINE in the shell
+   markup (the idle-edge path beside the gloss/specular layers), in the
+   SAME coordinate space as the face clip — so it hugs the edge by
+   construction, under every transform the face itself wears. Its base
+   attributes park it invisible (dasharray 0, opacity 0): rasters and
+   engines that never load gen.css never see it. This helper carries the
+   two owner controls onto that path: Frequency (--shine-dur) and Blend
+   (mix-blend-mode). */
+function idleShineStyle(cfg: GenConfig): string {
+  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
+  return st ? ` style="${st}"` : "";
+}
+
 /** Overlay a specular shine band, clipped to the component's face (the
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-export function addShine(svg: string): string {
-  const fc = /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
+export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?: "face" | "text" }): string {
+  /* clip:"text" masks the band to the LETTERFORM clipPath (build's textClip)
+     instead of the component face — type stamps have an invisible shell, and
+     a face-clipped band swept its ghost rectangle (owner: "showing its
+     edges"). No matching clip either way = no shine, never an open band. */
+  const text = o?.clip === "text";
+  const fc = text ? /<clipPath id="([A-Za-z0-9]+)tgc"/.exec(svg) : /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
   if (!fc || !vb) return svg;
   const id = fc[1];
   const [, vx, vy, vw, vh] = vb.map(Number);
   const bw = vw * 0.3;
   const grad = `<linearGradient id="${id}shn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.4"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
-  const band = `<g clip-path="url(#${id}fc)"><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  /* the document's Frequency and Blend ride as inline style — the dur var
+     outranks the page default while the kit page's per-piece DELAY var
+     still cascades, so the stagger survives an owner-set tempo */
+  const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
+  const band = `<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 
@@ -4493,12 +4534,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 
   /* v67: icons inherit the SAME treatment as type, in every self-drawn
      site — gradient/solid fill, outline pass, disabled dimming. */
-  const themedIcon = (defI: IconDef, xI0: number, yI0: number, sI: number, tone: string, swI = 2.2): string => {
+  const themedIcon = (defI: IconDef, xI0: number, yI0: number, sI: number, tone: string, swI = 2.2, pin = false): string => {
     /* the Icons nudge reaches self-drawn glyphs too — the dials promise
        kit-wide reach and the weapon glyph must obey them (owner: "nudge
        doesn't work on the icon here", the Kill feed). Same px unit as
-       built icons, scaled by this piece's size factor. */
-    const xI = xI0 + (cfg.icon.ox || 0) * k, yI = yI0 + (cfg.icon.oy || 0) * k;
+       built icons, scaled by this piece's size factor. `pin` opts a call
+       OUT: auto-orbited glyphs (the fire button's satellite carousel) own
+       their placement, so only the piece's MAIN glyph rides the dials
+       (owner: "the 3 orbiting icons are perfect, I only need to be able
+       to edit the xy of the middle icon"). */
+    const xI = xI0 + (pin ? 0 : (cfg.icon.ox || 0) * k), yI = yI0 + (pin ? 0 : (cfg.icon.oy || 0) * k);
     const T4 = cfg.type;
     if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
@@ -4632,10 +4677,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
       // selected keeps the full type flavor; unselected go QUIET AND PLAIN —
       // dimming alone loses to outlined/shadowed type treatments
+      /* the slots dial the quiet captions up when a busy face swallows
+         them (owner: "If I could control opacity, etc in its off-state") */
+      const offOp = ({ "Readable · 70%": 0.7, "Strong · 85%": 0.85, "Full · 100%": 1 } as Record<string, number>)[opts.slots?.offvis ?? ""] ?? 0.45;
+      const offPlain = (opts.slots?.offstyle ?? "") !== "Full type style";
       const t = (label: string, cx: number, op: number, plain = false) =>
         contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op, plain });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
-      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.45, i !== sel)).join("")), zoneX, zoneW);
+      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : offOp, i !== sel && offPlain)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
       // stateful: a dead (dim) check sits in the well until clicked alive.
@@ -8144,7 +8193,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const gpad9 = Math.ceil(gs9 * 0.32);
         const tone9 = hexMix(glow, "#FFFFFF", 0.15);
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${gs9 + gpad9 * 2}" height="${gs9 + gpad9 * 2}" viewBox="0 0 ${gs9 + gpad9 * 2} ${gs9 + gpad9 * 2}">
-          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6)}</g></svg>`;
+          <g style="filter: drop-shadow(0 0 ${(gs9 * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})">${themedIcon(gdef9, gpad9, gpad9, gs9, tone9, 2.6, true)}</g></svg>`;
       }
       const satM9 = /^sat([123])$/.exec(opts.overlay ?? "");
       if (satM9) {
@@ -8200,7 +8249,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${mr.toFixed(1)}" fill="${miniRim}" stroke="${darken(miniRim, 0.38)}" stroke-width="1.5"/>
           <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(mr * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
           candyKnob(sx, sy, mr * 0.72, knobC) +
-          themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2);
+          themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2, true);
       });
       /* overlay "plain" = the swipe rig's dome: pad, ticks and candy dome
          with NO baked glyph and NO satellites — the runtime deals those */

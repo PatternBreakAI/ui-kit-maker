@@ -1044,9 +1044,35 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    and --shine-dur (set per-piece in KitPage) so the sweep never fires in
    unison across the screen. */
 @keyframes kit-shine { 0% { transform: translateX(0); } 9%, 100% { transform: translateX(175%); } }
+/* Idle motion: edge shine — the spark runs the silhouette once per cycle,
+   shrinking as it travels, flickering along the journey, then resting
+   (owner: "gets smaller and fades out… points of flicker"). The BASE
+   attributes park it invisible (dasharray 0, opacity 0), so raster
+   exports and engines that never load this stylesheet never see it.
+   Same stagger vars as the wipe, so pieces never fire in unison. */
+.kit-edgeshine { animation: kit-edgeshine var(--shine-dur, 9s) linear var(--shine-delay, 0s) infinite; }
+/* Idle motion, per-piece override rows — label left, one chip group right,
+   nothing wraps (owner: "the wipe shine ui is horrible"). */
+.idlepiece { margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.idlepiece .sublabel { margin-bottom: 4px; }
+.idlerow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
+.idlerow > span { font-size: 12.5px; white-space: nowrap; opacity: 0.85; }
+.idlerow .idlechips { display: flex; gap: 4px; flex: none; }
+@keyframes kit-edgeshine {
+  0%   { stroke-dasharray: 14 86; stroke-dashoffset: 0;    opacity: 0; }
+  2%   { opacity: .95; }
+  5%   { opacity: .5; }
+  8%   { opacity: .9; }
+  12%  { opacity: .4; }
+  15%  { opacity: .85; }
+  19%  { stroke-dasharray: 5 95;  opacity: .3; }
+  23%  { stroke-dasharray: 2 98;  opacity: .55; }
+  26%  { stroke-dasharray: 1 99;  stroke-dashoffset: -100; opacity: 0; }
+  100% { stroke-dasharray: 1 99;  stroke-dashoffset: -100; opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .kp-mostage, .mo-pulse, .mo-bounce, .mo-glow, .mo-shake, .mo-pop, .mo-press, .mo-slidein, .mo-rise, .kp-ringpulse, .kit-shine, .kp-tnodezone.current::after { animation: none !important; }
-  .kit-shine { opacity: 0; }
+  .kp-mostage, .mo-pulse, .mo-bounce, .mo-glow, .mo-shake, .mo-pop, .mo-press, .mo-slidein, .mo-rise, .kp-ringpulse, .kit-shine, .kit-edgeshine, .kp-tnodezone.current::after { animation: none !important; }
+  .kit-shine, .kit-edgeshine { opacity: 0; }
 }
 /* The kit page rests: gallery sweeps play under the POINTER, not forever
    (owner: "would it be more helpful if things only animated on
@@ -1055,9 +1081,13 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    quick sweep; the hero keeps its ambient loop — one element, the page's
    crown. The editor canvas is untouched (no .kitpage ancestor). The
    infinite motion demos and attention pulses rest the same way. */
-.kitpage .kit-shine { animation-play-state: paused; }
-.kitpage :is(.kp-live, .gp-piece, .gp-card, .scard-body):hover .kit-shine { animation: kit-shine 1.5s cubic-bezier(.33,.1,.3,1) .05s 1 both; }
-.kitpage .kp-herostage .kit-shine { animation-play-state: running; }
+.kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
+/* No rollover one-shots for the idle shines here — a gallery where every
+   piece flashes as the pointer crosses it read as chaos, not craft
+   (owner: "the idle animations are happening on rollover in the kit...
+   it's pretty chaotic"). The kit page RESTS, full stop: its hero is the
+   WebGL schematic (no CSS shine to run), so the shines live on the
+   editor, the Board and every Play surface instead. */
 .kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
 .kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }
 .kitpage :hover > .kp-ringpulse { animation-play-state: running; }
@@ -1651,6 +1681,13 @@ button.kp-fact { cursor: pointer; }
 .bd-snap { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .bd-export { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--bg, #fff); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .bd-export:hover { opacity: .88; }
+/* dark mode flips --ink light, and these two leaned on a --bg variable
+   that never existed — white text on a light pill, pale numerals on a
+   white field (dev field report: "washed out text in dark mode in the
+   board editor"). The pill takes the rail convention: dark ink on the
+   light chip; the fields join the dark-card family. */
+[data-theme="dark"] .bd-export { color: #17181c; }
+[data-theme="dark"] .bd-row2 input { background: var(--card); }
 .bd-frame { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 36px 16px 18px; }
 .bd-meta { position: absolute; top: 12px; left: 20px; font-size: 11px; font-weight: 600; color: var(--ink2); }
 .bd-stage { position: relative; border-radius: 14px; overflow: hidden; background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30); }

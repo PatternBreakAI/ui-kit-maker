@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, EDGE_SHINE_DEAF } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -176,8 +176,12 @@ function Section({ id, title, summary, right, children }: {
   );
 }
 
-function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
+function Slider({ label, value, min, max, unit, step, onChange, disabled, def }: {
   label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
+  /** The document-default for this dial — arming it makes double-click a
+   *  reset (dev field report: "I'd love to be able to double click a
+   *  slider or value to reset it to default"). */
+  def?: number;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
   /* Drags coalesce to ONE update per animation frame, latest value wins.
@@ -203,7 +207,9 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled }: {
   return (
     <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
       <label>{label}</label>
-      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)} />
+      <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)}
+        onDoubleClick={def !== undefined ? () => emit(def) : undefined}
+        title={def !== undefined ? "Double-click resets to default" : undefined} />
       <span className="valbox">
         <input className="numin" type="number" min={min} max={max} step={step ?? 1} value={value} disabled={disabled}
           aria-label={`${label} value`}
@@ -418,7 +424,7 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
           ? `Auto reads the corner curves off the real pixels — this piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).`
           : "Auto reads the corner curves off the real pixels at export."}</div>
       {patOn && (
-        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. Keep the stretch modest, or size the piece near its final proportions before export.</div>
+        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. That only bites when a prefab is hand-stretched inside Unity; board copies posed away from these proportions ship as the app&apos;s own render instead.</div>
       )}
     </div>
   );
@@ -620,6 +626,31 @@ function FontPicker({ value, customFonts, onPick }: { value: string; customFonts
    always names the state being styled */
 const STATEFLAG_HUSH_KEY = "ui-generator-stateflag-hush";
 
+/* The silhouette drawing template (owner: "an svg template for silhouette
+   creation that registered users can download directly from the app") — a
+   guided canvas with the import rules ON the page: end zones that stay as
+   drawn, the calm stretching middle, one filled shape touching all four
+   edges. The GUIDES layer is labeled to be deleted before export. */
+const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400">
+  <!-- UI Kit Maker silhouette template. Draw ONE filled shape on the SHAPE layer
+       (replace the sample), DELETE the GUIDES layer, then save as plain SVG and
+       import it in the app's Silhouette section. -->
+  <g id="GUIDES-delete-me-before-export">
+    <rect x="1" y="1" width="1198" height="398" fill="none" stroke="#8B93A8" stroke-width="2" stroke-dasharray="10 8"/>
+    <rect x="0" y="0" width="220" height="400" fill="#5B8DEF" opacity="0.1"/>
+    <rect x="980" y="0" width="220" height="400" fill="#5B8DEF" opacity="0.1"/>
+    <text x="110" y="32" font-family="monospace" font-size="17" fill="#5B8DEF" text-anchor="middle">END ZONE</text>
+    <text x="1090" y="32" font-family="monospace" font-size="17" fill="#5B8DEF" text-anchor="middle">END ZONE</text>
+    <text x="600" y="32" font-family="monospace" font-size="17" fill="#8B93A8" text-anchor="middle">CALM MIDDLE - this part stretches</text>
+    <text x="600" y="358" font-family="monospace" font-size="14" fill="#8B93A8" text-anchor="middle">Ends stay exactly as drawn - keep spikes and ornaments inside the end zones, let the shape touch all four edges.</text>
+    <text x="600" y="380" font-family="monospace" font-size="14" fill="#8B93A8" text-anchor="middle">ONE filled shape, flattened - no strokes, groups or images. Delete this GUIDES layer, save as SVG, import.</text>
+  </g>
+  <g id="SHAPE-replace-this-sample">
+    <path fill="#E6E9F2" d="M 60 0 L 1140 0 L 1200 200 L 1140 400 L 60 400 L 0 200 Z"/>
+  </g>
+</svg>
+`;
+
 export function Panel() {
   const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
@@ -786,6 +817,9 @@ export function Panel() {
         // state forks pin wholesale — that's their storage grain
         for (const t of targets) setKitDesign(t, { ...(useGen.getState().kitDesigns[t] ?? {}), stateDesigns: merged.stateDesigns });
       }
+      // content margin is not state-forked — carry a change on the working
+      // copy out to the piece level so the pin below sees it
+      merged.contentMargin = t.contentMargin;
     } else {
       fn(merged);
       // v70: pin only the paths this edit changed — the rest keeps following
@@ -806,13 +840,39 @@ export function Panel() {
     if (JSON.stringify(before.icon) !== JSON.stringify(merged.icon)) {
       const di = iconRigDiff(before.icon, merged.icon);
       if (di) pinAll({ icon: di });
+      /* the GLYPH and its POSITION are one decision for the piece — the
+         state branch already mirrors them into pinned state icon forks;
+         a Default edit must too, or a piece with a forked hover icon
+         keeps the OLD position in that state and the glyph jumps between
+         states (review catch). */
+      const gk = ["show", "placement", "only", "ox", "oy"] as const;
+      const dRec = (di ?? {}) as Record<string, unknown>;
+      if (di && merged.stateDesigns && (dRec.def !== undefined || gk.some((k3) => dRec[k3] !== undefined))) {
+        let touched = false;
+        for (const sd of Object.values(merged.stateDesigns)) {
+          if (!sd?.icon) continue;
+          if (dRec.def !== undefined) { sd.icon.def = merged.icon.def; touched = true; }
+          for (const k3 of gk) if (dRec[k3] !== undefined) { (sd.icon[k3] as unknown) = merged.icon[k3]; touched = true; }
+        }
+        if (touched) {
+          for (const t of targets) setKitDesign(t, { ...(useGen.getState().kitDesigns[t] ?? {}), stateDesigns: merged.stateDesigns });
+        }
+      }
+    }
+    /* Content margin pins to the piece on first touch too — its whole job
+       is fitting a label to ONE silhouette's decorated ends, and a focused
+       edit writing it kit-wide was exactly the owner's "the new scaling
+       affected every component" on the flame button. */
+    if (before.contentMargin !== merged.contentMargin) {
+      pinAll({ contentMargin: merged.contentMargin });
     }
     // replay only the non-design portion onto the parent — design keys,
-    // state adjustments AND the icon rig stay pinned to the piece
+    // state adjustments, the icon rig AND the content margin stay pinned
+    // to the piece
     const mClone = JSON.parse(JSON.stringify(cfgMaster)) as GenConfig;
     fn(mClone);
-    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; return JSON.stringify(p); };
-    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; });
+    const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; delete p.contentMargin; return JSON.stringify(p); };
+    if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; const keepCm = c.contentMargin; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; c.contentMargin = keepCm; });
   };
   const setPreset = (id: string) => {
     if (!focus) { setPresetParent(id); return; }
@@ -1138,16 +1198,16 @@ export function Panel() {
         <div className="helper">{allStates
           ? <>Hover or press the button on the canvas to feel the states live. <b>All states</b> is on — every edit becomes the value for all four states.</>
           : <>Hover or press the button on the canvas to feel the states live. These sliders shape only <b>{STATE_LABEL[selectedState]}</b>.</>}</div>
-        <Slider label="Brightness" value={adj.brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
-        <Slider label="Saturation" value={adj.saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
-        <Slider label="Glow" value={adj.glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
+        <Slider label="Brightness" value={adj.brightness} def={defaultStates()[selectedState].brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
+        <Slider label="Saturation" value={adj.saturation ?? 0} def={defaultStates()[selectedState].saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
+        <Slider label="Glow" value={adj.glow} def={defaultStates()[selectedState].glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
         <label className="check"><input type="checkbox" checked={C.aura.color === null}
           onChange={(e) => update((c) => { c.candy.aura.color = e.target.checked ? null : (c.effects.Glow ?? "#8FF0FF"); })} /> Glow color from Color map</label>
         {C.aura.color !== null && (
           <Well label="Glow color" value={C.aura.color} onChange={(v) => update((c) => { c.candy.aura.color = v; })} />
         )}
-        <Slider label="Lift" value={adj.lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
-        <Slider label="Opacity" value={adj.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
+        <Slider label="Lift" value={adj.lift} def={defaultStates()[selectedState].lift} min={-10} max={10} unit="px" onChange={(v) => update((c) => { c.states[selectedState].lift = v; })} />
+        <Slider label="Opacity" value={adj.opacity} def={defaultStates()[selectedState].opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].opacity = v; })} />
         <div className="actionrow">
           <button className="resetstate" onClick={() => update((c) => { c.states[selectedState] = defaultStates()[selectedState]; })}>
             <RotateCcw size={13} strokeWidth={2} /> Reset {STATE_LABEL[selectedState]}
@@ -1163,6 +1223,76 @@ export function Panel() {
             </button>
           )}
         </div>
+        {/* Idle motion — the kit's own resting-state animations. They ride
+            the document into every render and the Unity export (owner:
+            edge shine + wipe shine, user-toggleable, off by default). */}
+        <div className="ctl" style={{ marginTop: 12 }}>
+          <label>Idle motion</label>
+        </div>
+        {/* the kit toggles read the MASTER config on purpose: with a piece
+            focused, the merged view wears that piece's own idle fork, and a
+            checkbox showing the fork's value would fight it — click after
+            click with nothing moving (probe-caught) */}
+        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
+          onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
+        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
+          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
+        {/* where the motion actually plays — judging it on the kit page reads
+            as a dead control (the gallery rests by design, fcc7b6c) */}
+        <div className="helper">Shines play on the editor canvas, boards, Play mode and in Unity. The kit page gallery rests on purpose — judge the motion here or on a board.</div>
+        {/* Per-piece override (owner: "turn the shine animations on/off per
+            component") — rides the piece's design fork, so the kit page,
+            Board and Unity export all follow. Absent chips = follow kit.
+            Laid out as label-left / chips-right rows that never wrap
+            (owner: "the wipe shine ui is horrible, please clean this up"). */}
+        {focus && (
+          <div className="idlepiece">
+            <div className="sublabel">This piece only <em>{KIT_COMPONENTS.find((c) => c.id === focus)?.name ?? focus}</em></div>
+            {/* a locked piece silently ignores setKitDesign — say so instead
+                of presenting chips that click without effect */}
+            {!!kitLocks[focus] && (
+              <div className="helper">This piece is locked — its shine chips are on hold until you unlock it.</div>
+            )}
+            {(["wipe", "edge"] as const).filter((k) => k === "wipe" || !EDGE_SHINE_DEAF.has(focus)).map((k) => {
+              const ov = kitDesigns[focus]?.idle?.[k];
+              const setOv = (v: boolean | undefined) => {
+                const cur = kitDesigns[focus] ?? {};
+                const idle = { ...cur.idle } as { wipe?: boolean; edge?: boolean };
+                if (v === undefined) delete idle[k]; else idle[k] = v;
+                const next = { ...cur };
+                if (Object.keys(idle).length) next.idle = idle; else delete next.idle;
+                setKitDesign(focus, Object.keys(next).length ? next : null);
+              };
+              return (
+                <div className="idlerow" key={k}>
+                  <span>{k === "wipe" ? "Wipe shine" : "Edge shine"}</span>
+                  <div className="idlechips">
+                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={!!kitLocks[focus]} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
+                    <button className={`allstateschip${ov === true ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
+                    <button className={`allstateschip${ov === false ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
+                  </div>
+                </div>
+              );
+            })}
+            {EDGE_SHINE_DEAF.has(focus) && (
+              <div className="helper">Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run.</div>
+            )}
+          </div>
+        )}
+        {(cfgMaster.idle?.wipe || cfgMaster.idle?.edge || Object.values(kitDesigns).some((kd) => kd?.idle?.wipe || kd?.idle?.edge)) && (
+          <>
+            <Slider label="Frequency" value={cfgMaster.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}
+              onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, freq: v }; })} />
+            <label className="fieldbox" style={{ minWidth: 0 }}>
+              <span className="fl">Blend mode</span>
+              <select value={cfgMaster.idle?.blend ?? "normal"} aria-label="Idle motion blend mode"
+                onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, blend: e.target.value as BlendMode }; })}>
+                {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </label>
+            <div className="helper">Frequency is the seconds from one pass to the next; each piece still keeps its own offset. Blend recolors how the light lays over the art — screen and overlay read most like light.</div>
+          </>
+        )}
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
           <div className="helper">This state has its own design — edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
         )}
@@ -1468,6 +1598,21 @@ export function Panel() {
             });
           }} />
         </label>
+        {/* the guided drawing canvas (owner: "an svg template for
+            silhouette creation that registered users can download
+            directly from the app") — a free account is the key */}
+        <button className="fileadd" title={tier === "guest" ? "A free account unlocks the template" : "A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"}
+          onClick={() => {
+            if (tier === "guest") { openAuth("signin"); return; }
+            const blob = new Blob([SIL_TEMPLATE], { type: "image/svg+xml" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "uikitmaker-silhouette-template.svg";
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+          }}>
+          <PenTool size={13} strokeWidth={2} /> Silhouette template (SVG)
+        </button>
         </div>
         {shapeErr && <div className="helper" role="alert">{shapeErr}</div>}
         {/* spec copy is DESIGNER language by owner mandate ("simplify this
@@ -1492,7 +1637,10 @@ export function Panel() {
         <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
         <div className="helper">
-          Breathing room between every label and its silhouette's ends, kit-wide.
+          Breathing room between every label and its silhouette's ends.
+          Kit-wide from the master — but while a piece is focused, the change
+          saves into that piece only, so one showpiece silhouette can breathe
+          differently without moving the rest.
           Push it up when a word crowds the decoration; pull it negative to hug tighter.
         </div>
       </Section>
@@ -1655,6 +1803,20 @@ export function Panel() {
               );
             })}
           </div>
+          </>)}
+          {/* the glyph's position, per piece — every silhouette has its own
+              center of gravity (owner, on the flame set: "these all have
+              different centers of gravity... maybe separate x.y nudge
+              controls for each in component properties"). Rendered for
+              every glyph CARRIER, not just the swappables — primary and
+              secondary wear the master glyph and need the same per-piece
+              seat. Focused edits pin through the rig-pin machinery, and
+              the position holds across all four states by design. */}
+          {(iconSwappable || iconTogglable) && !finLocked && (<>
+            {!iconSwappable && <div className="sublabel">Icon</div>}
+            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.ox = v; })} />
+            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.oy = v; })} />
+            <div className="helper">These belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at every state — the rest of the kit's glyphs stay put.</div>
           </>)}
         </Section>
       )}
@@ -2180,9 +2342,9 @@ export function Panel() {
         )}
         {focus ? (
           <>
-            <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-20} max={20} unit="px"
+            <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-60} max={60} unit="px"
               onChange={(v) => setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
-            <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-20} max={20} unit="px"
+            <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-60} max={60} unit="px"
               onChange={(v) => setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             <div className="helper">
               Component-specific — these nudges belong to <b>{KIT_COMPONENTS.find((c) => c.id === focus)?.name}</b> at its current size and never move anything else.
@@ -2196,8 +2358,11 @@ export function Panel() {
           </>
         ) : (
           <>
-            <Slider label="Nudge Y" value={T2.oy ?? 0} min={-20} max={20} unit="px" onChange={(v) => update((c) => { c.type.oy = v; })} />
-            <Slider label="Nudge X" value={T2.ox ?? 0} min={-20} max={20} unit="px" onChange={(v) => update((c) => { c.type.ox = v; })} />
+            {/* ±60, was ±20: an imported silhouette can carry its visual weight far
+            off-center (owner, flame button: "nudged as far as I can go") —
+            optical centering by hand needs the longer leash */}
+            <Slider label="Nudge Y" value={T2.oy ?? 0} min={-60} max={60} unit="px" onChange={(v) => update((c) => { c.type.oy = v; })} />
+            <Slider label="Nudge X" value={T2.ox ?? 0} min={-60} max={60} unit="px" onChange={(v) => update((c) => { c.type.ox = v; })} />
           </>
         )}
         {/* weight follows the face's real capabilities — variable axes get a
@@ -2468,8 +2633,8 @@ export function Panel() {
         <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
         {/* the glyph's own position, in the glyph's own house — no more
             detouring through the type nudges to move an icon (owner) */}
-        <Slider label="Nudge X" value={IC.ox} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
-        <Slider label="Nudge Y" value={IC.oy} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+        <Slider label="Nudge X" value={IC.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+        <Slider label="Nudge Y" value={IC.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
@@ -2541,8 +2706,8 @@ export function Panel() {
           <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
           <Slider label="Rotation" value={cfg.icon.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
           <Slider label="Gap" value={cfg.icon.gap} min={0} max={40} unit="px" onChange={(v) => update((c) => { c.icon.gap = v; })} />
-          <Slider label="Nudge X" value={cfg.icon.ox} min={-30} max={30} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
-          <Slider label="Nudge Y" value={cfg.icon.oy} min={-30} max={30} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+          <Slider label="Nudge X" value={cfg.icon.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+          <Slider label="Nudge Y" value={cfg.icon.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
           <div className="sublabel">Icon effects</div>
           <div className="fxrow">
             {(["shadow", "glow", "emboss"] as const).map((f) => (

@@ -231,11 +231,13 @@ export function SliceStage() {
       </div>
       {/* the honest bad news, said out loud (owner: "alert the user to the
           noise in 9-slice scaling") — a baked pattern smears under Sliced
-          stretching, and the stretch test shows it truthfully */}
+          stretching, and the stretch test shows it truthfully. Scoped to
+          Unity-side hand-stretching since posed bakes took the board copies
+          out of this trap (owner: "still looking like this in the app"). */}
       {pat.any && (
         <div className="ss-warn" role="note">
           <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
-          <span>This piece wears a {pat.wall && !pat.face ? "wall " : ""}pattern — Sliced stretching smears it, and the noise grows with the stretch (the test below is honest). Keep the stretch modest, or size the piece close to its final proportions in the app before exporting.</span>
+          <span>This piece wears a {pat.wall && !pat.face ? "wall " : ""}pattern — Sliced stretching smears it, and the noise grows with the stretch (the test below is honest). This only bites when a prefab is hand-stretched inside Unity; keep that modest. Copies on your boards are safe — posed away from these proportions, they ship as the app&apos;s own render.</span>
         </div>
       )}
       <div className="ss-striprow">
@@ -246,7 +248,7 @@ export function SliceStage() {
       </div>
       <div className="ss-stripwrap"><canvas ref={stripRef} /></div>
       <div className="ss-help">
-        Drag a guide — or focus it and tap the arrow keys for ±1 px (Shift = 5). Values are design px; the exported PNGs are 2× so they ship doubled. Hover, pressed and disabled share these borders, and {on ? "these exact numbers ship" : "Auto re-measures each export"}.
+        Drag a guide — or focus it and tap the arrow keys for ±1 px (Shift = 5). Values are design px; the exported PNGs are 2× so they ship doubled. Hover, pressed and disabled share these borders, and {on ? "these exact numbers ship" : "Auto re-measures each export"}. The stretch test shows Unity hand-stretching the sliced prefab — a board copy posed away from these proportions skips the stretch entirely and ships as the app&apos;s own render.
       </div>
     </div>
   );

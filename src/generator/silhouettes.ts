@@ -15,8 +15,8 @@ import type { Shape } from "./model";
                   To import Kenney/OpenGameArt geometry, add the cleaned
                   SVG under docs/silhouette-sources/ and register it here.
 */
-export type SilhouetteCategory = "Buttons" | "Blobs" | "Rails & HUD" | "Banners & Labels" | "Plaques & Frames" | "Gothic" | "Arabesque" | "Vigilante";
-export const SILHOUETTE_CATEGORIES: SilhouetteCategory[] = ["Buttons", "Blobs", "Rails & HUD", "Banners & Labels", "Plaques & Frames", "Gothic", "Arabesque", "Vigilante"];
+export type SilhouetteCategory = "Buttons" | "Blobs" | "Rails & HUD" | "Banners & Labels" | "Plaques & Frames" | "Gothic" | "Arabesque" | "Vigilante" | "Showpieces";
+export const SILHOUETTE_CATEGORIES: SilhouetteCategory[] = ["Buttons", "Blobs", "Rails & HUD", "Banners & Labels", "Plaques & Frames", "Gothic", "Arabesque", "Vigilante", "Showpieces"];
 
 export interface SilhouetteMeta {
   id: Shape;
@@ -361,6 +361,16 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:gift", name: "Gift box", category: "Plaques & Frames", source: "custom (computed 3/4 iso union)", license: "original", renderer: "path", preview: true,
     capScale: 0.32, content: { top: 0.35, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
     supports: ["button"], character: "A 3/4 gift box — lid slab, bow loops, receding side." },
+
+  /* ── Showpieces — statement one-offs (owner, 2026-08-15). A shape here
+     is built to carry ONE hero moment — a play button, a claim button —
+     not to dress a whole component family; its own shelf so nobody
+     expects a matching rack. Caps and content measured off the outline
+     as always (probe calibrated against Hellmouth's registered numbers).
+     Staged until the owner releases them. ── */
+  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true, preview: true,
+    capScale: 0.281, content: { top: 0.349, right: 0.368, bottom: 0.321, left: 0.461 }, minWidth: 96, minHeight: 40,
+    supports: [...BTN, "timer"], character: "The flame button — fire tail streaming off the left of a rounded core. Built for a single hero moment: play, claim, ignite." },
 ];
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {

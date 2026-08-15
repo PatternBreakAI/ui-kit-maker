@@ -9,7 +9,7 @@ import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
 import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri } from "@/generator/exportUtils";
 import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/generator/engineExport";
-import { updateProjectDoc } from "@/generator/cloud";
+import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt, stillSmil } from "./LiveArt";
@@ -1284,9 +1284,14 @@ function SliceDemo({ cfg, label, size = "m", fit = 520, ruler }: { cfg: GenConfi
     if (!m || !met) return null;
     const pad = -+m[1], total = +m[3];
     const h = 158 * ({ s: 0.72, m: 1, l: 1.22 } as const)[size];
-    const shellW = total - pad * 2 - 104; // x margin 52 each side
+    /* the DRAWN shell stamp is the truth — the old fixed-margin assumption
+       (52px each side) drifted every guide as soon as the canvas grew
+       around effects (owner: "the standard diagram looks off-centered") */
+    const shm = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
+    const shv = shm?.[1].split(" ").map(Number);
+    const shellW = shv && shv.length === 4 ? shv[2] : total - pad * 2 - 104;
     const cap = met.capScale * h, safe = met.content.left * h;
-    const x0 = pad + 52;
+    const x0 = shv && shv.length === 4 ? shv[0] - +m[1] : pad + 52;
     return {
       total, shellW: Math.round(shellW),
       capL: ((x0 + cap) / total) * 100, capR: ((x0 + shellW - cap) / total) * 100,
@@ -1558,7 +1563,17 @@ export function KitPage() {
       st.setUnitySlug(want);
       st.resetUnityKitVer();
       const pid = st.openProjectId;
-      if (pid) void updateProjectDoc(pid, useGen.getState().kitPayload());
+      if (pid) void (async () => {
+        /* patch ONLY the slug fields into the saved doc — a whole-doc
+           write from here silently replaced the project's saved boards
+           with whatever the workspace held (review catch), and dropped
+           the error besides */
+        const { doc } = await loadProjectDoc(pid);
+        if (!doc) return;
+        const st2 = useGen.getState();
+        const err = await updateProjectDoc(pid, { ...(doc as Record<string, unknown>), unitySlug: st2.unitySlug, unityKitVer: st2.unityKitVer });
+        if (err) console.warn("UI Kit Maker: Unity slug writeback failed —", err);
+      })();
     }
     return want;
   };

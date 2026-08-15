@@ -463,16 +463,26 @@ export function HeroGL() {
       }
     } catch { /* ignore */ }
     const onDown = (e: PointerEvent) => {
+      /* the HAND tool outranks the spin: with pan mode on, the drag
+         belongs to the page — let it bubble to the scroller untouched
+         (review catch: the stop below made the hero a pan dead zone) */
+      if (useGen.getState().panMode) return;
       /* claim the gesture outright: without this the browser ALSO runs a
          text-selection drag under the spin, and selection auto-scrolls the
-         page (owner: "it scrolls the page up and down along with it") */
+         page (owner: "it scrolls the page up and down along with it").
+         stopPropagation matters as much as preventDefault: the kit page
+         lives inside the editor's scroller, whose pan handlers listen
+         upstream — without the stop, one drag both spun the schematic and
+         panned the whole page (owner: "it moves the whole page again") */
       e.preventDefault();
+      e.stopPropagation();
       dragging = true; lastX = e.clientX; lastY = e.clientY; velX = 0; velY = 0;
       wrap.classList.add("kp-gldrag");
       wrap.setPointerCapture?.(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
       if (!dragging) return;
+      e.stopPropagation();
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
       lastX = e.clientX; lastY = e.clientY;
       userYaw += dx * 0.0062;

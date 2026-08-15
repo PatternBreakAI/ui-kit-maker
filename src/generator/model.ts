@@ -730,6 +730,11 @@ export interface GenConfig extends StateDesign {
   states: Record<GenStateName, StateAdjust>;
   visible: Record<Exclude<GenStateName, "default">, boolean>;
   canvas: string;
+  /** Idle motion — resting-state animations that belong to the KIT, not the
+   *  site: they ride the document, every app render and the Unity export
+   *  alike (owner: edge shine + wipe shine, user-toggleable). Off by
+   *  default; hydrate() fills them into older documents. */
+  idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode };
   /** Bar-fill styling layers (see BarFx) — optional, defaults off. */
   barFx?: BarFx;
   /** Dragger ball on sliders, toggles and joysticks — null = derived from
@@ -898,7 +903,7 @@ export function defaultConfig(): GenConfig {
     states: defaultStates(),
     visible: { hover: true, pressed: true, disabled: true },
     canvas: "#000000",
-    knob: { color: null },
+    idle: { wipe: false, edge: false }, knob: { color: null },
   };
 }
 
@@ -1125,6 +1130,18 @@ const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "B
 const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  segment: [
+    /* the unselected captions go quiet-and-plain by design — but a busy
+       face pattern can swallow them whole (owner: "If I could control
+       opacity, etc in its off-state then I could make it more legible
+       for backgrounds like this") */
+    { id: "offvis", name: "Unselected legibility", kind: "choice",
+      choices: ["Quiet · 45%", "Readable · 70%", "Strong · 85%", "Full · 100%"],
+      note: "How loudly the unselected captions read. Quiet is the factory look; push it up when a busy face pattern swallows the words." },
+    { id: "offstyle", name: "Unselected treatment", kind: "choice",
+      choices: ["Plain ink", "Full type style"],
+      note: "Plain ink keeps unselected captions deliberately understated. Full type style dresses them like the selected one — outline, shadow and all — so they hold up on loud faces." },
+  ],
   healthglobe: [
     { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },
@@ -1680,6 +1697,18 @@ export const PINNED_CHROME = new Set<KitComponentId>([
   "rewardtray", "scorebug", "scrollbar", "seasontrack", "setrow", "stopwatch",
 ]);
 
+/* Components whose bespoke renderers build a custom root and never emit
+   the silhouette edge-shine path — on these the per-piece Edge chip would
+   be a dead control, so the Panel hides that row and says why (full-kit
+   engine sweep, 2026-08-15: 101 components emit, these 28 don't). */
+export const EDGE_SHINE_DEAF = new Set<KitComponentId>([
+  "bignum", "capturemeter", "chest", "circuit", "combo", "cooldown",
+  "countbadge", "crosshair", "dmgarc", "dmgnumber", "emotewheel",
+  "equipselector", "giftbox", "healthglobe", "hitmarker", "lives",
+  "magazine", "orb", "pagedots", "pathconnector", "reticle", "ring",
+  "spinner", "spinwheel", "steps", "timerdigits", "waypoint", "weaponwheel",
+]);
+
 /* v70 · SPARSE forks. A component's fork stores only the design paths the
    user actually changed on that piece — everything else keeps following the
    parent design live. (Full-snapshot forks froze a component forever: one
@@ -1691,6 +1720,16 @@ export type KitDesign = DeepPartial<StateDesign> & {
    *  time a focused piece's state sliders move, so "edits save into this
    *  piece" holds for the Global section too. Absent = follow the master. */
   states?: GenConfig["states"];
+  /** Per-piece idle-motion override (owner: "turn the shine animations
+   *  on/off per component") — each flag pins this piece's wipe or edge
+   *  shine ON or OFF; an absent flag follows the kit's Idle motion
+   *  toggles. Timing (Frequency/Blend) always stays kit-wide. */
+  idle?: { wipe?: boolean; edge?: boolean };
+  /** Per-piece content margin (owner's flame button: the label needs its
+   *  own breathing room against ONE silhouette's decorated ends) — pinned
+   *  the first time a focused piece's Content margin slider moves. Absent
+   *  = follow the kit-wide value. */
+  contentMargin?: number;
   /** Per-piece icon RIG (size, offsets, rotation, colors…) — pinned the
    *  first time a focused piece's icon dials move, so resizing one glyph
    *  can't resize every glyph in the kit. Absent = follow the master rig. */
@@ -1716,6 +1755,8 @@ export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig
   if (!kd) return cfg;
   const out = { ...cfg, stateDesigns: kd.stateDesigns ?? cfg.stateDesigns, states: kd.states ?? cfg.states } as GenConfig;
   if (kd.icon !== undefined) out.icon = deepMergeDesign(cfg.icon, kd.icon) as IconCfg;
+  if (kd.idle) out.idle = { wipe: false, edge: false, ...cfg.idle, ...kd.idle };
+  if (kd.contentMargin !== undefined) out.contentMargin = kd.contentMargin;
   const src = cfg as unknown as Record<string, unknown>, o = out as unknown as Record<string, unknown>;
   for (const k of DESIGN_KEYS) {
     const ov = (kd as Record<string, unknown>)[k];
@@ -1803,6 +1844,8 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
       ...(kd.stateDesigns && Object.keys(kd.stateDesigns).length ? { stateDesigns: kd.stateDesigns } : {}),
       ...(kd.states ? { states: kd.states } : {}),
       ...(kd.icon !== undefined ? { icon: kd.icon } : {}),
+      ...(kd.idle ? { idle: kd.idle } : {}),
+      ...(kd.contentMargin !== undefined ? { contentMargin: kd.contentMargin } : {}),
     };
     if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }
