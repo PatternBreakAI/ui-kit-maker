@@ -210,7 +210,7 @@ export async function collectExportBoards(st: {
    *  (the BACK-button story). Needed so those pieces travel to Unity. */
   library?: LibItem[];
 }): Promise<ExportBoardData[]> {
-  const { getBgOriginal } = await import("./bgvault");
+  const { getBgOriginal, captureVideoPoster } = await import("./bgvault");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
@@ -225,7 +225,7 @@ export async function collectExportBoards(st: {
     let bg: ExportBoardData["bg"] = null;
     // a video board carries no bgImage locally, but its vaulted POSTER
     // (the first frame) still gives the scene a background
-    if ((bd.bgImage || bd.bgAssetId) && (bd.bgShow ?? true)) {
+    if ((bd.bgImage || bd.bgAssetId || bd.bgVideo) && (bd.bgShow ?? true)) {
       let bytes: Uint8Array | null = null, ext = "png", original = false;
       if (bd.bgAssetId) {
         const rec = await getBgOriginal(bd.bgAssetId);
@@ -258,6 +258,16 @@ export async function collectExportBoards(st: {
             }
           } catch { /* scene ships without a backdrop */ }
         }
+      }
+      if (!bytes && bd.bgVideo) {
+        /* a video board with NO vaulted poster — boards from before posters
+           existed, or a capture that failed at set time. Grab the first
+           frame NOW, at export (owner: "it didn't bring in the video
+           snapshot"); a CORS-refusing host still ships no backdrop. */
+        try {
+          const pb0 = await captureVideoPoster(bd.bgVideo);
+          if (pb0) { bytes = new Uint8Array(await pb0.arrayBuffer()); ext = "jpg"; }
+        } catch { /* scene ships without a backdrop */ }
       }
       /* the whole darkroom BAKES into the shipped pixels — hue, saturation,
          brightness, contrast, blur AND the seeded grain are deterministic
@@ -5419,6 +5429,18 @@ namespace PatternBreak {
                    prefab's overlay child would draw a second one on top */
                 var spT = inst.transform.Find("Specular");
                 if (spT != null) spT.gameObject.SetActive(false);
+                /* WipeShine masks its band with OUR image — a null-sprite,
+                   alpha-0 root makes that stencil pass NOTHING and the whole
+                   child stack vanishes the moment play starts (owner: "when
+                   I go to play the scene the button disappears"). The sweep
+                   moves to the art child, whose pixels give the mask
+                   something real to hold on to. */
+                var ws0 = inst.GetComponent<WipeShine>();
+                if (ws0 != null) {
+                  ws0.enabled = false;
+                  var ws1 = artGo.AddComponent<WipeShine>();
+                  ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
+                }
               } else if (psp == null) {
                 Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
               }
