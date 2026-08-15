@@ -16,6 +16,44 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "What you design is what ships",
+    items: [
+      {
+        h: "Unity prefabs match the app, to the letter",
+        p: "A kit's Unity prefabs now bake at the exact proportions the app draws — words in place — and every label lands at the app's exact size and seat, even on decorated shapes that deliberately sit their type off-center. Resize a prefab and the type scales with the geometry instead of drifting.",
+      },
+      {
+        h: "Statement buttons keep their pose",
+        p: "Stretch a dramatic silhouette on a board — a long tail, a deep bevel — and the exported scene ships an engine render at that exact pose: nothing cropped, hover and press wearing their designed skins, the label seated where the app seated it, and the click still sinks. Pieces no longer vanish when the scene plays, and video backdrops arrive with a poster frame.",
+      },
+      {
+        h: "A resting shimmer, two ways",
+        p: "Idle motion joins the kit: a wipe shine that sweeps each face and rests, and an edge shine that runs a spark around the silhouette. Turn them on kit-wide or per piece, tune the rhythm and blend, and both ride into Unity as removable components. Type stamps mask the sweep to the letterforms themselves — light moves through the words, never over their box.",
+      },
+      {
+        h: "The segmented selector reads on any background",
+        p: "Its off cells grow their own dials — how present the quiet options are, from a whisper to full strength, and whether they keep the kit's full type styling or drop to plain ink — so the unselected words stay readable on loud backdrops without touching the selected cell.",
+      },
+      {
+        h: "Badges edit what rollover shows",
+        p: "The badge gains a Rollover card in the editor, so the count face's hover look — the state you actually see on rollover — is finally editable. And an awarded badge that's been clicked off now rests on its count instead of trading faces under the pointer.",
+      },
+      {
+        h: "Claims celebrate wherever the words say so",
+        p: "The white-hot claim celebration now fires on any piece whose visible words say CLAIM — however the label was set — in the app and in exported Unity scenes and prefabs alike.",
+      },
+      {
+        h: "Draw your own silhouette, with guide rails",
+        p: "Registered makers can download an SVG starter template for silhouette drawing: end-zone shading, a calm middle, plain-language rules to delete before saving, and a sample shape to replace. Icons also nudge three times farther, for compositions that pin a glyph hard to one edge.",
+      },
+      {
+        h: "Diagrams that tell the truth",
+        p: "The slicing bench's stretch diagram now measures its guides from your actual silhouette instead of assuming a centered one — an off-center design shows off-center guides, because that's what your button really does. And the export's guide explains when to reach for a ready scene piece versus a prefab.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "The menagerie",
     items: [
       {

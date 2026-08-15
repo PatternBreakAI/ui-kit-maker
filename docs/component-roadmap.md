@@ -187,3 +187,41 @@ names double as marketing beats ("the RPG pack just dropped").
   "Showpiece" category (one-off statement buttons — decorated, direction-
   al, built to star rather than to tile). Needs the owner's original SVG
   (flame button 4) to land; name and tags assigned at landing.
+
+## Monetization plan (owner, 2026-08-15)
+
+- App free; the paywalls are EXPORTS and PACKS.
+- Free tier INCLUDES at least 12 kits (owner: "I actually wanna Free to
+  include at least 12 kits").
+- Makers must be able to preview kits they don't own — a popup, nothing
+  complicated — with a "buy" action inside the popup. Owner: "we can wire
+  this now on preview when we're ready."
+- Packs: $0.99 individually, ALL packs included with Pro, some with free.
+- Lane call (app session): the pack store + preview/buy popup live in the
+  APP lane; Front Door wakes up only for the marketing story once the
+  flow exists. Design work targeted to start week of 2026-08-17.
+
+## Componentization (owner, 2026-08-15 — priority RAISED)
+
+- Owner: "I do need a solution for this sooner than later because it
+  negatively impacts the usability of special button designs." (The flame
+  button cost hours of re-seating type on every other element; the back-
+  button debacle had the same root.)
+- Copy/duplicate a component inside the kit — edit the main button and
+  ONLY the main button.
+- "Make component" from boards: saves into the actual kit, not just the
+  board tray.
+- Force a name + classification step at creation (capture whatever data
+  the exporter needs at the moment of birth).
+- Expected side benefit (owner): fewer Unity surprises, stronger WYSIWYG.
+
+## Animation section (owner, 2026-08-15)
+
+- The claim celebration should be an explicit per-piece SWITCH, not word
+  matching — owner: "doesn't need to be that smart, what about
+  localization." A localized kit ("RÉCLAMER") never matches "CLAIM". The
+  shipped word check stays as a stopgap/seed only; the switch becomes the
+  authority and travels app → manifest → Unity importer.
+- Owner floated a dedicated ANIMATION section in the panel: idle motion
+  (wipe/edge shine), celebrations (claim burst), and future motion dials
+  in one place instead of scattered under Global.
