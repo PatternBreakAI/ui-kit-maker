@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useGen } from "@/generator/store";
 import { renderKit } from "@/generator/bevel";
-import { STOCK_ICONS, applyKitTextFill, hexMix } from "@/generator/model";
+import { STOCK_ICONS, applyKitTextFill, hexMix, resolveKitIcon } from "@/generator/model";
 import type { GenConfig } from "@/generator/model";
 
 /* ── HeroGL — the exploded material diagram, live in WebGL ──────────────
@@ -146,6 +146,11 @@ const BASE_PITCH = 0.035; // vertical tilt (x) — flatter, matches the referenc
 
 export function HeroGL() {
   const { cfg } = useGen();
+  /* the ICON TOKEN satellite obeys the icon-swap contract like every other
+     kit-page card: the user's iconbtn glyph wins, the specimen's gem is
+     only the default while no swap exists (owner: swapped the icon in the
+     editor and this card kept the old glyph) */
+  const tokenIcon = useGen((s) => s.kitIcons.iconbtn);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -624,7 +629,7 @@ export function HeroGL() {
       });
       const kf = useGen.getState().kitTextFill;
       const svgs = [
-        renderKit(applyKitTextFill(c, kf.iconbtn), "iconbtn", "l", "default", undefined, undefined, { icon: STOCK_ICONS.gem }),
+        renderKit(applyKitTextFill(c, kf.iconbtn), "iconbtn", "l", "default", undefined, undefined, { icon: resolveKitIcon(tokenIcon, STOCK_ICONS.gem) }),
         renderKit(applyKitTextFill(c, kf.progress), "progress", "m", "default", 0.72),
         renderKit(applyKitTextFill(c, kf.panel), "panel", "m"),
       ];
@@ -649,7 +654,7 @@ export function HeroGL() {
       if (R.still) R.renderOnce();
     }, 140);
     return () => window.clearTimeout(timer);
-  }, [cfg]);
+  }, [cfg, tokenIcon]);
 
   return (
     <div className="kp-glhero" ref={wrapRef} aria-label="Exploded material diagram — live WebGL">
