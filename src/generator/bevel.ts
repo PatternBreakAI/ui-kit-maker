@@ -3025,6 +3025,10 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
    *  so adjacent letters' bands align into streaks crossing the word
    *  (owner reference: the MIAMI glint field). */
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Emit the letterform clipPath even with glints off — type specimens
+   *  use it to mask the idle wipe to the glyph ink (their shell is
+   *  invisible, so the face clip would sweep a ghost rectangle). */
+  textClip?: boolean;
 } = {}): string {
   const id = "b" + UID++;
   const disabled = state === "disabled";
@@ -3704,6 +3708,13 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const GL2 = T2.glints;
   const glintsOn = !!GL2?.on && showText && !disabled;
   let glintsDefs = "", glintsLayer = "";
+  /* the letterform clip serves two riders: the glint slabs below, and the
+     type specimens' letterform-masked wipe (addShine clip:"text") — their
+     shell is invisible, so the face clip would sweep a ghost rectangle */
+  if ((glintsOn || (opts.textClip && showText)) && label) {
+    const gy0 = cy + 1 + textOy * K;
+    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy0.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
+  }
   if (glintsOn) {
     const gOp = clamp((GL2!.opacity ?? 55) / 100, 0, 1);
     const gy = cy + 1 + textOy * K;
@@ -3718,7 +3729,6 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     const rot = Math.atan2(ly, lx) * 180 / Math.PI + 90;
     const star4 = (sx: number, sy: number, s: number, sr: number) =>
       `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
-    glintsDefs = `<clipPath id="${id}tgc"><text x="${tTextX.toFixed(1)}" y="${gy.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="${T2.weight}"${fontStyle}${tStyle()} letter-spacing="${spacingEm.toFixed(3)}em" text-anchor="${tAnchor}" dominant-baseline="central">${label}</text></clipPath>`;
     /* style picks the clipped body + which stars ride along; the bake knobs
        (glintBands/glintStars, alphabet-face export) keep overriding — they
        normalize per-glyph treatment and always speak slab. */
@@ -4044,6 +4054,9 @@ export interface SpecimenOpts {
   glintBand?: number;
   glintStars?: { f: number; dy: number; s: number; r: number }[] | null;
   glintBands?: { dy: number; h: number; o: number }[];
+  /** Emit the letterform clipPath even with glints off — stamps mask the
+   *  idle wipe to the glyph ink with it (addShine clip:"text"). */
+  textClip?: boolean;
   /** Extra canvas on every side, in viewBox units. Atlas bakes pass the
    *  type effects' full blur reach here: overflow:visible lets glyphs
    *  paint past the viewBox in a BROWSER, but a raster clips at the
@@ -4068,12 +4081,16 @@ export function renderTypeSpecimen(cfg: GenConfig, text: string, opts: SpecimenO
   c.candy.extrusion.depth = 0;
   c.stateDesigns = {};
   for (const s of Object.values(c.states)) { s.glow = 0; s.lift = 0; s.opacity = 100; }
+  /* the shell is INVISIBLE here — an edge shine would trace the outline of
+     a rectangle nobody can see (owner, on a board stamp: "it is showing its
+     edges"). The wipe stays available, letterform-masked via textClip. */
+  if (c.idle) c.idle = { ...c.idle, edge: false };
   if (opts.keepCase) c.type.case = "none";
   if (opts.highlight !== undefined) c.type.highlight = opts.highlight;
   opts.mutate?.(c);
   // maxW lifted far above the button default — a full alphabet line must
   // never clip against the auto-width cap
-  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands });
+  const out = build(c, "default", { x: 26, y: 20, h: 130, fs: 52, iconSize: 0, maxW: 4200 }, { iconDef: null, label: text, anchorLeft: true, glintBand: opts.glintBand, glintStars: opts.glintStars, glintBands: opts.glintBands, textClip: opts.textClip });
   /* Engines measure display faces differently — Safari draws many of them
      (italics especially) wider than the char-count estimate. Give the canvas
      right-side headroom and let glyphs paint past the viewBox regardless. */
@@ -4274,8 +4291,13 @@ function idleShineStyle(cfg: GenConfig): string {
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-export function addShine(svg: string, o?: { dur?: number; blend?: string }): string {
-  const fc = /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
+export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?: "face" | "text" }): string {
+  /* clip:"text" masks the band to the LETTERFORM clipPath (build's textClip)
+     instead of the component face — type stamps have an invisible shell, and
+     a face-clipped band swept its ghost rectangle (owner: "showing its
+     edges"). No matching clip either way = no shine, never an open band. */
+  const text = o?.clip === "text";
+  const fc = text ? /<clipPath id="([A-Za-z0-9]+)tgc"/.exec(svg) : /clip-path="url\(#([A-Za-z0-9]+)fc\)"/.exec(svg);
   const vb = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
   if (!fc || !vb) return svg;
   const id = fc[1];
@@ -4286,7 +4308,7 @@ export function addShine(svg: string, o?: { dur?: number; blend?: string }): str
      outranks the page default while the kit page's per-piece DELAY var
      still cascades, so the stagger survives an owner-set tempo */
   const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
-  const band = `<g clip-path="url(#${id}fc)"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  const band = `<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 

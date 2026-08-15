@@ -5,7 +5,7 @@ import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
-import { renderBevel, renderTypeSpecimen } from "./bevel";
+import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
@@ -750,7 +750,7 @@ export function warpStampRaster(src: CanvasImageSource, w: number, h: number, wa
 /** A stamp's artwork — the kit's full lettering treatment, shell off.
  *  Size scales the TYPE, so stamps stay vector-crisp at logo scale. */
 export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string {
-  return renderTypeSpecimen(cfg, st.text || "GAME TITLE", { mutate: (c) => {
+  const out = renderTypeSpecimen(cfg, st.text || "GAME TITLE", { textClip: !st.plain, mutate: (c) => {
     c.type.size = Math.max(8, c.type.size * st.size / 100);
     if (st.plain) {
       /* flatten the whole splash recipe to "good font usage": same face,
@@ -768,6 +768,12 @@ export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): s
       t.highlight = undefined;
     }
   } });
+  /* the kit's idle wipe rides the stamp masked to the LETTERFORMS — the
+     specimen face is invisible, and sweeping its rectangle showed hard
+     edges (owner: "it is showing its edges"). Plain stamps stay flat by
+     contract; rasters never see the band (it parks off-canvas until the
+     page's CSS animates it). */
+  return !st.plain && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, blend: cfg.idle.blend, clip: "text" }) : out;
 }
 
 /** One filter string for a stamp's adjust dials — the stage, the board PNG
