@@ -95,8 +95,13 @@ export interface ExportBoardItemData {
   /** a POSED bake for a prefab piece whose board pose diverges from the
       family sprite's natural aspect — the engine's own render at the
       exact board proportions, label stripped (words stay live). The
-      scene wears it 1:1 instead of stretching the nine-slice. */
+      scene wears it 1:1 on an ART CHILD instead of stretching the
+      nine-slice; the item's own rect stays the SHELL footprint. */
   posed?: string | null;
+  /** the posed art's footprint in board px (crop box: shell + overhang —
+      extrusion, bloom) and its center's offset from the shell center
+      (board y runs down). The importer sizes the art child with these. */
+  posedW?: number; posedH?: number; posedDx?: number; posedDy?: number;
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -476,6 +481,7 @@ export async function collectExportBoards(st: {
          exact board proportions — label stripped, the words stay live —
          and the scene wears it 1:1 instead of stretching the nine-slice. */
       let posed: string | null = null;
+      let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
@@ -506,18 +512,40 @@ export async function collectExportBoards(st: {
           ps2 = new XMLSerializer().serializeToString(dom2.documentElement)
             .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
             .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
-          // crop to the drawn shell so the sprite IS the footprint the
-          // scene sizes to — margins would shrink the art inside its rect
-          const pb3 = shellBoxOf(ps2);
-          if (pb3) {
-            ps2 = ps2
-              .replace(/viewBox="[^"]+"/, `viewBox="${pb3[0]} ${pb3[1]} ${pb3[2]} ${pb3[3]}"`)
-              .replace(/width="[\d.]+"/, `width="${pb3[2]}"`)
-              .replace(/height="[\d.]+"/, `height="${pb3[3]}"`);
-          }
           if (/<text/.test(ps2)) {
             const fdP = fontByName(cfgP.type.font);
             ps2 = await inlineKitFace(ps2, cfgP.type.font, fdP.name === cfgP.type.font ? fdP.css ?? null : null);
+          }
+          /* crop to the DRAWN box, not the shell box — the extrusion (and
+             bloom) reach past the shell, and a shell-tight crop cut the
+             extrusion's bottom off in the scene (owner: "bottom extrusion
+             is cut off"). The scene rect then maps shell→board exactly:
+             the sprite grows by its overhang and the item's rect grows and
+             shifts by the same ratio, so the SHELL still lands precisely
+             where the board drew it. */
+          const pb3 = shellBoxOf(ps2);
+          if (pb3) {
+            let box: [number, number, number, number] = pb3;
+            const ab = await svgAlphaBox(ps2, 2, 8).catch(() => null);
+            const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(ps2);
+            if (ab && vbm3) {
+              const pad = 2; // soft AA tails below the alpha threshold
+              const ax = +vbm3[1] + ab.x0 / 2 - pad, ay = +vbm3[2] + ab.y0 / 2 - pad;
+              const ax1 = +vbm3[1] + (ab.x1 + 1) / 2 + pad, ay1 = +vbm3[2] + (ab.y1 + 1) / 2 + pad;
+              // union with the shell so a sparse render can never crop inside it
+              const ux = Math.min(ax, pb3[0]), uy = Math.min(ay, pb3[1]);
+              box = [ux, uy, Math.max(ax1, pb3[0] + pb3[2]) - ux, Math.max(ay1, pb3[1] + pb3[3]) - uy];
+            }
+            ps2 = ps2
+              .replace(/viewBox="[^"]+"/, `viewBox="${box[0].toFixed(1)} ${box[1].toFixed(1)} ${box[2].toFixed(1)} ${box[3].toFixed(1)}"`)
+              .replace(/width="[\d.]+"/, `width="${box[2].toFixed(1)}"`)
+              .replace(/height="[\d.]+"/, `height="${box[3].toFixed(1)}"`);
+            const kx2 = pw / pb3[2], ky2 = ph / pb3[3];
+            posedBox = {
+              w: box[2] * kx2, h: box[3] * ky2,
+              dx: ((box[0] + box[2] / 2) - (pb3[0] + pb3[2] / 2)) * kx2,
+              dy: ((box[1] + box[3] / 2) - (pb3[1] + pb3[3] / 2)) * ky2,
+            };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
           const fileP = `boardstamps/${slug}-pose${stampFiles.length + 1}.png`;
@@ -541,6 +569,14 @@ export async function collectExportBoards(st: {
         value: b.v ?? st.kitVals[id] ?? (id === "slider" ? 0.62 : id === "toggle" ? 1 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
         ...(posed ? { posed } : {}),
+        /* the posed ART's own footprint: crop box mapped to board px, and
+           its center's offset from the shell center (board y runs down).
+           The item's rect above stays the SHELL — labels, state fx and
+           anchors all speak shell coordinates; the art child wears these. */
+        ...(posed && posedBox ? {
+          posedW: Math.round(posedBox.w * 10) / 10, posedH: Math.round(posedBox.h * 10) / 10,
+          posedDx: Math.round(posedBox.dx * 10) / 10, posedDy: Math.round(posedBox.dy * 10) / 10,
+        } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
         ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape) ? { flip: true } : {}),
@@ -4377,7 +4413,7 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -5283,21 +5319,38 @@ namespace PatternBreak {
           if (string.IsNullOrEmpty(it.stamp)) {
             if (!string.IsNullOrEmpty(it.posed)) {
               /* the POSED bake is this copy's exact pixels at its board
-                 proportions — wear it 1:1: no slicing, no scale math
-                 (owner: "the back of the flame button looks scrunched
-                 up"). Sprite Swap retires on this copy (the sliced state
-                 skins would not match the pose); State FX keeps hover and
-                 press alive, and the label stays live text above. */
+                 proportions — worn 1:1, no slicing, no scale math (owner:
+                 "the back of the flame button looks scrunched up"). The
+                 ROOT keeps the SHELL footprint (labels, state fx and the
+                 specular overlay all speak shell coordinates) and an ART
+                 CHILD wears the sprite at its own crop box, overhang and
+                 all — a shell-tight root image cut the extrusion's reach
+                 (owner: "bottom extrusion is cut off"). Sprite Swap
+                 retires on this copy (sliced state skins would not match
+                 the pose); State FX keeps hover and press alive. */
               var psp = S(root + "/" + it.posed);
               var pimg = inst.GetComponent<Image>();
               if (psp != null && pimg != null) {
-                pimg.sprite = psp;
-                pimg.type = Image.Type.Simple;
-                pimg.preserveAspect = false;
+                pimg.sprite = null;
+                pimg.color = new Color(1f, 1f, 1f, 0f); // invisible, still the button's raycast body
                 var pbtn = inst.GetComponent<Button>();
                 if (pbtn != null) pbtn.transition = Selectable.Transition.None;
                 rt.sizeDelta = new Vector2(it.w, it.h);
                 rt.localScale = Vector3.one;
+                var artGo = new GameObject("Posed art", typeof(RectTransform), typeof(Image));
+                var artRt = artGo.GetComponent<RectTransform>();
+                artRt.SetParent(rt, false);
+                artRt.SetSiblingIndex(0); // under the label stack and overlays
+                artRt.anchorMin = new Vector2(0.5f, 0.5f);
+                artRt.anchorMax = new Vector2(0.5f, 0.5f);
+                artRt.pivot = new Vector2(0.5f, 0.5f);
+                artRt.sizeDelta = new Vector2(it.posedW > 1f ? it.posedW : it.w, it.posedH > 1f ? it.posedH : it.h);
+                artRt.anchoredPosition = new Vector2(it.posedDx, -it.posedDy); // board y runs down
+                var art = artGo.GetComponent<Image>();
+                art.sprite = psp;
+                art.type = Image.Type.Simple;
+                art.preserveAspect = false;
+                art.raycastTarget = false;
               } else if (psp == null) {
                 Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
               }
