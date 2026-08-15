@@ -2582,8 +2582,8 @@ export function Panel() {
         <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
         {/* the glyph's own position, in the glyph's own house — no more
             detouring through the type nudges to move an icon (owner) */}
-        <Slider label="Nudge X" value={IC.ox} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
-        <Slider label="Nudge Y" value={IC.oy} min={-50} max={50} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+        <Slider label="Nudge X" value={IC.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+        <Slider label="Nudge Y" value={IC.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
@@ -2655,8 +2655,8 @@ export function Panel() {
           <Slider label="Opacity" value={cfg.icon.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
           <Slider label="Rotation" value={cfg.icon.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
           <Slider label="Gap" value={cfg.icon.gap} min={0} max={40} unit="px" onChange={(v) => update((c) => { c.icon.gap = v; })} />
-          <Slider label="Nudge X" value={cfg.icon.ox} min={-30} max={30} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
-          <Slider label="Nudge Y" value={cfg.icon.oy} min={-30} max={30} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+          <Slider label="Nudge X" value={cfg.icon.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+          <Slider label="Nudge Y" value={cfg.icon.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
           <div className="sublabel">Icon effects</div>
           <div className="fxrow">
             {(["shadow", "glow", "emboss"] as const).map((f) => (
