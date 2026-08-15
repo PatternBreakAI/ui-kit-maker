@@ -92,6 +92,11 @@ export interface ExportBoardItemData {
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
+  /** a POSED bake for a prefab piece whose board pose diverges from the
+      family sprite's natural aspect — the engine's own render at the
+      exact board proportions, label stripped (words stay live). The
+      scene wears it 1:1 instead of stretching the nine-slice. */
+  posed?: string | null;
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -462,6 +467,64 @@ export async function collectExportBoards(st: {
       }
       const pax = pcx < W / 3 ? 0 : pcx > (2 * W) / 3 ? 1 : 0.5;
       const pay = pcy < H / 3 ? 1 : pcy > (2 * H) / 3 ? 0 : 0.5;
+      /* ── the POSED bake: a fluid silhouette redraws its decorated ends
+         at every width in the app, but a sliced sprite can only stretch
+         pixels — and the field showed the difference (owner: "the back of
+         the flame button looks scrunched up", with the app's render as
+         the reference). When this copy's pose diverges from the family
+         sprite's natural aspect, bake the engine's own render at the
+         exact board proportions — label stripped, the words stay live —
+         and the scene wears it 1:1 instead of stretching the nine-slice. */
+      let posed: string | null = null;
+      try {
+        const shellCfg = (src: GenConfig) => {
+          const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
+          c2.shadow.opacity = 0;
+          c2.candy.contact.opacity = 0;
+          for (const s2 of Object.values(c2.states)) s2.glow = 0;
+          return c2;
+        };
+        const shellBoxOf = (s: string): [number, number, number, number] | null => {
+          const m2 = /data-shell="([-\d. ]+)"/.exec(s) ?? /data-shell0="([-\d. ]+)"/.exec(s);
+          if (!m2) return null;
+          const v2 = m2[1].split(" ").map(Number);
+          return v2.length === 4 && v2.every(Number.isFinite) ? (v2 as [number, number, number, number]) : null;
+        };
+        const natural = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: "", icon: null });
+        const nb = shellBoxOf(natural);
+        const poseAspect = ph > 0 ? pw / ph : 1;
+        const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
+        if (Math.abs(poseAspect / natAspect - 1) > 0.08) {
+          let ps2 = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          // the label leaves the pixels — it rides the prefab as live text
+          const dom2 = new DOMParser().parseFromString(ps2, "image/svg+xml");
+          for (const n2 of Array.from(dom2.querySelectorAll('[data-part="label"]'))) n2.remove();
+          ps2 = new XMLSerializer().serializeToString(dom2.documentElement)
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          // crop to the drawn shell so the sprite IS the footprint the
+          // scene sizes to — margins would shrink the art inside its rect
+          const pb3 = shellBoxOf(ps2);
+          if (pb3) {
+            ps2 = ps2
+              .replace(/viewBox="[^"]+"/, `viewBox="${pb3[0]} ${pb3[1]} ${pb3[2]} ${pb3[3]}"`)
+              .replace(/width="[\d.]+"/, `width="${pb3[2]}"`)
+              .replace(/height="[\d.]+"/, `height="${pb3[3]}"`);
+          }
+          if (/<text/.test(ps2)) {
+            const fdP = fontByName(cfgP.type.font);
+            ps2 = await inlineKitFace(ps2, cfgP.type.font, fdP.name === cfgP.type.font ? fdP.css ?? null : null);
+          }
+          const { bytes: pbp } = await svgToPngBytes(ps2, 2);
+          const fileP = `boardstamps/${slug}-pose${stampFiles.length + 1}.png`;
+          stampFiles.push({ file: fileP, bytes: pbp });
+          posed = fileP;
+        }
+      } catch { /* the sliced prefab remains the honest fallback */ }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
@@ -477,6 +540,7 @@ export async function collectExportBoards(st: {
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (id === "slider" ? 0.62 : id === "toggle" ? 1 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
+        ...(posed ? { posed } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
         ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[id] ?? st.cfg.shape) ? { flip: true } : {}),
@@ -4313,7 +4377,7 @@ namespace PatternBreak {
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -5195,7 +5259,7 @@ namespace PatternBreak {
                beyond its native aspect and the kit ships one. */
             PBAsset baseGeo = null;
             foreach (var aG in m.assets) if (aG != null && aG.component == it.component && aG.part == "base" && aG.shell != null) { baseGeo = aG; break; }
-            if (baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
+            if (string.IsNullOrEmpty(it.posed) && baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
               float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
               if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
                 var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
@@ -5217,7 +5281,27 @@ namespace PatternBreak {
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
           if (string.IsNullOrEmpty(it.stamp)) {
-            if (rt.sizeDelta.x > 1f) {
+            if (!string.IsNullOrEmpty(it.posed)) {
+              /* the POSED bake is this copy's exact pixels at its board
+                 proportions — wear it 1:1: no slicing, no scale math
+                 (owner: "the back of the flame button looks scrunched
+                 up"). Sprite Swap retires on this copy (the sliced state
+                 skins would not match the pose); State FX keeps hover and
+                 press alive, and the label stays live text above. */
+              var psp = S(root + "/" + it.posed);
+              var pimg = inst.GetComponent<Image>();
+              if (psp != null && pimg != null) {
+                pimg.sprite = psp;
+                pimg.type = Image.Type.Simple;
+                pimg.preserveAspect = false;
+                var pbtn = inst.GetComponent<Button>();
+                if (pbtn != null) pbtn.transition = Selectable.Transition.None;
+                rt.sizeDelta = new Vector2(it.w, it.h);
+                rt.localScale = Vector3.one;
+              } else if (psp == null) {
+                Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
+              }
+            } else if (rt.sizeDelta.x > 1f) {
               /* SHELL-TO-SHELL sizing: the board records the shell's box
                  and the manifest records where that shell sits inside the
                  sprite. Scaling by the sprite rect compared a glow-padded
