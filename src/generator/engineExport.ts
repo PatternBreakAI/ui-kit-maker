@@ -39,6 +39,11 @@ interface AssetMeta {
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
   flip?: boolean;
+  /** The shell's footprint measured WITH the prefab's stock words, design
+   *  px (base rows of labeled families only). The importer grows the
+   *  prefab's default rect so the label fits at drag-in — the labeless
+   *  natural rect squished fluid silhouettes under overflowing text. */
+  prefW?: number; prefH?: number;
 }
 
 export interface EngineExportState {
@@ -1172,6 +1177,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
+  /* the prefab's DEFAULT rect wears the kit's WORDS: the base sprite bakes
+     labeless (labels are live text), so its natural rect is the shell
+     hugged around nothing — a fluid silhouette lands squished with the
+     label overflowing (owner: "devs will think it's janky"). Measure the
+     shell WITH the same stock words the prefab's live label uses
+     (DefaultLabel) and ship that footprint; the importer grows the rect
+     so the sliced piece drags in at the proportions the app shows. */
+  const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
+    primary: "PLAY", secondary: "PLAY", small: "PLAY",
+    chip: "NEW", tab: "TAB", tabback: "BACK", header: "SETTINGS",
+  };
   /* staged pieces obey the bay in the ENGINE zip too: they ship only
      once RELEASED, or when this maker actually placed one on a board
      (only an admin can place a staged piece) — same rule as shipProp */
@@ -1200,8 +1216,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const swap = ["primary", "secondary", "small", "chip", "tab", "tabback", "slot", "datarow"].includes(n.id);
     // flip provenance: which silhouette this bake actually wears
     const famFlip = isFlipShape(st.kitShapes[n.id] ?? KIT_SHAPE[n.id] ?? st.cfg.shape);
+    let pref: { prefW: number; prefH: number } | null = null;
+    if (PREF_LABEL[n.id] !== undefined) {
+      const lShm = /data-shell="([-\d. ]+)"/.exec(shell(n.id, { ...rowOpts, label: PREF_LABEL[n.id] }, slim));
+      const lV = lShm?.[1].split(" ").map(Number);
+      if (lV && lV.length === 4 && lV[2] > 4 && lV[3] > 4)
+        pref = { prefW: Math.round(lV[2] * 10) / 10, prefH: Math.round(lV[3] * 10) / 10 };
+    }
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}) }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}) }, true, swap ? n.family : undefined);
     const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -4388,7 +4411,7 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -6555,7 +6578,15 @@ namespace PatternBreak {
       img.sprite = baseSp;
       bool sliced = baseAsset.nineSlice != null && (baseAsset.nineSlice.left + baseAsset.nineSlice.right + baseAsset.nineSlice.top + baseAsset.nineSlice.bottom) > 0;
       img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
-      if (pngScale > 0)
+      if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
+        /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
+           natural rect squishes a fluid silhouette under overflowing text.
+           Grow the rect so the SHELL matches the labeled footprint the app
+           shows — the sliced middle carries the width, caps stay true. */
+        float rw = baseSp.rect.width * baseAsset.prefW / baseAsset.shell.w;
+        float rh = baseAsset.prefH > 4f ? baseSp.rect.height * baseAsset.prefH / baseAsset.shell.h : (pngScale > 0 ? baseSp.rect.height / pngScale : baseSp.rect.height);
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(rw, rh);
+      } else if (pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
       var famDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
       var hover = State(famDir, "hover");
