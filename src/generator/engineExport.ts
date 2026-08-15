@@ -179,6 +179,19 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   minimap: "minimap",
 };
 
+/* The stock words each labeled family's prefab wears (mirror of the
+   importer's DefaultLabel). The sliced family sprites BAKE at this labeled
+   geometry — a fluid silhouette draws its true decorated ends at the width
+   the words need, with the content group rendered invisible so the pixels
+   stay labeless (owner: "how can we get the prefab to look more like the
+   button in the kit"). The posed-divergence test measures its natural
+   aspect against the same words, so a board copy at stock proportions
+   rides the sliced prefab and only true re-poses bake. */
+const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
+  primary: "PLAY", secondary: "PLAY", small: "PLAY",
+  chip: "NEW", tab: "TAB", tabback: "BACK", header: "SETTINGS",
+};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -501,7 +514,10 @@ export async function collectExportBoards(st: {
           const v2 = m2[1].split(" ").map(Number);
           return v2.length === 4 && v2.every(Number.isFinite) ? (v2 as [number, number, number, number]) : null;
         };
-        const natural = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: "", icon: null });
+        /* the family sprite bakes at its STOCK-WORD geometry now — the
+           divergence test must measure against the same words, or every
+           stock-proportioned copy would falsely re-pose */
+        const natural = renderKit(shellCfg(cfgP), id, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[id] ?? "", icon: null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -883,8 +899,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      smudged halo (owner: "the rollovers are weird and incorrect"). Calm
      the fork exactly like the master so all four states share base's
      geometry. */
-  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number, slimSpec = false) => {
+  const stateShell = (id: KitComponentId, state: "hover" | "pressed" | "disabled", opts: Record<string, unknown> = {}, value?: number, slimSpec = false, mutate?: (c: GenConfig) => void) => {
     const c = clone(pieceCfg(id));
+    mutate?.(c); // labeled-geometry bakes ghost the content group (opacity 0)
     /* forks are PARTIAL (designFor: every field falls back to the master
        independently) — calm only what a fork actually carries, or a
        face-only fork crashes the whole export */
@@ -1177,17 +1194,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
-  /* the prefab's DEFAULT rect wears the kit's WORDS: the base sprite bakes
-     labeless (labels are live text), so its natural rect is the shell
-     hugged around nothing — a fluid silhouette lands squished with the
-     label overflowing (owner: "devs will think it's janky"). Measure the
-     shell WITH the same stock words the prefab's live label uses
-     (DefaultLabel) and ship that footprint; the importer grows the rect
-     so the sliced piece drags in at the proportions the app shows. */
-  const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
-    primary: "PLAY", secondary: "PLAY", small: "PLAY",
-    chip: "NEW", tab: "TAB", tabback: "BACK", header: "SETTINGS",
-  };
+  /* the prefab's DEFAULT rect wears the kit's WORDS — see PREF_LABEL at
+     module scope (the labeled-geometry bakes and the posed-divergence
+     test read the same map). */
   /* staged pieces obey the bay in the ENGINE zip too: they ship only
      once RELEASED, or when this maker actually placed one on a board
      (only an admin can place a staged piece) — same rule as shipProp */
@@ -1209,7 +1218,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const rowOpts: Record<string, unknown> = n.id === "datarow"
       ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never }
       : n.id === "input" ? { placeholder: false } : {};
-    const fullSvg = shell(n.id, rowOpts, slim);
+    /* LABELED-GEOMETRY bake: a fluid silhouette redraws its decorated ends
+       at whatever width its words need — baked labeless, the shell hugged
+       nothing and the prefab stretched ~2x to fit its live label, smearing
+       the middle (owner: prefab vs scene screenshots). So labeled families
+       render WITH their stock words and the content group at opacity 0:
+       true geometry, labeless pixels. The words themselves stay live text. */
+    const word = PREF_LABEL[n.id];
+    const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
+    const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
+    const fullSvg = shell(n.id, wordOpts, ghost(slim));
     const slice = sliceOf(n.id, n.h);
     /* swap families crop base + states on ONE union box (the group) so the
        four sprites share a coordinate space — see rasterQueue */
@@ -1217,15 +1235,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     // flip provenance: which silhouette this bake actually wears
     const famFlip = isFlipShape(st.kitShapes[n.id] ?? KIT_SHAPE[n.id] ?? st.cfg.shape);
     let pref: { prefW: number; prefH: number } | null = null;
-    if (PREF_LABEL[n.id] !== undefined) {
-      const lShm = /data-shell="([-\d. ]+)"/.exec(shell(n.id, { ...rowOpts, label: PREF_LABEL[n.id] }, slim));
+    if (word !== undefined) {
+      /* with the bake itself labeled, prefW ≈ the sprite's own shell — the
+         rect math in FamilyPrefab degrades to identity, kept as the truth
+         anchor if bake and measurement ever diverge */
+      const lShm = /data-shell="([-\d. ]+)"/.exec(fullSvg);
       const lV = lShm?.[1].split(" ").map(Number);
       if (lV && lV.length === 4 && lV[2] > 4 && lV[3] > 4)
         pref = { prefW: Math.round(lV[2] * 10) / 10, prefH: Math.round(lV[3] * 10) / 10 };
     }
     await addPng(`${n.family}/base.9.png`, fullSvg,
       { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}) }, true, swap ? n.family : undefined);
-    const flatSvg = shell(n.id, rowOpts, (c) => { slim(c); flat(c); });
+    const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
     /* interactive pieces ship their DESIGNED states for engine Sprite Swap —
@@ -1233,7 +1254,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, rowOpts, undefined, true),
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? (c) => { c.transparency.content = 0; } : undefined),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
@@ -1241,10 +1262,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        match the original") — the sliced base dropped it (slim); prefabs
        anchor this sprite shell-to-shell above the face so the feathered
        window scales with the piece instead of smearing through the
-       nine-slice. Blend-mode speculars stay baked, so no sprite ships. */
+       nine-slice. Blend-mode speculars stay baked, so no sprite ships.
+       Same labeled geometry as base, or the anchored overlay would stretch. */
     const spC = pieceCfg(n.id).candy.specular;
     if (spC.on && spC.intensity > 1 && (!spC.blend || spC.blend === "normal"))
-      await addPng(`${n.family}/specular.png`, shell(n.id, { faceLayer: "specular", ...rowOpts }),
+      await addPng(`${n.family}/specular.png`, shell(n.id, { faceLayer: "specular", ...wordOpts }, ghost()),
         { component: n.family, part: "specular", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: "The kit's specular streak alone — overlay it (Simple image, anchored shell-to-shell; the prefabs wire this) so it scales with the piece. Deliberately NOT sliced." }, true);
   }
@@ -1551,18 +1573,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          bare-row opts and baked "Level 12 · Warrior" into the under layer
          (owner: "is this level 2 warrior stuff meant to be a baked
          image? the main point of this kit is to be useful"). */
-      const bare: Record<string, unknown> = cid === "datarow"
+      const bare0: Record<string, unknown> = cid === "datarow"
         ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never } : {};
-      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under", ...bare }, slim),
+      /* labeled families' face layers share the base sprite's LABELED
+         geometry (see the NINE loop) — mixed-width layers would misalign
+         the tiled-face stack */
+      const wordF = PREF_LABEL[cid as KitComponentId];
+      const bare: Record<string, unknown> = wordF !== undefined ? { ...bare0, label: wordF } : bare0;
+      const slimF = wordF !== undefined ? (c: GenConfig) => { slim(c); c.transparency.content = 0; } : slim;
+      await addPng(`${fam}/base-under.9.png`, shell(cid as KitComponentId, { faceLayer: "under", ...bare }, slimF),
         { component: fam, part: "base-under", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, LOWER half: shell, rim and fill, no pattern. Sliced. Put the tiled pattern above it (masked), then base-over." }, true, grp);
-      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over", ...bare }, slim),
+      await addPng(`${fam}/base-over.9.png`, shell(cid as KitComponentId, { faceLayer: "over", ...bare }, slimF),
         { component: fam, part: "base-over", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face, UPPER half: gloss, grain, inner edge and specular over transparency. Sliced, drawn last — the gloss stays ONE sweep at any width." }, true, grp);
       /* the STENCIL: the face silhouette alone, opaque. Unity's Mask only
          alpha-clips when its graphic is hidden, so masking with a visible
          art layer gives a RECTANGULAR mask and the pattern spills past
          the shape (field: "pattern mask is off here"). A dedicated hidden
          mask sprite clips exactly, with no glow fringe to leak through. */
-      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask", ...bare }, slim),
+      await addPng(`${fam}/base-mask.9.png`, shell(cid as KitComponentId, { faceLayer: "mask", ...bare }, slimF),
         { component: fam, part: "base-mask", nineSlice: sl, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Stretch-safe face STENCIL: the bare face silhouette. Put it on a hidden Mask (Show Mask Graphic OFF) with the tiled pattern as its child — that clips the pattern to the shape exactly." }, true, grp);
     }
     /* the face pattern as a seamless tile: one cell, drawn at the same
