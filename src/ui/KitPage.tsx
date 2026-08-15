@@ -2476,7 +2476,8 @@ const kitTier = useGen((s) => s.tier);
           { cap: "Hover / Focus", piece: { id: "small", label: "PLAY", baseState: "hover" } },
           { cap: "Pressed", piece: { id: "small", label: "PLAY", baseState: "pressed" } },
           { cap: "Disabled", piece: { id: "small", label: "PLAY", baseState: "disabled" } },
-          { cap: "Locked", piece: { id: "small", label: "", icon: STOCK_ICONS.lock, baseState: "disabled" } },
+          // Button · Locked pose parked by the owner (2026-08-15) — restore by uncommenting:
+          // { cap: "Locked", piece: { id: "small", label: "", icon: STOCK_ICONS.lock, baseState: "disabled" } },
         ]} />
       </Sec>
 
