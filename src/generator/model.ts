@@ -1130,6 +1130,18 @@ const INV_GLYPHS = ["Factory", "Empty", "Sword", "Shield", "Helmet", "Shirt", "B
 const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Sword", "Crosshair", "Heart", "Gem", "Warning", "Check"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
+  segment: [
+    /* the unselected captions go quiet-and-plain by design — but a busy
+       face pattern can swallow them whole (owner: "If I could control
+       opacity, etc in its off-state then I could make it more legible
+       for backgrounds like this") */
+    { id: "offvis", name: "Unselected legibility", kind: "choice",
+      choices: ["Quiet · 45%", "Readable · 70%", "Strong · 85%", "Full · 100%"],
+      note: "How loudly the unselected captions read. Quiet is the factory look; push it up when a busy face pattern swallows the words." },
+    { id: "offstyle", name: "Unselected treatment", kind: "choice",
+      choices: ["Plain ink", "Full type style"],
+      note: "Plain ink keeps unselected captions deliberately understated. Full type style dresses them like the selected one — outline, shadow and all — so they hold up on loud faces." },
+  ],
   healthglobe: [
     { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },

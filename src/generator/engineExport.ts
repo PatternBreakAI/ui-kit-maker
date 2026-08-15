@@ -4127,6 +4127,16 @@ fresh copy.
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
 
+**Scene pieces vs Prefabs — the working contract.** A board scene is a
+FINISHED composition: every piece on it was crafted at its exact size,
+words and pose on uikitmaker.com, and it arrives here pixel-faithful to
+that intent. Treat scene pieces as final art with live words — retype a
+label, nudge a position, wire an OnClick, and ship. When you need a NEW
+button, a different size, or real customization, **start from
+${root}/Prefabs/** — those are the elastic, resizable versions built for
+exactly that. Reshaping a scene piece by hand fights art that was
+already resolved; the prefab is the piece that wants your hands on it.
+
 ---
 
 ## 03 · States — designed, shipped, pre-wired

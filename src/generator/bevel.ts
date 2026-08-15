@@ -4677,10 +4677,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
       // selected keeps the full type flavor; unselected go QUIET AND PLAIN —
       // dimming alone loses to outlined/shadowed type treatments
+      /* the slots dial the quiet captions up when a busy face swallows
+         them (owner: "If I could control opacity, etc in its off-state") */
+      const offOp = ({ "Readable · 70%": 0.7, "Strong · 85%": 0.85, "Full · 100%": 1 } as Record<string, number>)[opts.slots?.offvis ?? ""] ?? 0.45;
+      const offPlain = (opts.slots?.offstyle ?? "") !== "Full type style";
       const t = (label: string, cx: number, op: number, plain = false) =>
         contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op, plain });
       const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
-      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : 0.45, i !== sel)).join("")), zoneX, zoneW);
+      return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : offOp, i !== sel && offPlain)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
       // stateful: a dead (dim) check sits in the well until clicked alive.
