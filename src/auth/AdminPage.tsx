@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import "@/styles/pricing.css";
-import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder } from "@/generator/cloud";
+import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
@@ -583,15 +583,24 @@ export function AdminPage() {
 
   const designate = async (placement: "hero" | "standard" | "upcoming") => {
     if (!sel || relBusy) return;
-    const name = relName.trim() || sel.name;
+    const desired = relName.trim() || sel.name;
+    /* the same duplicate rule the projects panel enforces (owner mandate,
+       2026-08-16): a designation colliding with one ALREADY ON THE SLATE
+       — any placement, case-insensitive — takes the lowest free number,
+       and the confirm says so before the freeze. Sharing a BUILT-IN
+       look's name is untouched: that stays the deliberate takeover of
+       the built-in's tile (6f9906c) — this only de-dupes designation
+       against designation. */
+    const name = uniqueName(desired, (slate ?? []).map((d) => d.presetName));
+    const renamed = name === desired ? "" : `\n\nIt files as "${name}" — "${desired}" is already on the slate.`;
     const msg =
-      placement === "hero"
+      (placement === "hero"
         ? `Freeze "${sel.name}" for the homepage carousel?\n\nThe kit is snapshotted exactly as it is today, with the deal note, and takes a seat in the homepage rotation — order it on the rack below (give the CDN ~5 minutes; up to ${REEL_HERO_CEILING} designated heroes ride). A name shared with a built-in look takes over that built-in's tile.`
         : placement === "standard"
           ? `Release "${name}" to everyone right now?\n\nIt appears in every player's Presets panel immediately, and the kit is snapshotted for the record.`
           : relDate
             ? `Hold "${name}" until ${relDate}?\n\nInvisible to players until that day, then it releases itself. Snapshot and deal note are stored now.`
-            : `Park "${name}" as upcoming, no date yet?\n\nInvisible to players until you schedule it. Snapshot and deal note are stored now.`;
+            : `Park "${name}" as upcoming, no date yet?\n\nInvisible to players until you schedule it. Snapshot and deal note are stored now.`) + renamed;
     if (!window.confirm(msg)) return;
     setRelBusy(true); setDeskNote(null);
     /* the desk draws the card art itself: the publish lands server-side, and
@@ -616,7 +625,9 @@ export function AdminPage() {
     });
     setRelBusy(false);
     if (!ok) { setDeskNote(String(data.error ?? "Couldn't designate that kit.")); return; }
-    setDeskNote(`Frozen and filed — "${name}" is on the slate.`);
+    setDeskNote(renamed
+      ? `Frozen and filed — "${name}" is on the slate ("${desired}" was already designated, so it took the next free number).`
+      : `Frozen and filed — "${name}" is on the slate.`);
     setSel(null); setDoc(null); setKits(null); setStudios([]); setKq("");
     void loadSlate();
   };
