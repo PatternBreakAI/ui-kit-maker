@@ -1060,6 +1060,131 @@ export async function saveComponentReleases(map: Record<string, ReleaseStatus>):
   return error?.message ?? null;
 }
 
+/* ── Spotlight promos (owner mandate: "promo areas like adobe") ───────
+   One ordered array under one app_settings key — order IS priority,
+   exactly like landing_kit_order. World-readable, admin-writable, zero
+   migration: the same RLS every curation key already rides. Cards are
+   curated by hand on the admin desk or auto-minted by the Release Desk's
+   "Promote on Spotlight" — only ever the PUBLIC-SAFE subset (a preset
+   name and a design recipe; deal notes stay in admin-only
+   kit_designations and never republish here). */
+const PROMOS_KEY = "promos";
+/* the global gate the owner flips — Spotlight ships admin-only (the
+   standing staged rule) until this key reads true */
+const PROMOS_LIVE_KEY = "promos_live";
+
+export type PromoKind = "kit" | "tool" | "howto";
+export type PromoDef = {
+  /** short slug — THE per-card dismissal key; stable across edits */
+  id: string;
+  kind: PromoKind;
+  /** NEW KIT / NEW TOOL / HOW-TO, or custom words */
+  kicker?: string;
+  title: string;
+  /** one line — the shelf never wraps into a paragraph */
+  body?: string;
+  /** the card's real destination: an internal "#/..." route for
+   *  navigate(), or "editor:<sectionId>" to open a Panel section the
+   *  smart-help way. Every card has one — house rule. */
+  ctaRoute: string;
+  ctaLabel?: string;
+  /** engine recipe → the card draws its own art (heroSnapshotArt's move) */
+  cfg?: Record<string, unknown> | null;
+  /** asset://<hash> — resolved through the durable-assets resolver */
+  artRef?: string | null;
+  /** invisible to non-admins until this instant (ISO) */
+  publishAt?: string | null;
+  /** the NEW badge expires itself at this instant (ISO) */
+  newUntil?: string | null;
+  /** false = staged: admins preview it in place, nobody else sees it */
+  active?: boolean;
+};
+
+const PROMO_KINDS = new Set<PromoKind>(["kit", "tool", "howto"]);
+
+/** Keep only elements that can actually render and route — a malformed
+ *  hand edit in Supabase drops that card, never the whole shelf. */
+export function sanitizePromos(v: unknown): PromoDef[] {
+  if (!Array.isArray(v)) return [];
+  const out: PromoDef[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const p = raw as Record<string, unknown>;
+    if (typeof p.id !== "string" || !p.id.trim()) continue;
+    if (typeof p.title !== "string" || !p.title.trim()) continue;
+    if (typeof p.ctaRoute !== "string" || !p.ctaRoute.trim()) continue;
+    const kind = PROMO_KINDS.has(p.kind as PromoKind) ? (p.kind as PromoKind) : "kit";
+    out.push({
+      id: p.id, kind, title: p.title, ctaRoute: p.ctaRoute,
+      kicker: typeof p.kicker === "string" ? p.kicker : undefined,
+      body: typeof p.body === "string" ? p.body : undefined,
+      ctaLabel: typeof p.ctaLabel === "string" ? p.ctaLabel : undefined,
+      cfg: typeof p.cfg === "object" && p.cfg !== null && !Array.isArray(p.cfg) ? (p.cfg as Record<string, unknown>) : null,
+      artRef: typeof p.artRef === "string" ? p.artRef : null,
+      publishAt: typeof p.publishAt === "string" ? p.publishAt : null,
+      newUntil: typeof p.newUntil === "string" ? p.newUntil : null,
+      active: p.active !== false,
+    });
+  }
+  return out;
+}
+
+/** null = the read FAILED (keep whatever you had); [] = authoritatively
+ *  empty — the listComponentReleases lesson, verbatim: a flaked read must
+ *  never blank live promos for the session. */
+export async function listPromos(): Promise<PromoDef[] | null> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", PROMOS_KEY).maybeSingle();
+  if (error) return null;
+  return sanitizePromos(data?.value);
+}
+
+export async function savePromos(cards: PromoDef[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate Spotlight.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: PROMOS_KEY, value: cards, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
+/** null = read failed (keep the previous answer); the shelf ships gated,
+ *  so "no row yet" is an authoritative false. */
+export async function readPromosLive(): Promise<boolean | null> {
+  const client = await getClient();
+  if (!client) return false;
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", PROMOS_LIVE_KEY).maybeSingle();
+  if (error) return null;
+  return data?.value === true;
+}
+
+export async function setPromosLive(on: boolean): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to flip Spotlight.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: PROMOS_LIVE_KEY, value: on, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
+/* time semantics every Spotlight surface shares — a card is LIVE when its
+   own switch is on and any publish date has passed; the NEW badge only
+   exists while newUntil is ahead of the clock */
+export function promoIsLive(p: PromoDef, now = Date.now()): boolean {
+  if (p.active === false) return false;
+  if (p.publishAt) {
+    const t = new Date(p.publishAt).getTime();
+    if (!isNaN(t) && t > now) return false;
+  }
+  return true;
+}
+export function promoIsNew(p: PromoDef, now = Date.now()): boolean {
+  if (!p.newUntil) return false;
+  const t = new Date(p.newUntil).getTime();
+  return !isNaN(t) && t > now;
+}
+
 /** Everything the account owns in one file — the parachute offered
     before deletion (and a fine backup any other day): profile, the
     synced studio doc, and every saved kit with its full design. */

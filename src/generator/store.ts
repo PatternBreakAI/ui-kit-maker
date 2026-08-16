@@ -9,7 +9,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -561,6 +561,18 @@ interface GenStore {
   retireSilhouette: (id: string) => Promise<string | null>;
   restoreSilhouettes: () => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
+  /** Spotlight — the ordered promo lineup (cloud-curated; order = priority)
+   *  and the global gate the owner flips. Cards render on the kit-page
+   *  shelf and the Looks rack; admins preview staged cards in place. */
+  promos: PromoDef[];
+  promosLive: boolean;
+  /** re-read just the Spotlight keys — the admin desk calls this after a
+   *  write so its own session previews the new lineup without a reload */
+  refreshPromos: () => Promise<void>;
+  /** dismissed card ids — `ui-generator-promo-seen`, so the list rides
+   *  cloud sync across devices for free. Seen cards de-emphasize. */
+  promoSeen: string[];
+  markPromoSeen: (id: string) => void;
   /** The staging bay's ledger — staged component id → released/rejected.
    *  Absent = still pending in the bay (admin-only). Cloud-stored. */
   componentReleases: Record<string, ReleaseStatus>;
@@ -2095,11 +2107,12 @@ export const useGen = create<GenStore>((set, get) => ({
     return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
   })(),
   loadCloudPresets: async () => {
-    const [presets, hidden, prof, releases, hiddenSils] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes()]);
+    const [presets, hidden, prof, releases, hiddenSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listPromos(), readPromosLive()]);
     const prev = get();
     /* a FAILED read keeps the previous answer instead of downgrading —
        one flaked query used to de-admin (and de-tier) the whole session,
-       hiding the owner's own clone chapter "sometimes" */
+       hiding the owner's own clone chapter "sometimes". Spotlight rides
+       the same contract: null = flaked, keep the live promos. */
     const rel = releases ?? prev.componentReleases;
     let admin = prev.isAdmin;
     let tier: Tier = prev.tier;
@@ -2116,7 +2129,7 @@ export const useGen = create<GenStore>((set, get) => ({
         : cloudStatus().state === "off" ? "free" : "guest";
       writeGateSnapshot({ admin, tier, releases: rel });
     }
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel });
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -2192,6 +2205,23 @@ export const useGen = create<GenStore>((set, get) => ({
     const err = await setHiddenSilhouettes([]);
     if (!err) set({ hiddenSilhouettes: [] });
     return err;
+  },
+  /* Spotlight boots empty and fills with loadCloudPresets — the shelf is
+     below the fold of a page that draws hundreds of live pieces, so a
+     beat of lag costs nothing and a stale flash would cost trust. */
+  promos: [],
+  promosLive: false,
+  refreshPromos: async () => {
+    const [promos, promosLive] = await Promise.all([listPromos(), readPromosLive()]);
+    const prev = get();
+    set({ promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
+  },
+  promoSeen: loadJson<string[]>("ui-generator-promo-seen", []),
+  markPromoSeen: (id) => {
+    const next = [...new Set([...get().promoSeen, id])];
+    markTouched(); // a dismissal is workspace state — it syncs like one
+    saveJson("ui-generator-promo-seen", next);
+    set({ promoSeen: next });
   },
   componentReleases: readGateSnapshot()?.releases ?? {},
   setComponentRelease: async (id, status) => {
