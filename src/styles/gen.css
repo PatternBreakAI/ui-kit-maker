@@ -48,6 +48,11 @@ button { font-family: inherit; color: inherit; }
 .filechip-name { font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
 .filechip-state { color: var(--ink2); flex: none; }
 .filechip-state.dirty { color: #d97706; }
+/* the quiet save-state dot: amber = unsaved changes, invisible = clean.
+   The span is ALWAYS in the row at a fixed size, so state changes never
+   move the chip (owner: no layout jumps). */
+.filechip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: transparent; transition: background .2s ease; }
+.filechip-dot.dirty { background: #d97706; }
 .fileflash {
   position: absolute; top: calc(100% + 7px); left: 50%; transform: translateX(-50%);
   background: #fff; border: 1px solid var(--line); border-radius: 10px;
