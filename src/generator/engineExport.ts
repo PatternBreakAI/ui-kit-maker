@@ -2857,20 +2857,33 @@ using UnityEngine.UI;
 
 namespace PatternBreak {
   /* Idle motion, half one: the wipe — a soft highlight band sweeps the
-     piece and rests, clipped to the piece's own silhouette by a Mask on
-     the host image (the app's clipped, staggered glint, same recipe).
-     Fully procedural: no sprite assets, one tiny gradient texture shared
-     by every band. Delete the component and the piece is untouched. */
+     piece and rests, clipped to the piece's own PIXELS (the app's
+     clipped, staggered glint, same recipe). The clip is a HIDDEN stencil
+     twin of the host image: Unity only alpha-clips a Mask when Show Mask
+     Graphic is OFF (the tiled-face field lesson — a visible-graphic mask
+     stencils the whole rectangle), so the old on-host visible Mask swept
+     the band across the sprite's transparent air: on a type stamp the
+     bar crossed the empty canvas instead of riding the letterforms
+     (owner: "the wipe shine isn't masked to the letters"). The twin
+     mirrors the host sprite live, so Sprite Swap states stay clipped
+     true mid-sweep. Fully procedural: no sprite assets, one tiny
+     gradient texture shared by every band. Delete the component and the
+     piece is untouched. */
   [AddComponentMenu("UI Kit Maker/Wipe Shine")]
   public class WipeShine : MonoBehaviour {
     [Tooltip("Seconds from one sweep to the next.")] public float period = 9f;
     [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
     [Range(0f, 1f)] public float strength = 0.38f;
     public float tilt = -14f;
-    float phase; RectTransform rt, bandRt; Image band; Mask mask; bool ownMask;
+    float phase; RectTransform rt, bandRt, maskRt; Image band, maskImg, hostImg;
     static Sprite bandSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
+      hostImg = GetComponent<Image>();
+      /* no pixels, no band: an alpha-zero or sprite-less host (a posed
+         copy's raycast body) has nothing for the stencil to hold — the
+         old build swept a bar over thin air there */
+      if (hostImg == null || hostImg.sprite == null) return;
       if (bandSprite == null) {
         var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false);
         var px = new Color[64];
@@ -2879,25 +2892,38 @@ namespace PatternBreak {
         bandSprite = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(.5f, .5f));
         bandSprite.hideFlags = HideFlags.DontSave;
       }
-      mask = GetComponent<Mask>();
-      if (mask == null && GetComponent<Image>() != null) { mask = gameObject.AddComponent<Mask>(); mask.showMaskGraphic = true; ownMask = true; }
+      var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+      mGo.hideFlags = HideFlags.DontSave;
+      maskImg = mGo.GetComponent<Image>();
+      maskImg.sprite = hostImg.sprite;
+      maskImg.type = hostImg.type;
+      maskImg.preserveAspect = hostImg.preserveAspect;
+      maskImg.fillCenter = hostImg.fillCenter;
+      maskImg.raycastTarget = false;
+      mGo.GetComponent<Mask>().showMaskGraphic = false;
+      maskRt = (RectTransform)mGo.transform;
+      maskRt.SetParent(rt, false);
+      maskRt.anchorMin = Vector2.zero; maskRt.anchorMax = Vector2.one;
+      maskRt.offsetMin = Vector2.zero; maskRt.offsetMax = Vector2.zero;
       var go = new GameObject(name + " Wipe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
       band = go.GetComponent<Image>();
       band.sprite = bandSprite; band.raycastTarget = false; band.color = new Color(1f, 1f, 1f, 0f);
       bandRt = (RectTransform)go.transform;
-      bandRt.SetParent(rt, false);
+      bandRt.SetParent(maskRt, false);
       bandRt.localRotation = Quaternion.Euler(0f, 0f, tilt);
       // deterministic stagger, so a menu of pieces never flashes in unison
       phase = -(Mathf.Abs(name.GetHashCode()) % 1000) / 1000f * period;
     }
     void OnDisable() {
-      if (band != null) Destroy(band.gameObject);
-      if (ownMask && mask != null) Destroy(mask);
-      band = null; mask = null; ownMask = false;
+      if (maskRt != null) Destroy(maskRt.gameObject);
+      band = null; maskImg = null; maskRt = null; bandRt = null;
     }
     void Update() {
       if (band == null || rt == null) return;
+      // the stencil twin follows the host's LIVE sprite — a pressed swap
+      // mid-sweep keeps the band on the pressed pixels
+      if (hostImg != null && maskImg.sprite != hostImg.sprite) maskImg.sprite = hostImg.sprite;
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
       if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
@@ -5717,6 +5743,16 @@ namespace PatternBreak {
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
+            /* the kit's idle wipe rides baked pieces too — the band clips
+               to the baked pixels' own alpha (WipeShine's stencil twin),
+               so on a type stamp the shine travels the LETTERFORMS, the
+               way the app masks its wipe to the glyph ink (owner: "the
+               wipe shine isn't masked to the letters… for type stamps").
+               Wipe off = a resting stamp, exactly like the app. */
+            if (m.idle != null && m.idle.wipe == 1) {
+              var wsSt = inst.AddComponent<WipeShine>();
+              if (m.idle.freq > 0.5f) wsSt.period = m.idle.freq;
+            }
             /* the inventory grid's tiles go LIVE over the baked panel:
                the recorder shipped each well's box (the panel itself is
                baked ringless) — the rig owns the clicks and the ring */
@@ -8283,7 +8319,12 @@ namespace PatternBreak {
        reference on the joystick rig re-adopts by part, and the rig's
        geometry (rect, thumb seat, travel radius) converges with it.
        Idempotent — references already on manifest files are untouched,
-       and the maker's own sprites (outside assets/) are never touched. ── */
+       and the maker's own sprites (outside assets/) are never touched.
+       INSTANCE BAKES ARE OUT OF SCOPE BY CONSTRUCTION: posed copies and
+       type stamps live in SCENES (this pass walks Prefabs/ only) and
+       their pixels live under boardstamps/, outside both the assets/
+       prefix and the manifest's asset list — a board copy's own bake is
+       that copy's truth, never "stale family art" to re-point. ── */
     static bool ReadoptKitSprites(string root, string path, ref GameObject asset, PBManifest m) {
       if (m == null || m.assets == null) return false;
       var inManifest = new HashSet<string>();
@@ -8398,7 +8439,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -8415,7 +8456,8 @@ namespace PatternBreak {
         if (asset == null) continue;
         // stale/broken sprite references re-adopt FIRST, so every probe
         // below reads the kit's current art (see ReadoptKitSprites)
-        if (ReadoptKitSprites(root, path, ref asset, m)) readopted++;
+        bool adoptedNow = ReadoptKitSprites(root, path, ref asset, m);
+        if (adoptedNow) readopted++;
         var rootImg = asset.GetComponent<Image>();
         if (rootImg == null || rootImg.sprite == null) {
 #if UNITY_2023_2_OR_NEWER
@@ -8512,6 +8554,31 @@ namespace PatternBreak {
           var pS0 = AssetDatabase.GetAssetPath(imS0.sprite).Replace("\\\\", "/");
           if (pS0.StartsWith(root + "/assets/")) { wantShape = true; break; }
         }
+        /* IDLE SHINE convergence: the wipe/edge components only ever
+           arrived at prefab GENERATION — a kit whose shimmer was turned
+           on (or off) after the prefabs were born never reached them,
+           and the whole scene sat still (owner: "shine isn't moving at
+           all"). Converge the COMPONENT only, per the same rules the
+           builder uses — an existing component's tuned dials are the
+           maker's and stay untouched. Family-base prefabs only: rigs
+           and tiled faces never carried the idle pair by design. */
+        bool wantWipeAdd = false, wantWipeCut = false, wantEdgeAdd = false, wantEdgeCut = false;
+        {
+          bool isFamilyBase = !tiledBuild
+            && (spritePath.EndsWith("/" + famName + "-base.9.png") || spritePath.EndsWith("/" + famName + "-base.png"));
+          if (isFamilyBase) {
+            int shineW2 = m.idle != null ? m.idle.wipe : 0;
+            int shineE2 = m.idle != null ? m.idle.edge : 0;
+            if (m.idleForks != null)
+              foreach (var fk2 in m.idleForks) if (fk2 != null && fk2.family == famName) { if (fk2.wipe >= 0) shineW2 = fk2.wipe; if (fk2.edge >= 0) shineE2 = fk2.edge; }
+            var rowI = LabelRow(m, famName);
+            bool edgeAble = rowI != null && rowI.outline != null && rowI.outline.Length >= 8 && rowI.nineSlice == null;
+            wantWipeAdd = shineW2 == 1 && asset.GetComponent<WipeShine>() == null;
+            wantWipeCut = shineW2 == 0 && asset.GetComponent<WipeShine>() != null;
+            wantEdgeAdd = shineE2 == 1 && edgeAble && asset.GetComponent<EdgeShine>() == null;
+            wantEdgeCut = shineE2 == 0 && asset.GetComponent<EdgeShine>() != null;
+          }
+        }
         /* the tiled-face stack is three FULL-STRETCH layers over one rect
            (StretchFull at build) — an Over or PatternMask that drifted
            off that contract paints beside its siblings (field: the
@@ -8573,7 +8640,16 @@ namespace PatternBreak {
         }
         bool wantDress = false;
 #if UNITY_2023_2_OR_NEWER
-        if (kitStyle != null) {
+        /* NEVER redress in the same import that re-adopted this prefab's
+           sprites: the shape probes below would read a label seated for
+           the OLD art against the just-swapped new art and order surgery
+           from a mid-transition state. The redress rebuilds the label
+           OBJECTS, and that is the one maintenance move placed scenes
+           feel — a board copy's pinned words and seat live as instance
+           overrides ON those objects and die with them (field: a posed
+           BOOST reverted to the prefab's PLAY). The next import judges
+           the label from settled state. */
+        if (kitStyle != null && !adoptedNow) {
           var probeRoot = FindOurLabelRoot(asset);
           if (probeRoot != null) {
             /* the family's target label SHAPE: layered baked stack when the
@@ -8662,7 +8738,8 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects) continue;
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -8718,6 +8795,28 @@ namespace PatternBreak {
             var patF = contents.transform.Find("PatternMask/Pattern");
             if (patF != null && patF.GetComponent<RectTransform>() != null) StretchFull(patF.GetComponent<RectTransform>());
             faceRects++; changed = true;
+          }
+          if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
+            var wsA = contents.AddComponent<WipeShine>();
+            if (m.idle != null && m.idle.freq > 0.5f) wsA.period = m.idle.freq;
+            idled++; changed = true;
+          }
+          if (wantWipeCut) {
+            var wsC = contents.GetComponent<WipeShine>();
+            if (wsC != null) { UnityEngine.Object.DestroyImmediate(wsC); idled++; changed = true; }
+          }
+          if (wantEdgeAdd && contents.GetComponent<EdgeShine>() == null) {
+            var rowE = LabelRow(m, famName);
+            if (rowE != null && rowE.outline != null && rowE.outline.Length >= 8) {
+              var esA = contents.AddComponent<EdgeShine>();
+              esA.outline = rowE.outline;
+              if (m.idle != null && m.idle.freq > 0.5f) esA.period = m.idle.freq;
+              idled++; changed = true;
+            }
+          }
+          if (wantEdgeCut) {
+            var esC = contents.GetComponent<EdgeShine>();
+            if (esC != null) { UnityEngine.Object.DestroyImmediate(esC); idled++; changed = true; }
           }
           if (wantUnswap) {
             var selFix = contents.GetComponent<Selectable>();
@@ -8820,6 +8919,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: armed the fire button's press sink — the armed glyph now rides the dome's full pressed trip (kit press lift + the dome's designed sink) instead of floating in place. Tune it anytime via Pressed Lift on the FireButton component.");
       if (faceRects > 0)
         Debug.Log("UI Kit Maker: re-converged the layer stack on " + faceRects + " tiled-face prefab(s) — an overlay child had drifted off the full-stretch contract, painting its gloss/edge art beside the piece instead of over it. All three layers ride one rect again.");
+      if (idled > 0)
+        Debug.Log("UI Kit Maker: converged the idle shine on " + idled + " example prefab(s) to the kit's current setting — the wipe/edge components used to arrive only at first generation, so a shimmer turned on later never reached existing prefabs (or the scenes built from them). Placed copies pick it up automatically; dials on a component you tuned are never overwritten.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
