@@ -2221,9 +2221,19 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
    Pro Display XDR breakpoint (owner). The cap is structural: every cell
    claims at least a third of the row, so a fourth board must wrap;
    narrow mobile stages simply center inside their cell. */
-.bd-boards { flex-flow: row wrap; align-items: flex-start; align-content: flex-start; justify-content: safe center; gap: 36px; overflow-y: auto; overflow-x: auto; padding: 18px 16px 90px; }
-.bd-artboard { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 100%; min-width: min(calc((100% - 72px) / 3), 100%); }
-.bd-artboard.on > .bd-stage { outline: 2px solid rgba(120, 190, 255, 0.5); outline-offset: 5px; }
+/* the desk is a stack of EXPLICIT rows — each row shares the frame at one
+   true scale and never scrolls sideways (owner: "it doesn't have to be
+   scrollable horizontally — for each row you can have this combination at
+   maximum size - 1 landscape and 1 portrait, 3 portraits"). Rows sit
+   closer than before (owner: "the boards should be closer together"). */
+.bd-boards { flex-direction: column; align-items: safe center; justify-content: flex-start; gap: 26px; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 90px; }
+.bd-row { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 20px; max-width: 100%; }
+.bd-artboard { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
+/* the ACTIVE board announces itself — the old ring silently died when the
+   stagewrap arrived (a > child selector), which is why "I'm not quite
+   sure which board I'm on" */
+.bd-artboard.on .bd-stage { outline: 2.5px solid rgba(120, 190, 255, 0.95); outline-offset: 6px; box-shadow: 0 0 0 7px rgba(120, 190, 255, 0.14), 0 0 30px rgba(120, 190, 255, 0.3); }
+.bd-artboard.on .bd-abname { color: #9CCBFF; }
 .bd-abhead { display: flex; align-items: center; gap: 10px; min-width: 200px; }
 /* the name flexes into whatever the icons leave and ELLIPSIZES — a long
    board name must never wrap the header or push the verbs off the row */
@@ -2245,9 +2255,6 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .bd-addtab:hover { opacity: 1; color: var(--ink); border-color: var(--ink3); background: var(--card); }
 .bd-addtab--r { right: -31px; top: 50%; transform: translateY(-50%); width: 26px; height: 64px; }
 .bd-addtab--b { bottom: -56px; left: 50%; transform: translateX(-50%); width: 64px; height: 26px; }
-/* a full-width zero-height flex item forces the wrap; negative margins
-   swallow the doubled row gap it would otherwise introduce */
-.bd-rowbreak { flex-basis: 100%; height: 0; margin: -18px 0; }
 .bd-addboard-inline:hover { color: var(--ink); border-color: var(--ink3); }
 
 /* pages tray — InDesign style: click to jump, arrows to reorder */
@@ -2268,7 +2275,9 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 
 /* board: template pulldown, hover preview viewport */
 .bd-tpl { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 650; color: var(--kp-ink2, #9aa1b5); }
-.bd-tpl select { background: transparent; border: 1px solid rgba(150,158,180,.3); border-radius: 9px; padding: 6px 10px; font: 650 12px/1 inherit; color: inherit; cursor: pointer; }
+/* the select speaks in INK, not the row's dim slate — "Starter screen…"
+   was reading as ghost text (owner) */
+.bd-tpl select { background: transparent; border: 1px solid rgba(150,158,180,.3); border-radius: 9px; padding: 6px 10px; font: 650 12px/1 inherit; color: var(--ink); cursor: pointer; }
 /* an empty active board makes the starter control breathe — the one thing
    worth noticing on a bare page */
 .bd-tpl.glow select { border-color: rgba(111, 214, 255, .8); color: var(--ink); animation: bd-tpl-glow 2.1s ease-in-out infinite; }

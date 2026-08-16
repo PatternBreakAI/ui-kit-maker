@@ -1282,6 +1282,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const safeSlug = sanitizeUnitySlug(st.slug) ?? "ui-kit";
   // measured inside the full-kit block, read by the manifest below it
   let globeWell: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  /* the season track's drawn geometry as SHELL-BOX fractions (x from
+     left, y from BOTTOM — Unity anchor space): node-column span, spine,
+     lane centers, lane-label x. The importer maps them through the board
+     asset's shell row so the live cells land exactly on the art. */
+  let seasonGeo: { x0: number; x1: number; spineY: number; laneFreeY: number; lanePremY: number; labelX: number } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -1660,7 +1665,41 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     }
   } catch { /* measurement is an upgrade, not a dependency — prefab falls back to full stretch */ }
   await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — Filled (Vertical) Image masked by the glass. The prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
-  await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, bare — lanes, spine, nodes and empty reward tiles. Lane names, level numbers and progress are live engine content (PatternBreakSeasonTrack)." });
+  /* the baked sheet stays for older scenes and the catalog — the wired
+     prefab now builds from the parts below instead */
+  await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, baked flat (legacy sheet) — the SeasonTrack prefab now builds LIVE tier cells from the board/well/node/spine parts beside this file." });
+  /* ── the season track as PARTS (owner round two: "this component is
+     proving to be a bit uneditable… doesn't feel particularly useful") —
+     the prefab rebuilds the track around live tier cells: bare board,
+     one well tile per lane flavor, spine nodes lit and unlit, a sliced
+     spine rail; progress rides the kit's own progress fill (already in
+     assets/progress/). The board render stamps its drawn geometry and
+     it ships in the manifest as shell-box fractions. ── */
+  {
+    const boardSvg = shell("seasontrack", { part: "board" }, slim);
+    const gmS = /data-seasongeo="([-\d. ]+)"/.exec(boardSvg);
+    /* the geo stamp speaks the PRE-SHIFT frame (its numbers ride inside
+       the extrusion-headroom translate with the shell) — measure against
+       data-shell0, the same frame, and the shift cancels. Fractions are
+       ratios within the box, so they hold in the drawn frame the sprite's
+       shell row speaks too. */
+    const smS = /data-shell0="([-\d. ]+)"/.exec(boardSvg) ?? /data-shell="([-\d. ]+)"/.exec(boardSvg);
+    if (gmS && smS) {
+      const [gx0, gx1, gSpine, gFree, gPrem, gLabel] = gmS[1].split(" ").map(Number);
+      const [shx, shy, shw, shh] = smS[1].split(" ").map(Number);
+      if (shw > 4 && shh > 4) {
+        const fxS = (v: number) => Math.round(((v - shx) / shw) * 10000) / 10000;
+        const fyS = (v: number) => Math.round((1 - (v - shy) / shh) * 10000) / 10000; // y flips to Unity's bottom origin
+        seasonGeo = { x0: fxS(gx0), x1: fxS(gx1), spineY: fyS(gSpine), laneFreeY: fyS(gFree), lanePremY: fyS(gPrem), labelX: fxS(gLabel) };
+      }
+    }
+    await addPng("seasontrack/board.9.png", boardSvg, { component: "seasontrack", part: "board", nineSlice: sliceOf("seasontrack", 210), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track BOARD — frame and material only, nothing baked in. The SeasonTrack prefab lays live tier cells over it (wells, nodes, spine, progress). Sliced: stretch it wider when the tier count grows." }, true);
+    await addPng("seasontrack/well.png", shell("seasontrack", { part: "well" }), { component: "seasontrack", part: "well", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One reward well, free lane — the kit's empty slot at its drawn size. SeasonTrack instances one per tier; your reward icon mounts inside; locked tiers dim it, claimed tiers tint it." }, true);
+    await addPng("seasontrack/well-premium.png", shell("seasontrack", { part: "well-premium" }), { component: "seasontrack", part: "well-premium", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One reward well, premium lane — the gold-trimmed slot, exactly as the app draws it. Instanced per tier below the spine." }, true);
+    await addPng("seasontrack/node.png", shell("seasontrack", { part: "node" }), { component: "seasontrack", part: "node", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, not yet reached — the level number is live engine text on top." }, true);
+    await addPng("seasontrack/node-lit.png", shell("seasontrack", { part: "node-lit" }), { component: "seasontrack", part: "node-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, reached — SeasonTrack swaps it in up to the current tier." }, true);
+    await addPng("seasontrack/spine.9.png", shell("seasontrack", { part: "spine" }), { component: "seasontrack", part: "spine", nineSlice: { left: 16, right: 16, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The level rail — sliced; SeasonTrack stretches it node 1 to node N, with the kit's progress fill (assets/progress) riding above." }, true);
+  }
   /* its own component id so the wired Minimap prefab (RadarDemo sweep +
      blips) can find its shell box in the manifest; the file stays in
      extras/ so existing projects keep their sprite in place */
@@ -1902,12 +1941,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          origin) — the prefab anchors the cropped liquid here so
          Image.fillAmount 0..1 is visually empty..full, no padding lie */
       globeWell,
+      /* the season track's drawn geometry as shell-box fractions (bottom
+         origin) — the SeasonTrack prefab seats its live tier cells with
+         these, so wells and nodes land exactly where the app drew them */
+      seasonTrack: seasonGeo,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
         "Nine-slice bases are cropped tight to the geometry — no shadow/glow padding baked in. Compose glows and shadows in-engine (fx/fx-drop-shadow.png, fx/fx-glow.png, the states recipe).",
         "<family>-base.9.png = full material (gloss baked); <family>-base-flat.9.png = tintable flat variant for independent effects. Every filename carries its family so search finds it.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
+        "Season track = bare board + well/node/spine parts; the SeasonTrack prefab builds live tier cells from them (tier count, claims, reward icons and progress are Inspector dials). seasonTrack below maps the drawn geometry.",
         "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
       ],
@@ -3870,81 +3914,287 @@ namespace PatternBreak {
 }
 `;
 
-/* Runtime script #4: the season track's CONTENT rig — the look is baked
-   art (edited on uikitmaker.com), the content is live engine text this
-   component owns and lays out. Prototyper-first Inspector (owner). */
+/* Runtime script #4: the season track, round two — the look is the kit's
+   own PART sprites (edited on uikitmaker.com), the STRUCTURE is live:
+   tier cells built in-engine, so tier count, claims, icons and progress
+   are all real Inspector dials a dev can drive from game data. */
 const SEASON_TRACK_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
 #endif
 
 namespace PatternBreak {
-  /* Season track content. THE LOOK IS EDITED ON UIKITMAKER.COM — re-export
-     the kit to restyle the track art. This component owns the CONTENT:
-     lane names, level numbers and progress, as live text and a live fill
-     over the bare track sprite. Anchors are fractions of this rect —
-     nudge them in the Inspector if your layout drifts. */
+  /* Season track, rebuilt around LIVE tier cells. THE LOOK IS EDITED ON
+     UIKITMAKER.COM — re-export the kit to restyle the art; this component
+     owns the CONTENT. It lays out one cell per tier from the kit's own
+     part sprites (reward wells, spine nodes), lights nodes up to the
+     current tier, seats the kit's progress fill on the spine rail, and
+     prunes its own cells when the tier count shrinks. Everything it
+     creates lives under the "Track (auto)" child and rebuilds freely —
+     objects YOU add anywhere else are never touched.
+       Progress contract: currentTier = the last tier REACHED (1-based);
+       tierProgress (0..1) = the run toward the next node.
+       From code: SetProgress(tier, toNext), SetClaimed(tier, premium,
+       claimed), SetIcon(tier, premium, sprite). */
   [ExecuteAlways]
   [AddComponentMenu("UI Kit Maker/Season Track")]
   public class SeasonTrack : MonoBehaviour {
 #if UNITY_2023_2_OR_NEWER
-    [Header("Content — the LOOK is edited on uikitmaker.com")]
+    [Header("Track — the LOOK is edited on uikitmaker.com")]
+    [Range(1, 50)] public int tierCount = 5;
+    [Tooltip("Level number on the first node; nodes count up from it.")]
+    public int firstLevel = 1;
+    [Header("Progress — last tier reached + the run toward the next")]
+    [Range(1, 50)] public int currentTier = 2;
+    [Range(0f, 1f)] public float tierProgress = 0.5f;
+    [Header("Rewards (index 0 = tier 1; icons land in the well mounts)")]
+    public Sprite[] rewardIconsFree = new Sprite[0];
+    public Sprite[] rewardIconsPremium = new Sprite[0];
+    public bool[] claimedFree = new bool[0];
+    public bool[] claimedPremium = new bool[0];
+    [Header("Lanes & type")]
     public string laneA = "FREE";
     public string laneB = "PREMIUM";
-    public int firstLevel = 12;
-    [Range(0f, 1f)] public float progress = 0.5f;
-    [Header("Type")]
     public TMP_FontAsset face;
     public float labelSize = 16f;
     public Color laneAColor = Color.white;
     public Color laneBColor = new Color(0.98f, 0.8f, 0.08f);
-    public Color progressColor = new Color(0.4f, 0.9f, 1f, 0.9f);
-    [Header("Anchors (fractions of this rect)")]
-    public Vector2 laneAAnchor = new Vector2(0.11f, 0.72f);
-    public Vector2 laneBAnchor = new Vector2(0.11f, 0.28f);
-    public float[] nodeX = new float[] { 0.24f, 0.5f, 0.76f };
-    public float nodeY = 0.5f;
+    public Color nodeInk = new Color(0.78f, 0.82f, 0.9f);
+    public Color nodeInkReached = new Color(0.09f, 0.11f, 0.16f);
+    [Tooltip("Wells past the current tier dim to this.")]
+    public Color lockedTint = new Color(1f, 1f, 1f, 0.45f);
+    [Tooltip("Claimed wells tint to this; the check overlay appears too.")]
+    public Color claimedTint = new Color(0.62f, 1f, 0.72f, 1f);
+    [Header("Art (wired on import — re-export the kit to restyle)")]
+    public Sprite wellSprite;
+    public Sprite wellPremiumSprite;
+    public Sprite nodeSprite;
+    public Sprite nodeLitSprite;
+    public Sprite spineSprite;
+    public Sprite fillSprite;
+    public Sprite claimedCheck;
+    [Header("Layout — fractions of this rect, measured from the kit's art on import")]
+    [Range(0f, 1f)] public float trackX0 = 0.22f;
+    [Range(0f, 1f)] public float trackX1 = 0.93f;
+    [Range(0f, 1f)] public float spineY = 0.5f;
+    [Range(0f, 1f)] public float laneFreeY = 0.74f;
+    [Range(0f, 1f)] public float lanePremY = 0.26f;
+    [Range(0f, 1f)] public float laneLabelX = 0.05f;
+    [Tooltip("UI units per sprite pixel — 1 / the export's pngScale. Set on import.")]
+    public float spriteScale = 0.5f;
+    [Tooltip("Extra scale on every cell (wells, nodes, icons).")]
+    public float cellScale = 1f;
+
+    const string OWNED = "Track (auto)";
+
+    /* ── the dev's API ── */
+    public void SetProgress(int tier, float toNext) {
+      currentTier = Mathf.Clamp(tier, 1, Mathf.Max(1, tierCount));
+      tierProgress = Mathf.Clamp01(toNext);
+      Rebuild();
+    }
+    public void SetClaimed(int tier, bool premium, bool claimed) {
+      int i = tier - 1;
+      if (i < 0 || i >= tierCount) return;
+      if (premium) { Grow(ref claimedPremium, tierCount); claimedPremium[i] = claimed; }
+      else { Grow(ref claimedFree, tierCount); claimedFree[i] = claimed; }
+      Rebuild();
+    }
+    public void SetIcon(int tier, bool premium, Sprite s) {
+      int i = tier - 1;
+      if (i < 0 || i >= tierCount) return;
+      if (premium) { Grow(ref rewardIconsPremium, tierCount); rewardIconsPremium[i] = s; }
+      else { Grow(ref rewardIconsFree, tierCount); rewardIconsFree[i] = s; }
+      Rebuild();
+    }
+    static void Grow<T>(ref T[] a, int n) {
+      if (a == null) a = new T[n];
+      else if (a.Length < n) System.Array.Resize(ref a, n);
+    }
+
     void OnEnable() { Rebuild(); }
-    void OnValidate() { if (transform.Find("LaneA") != null) Apply(); }
-    TextMeshProUGUI Ensure(string childName) {
-      var t = transform.Find(childName);
-      var g = t != null ? t.gameObject : null;
-      if (g == null) { g = new GameObject(childName, typeof(RectTransform)); g.transform.SetParent(transform, false); }
-      var tmp = g.GetComponent<TextMeshProUGUI>();
-      if (tmp == null) tmp = g.AddComponent<TextMeshProUGUI>();
+#if UNITY_EDITOR
+    /* OnValidate must not move RectTransforms — Unity raises SendMessage
+       (OnRectTransformDimensionsChange) for a rect resize and forbids it
+       inside validation, printing the console warning the field reported.
+       Defer one editor tick instead; one queued rebuild at a time. */
+    bool rebuildQueued;
+    void OnValidate() {
+      if (rebuildQueued) return;
+      rebuildQueued = true;
+      UnityEditor.EditorApplication.delayCall += () => {
+        rebuildQueued = false;
+        if (this == null) return; // destroyed before the tick
+        if (UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject)) return; // assets rebuild via the importer
+        Rebuild();
+      };
+    }
+#endif
+
+    RectTransform Owned() {
+      var t = transform.Find(OWNED) as RectTransform;
+      if (t == null) {
+        var g = new GameObject(OWNED, typeof(RectTransform));
+        g.transform.SetParent(transform, false);
+        t = (RectTransform)g.transform;
+      }
+      t.SetSiblingIndex(0); // under anything the dev parents to the root
+      t.anchorMin = Vector2.zero; t.anchorMax = Vector2.one;
+      t.offsetMin = Vector2.zero; t.offsetMax = Vector2.zero;
+      return t;
+    }
+    RectTransform Child(RectTransform parent, string childName) {
+      var t = parent.Find(childName) as RectTransform;
+      if (t == null) {
+        var g = new GameObject(childName, typeof(RectTransform));
+        g.transform.SetParent(parent, false);
+        t = (RectTransform)g.transform;
+      }
+      if (!t.gameObject.activeSelf) t.gameObject.SetActive(true); // retired cells return
+      return t;
+    }
+    Image Img(RectTransform parent, string childName) {
+      var t = Child(parent, childName);
+      var img = t.GetComponent<Image>();
+      if (img == null) img = t.gameObject.AddComponent<Image>();
+      img.raycastTarget = false;
+      return img;
+    }
+    TextMeshProUGUI Text(RectTransform parent, string childName) {
+      var t = Child(parent, childName);
+      var tmp = t.GetComponent<TextMeshProUGUI>();
+      if (tmp == null) tmp = t.gameObject.AddComponent<TextMeshProUGUI>();
       tmp.raycastTarget = false;
-      tmp.alignment = TextAlignmentOptions.Center;
+      if (face != null) tmp.font = face;
       return tmp;
     }
-    void Place(RectTransform rt, Vector2 frac, float w, float h) {
+    static void Place(RectTransform rt, Vector2 frac, Vector2 size) {
       rt.anchorMin = frac; rt.anchorMax = frac; rt.pivot = new Vector2(0.5f, 0.5f);
-      rt.anchoredPosition = Vector2.zero; rt.sizeDelta = new Vector2(w, h);
+      rt.anchoredPosition = Vector2.zero; rt.sizeDelta = size;
     }
-    public void Rebuild() { Apply(); }
-    void Apply() {
-      var a = Ensure("LaneA");
-      a.text = laneA; a.fontSize = labelSize; a.color = laneAColor; if (face != null) a.font = face;
-      Place(a.rectTransform, laneAAnchor, 200f, 34f);
-      var b = Ensure("LaneB");
-      b.text = laneB; b.fontSize = labelSize; b.color = laneBColor; if (face != null) b.font = face;
-      Place(b.rectTransform, laneBAnchor, 200f, 34f);
-      for (int i = 0; i < nodeX.Length; i++) {
-        var n = Ensure("Node" + (i + 1));
-        n.text = (firstLevel + i).ToString(); n.fontSize = labelSize * 0.85f; n.color = laneAColor; if (face != null) n.font = face;
-        Place(n.rectTransform, new Vector2(nodeX[i], nodeY), 60f, 30f);
+    Vector2 SizeOf(Sprite s, float fallback) {
+      var raw = s != null ? s.rect.size * spriteScale : new Vector2(fallback, fallback);
+      return raw * cellScale;
+    }
+    float TierX(int i, int n) {
+      return n > 1 ? Mathf.Lerp(trackX0, trackX1, i / (n - 1f)) : (trackX0 + trackX1) * 0.5f;
+    }
+    /* destroy what we own — except a prefab-INSTANCE child in edit mode
+       (Unity forbids that); it retires inactive until the prefab asset
+       itself heals or the count grows back */
+    void Retire(GameObject g) {
+      if (Application.isPlaying) { g.SetActive(false); Destroy(g); return; }
+#if UNITY_EDITOR
+      if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(g)) { g.SetActive(false); return; }
+#endif
+      DestroyImmediate(g);
+    }
+    bool LegacyNodeName(string nm) {
+      if (nm.Length < 5 || !nm.StartsWith("Node")) return false;
+      for (int i = 4; i < nm.Length; i++) if (!char.IsDigit(nm[i])) return false;
+      return true;
+    }
+
+    public void Rebuild() {
+      int n = Mathf.Max(1, tierCount);
+      int cur = Mathf.Clamp(currentTier, 1, n);
+      /* retire the flat-era rig (pre-parts round): it parented its
+         overlays straight to the root under these exact names */
+      for (int c = transform.childCount - 1; c >= 0; c--) {
+        var tr = transform.GetChild(c);
+        if (tr.name == OWNED) continue;
+        bool legacyText = (tr.name == "LaneA" || tr.name == "LaneB" || LegacyNodeName(tr.name)) && tr.GetComponent<TextMeshProUGUI>() != null;
+        bool legacyFill = tr.name == "Progress" && tr.GetComponent<Image>() != null && tr.GetComponent<Image>().sprite == null;
+        if (legacyText || legacyFill) Retire(tr.gameObject);
       }
-      // the progress run rides the spine between the first and last node
-      var t = transform.Find("Progress");
-      var g = t != null ? t.gameObject : null;
-      if (g == null) { g = new GameObject("Progress", typeof(RectTransform), typeof(CanvasRenderer), typeof(UnityEngine.UI.Image)); g.transform.SetParent(transform, false); g.transform.SetSiblingIndex(0); }
-      var img = g.GetComponent<UnityEngine.UI.Image>();
-      img.color = progressColor; img.raycastTarget = false;
-      var prt = (RectTransform)g.transform;
-      float x0 = nodeX.Length > 0 ? nodeX[0] : 0.2f;
-      float x1 = nodeX.Length > 0 ? nodeX[nodeX.Length - 1] : 0.8f;
-      prt.anchorMin = new Vector2(x0, nodeY - 0.012f);
-      prt.anchorMax = new Vector2(x0 + (x1 - x0) * Mathf.Clamp01(progress), nodeY + 0.012f);
-      prt.offsetMin = Vector2.zero; prt.offsetMax = Vector2.zero;
+      var own = Owned();
+      // prune cells beyond the tier count — only names this component mints
+      for (int c = own.childCount - 1; c >= 0; c--) {
+        var tr = own.GetChild(c);
+        if (!tr.name.StartsWith("Tier ")) continue;
+        var bits = tr.name.Split(' ');
+        int idx;
+        if (bits.Length >= 2 && int.TryParse(bits[1], out idx) && idx > n) Retire(tr.gameObject);
+      }
+      /* the rail, node 1 to node N (draws under everything) */
+      var spine = Img(own, "Spine");
+      spine.sprite = spineSprite; spine.type = Image.Type.Sliced;
+      spine.enabled = spineSprite != null;
+      float spineH = spineSprite != null ? spineSprite.rect.size.y * spriteScale : 6f;
+      var srt = spine.rectTransform;
+      srt.anchorMin = new Vector2(TierX(0, n), spineY);
+      srt.anchorMax = new Vector2(TierX(n - 1, n), spineY);
+      srt.pivot = new Vector2(0.5f, 0.5f);
+      srt.offsetMin = new Vector2(-spineH, -spineH * 0.5f); // the drawn rail overhangs the end nodes by its own height
+      srt.offsetMax = new Vector2(spineH, spineH * 0.5f);
+      srt.SetSiblingIndex(0);
+      /* the run: the kit's own progress fill, seated ON the rail */
+      var fill = Img(own, "Fill");
+      fill.sprite = fillSprite; fill.type = Image.Type.Sliced;
+      fill.enabled = fillSprite != null;
+      float run = n > 1 ? Mathf.Clamp01((cur - 1 + Mathf.Clamp01(tierProgress)) / (n - 1f)) : 1f;
+      float fillH = spineH * 0.62f; // the app draws the run just inside the rail
+      var frt = fill.rectTransform;
+      frt.anchorMin = new Vector2(TierX(0, n), spineY);
+      frt.anchorMax = new Vector2(Mathf.Lerp(TierX(0, n), TierX(n - 1, n), run), spineY);
+      frt.pivot = new Vector2(0.5f, 0.5f);
+      frt.offsetMin = new Vector2(0f, -fillH * 0.5f);
+      frt.offsetMax = new Vector2(0f, fillH * 0.5f);
+      frt.SetSiblingIndex(1);
+      /* lane names */
+      var la = Text(own, "LaneA");
+      la.text = laneA; la.fontSize = labelSize; la.color = laneAColor;
+      la.alignment = TextAlignmentOptions.MidlineLeft;
+      Place(la.rectTransform, new Vector2(laneLabelX, laneFreeY), new Vector2(220f, 34f));
+      la.rectTransform.pivot = new Vector2(0f, 0.5f);
+      var lb = Text(own, "LaneB");
+      lb.text = laneB; lb.fontSize = labelSize; lb.color = laneBColor;
+      lb.alignment = TextAlignmentOptions.MidlineLeft;
+      Place(lb.rectTransform, new Vector2(laneLabelX, lanePremY), new Vector2(220f, 34f));
+      lb.rectTransform.pivot = new Vector2(0f, 0.5f);
+      /* the tier cells */
+      for (int i = 0; i < n; i++) {
+        float x = TierX(i, n);
+        bool reached = (i + 1) <= cur;
+        Well(own, i, x, false, reached);
+        Well(own, i, x, true, reached);
+        var node = Img(own, "Tier " + (i + 1) + " Node");
+        var nsp = reached && nodeLitSprite != null ? nodeLitSprite : nodeSprite;
+        node.sprite = nsp; node.type = Image.Type.Simple;
+        node.enabled = nsp != null;
+        Place(node.rectTransform, new Vector2(x, spineY), SizeOf(nsp, 26f));
+        var num = Text(node.rectTransform, "Level");
+        num.text = (firstLevel + i).ToString();
+        num.fontSize = labelSize * 0.85f;
+        num.color = reached ? nodeInkReached : nodeInk;
+        num.alignment = TextAlignmentOptions.Center;
+        Place(num.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(64f, 30f));
+      }
+    }
+    void Well(RectTransform own, int i, float x, bool premium, bool reached) {
+      var img = Img(own, "Tier " + (i + 1) + (premium ? " Premium well" : " Free well"));
+      var sp = premium && wellPremiumSprite != null ? wellPremiumSprite : wellSprite;
+      img.sprite = sp; img.type = Image.Type.Simple;
+      img.enabled = sp != null;
+      var claims = premium ? claimedPremium : claimedFree;
+      bool claimed = claims != null && i < claims.Length && claims[i];
+      img.color = claimed ? claimedTint : (reached ? Color.white : lockedTint);
+      var wsz = SizeOf(sp, 40f);
+      Place(img.rectTransform, new Vector2(x, premium ? lanePremY : laneFreeY), wsz);
+      /* icon mount — disabled until a sprite lands (SetIcon or the arrays) */
+      var icons = premium ? rewardIconsPremium : rewardIconsFree;
+      var isp = icons != null && i < icons.Length ? icons[i] : null;
+      var icon = Img(img.rectTransform, "Icon");
+      icon.sprite = isp; icon.enabled = isp != null; icon.preserveAspect = true;
+      icon.color = reached || claimed ? Color.white : lockedTint;
+      Place(icon.rectTransform, new Vector2(0.5f, 0.5f), wsz * 0.62f);
+      /* claimed check */
+      var chk = Img(img.rectTransform, "Claimed");
+      chk.sprite = claimedCheck;
+      chk.enabled = claimed && claimedCheck != null;
+      chk.color = Color.white;
+      Place(chk.rectTransform, new Vector2(0.82f, 0.18f), wsz * 0.42f);
     }
 #endif
   }
@@ -4598,11 +4848,16 @@ namespace PatternBreak {
   [Serializable] class PBLabelSize { public string family; public float size; public float scene; }
   [Serializable] class PBPlaceholder { public string text; public float left; public float size; public float centerFromTop; public string color; public float opacity; public bool italic; }
   [Serializable] class PBWell { public float x0; public float y0; public float x1; public float y1; }
+  /* the season track's drawn geometry as SHELL-BOX fractions (x from the
+     left, y from the BOTTOM): node-column span, spine, lane centers,
+     lane-label x. Mapped through the board asset's shell row so the live
+     tier cells land exactly on the art. */
+  [Serializable] class PBSeasonGeo { public float x0; public float x1; public float spineY; public float laneFreeY; public float lanePremY; public float labelX; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
 
@@ -5755,6 +6010,17 @@ namespace PatternBreak {
               var fbC = inst.GetComponent<FireButton>();
               if (fbC != null) { fbC.armed = Mathf.Min(3, Mathf.FloorToInt(Mathf.Clamp01(it.value) * 4f)); fbC.DealNow(); }
             }
+#if UNITY_2023_2_OR_NEWER
+            /* the board's pose drives the live track: value scrubs the
+               whole run, exactly what the app drew on the board */
+            if (it.component == "seasontrack" && it.value > 0f) {
+              var stV = inst.GetComponent<SeasonTrack>();
+              if (stV != null) {
+                float vT = Mathf.Clamp01(it.value) * (stV.tierCount - 1);
+                stV.SetProgress(1 + Mathf.FloorToInt(vT), vT - Mathf.Floor(vT));
+              }
+            }
+#endif
             // rows of keycaps/tabs become working select groups (below)
             if ((it.component == "keycap" || it.component == "tab") && inst.GetComponent<Button>() != null)
               selectRows.Add(new KeyValuePair<PBBoardItem, GameObject>(it, inst));
@@ -7771,18 +8037,51 @@ namespace PatternBreak {
       return true;
     }
 #if UNITY_2023_2_OR_NEWER
-    /* the season track: bare art + PatternBreak.SeasonTrack, which owns
-       the CONTENT (lane names, level numbers, progress) as live text —
-       its Inspector says so, prototypers edit there (owner). */
-    static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
-      var baseSp = S(root + "/assets/seasontrack/seasontrack-base.png");
-      if (baseSp == null) return false;
-      var go = ImageObject("SeasonTrack", baseSp, pngScale);
-      var trackC = go.AddComponent<SeasonTrack>();
+    /* the season track, round two: LIVE tier cells (owner: "it doesn't
+       feel particularly useful right now") — the bare board carries the
+       material, PatternBreak.SeasonTrack builds the wells, nodes, rail
+       and progress from the kit's own part sprites. Tier count, claims,
+       reward icons and progress are its Inspector dials. */
+    static void WireSeasonTrack(SeasonTrack c, string root, int pngScale, PBManifest m, Sprite boardSp) {
+      var pre = root + "/assets/seasontrack/seasontrack-";
+      c.wellSprite = S(pre + "well.png");
+      c.wellPremiumSprite = S(pre + "well-premium.png");
+      c.nodeSprite = S(pre + "node.png");
+      c.nodeLitSprite = S(pre + "node-lit.png");
+      c.spineSprite = S(pre + "spine.9.png");
+      c.fillSprite = S(root + "/assets/progress/progress-fill.9.png");
+      c.claimedCheck = S(root + "/assets/icons/check.png");
+      c.spriteScale = 1f / Mathf.Max(1, pngScale);
       Font kitFont = null;
       if (m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
-      trackC.face = EnsureTmpFace(root, m, kitFont);
+      c.face = EnsureTmpFace(root, m, kitFont);
+      /* the app's drawn geometry → fractions of the prefab rect. The
+         manifest speaks shell-box fractions; the board asset's shell row
+         places that box inside the sprite's own pixels. */
+      var geo = m != null ? m.seasonTrack : null;
+      PBAsset boardRow = null;
+      if (m != null && m.assets != null)
+        foreach (var aB in m.assets) if (aB != null && aB.component == "seasontrack" && aB.part == "board" && aB.shell != null) { boardRow = aB; break; }
+      if (geo != null && boardRow != null && boardSp != null && boardSp.rect.width > 4f && boardSp.rect.height > 4f && (geo.x1 - geo.x0) > 0.01f) {
+        var sh = boardRow.shell;
+        float W = boardSp.rect.width, H = boardSp.rect.height;
+        c.trackX0 = Mathf.Clamp01((sh.x + geo.x0 * sh.w) / W);
+        c.trackX1 = Mathf.Clamp01((sh.x + geo.x1 * sh.w) / W);
+        c.spineY = Mathf.Clamp01((H - sh.y - sh.h + geo.spineY * sh.h) / H);
+        c.laneFreeY = Mathf.Clamp01((H - sh.y - sh.h + geo.laneFreeY * sh.h) / H);
+        c.lanePremY = Mathf.Clamp01((H - sh.y - sh.h + geo.lanePremY * sh.h) / H);
+        c.laneLabelX = Mathf.Clamp01((sh.x + geo.labelX * sh.w) / W);
+      }
+      // ship the pose the app ships: three tiers, mid-run
+      c.tierCount = 3; c.currentTier = 2; c.tierProgress = 0f; c.firstLevel = 1;
+    }
+    static bool SeasonTrackPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var boardSp = S(root + "/assets/seasontrack/seasontrack-board.9.png");
+      if (boardSp == null) return false; // pre-parts zips keep their old prefab
+      var go = ImageObject("SeasonTrack", boardSp, pngScale);
+      var trackC = go.AddComponent<SeasonTrack>();
+      WireSeasonTrack(trackC, root, pngScale, m, boardSp);
       trackC.Rebuild();
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/SeasonTrack.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -7914,7 +8213,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -7943,6 +8242,34 @@ namespace PatternBreak {
         if (!spritePath.StartsWith(root + "/assets/")) continue; // not this kit's sprite — not ours to touch
         var famDir = Path.GetDirectoryName(spritePath).Replace("\\\\", "/");
         var famName = Path.GetFileName(famDir);
+#if UNITY_2023_2_OR_NEWER
+        /* the season track's parts era: a prefab from the flat-sheet
+           generation still wears the baked base (wells and nodes in the
+           pixels) under the new live-cell rig — re-point it at the bare
+           board and wire the parts, once. Words, user children and
+           placed copies ride along; scene instances heal with the asset. */
+        if (asset.GetComponent<SeasonTrack>() != null && spritePath.EndsWith("/seasontrack-base.png")) {
+          var boardSp2 = S(root + "/assets/seasontrack/seasontrack-board.9.png");
+          if (boardSp2 != null) {
+            var contentsST = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var stImg = contentsST.GetComponent<Image>();
+              var stC = contentsST.GetComponent<SeasonTrack>();
+              if (stImg != null && stC != null) {
+                stImg.sprite = boardSp2; stImg.type = Image.Type.Sliced;
+                float psST = m != null && m.pngScale > 0 ? m.pngScale : 2;
+                var strt = contentsST.GetComponent<RectTransform>();
+                if (strt != null) strt.sizeDelta = new Vector2(boardSp2.rect.width / psST, boardSp2.rect.height / psST);
+                WireSeasonTrack(stC, root, (int)psST, m, boardSp2);
+                stC.Rebuild();
+                PrefabUtility.SaveAsPrefabAsset(contentsST, path);
+                retracked++;
+              }
+            } finally { PrefabUtility.UnloadPrefabContents(contentsST); }
+            continue;
+          }
+        }
+#endif
         var hover = State(famDir, "hover");
         var pressed = State(famDir, "pressed");
         var disabled = State(famDir, "disabled");
@@ -8216,6 +8543,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — prefabs generated by an older importer kept the sprite dimensions they were born with, and board scenes inherited the stale size.");
       if (speced > 0)
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
+      if (retracked > 0)
+        Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {

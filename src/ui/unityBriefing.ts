@@ -78,6 +78,11 @@ export function buildUnityBriefing(st: BriefState, scope: "free" | "full"): Brie
     title: "Labels are live text in your face",
     body: "Every component label is real engine text wearing your kit's display face — retype anything right in Unity. Hover and press dress is pre-wired on the example prefabs.",
   });
+  cards.push({
+    kicker: "DID YOU KNOW",
+    title: "The season track builds itself",
+    body: "The SeasonTrack prefab lays out live tier cells from your kit's own parts — set the tier count, drop reward icons in the wells, mark claims, drive progress. All Inspector dials; the look re-dresses on re-export.",
+  });
   if (libUsed) {
     cards.push({
       kicker: "HEADS-UP",

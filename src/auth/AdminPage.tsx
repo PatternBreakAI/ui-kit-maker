@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen, GraduationCap } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName, listPromos, savePromos, readPromosLive, setPromosLive, promoIsLive, type PromoDef, type PromoKind } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -176,63 +176,44 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
   );
 }
 
-/* ── homepage curation rack ──────────────────────────────────────────
-   The HARDCODED front-door examples (hero reel, style chips, community
-   cards) an admin can retire without a deploy. Match keys are lowercase
-   DISPLAY NAMES: the landing checks names on every surface, and names
-   never collide across surfaces the way shared preset ids do (Grape
-   Jelly the reel entry vs Grape Arcade the card). KEEP THE NAME SET IN
-   SYNC with HERO_SWATCHES / HERO_REEL / CM_KITS in
-   src/marketing/landingInit.ts.
+/* ── the hero-slider rack ────────────────────────────────────────────
+   The admin mirror of the HOMEPAGE HERO SLIDER, and nothing else (owner
+   call, 2026-08-16: "the only purpose is the display order of the hero,
+   so let's not overcomplicate it"). The old three-section rack (reel /
+   style chips / community cards, LIVE/HIDDEN chips) is gone — one flat
+   list now, built by the SAME rules the landing applies, so the rack's
+   card order IS the homepage's paint order.
 
-   `look` records how the landing builds that example, so the rack can
-   draw a real thumbnail: authored looks load their full design
-   (PRESET_DEFAULTS — the same JSONs the landing's AUTHORED table
-   carries); the rest apply the starter recipe, exactly like the app's
-   own preset tray. Four names sit on BOTH the reel and the chip row —
-   one hide covers both, so each is one tile with an "also" note. */
+   Match keys are lowercase DISPLAY NAMES: the landing checks names on
+   every surface. KEEP THE NAME SET IN SYNC with HERO_REEL in
+   src/marketing/landingInit.ts. `look` records how the landing builds
+   that example, so the rack can draw a real thumbnail: authored looks
+   load their full design (PRESET_DEFAULTS — the same JSONs the
+   landing's AUTHORED table carries); the rest apply the starter recipe,
+   exactly like the app's own preset tray. The style-chip row follows
+   this same order feed on its own — chips need no rack of their own. */
 type HomeExample = {
-  name: string;       // display name — THE hide key
+  name: string;       // display name — THE feed match key
   look: string;       // starter id the landing resolves the look through
   authored?: boolean; // full authored design (PRESET_DEFAULTS) vs plain recipe
   label?: string;     // label the homepage shows on it (authored looks wear their own words)
-  also?: string;      // the same name also curates another surface
 };
-const HOME_ROSTER: { group: string; entries: HomeExample[] }[] = [
-  { group: "Hero reel", entries: [
-    { name: "Grape Jelly", look: "grape-jelly", authored: true, also: "also a style chip" },
-    { name: "Hard Candy", look: "hard-candy", label: "PLAY", also: "also a style chip" },
-    { name: "Schweetheart", look: "schweetheart", authored: true },
-    { name: "Neon Versus", look: "neon-versus", authored: true },
-    { name: "Oopsie", look: "oopsie", authored: true },
-    { name: "Citrus Pop", look: "citrus-pop", authored: true, also: "also a style chip" },
-    { name: "Bubble Pop", look: "bubble-pop", authored: true, also: "also a style chip" },
-    { name: "Nope Yep", look: "nope-yep", authored: true },
-    { name: "Wager", look: "wager", authored: true },
-  ] },
-  { group: "Style chips", entries: [
-    { name: "Deep Ocean", look: "deep-ocean" },
-    { name: "Forest Sprite", look: "forest-sprite" },
-    { name: "Hero Chisel", look: "hero-chisel" },
-    { name: "Glacier Tech", look: "glacier-tech" },
-  ] },
-  { group: "Community cards", entries: [
-    { name: "Grape Arcade", look: "grape-jelly", authored: true, label: "GRAPE" },
-    { name: "Abyss Console", look: "deep-ocean", label: "ABYSS" },
-    { name: "Forge Standard", look: "hero-chisel", label: "FORGE" },
-  ] },
+const REEL_BUILTINS: HomeExample[] = [
+  { name: "Grape Jelly", look: "grape-jelly", authored: true },
+  { name: "Hard Candy", look: "hard-candy", label: "PLAY" },
+  { name: "Schweetheart", look: "schweetheart", authored: true },
+  { name: "Neon Versus", look: "neon-versus", authored: true },
+  { name: "Oopsie", look: "oopsie", authored: true },
+  { name: "Citrus Pop", look: "citrus-pop", authored: true },
+  { name: "Bubble Pop", look: "bubble-pop", authored: true },
+  { name: "Nope Yep", look: "nope-yep", authored: true },
+  { name: "Wager", look: "wager", authored: true },
 ];
 
-/* A group's entries in their DISPLAYED order: ranked by the saved order
-   list (same lowercase name keys as the hidden list), unlisted names
-   keeping their roster order behind the listed ones — the exact contract
-   the landing's kitOrder helper applies to each homepage surface. */
-function orderedEntries<T extends { name: string }>(entries: T[], order: string[]): T[] {
-  if (!order.length) return entries;
-  const rank = (n: string) => { const i = order.indexOf(n.toLowerCase()); return i === -1 ? order.length : i; };
-  return entries.map((e, i) => [e, rank(e.name), i] as const)
-    .sort((a, b) => (a[1] - b[1]) || (a[2] - b[2])).map((x) => x[0]);
-}
+/* names the RETIRED sections (style chips, community cards) could hide
+   in their day — the Release Desk's re-add row still answers for them,
+   so a legacy hide is never orphaned in the feed with no door back */
+const OTHER_BUILTIN_NAMES = ["Deep Ocean", "Forest Sprite", "Hero Chisel", "Glacier Tech", "Grape Arcade", "Abyss Console", "Forge Standard"];
 
 /* One thumbnail per roster entry, by the same engine as everything else.
    Mirrors the app's preset tray recipe (Panel.presetArt): authored looks
@@ -275,13 +256,11 @@ function releaseWord(d: Desig): string {
   return t <= Date.now() ? "live" : `releases ${fmtDay(d.publishAt)}`;
 }
 
-/* The built-in reel/chip names (community cards are a separate surface).
-   A designated hero wearing one of these names COLLAPSES onto that tile:
-   the owner's frozen snapshot takes the seat and the art (designating a
-   look by a built-in's name is a deliberate replacement, not a clash). */
-const BUILTIN_REEL_NAMES = new Set(
-  HOME_ROSTER.filter((g) => g.group !== "Community cards")
-    .flatMap((g) => g.entries.map((e) => e.name.toLowerCase())));
+/* The built-in reel names. A designated hero wearing one of these names
+   TAKES OVER that card: the owner's frozen snapshot wins the seat and
+   the art (designating a look by a built-in's name is a deliberate
+   replacement, not a clash — the landing applies the same rule). */
+const BUILTIN_REEL_NAMES = new Set(REEL_BUILTINS.map((e) => e.name.toLowerCase()));
 
 /* How many designated heroes the homepage feed serves (api/hero-lineup
    and the designations action agree on it). Not a rotation window — the
@@ -304,9 +283,9 @@ function heroSnapshotArt(cfg: Record<string, unknown>): string | null {
   }
 }
 
-/** one tile on the rack — a built-in look, a designated hero, or the
-    collapsed pair (hero snapshot wearing a built-in's name) */
-type RackTile = { name: string; art: string | null; also?: string; heroId?: string };
+/** one card on the rack — a built-in look, a designated hero, or the
+    takeover pair (hero snapshot wearing a built-in's name) */
+type RackTile = { name: string; look?: string; art: string | null; heroId?: string; takeover?: boolean };
 
 /* ── Spotlight desk plumbing ─────────────────────────────────────────
    Cards live as ONE ordered array in app_settings (order = shelf
@@ -390,35 +369,24 @@ export function AdminPage() {
     setCensus({ users: (data.users as (Row & { kits: number })[]) ?? [], total: Number(data.total ?? 0), page: Number(data.page ?? 0) });
   };
 
-  /* homepage curation — the visual rack (roster + art recipe live at
-     module scope, above). The thumbnails render once the desk opens;
-     a gated mount draws nothing. */
+  /* the hero-slider rack — feeds first (roster + art recipe live at
+     module scope, above). homeHidden mirrors hidden_landing_kits: the
+     rack mints entries only through Delete now, but the set is still
+     what the landing filters on. The thumbnails render once the desk
+     opens; a gated mount draws nothing. */
   const [homeHidden, setHomeHidden] = useState<Set<string> | null>(null);
   const [homeNote, setHomeNote] = useState<string | null>(null);
   const [homeBusy, setHomeBusy] = useState(false);
-  const toggleHomeKit = async (name: string) => {
-    if (!homeHidden) return;
-    const key = name.toLowerCase();
-    const next = new Set(homeHidden);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    setHomeHidden(next);
-    setHomeBusy(true);
-    const err = await setHiddenLandingKits([...next]);
-    setHomeBusy(false);
-    setHomeNote(err ?? `Saved. The homepage picks this up within ~5 minutes (the feed is CDN-cached); your own next visit applies it too.`);
-    if (err) setHomeHidden(homeHidden); // roll the optimistic flip back
-  };
-  /* display order — the FULL flattened list of lowercase names, group by
-     group, written whole on every move so each surface's sort is fully
-     determined. Same optimistic flip + rollback as the hide toggle.
+  /* display order — lowercase names, written whole on every move so the
+     slider's sort is fully determined. Optimistic flip + rollback.
      Arrows are the primary control; tile drag is an enhancement, and its
      payload lives in a REF — dragstart → dragover can outrun a re-render,
      and a state-only payload leaves dragover reading a stale null closure,
      so the drop never arms. State carries only the visuals. */
   const [homeOrder, setHomeOrder] = useState<string[] | null>(null);
-  const homeDragRef = useRef<{ group: string; index: number } | null>(null);
-  const [homeDrag, setHomeDrag] = useState<{ group: string; index: number } | null>(null);
-  const [homeOver, setHomeOver] = useState<{ group: string; index: number } | null>(null);
+  const homeDragRef = useRef<number | null>(null);
+  const [homeDrag, setHomeDrag] = useState<number | null>(null);
+  const [homeOver, setHomeOver] = useState<number | null>(null);
   const persistHomeOrder = async (next: string[]) => {
     const prev = homeOrder;
     setHomeOrder(next);
@@ -432,7 +400,7 @@ export function AdminPage() {
   const homeArt = useMemo(() => {
     if (!allowed) return null;
     const m = new Map<string, string | null>();
-    for (const { entries } of HOME_ROSTER) for (const ex of entries) m.set(ex.name, homeExampleArt(ex));
+    for (const ex of REEL_BUILTINS) m.set(ex.name, homeExampleArt(ex));
     return m;
   }, [allowed]);
 
@@ -457,11 +425,11 @@ export function AdminPage() {
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [slate, setSlate] = useState<Desig[] | null>(null);
   const [slateNote, setSlateNote] = useState<string | null>(null);
-  /* ── the unified rotation (owner call, 2026-08-16): the rack's Hero
-     reel group IS the homepage rotation — built-ins and designated
-     heroes as one ordered list, no separate classes. A hero sharing a
-     built-in's name collapses onto that tile and its snapshot wins the
-     art. The slate stays a passive report wearing the same words. */
+  /* ── the unified rotation (owner call, 2026-08-16): the rack IS the
+     homepage hero slider — built-ins and designated heroes as one
+     ordered list, no separate classes. A hero sharing a built-in's name
+     takes over that card and its snapshot wins the art. The slate stays
+     a passive report wearing the same words. */
   const heroRows = (slate ?? []).filter((d) => d.placement === "hero");
   const heroArt = useMemo(() => {
     const m = new Map<string, string | null>();
@@ -474,50 +442,152 @@ export function AdminPage() {
       try { ensureDocFonts(d.cfg); } catch { /* placeholder tiles report below */ }
     }
   }, [slate]);
-  const rackGroups = useMemo((): { group: string; tiles: RackTile[] }[] => {
+  /* the rack's list — THE LANDING'S OWN SEATING RULES, step for step
+     (src/marketing/landingInit.ts: kitOrder sort, hidden filter with
+     the never-blank fallback, then each hero in feed order — name
+     takeover in place, splice at ordered rank, unlisted to the end —
+     under the 16-hero ceiling; a snapshot the engine can't render never
+     joins, exactly like the landing's dry-run). What this returns IS
+     what the homepage paints, in the order it paints it. */
+  const rackTiles = useMemo((): RackTile[] => {
     const order = homeOrder ?? [];
-    return HOME_ROSTER.map(({ group, entries }) => {
-      if (group !== "Hero reel") {
-        return { group, tiles: orderedEntries(entries, order).map((ex): RackTile => ({ name: ex.name, art: homeArt?.get(ex.name) ?? null, also: ex.also })) };
+    const hidden = homeHidden ?? new Set<string>();
+    const rank = (...keys: (string | undefined)[]) => {
+      for (const k of keys) { if (!k) continue; const i = order.indexOf(k.toLowerCase()); if (i !== -1) return i; }
+      return order.length; // unlisted sort behind listed, ties keep source order
+    };
+    const sorted = REEL_BUILTINS.map((e, i) => [e, rank(e.name, e.look), i] as const)
+      .sort((a, b) => (a[1] - b[1]) || (a[2] - b[2])).map((x) => x[0]);
+    const vis = sorted.filter((e) => !hidden.has(e.name.toLowerCase()) && !hidden.has(e.look.toLowerCase()));
+    const reel: RackTile[] = (vis.length ? vis : sorted) // a curated-to-nothing reel falls back whole
+      .map((e): RackTile => ({ name: e.name, look: e.look, art: homeArt?.get(e.name) ?? null }));
+    const placed = new Set<string>();
+    for (const d of heroRows.slice(0, REEL_HERO_CEILING)) {
+      const lname = d.presetName.toLowerCase();
+      if (hidden.has(lname) || placed.has(lname)) continue;
+      const art = heroArt.get(d.id) ?? null;
+      if (!art) continue; // the landing dry-runs the renderer — an unrenderable snapshot never rides
+      const ri = reel.findIndex((t) => t.name.toLowerCase() === lname);
+      const entry: RackTile = { name: d.presetName, art, heroId: d.id, takeover: ri !== -1 && !reel[ri].heroId };
+      if (ri !== -1) reel[ri] = entry; // the designated snapshot takes the built-in's seat
+      else {
+        const r = rank(d.presetName);
+        let at = reel.length;
+        for (let i = 0; i < reel.length; i++) { if (rank(reel[i].name, reel[i].look) > r) { at = i; break; } }
+        reel.splice(at, 0, entry);
       }
-      const heroByName = new Map(heroRows.map((d) => [d.presetName.toLowerCase(), d] as const));
-      const unified = entries.map((ex): RackTile => {
-        const d = heroByName.get(ex.name.toLowerCase());
-        if (!d) return { name: ex.name, art: homeArt?.get(ex.name) ?? null, also: ex.also };
-        heroByName.delete(ex.name.toLowerCase()); // one tile, not a clash
-        return {
-          name: ex.name, heroId: d.id, art: heroArt.get(d.id) ?? null,
-          also: ["designated snapshot — replaces the built-in", ex.also].filter(Boolean).join(" · "),
-        };
-      });
-      for (const d of heroRows) {
-        if (heroByName.get(d.presetName.toLowerCase()) !== d) continue; // collapsed above, or a duplicate name
-        heroByName.delete(d.presetName.toLowerCase());
-        unified.push({ name: d.presetName, heroId: d.id, art: heroArt.get(d.id) ?? null, also: "designated hero — frozen on the slate" });
-      }
-      return { group, tiles: orderedEntries(unified, order) };
-    });
-  }, [homeOrder, homeArt, heroArt, slate]); // eslint-disable-line react-hooks/exhaustive-deps
-  const moveHomeKit = (group: string, shown: { name: string }[], from: number, to: number) => {
-    if (homeBusy || from === to || to < 0 || to >= shown.length) return;
-    const seq = [...shown];
+      placed.add(lname);
+    }
+    return reel;
+  }, [homeOrder, homeHidden, homeArt, heroArt, slate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moveTile = (from: number, to: number) => {
+    if (homeBusy || from === to || to < 0 || to >= rackTiles.length) return;
+    const seq = [...rackTiles];
     const [m] = seq.splice(from, 1);
     seq.splice(to, 0, m);
-    const next = rackGroups.flatMap((g) => (g.group === group ? seq : g.tiles).map((t) => t.name.toLowerCase()));
-    void persistHomeOrder(next);
+    /* the slider's names lead in their new order; entries the rack
+       doesn't seat (legacy chip/card ranks, deleted names) keep their
+       relative order behind — per-surface ranking only reads relative
+       order, so the chip row's own sort survives every reel move */
+    const rackKeys = new Set(rackTiles.flatMap((t) => [t.name.toLowerCase(), ...(t.look ? [t.look.toLowerCase()] : [])]));
+    const keep = (homeOrder ?? []).filter((k) => !rackKeys.has(k));
+    void persistHomeOrder([...seq.map((t) => t.name.toLowerCase()), ...keep]);
+  };
+  /* Delete — the rack's one verb (owner: "there is no hidden, just
+     delete"). A built-in goes onto the hidden_landing_kits feed (the
+     landing already filters on it) and off the order list; its re-add
+     chip waits on the Release Desk. A designated hero has its HERO
+     designation cleared through the desk's existing write path — the
+     kit itself stays findable there for re-designation — and a takeover
+     hero pulls the built-in wearing its name off the slider too. */
+  const deleteTile = async (t: RackTile) => {
+    if (homeBusy || !homeHidden) return;
+    const lname = t.name.toLowerCase();
+    if (t.heroId) {
+      if (!window.confirm(
+        `Delete "${t.name}" from the hero slider?\n\n` +
+        `Its hero designation is cleared — the frozen snapshot goes with it` +
+        (t.takeover ? `, and the built-in look wearing this name leaves the slider too (its re-add chip lands on the Release Desk)` : "") +
+        `. Re-add it any time from the Release Desk by designating the kit as hero again (give the CDN ~5 minutes).`,
+      )) return;
+      setHomeBusy(true); setHomeNote(null);
+      const { ok, data } = await callAdmin({ action: "undesignate", designationId: t.heroId });
+      if (!ok) { setHomeBusy(false); setHomeNote(String(data.error ?? "Couldn't clear the hero designation — nothing changed.")); return; }
+      setSlate((s) => (s ?? []).filter((x) => x.id !== t.heroId)); // the card leaves now
+      let err: string | null = null;
+      if (t.takeover && !homeHidden.has(lname)) {
+        const nextHidden = new Set(homeHidden); nextHidden.add(lname);
+        err = await setHiddenLandingKits([...nextHidden]);
+        if (!err) setHomeHidden(nextHidden);
+      }
+      const nextOrder = (homeOrder ?? []).filter((k) => k !== lname);
+      const err2 = await setLandingKitOrder(nextOrder);
+      if (!err2) setHomeOrder(nextOrder);
+      setHomeBusy(false);
+      setHomeNote(err ?? err2 ?? `Deleted — "${t.name}" leaves the hero slider (~5 min CDN). Designate the kit as hero again on the Release Desk to re-add it.`);
+      void loadSlate(); // reconcile with the server's truth
+    } else {
+      if (!window.confirm(
+        `Delete "${t.name}" from the hero slider?\n\n` +
+        `Every visitor loses it (give the CDN ~5 minutes). Its chip waits on the Release Desk under "Removed from the hero slider" — Re-add there any time.`,
+      )) return;
+      setHomeBusy(true); setHomeNote(null);
+      const nextHidden = new Set(homeHidden); nextHidden.add(lname);
+      const err = await setHiddenLandingKits([...nextHidden]);
+      if (err) { setHomeBusy(false); setHomeNote(err); return; }
+      setHomeHidden(nextHidden);
+      const nextOrder = (homeOrder ?? []).filter((k) => k !== lname && k !== t.look?.toLowerCase());
+      const err2 = await setLandingKitOrder(nextOrder);
+      if (!err2) setHomeOrder(nextOrder);
+      setHomeBusy(false);
+      setHomeNote(err2 ?? `Deleted — "${t.name}" leaves the hero slider (~5 min CDN). Its re-add chip is on the Release Desk.`);
+    }
+  };
+  /* the Release Desk's re-add row: every deleted BUILT-IN, as a quiet
+     chip (the owner's stated re-add location). Designated heroes need no
+     row — re-designating as hero from the desk puts them back. Legacy
+     names the retired sections once hid keep a door here too. */
+  const [readdNote, setReaddNote] = useState<string | null>(null);
+  const deletedBuiltins = useMemo((): { name: string; keys: string[] }[] => {
+    if (!homeHidden?.size) return [];
+    const out: { name: string; keys: string[] }[] = [];
+    for (const e of REEL_BUILTINS) {
+      const keys = [e.name.toLowerCase(), e.look.toLowerCase()];
+      if (keys.some((k) => homeHidden.has(k))) out.push({ name: e.name, keys });
+    }
+    for (const n of OTHER_BUILTIN_NAMES) {
+      if (homeHidden.has(n.toLowerCase())) out.push({ name: n, keys: [n.toLowerCase()] });
+    }
+    return out;
+  }, [homeHidden]);
+  const readdBuiltin = async (b: { name: string; keys: string[] }) => {
+    if (homeBusy || !homeHidden) return;
+    setHomeBusy(true); setReaddNote(null);
+    const nextHidden = new Set(homeHidden);
+    for (const k of b.keys) nextHidden.delete(k);
+    const err = await setHiddenLandingKits([...nextHidden]);
+    if (err) { setHomeBusy(false); setReaddNote(err); return; }
+    setHomeHidden(nextHidden);
+    // the owner's stated contract: back on at the END of the order —
+    // they seat it with the arrows on the rack afterwards
+    const lname = b.name.toLowerCase();
+    const nextOrder = [...(homeOrder ?? []).filter((k) => k !== lname), lname];
+    const err2 = await setLandingKitOrder(nextOrder);
+    if (!err2) setHomeOrder(nextOrder);
+    setHomeBusy(false);
+    setReaddNote(err2 ?? `Re-added — "${b.name}" rides at the end of the slider (~5 min CDN); seat it with the arrows on the rack below.`);
   };
   /* the slate's report of a hero's seat — same data as the rack, so the
-     two surfaces can never disagree. HIDDEN and the feed ceiling are the
-     only ways a designated hero stays off the homepage now. */
+     two surfaces can never disagree. DELETED and the feed ceiling are
+     the only ways a designated hero stays off the homepage now. */
   const heroReelStatus = (d: Desig): { chip: string; cls: string; word: string } => {
     const key = d.presetName.toLowerCase();
-    if (homeHidden?.has(key)) return { chip: "HIDDEN", cls: "fd-review__chip--no", word: "hidden on the homepage — Restore it on the rack below" };
+    if (homeHidden?.has(key)) return { chip: "DELETED", cls: "fd-review__chip--no", word: "deleted from the hero slider — designate the kit as hero again to re-add it" };
     if (heroRows.findIndex((x) => x.id === d.id) >= REEL_HERO_CEILING) return { chip: `PAST ${REEL_HERO_CEILING}`, cls: "fd-review__chip--wait", word: `beyond the feed ceiling (${REEL_HERO_CEILING} designated heroes) — delete older ones to let it ride` };
-    const reel = (rackGroups.find((g) => g.group === "Hero reel")?.tiles ?? []).filter((t) => !homeHidden?.has(t.name.toLowerCase()));
-    const seat = reel.findIndex((t) => t.name.toLowerCase() === key);
-    const takeover = BUILTIN_REEL_NAMES.has(key) ? " — its snapshot takes over the built-in tile of the same name" : "";
+    const seat = rackTiles.findIndex((t) => t.name.toLowerCase() === key);
+    const takeover = BUILTIN_REEL_NAMES.has(key) ? " — its snapshot takes over the built-in card of the same name" : "";
     return {
-      chip: seat === -1 ? "IN ROTATION" : `SEAT ${seat + 1} OF ${reel.length}`, cls: "fd-review__chip--ok",
+      chip: seat === -1 ? "IN ROTATION" : `SEAT ${seat + 1} OF ${rackTiles.length}`, cls: "fd-review__chip--ok",
       word: `in the homepage rotation at that seat${takeover} (~5 min CDN)`,
     };
   };
@@ -655,7 +725,7 @@ export function AdminPage() {
        every family the roster speaks; the browser re-rasterizes the
        inline SVG text when each face lands (same move as KitPreview). */
     try {
-      for (const { entries } of HOME_ROSTER) for (const ex of entries) {
+      for (const ex of REEL_BUILTINS) {
         if (ex.authored && PRESET_DEFAULTS[ex.look]) ensureDocFonts(PRESET_DEFAULTS[ex.look]);
         else { const f = PRESETS.find((x) => x.id === ex.look)?.font; if (f) ensureFont(f); }
       }
@@ -767,6 +837,21 @@ export function AdminPage() {
     });
     setRelBusy(false);
     if (!ok) { setDeskNote(String(data.error ?? "Couldn't designate that kit.")); return null; }
+    /* the re-add door for heroes: a name that was DELETED from the
+       slider sits on the hidden_landing_kits feed, and the landing
+       filters heroes by name — a fresh designation under that name
+       would freeze fine and never ride. Designating as hero IS the
+       owner's re-add, so the delete comes off the feed here. */
+    if (placement === "hero") {
+      const lname = name.toLowerCase();
+      if (homeHidden?.has(lname)) {
+        const nextHidden = new Set(homeHidden);
+        nextHidden.delete(lname);
+        const herr = await setHiddenLandingKits([...nextHidden]);
+        if (!herr) setHomeHidden(nextHidden);
+        else setHomeNote(herr);
+      }
+    }
     setDeskNote(renamed
       ? `Frozen and filed — "${name}" is on the slate ("${desired}" was already designated, so it took the next free number).`
       : `Frozen and filed — "${name}" is on the slate.`);
@@ -888,6 +973,14 @@ export function AdminPage() {
 
       <main className="fd-page__wrap">
         <h1 className="fd-page__h1"><ShieldCheck size={26} strokeWidth={2} /> Admin — plans</h1>
+        {/* the applications desk lives HERE now (owner: "I don't need to
+            review student applications from the generator, that can live
+            in the admin tools") */}
+        <p className="fd-fine">
+          <button className="fd-ghost" onClick={() => { window.location.hash = "#/review"; }}>
+            <GraduationCap size={14} strokeWidth={2} /> Review student &amp; educator applications
+          </button>
+        </p>
 
         {/* the pulse — what happened after people arrived. Traffic itself
             (visitors, referrers) lives in Vercel Web Analytics; this is
@@ -1057,10 +1150,12 @@ export function AdminPage() {
             attached. Tick <b>Hero carousel</b>, <b>Public release</b>, or both — one Designate covers
             them. A public release with a <b>date</b> stays invisible to everyone but you until that
             day; with the date blank it lands in every player's Presets panel immediately. Hero puts
-            it <b>in the homepage rotation</b> at a seat you order on the rack below — built-ins and
+            it <b>in the hero slider</b> at a seat you order on the rack below — built-ins and
             designated heroes are one list there, played exactly in that order (~5 min CDN; up to{" "}
             {REEL_HERO_CEILING} designated heroes ride). A hero sharing a built-in's name takes over
-            that built-in's tile. Each hero row below reports its seat; hidden names sit out.
+            that built-in's card. Each hero row below reports its seat; deleted names sit out until
+            you re-add them — designate a deleted hero again, or use a deleted built-in's chip at
+            the bottom of this desk.
           </p>
           <div className="fd-adminsearch">
             <input
@@ -1226,97 +1321,100 @@ export function AdminPage() {
               })}
             </div>
           )}
+
+          {deletedBuiltins.length > 0 && (
+            <div className="fd-readd">
+              <span className="fd-readd__label">Removed from the hero slider:</span>
+              {deletedBuiltins.map((b) => (
+                <span key={b.name} className="fd-readd__chip">
+                  {b.name}
+                  <button className="fd-ghost" disabled={homeBusy}
+                    title={`Put ${b.name} back on the homepage, at the end of the slider order`}
+                    onClick={() => void readdBuiltin(b)}>Re-add</button>
+                </span>
+              ))}
+            </div>
+          )}
+          {readdNote && <p className="fd-note">{readdNote}</p>}
         </section>
 
         <section className="fd-card">
-          <h2 className="fd-card__title"><House size={17} strokeWidth={2.1} /> Homepage kits</h2>
+          <h2 className="fd-card__title"><House size={17} strokeWidth={2.1} /> Hero slider — display order</h2>
           <p className="fd-fine">
-            The <b>Hero reel group is the homepage rotation</b> — built-ins and designated heroes
-            together, one list, and the homepage plays it in exactly this order (built-ins ship
-            hardcoded; up to {REEL_HERO_CEILING} designated heroes ride, the feed's ceiling). A
-            designated hero sharing a built-in's name <b>takes over that tile</b> — its frozen
-            snapshot wins the art. <b>Hide removes a look from the homepage</b> for every visitor,
-            no deploy; the tile stays here so you can restore it any time (a hidden designated
-            hero stays on the slate too). The <b>arrows change the order</b> within a group (tiles
-            drag too). Everything rides the hero-designations feed, CDN-cached ~5 minutes. The
-            four looks on both the reel and the chip row keep one tile — their reel position
-            drives the chip row too.
+            The homepage hero slider, <b>exactly as it plays</b>: built-ins and designated heroes
+            as one list, in this order (the feed is CDN-cached ~5 minutes). The <b>arrows change
+            the order</b> — cards drag too. <b>Delete removes a card from the slider</b> for every
+            visitor: a built-in keeps a re-add chip on the Release Desk, and a designated hero
+            comes back by designating its kit as hero again. A designated hero sharing a built-in's
+            name takes over that built-in's card — its frozen snapshot wins the art. The style-chip
+            row follows this same order on its own.
           </p>
-          {homeHidden === null ? (
+          {homeHidden === null || homeOrder === null ? (
             <p className="fd-note"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Reading the current lineup…</p>
           ) : (
-            rackGroups.map(({ group, tiles }) => (
-              <div key={group} className="fd-homegroup">
-                <div className="fd-homegroup__name">{group}</div>
-                <div className="fd-homerack">
-                  {tiles.map((t, i) => {
-                    const off = homeHidden.has(t.name.toLowerCase());
-                    const dragging = homeDrag?.group === group && homeDrag.index === i;
-                    const dropover = !dragging && homeOver?.group === group && homeOver.index === i;
-                    return (
-                      <div key={t.heroId ?? t.name}
-                        className={`fd-hometile${off ? " off" : ""}${dragging ? " dragging" : ""}${dropover ? " dropover" : ""}`}
-                        draggable
-                        title="Drag to reorder within the group"
-                        onDragStart={(e) => {
-                          homeDragRef.current = { group, index: i };
-                          setHomeDrag({ group, index: i });
-                          e.dataTransfer.effectAllowed = "move";
-                          try { e.dataTransfer.setData("text/plain", t.name); } catch { /* older engines */ }
-                        }}
-                        onDragEnd={() => { homeDragRef.current = null; setHomeDrag(null); setHomeOver(null); }}
-                        onDragOver={(e) => {
-                          const d = homeDragRef.current;
-                          if (!d || d.group !== group) return; // groups don't mix
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          if (homeOver?.group !== group || homeOver.index !== i) setHomeOver({ group, index: i });
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const d = homeDragRef.current;
-                          if (d && d.group === group && d.index !== i) moveHomeKit(group, tiles, d.index, i);
-                          homeDragRef.current = null; setHomeDrag(null); setHomeOver(null);
-                        }}>
-                        {t.art ? (
-                          <div className="fd-hometile__art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: t.art }} />
-                        ) : (
-                          <div className="fd-hometile__art fd-hometile__art--empty">
-                            {t.heroId
-                              ? "no preview — the frozen snapshot didn't render; try Refresh on the slate"
-                              : "no preview — this look lives only in the front-door bundle"}
-                          </div>
-                        )}
-                        <div className="fd-hometile__name">
-                          <b>{t.name}</b>
-                          {t.also && <span>{t.also}</span>}
-                        </div>
-                        <div className="fd-hometile__row">
-                          <span className={`fd-review__chip ${off ? "fd-review__chip--no" : "fd-review__chip--ok"}`}>{off ? "HIDDEN" : "LIVE"}</span>
-                          <div className="fd-hometile__acts">
-                            <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === 0}
-                              title={`Show ${t.name} earlier`} aria-label={`Show ${t.name} earlier in ${group}`}
-                              onClick={() => moveHomeKit(group, tiles, i, i - 1)}>
-                              <ChevronLeft size={14} strokeWidth={2.2} />
-                            </button>
-                            <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === tiles.length - 1}
-                              title={`Show ${t.name} later`} aria-label={`Show ${t.name} later in ${group}`}
-                              onClick={() => moveHomeKit(group, tiles, i, i + 1)}>
-                              <ChevronRight size={14} strokeWidth={2.2} />
-                            </button>
-                            <button className="fd-ghost fd-hometile__act" disabled={homeBusy}
-                              title={off ? `Put ${t.name} back on the homepage` : `Remove ${t.name} from the homepage for every visitor${t.heroId ? " (the slate keeps it)" : ""}`}
-                              onClick={() => void toggleHomeKit(t.name)}>
-                              {off ? <><Eye size={13} strokeWidth={2.2} /> Restore</> : <><EyeOff size={13} strokeWidth={2.2} /> Hide</>}
-                            </button>
-                          </div>
-                        </div>
+            <div className="fd-homerack">
+              {rackTiles.map((t, i) => {
+                const dragging = homeDrag === i;
+                const dropover = !dragging && homeOver === i;
+                return (
+                  <div key={t.heroId ?? t.name}
+                    className={`fd-hometile${dragging ? " dragging" : ""}${dropover ? " dropover" : ""}`}
+                    draggable
+                    title="Drag to reorder the slider"
+                    onDragStart={(e) => {
+                      homeDragRef.current = i;
+                      setHomeDrag(i);
+                      e.dataTransfer.effectAllowed = "move";
+                      try { e.dataTransfer.setData("text/plain", t.name); } catch { /* older engines */ }
+                    }}
+                    onDragEnd={() => { homeDragRef.current = null; setHomeDrag(null); setHomeOver(null); }}
+                    onDragOver={(e) => {
+                      if (homeDragRef.current === null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (homeOver !== i) setHomeOver(i);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const d = homeDragRef.current;
+                      if (d !== null && d !== i) moveTile(d, i);
+                      homeDragRef.current = null; setHomeDrag(null); setHomeOver(null);
+                    }}>
+                    {t.art ? (
+                      <div className="fd-hometile__art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: t.art }} />
+                    ) : (
+                      <div className="fd-hometile__art fd-hometile__art--empty">
+                        no preview — this look lives only in the front-door bundle
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+                    )}
+                    <div className="fd-hometile__name">
+                      <b>{t.name}</b>
+                      {t.heroId && <span>designated hero</span>}
+                    </div>
+                    <div className="fd-hometile__row">
+                      <span className="fd-hometile__seat">{i + 1} of {rackTiles.length}</span>
+                      <div className="fd-hometile__acts">
+                        <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === 0}
+                          title={`Play ${t.name} earlier`} aria-label={`Play ${t.name} earlier in the slider`}
+                          onClick={() => moveTile(i, i - 1)}>
+                          <ChevronLeft size={14} strokeWidth={2.2} />
+                        </button>
+                        <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === rackTiles.length - 1}
+                          title={`Play ${t.name} later`} aria-label={`Play ${t.name} later in the slider`}
+                          onClick={() => moveTile(i, i + 1)}>
+                          <ChevronRight size={14} strokeWidth={2.2} />
+                        </button>
+                        <button className="fd-ghost fd-hometile__act" disabled={homeBusy}
+                          title={`Delete ${t.name} from the hero slider — re-add it from the Release Desk`}
+                          onClick={() => void deleteTile(t)}>
+                          <Trash2 size={13} strokeWidth={2.2} /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
           {homeNote && <p className="fd-note">{homeNote}</p>}
         </section>

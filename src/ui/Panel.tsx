@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, GraduationCap, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers, Type, LayoutGrid, Search, Search as SearchIcon, X, Settings, Plus, Minus, RotateCcw, Hammer, PenTool, Trash2, Copy, ArrowUpDown, LibraryBig, CheckCircle2, Shapes, Palette, Sun, Box, Lock, LockOpen, Maximize2, Pin, PinOff, Upload, Globe, Star, Clock, Info, HelpCircle, TextCursorInput, ShieldCheck } from "lucide-react";
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
 import { patternZones } from "./SliceStage";
@@ -707,7 +707,7 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -1191,7 +1191,7 @@ export function Panel() {
               </button>
             </div>
             {!focus && (
-              <div className="scopehint">Styling the <b>whole kit</b> — edits flow to every piece. Click <b>Edit</b> on a piece to style it alone.</div>
+              <div className="scopehint">Styling the <b>whole kit</b> — edits flow to every piece. On <b>The Kit</b> page, click <b>Edit</b> on a piece to style it alone.</div>
             )}
             {focus && frozen && (
               <>
@@ -1432,6 +1432,10 @@ export function Panel() {
             const go = () => {
               if (match && !locked) { applyCloudPreset(match.id); return; }
               if (locked) { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
+              /* a promo carrying its frozen look APPLIES it, like every
+                 other Looks card (owner: "I would expect it to load the
+                 look?") — the route glow stays only for kit-less promos */
+              if (spotPromo.cfg) { applyLookDoc(spotPromo.cfg, spotPromo.title); return; }
               promoGo(spotPromo.ctaRoute);
             };
             return (
@@ -1570,10 +1574,9 @@ export function Panel() {
                   placeholder="Pack name — Pro members see it"
                   withDate
                   onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
-                <button className="resetstate" title="Review student & educator applications — approvals unlock the education price"
-                  onClick={() => { window.location.hash = "#/review"; }}>
-                  <GraduationCap size={14} strokeWidth={2} /> Review applications
-                </button>
+                {/* Review applications moved to the Admin desk (owner: "I
+                    don't need to review student applications from the
+                    generator, that can live in the admin tools") */}
                 {activeCloudPreset && (
                   <button className="resetstate" onClick={() => {
                     if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
