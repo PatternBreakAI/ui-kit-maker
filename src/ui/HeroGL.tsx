@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useGen } from "@/generator/store";
-import { renderKit } from "@/generator/bevel";
+import { renderKit, textPatternCell } from "@/generator/bevel";
 import { STOCK_ICONS, applyKitDesign, applyKitTextFill, effKitSize, hexMix, resolveKitIcon } from "@/generator/model";
 import type { GenConfig } from "@/generator/model";
 
@@ -88,22 +88,23 @@ function svgTex(svg: string, cb: (tex: THREE.Texture, w: number, h: number) => v
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
-/** The real face pattern, tiled inside a rounded plate silhouette. */
+/** The real face pattern, tiled inside a rounded plate silhouette.
+ *  The cell comes from the engine's ONE pattern source (textPatternCell —
+ *  the face, letterforms and wheels all read from it), so every family
+ *  the kit can wear shows here: gothic motifs, camos, owner art, all of
+ *  them — and any pattern added later rides in with no hero work. When
+ *  the face itself is bare but the WALL wears one, the plane shows the
+ *  wall's tiles rather than inventing stripes. */
 function patternSvg(c: GenConfig): string {
-  const P0 = c.candy.pattern;
+  const F = c.candy.pattern;
+  const P0 = F.type === "none" && (F.wall?.type ?? "none") !== "none" ? F.wall! : F;
   const type = P0.type === "none" ? "stripes" : P0.type;
   const col = P0.color ?? hexMix(c.effects.Bevel ?? "#0E9CC9", "#04060B", 0.35);
   const op = Math.max(0.3, Math.min(1, (P0.opacity ?? 30) / 100 + 0.2));
-  const ps = Math.max(14, 30 * ((P0.scale ?? 100) / 100));
-  const star = `M${ps * 0.25} ${ps * 0.08} L${ps * 0.31} ${ps * 0.19} L${ps * 0.42} ${ps * 0.25} L${ps * 0.31} ${ps * 0.31} L${ps * 0.25} ${ps * 0.42} L${ps * 0.19} ${ps * 0.31} L${ps * 0.08} ${ps * 0.25} L${ps * 0.19} ${ps * 0.19} Z`;
-  const cell = type === "dots" || type === "halftone"
-    ? `<circle cx="${(ps / 2).toFixed(1)}" cy="${(ps / 2).toFixed(1)}" r="${(ps / 5).toFixed(1)}" fill="${col}"/>`
-    : type === "checker"
-      ? `<rect width="${(ps / 2).toFixed(1)}" height="${(ps / 2).toFixed(1)}" fill="${col}"/><rect x="${(ps / 2).toFixed(1)}" y="${(ps / 2).toFixed(1)}" width="${(ps / 2).toFixed(1)}" height="${(ps / 2).toFixed(1)}" fill="${col}"/>`
-      : type === "stars"
-        ? `<path d="${star}" fill="${col}"/>`
-        : `<rect width="${(ps / 2).toFixed(1)}" height="${ps.toFixed(1)}" fill="${col}"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440"><defs><pattern id="p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${P0.angle ?? 45})">${cell}</pattern></defs><rect x="6" y="6" width="908" height="428" rx="104" fill="url(#p)" opacity="${op.toFixed(2)}" stroke="${col}" stroke-opacity="0.4" stroke-width="2.5"/></svg>`;
+  // mirror the face's own cell sizing ((8 + scale·0.9)·K) at plate scale,
+  // so motifs read at the proportion the material actually wears
+  const ps = Math.max(16, (8 + (P0.scale ?? 100) * 0.9) * 0.75);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440"><defs><pattern id="p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${P0.angle ?? 45})">${textPatternCell(type, ps, col)}</pattern></defs><rect x="6" y="6" width="908" height="428" rx="104" fill="url(#p)" opacity="${op.toFixed(2)}" stroke="${col}" stroke-opacity="0.4" stroke-width="2.5"/></svg>`;
 }
 
 /** Soft light blob — a heavily blurred rounded slab, for Glow and Shadow. */
