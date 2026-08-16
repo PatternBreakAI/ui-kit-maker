@@ -22,6 +22,13 @@ import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
+import { tightenSvg } from "@/marketing/engine";
+
+/* Every Looks card shows its art at the NEW tile's presence — cropped
+   tight to the shell like promoArt does (owner: "war chuds looks so
+   much bigger/better than the others, can they all be that big?").
+   Thumbs without a data-shell stamp pass through untouched. */
+const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) : "");
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else. */
@@ -1442,7 +1449,7 @@ export function Panel() {
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
               onClick={() => applyUserPreset(u.id)}>
-              {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: u.thumb }} /> : <span className="presetart" />}
+              {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(u.thumb) }} /> : <span className="presetart" />}
               <span className="presetname">{u.name}</span>
               <span className="shapedel" role="button" aria-label={`Delete preset ${u.name}`} title="Delete"
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
@@ -1455,14 +1462,14 @@ export function Panel() {
             <button key={p.id} className="presetcard shared lockedp"
               title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? cloudArt[p.id] ?? "" }} />
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
             </button>
           ) : (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
               title={heldUntil(p.publish_at) ? `${p.name} — held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} — preset pack`}
               onClick={() => applyCloudPreset(p.id)}>
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: p.thumb ?? cloudArt[p.id] ?? "" }} />
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
               <span className="presetname">{p.name}</span>
               {/* Only an admin ever reaches this branch with a held pack —
                   the read policy hides unreleased rows from everyone else. */}
@@ -1491,13 +1498,13 @@ export function Panel() {
             return gated ? (
               <button key={p.id} className="presetcard lockedp" title={UPGRADE_LINES[tier]}
                 onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
-                <span className="presetart" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.svg) }} />
                 <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
               </button>
             ) : (
               <button key={p.id} className={`presetcard${cfg.presetId === p.id ? " on" : ""}`} title={`${p.name} — starter preset`}
                 onClick={() => setPreset(p.id)}>
-                <span className="presetart" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.svg) }} />
                 <span className="presetname">{p.name}</span>
                 {isAdmin && (
                   <span className="shapedel" role="button" aria-label={`Remove starter preset ${p.name}`} title="Remove for everyone (admin) — restorable below"
