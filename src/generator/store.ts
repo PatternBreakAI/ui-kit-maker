@@ -332,6 +332,11 @@ interface GenStore {
   activeBoard: string;
   setActiveBoard: (id: string) => void;
   addBoard: () => void;
+  /** Insert a fresh board right AFTER the anchor — the + tabs beside and
+   *  beneath each board (owner: "plus signs beneath and to the right of
+   *  boards so users can add boards as they wish"). Inherits the
+   *  anchor's aspect unless told otherwise. */
+  addBoardAfter: (afterId: string, opts?: { aspect?: "169" | "mobile"; nl?: boolean }) => void;
   removeBoard: (id: string) => void;
   /** Copy a whole artboard — pieces, backdrop, darkroom and overlay dials —
    *  as "<name> copy" right after the source (owner: "a running start"). */
@@ -868,6 +873,9 @@ export interface BoardDef {
   id: string;
   name: string;
   aspect: "169" | "mobile";
+  /** Start a new row on the desk — set by the "+ below" tab so "beneath"
+   *  means BENEATH even when the current row still has room. */
+  nl?: boolean;
   items: BoardItem[];
   bgImage?: string | null;
   /** The uploaded ORIGINAL's key in the background vault (bgvault.ts,
@@ -1436,6 +1444,21 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ activeBoard: id, boardSel: null });
     saveBoards(get);
   },
+  addBoardAfter: (afterId, opts) => {
+    const id = "ab" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const src = get().boards.find((b) => b.id === afterId);
+    mutateBoards(get, set, null, (bs) => {
+      const i = bs.findIndex((b) => b.id === afterId);
+      const next = [...bs];
+      next.splice(i < 0 ? bs.length : i + 1, 0, {
+        id, name: `Board ${bs.length + 1}`, aspect: opts?.aspect ?? src?.aspect ?? "169",
+        ...(opts?.nl ? { nl: true } : {}), items: [],
+      });
+      return next;
+    });
+    set({ activeBoard: id, boardSel: null });
+    saveBoards(get);
+  },
   removeBoard: (id) => {
     const dead = get().boards.find((b) => b.id === id);
     if (dead?.bgAssetId) releaseBgAsset(dead.bgAssetId, () => get().boards.filter((b) => b.id !== id));
@@ -1468,6 +1491,8 @@ export const useGen = create<GenStore>((set, get) => ({
          so the duplicate simply keeps the same ref — same bytes, one
          cloud object, no copy to make. */
       bgAssetId: isAssetRef(src.bgAssetId) ? src.bgAssetId : null,
+      // a duplicate sits BESIDE its source — never inherits a row break
+      nl: undefined,
     };
     mutateBoards(get, set, null, (bs) => {
       const i = bs.findIndex((b) => b.id === id);

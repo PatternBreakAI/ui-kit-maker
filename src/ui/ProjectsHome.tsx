@@ -244,7 +244,7 @@ export function ProjectsHome() {
           <section className="ph-invite">
             <span className="ph-invite__mark" aria-hidden="true"><House size={26} strokeWidth={1.8} /></span>
             <h1>Sign in to save and manage projects</h1>
-            <p>Your saved kits live here — live thumbnails, the file you're working in, and everything you've made.</p>
+            <p>Sign in and every project you save shows up here as a thumbnail — ready to open, organize and come back to any time.</p>
             <button className="fd-pricing__cta" onClick={() => openAuth("signin")}>Sign in</button>
             <p className="fd-rfine">Signing in is free — your work syncs to your account.</p>
           </section>
@@ -252,7 +252,7 @@ export function ProjectsHome() {
           <>
             <span className="fd-kicker">UI Kit Maker</span>
             <h1>Your projects</h1>
-            <p className="fd-pricing__sub">Every kit you've saved, in one place — the file on your desk wears the ring.</p>
+            <p className="fd-pricing__sub">Organize your projects here — open, rename, duplicate or delete them, and import a kit from your computer. The card marked OPEN is the file you're working in.</p>
 
             {/* ── Spotlight — the promo rail lives HERE now (owner: "this
                  is where the promo stuff belongs, not on the kit page") ── */}

@@ -2236,6 +2236,18 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .bd-abtool:hover { color: var(--ink); }
 .bd-abtool.danger:hover { color: #e5534b; border-color: rgba(229, 83, 75, 0.5); }
 .bd-addboard-inline { border: 1.5px dashed var(--line2); background: none; color: var(--ink2); border-radius: 12px; padding: 12px 26px; font: 600 12.5px inherit; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; align-self: center; }
+/* grow-the-desk tabs — quiet dashed + handles hugging each stage's right
+   and bottom edges (owner: "plus signs beneath and to the right of
+   boards"). They live in the gutters, absolutely placed off the
+   stagewrap, so the flow never shifts. */
+.bd-stagewrap { position: relative; }
+.bd-addtab { position: absolute; border: 1.5px dashed var(--line2); background: none; color: var(--ink3); border-radius: 9px; display: grid; place-items: center; cursor: pointer; opacity: 0.55; transition: opacity 0.15s, color 0.15s, border-color 0.15s; z-index: 2; padding: 0; }
+.bd-addtab:hover { opacity: 1; color: var(--ink); border-color: var(--ink3); background: var(--card); }
+.bd-addtab--r { right: -31px; top: 50%; transform: translateY(-50%); width: 26px; height: 64px; }
+.bd-addtab--b { bottom: -56px; left: 50%; transform: translateX(-50%); width: 64px; height: 26px; }
+/* a full-width zero-height flex item forces the wrap; negative margins
+   swallow the doubled row gap it would otherwise introduce */
+.bd-rowbreak { flex-basis: 100%; height: 0; margin: -18px 0; }
 .bd-addboard-inline:hover { color: var(--ink); border-color: var(--ink3); }
 
 /* pages tray — InDesign style: click to jump, arrows to reorder */

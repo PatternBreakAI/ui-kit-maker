@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -421,7 +421,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
-    setActiveBoard, addBoard, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
+    setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin,
@@ -1055,7 +1055,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             const [W, H, aspName] = STAGE[bd.aspect];
             const fit = fitOf(bd);
             return (
-              <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
+              <Fragment key={bd.id}>
+              {/* a board born from the "+ below" tab starts its own row —
+                  even when the row above still had room */}
+              {bd.nl && <i className="bd-rowbreak" aria-hidden="true" />}
+              <section className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
                 {/* the header hugs the stage's width and speaks in icons —
                     the words live in the tooltips, the spec line moved
                     UNDER the image (owner: "save space on the persistent
@@ -1089,6 +1093,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                     <Trash2 size={12} strokeWidth={2.2} />
                   </button>
                 </header>
+                {/* the stagewrap exists so the + tabs hug the STAGE's true
+                    edges — the flow cell around it can be wider than the
+                    art when narrow boards share a row */}
+                <div className="bd-stagewrap">
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
                   {bd.bgImage && (bd.bgShow ?? true) && (bd.bgFit === "fit" ? (
@@ -1213,8 +1221,31 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                 </div>
+                {/* grow the desk in either direction (owner: "plus signs
+                    beneath and to the right of boards so users can add
+                    boards as they wish") — right inserts beside, beneath
+                    inserts after this row so the newcomer lands below */}
+                <button className="bd-addtab bd-addtab--r" title={`Add a board beside ${bd.name}`}
+                  aria-label={`Add a board to the right of ${bd.name}`}
+                  onClick={() => addBoardAfter(bd.id)}>
+                  <Plus size={14} strokeWidth={2.2} />
+                </button>
+                <button className="bd-addtab bd-addtab--b" title={`Add a board below ${bd.name}`}
+                  aria-label={`Add a board below ${bd.name}`}
+                  onClick={(e) => {
+                    const top = (e.currentTarget.closest(".bd-artboard") as HTMLElement).getBoundingClientRect().top;
+                    let last = bd.id;
+                    for (const el of document.querySelectorAll(".bd-artboard")) {
+                      if (Math.abs(el.getBoundingClientRect().top - top) < 8) last = el.getAttribute("data-board") ?? last;
+                    }
+                    addBoardAfter(last, { aspect: bd.aspect, nl: true });
+                  }}>
+                  <Plus size={14} strokeWidth={2.2} />
+                </button>
+                </div>
                 <span className="bd-abmeta">{aspName} · {W} × {H}</span>
               </section>
+              </Fragment>
             );
           })}
           <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
