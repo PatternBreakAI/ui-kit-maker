@@ -128,6 +128,34 @@ for premium assets arrives when exports move into Vercel server functions
 in the Stripe phase. Production source maps are already disabled in
 `vite.config.ts`.
 
+## Durable backdrop images (v94) — one migration, no new secrets
+
+Uploaded board backdrops used to live only in the uploading browser
+(IndexedDB) — clear the cache, lose the art. With v94 they upload once to
+a private `bg-assets` storage bucket under the signed-in account and come
+back on any browser that account signs into. Free accounts get 50 MB,
+Pro/Student get 1 GB, enforced server-side by `/api/assets`. Guests keep
+the old local-only behavior and see a quiet "sign in to keep your images
+safe" note.
+
+To turn it on (live product, ~2 minutes):
+
+1. **SQL Editor → New query** → paste
+   [`supabase/migrations/0094_durable_backdrops.sql`](../supabase/migrations/0094_durable_backdrops.sql)
+   whole and **Run** (idempotent — safe to re-run). It creates the
+   private `bg-assets` bucket (8 MB per-file cap, images only) and the
+   owner-only read/delete policies. There is deliberately **no insert
+   policy** — uploads only happen through `/api/assets`, which is what
+   enforces the quota.
+2. Tick the 0094 row in `supabase/migrations/README.md`.
+3. Nothing else: `/api/assets` uses the same `SUPABASE_SERVICE_ROLE_KEY`
+   already set in Vercel for billing. No new environment variables, no
+   client keys.
+
+Until the migration runs, nothing breaks — uploads just keep today's
+this-browser-only behavior (the meter stays hidden and saved documents
+keep embedding the image bytes as before).
+
 ## What this deliberately does not do yet
 
 Per the business plan's phasing: no Stripe/billing, no entitlement
