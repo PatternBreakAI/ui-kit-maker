@@ -75,6 +75,30 @@ export function initLanding(deps: LandingDeps) {
         if (Array.isArray(rawHid)) HIDDEN_KITS = new Set(rawHid.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase()));
       } catch (_) { /* private mode / bad echo — show everything */ }
       const kitHidden = (...keys) => keys.some((s2) => s2 && HIDDEN_KITS.has(String(s2).toLowerCase()));
+      /* cross-lane touch (app session, 2026-08-16): order feed consumption —
+         Front Door owns this file. The admin desk's display order rides the
+         same feed as the hidden list (app_settings.landing_kit_order →
+         /api/hero-lineup `order` → the fd-kit-order echo below): the same
+         lowercase match keys, first-listed shows first. Fail-soft by the
+         hidden filter's contract — names the list doesn't know keep their
+         hardcoded relative order behind the listed ones, and an empty or
+         unreadable list reorders nothing. */
+      let ORDER_KITS = [];
+      try {
+        const rawOrd = JSON.parse(localStorage.getItem("fd-kit-order") || "[]");
+        if (Array.isArray(rawOrd)) ORDER_KITS = rawOrd.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase());
+      } catch (_) { /* private mode / bad echo — hardcoded order stands */ }
+      const kitRank = (...keys) => {
+        for (const k of keys) { if (!k) continue; const i2 = ORDER_KITS.indexOf(String(k).toLowerCase()); if (i2 !== -1) return i2; }
+        return ORDER_KITS.length; // unlisted sort behind listed, ties keep source order
+      };
+      const kitOrder = (arr, keysOf) => {
+        if (!ORDER_KITS.length) return arr;
+        try {
+          return arr.map((e2, i2) => [e2, kitRank(...keysOf(e2)), i2])
+            .sort((a, b) => (a[1] - b[1]) || (a[2] - b[2])).map((x) => x[0]);
+        } catch (_) { return arr; /* an odd entry never blanks a surface */ }
+      };
       /* Every face the reel/chips can ask for must be self-hosted in
          landing.css — scripts/check-landing-fonts.mjs fails the build
          on a missing or orphaned face. warmFont below is the runtime
@@ -83,10 +107,10 @@ export function initLanding(deps: LandingDeps) {
       const FONT_CHIPS = ["Russo One", "Fredoka", "Lilita One", "Bungee"];
 
       const PAL = (() => {
-        const all = HERO_SWATCHES.map((pid) => {
+        const all = kitOrder(HERO_SWATCHES.map((pid) => {
           const pr = deps.engine.presetById(pid);
           return { name: pr.name, color: pr.effects["Inner Fill"] || "#A855F7", pid };
-        });
+        }), (p) => [p.name, p.pid]); // cross-lane touch (app session, 2026-08-16): order feed
         const vis = all.filter((p) => !kitHidden(p.pid, p.name));
         return vis.length ? vis : all; // never an empty swatch row
       })();
@@ -364,7 +388,7 @@ export function initLanding(deps: LandingDeps) {
 
       /* ── attract mode ── */
       const REEL = (() => {
-        const all = HERO_REEL.map((entry) => {
+        const all = kitOrder(HERO_REEL.map((entry) => {
           const [id, label] = entry.split("|");
           if (id.startsWith("auth:")) {
             const a = id.slice(5);
@@ -374,7 +398,7 @@ export function initLanding(deps: LandingDeps) {
           }
           const pr = E.presetById(id);
           return { pid: id, color: pr.effects["Inner Fill"] || "#A855F7", name: pr.name, label };
-        });
+        }), (e2) => [e2.name, e2.auth, e2.pid]); // cross-lane touch (app session, 2026-08-16): order feed
         const vis = all.filter((e2) => !kitHidden(e2.auth, e2.pid, e2.name));
         return vis.length ? vis : all; // a curated-to-nothing reel falls back whole
       })();
@@ -1751,6 +1775,11 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                stage finish this visit; the next paint filters them fully. */
             const hid = new Set(Array.isArray(data && data.hidden) ? data.hidden.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase()) : []);
             try { localStorage.setItem("fd-hidden-kits", JSON.stringify([...hid].slice(0, 64))); } catch (_) { /* private mode */ }
+            /* cross-lane touch (app session, 2026-08-16): echo the display
+               order for the next paint's pre-render sort — same move as the
+               hidden echo above; this visit keeps the order it painted. */
+            const ord = Array.isArray(data && data.order) ? data.order.filter((s2) => typeof s2 === "string").map((s2) => s2.toLowerCase()) : [];
+            try { localStorage.setItem("fd-kit-order", JSON.stringify(ord.slice(0, 64))); } catch (_) { /* private mode */ }
             try {
               document.querySelectorAll("#cmCards [data-pid]").forEach((el) => {
                 if (hid.has(el.dataset.pid || "") || hid.has(el.dataset.kname || "")) el.remove();
@@ -2103,7 +2132,8 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
           '<circle cx="32" cy="24" r="11" fill="rgba(255,255,255,.92)"/>' +
           '<path d="M10 64c2-14 10-21 22-21s20 7 22 21z" fill="rgba(255,255,255,.92)"/></svg>');
         const cmWrap = document.getElementById("cmCards");
-        if (cmWrap) CM_KITS.filter(([pid, nm]) => !kitHidden(pid, nm)).forEach(([pid, nm, by, likes, ac]) => {
+        // cross-lane touch (app session, 2026-08-16): order feed consumption
+        if (cmWrap) kitOrder(CM_KITS, ([pid, nm]) => [nm, pid]).filter(([pid, nm]) => !kitHidden(pid, nm)).forEach(([pid, nm, by, likes, ac]) => {
           const card = document.createElement("a");
           card.className = "cm-card";
           card.href = "#/community";

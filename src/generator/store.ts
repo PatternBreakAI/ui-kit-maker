@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE } from "./model";
+import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -301,6 +302,14 @@ interface GenStore {
    *  page's edit buttons so the canvas shows the piece you clicked. */
   kitKind: "circle" | "oval" | "strip" | null;
   setKitKind: (k: "circle" | "oval" | "strip" | null) => void;
+  /** Render-variant overlay being edited — same contract as kitKind, for
+   *  pieces whose variant is an overlay instead of a kind (the ghost
+   *  joystick). Set by the kit page's edit buttons (variant cards set
+   *  theirs, stock cards clear it) so the canvas shows the face you
+   *  clicked (owner: editing the ghost landed on "the other green
+   *  joystick"). */
+  kitOverlay: string | null;
+  setKitOverlay: (o: string | null) => void;
   inheritDefaults: () => void;
   /** Promote the selected state's design + adjustments to be the new Default.
    *  The state then mirrors the new Default again. */
@@ -437,6 +446,19 @@ interface GenStore {
   /** Global shine sweep over every kit piece. */
   shine: boolean;
   setShine: (v: boolean) => void;
+  /** Duplicated pieces (componentization, 2026-08-15): id → identity.
+   *  A clone renders through its base's geometry with its OWN entries in
+   *  every per-piece map — edits stay on the clone, family/group edits
+   *  never reach it. Registry and map entries travel together through
+   *  every save/load/look path (WS_MAPS, HIST_KEYS, kitPayload). */
+  kitClones: Record<string, KitClone>;
+  /** Mint a clone of `source` (a base piece or another clone — clones of
+   *  clones become siblings). Copies the source's per-piece entries, so
+   *  the duplicate starts pixel-identical. Returns the new id, or null
+   *  for CLONE_INELIGIBLE bases. */
+  duplicateKitPiece: (source: KitComponentId | string, name: string, kind: string) => string | null;
+  removeKitClone: (id: string) => void;
+  renameKitClone: (id: string, name: string, kind?: string) => void;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   setKitShape: (id: KitComponentId, shape: Shape) => void;
   kitDesigns: Partial<Record<KitComponentId, KitDesign>>;
@@ -1123,6 +1145,7 @@ let saveTimer: number | undefined;
    this piece"), not part of the look — and a locked piece's DESIGN still
    ports, because locking pins it into kitDesigns. */
 const KIT_STORE_KEY: Record<string, string> = {
+  kitClones: "ui-generator-kitclones",
   kitDesigns: "ui-generator-kitdesigns",
   kitShapes: "ui-generator-kitshapes",
   kitIcons: "ui-generator-kiticons",
@@ -1139,7 +1162,11 @@ const KIT_STORE_KEY: Record<string, string> = {
 };
 /** Record-shaped keys — a look that carries none of one means "none",
  *  so they reset rather than blending with whatever the user had. */
-const WS_MAPS = ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
+/* kitClones rides WS_MAPS so a look's registry and its clone map entries
+   stay ATOMIC: applying a look that carries no clones resets the registry
+   together with the maps (a look arrives whole), and one that does carries
+   registry + entries as one piece. */
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -1178,8 +1205,8 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   useGen.setState(patch as Partial<GenStore>);
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
-const HIST_KEYS = ["cfg", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -1268,7 +1295,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setCanvasMode: (m) => set({ canvasMode: m }),
   library: loadJson<LibItem[]>(LIB_KEY, []),
   addToLibrary: (name) => {
-    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill } = get();
+    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitLabels } = get();
     let cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
     // a locked component saves with its locked look — the snapshot IS the piece
     if (focus && kitDesigns[focus]) cfg = applyKitDesign(cfg, kitDesigns[focus]);
@@ -1281,8 +1308,11 @@ export const useGen = create<GenStore>((set, get) => ({
       const ox = kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`];
       if (ox !== undefined) cfg.type.ox = ox;
     }
+    // a focused CLONE saves under its BASE id — LibKit.id must name a real
+    // component (libThumb and the Board render by it). The clone's look is
+    // already baked above through its own keys; its words ride along here.
     const kit: LibKit | undefined = focus
-      ? { id: focus, size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[focus] }
+      ? { id: baseOf(focus), size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)], ...(kitLabels[focus] ? { label: kitLabels[focus] } : {}) }
       : undefined;
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, ...(kit ? { kit } : {}) };
     const library = [...get().library, item];
@@ -1401,9 +1431,14 @@ export const useGen = create<GenStore>((set, get) => ({
     if (oy !== undefined) cfg.type.oy = oy;
     const ox = st.kitTextOx[`${b.kitId}:${sz}`];
     if (ox !== undefined) cfg.type.ox = ox;
+    // a CLONE item bakes its BASE id too (the snapshot renders by it) —
+    // the design/text/nudge reads above already went through its own keys.
+    // The label pins what the stage shows: instance words, else the
+    // piece's own kit words.
+    const lbl = b.label ?? st.kitLabels[b.kitId];
     const kit: LibKit = {
-      id: b.kitId, size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[b.kitId],
-      ...(b.label ? { label: b.label } : {}),
+      id: baseOf(b.kitId), size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[baseOf(b.kitId)],
+      ...(lbl ? { label: lbl } : {}),
       ...(b.v !== undefined ? { v: b.v } : {}),
     };
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
@@ -1581,7 +1616,7 @@ export const useGen = create<GenStore>((set, get) => ({
   kitPayload: () => {
     const st = get();
     return {
-      v: 1, cfg: st.cfg, kitName: st.kitName, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
+      v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
       kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
@@ -1621,6 +1656,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const next = {
       cfg,
       kitName: (p.kitName as string) ?? st.kitName,
+      kitClones: (p.kitClones as GenStore["kitClones"]) ?? {},
       kitShapes: (p.kitShapes as GenStore["kitShapes"]) ?? {},
       kitDesigns: migrateKitDesigns(cfg, (p.kitDesigns as GenStore["kitDesigns"]) ?? {}).forks,
       kitTextFill: (p.kitTextFill as GenStore["kitTextFill"]) ?? {},
@@ -1650,6 +1686,7 @@ export const useGen = create<GenStore>((set, get) => ({
       markTouched();
       saveJson(LS_KEY, next.cfg);
       saveJson("ui-generator-kitname", next.kitName);
+      saveJson("ui-generator-kitclones", next.kitClones);
       saveJson("ui-generator-kitshapes", next.kitShapes);
       saveJson("ui-generator-kitdesigns", next.kitDesigns);
       saveJson("ui-generator-kittextfill", next.kitTextFill);
@@ -1722,6 +1759,75 @@ export const useGen = create<GenStore>((set, get) => ({
     const styleLib = get().styleLib.filter((x) => x.id !== id);
     saveJson("ui-generator-styles", styleLib);
     set({ styleLib });
+  },
+  kitClones: loadJson<Record<string, KitClone>>("ui-generator-kitclones", {}),
+  duplicateKitPiece: (source, name, kind) => {
+    const st = get();
+    const base = baseOf(source as KitComponentId);
+    if (CLONE_INELIGIBLE.has(base)) return null;
+    const id = mintCloneId(base);
+    pushHistory(st);
+    const cp = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+    const patch: Record<string, unknown> = {
+      kitClones: { ...st.kitClones, [id]: { base, name: name.trim(), kind, createdAt: new Date().toISOString() } },
+    };
+    // the duplicate starts pixel-identical: every per-piece entry the
+    // source carries copies over (a fork copy stays master-relative)
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+      const m = st[k] as Record<string, unknown>;
+      if (m[source] !== undefined) patch[k] = { ...m, [id]: cp(m[source]) };
+    }
+    // per-size seat nudges ride `${id}:${size}` keys
+    const oy = { ...st.kitTextOy }, ox = { ...st.kitTextOx };
+    let oyC = false, oxC = false;
+    for (const sz of ["s", "m", "l"]) {
+      const a = st.kitTextOy[`${source}:${sz}`], b = st.kitTextOx[`${source}:${sz}`];
+      if (a !== undefined) { oy[`${id}:${sz}`] = a; oyC = true; }
+      if (b !== undefined) { ox[`${id}:${sz}`] = b; oxC = true; }
+    }
+    if (oyC) patch.kitTextOy = oy;
+    if (oxC) patch.kitTextOx = ox;
+    set(patch as Partial<GenStore>);
+    markTouched();
+    for (const [k, sk] of Object.entries(KIT_STORE_KEY)) if (patch[k] !== undefined) saveJson(sk, patch[k]);
+    return id;
+  },
+  removeKitClone: (id) => {
+    const st = get();
+    if (!st.kitClones[id]) return;
+    pushHistory(st);
+    const drop = <T extends Record<string, unknown>>(m: T): T => { const n = { ...m }; delete n[id]; return n; };
+    const patch: Record<string, unknown> = { kitClones: drop(st.kitClones as unknown as Record<string, unknown>) };
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+      if ((st[k] as Record<string, unknown>)[id] !== undefined) patch[k] = drop(st[k] as Record<string, unknown>);
+    }
+    const oy = { ...st.kitTextOy }, ox = { ...st.kitTextOx };
+    let oyC = false, oxC = false;
+    for (const sz of ["s", "m", "l"]) {
+      if (oy[`${id}:${sz}`] !== undefined) { delete oy[`${id}:${sz}`]; oyC = true; }
+      if (ox[`${id}:${sz}`] !== undefined) { delete ox[`${id}:${sz}`]; oxC = true; }
+    }
+    if (oyC) patch.kitTextOy = oy;
+    if (oxC) patch.kitTextOx = ox;
+    if (st.kitLocks[id as KitComponentId]) {
+      const locks = { ...st.kitLocks }; delete locks[id as KitComponentId];
+      patch.kitLocks = locks;
+      saveJson("ui-generator-kitlocks", locks);
+    }
+    // a deleted clone can't stay focused — fall back to its base
+    if (st.focus === (id as KitComponentId)) patch.focus = st.kitClones[id].base;
+    set(patch as Partial<GenStore>);
+    markTouched();
+    for (const [k, sk] of Object.entries(KIT_STORE_KEY)) if (patch[k] !== undefined) saveJson(sk, patch[k]);
+  },
+  renameKitClone: (id, name, kind) => {
+    const st = get();
+    const cur = st.kitClones[id];
+    if (!cur) return;
+    const next = { ...st.kitClones, [id]: { ...cur, name: name.trim() || cur.name, ...(kind ? { kind } : {}) } };
+    set({ kitClones: next });
+    markTouched();
+    saveJson("ui-generator-kitclones", next);
   },
   kitShapes: loadJson<Partial<Record<KitComponentId, Shape>>>("ui-generator-kitshapes", {}),
   setKitShape: (id, shape) => {
@@ -1883,21 +1989,41 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ userPresets });
   },
   cloudPresets: [],
-  isAdmin: false,
-  tier: "guest" as Tier,
+  /* the visibility gates boot from the last AUTHORITATIVE cloud answer
+     (see GateSnapshot in cloud.ts) — a fresh boot no longer blanks the
+     admin's staged-base clones and pro chrome while the profile read is
+     in flight. The admin flag and tier only carry over while a parked
+     session exists; the release ledger is world-readable and always
+     seeds. Actions stay server-gated regardless. */
+  isAdmin: (() => { const g = readGateSnapshot(); return !!g && hasStoredSession() && g.admin; })(),
+  tier: (() => {
+    const g = readGateSnapshot();
+    const t = g && hasStoredSession() ? g.tier : null;
+    return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
+  })(),
   loadCloudPresets: async () => {
     const [presets, hidden, prof, releases, hiddenSils] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes()]);
-    const admin = prof.admin;
-    // cloud-off (local/dev build) is not the funnel — it gets the free tier,
-    // not guest lockdown; the live site always has cloud configured.
-    // plan_id is server-truth: only the Stripe webhook writes anything but
-    // 'free', and it writes 'student' or 'pro' from the price purchased.
-    const tier: Tier = admin ? "pro"
-      : prof.plan === "student" ? "student"
-      : (prof.plan && prof.plan !== "free") ? "pro"
-      : prof.plan ? "free"
-      : cloudStatus().state === "off" ? "free" : "guest";
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: releases });
+    const prev = get();
+    /* a FAILED read keeps the previous answer instead of downgrading —
+       one flaked query used to de-admin (and de-tier) the whole session,
+       hiding the owner's own clone chapter "sometimes" */
+    const rel = releases ?? prev.componentReleases;
+    let admin = prev.isAdmin;
+    let tier: Tier = prev.tier;
+    if (!prof.undecided) {
+      admin = prof.admin;
+      // cloud-off (local/dev build) is not the funnel — it gets the free tier,
+      // not guest lockdown; the live site always has cloud configured.
+      // plan_id is server-truth: only the Stripe webhook writes anything but
+      // 'free', and it writes 'student' or 'pro' from the price purchased.
+      tier = admin ? "pro"
+        : prof.plan === "student" ? "student"
+        : (prof.plan && prof.plan !== "free") ? "pro"
+        : prof.plan ? "free"
+        : cloudStatus().state === "off" ? "free" : "guest";
+      writeGateSnapshot({ admin, tier, releases: rel });
+    }
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -1974,12 +2100,16 @@ export const useGen = create<GenStore>((set, get) => ({
     if (!err) set({ hiddenSilhouettes: [] });
     return err;
   },
-  componentReleases: {},
+  componentReleases: readGateSnapshot()?.releases ?? {},
   setComponentRelease: async (id, status) => {
     const next = { ...get().componentReleases };
     if (status === null) delete next[id]; else next[id] = status;
     const err = await saveComponentReleases(next);
-    if (!err) set({ componentReleases: next });
+    if (!err) {
+      set({ componentReleases: next });
+      // the local gate snapshot follows the ledger the admin just wrote
+      writeGateSnapshot({ admin: get().isAdmin, tier: get().tier, releases: next });
+    }
     return err;
   },
   kitName: loadJson<string | null>("ui-generator-kitname", null),
@@ -2059,6 +2189,11 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitKind: null,
   setKitKind: (k) => { if (get().kitLocks.panel) return; set({ kitKind: k }); },
+  // no lock guard: the overlay only picks which FACE the canvas shows —
+  // navigation, not a design edit, so a locked joystick still lands on
+  // the variant the owner clicked
+  kitOverlay: null,
+  setKitOverlay: (o) => set({ kitOverlay: o }),
   inheritDefaults: () => {
     /* A locked focused piece keeps its state forks — and now its state
        adjustments — in the LOCK; the master's aren't the ones on screen, so
@@ -2223,6 +2358,15 @@ export const useGen = create<GenStore>((set, get) => ({
       }
       work.content = t.content; work.states = t.states; work.visible = t.visible;
       work.canvas = t.canvas; work.presetId = t.presetId;
+      /* every OTHER shared top-level field rides back too: fn ran against
+         the throwaway state view `t`, so an assignment like the Idle-motion
+         checkboxes' `c.idle = {…}` (or knob/barFx/rarity/content-margin)
+         died here silently whenever a non-default state was selected —
+         owner, sitting on Pressed: "I couldn't get the idle animations
+         working here". Design sections stay with the state fork above;
+         these are kit-wide by contract. */
+      work.idle = t.idle; work.knob = t.knob; work.barFx = t.barFx;
+      work.rarity = t.rarity; work.contentMargin = t.contentMargin;
     } else {
       fn(work);
     }
@@ -2500,6 +2644,9 @@ export const useGen = create<GenStore>((set, get) => ({
     set((st) => {
       const sizes = { ...st.kitSizes };
       for (const c of KIT_COMPONENTS) { if (!st.kitLocks[c.id]) sizes[c.id] = s; }
+      // clones follow the kit-wide switch too — skipping them left a
+      // duplicate stuck at a stale size (componentization survey)
+      for (const id of Object.keys(st.kitClones)) { if (!st.kitLocks[id as KitComponentId]) sizes[id as KitComponentId] = s; }
       return { kitSizes: sizes };
     });
   },

@@ -39,6 +39,7 @@ const K_OWNER = "forge-cloud-owner";    // which account this device's doc belon
 const K_PREVLOCAL = "forge-cloud-prevlocal"; // snapshot kept when the server copy wins
 const K_CONSENT_PENDING = "forge-cloud-consent";
 const K_RELOADS = "forge-cloud-reloads"; // sessionStorage: pull-reload loop guard
+const K_GATES = "forge-cloud-gates";    // last authoritative visibility gates (admin/tier/releases)
 
 /* ── configuration ─────────────────────────────────────────────────── */
 
@@ -772,14 +773,54 @@ export async function amIAdmin(): Promise<boolean> {
   return !error && !!data?.is_admin;
 }
 
+/* ── visibility-gate snapshot ───────────────────────────────────────
+   The admin flag, tier and release ledger drive what RENDERS (staged
+   pieces, the kit's clone chapter, pro chrome) — but they only exist
+   after async cloud reads. They used to boot as guest/false/{} and STAY
+   there for the whole session whenever one read flaked, which blinked
+   the owner's own components out of the kit ("your kit elements only
+   appear in the kit sometimes"). The last AUTHORITATIVE answer persists
+   here (outside the synced keyspace) so the next boot paints right
+   away; every privileged ACTION still verifies server-side (RLS, export
+   grants) — this snapshot only decides what shows while the truth is in
+   flight. */
+export type GateSnapshot = { admin: boolean; tier: string; releases: Record<string, ReleaseStatus> };
+export function readGateSnapshot(): GateSnapshot | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(K_GATES) ?? "null") as GateSnapshot | null;
+    return v && typeof v === "object" && typeof v.admin === "boolean" && typeof v.tier === "string" &&
+      !!v.releases && typeof v.releases === "object" && !Array.isArray(v.releases) ? v : null;
+  } catch { return null; }
+}
+export function writeGateSnapshot(g: GateSnapshot) {
+  try { localStorage.setItem(K_GATES, JSON.stringify(g)); } catch { /* ignore */ }
+}
+/** A Supabase session is parked in storage and will restore moments after
+ *  boot — the window where "no session yet" must not read as "signed out". */
+export function hasStoredSession(): boolean {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && /^sb-.+-auth-token/.test(k)) return true;
+    }
+  } catch { /* storage unavailable */ }
+  return false;
+}
+
 /** The signed-in user's plan + admin flag in one read — feeds the tier.
     plan_id is server-truth: RLS pins any client write to 'free' and only the
-    Stripe webhook (service role) grants pro, so a client can't self-upgrade. */
-export async function myProfileTier(): Promise<{ plan: string | null; admin: boolean }> {
+    Stripe webhook (service role) grants pro, so a client can't self-upgrade.
+    `undecided` marks a NON-answer — the profile query failed, or the parked
+    session hasn't restored yet — so callers keep their previous answer
+    instead of silently de-tiering the session. A real signed-out state
+    (no session, nothing parked) stays authoritative. */
+export async function myProfileTier(): Promise<{ plan: string | null; admin: boolean; undecided?: boolean }> {
   const client = await getClient();
-  if (!client || !session) return { plan: null, admin: false };
+  if (!client) return { plan: null, admin: false };
+  if (!session) return hasStoredSession() ? { plan: null, admin: false, undecided: true } : { plan: null, admin: false };
   const { data, error } = await client.from("profiles").select("plan_id, is_admin").eq("id", session.user.id).maybeSingle();
-  if (error || !data) return { plan: null, admin: false };
+  if (error) return { plan: null, admin: false, undecided: true };
+  if (!data) return { plan: null, admin: false };
   return { plan: (data.plan_id as string) ?? "free", admin: !!data.is_admin };
 }
 
@@ -921,6 +962,30 @@ export async function setHiddenLandingKits(keys: string[]): Promise<string | nul
   return error?.message ?? null;
 }
 
+/* The homepage's DISPLAY ORDER rides the same channel as the hidden list:
+   an array of the SAME lowercase match keys, first-listed shows first.
+   Names the list doesn't know keep their hardcoded relative order behind
+   the listed ones; an empty or unreadable list changes nothing — the
+   landing's sort is fail-soft by the same contract as its hidden filter. */
+const LANDING_ORDER_KEY = "landing_kit_order";
+
+export async function listLandingKitOrder(): Promise<string[]> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", LANDING_ORDER_KEY).maybeSingle();
+  if (error || !Array.isArray(data?.value)) return [];
+  return (data.value as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
+export async function setLandingKitOrder(keys: string[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate the homepage.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: LANDING_ORDER_KEY, value: keys, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /* Stock silhouettes ship in the bundle too, and the same curation applies:
    an admin can retire one for every visitor without a deploy. Retiring hides
    it from the PICKER only — a design already built on that shape keeps
@@ -951,13 +1016,17 @@ export async function setHiddenSilhouettes(ids: string[]): Promise<string | null
 const COMPONENT_RELEASES_KEY = "component_releases";
 export type ReleaseStatus = "released" | "rejected";
 
-export async function listComponentReleases(): Promise<Record<string, ReleaseStatus>> {
+/** null = the read FAILED (keep whatever you had); {} = authoritatively
+ *  empty. The two used to collapse into {}, so one flaked read hid every
+ *  released staged piece — and the clones filed under them — all session. */
+export async function listComponentReleases(): Promise<Record<string, ReleaseStatus> | null> {
   const client = await getClient();
   if (!client) return {};
   const { data, error } = await client.from("app_settings")
     .select("value").eq("key", COMPONENT_RELEASES_KEY).maybeSingle();
+  if (error) return null;
   const v = data?.value;
-  if (error || typeof v !== "object" || v === null || Array.isArray(v)) return {};
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
   const out: Record<string, ReleaseStatus> = {};
   for (const [id, st] of Object.entries(v as Record<string, unknown>)) {
     if (st === "released" || st === "rejected") out[id] = st;

@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import "@/styles/pricing.css";
-import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits } from "@/generator/cloud";
+import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
-import { hydrate, healStateIconPins } from "@/generator/store";
-import { applyKitDesign, applyKitTextFill, effKitSize, migrateKitDesigns, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
+import { hydrate, healStateIconPins, PRESET_DEFAULTS, retintText } from "@/generator/store";
+import { applyKitDesign, applyKitTextFill, applyPresetCandy, clampWeight, defaultCandy, defaultConfig, effKitSize, fontByName, migrateKitDesigns, PRESETS, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
-import { ensureDocFonts } from "@/generator/fonts";
+import { ensureDocFonts, ensureFont } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
 
@@ -173,6 +173,96 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
   );
 }
 
+/* ── homepage curation rack ──────────────────────────────────────────
+   The HARDCODED front-door examples (hero reel, style chips, community
+   cards) an admin can retire without a deploy. Match keys are lowercase
+   DISPLAY NAMES: the landing checks names on every surface, and names
+   never collide across surfaces the way shared preset ids do (Grape
+   Jelly the reel entry vs Grape Arcade the card). KEEP THE NAME SET IN
+   SYNC with HERO_SWATCHES / HERO_REEL / CM_KITS in
+   src/marketing/landingInit.ts.
+
+   `look` records how the landing builds that example, so the rack can
+   draw a real thumbnail: authored looks load their full design
+   (PRESET_DEFAULTS — the same JSONs the landing's AUTHORED table
+   carries); the rest apply the starter recipe, exactly like the app's
+   own preset tray. Four names sit on BOTH the reel and the chip row —
+   one hide covers both, so each is one tile with an "also" note. */
+type HomeExample = {
+  name: string;       // display name — THE hide key
+  look: string;       // starter id the landing resolves the look through
+  authored?: boolean; // full authored design (PRESET_DEFAULTS) vs plain recipe
+  label?: string;     // label the homepage shows on it (authored looks wear their own words)
+  also?: string;      // the same name also curates another surface
+};
+const HOME_ROSTER: { group: string; entries: HomeExample[] }[] = [
+  { group: "Hero reel", entries: [
+    { name: "Grape Jelly", look: "grape-jelly", authored: true, also: "also a style chip" },
+    { name: "Hard Candy", look: "hard-candy", label: "PLAY", also: "also a style chip" },
+    { name: "Schweetheart", look: "schweetheart", authored: true },
+    { name: "Neon Versus", look: "neon-versus", authored: true },
+    { name: "Oopsie", look: "oopsie", authored: true },
+    { name: "Citrus Pop", look: "citrus-pop", authored: true, also: "also a style chip" },
+    { name: "Bubble Pop", look: "bubble-pop", authored: true, also: "also a style chip" },
+    { name: "Nope Yep", look: "nope-yep", authored: true },
+    { name: "Wager", look: "wager", authored: true },
+  ] },
+  { group: "Style chips", entries: [
+    { name: "Deep Ocean", look: "deep-ocean" },
+    { name: "Forest Sprite", look: "forest-sprite" },
+    { name: "Hero Chisel", look: "hero-chisel" },
+    { name: "Glacier Tech", look: "glacier-tech" },
+  ] },
+  { group: "Community cards", entries: [
+    { name: "Grape Arcade", look: "grape-jelly", authored: true, label: "GRAPE" },
+    { name: "Abyss Console", look: "deep-ocean", label: "ABYSS" },
+    { name: "Forge Standard", look: "hero-chisel", label: "FORGE" },
+  ] },
+];
+
+/* A group's entries in their DISPLAYED order: ranked by the saved order
+   list (same lowercase name keys as the hidden list), unlisted names
+   keeping their roster order behind the listed ones — the exact contract
+   the landing's kitOrder helper applies to each homepage surface. */
+function orderedEntries(entries: HomeExample[], order: string[]): HomeExample[] {
+  if (!order.length) return entries;
+  const rank = (n: string) => { const i = order.indexOf(n.toLowerCase()); return i === -1 ? order.length : i; };
+  return entries.map((e, i) => [e, rank(e.name), i] as const)
+    .sort((a, b) => (a[1] - b[1]) || (a[2] - b[2])).map((x) => x[0]);
+}
+
+/* One thumbnail per roster entry, by the same engine as everything else.
+   Mirrors the app's preset tray recipe (Panel.presetArt): authored looks
+   hydrate their complete design and keep their own words; recipe looks
+   wear the label the homepage shows. Glow zeroed + viewBox tightened so
+   the art sits quiet in its tile. A look that won't resolve returns
+   null — the rack shows a labeled placeholder and the toggle still
+   works, because the hide list only speaks names. */
+function homeExampleArt(ex: HomeExample): string | null {
+  try {
+    let pc: GenConfig | null = null;
+    if (ex.authored && PRESET_DEFAULTS[ex.look]) {
+      pc = hydrate(structuredClone(PRESET_DEFAULTS[ex.look]));
+    } else {
+      const p = PRESETS.find((x) => x.id === ex.look); // no presetById — its fallback would draw the WRONG look
+      if (p) {
+        pc = defaultConfig();
+        pc.presetId = p.id; pc.shape = p.shape; pc.bevel = { ...p.bevel }; pc.effects = { ...p.effects };
+        if (p.font) { pc.type.font = p.font; pc.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? pc.type.weight); }
+        const candy = defaultCandy(); applyPresetCandy(candy, p); pc.candy = candy;
+        retintText(pc);
+      }
+    }
+    if (!pc) return null;
+    if (ex.label || !ex.authored) pc.content.label = ex.label ?? "PLAY";
+    pc.icon.show = false;
+    for (const s of Object.values(pc.states)) s.glow = 0;
+    return tightenSvg(renderBevel(pc, "default"), 20);
+  } catch {
+    return null;
+  }
+}
+
 /** parked-forever sentinel (upcoming with no date yet) reads as "parked" */
 function releaseWord(d: Desig): string {
   if (d.placement === "hero") return "hero lineup";
@@ -221,17 +311,9 @@ export function AdminPage() {
     setCensus({ users: (data.users as (Row & { kits: number })[]) ?? [], total: Number(data.total ?? 0), page: Number(data.page ?? 0) });
   };
 
-  /* homepage curation — the HARDCODED front-door kits (hero reel, swatch
-     chips, community cards) an admin can retire without a deploy. Match
-     keys are lowercase DISPLAY NAMES: the landing checks names on every
-     surface, and names never collide across surfaces the way shared
-     preset ids do (Grape Jelly the reel entry vs Grape Arcade the card).
-     KEEP IN SYNC with HERO_SWATCHES / HERO_REEL / CM_KITS in
-     src/marketing/landingInit.ts. */
-  const HOME_ROSTER: { group: string; names: string[] }[] = [
-    { group: "Hero reel & style chips", names: ["Grape Jelly", "Hard Candy", "Schweetheart", "Neon Versus", "Oopsie", "Citrus Pop", "Bubble Pop", "Nope Yep", "Wager", "Deep Ocean", "Forest Sprite", "Hero Chisel", "Glacier Tech"] },
-    { group: "Community cards", names: ["Grape Arcade", "Abyss Console", "Forge Standard"] },
-  ];
+  /* homepage curation — the visual rack (roster + art recipe live at
+     module scope, above). The thumbnails render once the desk opens;
+     a gated mount draws nothing. */
   const [homeHidden, setHomeHidden] = useState<Set<string> | null>(null);
   const [homeNote, setHomeNote] = useState<string | null>(null);
   const [homeBusy, setHomeBusy] = useState(false);
@@ -247,6 +329,42 @@ export function AdminPage() {
     setHomeNote(err ?? `Saved. The homepage picks this up within ~5 minutes (the feed is CDN-cached); your own next visit applies it too.`);
     if (err) setHomeHidden(homeHidden); // roll the optimistic flip back
   };
+  /* display order — the FULL flattened list of lowercase names, group by
+     group, written whole on every move so each surface's sort is fully
+     determined. Same optimistic flip + rollback as the hide toggle.
+     Arrows are the primary control; tile drag is an enhancement, and its
+     payload lives in a REF — dragstart → dragover can outrun a re-render,
+     and a state-only payload leaves dragover reading a stale null closure,
+     so the drop never arms. State carries only the visuals. */
+  const [homeOrder, setHomeOrder] = useState<string[] | null>(null);
+  const homeDragRef = useRef<{ group: string; index: number } | null>(null);
+  const [homeDrag, setHomeDrag] = useState<{ group: string; index: number } | null>(null);
+  const [homeOver, setHomeOver] = useState<{ group: string; index: number } | null>(null);
+  const persistHomeOrder = async (next: string[]) => {
+    const prev = homeOrder;
+    setHomeOrder(next);
+    setHomeBusy(true);
+    const err = await setLandingKitOrder(next);
+    setHomeBusy(false);
+    setHomeNote(err ?? `Saved. The homepage picks the new order up within ~5 minutes (the feed is CDN-cached); your own next visit applies it too.`);
+    if (err) setHomeOrder(prev); // roll the optimistic move back
+  };
+  const moveHomeKit = (group: string, shown: HomeExample[], from: number, to: number) => {
+    if (homeBusy || from === to || to < 0 || to >= shown.length) return;
+    const seq = [...shown];
+    const [m] = seq.splice(from, 1);
+    seq.splice(to, 0, m);
+    const next = HOME_ROSTER.flatMap((g) =>
+      (g.group === group ? seq : orderedEntries(g.entries, homeOrder ?? [])).map((e) => e.name.toLowerCase()));
+    void persistHomeOrder(next);
+  };
+  // the rack's art — drawn once when the desk opens, not on a gated mount
+  const homeArt = useMemo(() => {
+    if (!allowed) return null;
+    const m = new Map<string, string | null>();
+    for (const { entries } of HOME_ROSTER) for (const ex of entries) m.set(ex.name, homeExampleArt(ex));
+    return m;
+  }, [allowed]);
 
   // the release desk
   const [kq, setKq] = useState("");
@@ -302,6 +420,17 @@ export function AdminPage() {
   useEffect(() => {
     if (!allowed) return;
     void listHiddenLandingKits().then((keys) => setHomeHidden(new Set(keys.map((s) => s.toLowerCase()))));
+    void listLandingKitOrder().then((keys) => setHomeOrder(keys.map((s) => s.toLowerCase())));
+    /* the rack renders OTHER looks' faces — authored presets carry real
+       typefaces (Shrikhand, Fascinate) this document never loaded. Warm
+       every family the roster speaks; the browser re-rasterizes the
+       inline SVG text when each face lands (same move as KitPreview). */
+    try {
+      for (const { entries } of HOME_ROSTER) for (const ex of entries) {
+        if (ex.authored && PRESET_DEFAULTS[ex.look]) ensureDocFonts(PRESET_DEFAULTS[ex.look]);
+        else { const f = PRESETS.find((x) => x.id === ex.look)?.font; if (f) ensureFont(f); }
+      }
+    } catch { /* a face that won't load just falls back */ }
   }, [allowed]);
 
   // qOverride: the census hands an email straight in — state hasn't
@@ -821,30 +950,91 @@ export function AdminPage() {
         <section className="fd-card">
           <h2 className="fd-card__title"><House size={17} strokeWidth={2.1} /> Homepage kits</h2>
           <p className="fd-fine">
-            The front door's <b>built-in</b> kits — the hero reel, the style chips, and the three
-            community cards ship hardcoded. Untick one and it leaves the homepage for every visitor,
-            no deploy: the list rides the same feed as hero designations (CDN-cached ~5 minutes).
-            Designated heroes are curated in the Release desk above; unticking a name here also
-            keeps a same-named hero out of the reel.
+            The front door's <b>built-in</b> examples — the hero reel, the style chips, and the
+            three community cards — ship hardcoded in the homepage bundle, so nothing here truly
+            deletes. <b>Hide removes a look from the homepage</b> for every visitor, no deploy;
+            its tile stays on this rack so you can restore it any time. The <b>arrows change the
+            display order</b> within a group (tiles drag too). Both ride the same feed as hero
+            designations (CDN-cached ~5 minutes). The four looks on both the reel and the chip
+            row keep one tile — their reel position drives the chip row too. Designated heroes
+            are curated in the Release desk above; hiding a name here also keeps a same-named
+            hero out of the reel.
           </p>
           {homeHidden === null ? (
             <p className="fd-note"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Reading the current lineup…</p>
           ) : (
-            HOME_ROSTER.map(({ group, names }) => (
-              <div key={group} className="fd-homegroup">
-                <div className="fd-homegroup__name">{group}</div>
-                <div className="fd-homegrid">
-                  {names.map((nm) => (
-                    <label key={nm} className={`fd-homekit${homeHidden.has(nm.toLowerCase()) ? " off" : ""}`}>
-                      <input type="checkbox" disabled={homeBusy}
-                        checked={!homeHidden.has(nm.toLowerCase())}
-                        onChange={() => void toggleHomeKit(nm)} />
-                      {nm}
-                    </label>
-                  ))}
+            HOME_ROSTER.map(({ group, entries }) => {
+              const shown = orderedEntries(entries, homeOrder ?? []);
+              return (
+                <div key={group} className="fd-homegroup">
+                  <div className="fd-homegroup__name">{group}</div>
+                  <div className="fd-homerack">
+                    {shown.map((ex, i) => {
+                      const off = homeHidden.has(ex.name.toLowerCase());
+                      const art = homeArt?.get(ex.name);
+                      const dragging = homeDrag?.group === group && homeDrag.index === i;
+                      const dropover = !dragging && homeOver?.group === group && homeOver.index === i;
+                      return (
+                        <div key={ex.name}
+                          className={`fd-hometile${off ? " off" : ""}${dragging ? " dragging" : ""}${dropover ? " dropover" : ""}`}
+                          draggable
+                          title="Drag to reorder within the group"
+                          onDragStart={(e) => {
+                            homeDragRef.current = { group, index: i };
+                            setHomeDrag({ group, index: i });
+                            e.dataTransfer.effectAllowed = "move";
+                            try { e.dataTransfer.setData("text/plain", ex.name); } catch { /* older engines */ }
+                          }}
+                          onDragEnd={() => { homeDragRef.current = null; setHomeDrag(null); setHomeOver(null); }}
+                          onDragOver={(e) => {
+                            const d = homeDragRef.current;
+                            if (!d || d.group !== group) return; // groups don't mix
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (homeOver?.group !== group || homeOver.index !== i) setHomeOver({ group, index: i });
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const d = homeDragRef.current;
+                            if (d && d.group === group && d.index !== i) moveHomeKit(group, shown, d.index, i);
+                            homeDragRef.current = null; setHomeDrag(null); setHomeOver(null);
+                          }}>
+                          {art ? (
+                            <div className="fd-hometile__art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: art }} />
+                          ) : (
+                            <div className="fd-hometile__art fd-hometile__art--empty">no preview — this look lives only in the front-door bundle</div>
+                          )}
+                          <div className="fd-hometile__name">
+                            <b>{ex.name}</b>
+                            {ex.also && <span>{ex.also}</span>}
+                          </div>
+                          <div className="fd-hometile__row">
+                            <span className={`fd-review__chip ${off ? "fd-review__chip--no" : "fd-review__chip--ok"}`}>{off ? "HIDDEN" : "LIVE"}</span>
+                            <div className="fd-hometile__acts">
+                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === 0}
+                                title={`Show ${ex.name} earlier`} aria-label={`Show ${ex.name} earlier in ${group}`}
+                                onClick={() => moveHomeKit(group, shown, i, i - 1)}>
+                                <ChevronLeft size={14} strokeWidth={2.2} />
+                              </button>
+                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === shown.length - 1}
+                                title={`Show ${ex.name} later`} aria-label={`Show ${ex.name} later in ${group}`}
+                                onClick={() => moveHomeKit(group, shown, i, i + 1)}>
+                                <ChevronRight size={14} strokeWidth={2.2} />
+                              </button>
+                              <button className="fd-ghost fd-hometile__act" disabled={homeBusy}
+                                title={off ? `Put ${ex.name} back on the homepage` : `Remove ${ex.name} from the homepage for every visitor`}
+                                onClick={() => void toggleHomeKit(ex.name)}>
+                                {off ? <><Eye size={13} strokeWidth={2.2} /> Restore</> : <><EyeOff size={13} strokeWidth={2.2} /> Hide</>}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           {homeNote && <p className="fd-note">{homeNote}</p>}
         </section>

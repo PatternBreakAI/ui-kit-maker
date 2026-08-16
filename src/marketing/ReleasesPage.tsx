@@ -16,6 +16,28 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "Copies with a mind of their own",
+    items: [
+      {
+        h: "Duplicate any piece",
+        p: "Every component grows a Duplicate action: name the copy, file it under a classification, and restyle it as hard as you like — the original never moves, and kit-wide restyles never touch your copy. Duplicates live in their own \"Your components\" chapter on the kit page, place on boards as live pieces, ride every save and sync, and arrive in Unity scenes with their exact design, states and words.",
+      },
+      {
+        h: "The ghost joystick takes its own ink",
+        p: "The translucent overlay stick gets a Ghost color well — and editing it from its card now lands you on the actual ghost in the editor, recoloring live, instead of the solid pad.",
+      },
+      {
+        h: "Controls answer from every state",
+        p: "A subtle editor flaw dropped certain kit-wide edits — idle motion among them — whenever a non-Default state was selected. Every dial now lands no matter which state you're standing on, and invisible depth-effect geometry no longer steals clicks from small pieces like checkboxes and radios.",
+      },
+      {
+        h: "The material diagram tells your truth",
+        p: "The exploded-view diagram's token now mirrors your real Icon button — your silhouette, your styling, your swapped glyph — updating live as you edit.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "What you design is what ships",
     items: [
       {

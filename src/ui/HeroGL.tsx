@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useGen } from "@/generator/store";
 import { renderKit } from "@/generator/bevel";
-import { STOCK_ICONS, applyKitTextFill, hexMix } from "@/generator/model";
+import { STOCK_ICONS, applyKitDesign, applyKitTextFill, effKitSize, hexMix, resolveKitIcon } from "@/generator/model";
 import type { GenConfig } from "@/generator/model";
 
 /* ── HeroGL — the exploded material diagram, live in WebGL ──────────────
@@ -31,7 +31,7 @@ const LAYERS = [
 ] as const;
 
 const SATS = [
-  { t: "ICON TOKEN", s1: "Extrude", s2: "Pad perfect", y: 1.75, h: 1.95 },
+  { t: "ICON BUTTON", s1: "Extrude", s2: "Pad perfect", y: 1.75, h: 1.95 },
   { t: "PROGRESS BAR", s1: "72% · Fill", s2: "Live value", y: 0.1, h: 1.15 },
   { t: "PANEL / CARD", s1: "9-slice · Extrude", s2: "Tokenized material", y: -1.7, h: 2.1 },
 ] as const;
@@ -146,6 +146,19 @@ const BASE_PITCH = 0.035; // vertical tilt (x) — flatter, matches the referenc
 
 export function HeroGL() {
   const { cfg } = useGen();
+  /* the ICON BUTTON satellite IS the kit's Icon button (owner: "maybe just
+     replace with the icon button to keep it simple") — it resolves through
+     the exact same path as the kit card: the piece's own design fork,
+     silhouette, text fill, size and glyph swap. The gem stays only as the
+     specimen default while no swap exists. Each map entry is subscribed
+     individually so the reskin effect re-runs on the edits that feed it. */
+  const ibDesign = useGen((s) => s.kitDesigns.iconbtn);
+  const ibShape = useGen((s) => s.kitShapes.iconbtn);
+  const ibFill = useGen((s) => s.kitTextFill.iconbtn);
+  const ibIcon = useGen((s) => s.kitIcons.iconbtn);
+  const ibSize = useGen((s) => effKitSize(s.kitSizes.iconbtn));
+  const ibOy = useGen((s) => s.kitTextOy[`iconbtn:${effKitSize(s.kitSizes.iconbtn)}`]);
+  const ibOx = useGen((s) => s.kitTextOx[`iconbtn:${effKitSize(s.kitSizes.iconbtn)}`]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -318,7 +331,7 @@ export function HeroGL() {
       overlay.setAttribute("viewBox", `0 0 ${W} ${H}`);
     };
     fit();
-    // below this width the right-side satellites (icon token / progress / panel)
+    // below this width the right-side satellites (icon button / progress / panel)
     // clip against the edge — hide them so the diagram stays clean
     const SAT_MIN_W = 760;
     const updateSats = () => {
@@ -624,7 +637,13 @@ export function HeroGL() {
       });
       const kf = useGen.getState().kitTextFill;
       const svgs = [
-        renderKit(applyKitTextFill(c, kf.iconbtn), "iconbtn", "l", "default", undefined, undefined, { icon: STOCK_ICONS.gem }),
+        // the Icon button exactly as its kit card shows it — the same fork,
+        // silhouette, size, nudges and glyph resolution as usePiece
+        renderKit(applyKitTextFill(applyKitDesign(c, ibDesign), ibFill), "iconbtn", ibSize, "default", undefined, ibShape, {
+          icon: resolveKitIcon(ibIcon, STOCK_ICONS.gem),
+          textOy: ibOy, textOx: ibOx,
+          themedText: !!ibDesign?.type || !!ibFill,
+        }),
         renderKit(applyKitTextFill(c, kf.progress), "progress", "m", "default", 0.72),
         renderKit(applyKitTextFill(c, kf.panel), "panel", "m"),
       ];
@@ -649,7 +668,7 @@ export function HeroGL() {
       if (R.still) R.renderOnce();
     }, 140);
     return () => window.clearTimeout(timer);
-  }, [cfg]);
+  }, [cfg, ibDesign, ibShape, ibFill, ibIcon, ibSize, ibOy, ibOx]);
 
   return (
     <div className="kp-glhero" ref={wrapRef} aria-label="Exploded material diagram — live WebGL">

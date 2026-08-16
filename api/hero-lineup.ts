@@ -37,31 +37,36 @@ export async function GET(): Promise<Response> {
        surface of a hero designation; the rest of the snapshot (labels,
        backdrop, per-component work) stays in the vault until a wiring
        pass decides the carousel wants more.
-       `hidden` rides along: the admin's homepage curation list
-       (app_settings.hidden_landing_kits, world-readable by RLS) — the
-       landing has no Supabase client, so this feed is its one channel. */
+       `hidden` and `order` ride along: the admin's homepage curation
+       (app_settings.hidden_landing_kits + landing_kit_order, world-
+       readable by RLS) — the landing has no Supabase client, so this
+       feed is its one channel. Both are arrays of the same lowercase
+       match keys; `order` says who shows first. */
     const headers = { apikey: service, authorization: `Bearer ${service}` };
-    const [res, hidRes] = await Promise.all([
+    const [res, setRes] = await Promise.all([
       fetch(
         `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=preset_name,created_at,cfg:snapshot->cfg&order=created_at.desc&limit=8`,
         { headers },
       ),
-      fetch(`${supaUrl}/rest/v1/app_settings?key=eq.hidden_landing_kits&select=value`, { headers })
+      fetch(`${supaUrl}/rest/v1/app_settings?key=in.(hidden_landing_kits,landing_kit_order)&select=key,value`, { headers })
         .catch(() => null),
     ]);
     let hidden: string[] = [];
-    if (hidRes?.ok) {
-      const hrows = (await hidRes.json()) as { value: unknown }[];
-      const v = hrows[0]?.value;
-      if (Array.isArray(v)) hidden = v.filter((x): x is string => typeof x === "string").slice(0, 64);
+    let order: string[] = [];
+    if (setRes?.ok) {
+      const srows = (await setRes.json()) as { key: string; value: unknown }[];
+      const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 64) : []);
+      hidden = strings(srows.find((r) => r.key === "hidden_landing_kits")?.value);
+      order = strings(srows.find((r) => r.key === "landing_kit_order")?.value);
     }
-    if (!res.ok) return json({ heroes: [], hidden });
+    if (!res.ok) return json({ heroes: [], hidden, order });
     const rows = (await res.json()) as { preset_name: string; created_at: string; cfg: unknown }[];
     return json({
       heroes: rows
         .filter((r) => r.cfg && typeof r.cfg === "object")
         .map((r) => ({ name: r.preset_name, cfg: r.cfg, frozenAt: r.created_at })),
       hidden,
+      order,
     }, true);
   } catch {
     return json({ heroes: [] });
