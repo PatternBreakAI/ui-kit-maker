@@ -76,6 +76,17 @@ export async function putBgOriginal(file: File | Blob, name?: string): Promise<s
   return ok === null ? null : id;
 }
 
+/** Store bytes under a caller-chosen key — the durable-asset path
+ *  (assets.ts) keys records by CONTENT HASH so every browser derives the
+ *  same id from the same bytes, which is what lets the vault act as a
+ *  cache of the cloud copy. Returns false when the vault is unavailable
+ *  (private window) — callers survive on the cloud copy alone. */
+export async function putBgAt(id: string, file: Blob, name?: string): Promise<boolean> {
+  const rec = { blob: file, name: name ?? "background", type: file.type, size: file.size, at: Date.now() };
+  const ok = await tx("readwrite", (s) => s.put(rec, id));
+  return ok !== null;
+}
+
 export async function getBgOriginal(id: string): Promise<{ blob: Blob; name: string; type: string } | null> {
   const rec = await tx<{ blob: Blob; name: string; type: string }>("readonly", (s) => s.get(id) as IDBRequest<{ blob: Blob; name: string; type: string }>);
   return rec?.blob ? rec : null;

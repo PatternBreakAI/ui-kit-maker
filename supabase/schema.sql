@@ -518,3 +518,24 @@ alter table public.kit_designations enable row level security;
 drop policy if exists "designations_admin_read" on public.kit_designations;
 create policy "designations_admin_read" on public.kit_designations for select
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
+
+-- ── durable backdrops (v94) — uploaded images survive the browser ────
+-- Owner mandate 2026-08-16: an uploaded backdrop must still be there
+-- when its owner returns. Content-addressed per user (<uid>/<sha-256
+-- prefix>), private bucket, owner-folder read/delete. NO insert policy
+-- on purpose: uploads happen only via signed URLs minted by /api/assets
+-- (service role), which enforces the tier quota — free 50 MB, paid 1 GB.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('bg-assets', 'bg-assets', false, 8388608,
+          array['image/png','image/jpeg','image/webp','image/gif','image/avif'])
+  on conflict (id) do update
+    set file_size_limit   = excluded.file_size_limit,
+        allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "bg_assets_read_own" on storage.objects;
+create policy "bg_assets_read_own" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'bg-assets' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "bg_assets_delete_own" on storage.objects;
+create policy "bg_assets_delete_own" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'bg-assets' and (storage.foldername(name))[1] = auth.uid()::text);

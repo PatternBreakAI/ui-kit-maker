@@ -224,7 +224,11 @@ export async function collectExportBoards(st: {
    *  (the BACK-button story). Needed so those pieces travel to Unity. */
   library?: LibItem[];
 }): Promise<ExportBoardData[]> {
-  const { getBgOriginal, captureVideoPoster } = await import("./bgvault");
+  const { captureVideoPoster } = await import("./bgvault");
+  /* exports are SELF-CONTAINED: refs resolve to real pixels here — vault
+     first, then the signed-in account's cloud copy — so a scene built on
+     another machine still ships its backdrop */
+  const { resolveBgAsset } = await import("./assets");
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
@@ -242,7 +246,7 @@ export async function collectExportBoards(st: {
     if ((bd.bgImage || bd.bgAssetId || bd.bgVideo) && (bd.bgShow ?? true)) {
       let bytes: Uint8Array | null = null, ext = "png", original = false;
       if (bd.bgAssetId) {
-        const rec = await getBgOriginal(bd.bgAssetId);
+        const rec = await resolveBgAsset(bd.bgAssetId);
         if (rec) {
           bytes = new Uint8Array(await rec.blob.arrayBuffer());
           ext = /png$/.test(rec.type) ? "png" : /webp$/.test(rec.type) ? "webp" : "jpg";

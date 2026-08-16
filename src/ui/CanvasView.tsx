@@ -5,7 +5,8 @@ import { LessonBody } from "./LessonCard";
 import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
 import { useGen, fileToBgDataUrl } from "@/generator/store";
-import { putBgOriginal, normalizeShipCopy } from "@/generator/bgvault";
+import { normalizeShipCopy } from "@/generator/bgvault";
+import { importBgAsset } from "@/generator/assets";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
@@ -412,7 +413,7 @@ export function CanvasView() {
                  payload, so it comes through in shares and saved projects. */
               if (f && phase === "board") {
                 void normalizeShipCopy(f).then(async (ship) => {
-                  const assetId = await putBgOriginal(ship, f.name);
+                  const assetId = await importBgAsset(ship, f.name);
                   setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
                 });
               } else if (f) void fileToBgDataUrl(f).then((url) => setBgImage(url));

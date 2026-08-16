@@ -272,6 +272,19 @@ function releaseWord(d: Desig): string {
   return t <= Date.now() ? "live" : `releases ${fmtDay(d.publishAt)}`;
 }
 
+/* The homepage reel's built-in names — what the landing's dedupe set
+   covers (PAL + REEL: the reel and chip groups; community cards are a
+   separate surface and don't block). A designated hero wearing one of
+   these names is silently skipped by the landing, so the desk must say
+   so instead of letting the slate claim it rides. */
+const BUILTIN_REEL_NAMES = new Set(
+  HOME_ROSTER.filter((g) => g.group !== "Community cards")
+    .flatMap((g) => g.entries.map((e) => e.name.toLowerCase())));
+
+/* How many designated heroes the homepage feed serves (api/hero-lineup
+   limit, newest first) — a hero past this window is frozen but idle. */
+const REEL_HERO_WINDOW = 8;
+
 export function AdminPage() {
   usePageScroll();
   const cloud = useCloudStatus();
@@ -384,6 +397,22 @@ export function AdminPage() {
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [slate, setSlate] = useState<Desig[] | null>(null);
   const [slateNote, setSlateNote] = useState<string | null>(null);
+  /* the truth about a designated hero's seat on the homepage — the reel
+     and the slate are DIFFERENT lists that overlap in one place: the
+     reel plays the hardcoded built-ins (rack below), then the newest
+     designated heroes join the rotation via the live feed. Four things
+     silently keep a designated hero off: a hidden name, a name shared
+     with a built-in, falling past the newest-8 window, and a snapshot
+     the engine can't render. The desk says which — same words on the
+     slate row and the rack strip, so the two can never disagree again. */
+  const heroRows = (slate ?? []).filter((d) => d.placement === "hero");
+  const heroReelStatus = (d: Desig): { chip: string; cls: string; word: string } => {
+    const key = d.presetName.toLowerCase();
+    if (homeHidden?.has(key)) return { chip: "HIDDEN", cls: "fd-review__chip--no", word: "hidden on the homepage — Restore it on the rack below" };
+    if (BUILTIN_REEL_NAMES.has(key)) return { chip: "BLOCKED", cls: "fd-review__chip--wait", word: "shares a built-in's name, so the reel keeps the built-in — rename and re-designate to ride" };
+    if (heroRows.findIndex((x) => x.id === d.id) >= REEL_HERO_WINDOW) return { chip: "PAST 8", cls: "fd-review__chip--wait", word: `outside the reel window — only the ${REEL_HERO_WINDOW} newest heroes ride; delete older ones to advance it` };
+    return { chip: "IN ROTATION", cls: "fd-review__chip--ok", word: "in the homepage rotation — joins after the built-ins (~5 min CDN)" };
+  };
 
   // the render gate — an HONEST one: whatever blocks the desk says so in
   // place, with the way back. The old gate silently teleported to the
@@ -496,7 +525,7 @@ export function AdminPage() {
     const name = relName.trim() || sel.name;
     const msg =
       placement === "hero"
-        ? `Freeze "${sel.name}" for the homepage carousel?\n\nThe kit is snapshotted exactly as it is today, with the deal note. (The homepage lineup itself is wired in a separate pass — this stores the frozen kit and your intent.)`
+        ? `Freeze "${sel.name}" for the homepage carousel?\n\nThe kit is snapshotted exactly as it is today, with the deal note, and joins the homepage rotation after the built-in reel (give the CDN ~5 minutes). Only the ${REEL_HERO_WINDOW} newest heroes ride, and a name shared with a built-in look is skipped.`
         : placement === "standard"
           ? `Release "${name}" to everyone right now?\n\nIt appears in every player's Presets panel immediately, and the kit is snapshotted for the record.`
           : relDate
@@ -548,16 +577,27 @@ export function AdminPage() {
     void loadSlate();
   };
 
+  /* delete a slate row — optimistic like the rack's toggles: the row
+     leaves the list on click and comes back only if the server refuses,
+     so a tidy-up sweep feels immediate instead of one reload per row. */
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const unDesignate = async (d: Desig) => {
+    if (removingId) return;
     const shipped = d.placement !== "hero";
     if (!window.confirm(
-      `Take "${d.presetName}" off the slate?\n\n` +
-      (shipped ? "Its preset entry is retired too — players lose access to it. " : "") +
+      `Delete "${d.presetName}" from the slate?\n\n` +
+      (shipped ? "Its preset entry is retired too — players lose access to it. " :
+        "It leaves the homepage rotation too (give the CDN ~5 minutes). ") +
       "The frozen snapshot is deleted with it.",
     )) return;
+    const prev = slate;
+    setRemovingId(d.id); setSlateNote(null);
+    setSlate((s) => (s ?? []).filter((x) => x.id !== d.id)); // optimistic — the row leaves now
     const { ok, data } = await callAdmin({ action: "undesignate", designationId: d.id });
-    if (!ok) { setSlateNote(String(data.error ?? "Couldn't remove it.")); return; }
-    void loadSlate();
+    setRemovingId(null);
+    if (!ok) { setSlate(prev); setSlateNote(String(data.error ?? "Couldn't delete it — the row is back.")); return; }
+    setSlateNote(`Deleted — "${d.presetName}" is off the slate${shipped ? " and off the shelf" : ""}.`);
+    void loadSlate(); // reconcile with the server's truth
   };
 
   // preview first (dry run), confirm with real numbers, then move
@@ -801,8 +841,11 @@ export function AdminPage() {
             maker can change or lose their copy later and your frozen version survives, deal note
             attached. Tick <b>Hero carousel</b>, <b>Public release</b>, or both — one Designate covers
             them. A public release with a <b>date</b> stays invisible to everyone but you until that
-            day; with the date blank it lands in every player's Presets panel immediately. Hero files
-            it for the homepage carousel (wiring the homepage to read the slate is a separate pass).
+            day; with the date blank it lands in every player's Presets panel immediately. Hero puts
+            it <b>in the homepage rotation</b>: the reel plays the built-in lineup (curated on the
+            rack below), then the {REEL_HERO_WINDOW} newest designated heroes join as the live feed
+            lands (~5 min CDN). Each hero row below says whether it's actually riding — hidden
+            names and names shared with a built-in are skipped.
           </p>
           <div className="fd-adminsearch">
             <input
@@ -919,30 +962,38 @@ export function AdminPage() {
           )}
           {slate !== null && slate.length > 0 && (
             <div className="fd-adminrows">
-              {slate.map((d) => (
-                <div key={d.id} className="fd-adminrow">
-                  <div className="fd-adminrow__who">
-                    <b>{d.presetName}{d.presetName !== d.kitName ? <span className="fd-adminrow__meta"> (kit "{d.kitName}")</span> : null}</b>
-                    <span className="fd-adminrow__meta">
-                      <span className={`fd-review__chip ${d.placement === "standard" ? "fd-review__chip--ok" : "fd-review__chip--wait"}`}>{d.placement.toUpperCase()}</span>
-                      {" "}{releaseWord(d)} · {d.sourceEmail ?? "unknown maker"} · frozen {fmtDay(d.createdAt)}
-                      {d.dealNote ? <> · {d.dealNote}</> : null}
-                    </span>
+              {slate.map((d) => {
+                const hero = d.placement === "hero" ? heroReelStatus(d) : null;
+                return (
+                  <div key={d.id} className="fd-adminrow">
+                    <div className="fd-adminrow__who">
+                      <b>{d.presetName}{d.presetName !== d.kitName ? <span className="fd-adminrow__meta"> (kit "{d.kitName}")</span> : null}</b>
+                      <span className="fd-adminrow__meta">
+                        <span className={`fd-review__chip ${d.placement === "standard" ? "fd-review__chip--ok" : "fd-review__chip--wait"}`}>{d.placement.toUpperCase()}</span>
+                        {hero && <span className={`fd-review__chip ${hero.cls}`}>{hero.chip}</span>}
+                        {" "}{hero ? hero.word : releaseWord(d)} · {d.sourceEmail ?? "unknown maker"} · frozen {fmtDay(d.createdAt)}
+                        {d.dealNote ? <> · {d.dealNote}</> : null}
+                      </span>
+                    </div>
+                    <div className="fd-adminrow__acts">
+                      <button className="fd-ghost fd-adminrow__plan" disabled={refreshingId === d.id || removingId === d.id}
+                        title="Re-freeze from the maker's current version — your approval click"
+                        onClick={() => void refreeze(d)}>
+                        {refreshingId === d.id
+                          ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" />
+                          : <RefreshCw size={13} strokeWidth={2.1} />} Refresh
+                      </button>
+                      <button className="fd-ghost fd-adminrow__plan" disabled={removingId === d.id || refreshingId === d.id}
+                        title={`Delete this designation${d.placement === "hero" ? " — it leaves the homepage rotation" : " — players lose the preset"}`}
+                        onClick={() => void unDesignate(d)}>
+                        {removingId === d.id
+                          ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" />
+                          : <Trash2 size={13} strokeWidth={2.1} />} Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="fd-adminrow__acts">
-                    <button className="fd-ghost fd-adminrow__plan" disabled={refreshingId === d.id}
-                      title="Re-freeze from the maker's current version — your approval click"
-                      onClick={() => void refreeze(d)}>
-                      {refreshingId === d.id
-                        ? <Loader2 size={13} strokeWidth={2.4} className="fd-spin" />
-                        : <RefreshCw size={13} strokeWidth={2.1} />} Refresh
-                    </button>
-                    <button className="fd-ghost fd-adminrow__plan" onClick={() => void unDesignate(d)}>
-                      <Trash2 size={13} strokeWidth={2.1} /> Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -1032,6 +1083,38 @@ export function AdminPage() {
                       );
                     })}
                   </div>
+                  {/* the reel's OTHER half: designated heroes ride this same
+                      rotation via the live feed — the built-in tiles above
+                      are not the whole story, and pretending they are is
+                      what made the reel and the slate look mismatched.
+                      Same status words as the slate rows; Hide works here
+                      because the hidden list matches designated names too. */}
+                  {group === "Hero reel" && heroRows.length > 0 && (
+                    <>
+                      <p className="fd-fine" style={{ marginTop: 10 }}>
+                        Also in this rotation — <b>designated heroes</b> from the Release desk's slate
+                        (they join after the built-ins; newest {REEL_HERO_WINDOW} ride):
+                      </p>
+                      <div className="fd-homeheroes">
+                        {heroRows.map((d) => {
+                          const st = heroReelStatus(d);
+                          const off = homeHidden.has(d.presetName.toLowerCase());
+                          return (
+                            <span key={d.id} className={`fd-homehero${off ? " off" : ""}`} title={st.word}>
+                              <b>{d.presetName}</b>
+                              <span className={`fd-review__chip ${st.cls}`}>{st.chip}</span>
+                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy}
+                                title={off ? `Put ${d.presetName} back in the rotation` : `Remove ${d.presetName} from the homepage for every visitor (the slate keeps it)`}
+                                aria-label={off ? `Restore ${d.presetName}` : `Hide ${d.presetName}`}
+                                onClick={() => void toggleHomeKit(d.presetName)}>
+                                {off ? <Eye size={13} strokeWidth={2.2} /> : <EyeOff size={13} strokeWidth={2.2} />}
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })
