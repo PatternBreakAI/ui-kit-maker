@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, FolderOpen, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, FolderOpen, House, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
 import { useGen, hydrate, getDefault, isTouched, exportableBoards } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -160,6 +160,13 @@ export function TopBar() {
       <button className="brand" onClick={() => navigate("#/")} title={t("backHome")} aria-label={t("backHome")}>
         <Logo />
         <span className="name">UI Kit Maker</span>
+      </button>
+
+      {/* the HOME — the Adobe-style projects room (owner mandate). Always
+          visible; guests land on its sign-in invitation. */}
+      <button className="acct homebtn" onClick={() => navigate("#/projects")}
+        aria-label="Home — your projects" title="Home — all your projects, as thumbnails">
+        <House size={17} strokeWidth={1.9} />
       </button>
 
       {/* the center names the FILE — quiet, always on; the flash below it
