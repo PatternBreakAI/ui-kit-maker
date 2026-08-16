@@ -651,6 +651,18 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .presetcard .presetart svg { width: 100%; height: auto; max-height: 74px; display: block; }
 .presetcard .presetname { font-size: 12px; font-weight: 600; color: var(--ink2); }
 
+/* ── Spotlight's NEW tile — one seat at the head of the Looks rack ──
+   A kind:"kit" promo pinned while it's live: presetcard chrome, its
+   own engine art, an expiring NEW pill, no dismissal. */
+.presetcard.promo { border-color: color-mix(in srgb, var(--accent, #6366f1) 55%, var(--line2)); }
+.presetcard.promo .presetname { color: var(--accent, #6366f1); }
+.presetnew {
+  position: absolute; top: 6px; left: 6px; z-index: 2;
+  font-size: 8.5px; font-weight: 800; letter-spacing: .14em;
+  color: #fff; background: var(--accent, #6366f1);
+  padding: 2px 7px; border-radius: 999px; pointer-events: none;
+}
+
 /* ── held packs (admin only) ──────────────────────────────────────
    A pack with a future publish_at is invisible to everyone else — the
    read policy drops the row. The dashed edge is the tell that what the
