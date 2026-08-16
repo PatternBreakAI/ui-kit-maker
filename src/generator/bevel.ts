@@ -3296,7 +3296,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      DELETED, not masked: they stroked closed translated outlines, and
      after two rounds of occluder masks a live-DOM dissection still showed
      their line crossing the wall — a hairline garnish is not worth a
-     ghost. The rim already reads through the darkening and cast shadow. */
+     ghost. The rim already reads through the darkening and cast shadow.
+     The rects themselves hug the mask's true reach (the dilate radius is
+     vertical-only, so the union never grows past the shell's own x-range):
+     masks and filters do NOT clip pointer hit-testing, the root svg is
+     overflow="visible", and the old ±220 canvas-crossing rects silently
+     ate clicks on NEIGHBORING kit-page cards (owner: "checkbox and radio
+     button aren't working in the kit"). extRegion stays generous — it
+     bounds the filter/mask units, which have no hit geometry. */
   const extRegion = `x="${(x - 220).toFixed(0)}" y="${(y - 220).toFixed(0)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 440).toFixed(0)}"`;
   const extrusion = visDepth > 0.3
     ? `<g>
@@ -3307,8 +3314,8 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
         <mask id="${id}extu" maskUnits="userSpaceOnUse" ${extRegion}>
           <g filter="url(#${id}xsw)"><path d="${outer}" fill="#fff"/></g>
         </mask>
-        <rect x="${(x - 220).toFixed(0)}" y="${y.toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${(h + visDepth + 220).toFixed(1)}" fill="url(#${id}ext)" mask="url(#${id}extu)"/>
-        <rect x="${(x - 220).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 440).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
+        <rect x="${(x - 8).toFixed(0)}" y="${y.toFixed(1)}" width="${(w + 16).toFixed(0)}" height="${(h + visDepth + 12).toFixed(1)}" fill="url(#${id}ext)" mask="url(#${id}extu)"/>
+        <rect x="${(x - 8).toFixed(0)}" y="${(y + visDepth).toFixed(1)}" width="${(w + 16).toFixed(0)}" height="${h.toFixed(1)}" fill="url(#${id}extv)" mask="url(#${id}extu)"/>
         ${baseGlow}
       </g>`
     : "";

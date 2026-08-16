@@ -8,7 +8,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -1981,21 +1981,41 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ userPresets });
   },
   cloudPresets: [],
-  isAdmin: false,
-  tier: "guest" as Tier,
+  /* the visibility gates boot from the last AUTHORITATIVE cloud answer
+     (see GateSnapshot in cloud.ts) — a fresh boot no longer blanks the
+     admin's staged-base clones and pro chrome while the profile read is
+     in flight. The admin flag and tier only carry over while a parked
+     session exists; the release ledger is world-readable and always
+     seeds. Actions stay server-gated regardless. */
+  isAdmin: (() => { const g = readGateSnapshot(); return !!g && hasStoredSession() && g.admin; })(),
+  tier: (() => {
+    const g = readGateSnapshot();
+    const t = g && hasStoredSession() ? g.tier : null;
+    return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
+  })(),
   loadCloudPresets: async () => {
     const [presets, hidden, prof, releases, hiddenSils] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes()]);
-    const admin = prof.admin;
-    // cloud-off (local/dev build) is not the funnel — it gets the free tier,
-    // not guest lockdown; the live site always has cloud configured.
-    // plan_id is server-truth: only the Stripe webhook writes anything but
-    // 'free', and it writes 'student' or 'pro' from the price purchased.
-    const tier: Tier = admin ? "pro"
-      : prof.plan === "student" ? "student"
-      : (prof.plan && prof.plan !== "free") ? "pro"
-      : prof.plan ? "free"
-      : cloudStatus().state === "off" ? "free" : "guest";
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: releases });
+    const prev = get();
+    /* a FAILED read keeps the previous answer instead of downgrading —
+       one flaked query used to de-admin (and de-tier) the whole session,
+       hiding the owner's own clone chapter "sometimes" */
+    const rel = releases ?? prev.componentReleases;
+    let admin = prev.isAdmin;
+    let tier: Tier = prev.tier;
+    if (!prof.undecided) {
+      admin = prof.admin;
+      // cloud-off (local/dev build) is not the funnel — it gets the free tier,
+      // not guest lockdown; the live site always has cloud configured.
+      // plan_id is server-truth: only the Stripe webhook writes anything but
+      // 'free', and it writes 'student' or 'pro' from the price purchased.
+      tier = admin ? "pro"
+        : prof.plan === "student" ? "student"
+        : (prof.plan && prof.plan !== "free") ? "pro"
+        : prof.plan ? "free"
+        : cloudStatus().state === "off" ? "free" : "guest";
+      writeGateSnapshot({ admin, tier, releases: rel });
+    }
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -2072,12 +2092,16 @@ export const useGen = create<GenStore>((set, get) => ({
     if (!err) set({ hiddenSilhouettes: [] });
     return err;
   },
-  componentReleases: {},
+  componentReleases: readGateSnapshot()?.releases ?? {},
   setComponentRelease: async (id, status) => {
     const next = { ...get().componentReleases };
     if (status === null) delete next[id]; else next[id] = status;
     const err = await saveComponentReleases(next);
-    if (!err) set({ componentReleases: next });
+    if (!err) {
+      set({ componentReleases: next });
+      // the local gate snapshot follows the ledger the admin just wrote
+      writeGateSnapshot({ admin: get().isAdmin, tier: get().tier, releases: next });
+    }
     return err;
   },
   kitName: loadJson<string | null>("ui-generator-kitname", null),
@@ -2321,6 +2345,15 @@ export const useGen = create<GenStore>((set, get) => ({
       }
       work.content = t.content; work.states = t.states; work.visible = t.visible;
       work.canvas = t.canvas; work.presetId = t.presetId;
+      /* every OTHER shared top-level field rides back too: fn ran against
+         the throwaway state view `t`, so an assignment like the Idle-motion
+         checkboxes' `c.idle = {…}` (or knob/barFx/rarity/content-margin)
+         died here silently whenever a non-default state was selected —
+         owner, sitting on Pressed: "I couldn't get the idle animations
+         working here". Design sections stay with the state fork above;
+         these are kit-wide by contract. */
+      work.idle = t.idle; work.knob = t.knob; work.barFx = t.barFx;
+      work.rarity = t.rarity; work.contentMargin = t.contentMargin;
     } else {
       fn(work);
     }
