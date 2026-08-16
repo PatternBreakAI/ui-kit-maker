@@ -909,3 +909,13 @@
 .fd-hometile[draggable] { cursor: grab; }
 .fd-hometile.dragging { opacity: .45; cursor: grabbing; }
 .fd-hometile.dropover { border-color: var(--accent, #d946ef); box-shadow: 0 0 0 1px var(--accent, #d946ef) inset; }
+/* designated heroes riding the reel — pills, not tiles: their art lives
+   frozen on the slate, and the rack only owes their name and their truth */
+.fd-homeheroes { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.fd-homehero {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 6px 5px 11px;
+  border: 1px solid var(--line2); border-radius: 999px; background: var(--soft); font-size: 12.5px;
+}
+[data-theme="dark"] .fd-homehero { background: rgba(24, 17, 42, .6); border-color: rgba(180, 140, 250, .16); }
+.fd-homehero .fd-hometile__nudge { height: 24px; width: 24px; border-radius: 999px; }
+.fd-homehero.off b { color: var(--ink3); text-decoration: line-through; }
