@@ -1640,8 +1640,11 @@ export const useGen = create<GenStore>((set, get) => ({
       const m = / width="([\d.]+)" height="([\d.]+)"/.exec(stampSvg(get().cfg, stamp));
       return m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
     };
+    /* the specimen's width is SUB-linear in the size knob (fixed padding
+       and canvas floors) — one proportional pass undershoots, so iterate
+       until it truly fits or the knob bottoms out at its 25% floor */
     let [w, h] = measure();
-    if (w > W * 0.86) {
+    for (let i = 0; i < 6 && w > W * 0.86 && stamp.size > 25; i++) {
       stamp = { ...stamp, size: Math.max(25, Math.floor((stamp.size * W * 0.86) / w)) };
       [w, h] = measure();
     }
