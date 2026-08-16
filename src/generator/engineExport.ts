@@ -6225,7 +6225,7 @@ namespace PatternBreak {
        working this round") — a real Unity Slider dressed in the
        component's own layers: shell+well track, silhouette-true mercury,
        candy knob. Drag it in Play mode and it IS the Board's piece. */
-    static bool SliderPrefab(string dir, string root, int pngScale) {
+    static bool SliderPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/slider/slider-track.9.png");
       var fill = S(root + "/assets/slider/slider-fill.9.png");
       var thumb = S(root + "/assets/slider/slider-thumb.png");
@@ -6235,6 +6235,20 @@ namespace PatternBreak {
       float trackW = rt.sizeDelta.x, trackH = rt.sizeDelta.y;
       float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
       float thumbW = thumb.rect.width / pngScale, thumbH = thumb.rect.height / pngScale;
+      /* the moving parts must ride the SHELL line, not the rect center —
+         the track sprite's extrusion pads its bottom, so the rect center
+         sits BELOW the visible bar and every rect-centered child landed
+         ~8-10px south of the well (owner, with the exact number). The
+         manifest's shell box says where the bar really is. */
+      float upS = 0f;
+      if (m != null && m.assets != null) {
+        foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "slider" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f && track.rect.height > 1f)
+            upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+          break;
+        }
+      }
       // the mercury's inset inside the shell, straight from the sprites
       float inX = Mathf.Max(2f, (trackW - fillW) * 0.5f);
       float inY = Mathf.Max(2f, (trackH - fillH) * 0.5f);
@@ -6243,6 +6257,7 @@ namespace PatternBreak {
       var art = area.GetComponent<RectTransform>();
       art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
       art.offsetMin = new Vector2(inX, inY); art.offsetMax = new Vector2(-inX, -inY);
+      art.anchoredPosition += new Vector2(0f, upS);
       var fillGo = ImageObject("Fill", fill, pngScale);
       fillGo.transform.SetParent(area.transform, false);
       fillGo.GetComponent<Image>().raycastTarget = false;
@@ -6256,6 +6271,7 @@ namespace PatternBreak {
       // endpoint clamp like the app: the knob stays inside the shell
       float lane = thumbW * 0.5f + 2f;
       srt.offsetMin = new Vector2(lane, 0f); srt.offsetMax = new Vector2(-lane, 0f);
+      srt.anchoredPosition += new Vector2(0f, upS); // knob rides the bar, not the rect
       var handle = ImageObject("Handle", thumb, pngScale);
       handle.transform.SetParent(slideArea.transform, false);
       var hImg = handle.GetComponent<Image>();
@@ -6277,7 +6293,7 @@ namespace PatternBreak {
     /* the settings SWITCH, WIRED — Unity Toggle + SwitchGlide: the candy
        knob slides across the component's own track and swaps its ON/OFF
        dot, exactly like the piece on the Board. */
-    static bool SwitchPrefab(string dir, string root, int pngScale) {
+    static bool SwitchPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/toggle/toggle-track.9.png");
       var knobOn = S(root + "/assets/toggle/toggle-thumb.png");
       var knobOff = S(root + "/assets/toggle/toggle-thumb-off.png");
@@ -6291,6 +6307,17 @@ namespace PatternBreak {
       ki.preserveAspect = true; // the knob stays round under any layout
       var krt = knob.GetComponent<RectTransform>();
       krt.anchorMin = new Vector2(0.5f, 0.5f); krt.anchorMax = new Vector2(0.5f, 0.5f);
+      /* the knob rides the SHELL line, not the rect center — the track
+         sprite's extrusion pads its bottom, so a rect-centered knob sat
+         ~8-10px south of the switch's well (owner, with the number) */
+      if (m != null && m.assets != null) {
+        foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "toggle" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f && track.rect.height > 1f)
+            krt.anchoredPosition = new Vector2(0f, (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * (track.rect.height / pngScale));
+          break;
+        }
+      }
       var tog = go.AddComponent<Toggle>();
       tog.targetGraphic = go.GetComponent<Image>();
       tog.isOn = true;
@@ -6576,8 +6603,8 @@ namespace PatternBreak {
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
       if (MinimapPrefab(dir, root, pngScale, m)) any = true;
       if (TogglePrefabs(dir, root, pngScale, m)) any = true;
-      if (SliderPrefab(dir, root, pngScale)) any = true;
-      if (SwitchPrefab(dir, root, pngScale)) any = true;
+      if (SliderPrefab(dir, root, pngScale, m)) any = true;
+      if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale)) any = true;
       /* the stretch-safe variants live in their OWN folder (owner: "we

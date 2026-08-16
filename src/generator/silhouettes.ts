@@ -113,6 +113,14 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "kenneyTag", flippable: true, name: "Pointer Tag", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
     capScale: 0.31, content: { top: 0.14, right: 0.36, bottom: 0.14, left: 0.18 }, minWidth: 96, minHeight: 40,
     supports: ["button", "chip", "badge", "tab"], character: "Pointer tag — 45° shoulders and tip rounding measured proportions, drawn as an original study." },
+  /* the SAME tag pointing the other way, as its own permanent entry —
+     per-piece flip can only mirror one component at a time, and the owner
+     wants BOTH directions living in one kit (back tab + forward tab).
+     Geometry resolves through MIRROR_SILHOUETTES; insets are the base's,
+     swapped. */
+  { id: "kenneyTagRev", flippable: true, name: "Pointer Tag · Reverse", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
+    capScale: 0.31, content: { top: 0.14, right: 0.18, bottom: 0.14, left: 0.36 }, minWidth: 96, minHeight: 40,
+    supports: ["button", "chip", "badge", "tab"], character: "Pointer tag pointing the other way — the same measured study, mirrored, so both directions can live in one kit." },
   { id: "doboBracket", name: "Bracket Label", category: "Banners & Labels", source: "custom study (after an itch.io label)", license: "original", renderer: "procedural",
     capScale: 0.36, content: { top: 0.14, right: 0.42, bottom: 0.14, left: 0.42 }, minWidth: 120, minHeight: 44,
     supports: ["button", "chip", "badge", "tab", "progress"], character: "Bar with half-round side lobes and meeting notches — measured proportions, drawn as an original study." },
@@ -364,3 +372,10 @@ export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
   }
   return SILHOUETTES.find((s) => s.id === id);
 }
+
+/** Permanent mirrored twins: the entry's geometry is its base's, flipped —
+ *  the picker shows both directions side by side, and a kit can wear one
+ *  on each piece (the ~flip toggle can only mirror per component). */
+export const MIRROR_SILHOUETTES: Partial<Record<string, string>> = {
+  kenneyTagRev: "kenneyTag",
+};

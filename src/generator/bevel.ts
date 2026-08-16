@@ -1,7 +1,7 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
 import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isDarkBg, userShapes } from "./model";
 import { iconGroup } from "./icons";
-import { silhouetteMeta } from "./silhouettes";
+import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
@@ -1215,6 +1215,9 @@ export function mirrorPathX(d: string, cx: number): string {
 export function shapePath(shape: Shape, x: number, y: number, w: number, h: number, softness: number): string {
   // a ~flip id renders its base mirrored around the frame's center line
   if (shape.endsWith("~flip")) return mirrorPathX(shapePath(shape.slice(0, -5) as Shape, x, y, w, h, softness), x + w / 2);
+  // a permanent mirrored twin (Pointer Tag · Reverse) resolves the same way
+  const mirBase = MIRROR_SILHOUETTES[shape];
+  if (mirBase) return mirrorPathX(shapePath(mirBase as Shape, x, y, w, h, softness), x + w / 2);
   const imp = importedShape(shape);
   if (imp) {
     // Feasibility-lab imports fill the frame exactly — the lab exists to

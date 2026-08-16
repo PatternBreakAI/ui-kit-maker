@@ -26,7 +26,7 @@ export type Shape =
   // v20 archetypes — deep chamfer, swallowtail banner, shield, pixel steps
   | "deepchamfer" | "banner" | "shield" | "pixelstep"
   // v21 — measured from Kenney UI Pack 2.0 vector sources (CC0)
-  | "kenneyRect" | "kenneyTag"
+  | "kenneyRect" | "kenneyTag" | "kenneyTagRev"
   // v22 — measured from Vector UI Pack (dobo_ui by Duplo) renders
   | "doboMarquee" | "doboRibbon" | "doboBracket"
   // v33 — user-imported flat-vector silhouettes (registry below)
@@ -79,6 +79,7 @@ export const SHAPES: { id: Shape; name: string }[] = [
   { id: "pixelstep", name: "Pixel Step" },
   { id: "kenneyRect", name: "Crisp Panel" },
   { id: "kenneyTag", name: "Pointer Tag" },
+  { id: "kenneyTagRev", name: "Pointer Tag · Reverse" },
   { id: "doboBracket", name: "Bracket Label" },
   { id: "speech", name: "Speech Bubble" },
 ];
