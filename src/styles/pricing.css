@@ -1019,3 +1019,11 @@
   transition: color .15s ease, border-color .15s ease;
 }
 .pspot-cta:hover { color: var(--ps-ink); border-color: var(--ps-accent); }
+
+/* the Spotlight desk's lineup rack — live previews + curation row */
+.pspot-deskcard { display: flex; flex-direction: column; gap: 8px; }
+.pspot-deskcard[draggable] { cursor: grab; }
+.pspot-deskcard.dragging { opacity: .45; cursor: grabbing; }
+.pspot-deskcard.dropover .pspot-card { box-shadow: 0 0 0 1px var(--accent, #d946ef); }
+.pspot-deskrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.fd-desk .pspot-card { width: 100%; }
