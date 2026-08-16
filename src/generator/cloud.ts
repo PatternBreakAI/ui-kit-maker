@@ -962,6 +962,30 @@ export async function setHiddenLandingKits(keys: string[]): Promise<string | nul
   return error?.message ?? null;
 }
 
+/* The homepage's DISPLAY ORDER rides the same channel as the hidden list:
+   an array of the SAME lowercase match keys, first-listed shows first.
+   Names the list doesn't know keep their hardcoded relative order behind
+   the listed ones; an empty or unreadable list changes nothing — the
+   landing's sort is fail-soft by the same contract as its hidden filter. */
+const LANDING_ORDER_KEY = "landing_kit_order";
+
+export async function listLandingKitOrder(): Promise<string[]> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", LANDING_ORDER_KEY).maybeSingle();
+  if (error || !Array.isArray(data?.value)) return [];
+  return (data.value as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
+export async function setLandingKitOrder(keys: string[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate the homepage.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: LANDING_ORDER_KEY, value: keys, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /* Stock silhouettes ship in the bundle too, and the same curation applies:
    an admin can retire one for every visitor without a deploy. Retiring hides
    it from the PICKER only — a design already built on that shape keeps
