@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -607,13 +607,24 @@ export function BoardView({ playing }: { playing: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const fitOf = (bd: BoardDef) => {
-    const [W, H] = STAGE[bd.aspect];
-    // the shared canvas zoom drives the boards too (owner: "zoom doesn't
-    // work on the boards toolbar") — every gesture divides by fit, so the
-    // whole manipulation stack rides along for free
-    return Math.min((frameW - 56) / W, 820 / H, 1) * zoom;
+  /* ── rows: the desk is a stack of explicit rows (split on each board's
+     nl flag). A row NEVER scrolls sideways — its boards share the frame
+     at ONE true scale, capacity-capped in units (landscape 2, portrait 1,
+     3 units max: "1 landscape and 1 portrait, 3 portraits" — owner). The
+     shared canvas zoom still rides every gesture via the fit factor. */
+  const rowsOf = (bs: BoardDef[]) => {
+    const rows: BoardDef[][] = [];
+    bs.forEach((b2) => { if (!rows.length || b2.nl) rows.push([]); rows[rows.length - 1].push(b2); });
+    return rows;
   };
+  const unitsOf = (b2: BoardDef) => (b2.aspect === "169" ? 2 : 1);
+  const rowFit = (row: BoardDef[]) => {
+    const gaps = 20 * (row.length - 1);
+    const sumW = row.reduce((a, b2) => a + STAGE[b2.aspect][0], 0);
+    const hCap = Math.min(...row.map((b2) => 820 / STAGE[b2.aspect][1]));
+    return Math.min((frameW - 56 - gaps) / sumW, hCap, 1) * zoom;
+  };
+  const fitOf = (bd: BoardDef) => rowFit(rowsOf(boards).find((r) => r.some((b2) => b2.id === bd.id)) ?? [bd]);
 
   /* keyboard: Delete removes the selection, Cmd+D duplicates, Cmd+Z / Shift+Cmd+Z
      undo/redo, Cmd+C / Cmd+V copy & paste (paste lands on the ACTIVE board, so
@@ -1051,15 +1062,19 @@ export function BoardView({ playing }: { playing: boolean }) {
             const t = e.target as HTMLElement;
             if (!t.closest(".board-item, .bd-ptoolwrap, .bd-rszwrap, .bd-abhead")) setBoardSel(null);
           }}>
-          {boards.map((bd) => {
-            const [W, H, aspName] = STAGE[bd.aspect];
-            const fit = fitOf(bd);
+          {rowsOf(boards).map((row) => {
+            const fit = rowFit(row);
+            const rowU = row.reduce((a, b2) => a + unitsOf(b2), 0);
             return (
-              <Fragment key={bd.id}>
-              {/* a board born from the "+ below" tab starts its own row —
-                  even when the row above still had room */}
-              {bd.nl && <i className="bd-rowbreak" aria-hidden="true" />}
-              <section className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
+              <div key={row[0].id} className="bd-row">
+              {row.map((bd) => {
+                const [W, H, aspName] = STAGE[bd.aspect];
+                /* the side + adds what still FITS this row: the anchor's
+                   own aspect when there's room, else a portrait (desktop-
+                   beside-mobile in one click), else it retires */
+                const sideAspect = rowU + unitsOf(bd) <= 3 ? bd.aspect : rowU + 1 <= 3 ? ("mobile" as const) : null;
+                return (
+              <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
                 {/* the header hugs the stage's width and speaks in icons —
                     the words live in the tooltips, the spec line moved
                     UNDER the image (owner: "save space on the persistent
@@ -1222,30 +1237,28 @@ export function BoardView({ playing }: { playing: boolean }) {
                   </div>
                 </div>
                 {/* grow the desk in either direction (owner: "plus signs
-                    beneath and to the right of boards so users can add
-                    boards as they wish") — right inserts beside, beneath
-                    inserts after this row so the newcomer lands below */}
-                <button className="bd-addtab bd-addtab--r" title={`Add a board beside ${bd.name}`}
-                  aria-label={`Add a board to the right of ${bd.name}`}
-                  onClick={() => addBoardAfter(bd.id)}>
-                  <Plus size={14} strokeWidth={2.2} />
-                </button>
+                    beneath and to the right of boards") — the side +
+                    keeps the newcomer ON this row (the row rescales to
+                    fit, never scrolls), beneath starts the next row */}
+                {sideAspect && (
+                  <button className="bd-addtab bd-addtab--r"
+                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? " — the row rescales so both fit" : ""}`}
+                    aria-label={`Add a board to the right of ${bd.name}`}
+                    onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
+                    <Plus size={14} strokeWidth={2.2} />
+                  </button>
+                )}
                 <button className="bd-addtab bd-addtab--b" title={`Add a board below ${bd.name}`}
                   aria-label={`Add a board below ${bd.name}`}
-                  onClick={(e) => {
-                    const top = (e.currentTarget.closest(".bd-artboard") as HTMLElement).getBoundingClientRect().top;
-                    let last = bd.id;
-                    for (const el of document.querySelectorAll(".bd-artboard")) {
-                      if (Math.abs(el.getBoundingClientRect().top - top) < 8) last = el.getAttribute("data-board") ?? last;
-                    }
-                    addBoardAfter(last, { aspect: bd.aspect, nl: true });
-                  }}>
+                  onClick={() => addBoardAfter(row[row.length - 1].id, { aspect: bd.aspect, nl: true })}>
                   <Plus size={14} strokeWidth={2.2} />
                 </button>
                 </div>
                 <span className="bd-abmeta">{aspName} · {W} × {H}</span>
               </section>
-              </Fragment>
+                );
+              })}
+              </div>
             );
           })}
           <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>

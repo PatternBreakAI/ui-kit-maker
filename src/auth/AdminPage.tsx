@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen, GraduationCap } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName, listPromos, savePromos, readPromosLive, setPromosLive, promoIsLive, type PromoDef, type PromoKind } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -973,6 +973,14 @@ export function AdminPage() {
 
       <main className="fd-page__wrap">
         <h1 className="fd-page__h1"><ShieldCheck size={26} strokeWidth={2} /> Admin — plans</h1>
+        {/* the applications desk lives HERE now (owner: "I don't need to
+            review student applications from the generator, that can live
+            in the admin tools") */}
+        <p className="fd-fine">
+          <button className="fd-ghost" onClick={() => { window.location.hash = "#/review"; }}>
+            <GraduationCap size={14} strokeWidth={2} /> Review student &amp; educator applications
+          </button>
+        </p>
 
         {/* the pulse — what happened after people arrived. Traffic itself
             (visitors, referrers) lives in Vercel Web Analytics; this is

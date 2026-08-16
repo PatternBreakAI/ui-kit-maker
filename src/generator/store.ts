@@ -552,6 +552,9 @@ interface GenStore {
   tier: Tier;
   loadCloudPresets: () => Promise<void>;
   applyCloudPreset: (id: string) => void;
+  /** Apply ANY full look document — a Spotlight promo's frozen snapshot —
+   *  exactly like a preset: component restyled, stage and rarity kept. */
+  applyLookDoc: (doc: unknown, name?: string) => void;
   kitSlotVals: Partial<Record<KitComponentId, Record<string, string>>>;
   setKitSlot: (id: KitComponentId, slotId: string, val: string | null) => void;
   /* per-piece Unity 9-slice override, design px — null/absent = the export
@@ -2245,6 +2248,17 @@ export const useGen = create<GenStore>((set, get) => ({
     applyWorkspace(ws);             // …and every per-piece change it shipped with
     get().setKitName(p.name);
     set({ activeCloudPreset: { id: p.id, name: p.name } });
+  },
+  applyLookDoc: (doc, name) => {
+    if (!doc || typeof doc !== "object") return;
+    const { cfg: raw, ws } = splitWorkspace(structuredClone(doc) as Record<string, unknown>);
+    const next = raw as unknown as GenConfig;
+    next.canvas = get().cfg.canvas; // looks restyle the component, never the stage
+    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the look's
+    get().replaceConfig(next);
+    applyWorkspace(ws);
+    if (name) get().setKitName(name);
+    set({ activeCloudPreset: null });
   },
   publishPreset: async (name, publishAt = null) => {
     const { cfg, thumb } = presetSnapshot(get().cfg);
