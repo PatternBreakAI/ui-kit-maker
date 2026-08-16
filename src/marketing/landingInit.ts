@@ -521,7 +521,13 @@ export function initLanding(deps: LandingDeps) {
       $("randBtn").addEventListener("click", () => {
         takeOver();
         glitchPrep();
-        design.cfg = E.randomizeConfig(design.cfg);
+        /* cross-lane touch (app session, 2026-08-16): Hot Rod's authored
+           text shifts survive a reroll (randomize keeps unrolled fields),
+           so every roll after it wore them (owner: "turn off randomization
+           on the homepage only for anything named Hot Rod — the button is
+           so unique"). A roll FROM Hot Rod seeds from the factory kit. */
+        const seed9 = /hot ?rod/i.test(design.name || "") ? E.defaultConfig() : design.cfg;
+        design.cfg = E.randomizeConfig(seed9);
         syncFromCfg();
         const labels = ["PLAY", "CLAIM", "BOOST", "START", "GO", "EQUIP", "COLLECT", "WIN"];
         apply({ color: design.cfg.effects["Inner Fill"] || design.color, name: "Random roll",
