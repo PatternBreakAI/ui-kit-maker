@@ -1392,7 +1392,7 @@ export function AdminPage() {
                   onChange={(e) => setSpotDraft({ ...spotDraft, artRef: e.target.value })} />
                 {spotDraft.cfg
                   ? <p className="fd-fine">This card carries a frozen design recipe — the art above is drawn from it live. Recipes come from Promote on Spotlight; editing keeps it.</p>
-                  : <p className="fd-fine">No design recipe on this card — it wears its kind's plate (or the asset art above). Kit cards minted from the Release Desk bring their recipe along.</p>}
+                  : <p className="fd-fine">No design recipe on this card — it wears its kind's plate (or the asset art above). Kit cards minted from the Release Desk bring their recipe along. Honest limit: asset:// art resolves from each viewer's own account bucket, so today it paints for you and falls back to the plate for everyone else — a public art bucket is phase 2.</p>}
                 <div className="fd-desk__acts">
                   <button className="fd-primary fd-desk__go" disabled={spotBusy} onClick={() => void saveSpotDraft()}>
                     {spotBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Megaphone size={15} strokeWidth={2.1} />} {spotEditing ? "Save card" : "Mint card"}
