@@ -607,17 +607,25 @@ export function BoardView({ playing }: { playing: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  /* ── rows: the desk is a stack of explicit rows (split on each board's
-     nl flag). A row NEVER scrolls sideways — its boards share the frame
-     at ONE true scale, capacity-capped in units (landscape 2, portrait 1,
-     3 units max: "1 landscape and 1 portrait, 3 portraits" — owner). The
-     shared canvas zoom still rides every gesture via the fit factor. */
+  /* ── rows: the desk is a stack of explicit rows. THE rule (owner:
+     "let's just do 1 board per row unless it's mobile then we can do 3 —
+     I can't have two big boards side by side"): a 16:9 board always
+     stands alone at full size; only mobiles share a row, three at most.
+     rowsOf NORMALIZES — a doc that carries an illegal mix (legacy data,
+     an aspect flip mid-row) simply splits, so the desk can never show
+     it. nl still forces a break. A row never scrolls sideways: its
+     boards share the frame at one true scale, and the shared canvas
+     zoom rides every gesture via the fit factor. */
   const rowsOf = (bs: BoardDef[]) => {
     const rows: BoardDef[][] = [];
-    bs.forEach((b2) => { if (!rows.length || b2.nl) rows.push([]); rows[rows.length - 1].push(b2); });
+    for (const b2 of bs) {
+      const cur = rows[rows.length - 1];
+      const joins = cur && !b2.nl && b2.aspect === "mobile"
+        && cur.every((x) => x.aspect === "mobile") && cur.length < 3;
+      if (joins) cur.push(b2); else rows.push([b2]);
+    }
     return rows;
   };
-  const unitsOf = (b2: BoardDef) => (b2.aspect === "169" ? 2 : 1);
   const rowFit = (row: BoardDef[]) => {
     const gaps = 20 * (row.length - 1);
     const sumW = row.reduce((a, b2) => a + STAGE[b2.aspect][0], 0);
@@ -1064,15 +1072,14 @@ export function BoardView({ playing }: { playing: boolean }) {
           }}>
           {rowsOf(boards).map((row) => {
             const fit = rowFit(row);
-            const rowU = row.reduce((a, b2) => a + unitsOf(b2), 0);
             return (
               <div key={row[0].id} className="bd-row">
               {row.map((bd) => {
                 const [W, H, aspName] = STAGE[bd.aspect];
-                /* the side + adds what still FITS this row: the anchor's
-                   own aspect when there's room, else a portrait (desktop-
-                   beside-mobile in one click), else it retires */
-                const sideAspect = rowU + unitsOf(bd) <= 3 ? bd.aspect : rowU + 1 <= 3 ? ("mobile" as const) : null;
+                /* the side + exists only where the rule allows a
+                   neighbor: mobiles, in a row that isn't full — a 16:9
+                   always stands alone (owner) */
+                const sideAspect = bd.aspect === "mobile" && row.length < 3 ? ("mobile" as const) : null;
                 return (
               <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
                 {/* the header hugs the stage's width and speaks in icons —
