@@ -217,6 +217,32 @@ export async function resolveBgAsset(id: string): Promise<{ blob: Blob; name: st
   return p;
 }
 
+/* ── stable display URLs ──────────────────────────────────────────────
+   One object URL per asset id, for the page's lifetime. The display URL
+   is IDENTITY: every re-mint swaps the CSS background url and the
+   browser re-decodes the image — on live that read as the backdrop
+   flickering in time with sync activity (owner report, 2026-08-16). So
+   re-resolving a backdrop must hand back the SAME url it handed before.
+   URLs are reclaimed by the page unload; at backdrops-per-workspace
+   scale that is a handful of entries, never a leak that matters. */
+
+const displayUrls = new Map<string, string>();
+
+/** The url a board should PAINT for a vaulted/cloud backdrop — resolved
+ *  once per asset id and cached. Consumers that need the bytes (export,
+ *  embedding) keep using resolveBgAsset directly. */
+export async function bgAssetDisplayUrl(id: string): Promise<string | null> {
+  const hit = displayUrls.get(id);
+  if (hit) return hit;
+  const rec = await resolveBgAsset(id);
+  if (!rec) return null;
+  const raced = displayUrls.get(id); // a concurrent caller may have minted it
+  if (raced) return raced;
+  const url = URL.createObjectURL(rec.blob);
+  displayUrls.set(id, url);
+  return url;
+}
+
 /* ── the quiet line under the import control ────────────────────────── */
 
 function fmtBytes(n: number): string {

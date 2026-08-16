@@ -131,3 +131,40 @@ H3 binding into the synced keyspace (reload survival; its own probe
 run) → H4 versions (project_revisions migration + Update hook +
 Versions… sheet) → preview link to the owner between every slice,
 per the ship flow.
+
+## Built 2026-08-16 (owner amendments folded in) — H1+H2 on branch
+
+Shipped on `claude/app-tweaks`, unmerged: #/projects (ProjectsHome),
+CardArt grid newest-first, OPEN ring (+ "OPEN · UNSAVED"), open with
+unsaved-work confirm, rename (uniqueName), duplicate (no focus steal;
+public copies strip boards; the copy's doc takes the copy's name),
+delete (deleting the open file settles the desk), Close verb with the
+three-door settle sheet (Update / Save as new file / Close without
+saving) + closeDesk store action, search-by-name, Import kit on the
+home through the ONE settings door (src/generator/settingsImport.ts),
+guests get a centered sign-in invitation. Owner amendments beyond this
+plan: Spotlight's shelf MOVED here from the kit page ("the kit remains
+pure"), a House button in the top bar chrome, and the top bar calmed —
+chip = name + amber dot, no ticking clock, sync indicator error-only.
+Probes: scratchpad/flame/probe-home-guest.mjs + probe-home-flow.mjs
+against the built app on :5301 with mock-home.mjs; home-*.png.
+
+## Deferred (banked, still owed)
+
+- H3 durable binding: openProjectId into the synced ui-generator-*
+  keyspace so a reload doesn't demote the open file to "draft" — ships
+  alone, with the two-device mispoint probe (see Decision 4).
+- H4 versions: project_revisions migration + Update hook + Versions…
+  sheet (see Decision 5); the verb doesn't render until the table exists.
+- Drag ordering on the home (explicitly NOT required for v1).
+- Studio "Your work" grid shrink to a recent strip — for now it keeps
+  the full grid plus an "All projects →" door; one list of truth still
+  argues for the shrink once the home proves itself.
+- ProjectsPanel row-list retirement (one release of overlap first; the
+  popover gained its "See all projects →" door).
+- Close in the EDITOR chrome (chip menu) — today Close lives on the
+  home's open card only; the chip's click lands you next to it.
+- i18n for the home's strings (English-first like the admin desk; the
+  reused verbs — Open/Delete/Share — already speak all locales).
+- Guest promo shelf: the mandate's clean invitation keeps promos off
+  the signed-out home; revisit if the owner wants the rail for guests.

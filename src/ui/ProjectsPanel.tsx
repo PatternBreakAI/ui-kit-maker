@@ -289,7 +289,14 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
           </div>
         ))}
       </div>
-      <div className="menu-note acct-note">{t("projFootnote")}</div>
+      <div className="menu-note acct-note">
+        {t("projFootnote")}{" "}
+        {/* the door to THE HOME — thumbnails, rename/duplicate/close;
+            this popover stays the quick-save surface */}
+        <button className="fd-linkbtn" onClick={() => { onClose(); window.location.hash = "#/projects"; }}>
+          See all projects →
+        </button>
+      </div>
     </div>
   );
 }

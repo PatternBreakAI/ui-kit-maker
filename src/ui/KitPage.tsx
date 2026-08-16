@@ -2124,6 +2124,9 @@ const kitTier = useGen((s) => s.tier);
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
+      {/* Spotlight moved to the projects home (owner: "the kit remains
+          pure, just your work") — no promo shelf here. */}
+
       {/* ── hero — the system, stated once ── */}
       <header className="kp-hero kp-hero2">
         <div className="kp-heroleft">

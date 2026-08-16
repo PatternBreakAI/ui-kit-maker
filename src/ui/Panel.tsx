@@ -10,7 +10,7 @@ import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, 
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
-import { ensureFont } from "@/generator/fonts";
+import { ensureFont, ensureDocFonts } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN } from "@/generator/bevel";
 import { hydrate, retintText } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
@@ -20,7 +20,8 @@ import { PRESET_DEFAULTS } from "@/generator/store";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
-import { currentSession } from "@/generator/cloud";
+import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
+import { promoArt, promoGo } from "./PromoShelf";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else. */
@@ -729,6 +730,20 @@ export function Panel() {
   }, [flagOn, selectedState, allStates]);
   // the admin publishing desk inside Looks — folded away by default
   const [adminLooksOpen, setAdminLooksOpen] = useState(false);
+  /* ── Spotlight's NEW tile: the first live kind:"kit" promo takes one
+     seat at the head of the Looks rack — pinned while live, no
+     dismissal. Admins preview it before the owner's gate opens (the
+     staged rule); everyone else sees it only once Spotlight is live. */
+  const promos = useGen((s) => s.promos);
+  const promosLive = useGen((s) => s.promosLive);
+  const spotPromo = (promosLive || isAdmin)
+    ? promos.find((p) => p.kind === "kit" && (isAdmin || promoIsLive(p))) ?? null
+    : null;
+  const spotArtSvg = useMemo(() => (spotPromo?.cfg ? promoArt(spotPromo.cfg) : null), [spotPromo]);
+  // the promoted kit speaks its own typefaces — warm them like every desk
+  useEffect(() => {
+    if (spotPromo?.cfg) { try { ensureDocFonts(spotPromo.cfg); } catch { /* falls back */ } }
+  }, [spotPromo]);
   // the Looks rack collapses to the freshest few (owner: "we are showing
   // too many looks at once, they should be sorted by newest")
   const [looksAll, setLooksAll] = useState(false);
@@ -1318,8 +1333,10 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
           onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* where the motion actually plays — judging it on the kit page reads
-            as a dead control (the gallery rests by design, fcc7b6c) */}
-        <div className="helper">Shines play on the editor canvas, boards, Play mode and in Unity. The kit page gallery rests on purpose — judge the motion here or on a board.</div>
+            as a dead control (the gallery rests by design, fcc7b6c); boards
+            rest in Design too (owner, 2026-08-16: "the idle animation should
+            only play when play is pressed") */}
+        <div className="helper">Shines play on the editor canvas, in a board's Play mode and in Unity. The kit page gallery and boards in Design rest on purpose — judge the motion here or press Play on a board.</div>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.
@@ -1398,6 +1415,30 @@ export function Panel() {
           return (
             <>
         <div className="presetgrid">
+          {spotPromo && (() => {
+            /* the tile speaks the rack's grammar: when the promoted kit is
+               a shared preset in the library, clicking APPLIES it — through
+               the same tier gate as every pack tile. Otherwise it routes to
+               the card's destination, like the shelf. */
+            const match = cloudPresets.find((cp) => cp.name.toLowerCase() === spotPromo.title.toLowerCase());
+            const locked = match && tier !== "pro";
+            const go = () => {
+              if (match && !locked) { applyCloudPreset(match.id); return; }
+              if (locked) { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
+              promoGo(spotPromo.ctaRoute);
+            };
+            return (
+              <button className={`presetcard promo${match && kitName === match.name ? " on" : ""}`}
+                title={match
+                  ? (locked ? `${spotPromo.title} — the newest pack drop. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}` : `${spotPromo.title} — just landed; apply it`)
+                  : `${spotPromo.title} — see what's new`}
+                onClick={go}>
+                {promoIsNew(spotPromo) && <span className="presetnew">NEW</span>}
+                {spotArtSvg ? <span className="presetart" dangerouslySetInnerHTML={{ __html: spotArtSvg }} /> : <span className="presetart" />}
+                <span className="presetname">{locked ? <Lock size={11} strokeWidth={2.4} /> : null} {spotPromo.title}</span>
+              </button>
+            );
+          })()}
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
               onClick={() => applyUserPreset(u.id)}>

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen } from "lucide-react";
 import "@/styles/pricing.css";
-import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName } from "@/generator/cloud";
+import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName, listPromos, savePromos, readPromosLive, setPromosLive, promoIsLive, type PromoDef, type PromoKind } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
-import { hydrate, healStateIconPins, PRESET_DEFAULTS, retintText } from "@/generator/store";
+import { hydrate, healStateIconPins, PRESET_DEFAULTS, retintText, useGen } from "@/generator/store";
+import { PromoCardView } from "@/ui/PromoShelf";
 import { applyKitDesign, applyKitTextFill, applyPresetCandy, clampWeight, defaultCandy, defaultConfig, effKitSize, fontByName, migrateKitDesigns, PRESETS, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { ensureDocFonts, ensureFont } from "@/generator/fonts";
@@ -307,6 +308,49 @@ function heroSnapshotArt(cfg: Record<string, unknown>): string | null {
     collapsed pair (hero snapshot wearing a built-in's name) */
 type RackTile = { name: string; art: string | null; also?: string; heroId?: string };
 
+/* ── Spotlight desk plumbing ─────────────────────────────────────────
+   Cards live as ONE ordered array in app_settings (order = shelf
+   priority); the desk edits a working copy optimistically and writes
+   the whole array back, exactly like the homepage order rack. */
+
+/** id slug from a title, unique against the current lineup — the id is
+    the DISMISSAL key, so edits must never re-mint it */
+function spotSlug(title: string, taken: PromoDef[]): string {
+  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "promo";
+  if (!taken.some((p) => p.id === base)) return base;
+  for (let n = 2; ; n++) if (!taken.some((p) => p.id === `${base}-${n}`)) return `${base}-${n}`;
+}
+
+/** what the desk's form edits — dates as YYYY-MM-DD for the inputs */
+type SpotDraft = {
+  id: string; kind: PromoKind; kicker: string; title: string; body: string;
+  ctaRoute: string; ctaLabel: string; publishAt: string; newUntil: string;
+  active: boolean; artRef: string; cfg: Record<string, unknown> | null;
+};
+const EMPTY_DRAFT: SpotDraft = { id: "", kind: "kit", kicker: "", title: "", body: "", ctaRoute: "#/releases", ctaLabel: "", publishAt: "", newUntil: "", active: true, artRef: "", cfg: null };
+
+const draftToPromo = (d: SpotDraft, lineup: PromoDef[]): PromoDef => ({
+  id: d.id || spotSlug(d.title || "promo", lineup),
+  kind: d.kind, title: d.title.trim() || "Untitled",
+  kicker: d.kicker.trim() || undefined,
+  body: d.body.trim() || undefined,
+  ctaRoute: d.ctaRoute.trim() || "#/releases",
+  ctaLabel: d.ctaLabel.trim() || undefined,
+  cfg: d.cfg, artRef: d.artRef.trim() || null,
+  publishAt: d.publishAt || null, newUntil: d.newUntil || null,
+  active: d.active,
+});
+const promoToDraft = (p: PromoDef): SpotDraft => ({
+  id: p.id, kind: p.kind, kicker: p.kicker ?? "", title: p.title, body: p.body ?? "",
+  ctaRoute: p.ctaRoute, ctaLabel: p.ctaLabel ?? "", publishAt: (p.publishAt ?? "").slice(0, 10),
+  newUntil: (p.newUntil ?? "").slice(0, 10), active: p.active !== false,
+  artRef: p.artRef ?? "", cfg: p.cfg ?? null,
+});
+
+/* every internal door Spotlight knows how to open — offered as a
+   datalist so the route field autocompletes to real destinations */
+const SPOT_ROUTES = ["#/releases", "#/how", "#/faq", "#/community", "#/pricing", "#/unity", "#/app", "editor:shape", "editor:typography", "editor:surface", "editor:state"];
+
 export function AdminPage() {
   usePageScroll();
   const cloud = useCloudStatus();
@@ -406,6 +450,9 @@ export function AdminPage() {
   // should be checkboxes, so you can select one or both")
   const [relHero, setRelHero] = useState(false);
   const [relPublic, setRelPublic] = useState(true);
+  // the Spotlight attach — a public designation can mint its promo card
+  // in the same breath (owner: "whenever I push a new public kit")
+  const [relPromote, setRelPromote] = useState(true);
   const [relBusy, setRelBusy] = useState(false);
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [slate, setSlate] = useState<Desig[] | null>(null);
@@ -473,6 +520,98 @@ export function AdminPage() {
       chip: seat === -1 ? "IN ROTATION" : `SEAT ${seat + 1} OF ${reel.length}`, cls: "fd-review__chip--ok",
       word: `in the homepage rotation at that seat${takeover} (~5 min CDN)`,
     };
+  };
+
+  /* ── the Spotlight desk: lineup, gate, form, reorder ─────────────── */
+  const [spotCards, setSpotCards] = useState<PromoDef[] | null>(null);
+  const [spotErr, setSpotErr] = useState<string | null>(null);
+  const [spotLive, setSpotLive] = useState<boolean | null>(null);
+  const [spotNote, setSpotNote] = useState<string | null>(null);
+  const [spotBusy, setSpotBusy] = useState(false);
+  const [spotDraft, setSpotDraft] = useState<SpotDraft | null>(null);
+  const [spotEditing, setSpotEditing] = useState<string | null>(null); // id being edited; null = creating
+  const spotDragRef = useRef<number | null>(null);
+  const [spotDrag, setSpotDrag] = useState<number | null>(null);
+  const [spotOver, setSpotOver] = useState<number | null>(null);
+  useEffect(() => {
+    if (!allowed) return;
+    void listPromos().then((cs) => {
+      if (cs === null) setSpotErr("Couldn't read the Spotlight lineup — editing is held so a blind save can't clobber it. Refresh to retry.");
+      else { setSpotErr(null); setSpotCards(cs); }
+    });
+    void readPromosLive().then((v) => setSpotLive(v));
+  }, [allowed]);
+  /* optimistic whole-array write + rollback — and this session's own
+     surfaces (kit-page shelf, Looks tile) follow through the store */
+  const persistSpot = async (next: PromoDef[], word: string) => {
+    const prev = spotCards;
+    setSpotCards(next); setSpotBusy(true);
+    const err = await savePromos(next);
+    setSpotBusy(false);
+    setSpotNote(err ?? `${word} The app reads Spotlight straight from Supabase — no CDN wait; makers pick it up on their next visit.`);
+    if (err) { setSpotCards(prev); return false; }
+    void useGen.getState().refreshPromos();
+    return true;
+  };
+  const flipSpotLive = async () => {
+    if (spotLive === null) return;
+    const next = !spotLive;
+    setSpotLive(next); setSpotBusy(true);
+    const err = await setPromosLive(next);
+    setSpotBusy(false);
+    setSpotNote(err ?? (next
+      ? "Spotlight is LIVE — every visitor sees the shelf now."
+      : "Spotlight is back to admin-only — the shelf hides for everyone else."));
+    if (err) { setSpotLive(!next); return; }
+    void useGen.getState().refreshPromos();
+  };
+  const moveSpot = (from: number, to: number) => {
+    if (!spotCards || spotBusy || from === to || to < 0 || to >= spotCards.length) return;
+    const next = [...spotCards];
+    const [m] = next.splice(from, 1);
+    next.splice(to, 0, m);
+    void persistSpot(next, "Reordered — the shelf plays the first three live cards in this order.");
+  };
+  const saveSpotDraft = async () => {
+    if (!spotDraft || spotCards === null) return;
+    if (!spotDraft.title.trim()) { setSpotNote("A card needs a title."); return; }
+    if (!/^#\/|^editor:/.test(spotDraft.ctaRoute.trim())) { setSpotNote("The destination must be an internal route — “#/…” or “editor:<section>”. Every card goes somewhere real."); return; }
+    const card = draftToPromo(spotDraft, spotCards.filter((p) => p.id !== spotEditing));
+    const next = spotEditing
+      ? spotCards.map((p) => (p.id === spotEditing ? card : p))
+      : [card, ...spotCards]; // a fresh card leads the lineup
+    const ok = await persistSpot(next, spotEditing ? `Saved — “${card.title}” is updated in place.` : `Minted — “${card.title}” leads the lineup.`);
+    if (ok) { setSpotDraft(null); setSpotEditing(null); }
+  };
+  const retireSpot = async (p: PromoDef) => {
+    if (!spotCards) return;
+    if (!window.confirm(`Retire “${p.title}” from Spotlight?\n\nThe card leaves the shelf and the Looks tile for everyone. Dismissals it earned are kept under its id, so re-minting the same id stays quiet for people who dismissed it.`)) return;
+    void persistSpot(spotCards.filter((x) => x.id !== p.id), `Retired — “${p.title}” is off the lineup.`);
+  };
+  /* the Release Desk attach: designating a PUBLIC kit with Promote
+     checked auto-mints a card from the PUBLIC-SAFE subset — the preset
+     name and the frozen design recipe. Never the deal note, never the
+     maker's email: kit_designations is admin-only RLS, so what rides
+     into world-readable `promos` is only what the kit page would show
+     anyway (the hero-lineup discipline). */
+  const mintSpotPromo = async (name: string, cfg: Record<string, unknown> | null, publishDay: string | null) => {
+    const cur = (await listPromos()) ?? spotCards; // fresh read — never clobber blind
+    if (cur === null) { setSpotNote(`Designated, but the Spotlight read failed — mint “${name}” by hand on the Spotlight desk.`); return; }
+    const newUntil = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const card: PromoDef = {
+      id: spotSlug(name, cur), kind: "kit", kicker: "New kit", title: name,
+      body: "Just landed in the preset packs — apply it from the Looks rack.",
+      ctaRoute: "editor:shape", ctaLabel: "Open the Looks rack",
+      cfg: cfg ? (JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>) : null,
+      publishAt: publishDay, newUntil, active: true,
+    };
+    const next = [card, ...cur];
+    setSpotCards(next); setSpotBusy(true); // optimistic over the FRESH read
+    const err = await savePromos(next);
+    setSpotBusy(false);
+    if (err) { setSpotCards(cur); setSpotNote(`Designated, but the promo didn't save: ${err}`); return; }
+    setSpotNote(`Promoted — “${name}” leads Spotlight, NEW through ${newUntil}.`);
+    void useGen.getState().refreshPromos();
   };
 
   // the render gate — an HONEST one: whatever blocks the desk says so in
@@ -566,7 +705,7 @@ export function AdminPage() {
   const pickKit = async (k: FoundKit) => {
     const picked: Picked = { kind: "project", projectId: k.projectId, name: k.kitName || k.name, email: k.email };
     setSel(picked); setDoc(null); setDeskNote(null);
-    setRelName(k.kitName || k.name); setRelNote(""); setRelDate("");
+    setRelName(k.kitName || k.name); setRelNote(""); setRelDate(""); setRelPromote(true);
     const { ok, data } = await callAdmin({ action: "kitDoc", projectId: k.projectId });
     if (!ok) { setDeskNote(String(data.error ?? "Couldn't load that kit.")); setSel(null); return; }
     setDoc(data.doc as Record<string, unknown>);
@@ -575,14 +714,17 @@ export function AdminPage() {
   const pickStudioPreset = async (s: Studio, p: { upId: string; name: string }) => {
     const picked: Picked = { kind: "studio", userId: s.userId, upId: p.upId, name: p.name, email: s.email };
     setSel(picked); setDoc(null); setDeskNote(null);
-    setRelName(p.name); setRelNote(""); setRelDate("");
+    setRelName(p.name); setRelNote(""); setRelDate(""); setRelPromote(true);
     const { ok, data } = await callAdmin({ action: "studioDoc", userId: s.userId, upId: p.upId });
     if (!ok) { setDeskNote(String(data.error ?? "Couldn't load that preset.")); setSel(null); return; }
     setDoc(data.doc as Record<string, unknown>);
   };
 
-  const designate = async (placement: "hero" | "standard" | "upcoming") => {
-    if (!sel || relBusy) return;
+  /** returns the FINAL preset name on success (the de-duped one the
+   *  slate filed), null when refused/canceled — the Spotlight mint
+   *  needs the real name after this clears the bench */
+  const designate = async (placement: "hero" | "standard" | "upcoming"): Promise<string | null> => {
+    if (!sel || relBusy) return null;
     const desired = relName.trim() || sel.name;
     /* the same duplicate rule the projects panel enforces (owner mandate,
        2026-08-16): a designation colliding with one ALREADY ON THE SLATE
@@ -601,7 +743,7 @@ export function AdminPage() {
           : relDate
             ? `Hold "${name}" until ${relDate}?\n\nInvisible to players until that day, then it releases itself. Snapshot and deal note are stored now.`
             : `Park "${name}" as upcoming, no date yet?\n\nInvisible to players until you schedule it. Snapshot and deal note are stored now.`) + renamed;
-    if (!window.confirm(msg)) return;
+    if (!window.confirm(msg)) return null;
     setRelBusy(true); setDeskNote(null);
     /* the desk draws the card art itself: the publish lands server-side, and
        a server can't run the SVG engine, so a shipped preset used to arrive
@@ -624,12 +766,13 @@ export function AdminPage() {
       presetName: name, dealNote: relNote, publishAt: placement === "upcoming" && relDate ? relDate : null,
     });
     setRelBusy(false);
-    if (!ok) { setDeskNote(String(data.error ?? "Couldn't designate that kit.")); return; }
+    if (!ok) { setDeskNote(String(data.error ?? "Couldn't designate that kit.")); return null; }
     setDeskNote(renamed
       ? `Frozen and filed — "${name}" is on the slate ("${desired}" was already designated, so it took the next free number).`
       : `Frozen and filed — "${name}" is on the slate.`);
     setSel(null); setDoc(null); setKits(null); setStudios([]); setKq("");
     void loadSlate();
+    return name;
   };
 
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -1012,11 +1155,26 @@ export function AdminPage() {
                         onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* needs a user gesture; the field still types */ } }} />
                     </label>
                   )}
+                  {relPublic && (
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                      title="Auto-mint a Spotlight card from the public-safe subset — the preset name and its design recipe. The deal note never leaves the slate.">
+                      <input type="checkbox" checked={relPromote} onChange={(e) => setRelPromote(e.target.checked)} />
+                      <Megaphone size={14} strokeWidth={2.1} /> Promote on Spotlight
+                    </label>
+                  )}
                   <div className="fd-desk__acts">
                     <button className="fd-primary fd-desk__go" disabled={relBusy || (!relHero && !relPublic)}
                       onClick={() => void (async () => {
+                        /* capture BEFORE designate clears the bench — the
+                           promo mint needs the frozen recipe and the date */
+                        const cfgSnap = (doc as { cfg?: Record<string, unknown> } | null)?.cfg ?? null;
+                        const wantPromo = relPromote && relPublic;
+                        const publishDay = relDate || null;
                         if (relHero) await designate("hero");
-                        if (relPublic) await designate(relDate ? "upcoming" : "standard");
+                        if (relPublic) {
+                          const finalName = await designate(relDate ? "upcoming" : "standard");
+                          if (finalName && wantPromo) await mintSpotPromo(finalName, cfgSnap, publishDay);
+                        }
                       })()}>
                       {relBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Rocket size={15} strokeWidth={2.1} />} Designate
                     </button>
@@ -1161,6 +1319,144 @@ export function AdminPage() {
             ))
           )}
           {homeNote && <p className="fd-note">{homeNote}</p>}
+        </section>
+
+        <section className="fd-card">
+          <h2 className="fd-card__title"><Megaphone size={17} strokeWidth={2.1} /> Spotlight desk</h2>
+          <p className="fd-fine">
+            The promo shelf on the kit page and the NEW tile in the Looks rack, curated here.
+            <b> Order is priority</b> — the shelf plays the first three live cards, the Looks tile
+            takes the first live kit card, and "rotating" means you change this lineup. Every card
+            needs a real <b>destination</b> ("#/…" pages or "editor:&lt;section&gt;" for a panel
+            section). Cards preview below <b>exactly as the kit page renders them</b> — engine art
+            from the frozen recipe, expiring NEW badge, one quiet CTA. <b>Spotlight ships
+            admin-only</b>: until you flip it live, only admins see the shelf (staged cards stay
+            admin-only even after). The app reads these straight from Supabase — no CDN lag;
+            makers pick changes up on their next visit. Public kits designated with <b>Promote on
+            Spotlight</b> mint their card automatically from the public-safe subset (name +
+            recipe; deal notes never leave the slate).
+          </p>
+          <div className="fd-censusbar">
+            <button className={`fd-ghost${spotLive ? " on" : ""}`} disabled={spotBusy || spotLive === null}
+              title={spotLive ? "Visible to every visitor — click to pull it back to admin-only" : "Admin-only right now — click to release the shelf to everyone"}
+              onClick={() => void flipSpotLive()}>
+              {spotLive ? <><Eye size={13} strokeWidth={2.2} /> Live for everyone</> : <><EyeOff size={13} strokeWidth={2.2} /> Admin-only</>}
+            </button>
+            <button className="fd-ghost" disabled={spotBusy || spotCards === null}
+              onClick={() => { setSpotEditing(null); setSpotDraft({ ...EMPTY_DRAFT }); }}>
+              <Plus size={13} strokeWidth={2.2} /> New card
+            </button>
+          </div>
+          {spotErr && <p className="fd-note">{spotErr}</p>}
+
+          {spotDraft && (
+            <div className="fd-desk">
+              {/* the draft, drawn by the SAME component the kit page uses */}
+              <div className="pspot pspot--desk" style={{ margin: 0 }}>
+                <PromoCardView p={draftToPromo(spotDraft, (spotCards ?? []).filter((p) => p.id !== spotEditing))} admin />
+              </div>
+              <div className="fd-desk__form">
+                <input value={spotDraft.title} maxLength={60} placeholder="title — what the card headlines"
+                  onChange={(e) => setSpotDraft({ ...spotDraft, title: e.target.value })} />
+                <input value={spotDraft.body} maxLength={120} placeholder="body — ONE line under the title"
+                  onChange={(e) => setSpotDraft({ ...spotDraft, body: e.target.value })} />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <select value={spotDraft.kind} aria-label="Card kind"
+                    onChange={(e) => setSpotDraft({ ...spotDraft, kind: e.target.value as PromoKind })}>
+                    <option value="kit">kit</option><option value="tool">tool</option><option value="howto">how-to</option>
+                  </select>
+                  <input value={spotDraft.kicker} maxLength={24} placeholder="kicker — blank wears the kind's word" style={{ flex: 1, minWidth: 160 }}
+                    onChange={(e) => setSpotDraft({ ...spotDraft, kicker: e.target.value })} />
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input value={spotDraft.ctaRoute} list="spot-routes" placeholder="destination — #/releases, editor:shape…" style={{ flex: 1, minWidth: 180 }}
+                    onChange={(e) => setSpotDraft({ ...spotDraft, ctaRoute: e.target.value })} />
+                  <datalist id="spot-routes">{SPOT_ROUTES.map((r) => <option key={r} value={r} />)}</datalist>
+                  <input value={spotDraft.ctaLabel} maxLength={32} placeholder="CTA words — blank says “Take a look”" style={{ flex: 1, minWidth: 160 }}
+                    onChange={(e) => setSpotDraft({ ...spotDraft, ctaLabel: e.target.value })} />
+                </div>
+                <label className="fd-desk__date">
+                  <CalendarClock size={14} strokeWidth={2.1} /> goes live — blank is now
+                  <input type="date" value={spotDraft.publishAt} onChange={(e) => setSpotDraft({ ...spotDraft, publishAt: e.target.value })} />
+                </label>
+                <label className="fd-desk__date">
+                  <Star size={14} strokeWidth={2.1} /> NEW badge until — blank means no badge
+                  <input type="date" value={spotDraft.newUntil} onChange={(e) => setSpotDraft({ ...spotDraft, newUntil: e.target.value })} />
+                </label>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                  title="Off = staged: you preview it everywhere, nobody else sees it">
+                  <input type="checkbox" checked={spotDraft.active} onChange={(e) => setSpotDraft({ ...spotDraft, active: e.target.checked })} />
+                  <Eye size={14} strokeWidth={2.1} /> Active (off = staged, admin eyes only)
+                </label>
+                <input value={spotDraft.artRef} placeholder="art override — an asset://<hash> ref (kit cards usually keep their recipe art)"
+                  onChange={(e) => setSpotDraft({ ...spotDraft, artRef: e.target.value })} />
+                {spotDraft.cfg
+                  ? <p className="fd-fine">This card carries a frozen design recipe — the art above is drawn from it live. Recipes come from Promote on Spotlight; editing keeps it.</p>
+                  : <p className="fd-fine">No design recipe on this card — it wears its kind's plate (or the asset art above). Kit cards minted from the Release Desk bring their recipe along. Honest limit: asset:// art resolves from each viewer's own account bucket, so today it paints for you and falls back to the plate for everyone else — a public art bucket is phase 2.</p>}
+                <div className="fd-desk__acts">
+                  <button className="fd-primary fd-desk__go" disabled={spotBusy} onClick={() => void saveSpotDraft()}>
+                    {spotBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Megaphone size={15} strokeWidth={2.1} />} {spotEditing ? "Save card" : "Mint card"}
+                  </button>
+                  <button className="fd-ghost" onClick={() => { setSpotDraft(null); setSpotEditing(null); }}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="cg-secline">The lineup — first three live cards ride the shelf</div>
+          {spotCards === null && !spotErr && <p className="fd-fine"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Reading the lineup…</p>}
+          {spotCards !== null && spotCards.length === 0 && <p className="fd-fine">No cards yet — mint one above, or designate a public kit with Promote on Spotlight.</p>}
+          {spotCards !== null && spotCards.length > 0 && (() => {
+            const shelfSeats = spotCards.filter((p) => promoIsLive(p));
+            return (
+              <div className="pspot pspot--desk" style={{ margin: 0, maxWidth: "none" }}>
+                <div className="pspot-grid">
+                  {spotCards.map((p, i) => {
+                    const seat = shelfSeats.findIndex((x) => x.id === p.id);
+                    const held = p.active !== false && p.publishAt && new Date(p.publishAt).getTime() > Date.now();
+                    const chip = p.active === false
+                      ? { cls: "fd-review__chip--no", word: "STAGED" }
+                      : held ? { cls: "fd-review__chip--wait", word: `HELD → ${String(p.publishAt).slice(0, 10)}` }
+                        : seat >= 0 && seat < 3 ? { cls: "fd-review__chip--ok", word: `SEAT ${seat + 1} OF 3` }
+                          : { cls: "fd-review__chip--wait", word: "IN LINE" };
+                    return (
+                      <div key={p.id}
+                        className={`pspot-deskcard${spotDrag === i ? " dragging" : ""}${spotOver === i && spotDrag !== i ? " dropover" : ""}`}
+                        draggable title="Drag to reorder the lineup"
+                        onDragStart={(e) => { spotDragRef.current = i; setSpotDrag(i); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", p.id); } catch { /* older engines */ } }}
+                        onDragEnd={() => { spotDragRef.current = null; setSpotDrag(null); setSpotOver(null); }}
+                        onDragOver={(e) => { if (spotDragRef.current === null) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (spotOver !== i) setSpotOver(i); }}
+                        onDrop={(e) => { e.preventDefault(); const d = spotDragRef.current; if (d !== null && d !== i) moveSpot(d, i); spotDragRef.current = null; setSpotDrag(null); setSpotOver(null); }}>
+                        <PromoCardView p={p} admin />
+                        <div className="pspot-deskrow">
+                          <span className={`fd-review__chip ${chip.cls}`}>{chip.word}</span>
+                          <div className="fd-hometile__acts">
+                            <button className="fd-ghost fd-hometile__nudge" disabled={spotBusy || i === 0}
+                              title={`Play “${p.title}” earlier`} aria-label={`Move ${p.title} earlier in the lineup`}
+                              onClick={() => moveSpot(i, i - 1)}><ChevronLeft size={14} strokeWidth={2.2} /></button>
+                            <button className="fd-ghost fd-hometile__nudge" disabled={spotBusy || i === spotCards.length - 1}
+                              title={`Play “${p.title}” later`} aria-label={`Move ${p.title} later in the lineup`}
+                              onClick={() => moveSpot(i, i + 1)}><ChevronRight size={14} strokeWidth={2.2} /></button>
+                            <button className="fd-ghost fd-hometile__act" disabled={spotBusy}
+                              title={`Edit “${p.title}” — the id (dismissal key) stays`}
+                              onClick={() => { setSpotEditing(p.id); setSpotDraft(promoToDraft(p)); window.scrollTo({ top: window.scrollY, behavior: "auto" }); }}>
+                              <SquarePen size={13} strokeWidth={2.2} /> Edit
+                            </button>
+                            <button className="fd-ghost fd-hometile__act" disabled={spotBusy}
+                              title={`Retire “${p.title}” from Spotlight for everyone`}
+                              onClick={() => void retireSpot(p)}>
+                              <Trash2 size={13} strokeWidth={2.2} /> Retire
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          {spotNote && <p className="fd-note">{spotNote}</p>}
         </section>
 
         <section className="fd-card">

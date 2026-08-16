@@ -19,13 +19,28 @@ function useBoardBgBoot() {
   useEffect(() => { void rehydrateBoardBgs(); }, []);
   /* a board whose backdrop lives only in the ACCOUNT's bucket (fresh
      browser, workspace arrived via sync) can't paint until the parked
-     session restores — poke the rehydrate again once the cloud is up,
-     but only while some board is actually missing its image */
-  useEffect(() => onCloudStatus((s) => {
-    if (s.state !== "synced" && s.state !== "syncing") return;
-    const missing = useGen.getState().boards.some((b) => b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:")));
-    if (missing) void rehydrateBoardBgs({ retry: true });
-  }), []);
+     session restores — poke the rehydrate once when the cloud COMES UP.
+     Two hard-won rules (the live backdrop flicker, 2026-08-16):
+     · only a TRANSITION into the cloud-up states pokes — a status event
+       fires on every synced-keyspace write (the TopBar's syncing→synced
+       flip), so poking per event re-resolved every backdrop on every
+       edit and every push, forever;
+     · a live blob: URL is NOT missing — object URLs never survive a
+       reload (loadBoards nulls them at boot), so any blob: in state was
+       minted this session and still paints. Counting it as missing made
+       each poke mint a FRESH object URL, swap the CSS url, and force a
+       re-decode: the visible flicker. */
+  useEffect(() => {
+    let wasUp = false;
+    return onCloudStatus((s) => {
+      const up = s.state === "synced" || s.state === "syncing";
+      const rose = up && !wasUp;
+      wasUp = up;
+      if (!rose) return;
+      const missing = useGen.getState().boards.some((b) => b.bgAssetId && !b.bgImage);
+      if (missing) void rehydrateBoardBgs({ retry: true });
+    });
+  }, []);
 }
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and

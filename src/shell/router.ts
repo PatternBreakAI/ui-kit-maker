@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 
 export type RouteName =
   | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
-  | "community" | "studio" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "typeproof" | "italicprobe";
+  | "community" | "studio" | "projects" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "typeproof" | "italicprobe";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
@@ -47,6 +47,8 @@ export function parseHash(hash: string): Route {
   if (path === "/account") return { name: "account", viewer: false };
   if (path === "/community") return { name: "community", viewer: false };
   if (path === "/studio") return { name: "studio", viewer: false };
+  // the projects home — the Adobe-style file room the file chip points at
+  if (path === "/projects") return { name: "projects", viewer: false };
   // the admin desk — linked only from the Account page's admin-only card
   if (path === "/admin") return { name: "admin", viewer: false };
   if (path === "/faq") return { name: "faq", viewer: false };

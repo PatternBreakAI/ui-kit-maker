@@ -4,12 +4,12 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollSta
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
-import { isAssetRef, resolveBgAsset, assetCloudBacked } from "./assets";
+import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -332,6 +332,11 @@ interface GenStore {
   activeBoard: string;
   setActiveBoard: (id: string) => void;
   addBoard: () => void;
+  /** Insert a fresh board right AFTER the anchor — the + tabs beside and
+   *  beneath each board (owner: "plus signs beneath and to the right of
+   *  boards so users can add boards as they wish"). Inherits the
+   *  anchor's aspect unless told otherwise. */
+  addBoardAfter: (afterId: string, opts?: { aspect?: "169" | "mobile"; nl?: boolean }) => void;
   removeBoard: (id: string) => void;
   /** Copy a whole artboard — pieces, backdrop, darkroom and overlay dials —
    *  as "<name> copy" right after the source (owner: "a running start"). */
@@ -459,6 +464,12 @@ interface GenStore {
       moves, the dirty flag clears, savedAt stamps. Save/Update/rename
       flows call this so the chip's identity follows the FILE. */
   setOpenProject: (id: string | null, savedAt?: number) => void;
+  /** The Close verb (projects home): the desk resets to a fresh Untitled
+      draft — default cfg (the stage stays, it's workspace), empty
+      per-piece maps, one fresh board — and the file binding clears.
+      Callers settle unsaved work FIRST (Update / Save as new file /
+      discard); this only clears the desk. */
+  closeDesk: () => void;
   /** One transient line under the TopBar file chip ("You're now working
       in Hot Rod 2 — Hot Rod is untouched") — self-clears after ~7s. */
   fileFlash: string | null;
@@ -561,6 +572,18 @@ interface GenStore {
   retireSilhouette: (id: string) => Promise<string | null>;
   restoreSilhouettes: () => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
+  /** Spotlight — the ordered promo lineup (cloud-curated; order = priority)
+   *  and the global gate the owner flips. Cards render on the kit-page
+   *  shelf and the Looks rack; admins preview staged cards in place. */
+  promos: PromoDef[];
+  promosLive: boolean;
+  /** re-read just the Spotlight keys — the admin desk calls this after a
+   *  write so its own session previews the new lineup without a reload */
+  refreshPromos: () => Promise<void>;
+  /** dismissed card ids — `ui-generator-promo-seen`, so the list rides
+   *  cloud sync across devices for free. Seen cards de-emphasize. */
+  promoSeen: string[];
+  markPromoSeen: (id: string) => void;
   /** The staging bay's ledger — staged component id → released/rejected.
    *  Absent = still pending in the bay (admin-only). Cloud-stored. */
   componentReleases: Record<string, ReleaseStatus>;
@@ -850,6 +873,9 @@ export interface BoardDef {
   id: string;
   name: string;
   aspect: "169" | "mobile";
+  /** Start a new row on the desk — set by the "+ below" tab so "beneath"
+   *  means BENEATH even when the current row still has room. */
+  nl?: boolean;
   items: BoardItem[];
   bgImage?: string | null;
   /** The uploaded ORIGINAL's key in the background vault (bgvault.ts,
@@ -1044,10 +1070,12 @@ export async function importBoards(raw: unknown): Promise<boolean> {
          ref stays pinned even when it can't paint yet — rehydrateBoardBgs
          retries at boot and on sign-in. Content addressing makes a
          foreign ref harmless: the resolver verifies every downloaded
-         byte against the hash, so it can only ever alias identical bytes. */
-      const rec = await resolveBgAsset(b.bgRef).catch(() => null);
+         byte against the hash, so it can only ever alias identical bytes.
+         The display url comes from the per-id cache, so re-opening a
+         project that names the workspace's backdrop repaints nothing. */
+      const url = await bgAssetDisplayUrl(b.bgRef).catch(() => null);
       b.bgAssetId = b.bgRef;
-      if (rec) b.bgImage = URL.createObjectURL(rec.blob);
+      if (url) b.bgImage = url;
       else delete (b as Partial<BoardDef>).bgImage;
       vaulted = true;
     } else if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
@@ -1098,14 +1126,21 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
   bgRehydrating = true;
   try {
     const { putBgOriginal } = await import("./bgvault");
-    const { resolveBgAsset } = await import("./assets");
+    const { bgAssetDisplayUrl } = await import("./assets");
     const st = useGen.getState();
-    let changed = false;
+    let changed = false;    // some board's paint state moved — setState
+    let docChanged = false; // the PERSISTED doc moved (migration) — save it
     const boards = await Promise.all(st.boards.map(async (b) => {
-      // vault- or cloud-backed board whose session URL died with the last tab
-      if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
-        const rec = await resolveBgAsset(b.bgAssetId);
-        if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+      /* vault- or cloud-backed board whose session URL died with the last
+         tab. A LIVE blob: url is not missing: object URLs never survive a
+         reload (loadBoards nulls them at boot), so any blob: here was
+         minted this session and still paints — re-resolving it swapped
+         the CSS url per pass and the backdrop re-decoded (the live
+         flicker, 2026-08-16). bgAssetDisplayUrl is cached per asset id,
+         so even a repeated poke repaints nothing. */
+      if (b.bgAssetId && !b.bgImage) {
+        const url = await bgAssetDisplayUrl(b.bgAssetId);
+        if (url) { changed = true; return { ...b, bgImage: url }; }
         return b;
       }
       // legacy data-URL board — move the pixels into the vault, slim the doc
@@ -1113,7 +1148,7 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
         try {
           const blob = await (await fetch(b.bgImage)).blob();
           const id = await putBgOriginal(blob, "migrated");
-          if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
+          if (id) { changed = true; docChanged = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
         } catch { /* undecodable — leave it */ }
       }
       return b;
@@ -1121,8 +1156,12 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
     if (changed) {
       // no history entry — this is plumbing, not an edit
       useGen.setState({ boards });
-      saveBoards(useGen.getState);
     }
+    /* only the migration path changes what SAVES (blob: urls strip out of
+       the doc) — a paint-only pass must not touch localStorage: every
+       synced-key write flips the TopBar to "syncing" and schedules a
+       push, and this ran on a loop once */
+    if (docChanged) saveBoards(useGen.getState);
   } finally {
     bgRehydrating = false;
   }
@@ -1405,6 +1444,21 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ activeBoard: id, boardSel: null });
     saveBoards(get);
   },
+  addBoardAfter: (afterId, opts) => {
+    const id = "ab" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const src = get().boards.find((b) => b.id === afterId);
+    mutateBoards(get, set, null, (bs) => {
+      const i = bs.findIndex((b) => b.id === afterId);
+      const next = [...bs];
+      next.splice(i < 0 ? bs.length : i + 1, 0, {
+        id, name: `Board ${bs.length + 1}`, aspect: opts?.aspect ?? src?.aspect ?? "169",
+        ...(opts?.nl ? { nl: true } : {}), items: [],
+      });
+      return next;
+    });
+    set({ activeBoard: id, boardSel: null });
+    saveBoards(get);
+  },
   removeBoard: (id) => {
     const dead = get().boards.find((b) => b.id === id);
     if (dead?.bgAssetId) releaseBgAsset(dead.bgAssetId, () => get().boards.filter((b) => b.id !== id));
@@ -1437,6 +1491,8 @@ export const useGen = create<GenStore>((set, get) => ({
          so the duplicate simply keeps the same ref — same bytes, one
          cloud object, no copy to make. */
       bgAssetId: isAssetRef(src.bgAssetId) ? src.bgAssetId : null,
+      // a duplicate sits BESIDE its source — never inherits a row break
+      nl: undefined,
     };
     mutateBoards(get, set, null, (bs) => {
       const i = bs.findIndex((b) => b.id === id);
@@ -1594,9 +1650,33 @@ export const useGen = create<GenStore>((set, get) => ({
     return next;
   }),
   addStampToBoard: (plain) => {
+    /* land CENTERED on the ACTIVE board's stage — a fixed 560×420 was
+       tuned to the 16:9 stage and threw stamps clean off a 390-wide
+       mobile board (owner: "couldn't get typestamp to work on a mobile
+       board... appearing somewhere outside of the canvas area"). Measure
+       the real specimen, shrink it until it fits the stage's width, then
+       split the difference both ways. */
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    let stamp: NonNullable<BoardItem["stamp"]> = plain
+      ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } }
+      : { text: "GAME TITLE", size: 100 };
+    const measure = (): [number, number] => {
+      const m = / width="([\d.]+)" height="([\d.]+)"/.exec(stampSvg(get().cfg, stamp));
+      return m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
+    };
+    /* the specimen's width is SUB-linear in the size knob (fixed padding
+       and canvas floors) — one proportional pass undershoots, so iterate
+       until it truly fits or the knob bottoms out at its 25% floor */
+    let [w, h] = measure();
+    for (let i = 0; i < 6 && w > W * 0.86 && stamp.size > 25; i++) {
+      stamp = { ...stamp, size: Math.max(25, Math.floor((stamp.size * W * 0.86) / w)) };
+      [w, h] = measure();
+    }
     const item: BoardItem = {
-      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", x: 560, y: 420,
-      stamp: plain ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } } : { text: "GAME TITLE", size: 100 },
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "",
+      x: Math.max(0, Math.round((W - w) / 2)), y: Math.max(0, Math.round((H - h) / 2)),
+      stamp,
     };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ phase: "board", boardSel: item.id });
@@ -1629,11 +1709,24 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   pasteBoardItems: (items) => {
     if (!items.length) return [];
+    /* paste carries coordinates from the SOURCE board — a piece copied on
+       the 16:9 stage pasted onto a 390-wide mobile board used to land
+       invisibly off-canvas (owner: "mobile doesn't seem to be accepting
+       copy/paste"). If the +24 nudge would seat the group off the active
+       stage, re-seat its corner at 24 (relative layout intact), then pin
+       any straggler so a grabbable sliver always stays inside the edges. */
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const minX = Math.min(...items.map((it) => it.x));
+    const minY = Math.min(...items.map((it) => it.y));
+    const fits = (v: number, max: number) => v >= 0 && v <= max;
+    const ox = (fits(minX + 24, W - 140) ? minX + 24 : 24) - minX;
+    const oy = (fits(minY + 24, H - 100) ? minY + 24 : 24) - minY;
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       ...structuredClone(it),
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      x: it.x + 24, y: it.y + 24,
+      x: Math.min(W - 60, Math.max(0, it.x + ox)), y: Math.min(H - 40, Math.max(0, it.y + oy)),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: add[0].id });
@@ -1814,6 +1907,24 @@ export const useGen = create<GenStore>((set, get) => ({
   projectSavedAt: null,
   projectDirty: false,
   setOpenProject: (id, savedAt) => set({ openProjectId: id, projectDirty: false, projectSavedAt: id ? (savedAt ?? Date.now()) : null }),
+  closeDesk: () => {
+    const st = get();
+    const d = getDefault();
+    d.canvas = st.cfg.canvas; // the stage is workspace, not file content
+    /* through loadKitPayload's own door so persistence, healing and the
+       cloud write-hook all apply — absent maps clear to {} there */
+    st.loadKitPayload({ cfg: d }, { viewer: false, phase: "master" });
+    /* loadKitPayload keeps the old kitName when the payload has none, and
+       leaves boards alone without a projectId — finish the reset by hand */
+    saveJson("ui-generator-kitname", null);
+    importTicket++; // supersede any in-flight board import
+    const fresh: BoardDef = { id: "ab" + Date.now().toString(36), name: "Board 1", aspect: "169", items: [] };
+    set({
+      kitName: null, boards: [fresh], activeBoard: fresh.id, boardSel: null,
+      boardPast: [], boardFuture: [], openProjectId: null, projectDirty: false, projectSavedAt: null,
+    });
+    saveBoards(get);
+  },
   fileFlash: null,
   flashFile: (msg) => {
     if (fileFlashTimer !== undefined) { window.clearTimeout(fileFlashTimer); fileFlashTimer = undefined; }
@@ -2095,11 +2206,12 @@ export const useGen = create<GenStore>((set, get) => ({
     return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
   })(),
   loadCloudPresets: async () => {
-    const [presets, hidden, prof, releases, hiddenSils] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes()]);
+    const [presets, hidden, prof, releases, hiddenSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listPromos(), readPromosLive()]);
     const prev = get();
     /* a FAILED read keeps the previous answer instead of downgrading —
        one flaked query used to de-admin (and de-tier) the whole session,
-       hiding the owner's own clone chapter "sometimes" */
+       hiding the owner's own clone chapter "sometimes". Spotlight rides
+       the same contract: null = flaked, keep the live promos. */
     const rel = releases ?? prev.componentReleases;
     let admin = prev.isAdmin;
     let tier: Tier = prev.tier;
@@ -2116,7 +2228,7 @@ export const useGen = create<GenStore>((set, get) => ({
         : cloudStatus().state === "off" ? "free" : "guest";
       writeGateSnapshot({ admin, tier, releases: rel });
     }
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel });
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -2192,6 +2304,23 @@ export const useGen = create<GenStore>((set, get) => ({
     const err = await setHiddenSilhouettes([]);
     if (!err) set({ hiddenSilhouettes: [] });
     return err;
+  },
+  /* Spotlight boots empty and fills with loadCloudPresets — the shelf is
+     below the fold of a page that draws hundreds of live pieces, so a
+     beat of lag costs nothing and a stale flash would cost trust. */
+  promos: [],
+  promosLive: false,
+  refreshPromos: async () => {
+    const [promos, promosLive] = await Promise.all([listPromos(), readPromosLive()]);
+    const prev = get();
+    set({ promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
+  },
+  promoSeen: loadJson<string[]>("ui-generator-promo-seen", []),
+  markPromoSeen: (id) => {
+    const next = [...new Set([...get().promoSeen, id])];
+    markTouched(); // a dismissal is workspace state — it syncs like one
+    saveJson("ui-generator-promo-seen", next);
+    set({ promoSeen: next });
   },
   componentReleases: readGateSnapshot()?.releases ?? {},
   setComponentRelease: async (id, status) => {
