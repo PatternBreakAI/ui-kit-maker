@@ -7801,20 +7801,56 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          progress along the segment; premium tiles carry the gold semantic;
          the frame only dims for disabled. */
       const w = 640 * k, h = 210 * k;
+      const GOLD = "#FACC15";
+      const laneH = 62 * k, tileS = 54 * k;
+      /* ── Unity PARTS (round two, owner: "it doesn't feel particularly
+         useful right now") — the wired prefab rebuilds the track from
+         LIVE tier cells, so each drawn element ships as its own sprite
+         at its exact drawn size. Standalone renders, export-only: the
+         app and board drawings below never pass these part names. */
+      if (opts.part === "well" || opts.part === "well-premium") {
+        const prem9 = opts.part === "well-premium";
+        const pad9 = 8 * k, cvs9 = tileS + pad9 * 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cvs9.toFixed(0)}" height="${cvs9.toFixed(0)}" viewBox="0 0 ${cvs9.toFixed(0)} ${cvs9.toFixed(0)}" data-seasontrack-part="${opts.part}" role="img" aria-label="season track reward well">
+<rect x="${pad9.toFixed(1)}" y="${pad9.toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="${prem9 ? GOLD : "rgba(255,255,255,0.2)"}" stroke-width="${prem9 ? "1.6" : "1.2"}"${prem9 ? ` style="filter: drop-shadow(0 0 2.5px rgba(250,204,21,0.4))"` : ""}/>
+</svg>`;
+      }
+      if (opts.part === "node" || opts.part === "node-lit") {
+        const lit9 = opts.part === "node-lit";
+        const rN9 = 14 * k, pad9 = 6 * k, cN9 = rN9 + pad9;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${(cN9 * 2).toFixed(0)}" height="${(cN9 * 2).toFixed(0)}" viewBox="0 0 ${(cN9 * 2).toFixed(0)} ${(cN9 * 2).toFixed(0)}" data-seasontrack-part="${opts.part}" role="img" aria-label="season track node">
+<circle cx="${cN9.toFixed(1)}" cy="${cN9.toFixed(1)}" r="${rN9.toFixed(1)}" fill="${lit9 ? glow : wellFill}" stroke="${lit9 ? darken(glow, 0.35) : "rgba(255,255,255,0.25)"}" stroke-width="1.4"/>
+</svg>`;
+      }
+      if (opts.part === "spine") {
+        const sh9 = 10 * k, sw9 = 240 * k, pad9 = 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${(sw9 + pad9 * 2).toFixed(0)}" height="${(sh9 + pad9 * 2).toFixed(0)}" viewBox="0 0 ${(sw9 + pad9 * 2).toFixed(0)} ${(sh9 + pad9 * 2).toFixed(0)}" data-seasontrack-part="spine" role="img" aria-label="season track spine">
+<rect x="${pad9}" y="${pad9}" width="${sw9.toFixed(1)}" height="${sh9.toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>
+</svg>`;
+      }
       const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const vS1 = clamp(value ?? 0.5, 0, 1);
-      const GOLD = "#FACC15";
-      const laneH = 62 * k, tileS = 54 * k;
       const yFree = 33 + inset + 8 * k, yPrem = 33 + h - inset - 8 * k - laneH;
       const spineY = 33 + h / 2;
       const nT = 3;
       const tileXs = Array.from({ length: nT }, (_, i) => 42 + inset + 122 * k + i * ((w - inset * 2 - 192 * k) / (nT - 1)));
       const icsF = [STOCK_ICONS.flask, STOCK_ICONS.scroll, STOCK_ICONS.key];
       const icsP = [STOCK_ICONS.gem, STOCK_ICONS.crosshair, STOCK_ICONS.gift];
-      /* Unity export: the BARE track — no lane words, node numbers,
-         progress or reward icons; those are the dev's live content
-         (PatternBreakSeasonTrack overlays TMP labels + a filled Image) */
+      /* Unity part: the BOARD — frame and material only, nothing baked;
+         wells, nodes, spine and progress are the runtime's live cells.
+         The geometry stamp is the drawn truth in canvas coordinates
+         (node-column span, spine, lane centers, lane-label x) — the
+         exporter turns it into shell-box fractions so the importer can
+         seat the cells exactly where the app drew them. */
+      if (opts.part === "board") {
+        const geo9 = [tileXs[0], tileXs[nT - 1], spineY, yFree + laneH / 2, yPrem + laneH / 2, 42 + inset + 8 * k]
+          .map((n9) => n9.toFixed(1)).join(" ");
+        return shell.replace("<svg ", `<svg data-seasontrack="1" data-seasongeo="${geo9}" `);
+      }
+      /* Unity export (legacy sheet): the BARE track — no lane words, node
+         numbers, progress or reward icons; those are the dev's live
+         content (PatternBreakSeasonTrack overlays them) */
       const bareS = opts.part === "shell";
       let inner = bareS ? "" : infoText((opts.slots?.laneA ?? "FREE").slice(0, 12), 42 + inset + 8 * k, yFree + laneH / 2, 13 * k, "start", 800) +
         `<text x="${(42 + inset + 8 * k).toFixed(1)}" y="${(yPrem + laneH / 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.1em" fill="${GOLD}" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.4); stroke-width: 2px">${esc((opts.slots?.laneB ?? "PREMIUM").slice(0, 12))}</text>`;
