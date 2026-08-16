@@ -1048,6 +1048,8 @@
 .ph-search:focus { border-color: var(--accent, #d946ef); }
 [data-theme="dark"] .ph-search { background: rgba(24, 17, 42, .85); border-color: rgba(180, 140, 250, .22); }
 .ph-note { margin: 2px 0 10px; }
+/* Import kit — prominent, but sized for the tools row, not the hero */
+.ph-import { height: 36px; margin: 0; padding: 0 14px; border-radius: 11px; font-size: 13px; }
 .ph-rename {
   font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); background: var(--card);
   border: 1px solid var(--accent, #d946ef); border-radius: 8px; padding: 3px 8px; outline: none; width: 100%;

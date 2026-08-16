@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Copy, ExternalLink, Eye, EyeOff, FolderOpen, House, Loader2, Pencil, Trash2, Wand2, XCircle,
+  Copy, ExternalLink, Eye, EyeOff, FileUp, FolderOpen, House, Loader2, Pencil, Trash2, Wand2, XCircle,
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
@@ -13,6 +13,7 @@ import {
   deleteProject, uniqueName, publicProjectUrl, type CloudProject,
 } from "@/generator/cloud";
 import { useGen } from "@/generator/store";
+import { importSettingsFile } from "@/generator/settingsImport";
 import { CardArt } from "./CommunityPage";
 import { PromoShelf } from "./PromoShelf";
 import logoUrl from "../../pb-logo.png";
@@ -58,6 +59,7 @@ export function ProjectsHome() {
   /* the close-settle sheet: non-null while "Update before closing?" waits */
   const [closing, setClosing] = useState<CloudProject | null>(null);
   const [settleBusy, setSettleBusy] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     const { projects, error } = await listProjects();
@@ -162,6 +164,25 @@ export function ProjectsHome() {
     await refresh();
   };
 
+  /* ── Import kit — the OS picker into the ONE settings-import door
+        (the same path the Export menu's import uses), then the editor
+        as an unsaved draft with the file-switch flash ─────────────── */
+
+  const doImport = async (f: File) => {
+    setNote(null);
+    const st = useGen.getState();
+    if (st.projectDirty && !window.confirm(
+      st.openProjectId
+        ? `Import “${f.name}”? “${st.kitName ?? "your open file"}” has unsaved changes — they stay behind unless you Update it first.`
+        : `Import “${f.name}”? The unsaved draft on your desk will be replaced.`,
+    )) return;
+    const ok = await importSettingsFile(f);
+    if (!ok) { setNote(`“${f.name}” doesn't look like a kit settings file — nothing was imported.`); return; }
+    const name = useGen.getState().kitName ?? f.name.replace(/\.json$/i, "");
+    useGen.getState().flashFile(`Imported “${name}” — it's on your desk as an unsaved draft. Save kit files it.`);
+    navigate("#/app");
+  };
+
   /* ── Close — the verb (plan decision 3) ────────────────────────── */
 
   const startClose = (p: CloudProject) => {
@@ -242,6 +263,14 @@ export function ProjectsHome() {
               <span className="ph-tools">
                 <input className="ph-search" type="search" placeholder="Search by name…" aria-label="Search projects by name"
                   value={q} onChange={(e) => setQ(e.target.value)} />
+                {/* the OS file picker into the existing settings-import
+                    path — a .json from Export settings round-trips here */}
+                <button className="fd-pricing__cta ph-import" onClick={() => importRef.current?.click()}
+                  title="Open a kit settings .json from your computer — it lands on your desk as an unsaved draft">
+                  <FileUp size={15} strokeWidth={2} /> Import kit
+                </button>
+                <input ref={importRef} type="file" accept="application/json,.json" style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void doImport(f); e.target.value = ""; }} />
               </span>
             </div>
 

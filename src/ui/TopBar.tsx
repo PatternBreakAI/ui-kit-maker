@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, FolderOpen, House, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
-import { useGen, hydrate, getDefault, isTouched, exportableBoards } from "@/generator/store";
+import { useGen, getDefault, isTouched, exportableBoards } from "@/generator/store";
+import { importSettingsFile } from "@/generator/settingsImport";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
@@ -130,30 +131,6 @@ export function TopBar() {
   });
   const dlGameKit = () => void guardedExport("gamekit", handlers, (g) =>
     downloadGameKit(cfg, g.licence));
-
-  const importSettings = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        if (!parsed || typeof parsed !== "object" || !parsed.presetId || !parsed.candy) return;
-        // full-document files carry the workspace (piece forks, shapes,
-        // icon swaps, nudges) — route those through the same door a project
-        // open uses, so migration, healing and persistence all apply
-        const ws = parsed.__workspace as Record<string, unknown> | undefined;
-        delete parsed.__workspace;
-        if (ws && typeof ws === "object") {
-          // boards ride the payload — loadKitPayload runs importBoards
-          // itself now; a second call here raced it and double-vaulted
-          // every backdrop (review catch)
-          useGen.getState().loadKitPayload({ cfg: hydrate(parsed), ...ws }, { viewer: false, phase: "master" });
-        } else {
-          replaceConfig(hydrate(parsed));
-        }
-      } catch { /* not a settings file — ignore */ }
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <header className="top">
@@ -333,7 +310,7 @@ export function TopBar() {
             </div>
           )}
           <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) importSettings(f); e.target.value = ""; setMenuOpen(false); }} />
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void importSettingsFile(f); e.target.value = ""; setMenuOpen(false); }} />
         </div>
       </div>
     </header>
