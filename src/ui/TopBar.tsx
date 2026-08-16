@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
+import { CheckCircle2, CloudOff, CloudUpload, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, FolderOpen, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
 import { useGen, hydrate, getDefault, isTouched, exportableBoards } from "@/generator/store";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -27,7 +27,7 @@ function Logo() {
    The account button opens the shell's AuthOverlay; the old inline
    AccountMenu popover is retired. */
 export function TopBar() {
-  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier, isAdmin } = useGen();
+  const { cfg, saveStatus, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier, isAdmin, kitName, viewer, openProjectId, projectSavedAt, projectDirty, fileFlash } = useGen();
   const { on: tutorOn, setOn: setTutorOn } = useTutor();
   const tcaps = capsOf(tier);
   /* Per-artifact, not one blanket "vectors yes/no" — student buys the
@@ -52,6 +52,37 @@ export function TopBar() {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  /* ── the current FILE, first-class chrome (owner: "it's not entirely
+     clear when you're in a new file… there is a moment of confusion") —
+     the open project's name and its save state sit in the bar's center,
+     always visible. Click opens My Projects, where the file lives. */
+  const [, setFileTick] = useState(0);
+  useEffect(() => {
+    // "2m ago" needs a heartbeat; only while a clean saved file shows it
+    if (!openProjectId || projectDirty) return;
+    const id = window.setInterval(() => setFileTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [openProjectId, projectDirty, projectSavedAt]);
+  const agoWord = (ts: number) => {
+    const s = (Date.now() - ts) / 1000;
+    if (s < 45) return "just now";
+    if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
+    if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+    return `on ${new Date(ts).toLocaleDateString()}`;
+  };
+  const fileName = kitName?.trim() || "Untitled kit";
+  const fileState = viewer ? "shared kit — view only"
+    : openProjectId
+      ? (projectDirty ? "unsaved changes" : (projectSavedAt ? `saved ${agoWord(projectSavedAt)}` : "saved"))
+      : "draft";
+  const fileTitle = viewer
+    ? "A shared kit, view only — Save kit files your own copy."
+    : openProjectId
+      ? (projectDirty
+        ? `You have edits that aren't in the saved project “${fileName}” yet — open My Projects and Update it, or Save a new file.`
+        : `This is your saved project “${fileName}”. Click to open My Projects.`)
+      : "The kit on screen isn't saved as a project yet — Save kit files it. Click to open My Projects.";
 
   const svg = () => renderBevel(cfg, selectedState);
   /* The top-bar singles leave the page: the PNG rasterizes inside a sealed
@@ -131,7 +162,17 @@ export function TopBar() {
         <span className="name">UI Kit Maker</span>
       </button>
 
-      {/* empty center — help now lives in tooltips, not a narrator bar */}
+      {/* the center names the FILE — quiet, always on; the flash below it
+          confirms a file switch in words for a few seconds */}
+      <div className="top-spacer" />
+      <div className="filewrap">
+        <button className="filechip" onClick={() => openAuth("projects")} title={fileTitle}>
+          <FolderOpen size={14} strokeWidth={1.9} />
+          <span className="filechip-name">{fileName}</span>
+          <span className={`filechip-state${!viewer && openProjectId && projectDirty ? " dirty" : ""}`}>· {fileState}</span>
+        </button>
+        {fileFlash && <div className="fileflash" role="status" aria-live="polite">{fileFlash}</div>}
+      </div>
       <div className="top-spacer" />
 
       <div className="topcluster">

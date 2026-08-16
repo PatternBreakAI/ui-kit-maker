@@ -76,8 +76,13 @@ const LS_KEY_V8 = "ui-generator-v8";
 // set once the user actually edits — an untouched visitor tracks the site default
 const TOUCHED_KEY = "ui-generator-touched";
 let persistAsked = false;
+let fileFlashTimer: number | undefined;
 export function markTouched() {
   try { localStorage.setItem(TOUCHED_KEY, "1"); } catch { /* ignore */ }
+  /* the TopBar file chip's honest "unsaved changes": any real edit makes
+     the open project dirty until the next save/update writes the doc.
+     Guarded — a call while the store module is still booting must no-op. */
+  try { if (!useGen.getState().projectDirty) useGen.setState({ projectDirty: true }); } catch { /* store booting */ }
   /* Anonymous work lives only in this browser — the moment it exists, ask the
      browser to shield the origin's storage from storage-pressure eviction
      (Safari's 7-day sweep, low-disk cleanup). Deliberate clearing still wins;
@@ -438,12 +443,26 @@ interface GenStore {
       project) persists every field so the kit survives reload and flows into
       the cloud workspace; `viewer:true` (a share / public link) is in-memory
       read-only, exactly like a shared kit. */
-  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit"; projectId?: string }) => void;
+  loadKitPayload: (p: Record<string, unknown>, opts?: { viewer?: boolean; phase?: "master" | "kit"; projectId?: string; savedAt?: number }) => void;
   /** The cloud project doc the kit on screen came from (session-only) —
       lets the first Unity-slug mint write itself back to that doc, so a
       later reopen can't resurrect a slug-less copy and re-mint under a
       renamed kit (the I1 staleness vector). */
   openProjectId: string | null;
+  /** When the open project's doc was last written (open/save/update) —
+      the TopBar file chip's "saved 2m ago". Session-only, like the id. */
+  projectSavedAt: number | null;
+  /** Any edit since the open project was opened/saved — the chip's honest
+      "unsaved changes". Flipped by markTouched, cleared on open/save. */
+  projectDirty: boolean;
+  /** Bind the workspace to a cloud project row (null detaches): the id
+      moves, the dirty flag clears, savedAt stamps. Save/Update/rename
+      flows call this so the chip's identity follows the FILE. */
+  setOpenProject: (id: string | null, savedAt?: number) => void;
+  /** One transient line under the TopBar file chip ("You're now working
+      in Hot Rod 2 — Hot Rod is untouched") — self-clears after ~7s. */
+  fileFlash: string | null;
+  flashFile: (msg: string | null) => void;
   /** Global shine sweep over every kit piece. */
   shine: boolean;
   setShine: (v: boolean) => void;
@@ -1764,8 +1783,15 @@ export const useGen = create<GenStore>((set, get) => ({
          the [old] version took over") */
       noteLocalDocReplaced();
     }
-    // a settings import stays in the editor; project opens land on the kit
-    set({ ...next, viewer, phase: opts?.phase ?? "kit", openProjectId: viewer ? null : (opts?.projectId ?? null) });
+    // a settings import stays in the editor; project opens land on the kit.
+    // The file chip starts clean: an open IS the last-saved state, and a
+    // payload without a project binding is a draft (chip says so).
+    set({
+      ...next, viewer, phase: opts?.phase ?? "kit",
+      openProjectId: viewer ? null : (opts?.projectId ?? null),
+      projectDirty: false,
+      projectSavedAt: !viewer && opts?.projectId ? (opts?.savedAt ?? Date.now()) : null,
+    });
     /* boards ride the project document (owner: "when i save a kit, I
        expect to save the boards with it when i reopen it") — an OWNED
        open replaces the workspace boards with the project's, re-vaulting
@@ -1785,6 +1811,15 @@ export const useGen = create<GenStore>((set, get) => ({
     }
   },
   openProjectId: null,
+  projectSavedAt: null,
+  projectDirty: false,
+  setOpenProject: (id, savedAt) => set({ openProjectId: id, projectDirty: false, projectSavedAt: id ? (savedAt ?? Date.now()) : null }),
+  fileFlash: null,
+  flashFile: (msg) => {
+    if (fileFlashTimer !== undefined) { window.clearTimeout(fileFlashTimer); fileFlashTimer = undefined; }
+    set({ fileFlash: msg });
+    if (msg) fileFlashTimer = window.setTimeout(() => { fileFlashTimer = undefined; set({ fileFlash: null }); }, 7000);
+  },
   hydrateShared: (p) => get().loadKitPayload(p, { viewer: true }),
   shine: loadJson<boolean>("ui-generator-shine", false),
   setShine: (v) => { saveJson("ui-generator-shine", v); set({ shine: v }); },
