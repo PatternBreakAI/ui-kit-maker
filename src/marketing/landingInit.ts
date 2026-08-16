@@ -1797,7 +1797,6 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                entry applies inside its own try/catch, and a bad one
                changes nothing. */
             const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 16) : [];
-            const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
             const placed = new Set();
             heroes.forEach((h) => {
               try {
@@ -1821,7 +1820,28 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                   REEL.splice(at, 0, entry);
                 }
                 placed.add(lname);
-                if (!seen.has(lname)) {
+                /* cross-lane touch (app session, 2026-08-16): EVERY
+                   designated hero wears its own style chip (owner: "can
+                   every style designated for the hero here have its own
+                   color chip?"). A hero sharing a built-in chip's name
+                   TAKES OVER that chip — recolored, its click playing the
+                   frozen snapshot — and any other hero appends a chip of
+                   its own. The old rule skipped any name already in the
+                   reel, so takeover heroes never surfaced a swatch. */
+                const pi = PAL.findIndex((p2) => p2.name.toLowerCase() === lname);
+                if (pi !== -1) {
+                  PAL[pi] = { name: h.name, color, pid: key }; // keeps the pressed-state zip aligned
+                  const old = palWrap.querySelectorAll(".sw2")[pi];
+                  if (old) {
+                    const nb = old.cloneNode(true); // the plain recipe's click listener stays behind
+                    nb.style.setProperty("--sw-hi", mix(color, "#ffffff", .35));
+                    nb.style.setProperty("--sw-lo", mix(color, "#000000", .25));
+                    nb.setAttribute("aria-label", h.name);
+                    nb.addEventListener("click", () => { takeOver();
+                      playDesign({ pid: key, color, name: h.name }); });
+                    old.replaceWith(nb);
+                  }
+                } else {
                   const b = document.createElement("button");
                   b.type = "button"; b.className = "sw2";
                   b.style.setProperty("--sw-hi", mix(color, "#ffffff", .35));
@@ -1832,7 +1852,6 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                     playDesign({ pid: key, color, name: h.name }); });
                   palWrap.appendChild(b);
                   PAL.push({ name: h.name, color, pid: key }); // keeps the pressed-state zip aligned
-                  seen.add(lname);
                 }
               } catch (_) { /* one odd cfg stays out; the lineup stands */ }
             });
