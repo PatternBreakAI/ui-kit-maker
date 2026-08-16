@@ -34,6 +34,28 @@ button { font-family: inherit; color: inherit; }
 .brand .logo { width: 32px; height: 32px; flex: none; }
 .brand .name { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; color: var(--ink); }
 .top-spacer { flex: 1; }
+/* the current file, first-class chrome (owner: "it's not entirely clear
+   when you're in a new file"): name + save state at the bar's center. The
+   flash beneath confirms a file switch in words, then clears itself. */
+.filewrap { position: relative; display: flex; justify-content: center; min-width: 0; }
+.filechip {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 44vw; min-width: 0;
+  border: 0; background: none; padding: 6px 10px; border-radius: 9px;
+  font: inherit; font-size: 13.5px; color: var(--ink2); cursor: pointer; white-space: nowrap;
+}
+.filechip:hover { background: var(--soft); color: var(--ink); }
+.filechip > svg { flex: none; }
+.filechip-name { font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.filechip-state { color: var(--ink2); flex: none; }
+.filechip-state.dirty { color: #d97706; }
+.fileflash {
+  position: absolute; top: calc(100% + 7px); left: 50%; transform: translateX(-50%);
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow-pop); padding: 8px 14px; font-size: 13px; font-weight: 550;
+  color: var(--ink); white-space: nowrap; max-width: 78vw; overflow: hidden; text-overflow: ellipsis;
+  z-index: 70; animation: fileflash-in .18s ease;
+}
+@keyframes fileflash-in { from { opacity: 0; transform: translate(-50%, -4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* quiet toolbar: one tight cluster of global actions on the right */
 .topcluster { display: flex; align-items: center; gap: 5px; }
 .topcluster .saved { margin-right: 4px; font-size: 13px; }
@@ -509,7 +531,8 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 }
 [data-theme="dark"] body { background: #131418; color: var(--ink); }
 [data-theme="dark"] .top, [data-theme="dark"] .menu-pop, [data-theme="dark"] .zoolbar,
-[data-theme="dark"] .gridpop, [data-theme="dark"] .fontpick-pop { background: var(--card); }
+[data-theme="dark"] .gridpop, [data-theme="dark"] .fontpick-pop,
+[data-theme="dark"] .fileflash { background: var(--card); }
 [data-theme="dark"] .fieldbox, [data-theme="dark"] .menu-btn, [data-theme="dark"] .acct,
 [data-theme="dark"] .copycode, [data-theme="dark"] .buildkit, [data-theme="dark"] .randbtn,
 [data-theme="dark"] .tinput, [data-theme="dark"] .icongrid button, [data-theme="dark"] .fxchip,

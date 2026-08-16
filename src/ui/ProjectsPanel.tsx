@@ -7,7 +7,7 @@ import { t } from "@/shell/i18n";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
   listProjects, saveProject, renameProject, deleteProject, setProjectPublic,
-  loadProjectDoc, updateProjectDoc, publicProjectUrl, type CloudProject,
+  loadProjectDoc, updateProjectDoc, publicProjectUrl, uniqueName, type CloudProject,
 } from "@/generator/cloud";
 
 /* v76 · My Projects — the projects table goes live. A named library of kit
@@ -79,7 +79,18 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
 
   const doSave = async () => {
     setBusy(true); setNote(null);
-    const name = newName.trim() || kitName || "Untitled kit";
+    const desired = newName.trim() || kitName || "Untitled kit";
+    /* Save always mints a NEW file — a second save under a taken name
+       auto-suffixes to the lowest free number ("Hot Rod" → "Hot Rod 2")
+       so two same-day saves stay tellable apart (owner mandate,
+       2026-08-16). Case-insensitive; the note below says it happened.
+       Overwriting an existing project is the row's Update button, which
+       never touches names. */
+    const name = uniqueName(desired, (items ?? []).map((p) => p.name));
+    /* the file you were in BEFORE this save — the flash below states the
+       switch in words ("you're now working in X — Y is untouched") */
+    const prevOpenId = useGen.getState().openProjectId;
+    const prevName = useGen.getState().kitName;
     // the kit takes the project's name, so the kit-page title reflects the
     // project you just saved (and the saved snapshot carries it)
     useGen.getState().setKitName(name);
@@ -99,6 +110,22 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
+    /* say what happened, especially the rename — a silent suffix would
+       trade one confusion for another */
+    setNote(name === desired ? `Saved as “${name}”.` : `Saved as “${name}” — “${desired}” already exists.`);
+    /* a save mints a NEW file and you are now IN it — bind the workspace
+       to the fresh row and let the TopBar chip say so out loud (owner:
+       "there is a moment of confusion... it's not entirely clear when
+       you're in a new file") */
+    const g = useGen.getState();
+    g.setOpenProject(project.id);
+    g.flashFile(
+      prevOpenId && prevName && prevName !== name
+        ? `You're now working in “${name}” — “${prevName}” is untouched.`
+        : name !== desired
+          ? `You're now working in “${name}” — “${desired}” already exists.`
+          : `You're now working in “${name}”.`,
+    );
     await refresh();
   };
 
@@ -108,7 +135,10 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     const { doc, error } = await loadProjectDoc(p.id);
     setBusy(false);
     if (error || !doc) { setNote(error ?? "Couldn't load that project."); return; }
-    useGen.getState().loadKitPayload(doc as Record<string, unknown>, { viewer: false, projectId: p.id });
+    useGen.getState().loadKitPayload(doc as Record<string, unknown>, {
+      viewer: false, projectId: p.id, savedAt: Date.parse(p.updated_at) || Date.now(),
+    });
+    useGen.getState().flashFile(`You're now working in “${p.name}”.`);
     onClose();
     onOpened?.();
   };
@@ -121,17 +151,31 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     setBusy(false);
     if (error) { setNote(error); return; }
     setNote(`“${p.name}” updated.`);
+    /* updating the OPEN file is a plain save — the chip goes clean and
+       restamps. Overwriting a DIFFERENT row leaves the binding alone. */
+    if (useGen.getState().openProjectId === p.id) useGen.getState().setOpenProject(p.id);
     await refresh();
   };
 
   const commitRename = async (p: CloudProject) => {
-    const name = renameVal.trim();
+    const desired = renameVal.trim();
     setRenaming(null);
-    if (!name || name === p.name) return;
+    if (!desired || desired === p.name) return;
+    /* renames obey the same duplicate rule as saves — minus this row
+       itself, so fixing capitalization never trips the suffix */
+    const name = uniqueName(desired, items?.filter((x) => x.id !== p.id).map((x) => x.name) ?? []);
     setBusy(true);
     const error = await renameProject(p.id, name);
     setBusy(false);
     if (error) { setNote(error); return; }
+    if (name !== desired) setNote(`Renamed to “${name}” — “${desired}” already exists.`);
+    /* renaming the OPEN file: the chip's identity follows, without
+       claiming unsaved changes — only the row's name moved, not the doc */
+    if (useGen.getState().openProjectId === p.id) {
+      useGen.getState().setKitName(name);
+      useGen.getState().setOpenProject(p.id);
+      useGen.getState().flashFile(`Renamed — you're now working in “${name}”.`);
+    }
     await refresh();
   };
 

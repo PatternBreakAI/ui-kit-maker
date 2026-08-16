@@ -621,6 +621,24 @@ export type CloudProject = {
 
 const PROJECT_COLS = "id, name, is_public, share_slug, updated_at, created_at";
 
+/** The duplicate-name rule (owner mandate, 2026-08-16: "automatically
+    rename duplicates 1, 2 and so on so that I can identify which ones are
+    which" — the Hot Rod / Hot Roderick same-day mixup). Case-insensitive
+    compare against `taken`; a collision suffixes "Name 2", "Name 3"… at
+    the lowest free number. The suffix respects the 120-char name column —
+    the base gives way, never the number. Pure, so probes can hit it. */
+export function uniqueName(desired: string, taken: Iterable<string>): string {
+  const have = new Set<string>();
+  for (const t of taken) have.add(t.trim().toLowerCase());
+  const want = desired.trim().slice(0, 120).trim();
+  if (!want || !have.has(want.toLowerCase())) return want;
+  for (let n = 2; ; n++) {
+    const suffix = ` ${n}`;
+    const cand = want.slice(0, 120 - suffix.length).trimEnd() + suffix;
+    if (!have.has(cand.toLowerCase())) return cand;
+  }
+}
+
 /** Short, unguessable, human-safe slug (no 0/o/1/l ambiguity). */
 function makeSlug(): string {
   const alpha = "abcdefghijkmnpqrstuvwxyz23456789"; // 32 symbols
