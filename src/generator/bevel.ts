@@ -8277,7 +8277,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // one in quarters (0 blade, .3 volt, .6 tonic, .9 aegis).
       const ROSTER9 = [STOCK_ICONS.sword, STOCK_ICONS.zap, STOCK_ICONS.flask, STOCK_ICONS.shield];
       const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
-      const icF = krF * 0.8;
+      /* the Size dial plays within the dome (owner: "size doesn't work
+         here... there should be a little spectrum of size that you can
+         play with") — 100% keeps the pad-perfect fit, and the clamp
+         keeps the glyph inside the dome at both ends. The carousel
+         satellites ride the same factor so the family stays coherent. */
+      const icPlay = clamp((cfg.icon.size ?? 100) / 100, 0.55, 1.22);
+      const icF = krF * 0.8 * icPlay;
       const icTone = live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4";
       const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, icTone, 2.6)}</g>`;
       /* the quick-select carousel: each waiting weapon is its own MINI
@@ -8293,7 +8299,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const aS = ((-90 - j * 45) * Math.PI) / 180;
         const orbit = R9 + mr + 3;
         const sx = cx9 + orbit * Math.cos(aS), sy = cy9 + orbit * Math.sin(aS);
-        const mic = mr * 1.02;
+        const mic = mr * 1.02 * icPlay;
         sats += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${mr.toFixed(1)}" fill="${miniRim}" stroke="${darken(miniRim, 0.38)}" stroke-width="1.5"/>
           <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(mr * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
           candyKnob(sx, sy, mr * 0.72, knobC) +
