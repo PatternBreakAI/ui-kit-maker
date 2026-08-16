@@ -8279,10 +8279,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const armed9 = Math.min(3, Math.floor(clamp(value ?? 0, 0, 1) * 4));
       /* the Size dial plays within the dome (owner: "size doesn't work
          here... there should be a little spectrum of size that you can
-         play with") — 100% keeps the pad-perfect fit, and the clamp
-         keeps the glyph inside the dome at both ends. The carousel
-         satellites ride the same factor so the family stays coherent. */
-      const icPlay = clamp((cfg.icon.size ?? 100) / 100, 0.55, 1.22);
+         play with", then "the current size should be the 75% mark") —
+         dial 75 renders the original pad-perfect fit, everything above
+         grows the glyph toward the dome's edge, and the clamps keep it
+         from vanishing or escaping. The carousel satellites ride the
+         same factor so the family stays coherent. */
+      const icPlay = clamp((cfg.icon.size ?? 100) / 75, 0.55, 1.45);
       const icF = krF * 0.8 * icPlay;
       const icTone = live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4";
       const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, icTone, 2.6)}</g>`;
@@ -8490,7 +8492,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "lives": {
       /* lives — candy hearts, no container (spatial HUD). value = full/max */
       const n5 = Math.max(1, Math.min(9, parseInt(opts.max ?? "5", 10) || 5));
-      const full = Math.max(0, Math.min(n5, parseInt(opts.label ?? "3", 10) || 3));
+      /* the Value slider sweeps hearts on and off (owner, on a board:
+         "slider doesn't work here, feels like it should add/takeaway
+         hearts") — a live value fills 0..max; without one the pinned
+         words keep choosing, exactly as before */
+      const full = value !== undefined
+        ? Math.round(clamp(value, 0, 1) * n5)
+        : Math.max(0, Math.min(n5, parseInt(opts.label ?? "3", 10) || 3));
       const hs = ({ s: 46, m: 58, l: 72 } as const)[size];
       const gap5 = hs * 0.18;
       const W5 = n5 * hs + (n5 - 1) * gap5, H5 = hs * 1.14;
