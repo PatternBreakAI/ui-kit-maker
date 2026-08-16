@@ -68,3 +68,44 @@ wiring as interim.
 
 Anything that smells wrong, field-note it the usual way — the notes drive
 the next round.
+
+## As-built addendum — the season track goes live (2026-08-16)
+
+The SeasonTrack prefab stopped being a picture. The old build was one
+baked sheet with TMP overlays floating over it — empty wells, node
+numbers that went stale when you edited them, a naked progress rect,
+and a SendMessage warning from OnValidate.
+
+Now the kit ships the track as PARTS (`assets/seasontrack/`): the bare
+board (sliced), one reward-well tile per lane flavor (free, and the
+gold-trimmed premium), spine nodes lit and unlit, and the rail. The
+rebuilt `PatternBreakSeasonTrack` builds one live cell per tier from
+them:
+
+- **Inspector dials:** `tierCount` (1–50), `firstLevel`, `currentTier`
+  (last tier reached, 1-based) + `tierProgress` (the run toward the
+  next node), per-tier `rewardIconsFree/Premium` sprite mounts and
+  `claimedFree/Premium` flags, lane words, colors, the TMP face.
+- **From code:** `SetProgress(tier, toNext)`,
+  `SetClaimed(tier, premium, claimed)`, `SetIcon(tier, premium, s)`.
+- Locked tiers dim; claimed wells tint and wear the kit's check glyph;
+  reached nodes swap to the lit sprite; progress is the kit's own
+  progress-bar fill seated on the rail between node 1 and node N.
+- Cell geometry comes from the app's own drawing — the manifest's
+  `seasonTrack` block maps the drawn spine/lanes into the prefab, so
+  cells land exactly on the art.
+- Everything the rig creates lives under the `Track (auto)` child and
+  prunes itself when the tier count shrinks — no more orphan numbers.
+- The OnValidate warning is dead (rebuilds defer one editor tick).
+
+Old projects: the maintenance pass re-rigs an existing SeasonTrack
+prefab on the next import (bare board in, live cells on top) and the
+Console says so. The flat `seasontrack-base.png` still ships for older
+scenes. Boards→scenes are untouched — a posed track still bakes as
+posed art, and a prefab-placed track strikes the board's progress.
+
+Honest gaps: no scrolling — past ~10 tiers you want the board wider
+(it's sliced; stretch it) or your own ScrollRect around the prefab;
+there's no claimed-well ART variant (claimed = tint + check, the app
+doesn't draw one either); reward icons are empty mounts until you drop
+sprites in.
