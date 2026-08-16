@@ -687,11 +687,40 @@ export function measureSliceRGBA(
     let lb = ry1; while (lb >= ry0 && (leftAt[lb] < 0 || leftAt[lb] > cx0 + T)) lb--;
     let rt2 = ry0; while (rt2 <= ry1 && (rightAt[rt2] < 0 || rightAt[rt2] < cx1 - T)) rt2++;
     let rb = ry1; while (rb >= ry0 && (rightAt[rb] < 0 || rightAt[rb] < cx1 - T)) rb--;
+    /* EDGE GEOMETRY the corner walk cannot see: a notch, tail or taper cut
+       INTO an edge (the header's swallowtail) leaves the NEIGHBORING edges
+       perfectly flat to the very corner — left/right measured ~0 while the
+       notch sat mid-stretch and tore into a ghost outline the moment the
+       sprite stretched (owner, tiled-face banner in Unity). When the walk
+       saw almost none of an edge's real depth (under a third), its number
+       is degenerate — trust the edge profile's own deepest inset instead,
+       so the whole cut lands inside a cap. Shapes the walk already
+       measures honestly (pills, rounded rects, panels, pointer tabs) sit
+       far from the factor-3 line and keep their numbers byte-identical. */
+    let lIn = 0, rIn = 0;
+    for (const y of rows) {
+      if (leftAt[y] - cx0 > lIn) lIn = leftAt[y] - cx0;
+      if (cx1 - rightAt[y] > rIn) rIn = cx1 - rightAt[y];
+    }
+    let tIn = 0, bIn = 0;
+    for (const x of cols) {
+      if (topAt[x] - yTop > tIn) tIn = topAt[x] - yTop;
+      if (yBot - botAt[x] > bIn) bIn = yBot - botAt[x];
+    }
+    const degenerate = (corner: number, inset: number) => inset > corner * 3 + 6 * scale;
+    let left = Math.max(tl, bl);
+    if (degenerate(left, cx0 + lIn)) left = cx0 + lIn;
+    let right = w - 1 - Math.min(tr, br);
+    if (degenerate(right, w - 1 - cx1 + rIn)) right = w - 1 - cx1 + rIn;
+    let top = Math.max(lt, rt2);
+    if (degenerate(top, yTop + tIn)) top = yTop + tIn;
+    let bottom = h - 1 - Math.min(lb, rb);
+    if (degenerate(bottom, h - 1 - yBot + bIn)) bottom = h - 1 - yBot + bIn;
     return {
-      left: Math.max(tl, bl) + pad,
-      right: (w - 1 - Math.min(tr, br)) + pad,
-      top: Math.max(lt, rt2) + pad,
-      bottom: (h - 1 - Math.min(lb, rb)) + pad,
+      left: left + pad,
+      right: right + pad,
+      top: top + pad,
+      bottom: bottom + pad,
     };
   } catch { return null; }
 }

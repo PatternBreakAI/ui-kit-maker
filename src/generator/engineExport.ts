@@ -3474,7 +3474,7 @@ namespace PatternBreak {
     public int armed = 0;
     [Tooltip("Swipe distance (px) that counts as a weapon switch.")]
     public float swipePx = 34f;
-    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive) — the kit's press sink, so the icon travels WITH the face instead of floating over the sunk artwork.")]
+    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive; a press is negative). The importer sets it to the dome's full trip — the kit's press lift plus the dome's designed sink (1.6% of the dome shell) — so the icon travels WITH the dome instead of floating over the sunk artwork. Tune freely.")]
     public float pressedLift = 0f;
     [System.Serializable] public class WeaponEvent : UnityEngine.Events.UnityEvent<int> {}
     public WeaponEvent onWeaponChanged = new WeaponEvent();
@@ -5189,6 +5189,12 @@ namespace PatternBreak {
       var inManifest = new HashSet<string>();
       foreach (var a in manifest.assets) inManifest.Add(a.file);
       var orphans = new List<string>();
+      /* twins are COLLECTED here and deleted only after the prefab
+         maintenance below has run — deleting first nulled the very
+         references the sprite re-adoption pass re-points (a prefab
+         wearing base.png must meet its joystick-base.png twin while the
+         old reference is still alive) */
+      var renameTwins = new List<string>();
       if (prev != null && prev.files != null)
         foreach (var f in prev.files)
           if (f != null && !string.IsNullOrEmpty(f.file) && !inManifest.Contains(f.file) && File.Exists(root + "/" + f.file)) {
@@ -5198,7 +5204,7 @@ namespace PatternBreak {
               var dslash = dirp.LastIndexOf('/');
               var dname = dslash >= 0 ? dirp.Substring(dslash + 1) : dirp;
               var renamed = dirp + "/" + dname + "-" + f.file.Substring(slash + 1);
-              if (inManifest.Contains(renamed)) { AssetDatabase.DeleteAsset(root + "/" + f.file); continue; }
+              if (inManifest.Contains(renamed)) { renameTwins.Add(f.file); continue; }
             }
             orphans.Add(f.file);
           }
@@ -5277,6 +5283,9 @@ namespace PatternBreak {
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
       if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest); GenerateMissingPrefabs(root, manifest); }
+      /* the renamed files' short-named twins go LAST — the maintenance
+         pass above has re-pointed every prefab reference off them */
+      foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
 #if UNITY_2023_2_OR_NEWER
       if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
 #endif
@@ -6160,7 +6169,17 @@ namespace PatternBreak {
       var go = new GameObject(n, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
       var img = go.GetComponent<Image>();
       img.sprite = sp;
-      img.type = Image.Type.Sliced;
+      /* Sliced ONLY when the sprite carries a real border. Sliced with no
+         border is Unity's "This Image doesn't have a border" warning and
+         a full-rect stretch — the round toggle art melted the moment its
+         rect left the sprite's proportions (owner, with screenshots:
+         "radio toggle and check mark both look distorted"). Fixed-shape
+         art rides Simple + Preserve Aspect instead, so ANY rect
+         letterboxes it honestly. Call sites that need another mode
+         (Filled, Tiled) still override after. */
+      bool sliced = sp != null && sp.border != Vector4.zero;
+      img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
+      img.preserveAspect = !sliced;
       if (sp != null && pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width / pngScale, sp.rect.height / pngScale);
       return go;
@@ -7103,6 +7122,8 @@ namespace PatternBreak {
       img.sprite = baseSp;
       bool sliced = baseAsset.nineSlice != null && (baseAsset.nineSlice.left + baseAsset.nineSlice.right + baseAsset.nineSlice.top + baseAsset.nineSlice.bottom) > 0;
       img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
+      // fixed-shape families (props, badges): any rect letterboxes, never melts
+      img.preserveAspect = !sliced;
       if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
         /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
            natural rect squishes a fluid silhouette under overflowing text.
@@ -7182,6 +7203,7 @@ namespace PatternBreak {
           arcGo.transform.SetParent(go.transform, false);
           var ai = arcGo.GetComponent<Image>();
           ai.type = Image.Type.Filled;
+          ai.preserveAspect = false; // the ring rect is sized below — Filled owns the draw
           ai.fillMethod = Image.FillMethod.Radial360;
           ai.fillOrigin = (int)Image.Origin360.Top;
           ai.fillAmount = 0.7f;
@@ -7718,6 +7740,7 @@ namespace PatternBreak {
          the rect alone). Sliced-into-the-value-rect drew a different
          picture: caps intact, body squashed, gradient compressed. */
       fImg.type = Image.Type.Filled;
+      fImg.preserveAspect = false; // the mercury stretches to the fill area by design
       fImg.fillMethod = Image.FillMethod.Horizontal;
       fImg.fillOrigin = (int)Image.OriginHorizontal.Left;
       fImg.fillAmount = 0.62f;
@@ -7868,11 +7891,18 @@ namespace PatternBreak {
       var ws = new Sprite[nW]; int wi = 0;
       foreach (var wsp in weapons) if (wsp != null) ws[wi++] = wsp;
       fb.weapons = ws;
-      // the glyph rides the kit's press sink so it travels with the face
-      // (the dome's sink lives in its pressed sprite's pixels)
+      /* the glyph rides the DOME's whole pressed trip: the kit's press
+         lift (relative, from the manifest) PLUS the dome's own designed
+         sink — the shell-width x 0.016 the app bakes into the pressed
+         sprite's pixels. The old default was the bare lift delta, which
+         is 0 on lift-less kits: the glyph froze mid-air while the art
+         sank under it, and the press read inverted (owner: "instead of
+         the button depressing, its rim depresses instead"). */
+      float fbLift = 0f;
       if (m != null && m.stateFx != null)
         foreach (var f in m.stateFx)
-          if (f != null && f.family == "firebutton" && f.state == "pressed") { fb.pressedLift = f.lift; break; }
+          if (f != null && f.family == "firebutton" && f.state == "pressed") { fbLift = f.lift; break; }
+      fb.pressedLift = fbLift - domeShellW * 0.016f;
       fb.DealNow(); // strike the armed pose so the prefab reads in edit mode
       // press/disabled ride Sprite Swap; the DOME's press sink is in the pixels
       var btn = go.AddComponent<Button>();
@@ -8015,6 +8045,7 @@ namespace PatternBreak {
       lq.transform.SetParent(maskGo.transform, false);
       var li = lq.GetComponent<Image>();
       li.type = Image.Type.Filled;
+      li.preserveAspect = false; // the liquid stretches to the visible well by design
       li.fillMethod = Image.FillMethod.Vertical;
       li.fillOrigin = (int)Image.OriginVertical.Bottom;
       li.fillAmount = 0.72f; // drive this from your live health
@@ -8210,10 +8241,164 @@ namespace PatternBreak {
        Both are surgical, idempotent (nothing saves unless something
        actually changed), and placed copies (the Playground included)
        inherit the result automatically. */
+    /* the CURRENT file the manifest ships for a family part, or null */
+    static string AssetFile(PBManifest m, string component, string part) {
+      if (m == null || m.assets == null || part == null) return null;
+      foreach (var a in m.assets)
+        if (a != null && a.component == component && a.part == part && !string.IsNullOrEmpty(a.file)) return a.file;
+      return null;
+    }
+    /* a sprite still worn from BEFORE the great renaming: its path lives
+       under this kit's assets/ but the manifest no longer writes it, and
+       the family-prefixed twin (dir/dirname-file) IS in the manifest.
+       Returns the twin's manifest path, else null. */
+    static string LegacyTwin(string root, HashSet<string> inManifest, Sprite sp) {
+      if (sp == null) return null;
+      var p = AssetDatabase.GetAssetPath(sp);
+      if (string.IsNullOrEmpty(p)) return null;
+      p = p.Replace("\\\\", "/");
+      if (!p.StartsWith(root + "/assets/")) return null;
+      var rel = p.Substring(root.Length + 1);
+      if (inManifest.Contains(rel)) return null; // current file — nothing to do
+      var slash = rel.LastIndexOf('/');
+      if (slash <= 0) return null;
+      var dirp = rel.Substring(0, slash);
+      var dslash = dirp.LastIndexOf('/');
+      var dname = dslash >= 0 ? dirp.Substring(dslash + 1) : dirp;
+      var renamed = dirp + "/" + dname + "-" + rel.Substring(slash + 1);
+      return inManifest.Contains(renamed) ? renamed : null;
+    }
+    /* ── SPRITE RE-ADOPTION (the stale-joystick mechanism). A generated
+       prefab updates its LOOK because the next export overwrites its
+       sprite FILES in place — and that contract silently breaks the
+       moment its references point at files the current manifest no
+       longer writes. The great renaming (assets/joystick/base.png →
+       joystick-base.png) left every pre-rename rig doing exactly that:
+       the old file survives as an orphan (or was deleted as a rename
+       twin), each re-export writes the NEW name beside it, and the
+       prefab keeps its old pixels forever (field: "unity imports the
+       old joystick" — the Joystick kept its old art through a re-export
+       while every other piece updated). Every kit-sprite reference
+       re-points to the file the CURRENT manifest ships; a broken (null)
+       reference on the joystick rig re-adopts by part, and the rig's
+       geometry (rect, thumb seat, travel radius) converges with it.
+       Idempotent — references already on manifest files are untouched,
+       and the maker's own sprites (outside assets/) are never touched. ── */
+    static bool ReadoptKitSprites(string root, string path, ref GameObject asset, PBManifest m) {
+      if (m == null || m.assets == null) return false;
+      var inManifest = new HashSet<string>();
+      foreach (var a in m.assets) if (a != null && !string.IsNullOrEmpty(a.file)) inManifest.Add(a.file);
+      // probe phase — reads only, so untouched prefabs never re-save
+      bool want = false;
+      var stick0 = asset.GetComponent<TouchStick>();
+      foreach (var im0 in asset.GetComponentsInChildren<Image>(true)) {
+        if (LegacyTwin(root, inManifest, im0.sprite) != null) { want = true; break; }
+        if (im0.sprite == null && stick0 != null) { want = true; break; }
+      }
+      /* sprite SLOTS hold references too — a re-pointed root with legacy
+         swap states would flash the old art on every hover */
+      if (!want) foreach (var sel0 in asset.GetComponentsInChildren<Selectable>(true)) {
+        var ss0 = sel0.spriteState;
+        if (LegacyTwin(root, inManifest, ss0.highlightedSprite) != null
+            || LegacyTwin(root, inManifest, ss0.pressedSprite) != null
+            || LegacyTwin(root, inManifest, ss0.disabledSprite) != null) { want = true; break; }
+      }
+      if (!want) {
+        var gl0 = asset.GetComponent<SwitchGlide>();
+        if (gl0 != null && (LegacyTwin(root, inManifest, gl0.onSprite) != null || LegacyTwin(root, inManifest, gl0.offSprite) != null)) want = true;
+        var fb0 = asset.GetComponent<FireButton>();
+        if (!want && fb0 != null && fb0.weapons != null)
+          foreach (var w0 in fb0.weapons) if (LegacyTwin(root, inManifest, w0) != null) { want = true; break; }
+        var fx0 = asset.GetComponent<StateFx>();
+        if (!want && fx0 != null && LegacyTwin(root, inManifest, fx0.glowSprite) != null) want = true;
+      }
+      if (!want) return false;
+      var contents = PrefabUtility.LoadPrefabContents(path);
+      try {
+        bool changed = false;
+        var stick = contents.GetComponent<TouchStick>();
+        foreach (var im in contents.GetComponentsInChildren<Image>(true)) {
+          var twin = LegacyTwin(root, inManifest, im.sprite);
+          if (twin != null) {
+            var spT = S(root + "/" + twin);
+            if (spT != null) { im.sprite = spT; changed = true; }
+            continue;
+          }
+          if (im.sprite != null || stick == null) continue;
+          // the joystick rig's parts are unambiguous: the root wears the
+          // base, the TouchStick's thumb wears the thumb
+          string part = im.transform == contents.transform ? "base"
+            : stick.thumb != null && im.transform == stick.thumb.transform ? "thumb" : null;
+          var fJ = AssetFile(m, "joystick", part);
+          var spJ = fJ != null ? S(root + "/" + fJ) : null;
+          if (spJ != null) { im.sprite = spJ; changed = true; }
+        }
+        foreach (var sel in contents.GetComponentsInChildren<Selectable>(true)) {
+          var ss = sel.spriteState;
+          bool ssChanged = false;
+          var tH = LegacyTwin(root, inManifest, ss.highlightedSprite);
+          if (tH != null) { var s2 = S(root + "/" + tH); if (s2 != null) { ss.highlightedSprite = s2; ssChanged = true; } }
+          var tP = LegacyTwin(root, inManifest, ss.pressedSprite);
+          if (tP != null) { var s2 = S(root + "/" + tP); if (s2 != null) { ss.pressedSprite = s2; ssChanged = true; } }
+          var tD = LegacyTwin(root, inManifest, ss.disabledSprite);
+          if (tD != null) { var s2 = S(root + "/" + tD); if (s2 != null) { ss.disabledSprite = s2; ssChanged = true; } }
+          if (ssChanged) { sel.spriteState = ss; changed = true; }
+        }
+        var glC = contents.GetComponent<SwitchGlide>();
+        if (glC != null) {
+          var tOn = LegacyTwin(root, inManifest, glC.onSprite);
+          if (tOn != null) { var s2 = S(root + "/" + tOn); if (s2 != null) { glC.onSprite = s2; changed = true; } }
+          var tOff = LegacyTwin(root, inManifest, glC.offSprite);
+          if (tOff != null) { var s2 = S(root + "/" + tOff); if (s2 != null) { glC.offSprite = s2; changed = true; } }
+        }
+        var fbC2 = contents.GetComponent<FireButton>();
+        if (fbC2 != null && fbC2.weapons != null) {
+          for (int wI = 0; wI < fbC2.weapons.Length; wI++) {
+            var tW = LegacyTwin(root, inManifest, fbC2.weapons[wI]);
+            if (tW != null) { var s2 = S(root + "/" + tW); if (s2 != null) { fbC2.weapons[wI] = s2; changed = true; } }
+          }
+          if (changed) fbC2.DealNow(); // dealt glyph layers re-read the arsenal
+        }
+        var fxC = contents.GetComponent<StateFx>();
+        if (fxC != null) {
+          var tG = LegacyTwin(root, inManifest, fxC.glowSprite);
+          if (tG != null) { var s2 = S(root + "/" + tG); if (s2 != null) { fxC.glowSprite = s2; changed = true; } }
+        }
+        if (changed && stick != null) {
+          /* geometry rides the adopted art, exactly like JoystickPrefab:
+             root rect, thumb rect, thumb seat on the well's shell
+             center, travel radius. Only here — a maker's hand-tuned
+             radius on a healthy prefab is never touched. */
+          float psJ = m.pngScale > 0 ? m.pngScale : 2;
+          var rimg = contents.GetComponent<Image>();
+          var rrtJ = contents.GetComponent<RectTransform>();
+          if (rimg != null && rimg.sprite != null && rrtJ != null) {
+            rrtJ.sizeDelta = new Vector2(rimg.sprite.rect.width / psJ, rimg.sprite.rect.height / psJ);
+            if (stick.thumb != null) {
+              var thImg = stick.thumb.GetComponent<Image>();
+              if (thImg != null && thImg.sprite != null) {
+                float thumbW = thImg.sprite.rect.width / psJ;
+                stick.thumb.sizeDelta = new Vector2(thumbW, thImg.sprite.rect.height / psJ);
+                Vector2 shlJ2;
+                float halfJ = ShellCenterAnchor(stick.thumb.gameObject, contents, "joystick", m, out shlJ2)
+                  ? Mathf.Min(shlJ2.x, shlJ2.y) * 0.5f
+                  : (rimg.sprite.rect.width / psJ) * 0.5f;
+                stick.radius = Mathf.Max(20f, halfJ - thumbW * 0.5f - 6f);
+              }
+            }
+          }
+        }
+        if (changed) {
+          PrefabUtility.SaveAsPrefabAsset(contents, path);
+          asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        }
+        return changed;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -8228,6 +8413,9 @@ namespace PatternBreak {
         var path = AssetDatabase.GUIDToAssetPath(g);
         var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (asset == null) continue;
+        // stale/broken sprite references re-adopt FIRST, so every probe
+        // below reads the kit's current art (see ReadoptKitSprites)
+        if (ReadoptKitSprites(root, path, ref asset, m)) readopted++;
         var rootImg = asset.GetComponent<Image>();
         if (rootImg == null || rootImg.sprite == null) {
 #if UNITY_2023_2_OR_NEWER
@@ -8311,6 +8499,61 @@ namespace PatternBreak {
           if (rrt != null) {
             var wantSz = new Vector2(rootImg.sprite.rect.width / psR, rootImg.sprite.rect.height / psR);
             if (Mathf.Abs(rrt.sizeDelta.x - wantSz.x) > 0.75f || Mathf.Abs(rrt.sizeDelta.y - wantSz.y) > 0.75f) wantResize = true;
+          }
+        }
+        /* borderless art must never ride Sliced — that is Unity's "This
+           Image doesn't have a border" warning and a full-rect stretch,
+           the melted round toggles (owner screenshots). Kit-sprite
+           layers converge to Simple + Preserve Aspect; real borders
+           keep Sliced; Filled/Tiled layers are deliberate and stay. */
+        bool wantShape = false;
+        foreach (var imS0 in asset.GetComponentsInChildren<Image>(true)) {
+          if (imS0.sprite == null || imS0.type != Image.Type.Sliced || imS0.sprite.border != Vector4.zero) continue;
+          var pS0 = AssetDatabase.GetAssetPath(imS0.sprite).Replace("\\\\", "/");
+          if (pS0.StartsWith(root + "/assets/")) { wantShape = true; break; }
+        }
+        /* the tiled-face stack is three FULL-STRETCH layers over one rect
+           (StretchFull at build) — an Over or PatternMask that drifted
+           off that contract paints beside its siblings (field: the
+           banner's ghost Over outline stretched ~470px past the right
+           edge while the solid art stayed put). Re-converge the stack. */
+        bool wantFaceRects = false;
+        if (tiledBuild) {
+          foreach (Transform chT in asset.transform) {
+            if (chT.name != "Over" && chT.name != "PatternMask") continue;
+            var crtT = chT as RectTransform;
+            if (crtT == null) continue;
+            if (crtT.anchorMin != Vector2.zero || crtT.anchorMax != Vector2.one
+                || crtT.offsetMin != Vector2.zero || crtT.offsetMax != Vector2.zero) { wantFaceRects = true; break; }
+          }
+          var patT = asset.transform.Find("PatternMask/Pattern") as RectTransform;
+          if (!wantFaceRects && patT != null
+              && (patT.anchorMin != Vector2.zero || patT.anchorMax != Vector2.one
+                  || patT.offsetMin != Vector2.zero || patT.offsetMax != Vector2.zero)) wantFaceRects = true;
+        }
+        /* the fire button's press: the glyph must ride the dome's WHOLE
+           trip — the kit's press lift plus the dome's designed sink.
+           Prefabs from older importers carry the bare lift delta (0 on
+           lift-less kits): a frozen glyph over sinking art, the press
+           reading inverted (owner: "its rim depresses instead").
+           Converge OUR stale defaults only — any other number is the
+           maker's own tune and stays. */
+        bool wantFbLift = false; float fbWant = 0f;
+        {
+          var fbNow = asset.GetComponent<FireButton>();
+          if (fbNow != null && famName == "firebutton") {
+            float fbRow = 0f;
+            if (m.stateFx != null)
+              foreach (var fF in m.stateFx)
+                if (fF != null && fF.family == "firebutton" && fF.state == "pressed") { fbRow = fF.lift; break; }
+            var rowFb = ShellRowOf(asset, "firebutton", m);
+            float psFb = m.pngScale > 0 ? m.pngScale : 2;
+            float shellMin = rowFb != null && rowFb.shell != null && rowFb.shell.w > 4f
+              ? Mathf.Min(rowFb.shell.w, rowFb.shell.h) / psFb
+              : rootImg.sprite.rect.width / psFb;
+            fbWant = fbRow - shellMin * 0.016f;
+            bool fbStale = Mathf.Abs(fbNow.pressedLift) < 0.001f || Mathf.Approximately(fbNow.pressedLift, fbRow);
+            if (fbStale && !Mathf.Approximately(fbNow.pressedLift, fbWant)) wantFbLift = true;
           }
         }
         /* the ENGINE-COMPOSED specular converges too: a kit that ships
@@ -8419,7 +8662,7 @@ namespace PatternBreak {
           }
         }
 #endif
-        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad) continue;
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -8451,6 +8694,30 @@ namespace PatternBreak {
             ShellRaycastPad(contents, famName, m);
             var padImg = contents.GetComponent<Image>();
             if (padImg != null && padImg.raycastPadding != Vector4.zero) { clickFit++; changed = true; }
+          }
+          if (wantShape) {
+            foreach (var imS in contents.GetComponentsInChildren<Image>(true)) {
+              if (imS.sprite == null || imS.type != Image.Type.Sliced || imS.sprite.border != Vector4.zero) continue;
+              var pS = AssetDatabase.GetAssetPath(imS.sprite).Replace("\\\\", "/");
+              if (!pS.StartsWith(root + "/assets/")) continue;
+              imS.type = Image.Type.Simple;
+              imS.preserveAspect = true;
+              reshaped++; changed = true;
+            }
+          }
+          if (wantFbLift) {
+            var fbFix = contents.GetComponent<FireButton>();
+            if (fbFix != null) { fbFix.pressedLift = fbWant; pressArmed++; changed = true; }
+          }
+          if (wantFaceRects) {
+            foreach (Transform chF in contents.transform) {
+              if (chF.name != "Over" && chF.name != "PatternMask") continue;
+              if (chF.GetComponent<RectTransform>() == null) continue;
+              StretchFull(chF.GetComponent<RectTransform>());
+            }
+            var patF = contents.transform.Find("PatternMask/Pattern");
+            if (patF != null && patF.GetComponent<RectTransform>() != null) StretchFull(patF.GetComponent<RectTransform>());
+            faceRects++; changed = true;
           }
           if (wantUnswap) {
             var selFix = contents.GetComponent<Selectable>();
@@ -8545,6 +8812,14 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
       if (retracked > 0)
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
+      if (readopted > 0)
+        Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
+      if (reshaped > 0)
+        Debug.Log("UI Kit Maker: corrected the Image mode on " + reshaped + " sprite layer(s) — border-less art was marked Sliced (Unity: \\"This Image doesn't have a border\\"), which stretches round pieces into ovals when resized. They now draw Simple with Preserve Aspect, so any rect keeps the drawn shape.");
+      if (pressArmed > 0)
+        Debug.Log("UI Kit Maker: armed the fire button's press sink — the armed glyph now rides the dome's full pressed trip (kit press lift + the dome's designed sink) instead of floating in place. Tune it anytime via Pressed Lift on the FireButton component.");
+      if (faceRects > 0)
+        Debug.Log("UI Kit Maker: re-converged the layer stack on " + faceRects + " tiled-face prefab(s) — an overlay child had drifted off the full-stretch contract, painting its gloss/edge art beside the piece instead of over it. All three layers ride one rect again.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
