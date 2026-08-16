@@ -897,8 +897,15 @@
 .fd-hometile__name { display: flex; flex-direction: column; gap: 2px; }
 .fd-hometile__name b { font-size: 13px; line-height: 1.25; }
 .fd-hometile__name span { font-size: 11px; color: var(--ink3); }
-.fd-hometile__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.fd-hometile__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+.fd-hometile__acts { display: flex; align-items: center; gap: 4px; }
 .fd-hometile__act { height: 30px; padding: 0 11px; font-size: 12.5px; }
 .fd-hometile__act:disabled { opacity: .55; cursor: default; }
+.fd-hometile__nudge { height: 30px; width: 26px; padding: 0; }
+.fd-hometile__nudge:disabled { opacity: .3; cursor: default; }
 .fd-hometile.off .fd-hometile__art { opacity: .38; filter: grayscale(.6); }
 .fd-hometile.off .fd-hometile__name b { color: var(--ink3); }
+/* drag choreography — the moving tile fades, the seat it would take lights */
+.fd-hometile[draggable] { cursor: grab; }
+.fd-hometile.dragging { opacity: .45; cursor: grabbing; }
+.fd-hometile.dropover { border-color: var(--accent, #d946ef); box-shadow: 0 0 0 1px var(--accent, #d946ef) inset; }
