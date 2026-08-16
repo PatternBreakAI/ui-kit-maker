@@ -1678,7 +1678,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   {
     const boardSvg = shell("seasontrack", { part: "board" }, slim);
     const gmS = /data-seasongeo="([-\d. ]+)"/.exec(boardSvg);
-    const smS = /data-shell="([-\d. ]+)"/.exec(boardSvg) ?? /data-shell0="([-\d. ]+)"/.exec(boardSvg);
+    /* the geo stamp speaks the PRE-SHIFT frame (its numbers ride inside
+       the extrusion-headroom translate with the shell) — measure against
+       data-shell0, the same frame, and the shift cancels. Fractions are
+       ratios within the box, so they hold in the drawn frame the sprite's
+       shell row speaks too. */
+    const smS = /data-shell0="([-\d. ]+)"/.exec(boardSvg) ?? /data-shell="([-\d. ]+)"/.exec(boardSvg);
     if (gmS && smS) {
       const [gx0, gx1, gSpine, gFree, gPrem, gLabel] = gmS[1].split(" ").map(Number);
       const [shx, shy, shw, shh] = smS[1].split(" ").map(Number);
