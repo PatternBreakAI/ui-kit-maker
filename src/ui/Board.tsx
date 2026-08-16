@@ -890,7 +890,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
 
   return (
-    <div className="board2" style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
+    <div className={`board2${playing ? " playing" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
       {/* ── assets ── */}
       <aside className="bd-assets">
         <span className="bd-traygrip bd-traygrip--l" role="separator" aria-orientation="vertical" aria-label="Resize the assets tray"
@@ -1056,28 +1056,35 @@ export function BoardView({ playing }: { playing: boolean }) {
             const fit = fitOf(bd);
             return (
               <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
-                <header className="bd-abhead">
+                {/* the header hugs the stage's width and speaks in icons —
+                    the words live in the tooltips, the spec line moved
+                    UNDER the image (owner: "save space on the persistent
+                    menu... reduce downloads, duplicate and clear to their
+                    icons only") */}
+                <header className="bd-abhead" style={{ width: Math.max(W * fit, 200) }}>
                   <input className="bd-abname" value={bd.name} aria-label="Board name" maxLength={40}
                     onFocus={() => setActiveBoard(bd.id)}
                     onChange={(e) => renameBoard(bd.id, e.target.value)} />
-                  <span className="bd-abmeta">{aspName} · {W} × {H}</span>
-                  <button className="bd-abtool" title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution — background, overlay and pieces`}
+                  <button className="bd-abtool" aria-label={`Export ${bd.name} as PNG`}
+                    title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution — background, overlay and pieces`}
                     onClick={() => void exportPng(bd)}>
-                    <Download size={12} strokeWidth={2.2} /> PNG
+                    <Download size={12} strokeWidth={2.2} />
                   </button>
-                  <button className="bd-abtool" title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
+                  <button className="bd-abtool" aria-label={`Duplicate ${bd.name}`}
+                    title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
                     onClick={() => duplicateBoard(bd.id)}>
-                    <Copy size={12} strokeWidth={2.2} /> Duplicate
+                    <Copy size={12} strokeWidth={2.2} />
                   </button>
-                  <button className="bd-abtool" title="Clear this board — every piece and the background"
+                  <button className="bd-abtool" aria-label={`Clear ${bd.name}`}
+                    title="Clear this board — every piece and the background"
                     onClick={() => {
                       const hasBg = !!(bd.bgImage || bd.bgVideo);
                       const what = bd.items.length ? `all ${bd.items.length} pieces${hasBg ? " and the background" : ""}` : hasBg ? "the background" : "";
                       if (!what || window.confirm(`Clear ${what} from ${bd.name}?`)) clearBoard(bd.id);
                     }}>
-                    Clear
+                    <X size={12} strokeWidth={2.2} />
                   </button>
-                  <button className="bd-abtool danger" title="Delete this board"
+                  <button className="bd-abtool danger" aria-label={`Delete ${bd.name}`} title="Delete this board"
                     onClick={() => { if (bd.items.length === 0 || window.confirm(`Delete ${bd.name} and its ${bd.items.length} pieces?`)) removeBoard(bd.id); }}>
                     <Trash2 size={12} strokeWidth={2.2} />
                   </button>
@@ -1206,6 +1213,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                 </div>
+                <span className="bd-abmeta">{aspName} · {W} × {H}</span>
               </section>
             );
           })}

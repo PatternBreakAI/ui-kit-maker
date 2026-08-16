@@ -1333,8 +1333,10 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
           onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* where the motion actually plays — judging it on the kit page reads
-            as a dead control (the gallery rests by design, fcc7b6c) */}
-        <div className="helper">Shines play on the editor canvas, boards, Play mode and in Unity. The kit page gallery rests on purpose — judge the motion here or on a board.</div>
+            as a dead control (the gallery rests by design, fcc7b6c); boards
+            rest in Design too (owner, 2026-08-16: "the idle animation should
+            only play when play is pressed") */}
+        <div className="helper">Shines play on the editor canvas, in a board's Play mode and in Unity. The kit page gallery and boards in Design rest on purpose — judge the motion here or press Play on a board.</div>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.

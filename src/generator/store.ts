@@ -4,7 +4,7 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollSta
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
-import { isAssetRef, resolveBgAsset, assetCloudBacked } from "./assets";
+import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
@@ -1062,10 +1062,12 @@ export async function importBoards(raw: unknown): Promise<boolean> {
          ref stays pinned even when it can't paint yet — rehydrateBoardBgs
          retries at boot and on sign-in. Content addressing makes a
          foreign ref harmless: the resolver verifies every downloaded
-         byte against the hash, so it can only ever alias identical bytes. */
-      const rec = await resolveBgAsset(b.bgRef).catch(() => null);
+         byte against the hash, so it can only ever alias identical bytes.
+         The display url comes from the per-id cache, so re-opening a
+         project that names the workspace's backdrop repaints nothing. */
+      const url = await bgAssetDisplayUrl(b.bgRef).catch(() => null);
       b.bgAssetId = b.bgRef;
-      if (rec) b.bgImage = URL.createObjectURL(rec.blob);
+      if (url) b.bgImage = url;
       else delete (b as Partial<BoardDef>).bgImage;
       vaulted = true;
     } else if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
@@ -1116,14 +1118,21 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
   bgRehydrating = true;
   try {
     const { putBgOriginal } = await import("./bgvault");
-    const { resolveBgAsset } = await import("./assets");
+    const { bgAssetDisplayUrl } = await import("./assets");
     const st = useGen.getState();
-    let changed = false;
+    let changed = false;    // some board's paint state moved — setState
+    let docChanged = false; // the PERSISTED doc moved (migration) — save it
     const boards = await Promise.all(st.boards.map(async (b) => {
-      // vault- or cloud-backed board whose session URL died with the last tab
-      if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
-        const rec = await resolveBgAsset(b.bgAssetId);
-        if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+      /* vault- or cloud-backed board whose session URL died with the last
+         tab. A LIVE blob: url is not missing: object URLs never survive a
+         reload (loadBoards nulls them at boot), so any blob: here was
+         minted this session and still paints — re-resolving it swapped
+         the CSS url per pass and the backdrop re-decoded (the live
+         flicker, 2026-08-16). bgAssetDisplayUrl is cached per asset id,
+         so even a repeated poke repaints nothing. */
+      if (b.bgAssetId && !b.bgImage) {
+        const url = await bgAssetDisplayUrl(b.bgAssetId);
+        if (url) { changed = true; return { ...b, bgImage: url }; }
         return b;
       }
       // legacy data-URL board — move the pixels into the vault, slim the doc
@@ -1131,7 +1140,7 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
         try {
           const blob = await (await fetch(b.bgImage)).blob();
           const id = await putBgOriginal(blob, "migrated");
-          if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
+          if (id) { changed = true; docChanged = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
         } catch { /* undecodable — leave it */ }
       }
       return b;
@@ -1139,8 +1148,12 @@ export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<voi
     if (changed) {
       // no history entry — this is plumbing, not an edit
       useGen.setState({ boards });
-      saveBoards(useGen.getState);
     }
+    /* only the migration path changes what SAVES (blob: urls strip out of
+       the doc) — a paint-only pass must not touch localStorage: every
+       synced-key write flips the TopBar to "syncing" and schedules a
+       push, and this ran on a loop once */
+    if (docChanged) saveBoards(useGen.getState);
   } finally {
     bgRehydrating = false;
   }
@@ -1612,9 +1625,30 @@ export const useGen = create<GenStore>((set, get) => ({
     return next;
   }),
   addStampToBoard: (plain) => {
+    /* land CENTERED on the ACTIVE board's stage — a fixed 560×420 was
+       tuned to the 16:9 stage and threw stamps clean off a 390-wide
+       mobile board (owner: "couldn't get typestamp to work on a mobile
+       board... appearing somewhere outside of the canvas area"). Measure
+       the real specimen, shrink it until it fits the stage's width, then
+       split the difference both ways. */
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    let stamp: NonNullable<BoardItem["stamp"]> = plain
+      ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } }
+      : { text: "GAME TITLE", size: 100 };
+    const measure = (): [number, number] => {
+      const m = / width="([\d.]+)" height="([\d.]+)"/.exec(stampSvg(get().cfg, stamp));
+      return m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
+    };
+    let [w, h] = measure();
+    if (w > W * 0.86) {
+      stamp = { ...stamp, size: Math.max(25, Math.floor((stamp.size * W * 0.86) / w)) };
+      [w, h] = measure();
+    }
     const item: BoardItem = {
-      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", x: 560, y: 420,
-      stamp: plain ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } } : { text: "GAME TITLE", size: 100 },
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "",
+      x: Math.max(0, Math.round((W - w) / 2)), y: Math.max(0, Math.round((H - h) / 2)),
+      stamp,
     };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ phase: "board", boardSel: item.id });
@@ -1647,11 +1681,24 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   pasteBoardItems: (items) => {
     if (!items.length) return [];
+    /* paste carries coordinates from the SOURCE board — a piece copied on
+       the 16:9 stage pasted onto a 390-wide mobile board used to land
+       invisibly off-canvas (owner: "mobile doesn't seem to be accepting
+       copy/paste"). If the +24 nudge would seat the group off the active
+       stage, re-seat its corner at 24 (relative layout intact), then pin
+       any straggler so a grabbable sliver always stays inside the edges. */
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const minX = Math.min(...items.map((it) => it.x));
+    const minY = Math.min(...items.map((it) => it.y));
+    const fits = (v: number, max: number) => v >= 0 && v <= max;
+    const ox = (fits(minX + 24, W - 140) ? minX + 24 : 24) - minX;
+    const oy = (fits(minY + 24, H - 100) ? minY + 24 : 24) - minY;
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       ...structuredClone(it),
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      x: it.x + 24, y: it.y + 24,
+      x: Math.min(W - 60, Math.max(0, it.x + ox)), y: Math.min(H - 40, Math.max(0, it.y + oy)),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: add[0].id });

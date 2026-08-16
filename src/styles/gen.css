@@ -1122,6 +1122,14 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    crown. The editor canvas is untouched (no .kitpage ancestor). The
    infinite motion demos and attention pulses rest the same way. */
 .kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
+/* The Board rests the same way in DESIGN mode (owner, 2026-08-16: "the
+   idle animation should only play when play is pressed") — a screen full
+   of perpetually-sweeping pieces kept the compositor repainting while the
+   owner was trying to arrange, and amplified every other repaint into
+   visible chug. Press Play and the shines run; paused at 0% both shines
+   are invisible by construction (the wipe band starts off-face, the edge
+   spark parks at dasharray 0 / opacity 0). */
+.board2:not(.playing) .kit-shine, .board2:not(.playing) .kit-edgeshine { animation-play-state: paused; }
 /* No rollover one-shots for the idle shines here — a gallery where every
    piece flashes as the pointer crosses it read as chaos, not craft
    (owner: "the idle animations are happening on rollover in the kit...
@@ -2208,11 +2216,18 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 /* ── v57: The Board — a vertical stack of named artboards ───────── */
 /* overflow-x carries zoomed-in boards; safe-center keeps a wide stage
    reachable instead of clipping both edges */
-.bd-boards { flex-direction: column; align-items: safe center; justify-content: flex-start; gap: 36px; overflow-y: auto; overflow-x: auto; padding: 18px 16px 90px; }
-.bd-artboard { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+/* boards FLOW — a duplicate lands beside its source and rows wrap like
+   pages on a desk, never more than three across even at the widest
+   Pro Display XDR breakpoint (owner). The cap is structural: every cell
+   claims at least a third of the row, so a fourth board must wrap;
+   narrow mobile stages simply center inside their cell. */
+.bd-boards { flex-flow: row wrap; align-items: flex-start; align-content: flex-start; justify-content: safe center; gap: 36px; overflow-y: auto; overflow-x: auto; padding: 18px 16px 90px; }
+.bd-artboard { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 100%; min-width: min(calc((100% - 72px) / 3), 100%); }
 .bd-artboard.on > .bd-stage { outline: 2px solid rgba(120, 190, 255, 0.5); outline-offset: 5px; }
-.bd-abhead { display: flex; align-items: center; gap: 10px; }
-.bd-abname { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; font: 700 13.5px/1.2 inherit; color: var(--ink); width: 190px; min-width: 0; }
+.bd-abhead { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+/* the name flexes into whatever the icons leave and ELLIPSIZES — a long
+   board name must never wrap the header or push the verbs off the row */
+.bd-abname { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; font: 700 13.5px/1.2 inherit; color: var(--ink); flex: 1 1 40px; width: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bd-abname:hover { border-color: var(--line2); }
 .bd-abname:focus { border-color: var(--line2); background: var(--card); outline: none; }
 .bd-abmeta { font-size: 11px; color: var(--ink3); white-space: nowrap; }
@@ -2220,7 +2235,7 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .bd-abtool { border: 1px solid var(--line2); background: var(--card); color: var(--ink2); border-radius: 8px; padding: 4px 10px; font: 600 11.5px inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .bd-abtool:hover { color: var(--ink); }
 .bd-abtool.danger:hover { color: #e5534b; border-color: rgba(229, 83, 75, 0.5); }
-.bd-addboard-inline { border: 1.5px dashed var(--line2); background: none; color: var(--ink2); border-radius: 12px; padding: 12px 26px; font: 600 12.5px inherit; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+.bd-addboard-inline { border: 1.5px dashed var(--line2); background: none; color: var(--ink2); border-radius: 12px; padding: 12px 26px; font: 600 12.5px inherit; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; align-self: center; }
 .bd-addboard-inline:hover { color: var(--ink); border-color: var(--ink3); }
 
 /* pages tray — InDesign style: click to jump, arrows to reorder */

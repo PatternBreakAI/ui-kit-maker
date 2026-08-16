@@ -15,12 +15,17 @@ P1 shipped on `claude/app-tweaks` (survey wf 2-agent, spec followed).
   admin-only (standing staged rule). Reads carry the listComponentReleases
   null-vs-empty contract: a flaked read NEVER blanks live promos
   (cloud.ts listPromos/readPromosLive; store keeps prev on null).
-- Surfaces: kit-page shelf under ChapterTabs (max 3 live cards, cg-card
-  frame/fill r16/15, engine art ≥150px zone, expiring NEW badge, ONE quiet
-  CTA, per-card dismissal → `ui-generator-promo-seen` rides workspace sync,
-  seen = de-emphasized not gone); Looks rack NEW tile (first live kind:kit
-  card, one presetcard seat, pinned, no dismissal — applies the matching
-  shared preset through the rack's tier gate, else routes).
+- Surfaces: the shelf (max 3 live cards, cg-card frame/fill r16/15, engine
+  art ≥150px zone, expiring NEW badge, ONE quiet CTA, per-card dismissal →
+  `ui-generator-promo-seen` rides workspace sync, seen = de-emphasized not
+  gone) — MOVED 2026-08-16 from the kit page to the TOP of the projects
+  home (#/projects, the Adobe rail position; owner: "this is where the
+  promo stuff belongs, not on the kit page… the kit remains pure"). The
+  kit page carries no promo surface anymore. Looks rack NEW tile stays in
+  the editor (first live kind:kit card, one presetcard seat, pinned, no
+  dismissal — applies the matching shared preset through the rack's tier
+  gate, else routes); it is editor furniture, not promo real estate —
+  flagged for the owner's veto.
 - Governance (Tutor house culture): every card has a real destination, no
   modals, nothing blocks input, nothing animates unbidden (SMIL parked via
   stillSmil + kit-shine CSS paused until card hover).
