@@ -4,6 +4,7 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollSta
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
+import { isAssetRef, resolveBgAsset, assetCloudBacked } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
@@ -942,6 +943,18 @@ const keepBg = (u: string | null | undefined) => (u && !u.startsWith("blob:") &&
 const saveBoards = (get: () => { boards: BoardDef[]; activeBoard: string }) =>
   saveJson(BOARD_KEY, { v: 2, active: get().activeBoard, boards: get().boards.map((b) => ({ ...b, bgImage: keepBg(b.bgImage), bgVideo: keepBg(b.bgVideo) })) });
 
+/* retiring a backdrop: legacy vault records are single-owner — delete on
+   sight, exactly as before. `asset://` records are content-addressed and
+   MAY be shared (a duplicated board keeps its sibling's ref), so the
+   local CACHE entry only goes when the last board naming it does — and
+   the CLOUD copy is never touched here at all: a saved project doc may
+   still name that hash, and the resolver restores the cache on demand
+   anyway. Cloud GC is phase 2. */
+const releaseBgAsset = (id: string, remaining: () => BoardDef[]) => {
+  if (isAssetRef(id) && remaining().some((b) => b.bgAssetId === id)) return;
+  void delBgOriginal(id);
+};
+
 /* ── boards in the settings file (owner: "are the boards also saved in the
    export json? if not, they should be") ──
    The travelling form embeds each vaulted backdrop ORIGINAL as a data URL
@@ -957,16 +970,27 @@ const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
   r.readAsDataURL(blob);
 });
 
-export async function exportableBoards(bs: BoardDef[]): Promise<Record<string, unknown>[]> {
+export async function exportableBoards(bs: BoardDef[], opts?: { cloudRefs?: boolean }): Promise<Record<string, unknown>[]> {
   return Promise.all(bs.map(async (b) => {
     const out = JSON.parse(JSON.stringify(b)) as Record<string, unknown>;
     if (b.bgAssetId) {
-      try {
-        const rec = await getBgOriginal(b.bgAssetId);
-        if (rec) out.bgData = await blobToDataUrl(rec.blob);
-      } catch { /* the backdrop just doesn't travel */ }
+      /* cloudRefs (cloud PROJECT docs only): a backdrop VERIFIED present
+         in the owner's cloud folder travels as its tiny `asset://` ref —
+         the doc stays kilobytes and the pixels live once, in storage.
+         Anything unverified (guest, offline, upload still in flight)
+         embeds bgData exactly as before, so no doc ever names a backdrop
+         that exists nowhere. File exports never pass cloudRefs — a
+         settings file must open on any machine, signed in or not. */
+      if (opts?.cloudRefs && isAssetRef(b.bgAssetId) && await assetCloudBacked(b.bgAssetId)) {
+        out.bgRef = b.bgAssetId;
+      } else {
+        try {
+          const rec = await resolveBgAsset(b.bgAssetId);
+          if (rec) out.bgData = await blobToDataUrl(rec.blob);
+        } catch { /* the backdrop just doesn't travel */ }
+      }
     }
-    delete out.bgAssetId; // vault keys mean nothing on another machine
+    delete out.bgAssetId; // local vault keys mean nothing on another machine
     if (typeof out.bgImage === "string" && (out.bgImage as string).startsWith("blob:")) delete out.bgImage;
     return out;
   }));
@@ -984,7 +1008,7 @@ export async function importBoards(raw: unknown): Promise<boolean> {
   const boards: BoardDef[] = [];
   for (const [bi, rb] of (raw as unknown[]).entries()) {
     if (!rb || typeof rb !== "object") continue;
-    const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string };
+    const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string; bgRef?: string };
     b.id = "ab" + stamp + bi.toString(36);
     b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
     b.aspect = b.aspect === "mobile" ? "mobile" : "169";
@@ -995,7 +1019,19 @@ export async function importBoards(raw: unknown): Promise<boolean> {
     // strings that end up in CSS url() get the same strictness as
     // loadKitPayload's travelling stage: known-safe shapes only
     let vaulted = false;
-    if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
+    if (isAssetRef(b.bgRef)) {
+      /* a cloud-backed backdrop travels as its content hash. Resolution
+         may need the network (or the sign-in that owns the copy), so the
+         ref stays pinned even when it can't paint yet — rehydrateBoardBgs
+         retries at boot and on sign-in. Content addressing makes a
+         foreign ref harmless: the resolver verifies every downloaded
+         byte against the hash, so it can only ever alias identical bytes. */
+      const rec = await resolveBgAsset(b.bgRef).catch(() => null);
+      b.bgAssetId = b.bgRef;
+      if (rec) b.bgImage = URL.createObjectURL(rec.blob);
+      else delete (b as Partial<BoardDef>).bgImage;
+      vaulted = true;
+    } else if (typeof b.bgData === "string" && bgDataUrlOk(b.bgData)) {
       try {
         const blob = await (await fetch(b.bgData)).blob();
         const key = await putBgOriginal(blob, "imported backdrop");
@@ -1011,6 +1047,7 @@ export async function importBoards(raw: unknown): Promise<boolean> {
       if (typeof b.bgImage === "string" && !/^(\/|https:\/\/)/.test(b.bgImage)) delete (b as Partial<BoardDef>).bgImage;
     }
     delete b.bgData;
+    delete b.bgRef;
     if (typeof b.bgVideo === "string" && !/^(\/|https:\/\/)/.test(b.bgVideo)) delete (b as Partial<BoardDef>).bgVideo;
     boards.push(b);
   }
@@ -1031,33 +1068,44 @@ export async function importBoards(raw: unknown): Promise<boolean> {
    Boot restores the URLs; legacy data-URL boards migrate into the vault
    the first time they load. */
 let bgRehydrated = false;
-export async function rehydrateBoardBgs(): Promise<void> {
-  if (bgRehydrated || typeof indexedDB === "undefined") return;
+let bgRehydrating = false;
+export async function rehydrateBoardBgs(opts?: { retry?: boolean }): Promise<void> {
+  /* `retry` re-runs after the boot pass — the cloud resolver may only
+     succeed once the parked session restores (a synced browser opening a
+     workspace whose backdrops live in the account's bucket), so App.tsx
+     pokes this again when the cloud comes up. */
+  if ((bgRehydrated && !opts?.retry) || bgRehydrating || typeof indexedDB === "undefined") return;
   bgRehydrated = true;
-  const { getBgOriginal, putBgOriginal } = await import("./bgvault");
-  const st = useGen.getState();
-  let changed = false;
-  const boards = await Promise.all(st.boards.map(async (b) => {
-    // vault-backed board whose session URL died with the last tab
-    if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
-      const rec = await getBgOriginal(b.bgAssetId);
-      if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+  bgRehydrating = true;
+  try {
+    const { putBgOriginal } = await import("./bgvault");
+    const { resolveBgAsset } = await import("./assets");
+    const st = useGen.getState();
+    let changed = false;
+    const boards = await Promise.all(st.boards.map(async (b) => {
+      // vault- or cloud-backed board whose session URL died with the last tab
+      if (b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:"))) {
+        const rec = await resolveBgAsset(b.bgAssetId);
+        if (rec) { changed = true; return { ...b, bgImage: URL.createObjectURL(rec.blob) }; }
+        return b;
+      }
+      // legacy data-URL board — move the pixels into the vault, slim the doc
+      if (b.bgImage && b.bgImage.startsWith("data:image/") && !b.bgAssetId) {
+        try {
+          const blob = await (await fetch(b.bgImage)).blob();
+          const id = await putBgOriginal(blob, "migrated");
+          if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
+        } catch { /* undecodable — leave it */ }
+      }
       return b;
+    }));
+    if (changed) {
+      // no history entry — this is plumbing, not an edit
+      useGen.setState({ boards });
+      saveBoards(useGen.getState);
     }
-    // legacy data-URL board — move the pixels into the vault, slim the doc
-    if (b.bgImage && b.bgImage.startsWith("data:image/") && !b.bgAssetId) {
-      try {
-        const blob = await (await fetch(b.bgImage)).blob();
-        const id = await putBgOriginal(blob, "migrated");
-        if (id) { changed = true; return { ...b, bgImage: URL.createObjectURL(blob), bgAssetId: id }; }
-      } catch { /* undecodable — leave it */ }
-    }
-    return b;
-  }));
-  if (changed) {
-    // no history entry — this is plumbing, not an edit
-    useGen.setState({ boards });
-    saveBoards(useGen.getState);
+  } finally {
+    bgRehydrating = false;
   }
 }
 
@@ -1340,7 +1388,7 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   removeBoard: (id) => {
     const dead = get().boards.find((b) => b.id === id);
-    if (dead?.bgAssetId) void delBgOriginal(dead.bgAssetId);
+    if (dead?.bgAssetId) releaseBgAsset(dead.bgAssetId, () => get().boards.filter((b) => b.id !== id));
     mutateBoards(get, set, null, (bs) => {
       const rest = bs.filter((b) => b.id !== id);
       // never zero artboards — deleting the last one leaves a fresh empty one
@@ -1363,11 +1411,13 @@ export const useGen = create<GenStore>((set, get) => ({
         ...(typeof structuredClone === "function" ? structuredClone(b) : JSON.parse(JSON.stringify(b)) as BoardItem),
         id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
       })),
-      /* vault records are NEVER shared between boards — removeBoard and a
-         backdrop swap both retire the original, which would strand the
-         sibling. The copy's own bytes land asynchronously below; until
-         then bgImage still paints this session. */
-      bgAssetId: null,
+      /* LEGACY vault records are never shared between boards — removeBoard
+         and a backdrop swap retire them on sight, which would strand a
+         sibling; those get their own copy asynchronously below. `asset://`
+         records are content-addressed and refcounted by releaseBgAsset,
+         so the duplicate simply keeps the same ref — same bytes, one
+         cloud object, no copy to make. */
+      bgAssetId: isAssetRef(src.bgAssetId) ? src.bgAssetId : null,
     };
     mutateBoards(get, set, null, (bs) => {
       const i = bs.findIndex((b) => b.id === id);
@@ -1376,7 +1426,7 @@ export const useGen = create<GenStore>((set, get) => ({
       return next;
     });
     set({ activeBoard: nid, boardSel: null });
-    if (src.bgAssetId) {
+    if (src.bgAssetId && !isAssetRef(src.bgAssetId)) {
       void getBgOriginal(src.bgAssetId).then(async (rec) => {
         if (!rec) return;
         const fresh = await putBgOriginal(rec.blob, rec.name);
@@ -1402,20 +1452,23 @@ export const useGen = create<GenStore>((set, get) => ({
        with it, same as the darkroom's own Clear; the proxy stays displayable
        for undo. */
     const tgt = get().boards.find((b) => b.id === id);
-    if (tgt?.bgAssetId) void delBgOriginal(tgt.bgAssetId);
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === id ? { ...b, items: [], bgImage: null, bgVideo: null, bgAssetId: null } : b)));
+    if (tgt?.bgAssetId) releaseBgAsset(tgt.bgAssetId, () => get().boards);
     set({ boardSel: null });
   },
   setBoardBg: (patch) => {
     /* replacing or clearing a vaulted background retires its ORIGINAL from
        the vault — the proxy in bgImage keeps history/undo displayable, so
-       only the heavyweight bytes are reclaimed */
+       only the heavyweight bytes are reclaimed (release AFTER the mutation
+       so a shared asset:// ref sees the true remaining reference count) */
+    let retire: string | null = null;
     if ("bgImage" in patch || "bgVideo" in patch || "bgAssetId" in patch) {
       const cur = get().boards.find((b) => b.id === get().activeBoard);
-      if (cur?.bgAssetId && cur.bgAssetId !== patch.bgAssetId) void delBgOriginal(cur.bgAssetId);
+      if (cur?.bgAssetId && cur.bgAssetId !== patch.bgAssetId) retire = cur.bgAssetId;
       if (!("bgAssetId" in patch)) patch = { ...patch, bgAssetId: null };
     }
     mutateBoards(get, set, "bg", (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, ...patch } : b)));
+    if (retire) releaseBgAsset(retire, () => get().boards);
   },
   saveBoardItemAsAsset: (id, name) => {
     const st = get();
@@ -1632,7 +1685,12 @@ export const useGen = create<GenStore>((set, get) => ({
      vault keys, so undo history and the workspace sync stay lean. */
   kitPayloadWithBoards: async () => {
     const st = get();
-    let boards = await exportableBoards(st.boards);
+    /* cloudRefs: a backdrop verified present in the account's bucket
+       travels as its `asset://` ref — kilobytes instead of megabytes,
+       and the size guard below stops firing for cloud-backed art.
+       Unverified backdrops still embed, so guests and offline saves
+       stay whole. */
+    let boards = await exportableBoards(st.boards, { cloudRefs: true });
     /* the project doc is one jsonb row — several multi-MB backdrops can
        push it past what the API accepts (review catch: no size guard
        anywhere). Over budget, the LAYOUTS still save; the images stay in

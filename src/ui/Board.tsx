@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
-import { putBgOriginal, normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
+import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
+import { importBgAsset, bgAssetStatusLine, onAssetActivity } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -444,7 +445,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     setBoardBg({ bgVideo: url, bgImage: null, bgShow: true });
     void captureVideoPoster(url).then(async (blob) => {
       if (!blob) return;
-      const assetId = await putBgOriginal(blob, name);
+      const assetId = await importBgAsset(blob, name);
       if (assetId && useGen.getState().activeBoard === bid) setBoardBg({ bgVideo: url, bgImage: null, bgAssetId: assetId, bgShow: true });
     });
   };
@@ -1536,6 +1537,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own — image or mp4</button>
               </div>
             )}
+            <BgKeepsafeLine />
             <input ref={bgInput} type="file" accept="image/*,video/mp4,video/webm" hidden
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -1544,9 +1546,11 @@ export function BoardView({ playing }: { playing: boolean }) {
                   /* ONE copy, in the vault: the ship copy (≤1920) is also
                      the display image, served as a session object URL — the
                      board DOC carries only the tiny bgAssetId, so history,
-                     saves and cloud sync never drag pixels (field crash) */
+                     saves and cloud sync never drag pixels (field crash).
+                     Signed in, importBgAsset also sends the copy to the
+                     account's bucket so it's still there on any browser. */
                   else void normalizeShipCopy(f).then(async (ship) => {
-                    const assetId = await putBgOriginal(ship, f.name);
+                    const assetId = await importBgAsset(ship, f.name);
                     setBoardBg({ bgImage: URL.createObjectURL(ship), bgAssetId: assetId, bgVideo: null, bgShow: true });
                   });
                 }
@@ -1593,6 +1597,23 @@ export function BoardView({ playing }: { playing: boolean }) {
       </aside>
     </div>
   );
+}
+
+/* The keep-safe line under the import control (owner: "when I or a user
+   uploads an image we need to know it's gonna be there when we return").
+   Guests get the quiet sign-in nudge — their uploads die with this
+   browser's cache; account holders get the quiet meter ("34 MB of
+   50 MB"), refreshed whenever an asset moves. Cloud off → nothing. */
+function BgKeepsafeLine() {
+  const [line, setLine] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    const refresh = () => { void bgAssetStatusLine().then((s) => { if (!dead) setLine(s); }); };
+    refresh();
+    const off = onAssetActivity(refresh);
+    return () => { dead = true; off(); };
+  }, []);
+  return line ? <div className="bd-note bd-keepsafe">{line}</div> : null;
 }
 
 /** One piece on the stage — draggable, selectable, optionally rotated.

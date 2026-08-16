@@ -17,6 +17,15 @@ import { startTutor } from "./tutor/tutor";
    "freezes whenever I click anything in the left tray"). */
 function useBoardBgBoot() {
   useEffect(() => { void rehydrateBoardBgs(); }, []);
+  /* a board whose backdrop lives only in the ACCOUNT's bucket (fresh
+     browser, workspace arrived via sync) can't paint until the parked
+     session restores — poke the rehydrate again once the cloud is up,
+     but only while some board is actually missing its image */
+  useEffect(() => onCloudStatus((s) => {
+    if (s.state !== "synced" && s.state !== "syncing") return;
+    const missing = useGen.getState().boards.some((b) => b.bgAssetId && (!b.bgImage || b.bgImage.startsWith("blob:")));
+    if (missing) void rehydrateBoardBgs({ retry: true });
+  }), []);
 }
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
