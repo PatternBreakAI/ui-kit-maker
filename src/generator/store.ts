@@ -302,6 +302,14 @@ interface GenStore {
    *  page's edit buttons so the canvas shows the piece you clicked. */
   kitKind: "circle" | "oval" | "strip" | null;
   setKitKind: (k: "circle" | "oval" | "strip" | null) => void;
+  /** Render-variant overlay being edited — same contract as kitKind, for
+   *  pieces whose variant is an overlay instead of a kind (the ghost
+   *  joystick). Set by the kit page's edit buttons (variant cards set
+   *  theirs, stock cards clear it) so the canvas shows the face you
+   *  clicked (owner: editing the ghost landed on "the other green
+   *  joystick"). */
+  kitOverlay: string | null;
+  setKitOverlay: (o: string | null) => void;
   inheritDefaults: () => void;
   /** Promote the selected state's design + adjustments to be the new Default.
    *  The state then mirrors the new Default again. */
@@ -2181,6 +2189,11 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   kitKind: null,
   setKitKind: (k) => { if (get().kitLocks.panel) return; set({ kitKind: k }); },
+  // no lock guard: the overlay only picks which FACE the canvas shows —
+  // navigation, not a design edit, so a locked joystick still lands on
+  // the variant the owner clicked
+  kitOverlay: null,
+  setKitOverlay: (o) => set({ kitOverlay: o }),
   inheritDefaults: () => {
     /* A locked focused piece keeps its state forks — and now its state
        adjustments — in the LOCK; the master's aren't the ones on screen, so

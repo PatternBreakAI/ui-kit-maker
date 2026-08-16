@@ -312,7 +312,7 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind } = useGen();
+  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
@@ -375,7 +375,9 @@ function usePiece(p: PieceOpts) {
       })() : {}),
     },
     onEdit: () => {
-      setKitKind(p.kind ?? null); setFocus(p.id);
+      // the variant card's overlay rides along (the ghost joystick), the
+      // stock card clears it — the canvas shows the face that was clicked
+      setKitKind(p.kind ?? null); setKitOverlay(p.overlay ?? null); setFocus(p.id);
       // arriving from a piece's Edit button, surface its content controls —
       // text and icon swaps live there and collapsed sections hide them
       useGen.setState((st) => ({ open: { ...st.open, kiticon: true } }));
