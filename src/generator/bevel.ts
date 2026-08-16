@@ -8121,7 +8121,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const sxg = clamp(opts.stick?.[0] ?? 0, -1, 1), syg = clamp(opts.stick?.[1] ?? 0, -1, 1);
         const magG = Math.hypot(sxg, syg), fg = magG > 1 ? 1 / magG : 1;
         const kxg = cxg + sxg * fg * maxOffG, kyg = cyg + syg * fg * maxOffG;
-        const rim = hexMix(glow, "#FFFFFF", 0.42);
+        /* every stroke and glass fill mixes from ONE hue — the kit's Glow
+           role by factory, the Ghost color slot when picked (owner: "i also
+           need to be able to edit the color on the ghost joystick"). Unset
+           keeps the factory render untouched. */
+        const gInk = opts.slots?.ghostink ?? glow;
+        const rim = hexMix(gInk, "#FFFFFF", 0.42);
         const tick = (a: number) => {
           const c = Math.cos(a), s3 = Math.sin(a);
           return `<line x1="${(cxg + c * (R - 7)).toFixed(1)}" y1="${(cyg + s3 * (R - 7)).toFixed(1)}" x2="${(cxg + c * (R + 5)).toFixed(1)}" y2="${(cyg + s3 * (R + 5)).toFixed(1)}" stroke="${rim}" stroke-width="3" stroke-linecap="round" opacity="0.8"/>`;
@@ -8135,7 +8140,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const gid = "gj" + UID++;
         const gsvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d2 + pad2 * 2}" height="${d2 + pad2 * 2}" viewBox="0 0 ${d2 + pad2 * 2} ${d2 + pad2 * 2}" role="img" aria-label="joystick overlay, ${state} state">
 <defs>
-  <radialGradient id="${gid}w"><stop offset="0.55" stop-color="${glow}" stop-opacity="0.05"/><stop offset="0.92" stop-color="${glow}" stop-opacity="0.16"/><stop offset="1" stop-color="${glow}" stop-opacity="0.02"/></radialGradient>
+  <radialGradient id="${gid}w"><stop offset="0.55" stop-color="${gInk}" stop-opacity="0.05"/><stop offset="0.92" stop-color="${gInk}" stop-opacity="0.16"/><stop offset="1" stop-color="${gInk}" stop-opacity="0.02"/></radialGradient>
   <radialGradient id="${gid}k" cx="0.38" cy="0.32" r="0.95"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/><stop offset="0.6" stop-color="${rim}" stop-opacity="0.16"/><stop offset="1" stop-color="${rim}" stop-opacity="0.05"/></radialGradient>
 </defs>
 <g>
@@ -8146,7 +8151,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   ${chev(-Math.PI / 2)}${chev(0)}${chev(Math.PI / 2)}${chev(Math.PI)}
   <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${krg.toFixed(1)}" fill="url(#${gid}k)" stroke="${rim}" stroke-width="2.5" opacity="0.95"/>
   <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.42).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.5" opacity="0.55"/>
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(glow, "#FFFFFF", 0.6)}" opacity="0.95"/>
+  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(gInk, "#FFFFFF", 0.6)}" opacity="0.95"/>
 </g>
 </svg>`;
         return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" `);

@@ -1268,6 +1268,13 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
       note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
   ],
+  joystick: [
+    /* the overlay stick's stroke-and-glass ink all mixes from one hue
+       (owner: "i also need to be able to edit the color on the ghost
+       joystick") */
+    { id: "ghostink", name: "Ghost color", kind: "color", def: "#FFFFFF",
+      note: "The ghost overlay stick's ink — ring, ticks, chevrons and knob all mix from this one hue. Factory follows the kit's Glow role; a picked color takes over. The solid pad doesn't wear it." },
+  ],
   invgrid: [
     /* every cell's glyph is content (owner: "I should be able to change
        the icons in the text section") — nine wells, three spares */
