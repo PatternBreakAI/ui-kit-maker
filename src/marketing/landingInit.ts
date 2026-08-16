@@ -1759,11 +1759,11 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
 
       applyReelEntry(REEL[0]);
       /* ── community hero lineup: owner-designated kits join the carousel ──
-         GET /api/hero-lineup, fetched after first paint and appended when it
-         lands. The endpoint is fail-soft and so is this: an empty, failed, or
-         odd payload leaves the built-in lineup exactly as it is, each entry
-         applies inside its own try/catch, and names already in the lineup are
-         skipped. */
+         GET /api/hero-lineup, fetched after first paint and seated when it
+         lands — at their rack-ordered positions, a same-named built-in's
+         seat taken over (see the cross-lane note below). The endpoint is
+         fail-soft and so is this: an empty, failed, or odd payload leaves
+         the built-in lineup exactly as it is. */
       setTimeout(() => {
         fetch("/api/hero-lineup")
           .then((r) => (r.ok ? r.json() : { heroes: [] }))
@@ -1785,13 +1785,25 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                 if (hid.has(el.dataset.pid || "") || hid.has(el.dataset.kname || "")) el.remove();
               });
             } catch (_) { /* cards stand */ }
-            const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 8) : [];
+            /* cross-lane touch (app session, 2026-08-16): the unified
+               rotation. The admin rack orders built-ins and designated
+               heroes as ONE list, and the reel seats each hero to match:
+               a hero wearing a built-in's name TAKES OVER that entry (the
+               owner designated it deliberately — the frozen snapshot wins
+               the seat and the art), any other hero splices in at its
+               ordered seat, and with no order list everything lands at
+               the end exactly as before. Chips keep their old rule (one
+               swatch per new name, appended). Fail-soft stands: each
+               entry applies inside its own try/catch, and a bad one
+               changes nothing. */
+            const heroes = Array.isArray(data && data.heroes) ? data.heroes.slice(0, 16) : [];
             const seen = new Set(PAL.map((p) => p.name.toLowerCase()).concat(REEL.map((e2) => e2.name.toLowerCase())));
+            const placed = new Set();
             heroes.forEach((h) => {
               try {
                 if (!h || typeof h.name !== "string" || !h.name.trim() || !h.cfg || typeof h.cfg !== "object") return;
-                if (hid.has(h.name.toLowerCase())) return;
-                if (seen.has(h.name.toLowerCase())) return;
+                const lname = h.name.toLowerCase();
+                if (hid.has(lname) || placed.has(lname)) return;
                 warmFont(h.cfg.type && h.cfg.type.font);
                 const key = "hero:" + h.name;
                 HERO_CFGS[key] = h.cfg;
@@ -1799,18 +1811,29 @@ auT1:"おかえりなさい",auT2:"アカウントを作成",auIn:"サインイ�
                 // never joins, so the attract loop can apply entries unguarded
                 tighten(E.renderShell(heroCfg(key), "default", 470, 128, { label: "OK" }), 46);
                 const color = (h.cfg.effects && h.cfg.effects["Inner Fill"]) || "#A855F7";
-                const b = document.createElement("button");
-                b.type = "button"; b.className = "sw2";
-                b.style.setProperty("--sw-hi", mix(color, "#ffffff", .35));
-                b.style.setProperty("--sw-lo", mix(color, "#000000", .25));
-                b.setAttribute("aria-label", h.name);
-                b.setAttribute("aria-pressed", "false");
-                b.addEventListener("click", () => { takeOver();
-                  playDesign({ pid: key, color, name: h.name }); });
-                palWrap.appendChild(b);
-                PAL.push({ name: h.name, color, pid: key }); // keeps the pressed-state zip aligned
-                REEL.push({ hero: key, color, name: h.name });
-                seen.add(h.name.toLowerCase());
+                const entry = { hero: key, color, name: h.name };
+                const ri = REEL.findIndex((e2) => e2.name.toLowerCase() === lname);
+                if (ri !== -1) REEL[ri] = entry; // the designated snapshot takes the built-in's seat
+                else {
+                  const r = kitRank(h.name);
+                  let at = REEL.length;
+                  for (let i2 = 0; i2 < REEL.length; i2++) { if (kitRank(REEL[i2].name, REEL[i2].auth, REEL[i2].pid) > r) { at = i2; break; } }
+                  REEL.splice(at, 0, entry);
+                }
+                placed.add(lname);
+                if (!seen.has(lname)) {
+                  const b = document.createElement("button");
+                  b.type = "button"; b.className = "sw2";
+                  b.style.setProperty("--sw-hi", mix(color, "#ffffff", .35));
+                  b.style.setProperty("--sw-lo", mix(color, "#000000", .25));
+                  b.setAttribute("aria-label", h.name);
+                  b.setAttribute("aria-pressed", "false");
+                  b.addEventListener("click", () => { takeOver();
+                    playDesign({ pid: key, color, name: h.name }); });
+                  palWrap.appendChild(b);
+                  PAL.push({ name: h.name, color, pid: key }); // keeps the pressed-state zip aligned
+                  seen.add(lname);
+                }
               } catch (_) { /* one odd cfg stays out; the lineup stands */ }
             });
           })

@@ -78,6 +78,8 @@ type Picked =
 type Desig = {
   id: string; kitName: string; presetName: string; placement: string;
   sourceEmail: string | null; dealNote: string | null; createdAt: string; publishAt: string | null;
+  /** hero rows only: the frozen snapshot's design recipe, for the rack's tiles */
+  cfg?: Record<string, unknown> | null;
 };
 
 /* The desk's live preview — the same engine the gallery cards use, but
@@ -224,7 +226,7 @@ const HOME_ROSTER: { group: string; entries: HomeExample[] }[] = [
    list (same lowercase name keys as the hidden list), unlisted names
    keeping their roster order behind the listed ones — the exact contract
    the landing's kitOrder helper applies to each homepage surface. */
-function orderedEntries(entries: HomeExample[], order: string[]): HomeExample[] {
+function orderedEntries<T extends { name: string }>(entries: T[], order: string[]): T[] {
   if (!order.length) return entries;
   const rank = (n: string) => { const i = order.indexOf(n.toLowerCase()); return i === -1 ? order.length : i; };
   return entries.map((e, i) => [e, rank(e.name), i] as const)
@@ -272,18 +274,38 @@ function releaseWord(d: Desig): string {
   return t <= Date.now() ? "live" : `releases ${fmtDay(d.publishAt)}`;
 }
 
-/* The homepage reel's built-in names — what the landing's dedupe set
-   covers (PAL + REEL: the reel and chip groups; community cards are a
-   separate surface and don't block). A designated hero wearing one of
-   these names is silently skipped by the landing, so the desk must say
-   so instead of letting the slate claim it rides. */
+/* The built-in reel/chip names (community cards are a separate surface).
+   A designated hero wearing one of these names COLLAPSES onto that tile:
+   the owner's frozen snapshot takes the seat and the art (designating a
+   look by a built-in's name is a deliberate replacement, not a clash). */
 const BUILTIN_REEL_NAMES = new Set(
   HOME_ROSTER.filter((g) => g.group !== "Community cards")
     .flatMap((g) => g.entries.map((e) => e.name.toLowerCase())));
 
 /* How many designated heroes the homepage feed serves (api/hero-lineup
-   limit, newest first) — a hero past this window is frozen but idle. */
-const REEL_HERO_WINDOW = 8;
+   and the designations action agree on it). Not a rotation window — the
+   rack orders every hero explicitly — just a guard against unbounded
+   designation lists; a hero past it is frozen but idle. */
+const REEL_HERO_CEILING = 16;
+
+/* A designated hero's tile art, from its frozen snapshot's recipe — the
+   same quiet treatment as the built-in tiles (own label, no icon, glow
+   zeroed, viewBox tightened). A snapshot that won't render returns null
+   and the rack shows a labeled placeholder instead. */
+function heroSnapshotArt(cfg: Record<string, unknown>): string | null {
+  try {
+    const pc = healStateIconPins(hydrate(structuredClone(cfg)) as GenConfig);
+    pc.icon.show = false;
+    for (const s of Object.values(pc.states)) s.glow = 0;
+    return tightenSvg(renderBevel(pc, "default"), 20);
+  } catch {
+    return null;
+  }
+}
+
+/** one tile on the rack — a built-in look, a designated hero, or the
+    collapsed pair (hero snapshot wearing a built-in's name) */
+type RackTile = { name: string; art: string | null; also?: string; heroId?: string };
 
 export function AdminPage() {
   usePageScroll();
@@ -362,15 +384,6 @@ export function AdminPage() {
     setHomeNote(err ?? `Saved. The homepage picks the new order up within ~5 minutes (the feed is CDN-cached); your own next visit applies it too.`);
     if (err) setHomeOrder(prev); // roll the optimistic move back
   };
-  const moveHomeKit = (group: string, shown: HomeExample[], from: number, to: number) => {
-    if (homeBusy || from === to || to < 0 || to >= shown.length) return;
-    const seq = [...shown];
-    const [m] = seq.splice(from, 1);
-    seq.splice(to, 0, m);
-    const next = HOME_ROSTER.flatMap((g) =>
-      (g.group === group ? seq : orderedEntries(g.entries, homeOrder ?? [])).map((e) => e.name.toLowerCase()));
-    void persistHomeOrder(next);
-  };
   // the rack's art — drawn once when the desk opens, not on a gated mount
   const homeArt = useMemo(() => {
     if (!allowed) return null;
@@ -397,21 +410,69 @@ export function AdminPage() {
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [slate, setSlate] = useState<Desig[] | null>(null);
   const [slateNote, setSlateNote] = useState<string | null>(null);
-  /* the truth about a designated hero's seat on the homepage — the reel
-     and the slate are DIFFERENT lists that overlap in one place: the
-     reel plays the hardcoded built-ins (rack below), then the newest
-     designated heroes join the rotation via the live feed. Four things
-     silently keep a designated hero off: a hidden name, a name shared
-     with a built-in, falling past the newest-8 window, and a snapshot
-     the engine can't render. The desk says which — same words on the
-     slate row and the rack strip, so the two can never disagree again. */
+  /* ── the unified rotation (owner call, 2026-08-16): the rack's Hero
+     reel group IS the homepage rotation — built-ins and designated
+     heroes as one ordered list, no separate classes. A hero sharing a
+     built-in's name collapses onto that tile and its snapshot wins the
+     art. The slate stays a passive report wearing the same words. */
   const heroRows = (slate ?? []).filter((d) => d.placement === "hero");
+  const heroArt = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const d of (slate ?? [])) if (d.placement === "hero") m.set(d.id, d.cfg ? heroSnapshotArt(d.cfg) : null);
+    return m;
+  }, [slate]);
+  // hero snapshots speak their own typefaces — warm them like KitPreview
+  useEffect(() => {
+    for (const d of (slate ?? [])) if (d.placement === "hero" && d.cfg) {
+      try { ensureDocFonts(d.cfg); } catch { /* placeholder tiles report below */ }
+    }
+  }, [slate]);
+  const rackGroups = useMemo((): { group: string; tiles: RackTile[] }[] => {
+    const order = homeOrder ?? [];
+    return HOME_ROSTER.map(({ group, entries }) => {
+      if (group !== "Hero reel") {
+        return { group, tiles: orderedEntries(entries, order).map((ex): RackTile => ({ name: ex.name, art: homeArt?.get(ex.name) ?? null, also: ex.also })) };
+      }
+      const heroByName = new Map(heroRows.map((d) => [d.presetName.toLowerCase(), d] as const));
+      const unified = entries.map((ex): RackTile => {
+        const d = heroByName.get(ex.name.toLowerCase());
+        if (!d) return { name: ex.name, art: homeArt?.get(ex.name) ?? null, also: ex.also };
+        heroByName.delete(ex.name.toLowerCase()); // one tile, not a clash
+        return {
+          name: ex.name, heroId: d.id, art: heroArt.get(d.id) ?? null,
+          also: ["designated snapshot — replaces the built-in", ex.also].filter(Boolean).join(" · "),
+        };
+      });
+      for (const d of heroRows) {
+        if (heroByName.get(d.presetName.toLowerCase()) !== d) continue; // collapsed above, or a duplicate name
+        heroByName.delete(d.presetName.toLowerCase());
+        unified.push({ name: d.presetName, heroId: d.id, art: heroArt.get(d.id) ?? null, also: "designated hero — frozen on the slate" });
+      }
+      return { group, tiles: orderedEntries(unified, order) };
+    });
+  }, [homeOrder, homeArt, heroArt, slate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moveHomeKit = (group: string, shown: { name: string }[], from: number, to: number) => {
+    if (homeBusy || from === to || to < 0 || to >= shown.length) return;
+    const seq = [...shown];
+    const [m] = seq.splice(from, 1);
+    seq.splice(to, 0, m);
+    const next = rackGroups.flatMap((g) => (g.group === group ? seq : g.tiles).map((t) => t.name.toLowerCase()));
+    void persistHomeOrder(next);
+  };
+  /* the slate's report of a hero's seat — same data as the rack, so the
+     two surfaces can never disagree. HIDDEN and the feed ceiling are the
+     only ways a designated hero stays off the homepage now. */
   const heroReelStatus = (d: Desig): { chip: string; cls: string; word: string } => {
     const key = d.presetName.toLowerCase();
     if (homeHidden?.has(key)) return { chip: "HIDDEN", cls: "fd-review__chip--no", word: "hidden on the homepage — Restore it on the rack below" };
-    if (BUILTIN_REEL_NAMES.has(key)) return { chip: "BLOCKED", cls: "fd-review__chip--wait", word: "shares a built-in's name, so the reel keeps the built-in — rename and re-designate to ride" };
-    if (heroRows.findIndex((x) => x.id === d.id) >= REEL_HERO_WINDOW) return { chip: "PAST 8", cls: "fd-review__chip--wait", word: `outside the reel window — only the ${REEL_HERO_WINDOW} newest heroes ride; delete older ones to advance it` };
-    return { chip: "IN ROTATION", cls: "fd-review__chip--ok", word: "in the homepage rotation — joins after the built-ins (~5 min CDN)" };
+    if (heroRows.findIndex((x) => x.id === d.id) >= REEL_HERO_CEILING) return { chip: `PAST ${REEL_HERO_CEILING}`, cls: "fd-review__chip--wait", word: `beyond the feed ceiling (${REEL_HERO_CEILING} designated heroes) — delete older ones to let it ride` };
+    const reel = (rackGroups.find((g) => g.group === "Hero reel")?.tiles ?? []).filter((t) => !homeHidden?.has(t.name.toLowerCase()));
+    const seat = reel.findIndex((t) => t.name.toLowerCase() === key);
+    const takeover = BUILTIN_REEL_NAMES.has(key) ? " — its snapshot takes over the built-in tile of the same name" : "";
+    return {
+      chip: seat === -1 ? "IN ROTATION" : `SEAT ${seat + 1} OF ${reel.length}`, cls: "fd-review__chip--ok",
+      word: `in the homepage rotation at that seat${takeover} (~5 min CDN)`,
+    };
   };
 
   // the render gate — an HONEST one: whatever blocks the desk says so in
@@ -525,7 +586,7 @@ export function AdminPage() {
     const name = relName.trim() || sel.name;
     const msg =
       placement === "hero"
-        ? `Freeze "${sel.name}" for the homepage carousel?\n\nThe kit is snapshotted exactly as it is today, with the deal note, and joins the homepage rotation after the built-in reel (give the CDN ~5 minutes). Only the ${REEL_HERO_WINDOW} newest heroes ride, and a name shared with a built-in look is skipped.`
+        ? `Freeze "${sel.name}" for the homepage carousel?\n\nThe kit is snapshotted exactly as it is today, with the deal note, and takes a seat in the homepage rotation — order it on the rack below (give the CDN ~5 minutes; up to ${REEL_HERO_CEILING} designated heroes ride). A name shared with a built-in look takes over that built-in's tile.`
         : placement === "standard"
           ? `Release "${name}" to everyone right now?\n\nIt appears in every player's Presets panel immediately, and the kit is snapshotted for the record.`
           : relDate
@@ -842,10 +903,10 @@ export function AdminPage() {
             attached. Tick <b>Hero carousel</b>, <b>Public release</b>, or both — one Designate covers
             them. A public release with a <b>date</b> stays invisible to everyone but you until that
             day; with the date blank it lands in every player's Presets panel immediately. Hero puts
-            it <b>in the homepage rotation</b>: the reel plays the built-in lineup (curated on the
-            rack below), then the {REEL_HERO_WINDOW} newest designated heroes join as the live feed
-            lands (~5 min CDN). Each hero row below says whether it's actually riding — hidden
-            names and names shared with a built-in are skipped.
+            it <b>in the homepage rotation</b> at a seat you order on the rack below — built-ins and
+            designated heroes are one list there, played exactly in that order (~5 min CDN; up to{" "}
+            {REEL_HERO_CEILING} designated heroes ride). A hero sharing a built-in's name takes over
+            that built-in's tile. Each hero row below reports its seat; hidden names sit out.
           </p>
           <div className="fd-adminsearch">
             <input
@@ -1001,123 +1062,92 @@ export function AdminPage() {
         <section className="fd-card">
           <h2 className="fd-card__title"><House size={17} strokeWidth={2.1} /> Homepage kits</h2>
           <p className="fd-fine">
-            The front door's <b>built-in</b> examples — the hero reel, the style chips, and the
-            three community cards — ship hardcoded in the homepage bundle, so nothing here truly
-            deletes. <b>Hide removes a look from the homepage</b> for every visitor, no deploy;
-            its tile stays on this rack so you can restore it any time. The <b>arrows change the
-            display order</b> within a group (tiles drag too). Both ride the same feed as hero
-            designations (CDN-cached ~5 minutes). The four looks on both the reel and the chip
-            row keep one tile — their reel position drives the chip row too. Designated heroes
-            are curated in the Release desk above; hiding a name here also keeps a same-named
-            hero out of the reel.
+            The <b>Hero reel group is the homepage rotation</b> — built-ins and designated heroes
+            together, one list, and the homepage plays it in exactly this order (built-ins ship
+            hardcoded; up to {REEL_HERO_CEILING} designated heroes ride, the feed's ceiling). A
+            designated hero sharing a built-in's name <b>takes over that tile</b> — its frozen
+            snapshot wins the art. <b>Hide removes a look from the homepage</b> for every visitor,
+            no deploy; the tile stays here so you can restore it any time (a hidden designated
+            hero stays on the slate too). The <b>arrows change the order</b> within a group (tiles
+            drag too). Everything rides the hero-designations feed, CDN-cached ~5 minutes. The
+            four looks on both the reel and the chip row keep one tile — their reel position
+            drives the chip row too.
           </p>
           {homeHidden === null ? (
             <p className="fd-note"><Loader2 size={14} strokeWidth={2.4} className="fd-spin" /> Reading the current lineup…</p>
           ) : (
-            HOME_ROSTER.map(({ group, entries }) => {
-              const shown = orderedEntries(entries, homeOrder ?? []);
-              return (
-                <div key={group} className="fd-homegroup">
-                  <div className="fd-homegroup__name">{group}</div>
-                  <div className="fd-homerack">
-                    {shown.map((ex, i) => {
-                      const off = homeHidden.has(ex.name.toLowerCase());
-                      const art = homeArt?.get(ex.name);
-                      const dragging = homeDrag?.group === group && homeDrag.index === i;
-                      const dropover = !dragging && homeOver?.group === group && homeOver.index === i;
-                      return (
-                        <div key={ex.name}
-                          className={`fd-hometile${off ? " off" : ""}${dragging ? " dragging" : ""}${dropover ? " dropover" : ""}`}
-                          draggable
-                          title="Drag to reorder within the group"
-                          onDragStart={(e) => {
-                            homeDragRef.current = { group, index: i };
-                            setHomeDrag({ group, index: i });
-                            e.dataTransfer.effectAllowed = "move";
-                            try { e.dataTransfer.setData("text/plain", ex.name); } catch { /* older engines */ }
-                          }}
-                          onDragEnd={() => { homeDragRef.current = null; setHomeDrag(null); setHomeOver(null); }}
-                          onDragOver={(e) => {
-                            const d = homeDragRef.current;
-                            if (!d || d.group !== group) return; // groups don't mix
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            if (homeOver?.group !== group || homeOver.index !== i) setHomeOver({ group, index: i });
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const d = homeDragRef.current;
-                            if (d && d.group === group && d.index !== i) moveHomeKit(group, shown, d.index, i);
-                            homeDragRef.current = null; setHomeDrag(null); setHomeOver(null);
-                          }}>
-                          {art ? (
-                            <div className="fd-hometile__art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: art }} />
-                          ) : (
-                            <div className="fd-hometile__art fd-hometile__art--empty">no preview — this look lives only in the front-door bundle</div>
-                          )}
-                          <div className="fd-hometile__name">
-                            <b>{ex.name}</b>
-                            {ex.also && <span>{ex.also}</span>}
+            rackGroups.map(({ group, tiles }) => (
+              <div key={group} className="fd-homegroup">
+                <div className="fd-homegroup__name">{group}</div>
+                <div className="fd-homerack">
+                  {tiles.map((t, i) => {
+                    const off = homeHidden.has(t.name.toLowerCase());
+                    const dragging = homeDrag?.group === group && homeDrag.index === i;
+                    const dropover = !dragging && homeOver?.group === group && homeOver.index === i;
+                    return (
+                      <div key={t.heroId ?? t.name}
+                        className={`fd-hometile${off ? " off" : ""}${dragging ? " dragging" : ""}${dropover ? " dropover" : ""}`}
+                        draggable
+                        title="Drag to reorder within the group"
+                        onDragStart={(e) => {
+                          homeDragRef.current = { group, index: i };
+                          setHomeDrag({ group, index: i });
+                          e.dataTransfer.effectAllowed = "move";
+                          try { e.dataTransfer.setData("text/plain", t.name); } catch { /* older engines */ }
+                        }}
+                        onDragEnd={() => { homeDragRef.current = null; setHomeDrag(null); setHomeOver(null); }}
+                        onDragOver={(e) => {
+                          const d = homeDragRef.current;
+                          if (!d || d.group !== group) return; // groups don't mix
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (homeOver?.group !== group || homeOver.index !== i) setHomeOver({ group, index: i });
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const d = homeDragRef.current;
+                          if (d && d.group === group && d.index !== i) moveHomeKit(group, tiles, d.index, i);
+                          homeDragRef.current = null; setHomeDrag(null); setHomeOver(null);
+                        }}>
+                        {t.art ? (
+                          <div className="fd-hometile__art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: t.art }} />
+                        ) : (
+                          <div className="fd-hometile__art fd-hometile__art--empty">
+                            {t.heroId
+                              ? "no preview — the frozen snapshot didn't render; try Refresh on the slate"
+                              : "no preview — this look lives only in the front-door bundle"}
                           </div>
-                          <div className="fd-hometile__row">
-                            <span className={`fd-review__chip ${off ? "fd-review__chip--no" : "fd-review__chip--ok"}`}>{off ? "HIDDEN" : "LIVE"}</span>
-                            <div className="fd-hometile__acts">
-                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === 0}
-                                title={`Show ${ex.name} earlier`} aria-label={`Show ${ex.name} earlier in ${group}`}
-                                onClick={() => moveHomeKit(group, shown, i, i - 1)}>
-                                <ChevronLeft size={14} strokeWidth={2.2} />
-                              </button>
-                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === shown.length - 1}
-                                title={`Show ${ex.name} later`} aria-label={`Show ${ex.name} later in ${group}`}
-                                onClick={() => moveHomeKit(group, shown, i, i + 1)}>
-                                <ChevronRight size={14} strokeWidth={2.2} />
-                              </button>
-                              <button className="fd-ghost fd-hometile__act" disabled={homeBusy}
-                                title={off ? `Put ${ex.name} back on the homepage` : `Remove ${ex.name} from the homepage for every visitor`}
-                                onClick={() => void toggleHomeKit(ex.name)}>
-                                {off ? <><Eye size={13} strokeWidth={2.2} /> Restore</> : <><EyeOff size={13} strokeWidth={2.2} /> Hide</>}
-                              </button>
-                            </div>
+                        )}
+                        <div className="fd-hometile__name">
+                          <b>{t.name}</b>
+                          {t.also && <span>{t.also}</span>}
+                        </div>
+                        <div className="fd-hometile__row">
+                          <span className={`fd-review__chip ${off ? "fd-review__chip--no" : "fd-review__chip--ok"}`}>{off ? "HIDDEN" : "LIVE"}</span>
+                          <div className="fd-hometile__acts">
+                            <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === 0}
+                              title={`Show ${t.name} earlier`} aria-label={`Show ${t.name} earlier in ${group}`}
+                              onClick={() => moveHomeKit(group, tiles, i, i - 1)}>
+                              <ChevronLeft size={14} strokeWidth={2.2} />
+                            </button>
+                            <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy || i === tiles.length - 1}
+                              title={`Show ${t.name} later`} aria-label={`Show ${t.name} later in ${group}`}
+                              onClick={() => moveHomeKit(group, tiles, i, i + 1)}>
+                              <ChevronRight size={14} strokeWidth={2.2} />
+                            </button>
+                            <button className="fd-ghost fd-hometile__act" disabled={homeBusy}
+                              title={off ? `Put ${t.name} back on the homepage` : `Remove ${t.name} from the homepage for every visitor${t.heroId ? " (the slate keeps it)" : ""}`}
+                              onClick={() => void toggleHomeKit(t.name)}>
+                              {off ? <><Eye size={13} strokeWidth={2.2} /> Restore</> : <><EyeOff size={13} strokeWidth={2.2} /> Hide</>}
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  {/* the reel's OTHER half: designated heroes ride this same
-                      rotation via the live feed — the built-in tiles above
-                      are not the whole story, and pretending they are is
-                      what made the reel and the slate look mismatched.
-                      Same status words as the slate rows; Hide works here
-                      because the hidden list matches designated names too. */}
-                  {group === "Hero reel" && heroRows.length > 0 && (
-                    <>
-                      <p className="fd-fine" style={{ marginTop: 10 }}>
-                        Also in this rotation — <b>designated heroes</b> from the Release desk's slate
-                        (they join after the built-ins; newest {REEL_HERO_WINDOW} ride):
-                      </p>
-                      <div className="fd-homeheroes">
-                        {heroRows.map((d) => {
-                          const st = heroReelStatus(d);
-                          const off = homeHidden.has(d.presetName.toLowerCase());
-                          return (
-                            <span key={d.id} className={`fd-homehero${off ? " off" : ""}`} title={st.word}>
-                              <b>{d.presetName}</b>
-                              <span className={`fd-review__chip ${st.cls}`}>{st.chip}</span>
-                              <button className="fd-ghost fd-hometile__nudge" disabled={homeBusy}
-                                title={off ? `Put ${d.presetName} back in the rotation` : `Remove ${d.presetName} from the homepage for every visitor (the slate keeps it)`}
-                                aria-label={off ? `Restore ${d.presetName}` : `Hide ${d.presetName}`}
-                                onClick={() => void toggleHomeKit(d.presetName)}>
-                                {off ? <Eye size={13} strokeWidth={2.2} /> : <EyeOff size={13} strokeWidth={2.2} />}
-                              </button>
-                            </span>
-                          );
-                        })}
                       </div>
-                    </>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
           {homeNote && <p className="fd-note">{homeNote}</p>}
         </section>
