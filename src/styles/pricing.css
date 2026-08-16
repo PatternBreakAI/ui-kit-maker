@@ -1027,3 +1027,57 @@
 .pspot-deskcard.dropover .pspot-card { box-shadow: 0 0 0 1px var(--accent, #d946ef); }
 .pspot-deskrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .fd-desk .pspot-card { width: 100%; }
+
+/* ── the projects home (#/projects) — the Adobe-style file room ────── */
+/* the OPEN file wears the ring — the home answers "which one am I in"
+   at a glance, in the same words as the TopBar chip */
+.ph-opencard { background: var(--accent, #d946ef); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #d946ef) 35%, transparent); }
+.ph-openchip {
+  position: absolute; top: 10px; left: 14px; z-index: 2;
+  font-size: 9px; font-weight: 800; letter-spacing: .16em;
+  color: var(--accent, #d946ef); background: color-mix(in srgb, var(--accent, #d946ef) 14%, transparent);
+  padding: 3px 8px; border-radius: 999px;
+}
+.ph-tools { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.ph-search {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--card);
+  border: 1px solid var(--line2); border-radius: 999px; padding: 6px 14px; min-width: 210px; outline: none;
+}
+.ph-search:focus { border-color: var(--accent, #d946ef); }
+[data-theme="dark"] .ph-search { background: rgba(24, 17, 42, .85); border-color: rgba(180, 140, 250, .22); }
+.ph-note { margin: 2px 0 10px; }
+.ph-rename {
+  font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); background: var(--card);
+  border: 1px solid var(--accent, #d946ef); border-radius: 8px; padding: 3px 8px; outline: none; width: 100%;
+}
+[data-theme="dark"] .ph-rename { background: rgba(24, 17, 42, .85); }
+
+/* guests: one clean, centered invitation — no grid, no promo */
+.ph-invite {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center; margin: 12vh auto 0; max-width: 460px;
+}
+.ph-invite__mark {
+  display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px;
+  color: var(--accent, #d946ef); background: color-mix(in srgb, var(--accent, #d946ef) 12%, transparent);
+}
+.ph-invite h1 { margin: 4px 0 0; font-size: 26px; }
+.ph-invite p { margin: 0; color: var(--ink2); }
+.ph-invite .fd-pricing__cta { margin-top: 10px; }
+
+/* the close-settle sheet — one question, three honest doors */
+.ph-veil {
+  position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, #0b0716 44%, transparent); padding: 20px;
+}
+.ph-sheet {
+  display: flex; flex-direction: column; gap: 8px; max-width: 520px;
+  background: var(--card); border: 1px solid var(--line2); border-radius: 16px;
+  padding: 22px 24px; box-shadow: 0 18px 60px rgba(10, 6, 24, .4);
+}
+[data-theme="dark"] .ph-sheet { background: #1a122d; border-color: rgba(180, 140, 250, .25); }
+.ph-sheet > b { font-size: 15.5px; }
+.ph-sheet > p { margin: 0 0 6px; color: var(--ink2); font-size: 13px; }
+.ph-sheetrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ph-sheetrow .fd-pricing__cta { margin: 0; }
+.ph-sheet .fd-linkbtn { align-self: flex-start; margin-top: 6px; }

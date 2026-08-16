@@ -52,6 +52,9 @@ const SlantLab = lazy(() =>
 const StudioPage = lazy(() =>
   import("@/ui/StudioPage").then((m) => ({ default: m.StudioPage })),
 );
+const ProjectsHome = lazy(() =>
+  import("@/ui/ProjectsHome").then((m) => ({ default: m.ProjectsHome })),
+);
 const UserPage = lazy(() =>
   import("@/ui/UserPage").then((m) => ({ default: m.UserPage })),
 );
@@ -301,6 +304,10 @@ export function Shell() {
       ) : route.name === "studio" ? (
         <Suspense fallback={<RouteLoading />}>
           <StudioPage />
+        </Suspense>
+      ) : route.name === "projects" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <ProjectsHome />
         </Suspense>
       ) : route.name === "user" && route.param ? (
         <Suspense fallback={<RouteLoading />}>

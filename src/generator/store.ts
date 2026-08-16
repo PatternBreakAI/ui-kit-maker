@@ -459,6 +459,12 @@ interface GenStore {
       moves, the dirty flag clears, savedAt stamps. Save/Update/rename
       flows call this so the chip's identity follows the FILE. */
   setOpenProject: (id: string | null, savedAt?: number) => void;
+  /** The Close verb (projects home): the desk resets to a fresh Untitled
+      draft — default cfg (the stage stays, it's workspace), empty
+      per-piece maps, one fresh board — and the file binding clears.
+      Callers settle unsaved work FIRST (Update / Save as new file /
+      discard); this only clears the desk. */
+  closeDesk: () => void;
   /** One transient line under the TopBar file chip ("You're now working
       in Hot Rod 2 — Hot Rod is untouched") — self-clears after ~7s. */
   fileFlash: string | null;
@@ -1826,6 +1832,24 @@ export const useGen = create<GenStore>((set, get) => ({
   projectSavedAt: null,
   projectDirty: false,
   setOpenProject: (id, savedAt) => set({ openProjectId: id, projectDirty: false, projectSavedAt: id ? (savedAt ?? Date.now()) : null }),
+  closeDesk: () => {
+    const st = get();
+    const d = getDefault();
+    d.canvas = st.cfg.canvas; // the stage is workspace, not file content
+    /* through loadKitPayload's own door so persistence, healing and the
+       cloud write-hook all apply — absent maps clear to {} there */
+    st.loadKitPayload({ cfg: d }, { viewer: false, phase: "master" });
+    /* loadKitPayload keeps the old kitName when the payload has none, and
+       leaves boards alone without a projectId — finish the reset by hand */
+    saveJson("ui-generator-kitname", null);
+    importTicket++; // supersede any in-flight board import
+    const fresh: BoardDef = { id: "ab" + Date.now().toString(36), name: "Board 1", aspect: "169", items: [] };
+    set({
+      kitName: null, boards: [fresh], activeBoard: fresh.id, boardSel: null,
+      boardPast: [], boardFuture: [], openProjectId: null, projectDirty: false, projectSavedAt: null,
+    });
+    saveBoards(get);
+  },
   fileFlash: null,
   flashFile: (msg) => {
     if (fileFlashTimer !== undefined) { window.clearTimeout(fileFlashTimer); fileFlashTimer = undefined; }

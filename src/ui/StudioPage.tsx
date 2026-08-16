@@ -212,6 +212,9 @@ export function StudioPage() {
             {/* ── the work ── */}
             <div className="cg-secline">
               {t("yourWork")}
+              {/* the home is the one list of truth for file management —
+                  this grid stays as the studio's window onto it */}
+              <button className="fd-linkbtn" onClick={() => navigate("#/projects")}>All projects →</button>
               <span className="cg-sort">
                 {t("sortLbl")}
                 <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
