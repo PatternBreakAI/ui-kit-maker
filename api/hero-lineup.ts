@@ -44,8 +44,11 @@ export async function GET(): Promise<Response> {
        match keys; `order` says who shows first. */
     const headers = { apikey: service, authorization: `Bearer ${service}` };
     const [res, setRes] = await Promise.all([
+      /* limit 16 — the reel's stated ceiling. The rack orders every
+         designated hero explicitly now, so the old newest-8 window is
+         gone; the cap only guards against unbounded designation lists. */
       fetch(
-        `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=preset_name,created_at,cfg:snapshot->cfg&order=created_at.desc&limit=8`,
+        `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=preset_name,created_at,cfg:snapshot->cfg&order=created_at.desc&limit=16`,
         { headers },
       ),
       fetch(`${supaUrl}/rest/v1/app_settings?key=in.(hidden_landing_kits,landing_kit_order)&select=key,value`, { headers })

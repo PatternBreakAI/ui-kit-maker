@@ -609,7 +609,10 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  /* ── designations — the slate, without the heavy snapshots ───────── */
+  /* ── designations — the slate, without the heavy snapshots. EXCEPT the
+     hero rows: the admin rack draws real engine tiles for designated
+     heroes now, so their design recipes (cfg only, never the full kit
+     layer) ride along in a second, capped fetch. ───────────────────── */
   if (body.action === "designations") {
     const res = await fetch(
       `${supaUrl}/rest/v1/kit_designations?select=id,kit_name,preset_name,placement,preset_id,source_email,deal_note,created_at&order=created_at.desc&limit=50`,
@@ -623,11 +626,21 @@ export async function POST(req: Request): Promise<Response> {
       const ps = await fetch(`${supaUrl}/rest/v1/presets?id=in.(${pids.join(",")})&select=id,publish_at`, { headers: svc });
       if (ps.ok) for (const p of (await ps.json()) as { id: string; publish_at: string | null }[]) dates.set(p.id, p.publish_at);
     }
+    // same ceiling as the public hero-lineup feed — rack and homepage agree
+    const cfgs = new Map<string, unknown>();
+    if (rows.some((r) => r.placement === "hero")) {
+      const hr = await fetch(
+        `${supaUrl}/rest/v1/kit_designations?placement=eq.hero&select=id,cfg:snapshot->cfg&order=created_at.desc&limit=16`,
+        { headers: svc },
+      ).catch(() => null);
+      if (hr?.ok) for (const h of (await hr.json()) as { id: string; cfg: unknown }[]) cfgs.set(h.id, h.cfg);
+    }
     return json({
       designations: rows.map((r) => ({
         id: r.id, kitName: r.kit_name, presetName: r.preset_name, placement: r.placement,
         sourceEmail: r.source_email, dealNote: r.deal_note, createdAt: r.created_at,
         publishAt: r.preset_id ? (dates.get(r.preset_id) ?? null) : null,
+        ...(r.placement === "hero" && cfgs.has(r.id) ? { cfg: cfgs.get(r.id) } : {}),
       })),
     });
   }
