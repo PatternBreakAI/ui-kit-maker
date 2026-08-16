@@ -14,6 +14,7 @@ import {
 } from "@/generator/cloud";
 import { useGen } from "@/generator/store";
 import { CardArt } from "./CommunityPage";
+import { PromoShelf } from "./PromoShelf";
 import logoUrl from "../../pb-logo.png";
 
 /* #/projects — THE HOME (owner mandate, 2026-08-16: "break out of this
@@ -70,6 +71,7 @@ export function ProjectsHome() {
     /* resolve tier/admin (drives duplicate visibility rules) + promos —
        the home lives outside the editor, so nothing else loads them */
     if (useGen.getState().tier === "guest") void useGen.getState().loadCloudPresets();
+    else void useGen.getState().refreshPromos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, signedIn]);
 
@@ -230,6 +232,10 @@ export function ProjectsHome() {
             <span className="fd-kicker">UI Kit Maker</span>
             <h1>Your projects</h1>
             <p className="fd-pricing__sub">Every kit you've saved, in one place — the file on your desk wears the ring.</p>
+
+            {/* ── Spotlight — the promo rail lives HERE now (owner: "this
+                 is where the promo stuff belongs, not on the kit page") ── */}
+            <PromoShelf home />
 
             <div className="cg-secline">
               Your projects

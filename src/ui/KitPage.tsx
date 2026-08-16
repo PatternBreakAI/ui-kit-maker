@@ -13,7 +13,6 @@ import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt, stillSmil } from "./LiveArt";
-import { PromoShelf } from "./PromoShelf";
 import { openAuth } from "@/shell/authOverlay";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
@@ -2125,10 +2124,8 @@ const kitTier = useGen((s) => s.tier);
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
-      {/* ── Spotlight — the promo shelf (owner: "promo areas like adobe").
-           Gated by the owner's global switch; admins preview staged cards
-           in place. A shared-kit viewer's page stays clean. ── */}
-      {!viewer && <PromoShelf />}
+      {/* Spotlight moved to the projects home (owner: "the kit remains
+          pure, just your work") — no promo shelf here. */}
 
       {/* ── hero — the system, stated once ── */}
       <header className="kp-hero kp-hero2">

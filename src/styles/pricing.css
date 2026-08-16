@@ -925,11 +925,13 @@
   --ps-ink3: var(--ink3, rgba(25, 28, 36, .42));
   --ps-accent: var(--accent, #d946ef);
 }
-[data-theme="dark"] .pspot--desk {
+[data-theme="dark"] .pspot--desk, [data-theme="dark"] .pspot--home {
   --ps-line: rgba(180, 140, 250, .22);
   --ps-fill: linear-gradient(180deg, rgba(26, 18, 45, .95), rgba(13, 9, 25, .95));
   --ps-ink: #f1f3fa; --ps-ink2: rgba(235, 238, 255, .66); --ps-ink3: rgba(235, 238, 255, .4);
 }
+/* on the home the shelf leads the page — a touch of air below the sub */
+.pspot--home { margin: 4px auto 6px; max-width: none; }
 .kitpage .pspot {
   --ps-line: var(--kp-line); --ps-fill: var(--kp-card);
   --ps-ink: var(--kp-ink); --ps-ink2: var(--kp-ink2); --ps-ink3: var(--kp-ink3);

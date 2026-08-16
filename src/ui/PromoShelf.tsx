@@ -135,11 +135,13 @@ export function PromoCardView({ p, seen, admin, onDismiss, onGo }: {
   );
 }
 
-/** The kit page's Spotlight strip — under the chapter tabs, above the
- *  hero. Gated by the owner's global switch; admins preview the full
- *  lineup in place (staged rule) with an honest "not live" chip. Per-
- *  card dismissal de-emphasizes and rides cloud sync via promoSeen. */
-export function PromoShelf() {
+/** The Spotlight strip — the TOP of the projects home, the Adobe promo
+ *  rail position (owner: "this is where the promo stuff belongs, not on
+ *  the kit page"). Gated by the owner's global switch; admins preview
+ *  the full lineup in place (staged rule) with an honest "not live"
+ *  chip. Per-card dismissal de-emphasizes in place and rides cloud sync
+ *  via promoSeen — no layout shift, seen cards just go quiet. */
+export function PromoShelf({ home }: { home?: boolean }) {
   const promos = useGen((s) => s.promos);
   const promosLive = useGen((s) => s.promosLive);
   const isAdmin = useGen((s) => s.isAdmin);
@@ -149,7 +151,7 @@ export function PromoShelf() {
   const cards = (isAdmin ? promos : promos.filter((p) => promoIsLive(p))).slice(0, 3);
   if (cards.length === 0) return null;
   return (
-    <section className="pspot" aria-label="Spotlight — what's new">
+    <section className={`pspot${home ? " pspot--home" : ""}`} aria-label="Spotlight — what's new">
       <div className="pspot-head">
         Spotlight
         {isAdmin && !promosLive && <span className="pspot-gatechip">admin preview — not live yet</span>}
