@@ -7,7 +7,7 @@ import { t } from "@/shell/i18n";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import {
   listProjects, saveProject, renameProject, deleteProject, setProjectPublic,
-  loadProjectDoc, updateProjectDoc, publicProjectUrl, type CloudProject,
+  loadProjectDoc, updateProjectDoc, publicProjectUrl, uniqueName, type CloudProject,
 } from "@/generator/cloud";
 
 /* v76 · My Projects — the projects table goes live. A named library of kit
@@ -79,7 +79,14 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
 
   const doSave = async () => {
     setBusy(true); setNote(null);
-    const name = newName.trim() || kitName || "Untitled kit";
+    const desired = newName.trim() || kitName || "Untitled kit";
+    /* Save always mints a NEW file — a second save under a taken name
+       auto-suffixes to the lowest free number ("Hot Rod" → "Hot Rod 2")
+       so two same-day saves stay tellable apart (owner mandate,
+       2026-08-16). Case-insensitive; the note below says it happened.
+       Overwriting an existing project is the row's Update button, which
+       never touches names. */
+    const name = uniqueName(desired, (items ?? []).map((p) => p.name));
     // the kit takes the project's name, so the kit-page title reflects the
     // project you just saved (and the saved snapshot carries it)
     useGen.getState().setKitName(name);
@@ -99,6 +106,9 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     setBusy(false);
     if (error || !project) { setNote(error ?? "Couldn't save."); return; }
     setNewName("");
+    /* say what happened, especially the rename — a silent suffix would
+       trade one confusion for another */
+    setNote(name === desired ? `Saved as “${name}”.` : `Saved as “${name}” — “${desired}” already exists.`);
     await refresh();
   };
 
@@ -125,13 +135,17 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
   };
 
   const commitRename = async (p: CloudProject) => {
-    const name = renameVal.trim();
+    const desired = renameVal.trim();
     setRenaming(null);
-    if (!name || name === p.name) return;
+    if (!desired || desired === p.name) return;
+    /* renames obey the same duplicate rule as saves — minus this row
+       itself, so fixing capitalization never trips the suffix */
+    const name = uniqueName(desired, items?.filter((x) => x.id !== p.id).map((x) => x.name) ?? []);
     setBusy(true);
     const error = await renameProject(p.id, name);
     setBusy(false);
     if (error) { setNote(error); return; }
+    if (name !== desired) setNote(`Renamed to “${name}” — “${desired}” already exists.`);
     await refresh();
   };
 
