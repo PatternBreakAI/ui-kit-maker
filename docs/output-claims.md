@@ -388,6 +388,14 @@ it solves. This section keeps it honest.
 | `c_gm` | "clean **1× and 2×** PNGs" | "clean transparent PNGs up to 4×" | Single-component PNG is 1× free / up to 4× Pro; engine atomics are 2×. |
 | `c_web` | "a live **kit.html and kit.css**" | "one self-contained HTML file with a live, clickable component… lift the CSS out of" | `downloadHtml` writes one document with inline CSS and inline SVG. There is no second file. |
 
+### Corrected 2026-08-17 (all seven locales — owner-authorized in the Boards fix round)
+
+| Key | Was | Now | Why |
+|---|---|---|---|
+| `c_png` | "Crisp transparent PNGs **at 1× and 2×**…" | "Crisp transparent PNGs **up to 4×**…" | The fixed-scale pair is on the NEVER list (§2), and under the Gate Round PNG is a paid capability — the corrected line claims capability honestly and implies nothing free. The demo's export-complete mock row ("raster/") got the same fix in `landingHtml.ts`. |
+
+(Noted, unfixed, Front Door lane: the same mock still lists "web/ kit.html · kit.css" — the NEVER-listed two-file claim — and `c_html` still says "kit.html + kit.css". Not authorized in this round's mandate; flagged for that lane.)
+
 ### Verified good — no change needed
 
 - **`c_godot`** — "Godot 4 imports SVG directly (static SVG 1.1, rendered by ThorVG)" is exactly the kind of specificity we want.

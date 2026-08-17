@@ -131,7 +131,8 @@ export const LANDING_HTML = `</head>
                   <div class="ship-row" style="--i:0"><em>✓</em><b>engine/</b><span>unity.json · unreal.json</span></div>
                   <div class="ship-row" style="--i:1"><em>✓</em><b>web/</b><span>kit.html · kit.css</span></div>
                   <div class="ship-row" style="--i:2"><em>✓</em><b>vector/</b><span>SVG — every component</span></div>
-                  <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG @1× · @2×</span></div>
+                  <!-- cross-lane touch (app session, 2026-08-17): the NEVER-listed fixed-scale PNG claim corrected (owner-authorized) -->
+                  <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG up to @4×</span></div>
                   <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
                 </div>
                 <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.*</div>
