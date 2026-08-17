@@ -533,6 +533,9 @@ export interface WebKitState {
   kitShapes?: Partial<Record<KitComponentId, Shape>>;
   kitSizes?: Partial<Record<KitComponentId, KitSize | null>>;
   kitLabels?: Partial<Record<KitComponentId, string | null>>;
+  /** Text-less flag — maps to label:"" here so the pack can't resurrect
+      stock words on a piece the maker made wordless. */
+  kitNoText?: Partial<Record<KitComponentId, boolean>>;
   kitIcons?: Partial<Record<KitComponentId, unknown>>;
   kitVals?: Partial<Record<KitComponentId, number>>;
   releases?: Record<string, string>;
@@ -574,7 +577,7 @@ export async function downloadWebKit(
       try {
         const svg = stripLoops(renderKit(
           cfgP, id, effKitSize(st.kitSizes?.[id] ?? undefined), state, st.kitVals?.[id], st.kitShapes?.[id],
-          { label: st.kitLabels?.[id] ?? undefined, icon: resolveKitIcon(st.kitIcons?.[id] as never, undefined) },
+          { label: st.kitNoText?.[id] ? "" : (st.kitLabels?.[id] ?? undefined), icon: resolveKitIcon(st.kitIcons?.[id] as never, undefined) },
         ));
         const fd = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(svg, cfgP.type.font, fd.name === cfgP.type.font ? fd.css ?? null : null);

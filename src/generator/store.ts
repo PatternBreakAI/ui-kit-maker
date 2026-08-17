@@ -521,6 +521,15 @@ interface GenStore {
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
   setKitLabel: (id: KitComponentId, label: string | null) => void;
+  /** Per-component TEXT-LESS flag (owner feature, Boards round 2026-08-17):
+   *  true renders the piece wordless — mapped to label:"" at every render
+   *  boundary (the renderer's "" path draws no text part). Deliberately
+   *  its OWN map, never an overloaded kitLabels entry: there, "" means
+   *  reset-to-default (the setter deletes on "") and the ?? chains
+   *  resurrect stock words — overloading would destroy that sentinel.
+   *  Surfaced only for the NO_TEXT_ELIGIBLE allowlist (tab family). */
+  kitNoText: Partial<Record<KitComponentId, boolean>>;
+  setKitNoText: (id: KitComponentId, on: boolean) => void;
   /** Per-component STAGED VALUE (0..1) — the resting pose every "driven
    *  by the value slider" note promises: bars fill, needles point, tiers
    *  pick, toggles flip. null restores the piece's demo value. */
@@ -1259,6 +1268,7 @@ const KIT_STORE_KEY: Record<string, string> = {
   kitShapes: "ui-generator-kitshapes",
   kitIcons: "ui-generator-kiticons",
   kitLabels: "ui-generator-kitlabels",
+  kitNoText: "ui-generator-kitnotext",
   kitSubs: "ui-generator-kitsubs",
   kitTextFill: "ui-generator-kittextfill",
   kitTextOy: "ui-generator-kittextoy",
@@ -1275,7 +1285,7 @@ const KIT_STORE_KEY: Record<string, string> = {
    stay ATOMIC: applying a look that carries no clones resets the registry
    together with the maps (a look arrives whole), and one that does carries
    registry + entries as one piece. */
-const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -1314,8 +1324,8 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   useGen.setState(patch as Partial<GenStore>);
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
-const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -1404,7 +1414,7 @@ export const useGen = create<GenStore>((set, get) => ({
   setCanvasMode: (m) => set({ canvasMode: m }),
   library: loadJson<LibItem[]>(LIB_KEY, []),
   addToLibrary: (name) => {
-    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitLabels } = get();
+    const { focus, kitSizes, kitShapes, kitDesigns, kitTextOy, kitTextOx, kitTextFill, kitLabels, kitNoText } = get();
     let cfg = (typeof structuredClone === "function" ? structuredClone(get().cfg) : JSON.parse(JSON.stringify(get().cfg))) as GenConfig;
     // a locked component saves with its locked look — the snapshot IS the piece
     if (focus && kitDesigns[focus]) cfg = applyKitDesign(cfg, kitDesigns[focus]);
@@ -1421,7 +1431,7 @@ export const useGen = create<GenStore>((set, get) => ({
     // component (libThumb and the Board render by it). The clone's look is
     // already baked above through its own keys; its words ride along here.
     const kit: LibKit | undefined = focus
-      ? { id: baseOf(focus), size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)], ...(kitLabels[focus] ? { label: kitLabels[focus] } : {}) }
+      ? { id: baseOf(focus), size: effKitSize(kitSizes[focus]), shape: kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)], ...(kitNoText[focus] ? { label: "" } : kitLabels[focus] ? { label: kitLabels[focus] } : {}) }
       : undefined;
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, ...(kit ? { kit } : {}) };
     const library = [...get().library, item];
@@ -1566,10 +1576,12 @@ export const useGen = create<GenStore>((set, get) => ({
     // the design/text/nudge reads above already went through its own keys.
     // The label pins what the stage shows: instance words, else the
     // piece's own kit words.
-    const lbl = b.label ?? st.kitLabels[b.kitId];
+    // a text-less piece snapshots as label:"" — the render sites pass a
+    // defined "" through (truthy checks would resurrect stock words)
+    const lbl = st.kitNoText[b.kitId] ? "" : (b.label ?? st.kitLabels[b.kitId]);
     const kit: LibKit = {
       id: baseOf(b.kitId), size: sz, shape: st.kitShapes[b.kitId] ?? KIT_SHAPE[baseOf(b.kitId)],
-      ...(lbl ? { label: lbl } : {}),
+      ...(lbl !== undefined ? { label: lbl } : {}),
       ...(b.v !== undefined ? { v: b.v } : {}),
     };
     const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
@@ -1785,7 +1797,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
@@ -1834,6 +1846,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitDesigns: migrateKitDesigns(cfg, (p.kitDesigns as GenStore["kitDesigns"]) ?? {}).forks,
       kitTextFill: (p.kitTextFill as GenStore["kitTextFill"]) ?? {},
       kitLabels: (p.kitLabels as GenStore["kitLabels"]) ?? {},
+      kitNoText: (p.kitNoText as GenStore["kitNoText"]) ?? {},
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
       kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
@@ -1864,6 +1877,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitdesigns", next.kitDesigns);
       saveJson("ui-generator-kittextfill", next.kitTextFill);
       saveJson("ui-generator-kitlabels", next.kitLabels);
+      saveJson("ui-generator-kitnotext", next.kitNoText);
       saveJson("ui-generator-kitvals", next.kitVals);
       saveJson("ui-generator-kitsubs", next.kitSubs);
       saveJson("ui-generator-kiticons", next.kitIcons);
@@ -1980,7 +1994,7 @@ export const useGen = create<GenStore>((set, get) => ({
     };
     // the duplicate starts pixel-identical: every per-piece entry the
     // source carries copies over (a fork copy stays master-relative)
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       const m = st[k] as Record<string, unknown>;
       if (m[source] !== undefined) patch[k] = { ...m, [id]: cp(m[source]) };
     }
@@ -2005,7 +2019,7 @@ export const useGen = create<GenStore>((set, get) => ({
     pushHistory(st);
     const drop = <T extends Record<string, unknown>>(m: T): T => { const n = { ...m }; delete n[id]; return n; };
     const patch: Record<string, unknown> = { kitClones: drop(st.kitClones as unknown as Record<string, unknown>) };
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       if ((st[k] as Record<string, unknown>)[id] !== undefined) patch[k] = drop(st[k] as Record<string, unknown>);
     }
     const oy = { ...st.kitTextOy }, ox = { ...st.kitTextOx };
@@ -2122,6 +2136,17 @@ export const useGen = create<GenStore>((set, get) => ({
     if (v === null) delete kitVals[id]; else kitVals[id] = Math.max(0, Math.min(1, v));
     saveJson("ui-generator-kitvals", kitVals);
     set({ kitVals });
+  },
+  kitNoText: loadJson<Partial<Record<KitComponentId, boolean>>>("ui-generator-kitnotext", {}),
+  setKitNoText: (id, on) => {
+    // wordless is CONTENT, like the words themselves — editable on a
+    // finished piece; the lock freezes the look
+    markTouched();
+    pushHistory(get());
+    const kitNoText = { ...get().kitNoText };
+    if (on) kitNoText[id] = true; else delete kitNoText[id];
+    saveJson("ui-generator-kitnotext", kitNoText);
+    set({ kitNoText });
   },
   kitLabels: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitlabels", {}),
   setKitLabel: (id, label) => {

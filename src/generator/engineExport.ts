@@ -143,6 +143,12 @@ export interface EngineExportState {
       Unity verbatim (owner: "they spent time customizing it… lets not
       let them down"). Optional: older callers fall back to stock words. */
   kitLabels?: Partial<Record<KitComponentId, string>>;
+  /** Text-less flag (kitNoText, Boards round 2026-08-17): true maps to a
+      DELIBERATE empty label ("") at every read site in this file — see
+      the receipt comments. Unity agent: an empty labelText is a real
+      maker choice, never heal-to-stock; GameObject names fall back to
+      the family name; the variant scan skips blank pins. */
+  kitNoText?: Partial<Record<KitComponentId, boolean>>;
   kitSubs?: Partial<Record<KitComponentId, string>>;
   kitVals?: Partial<Record<KitComponentId, number>>;
   kitSlotVals?: Partial<Record<KitComponentId, Record<string, string>>>;
@@ -293,6 +299,8 @@ export async function collectExportBoards(st: {
   kitSizes: Partial<Record<KitComponentId, "s" | "m" | "l">>;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   kitLabels: Partial<Record<KitComponentId, string>>;
+  /** see EngineExportState.kitNoText — same deliberate-blank contract */
+  kitNoText?: Partial<Record<KitComponentId, boolean>>;
   kitVals: Partial<Record<KitComponentId, number>>;
   /** Per-component icon overrides — board pieces wear them on the stage,
    *  so measurements and baked sprites must too (optional: older callers). */
@@ -590,7 +598,8 @@ export async function collectExportBoards(st: {
       const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
       const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-        label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+        // kitNoText → deliberate "" (wordless render), never heal-to-stock
+        label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
         themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
       });
       const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
@@ -702,7 +711,7 @@ export async function collectExportBoards(st: {
         /* the family sprite bakes at the MAKER'S word now (labeled-geometry,
            round 7) — the divergence test must measure against the same word
            or every custom-worded copy would falsely re-pose */
-        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitLabels[idBase] ?? PREF_LABEL[idBase]) : "", icon: null });
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -713,7 +722,7 @@ export async function collectExportBoards(st: {
         if (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-            label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
           });
           /* the copy's OWN label metrics, parsed BEFORE the strip — this
@@ -790,7 +799,7 @@ export async function collectExportBoards(st: {
             for (const stN of ["hover", "pressed", "disabled"] as const) {
               let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
                 icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-                label: b.label ?? st.kitLabels[id], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+                label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
                 themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
               });
               const domS = new DOMParser().parseFromString(ssv, "image/svg+xml");
@@ -822,7 +831,10 @@ export async function collectExportBoards(st: {
            left kit-wide words behind — the baked board PNG said BACK, the
            live scene label reverted to the prefab's default TAB (owner:
            "the custom stuff from the boards isn't coming through") */
-        rot: b.rot ?? 0, label: b.label ?? st.kitLabels[id] ?? null,
+        /* kitNoText ships "" — a DELIBERATE blank the importer must keep
+           (Unity agent: not heal-to-stock, GameObject name falls back to
+           the family name, variant scan skips blank pins) */
+        rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
         // the EFFECTIVE pose — the importer drives live content from it
         // (count badge number, end-turn ring, slider value, switch on/off);
         // instance value wins, and the settings rigs always send their
@@ -1421,7 +1433,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   const seatOptsFor = (id: KitComponentId): KitOpts => ({
     icon: null,
-    label: st.kitLabels?.[id],
+    label: st.kitNoText?.[id] ? "" : st.kitLabels?.[id],
     sub: st.kitSubs?.[id],
     slots: st.kitSlotVals?.[id],
     themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1799,7 +1811,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        the geometry hugs the word the prefab will actually wear, and the
        word ships as labelText so the importer seeds it verbatim (round 7,
        owner's BOOST: prefabs must arrive saying what the maker typed). */
-    const word = PREF_LABEL[n.id] !== undefined ? (st.kitLabels?.[n.id] ?? PREF_LABEL[n.id]) : undefined;
+    /* kitNoText → word "" : the family bakes wordless geometry and the
+       manifest ships labelText:"" as a DELIBERATE blank (word !== undefined
+       still holds, so the emission below keeps the field). Unity agent:
+       treat empty labelText as a real value — never heal it to stock. */
+    const word = PREF_LABEL[n.id] !== undefined ? (st.kitNoText?.[n.id] ? "" : (st.kitLabels?.[n.id] ?? PREF_LABEL[n.id])) : undefined;
     const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
     const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
     const fullSvg = shell(n.id, wordOpts, ghost(slim));

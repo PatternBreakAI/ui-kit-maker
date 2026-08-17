@@ -121,7 +121,7 @@ export function TopBar() {
     return downloadWebKit({
       cfg,
       kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes,
-      kitSizes: st.kitSizes, kitLabels: st.kitLabels, kitIcons: st.kitIcons,
+      kitSizes: st.kitSizes, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitIcons: st.kitIcons,
       kitVals: st.kitVals, releases: st.componentReleases, kitName: st.kitName,
     }, g.licence, (d, tot, label) => setHtmlProg(d >= tot ? null : `${d + 1}/${tot} · ${label}`))
       .finally(() => setHtmlProg(null));
@@ -292,7 +292,7 @@ export function TopBar() {
                     // below already carry clone-keyed rows, and without the
                     // registry an import would strand them id-less
                     kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-                    kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitSubs: st.kitSubs,
+                    kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs,
                     kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
                     kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx,
                     kitLocks: st.kitLocks, kitSizes: st.kitSizes,

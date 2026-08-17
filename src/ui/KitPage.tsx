@@ -314,7 +314,7 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
@@ -350,7 +350,7 @@ function usePiece(p: PieceOpts) {
       // an explicit "no icon" instance stays empty
       // slot POSES keep their identity (same rule as the catalog's rk()):
       // a specimen demonstrating "Premium" stays Premium under user edits
-      label: kitLabels[p.id] ?? p.label, slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
+      label: kitNoText[p.id] ? "" : (kitLabels[p.id] ?? p.label), slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
@@ -1633,7 +1633,7 @@ export function KitPage() {
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, releases: st.componentReleases,
             // the maker's own words ride into the bones prefabs' live text
-            kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals },
+            kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
@@ -1830,7 +1830,7 @@ const kitTier = useGen((s) => s.tier);
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
         o.slots = { ...st.kitSlotVals[cid], ...o.slots };
-        if (o.label === undefined) o.label = st.kitLabels[cid];
+        if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
         if (cid === "progress" || cid === "segbar") {
           const kb = st.kitBar[cid];
@@ -3119,7 +3119,7 @@ const kitTier = useGen((s) => s.tier);
               }
               if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitNoText[cid] ? "" : st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
               if (which === "all") {
                 files.push({

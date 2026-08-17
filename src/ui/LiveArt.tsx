@@ -204,9 +204,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     : (kit?.baseState ?? "default");
 
   // hosts pass fresh kit literals every render — key on the fields, not the
-  // object, so the (string-building) renderer only runs when something changed
+  // object, so the (string-building) renderer only runs when something changed.
+  // label undefined (stock words) and label "" (deliberately wordless — the
+  // kitNoText flag) are DIFFERENT renders: the sentinel keeps their keys apart
+  // or flipping "No text" on an unworded piece would never re-render.
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
     : "";
   const svg = useMemo(
     () => {

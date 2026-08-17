@@ -421,7 +421,7 @@ function BackdropLibrary({ aspect, current, apply }: {
 
 export function BoardView({ playing }: { playing: boolean }) {
   const {
-    cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
+    cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
@@ -715,10 +715,10 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: renderKit(applyKitTextFill(tc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitLabels[kid], overlay: ov }) };
+        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: renderKit(applyKitTextFill(tc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }) };
       }),
     }));
-  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
+  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, componentReleases, isAdmin]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design
@@ -735,10 +735,10 @@ export function BoardView({ playing }: { playing: boolean }) {
         return {
           id: cid, kitId: key, name: c.name,
           hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
-          svg: renderKit(applyKitTextFill(applyKitDesign(tc, kitDesigns[key]), kitTextFill[key]), c.base, "s", "default", undefined, kitShapes[key], { icon: resolveKitIcon(kitIcons[key], undefined), label: kitLabels[key] }),
+          svg: renderKit(applyKitTextFill(applyKitDesign(tc, kitDesigns[key]), kitTextFill[key]), c.base, "s", "default", undefined, kitShapes[key], { icon: resolveKitIcon(kitIcons[key], undefined), label: kitNoText[key] ? "" : kitLabels[key] }),
         };
       });
-  }, [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, componentReleases, isAdmin]);
+  }, [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, componentReleases, isAdmin]);
 
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
@@ -760,12 +760,12 @@ export function BoardView({ playing }: { playing: boolean }) {
       // (owner: "changing the speedo component in edit did not update it
       // on the the board")
       const bSize = kitSizes[b.kitId] ?? "l";
-      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
-    return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
+    return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label !== undefined ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
 
   const nameOf = (b: BoardItem): string => {
@@ -1807,7 +1807,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onDragMove: (e: React.PointerEvent) => void;
   onDragEnd: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -1973,7 +1973,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
              ids) while every per-piece read stays keyed by b.kitId. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent onArt={onArtDim}
-            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,
