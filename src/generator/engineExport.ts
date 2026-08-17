@@ -269,6 +269,8 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   circuit: "circuit", startlights: "startlights", segbar: "segbar",
   loottag: "loottag", dropdown: "dropdown",
   laptimes: "laptimes", leaderboard: "leaderboard", telemetry: "telemetry",
+  // the timer too (owner 10.1: "the timer should be a prefab as well")
+  timerdigits: "timerdigits",
 };
 
 /* The stock words each labeled family's prefab wears (mirror of the
@@ -827,7 +829,7 @@ export async function collectExportBoards(st: {
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1
           // the gauges' render default — the needle pose the board showed
-          : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho") ? 0.62 : null), ax: pax, ay: pay,
+          : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho" || idBase === "timerdigits") ? 0.62 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
         ...(posed ? { posed } : {}),
         /* the posed ART's own footprint: crop box mapped to board px, and
@@ -2477,6 +2479,32 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       /* the text-seat unit contract version — the importer soft-gates on
          it so a future contract change can never be misread as this one */
       seatSpace: "sprite-fraction-v2",
+      /* the TIMER goes live (owner 10.1: "the timer should be a prefab as
+         well") — the app's timerdigits is PURE display type (no shell), so
+         the prefab is a live readout in the kit's own label dress plus the
+         KitTimer rig. The block carries the staged time, the exact word the
+         app shows, and the specimen's own canvas + rendered font size —
+         parsed from the render, never guessed. Per-piece forks travel via
+         pieceCfg exactly like every bake. */
+      timer: (() => {
+        try {
+          const cT = clone(pieceCfg("timerdigits"));
+          cT.stateDesigns = {};
+          cT.shadow.opacity = 0;
+          cT.candy.contact.opacity = 0;
+          for (const s5 of Object.values(cT.states)) s5.glow = 0;
+          const vT = Math.min(1, Math.max(0, st.kitVals?.timerdigits ?? 0.62));
+          const secsT = Math.max(0, Math.round(vT * 90));
+          const wordT = st.kitLabels?.timerdigits ?? `${Math.floor(secsT / 60)}:${String(secsT % 60).padStart(2, "0")}`;
+          const svgT = renderKit(cT, "timerdigits", effKitSize(st.kitSizes.timerdigits), "default", vT, st.kitShapes.timerdigits, { icon: null, label: st.kitLabels?.timerdigits });
+          const wT = parseFloat(/ width="([\d.]+)"/.exec(svgT)?.[1] ?? "0");
+          const hT = parseFloat(/ height="([\d.]+)"/.exec(svgT)?.[1] ?? "0");
+          const lgT = svgT.slice(svgT.indexOf('data-part="label"'));
+          const fsT = parseFloat(/<text x="(?:-?[\d.]+)" y="(?:-?[\d.]+)" font-size="([\d.]+)"/.exec(lgT)?.[1] ?? "0");
+          if (!(wT > 4 && hT > 4 && fsT > 1)) return undefined;
+          return { seconds: secsT, word: wordT, fs: Math.round(fsT * 10) / 10, w: Math.round(wT * 10) / 10, h: Math.round(hT * 10) / 10 };
+        } catch { return undefined; }
+      })(),
       /* the health globe's visible well as frame fractions (bottom-left
          origin) — the prefab anchors the cropped liquid here so
          Image.fillAmount 0..1 is visually empty..full, no padding lie */
@@ -2776,6 +2804,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSwitchGlide.cs", data: SWITCH_GLIDE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakFireButton.cs", data: FIREBUTTON_RUNTIME });
   files.push({ path: "Runtime/PatternBreakGaugeDial.cs", data: GAUGE_DIAL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitTimer.cs", data: KIT_TIMER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
@@ -2818,6 +2847,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
     "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
     "Runtime/PatternBreakGaugeDial.cs",
+    "Runtime/PatternBreakKitTimer.cs",
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
@@ -4142,6 +4172,46 @@ namespace PatternBreak {
    needle sweeps its 270° while the readout counts in the gauge's own
    scale (owner: "the prefab for the speedo and rpm meter don't have
    numbers in them" — now number and needle both answer). */
+/* Runtime script: the timer's one moving truth — Seconds ticks DOWN in
+   Play mode (the app presents the timer as time remaining, urgent near
+   zero), clamps at 0:00 and stops; hook your own reset. Drives a plain
+   TMP readout or a HeroLabel stack, whichever the prefab wears. */
+const KIT_TIMER_RUNTIME = `using UnityEngine;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Timer")]
+  [ExecuteAlways]
+  public class KitTimer : MonoBehaviour {
+    [Tooltip("Time on the clock, in seconds. Ticks down while Running (the app presents timers as time remaining); clamps at 0.")]
+    public float seconds = 56f;
+    [Tooltip("Tick in Play mode. Off = a frozen readout you drive yourself.")]
+    public bool running = true;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The live readout (plain TMP). A HeroLabel stack on this object is driven automatically instead.")]
+    public TMP_Text readout;
+#endif
+    float shown = -1f;
+    public void Apply() {
+      int whole = Mathf.Max(0, Mathf.CeilToInt(seconds));
+      string txt = (whole / 60) + ":" + (whole % 60).ToString("00");
+#if UNITY_2023_2_OR_NEWER
+      var hl = GetComponentInChildren<HeroLabel>(true);
+      if (hl != null) { if (hl.text != txt) hl.SetText(txt); }
+      else if (readout != null && readout.text != txt) readout.text = txt;
+#endif
+      shown = seconds;
+    }
+    void Update() {
+      if (running && Application.isPlaying && seconds > 0f) seconds = Mathf.Max(0f, seconds - Time.deltaTime);
+      if (!Mathf.Approximately(shown, seconds)) Apply();
+    }
+  }
+}
+`;
+
 const GAUGE_DIAL_RUNTIME = `using UnityEngine;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
@@ -5374,6 +5444,12 @@ of speedo2/speedo2-segment.png, rotated one notch per step.
 **Startlights**: the gantry, pods dark. Light a pod by dropping a small
 circle over it, tinted your countdown color.
 
+**Timer**: the kit's display digits, ALIVE — a **Kit Timer** component
+drives the readout. *Seconds* is the time on the clock, *Running* ticks
+it down in Play mode (timers read as time remaining; it clamps at 0:00
+and stops — hook your own reset). The words wear the kit's full label
+dress, so a restyle re-dresses them like every label.
+
 **SegmentMeter**: the empty well. The lit strip ships beside it
 (segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
 
@@ -5583,6 +5659,10 @@ namespace PatternBreak {
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string markInk; public string radioInk; }
+  /* the live TIMER block: staged time, the app's exact word, and the
+     specimen's canvas + rendered font size (readers gate on fs > 1 —
+     JsonUtility default-constructs the block on older manifests) */
+  [Serializable] class PBTimerBlock { public float seconds; public string word; public float fs; public float w; public float h; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
@@ -5598,7 +5678,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -6750,6 +6830,7 @@ namespace PatternBreak {
             else if (it.component == "loottag") pfName = "LootTag";
             else if (it.component == "laptimes") pfName = "LapTimes";
             else if (it.component == "segbar") pfName = "SegmentMeter";
+            else if (it.component == "timerdigits") pfName = "Timer";
             else if (it.component == "joystick") pfName = "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
@@ -7011,6 +7092,8 @@ namespace PatternBreak {
                board's staged Value on the dial */
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
+            var ktS = inst.GetComponent<KitTimer>();
+            if (ktS != null && it.value > 0f) { ktS.seconds = Mathf.Round(Mathf.Clamp01(it.value) * 90f); ktS.Apply(); }
             if (it.component == "endturn" && it.value > 0f) {
               var arcT = inst.transform.Find("Arc");
               if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
@@ -9463,6 +9546,36 @@ namespace PatternBreak {
 #endif
       gd.Apply(); // strike the resting pose so the prefab reads live
     }
+    /* the TIMER (owner 10.1: "the timer should be a prefab as well") —
+       the app's timerdigits is pure display type, so the prefab is the
+       kit-dressed live readout riding a KitTimer rig (Seconds ticks DOWN,
+       clamps at 0:00 — the app presents timers as time remaining). */
+    static bool TimerPrefab(string dir, string root, PBManifest m, Font kitFont) {
+      if (m == null || m.timer == null || m.timer.fs <= 1f) return false; // older manifests ship no block
+      var go = new GameObject("Timer", typeof(RectTransform));
+      go.GetComponent<RectTransform>().sizeDelta = new Vector2(m.timer.w, m.timer.h);
+      var word = string.IsNullOrEmpty(m.timer.word) ? "0:56" : m.timer.word;
+      AddLabel(go, word, kitFont, root, m, "timerdigits");
+      var lr = FindOurLabelRoot(go);
+      if (lr == null) { UnityEngine.Object.DestroyImmediate(go); return false; }
+      // the app's own rendered size, exactly — never the fitted fallback
+      var hlT = lr.GetComponent<HeroLabel>();
+      if (hlT != null) { hlT.fontSize = m.timer.fs; hlT.SetText(word); }
+      else {
+        var tmpT = lr.GetComponentInChildren<TMPro.TMP_Text>(true);
+        if (tmpT != null) { tmpT.enableAutoSizing = false; tmpT.fontSize = m.timer.fs; }
+      }
+      var kt = go.AddComponent<KitTimer>();
+      kt.seconds = m.timer.seconds;
+      kt.running = true;
+#if UNITY_2023_2_OR_NEWER
+      if (hlT == null) kt.readout = lr.GetComponentInChildren<TMPro.TMP_Text>(true);
+#endif
+      kt.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Timer.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     static bool GaugePrefab(string dir, string root, int pngScale, PBManifest m, string fam, string goName, string faceFile) {
       var face = S(root + "/assets/" + faceFile);
       if (face == null) return false;
@@ -10007,6 +10120,7 @@ namespace PatternBreak {
       if (GaugePrefab(dir, root, pngScale, m, "speedo", "Speedo", "speedo/speedo-face.png")) any = true;
       if (GaugePrefab(dir, root, pngScale, m, "speedo2", "SpeedoArc", "speedo2/speedo2-face.png")) any = true;
       if (GaugePrefab(dir, root, pngScale, m, "tacho", "RevMeter", "tacho/tacho-face.png")) any = true;
+      if (TimerPrefab(dir, root, m, kitFont)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "segbar/segbar-base.png", "SegmentMeter", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "loottag/loottag-base.9.png", "LootTag", true)) any = true;
       if (DropdownPrefab(dir, root, pngScale, m, kitFont)) any = true;
