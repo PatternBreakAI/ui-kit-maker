@@ -1636,6 +1636,8 @@ export function KitPage() {
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
+          // a fontless zip is a real defect downstream — say it to the maker's face
+          (msg) => window.alert(msg),
         );
       });
     } finally {

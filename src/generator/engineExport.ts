@@ -854,13 +854,76 @@ const sha256Hex = async (data: Uint8Array): Promise<string> => {
 };
 
 /* ── the kit's faces ship WITH the kit (spec-blessed: OFL/Apache/UFL faces
-   travel with their license file, or not at all) — so generated prefab
-   labels speak the right font with zero user steps. TTFs come from the
-   google/fonts repo at export time; ANY failure degrades to the manifest's
-   Google Fonts link and never blocks the export. */
+   travel with their license file — or with a licence POINTER when the text
+   itself is unreachable) — so generated prefab labels speak the right font
+   with zero user steps. Three independent sources, tried in order; ANY
+   failure degrades to the next and never blocks the export. Round-9 field
+   lesson (War Chuds): the single api.github.com path fails silently for
+   some users (rate limits, proxies) and a fontless zip poisons the whole
+   Unity text story — so the reachable-by-design Google Fonts CDN leads. */
+const FONT_LICENCE_HOME = (family: string) =>
+  `https://fonts.google.com/specimen/${encodeURIComponent(family).replace(/%20/g, "+")}/license`;
+const licencePointer = (family: string) =>
+  `The "${family}" typeface travels with this kit under its open licence (SIL Open Font License 1.1 for most Google Fonts collections; Apache 2.0 / UFL for the rest).\n\nThe full licence text could not be bundled at export time — it lives at:\n  ${FONT_LICENCE_HOME(family)}\n  https://openfontlicense.org\n\nRe-exporting the kit when github.com is reachable bundles the full text in place of this pointer.`;
+/* the collection licence text, best-effort: raw CDN first, API second */
+async function fetchFontLicence(slug: string): Promise<{ name: string; text: string } | null> {
+  for (const dir of ["ofl", "apache", "ufl"]) {
+    for (const name of ["OFL.txt", "LICENSE.txt", "LICENCE.txt", "UFL.txt"]) {
+      try {
+        const res = await fetch(`https://raw.githubusercontent.com/google/fonts/main/${dir}/${slug}/${name}`);
+        if (res.ok) return { name, text: await res.text() };
+      } catch { /* next */ }
+    }
+  }
+  return null;
+}
 export async function fetchKitFont(family: string): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
   const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!slug) return null;
+  /* ── 1 · Google Fonts css2 → fonts.gstatic.com TTF. The CSS names a
+     TrueType URL when the client doesn't read as a modern browser; the
+     fetch spec allows overriding User-Agent (Chromium honors it — engines
+     that refuse simply fall through to the UA-less retry, then to GitHub),
+     and both hosts answer CORS with *. No auth, no meaningful rate limit. */
+  const cssQ = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}`;
+  for (const ua of ["UIKitMaker-export/1.0 (TTF bundler; +https://uikitmaker.com)", null]) {
+    try {
+      const res = await fetch(cssQ, ua ? { headers: { "User-Agent": ua } } : undefined);
+      if (!res.ok) continue;
+      const css = await res.text();
+      const m = /url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.ttf)\)/.exec(css);
+      if (!m) continue; // this engine wouldn't drop its browser UA — woff2 only
+      const fr = await fetch(m[1]);
+      if (!fr.ok) continue;
+      const bytes = new Uint8Array(await fr.arrayBuffer());
+      const lic = await fetchFontLicence(slug).catch(() => null);
+      return {
+        file: `${family.replace(/[^A-Za-z0-9]/g, "")}-Regular.ttf`,
+        bytes,
+        licenceName: lic?.name ?? "LICENCE-POINTER.txt",
+        licenceText: lic?.text ?? licencePointer(family),
+      };
+    } catch { /* next UA / next source */ }
+  }
+  /* ── 2 · google/fonts METADATA.pb over the raw CDN (unauthenticated,
+     no API rate limit): names the real TTF files in the collection ── */
+  for (const dir of ["ofl", "apache", "ufl"]) {
+    try {
+      const metaRes = await fetch(`https://raw.githubusercontent.com/google/fonts/main/${dir}/${slug}/METADATA.pb`);
+      if (!metaRes.ok) continue;
+      const meta = await metaRes.text();
+      const names = [...meta.matchAll(/filename:\s*"([^"]+\.ttf)"/g)].map((x) => x[1]);
+      if (!names.length) continue;
+      const pick = names.find((n) => /-Regular\.ttf$/i.test(n)) ?? names.find((n) => n.includes("[")) ?? names[0];
+      const fr = await fetch(`https://raw.githubusercontent.com/google/fonts/main/${dir}/${slug}/${pick}`);
+      if (!fr.ok) continue;
+      const bytes = new Uint8Array(await fr.arrayBuffer());
+      const lic = await fetchFontLicence(slug).catch(() => null);
+      return { file: pick, bytes, licenceName: lic?.name ?? "LICENCE-POINTER.txt", licenceText: lic?.text ?? licencePointer(family) };
+    } catch { /* next collection */ }
+  }
+  /* ── 3 · the original api.github.com listing (auth-less, rate-limited —
+     the round-9 root cause when it was the ONLY path) ── */
   for (const dir of ["ofl", "apache", "ufl"]) {
     try {
       const res = await fetch(`https://api.github.com/repos/google/fonts/contents/${dir}/${slug}`);
@@ -1080,7 +1143,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
 }
 `;
 
-export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void): Promise<void> {
+export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void, onWarn?: (msg: string) => void): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
   setEmbedFont("", null); // never inherit a stale embed from a crashed export
@@ -2257,6 +2320,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; }
   }
   setEmbedFont(st.cfg.type.font, primaryFontBytes);
+  /* a fontless zip must NEVER leave the browser silently again (round-9
+     field: War Chuds shipped no fonts/, Unity degraded to a bare default
+     face and nothing anywhere said why) — say it here, loudly, and stamp
+     the manifest so the importer says it too */
+  if (!primaryFontFile) {
+    console.warn(`engine export: the kit font "${st.cfg.type.font}" could not be bundled from any source — the zip ships WITHOUT its font.`);
+    onWarn?.(`Heads up — your kit's font ("${st.cfg.type.font}") couldn't be downloaded for bundling, so this zip ships without it. Unity will show plain placeholder text until you re-export with the font reachable (the kit heals itself on the next import — nothing you type in Unity is lost).`);
+  }
 
   /* ── rasterise everything queued above, reporting progress ────── */
   await rasterQueue();
@@ -2403,6 +2474,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            generated prefab labels to it; null = fetch failed at export
            time, fall back to the source link above */
         fontFile: primaryFontFile,
+        /* true = the fetch chain failed end to end at export time — the
+           importer says so loudly and keeps its dress demands pending */
+        fontMissing: !primaryFontFile,
         /* the styled-text recipe — enough numbers to rebuild the kit's
            display treatment as a TextMeshPro material preset: face fill
            (or vertex gradient), outline, and glow/underlay */
@@ -5436,7 +5510,7 @@ namespace PatternBreak {
   [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string markInk; public string radioInk; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
@@ -5771,6 +5845,7 @@ namespace PatternBreak {
       if (prev != null && prev.files != null)
         foreach (var f in prev.files) if (f != null && !string.IsNullOrEmpty(f.file)) prevHash[f.file] = f.sha256;
 
+      faceStarved = 0; // per-pass: labels/seats that wanted the kit face and couldn't have it
       int applied = 0, already = 0, missing = 0, fresh = 0, restyled = 0, same = 0;
       try {
         AssetDatabase.StartAssetEditing();
@@ -5834,7 +5909,9 @@ namespace PatternBreak {
       bool tmpPending = false;
       Font kitTtf = null;
       if (manifest.typography == null || string.IsNullOrEmpty(manifest.typography.fontFile)) {
-        Debug.Log("UI Kit Maker: this export shipped no font file (the fetch failed in the browser at export time) — labels use Unity's built-in face. Re-export from uikitmaker.com to retry.");
+        Debug.LogWarning("UI Kit Maker: this kit shipped WITHOUT its font"
+          + (manifest.typography != null && manifest.typography.fontMissing ? " (the font download failed in the browser at export time)" : "")
+          + " — every label and seated word falls back to a plain face for now. THE CURE: re-export the kit from uikitmaker.com (the site now warns when the font can't bundle) and drop the new zip over this folder — everything re-dresses itself in place, and words you typed in Unity are kept.");
       } else {
         kitTtf = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + manifest.typography.fontFile);
         if (kitTtf == null)
@@ -5903,6 +5980,8 @@ namespace PatternBreak {
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
+      if (faceStarved > 0)
+        Debug.LogWarning("UI Kit Maker: " + faceStarved + " label(s)/word group(s) are wearing the plain fallback face because the kit face isn't available in this zip. Nothing is lost: re-export from uikitmaker.com with the font bundling (the site warns when it can't) and drop the zip here — everything re-dresses itself, keeping any words you typed.");
 #if UNITY_2023_2_OR_NEWER
       if (tmpPending) EditorApplication.delayCall += Apply; // one bounded re-pass once the essentials land
 #endif
@@ -7859,6 +7938,13 @@ namespace PatternBreak {
       float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
 #if UNITY_2023_2_OR_NEWER
       var face = EnsureTmpFace(root, m, kitFont);
+      /* FONTLESS kit (round-9, War Chuds): no TTF in the zip means no
+         KitFace SDF — but a TMP label in the plain grotesk still wears
+         the kit's INK and never truncates, and the next fonted import
+         re-faces it in place (LabelCurrent sees the face change). The
+         legacy Text fallback below only remains for pre-TMP editors —
+         its Truncate default is what cut ATTACK! to "ATTAC". */
+      if (face == null) { face = GaugeUnitFace(); if (face != null) faceStarved++; }
       if (face != null) {
         AddTmpLabel(parent, text, face, m != null && m.typography != null ? m.typography.style : null, lsA);
         // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
@@ -7879,6 +7965,10 @@ namespace PatternBreak {
       t.fontSize = Mathf.RoundToInt(lsA);
       t.color = Color.white;
       t.raycastTarget = false;
+      // a placed word never truncates — Unity Text defaults to Wrap +
+      // Truncate, which is exactly the field's "ATTAC" (round 9)
+      t.horizontalOverflow = HorizontalWrapMode.Overflow;
+      t.verticalOverflow = VerticalWrapMode.Overflow;
       // the kit's own face ships in fonts/ (license beside it) and wires
       // here automatically; the built-in face only covers a fetch-less
       // zip. For styled DYNAMIC text, build a TMP material preset from
@@ -8622,6 +8712,9 @@ namespace PatternBreak {
        re-import re-seeds words and heals geometry only on seats still
        equal to their seed; anything the dev retyped is theirs, with a
        Console receipt. */
+    /* labels/word groups that WANTED the kit face during this pass and
+       had to wear the plain fallback (fontless zip) — one loud receipt */
+    static int faceStarved;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
       var img = host.GetComponent<Image>();
@@ -8824,6 +8917,7 @@ namespace PatternBreak {
       if (rootH < 2f) return;
       if (host.transform.Find("Words") != null) { SeatsDrift(host, row, root, m, pngScale, true); return; }
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      if (kitFace == null) foreach (var s1 in row.textSeats) if (s1.kit) { faceStarved++; break; }
       Material dressMat = SeatInkShips(row) && kitFace != null
         ? EnsureInkPresetMaterial(kitFace, row.seatInk, root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat")
         : null;
@@ -9073,6 +9167,7 @@ namespace PatternBreak {
          (owner: white digits under the label material's halo) */
       if (GaugeInkShips(g)) {
         var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        if (kitFace == null) faceStarved++;
         if (gd.number != null)
           DressGaugeNumber(gd.number, g.ink, kitFace, EnsureGaugeMaterial(root, kitFace, g.ink, fam), true);
         var uniTr = host.transform.Find("Unit");
