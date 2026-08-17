@@ -1924,7 +1924,17 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
         onPointerUp: onDragEnd,
         onPointerCancel: onDragEnd,
       } : { onPointerDown: onSelect })}>
-      <div ref={artRef} style={{ transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
+      {/* THE DRIFT FIX (verified root cause, 2026-08-17): LiveArt's
+          anchorContent pulls its glow pad in with a NEGATIVE TOP MARGIN
+          (−pad). A plain block wrapper lets that margin COLLAPSE through
+          to this box — transform does not stop parent-child collapse —
+          so the art shifted up by pad·fit instead of pad·sc·fit and the
+          selection overlay sat off the ink by pad·fit·(1−sc): zero at
+          100% scale (why it felt intermittent), ~31px at the reported
+          sc=0.36. display:flow-root makes this wrapper a block
+          formatting context, which keeps the child margin INSIDE the
+          scaled box. The overlay math was measured correct all along. */}
+      <div ref={artRef} style={{ display: "flow-root", transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
         {b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (
