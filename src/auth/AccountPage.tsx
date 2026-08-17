@@ -290,11 +290,15 @@ export function AccountPage() {
                 <>
                   <div className="fd-plan">
                     <span className="fd-plan__chip">FREE PLAYER</span>
-                    <span className="fd-plan__desc">The full kit in the browser, cloud saves, and 1× PNG exports.</span>
+                    <span className="fd-plan__desc">
+                      The full kit in the browser, cloud saves, your settings file — and the
+                      free Unity test kit, a stock evaluation ZIP that proves the import
+                      pipeline in your engine.
+                    </span>
                   </div>
                   <p className="fd-fine">
-                    Pro adds every starter preset, unlimited zoom, 4× PNG and the vector
-                    exports (SVG, HTML, game kit, engine ZIP) for $29.99 a year.
+                    Pro adds every export — PNG up to 4×, SVG, HTML, game kit, engine ZIP —
+                    plus every starter preset and unlimited zoom, for $29.99 a year.
                   </p>
                 </>
               )}

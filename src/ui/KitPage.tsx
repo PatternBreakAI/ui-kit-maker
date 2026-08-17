@@ -1810,8 +1810,8 @@ const kitTier = useGen((s) => s.tier);
       id: "testkit",
       name: "Unity test kit (ZIP) — free",
       desc: kitTier === "guest"
-        ? "A stock evaluation kit — sign up free and prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine before paying."
-        : "A stock evaluation kit — the same fixed ZIP for everyone, not your design — to prove the whole import pipeline (prefabs, scenes, gauges, words) before you pay.",
+        ? "The stock Hot Rod evaluation kit — sign up free and prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine before paying."
+        : "The stock Hot Rod evaluation kit — the same fixed ZIP for everyone, not your design — to prove the whole import pipeline (prefabs, scenes, gauges, words) before you pay.",
       busy: testKitBusy, run: () => void runTestKit(),
     }] : []),
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },

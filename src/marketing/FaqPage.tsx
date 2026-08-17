@@ -160,7 +160,11 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What can I export right now?",
-        a: "· **PNG** — every plan; free at 1×, paid plans at 4×.\n· **Layered SVG** — real vectors with named groups (shell, face, content, gloss…), paid.\n· **HTML/CSS** — a self-contained live component page, paid.\n· **Game kit** — the components as production files, paid.\n· **Engine ZIP** — atomic transparent PNGs with nine-slice metadata, a manifest, Unity import tooling and Unreal UMG recipes, paid.\n· **Sprite sheet** — the visual catalog, paid.\n· **Settings JSON** — your full recipe, every plan, importable back into the app.",
+        a: "Every export of **your own design** ships with the paid plans (Pro and Student — same formats):\n\n· **PNG** — transparent, up to 4×.\n· **Layered SVG** — real vectors with named groups (shell, face, content, gloss…).\n· **HTML/CSS** — a self-contained live component page.\n· **Game kit** — the components as production files.\n· **Engine ZIP** — atomic transparent PNGs with nine-slice metadata, a manifest, Unity import tooling and Unreal UMG recipes.\n· **Sprite sheet** — the visual catalog.\n\nFree accounts keep two downloads, deliberately: the **settings JSON** (your full recipe, importable back into the app — your work is never locked in) and the free **Unity test kit** (below). Guests export nothing — signing up is where downloads begin.",
+      },
+      {
+        q: "What is the free Unity test kit?",
+        a: "A **stock evaluation kit** every registered account can download — one canned, pre-built Unity ZIP (currently the **Hot Rod** kit), the same fixed artifact for everyone. It is **not your design**: it exists so you can prove the whole import pipeline (prefabs, scenes, gauges, live text) in your engine before paying anything. Sign in, open your kit page, and it's in the export menu. When you upgrade, the same flow delivers your own kit instead.",
       },
       {
         q: "Will my SVGs look identical in Figma or Illustrator?",
@@ -190,7 +194,7 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What's free, and what does Pro add?",
-        a: "Free is the real editor — full kit, cloud saves, 1× PNG exports, and your kits join the community. **Pro** ($29.99/year) adds the vector and engine formats, 4× PNG, every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
+        a: "Free is the real editor — full kit, cloud saves, unlimited boards, your settings file, your kits join the community, and the stock **Unity test kit** to prove the import pipeline. Exporting your own designs is the paid unlock: **Pro** ($29.99/year) adds every export format — PNG up to 4×, layered SVG, HTML, game kit, engine ZIP — plus every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
       },
       {
         q: "How does the student rate work?",

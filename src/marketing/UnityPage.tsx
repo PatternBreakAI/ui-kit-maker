@@ -96,8 +96,10 @@ export function UnityPage() {
         <section className="unitysec unitycta">
           <h2>Try it on your own kit</h2>
           <p>
-            Build a kit, open its kit page, and the Unity ZIP is the big export button. The free tier ships a
-            three-piece starter so you can feel the import before you commit; the full kit is every component.
+            Build a kit, open its kit page, and the Unity ZIP is the big export button — every component,
+            on the paid plans. Want to feel the import before you commit? A free account includes the{" "}
+            <b>Unity test kit</b>: a stock evaluation ZIP, the same for everyone, that proves the whole
+            pipeline — prefabs, scenes, gauges, live text — in your project first.
           </p>
           <div className="unitybtns">
             <button className="fd-primary" onClick={() => navigate("#/app")}>Open the generator</button>
