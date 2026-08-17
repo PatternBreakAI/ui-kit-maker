@@ -3320,6 +3320,7 @@ namespace PatternBreak {
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
     }
     void BuildGlow() {
+      if (glowRt != null) return; // one halo, ever — a double enable must not stack auras
       var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
       /* the halo is DECOR, not layout — and the exemption must exist BEFORE
