@@ -260,6 +260,15 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   slider: "slider", toggle: "toggle",
   // the mini-map places as the Minimap prefab (demo radar aboard)
   minimap: "minimap",
+  /* THE MANDATE (owner, round 10): "there should be NO baked assets in
+     the scene… where we have real assets in prefabs." The gauges and the
+     bones panels place as LIVE prefab instances now — baked art remains
+     only for genuinely pose-diverged copies and prefab-less pieces
+     (type stamps, timerdigits, backgrounds). */
+  speedo: "speedo", speedo2: "speedo2", tacho: "tacho",
+  circuit: "circuit", startlights: "startlights", segbar: "segbar",
+  loottag: "loottag", dropdown: "dropdown",
+  laptimes: "laptimes", leaderboard: "leaderboard", telemetry: "telemetry",
 };
 
 /* The stock words each labeled family's prefab wears (mirror of the
@@ -816,7 +825,9 @@ export async function collectExportBoards(st: {
         // (count badge number, end-turn ring, slider value, switch on/off);
         // instance value wins, and the settings rigs always send their
         // render default so the scene strikes the pose the board showed
-        value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1 : null), ax: pax, ay: pay,
+        value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1
+          // the gauges' render default — the needle pose the board showed
+          : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho") ? 0.62 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
         ...(posed ? { posed } : {}),
         /* the posed ART's own footprint: crop box mapped to board px, and
@@ -1310,13 +1321,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       if (!(fs > 1) || !str0) continue;
       /* rotated or path-riding text can't be a clean TMP seat — skipped
          (and none of the audited components carry any; if one ever does,
-         its words are already in the art and the README bones note holds) */
+         its words are already in the art and the README bones note holds).
+         Ancestor TRANSLATES are real and must be accumulated: the shell
+         reserves extrusion headroom by translating ALL ink down, and the
+         raw x/y attrs are pre-translate — ignoring it seated every panel
+         word ~a headroom too high (round-10 pixel probe: the telemetry
+         title landed 10% of the panel above its ink). */
       let warped = !!t.querySelector("textPath");
       let ghosted = false;
       let dressed = false;
+      let tdx = 0, tdy = 0;
       for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
         const tf = p.getAttribute("transform") ?? "";
-        if (/rotate|skew|matrix/.test(tf)) warped = true;
+        if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
+        for (const mt of tf.matchAll(/translate\(\s*(-?[\d.]+)[ ,]*(-?[\d.]+)?\s*\)/g)) {
+          tdx += parseFloat(mt[1]);
+          tdy += parseFloat(mt[2] ?? "0");
+        }
         if (p.getAttribute("opacity") === "0") ghosted = true;
         if (p !== t && p.getAttribute("filter")) dressed = true;
       }
@@ -1356,8 +1377,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const opAttr = t.getAttribute("opacity");
       if (opAttr) fillOpacity = Math.round(fillOpacity * parseFloat(opAttr));
       const central = t.getAttribute("dominant-baseline") === "central";
-      const x = parseFloat(t.getAttribute("x") ?? "0");
-      const y0 = parseFloat(t.getAttribute("y") ?? "0");
+      const x = parseFloat(t.getAttribute("x") ?? "0") + tdx;
+      const y0 = parseFloat(t.getAttribute("y") ?? "0") + tdy;
       // baseline-anchored nodes center on the MEASURED mid-cap of their
       // own face (canvas metrics), not a constant guess
       const midEm = central ? 0 : capMidOf(kit ? `'${kitFont}', Inter, sans-serif` : "Inter, sans-serif");
@@ -3244,12 +3265,17 @@ namespace PatternBreak {
     float lastWroteY = float.NaN;
     bool settling;
 
+    RectTransform artRt; // the posed art child, when this copy wears one
     void OnEnable() {
       rt = GetComponent<RectTransform>();
       sel = GetComponent<Selectable>();
       baseY = rt.anchoredPosition.y;
       glowNow = glowTo = Target(out liftTo);
       liftNow = liftTo;
+      // board copies with POSED art draw through an offset child — the
+      // halo must hug the VISIBLE art, not the invisible raycast body
+      // (owner round 10: "the shadow being separate isn't great")
+      artRt = transform.Find("Posed art") as RectTransform;
       /* the halo has to draw BEHIND the piece, and in Unity UI a child
          always draws in FRONT of its parent's own graphic — so it is a
          SIBLING inserted just before us. Built at runtime, which also
@@ -3273,8 +3299,18 @@ namespace PatternBreak {
          report, round two: prefabs "spawn in grouped in one place"). */
       go.GetComponent<LayoutElement>().ignoreLayout = true;
       glowRt = go.GetComponent<RectTransform>();
-      glowRt.SetParent(rt.parent, false);
-      glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
+      var img0 = GetComponent<Image>();
+      bool rootInvisible = img0 == null || img0.sprite == null || img0.color.a < 0.05f;
+      if (rootInvisible && artRt != null) {
+        /* posed copies: the root draws nothing, so the halo can live INSIDE
+           the instance (first child = behind the art) and can never drift
+           from it — poses, moves and scales all ride along */
+        glowRt.SetParent(rt, false);
+        glowRt.SetAsFirstSibling();
+      } else {
+        glowRt.SetParent(rt.parent, false);
+        glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
+      }
       glowImg = go.GetComponent<Image>();
       glowImg.sprite = glowSprite;
       glowImg.raycastTarget = false;
@@ -3292,17 +3328,20 @@ namespace PatternBreak {
        per-frame ALLOCATION, and this allocates nothing. */
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
-      if (glowRt.anchorMin != rt.anchorMin) glowRt.anchorMin = rt.anchorMin;
-      if (glowRt.anchorMax != rt.anchorMax) glowRt.anchorMax = rt.anchorMax;
-      if (glowRt.pivot != rt.pivot) glowRt.pivot = rt.pivot;
-      if (glowRt.localScale != rt.localScale) glowRt.localScale = rt.localScale;
+      // the halo hugs the VISIBLE art: the posed child when riding inside
+      // the instance, the host rect otherwise
+      var tgt = glowRt.parent == rt && artRt != null ? artRt : rt;
+      if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
+      if (glowRt.anchorMax != tgt.anchorMax) glowRt.anchorMax = tgt.anchorMax;
+      if (glowRt.pivot != tgt.pivot) glowRt.pivot = tgt.pivot;
+      if (glowRt.localScale != tgt.localScale) glowRt.localScale = tgt.localScale;
       // the aura sprite is the piece plus a fixed overhang, so the pad is an
       // ADDITIVE offset — correct whether the piece is fixed or stretched
-      var size = rt.sizeDelta + glowPad * 2f;
+      var size = tgt.sizeDelta + glowPad * 2f;
       if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
       // the piece's own y already carries the lift — the halo just sits
-      // exactly where the piece sits, no lift math of its own
-      if (glowRt.anchoredPosition != rt.anchoredPosition) glowRt.anchoredPosition = rt.anchoredPosition;
+      // exactly where the art sits, no lift math of its own
+      if (glowRt.anchoredPosition != tgt.anchoredPosition) glowRt.anchoredPosition = tgt.anchoredPosition;
     }
     void LateUpdate() {
       if (rt == null) return;
@@ -6066,6 +6105,11 @@ namespace PatternBreak {
          cause, and the post-reload sweep runs whatever is still armed */
       SessionState.SetBool("PBKitVariantsPending", true);
       EditorApplication.delayCall += () => {
+        /* variants FIRST: a pinned-word board copy places its word-variant
+           prefab instance (the word is structural — a later label redress
+           can never strip it; the old PLAY-for-BOOST regression class) */
+        try { LabelVariantPrefabs(root, manifest); SessionState.SetBool("PBKitVariantsPending", false); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
         BuildBoardScenes(root, manifest);
         /* a kit UPDATE leaves existing scenes wearing their FIRST build's
            sizing and words — new sprites on old decisions (field: the
@@ -6085,22 +6129,24 @@ namespace PatternBreak {
               catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
             }
           } else if (anyKept) {
-            Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready.");
+            int liveGain = 0;
+            foreach (var bdG in manifest.boards) {
+              if (bdG == null || bdG.items == null) continue;
+              foreach (var itG in bdG.items)
+                if (itG != null && string.IsNullOrEmpty(itG.stamp)
+                    && (itG.component == "speedo" || itG.component == "speedo2" || itG.component == "tacho"
+                        || itG.component == "circuit" || itG.component == "startlights" || itG.component == "segbar"
+                        || itG.component == "loottag" || itG.component == "dropdown" || itG.component == "laptimes"
+                        || itG.component == "leaderboard" || itG.component == "telemetry")) liveGain++;
+            }
+            Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready."
+              + (liveGain > 0 ? " This update also turned " + liveGain + " baked board piece(s) into LIVE prefab instances — Rebuild swaps their flattened stand-ins for the real thing." : ""));
           }
         }
         /* either way, KEPT scenes get their orphaned pinned words back —
            rebuilt scenes are already right and heal as a no-op */
         try { HealBoardWords(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: board-word heal skipped — " + e.Message); }
-        /* the board-pinned words' PREFAB VARIANTS (the owner's BOOST) —
-           after scenes, still post-import: variant creation instantiates
-           into the open scene briefly, which mid-import would corrupt.
-           The pending flag clears only on a completed run — this very
-           delayCall dies with the domain reload the zip's own .cs files
-           trigger (round-8 field: no Variants folder, no receipt, ever),
-           and the sweep resumes it after the reload. */
-        try { LabelVariantPrefabs(root, manifest); SessionState.SetBool("PBKitVariantsPending", false); }
-        catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
       };
 
       // ── the receipt ──
@@ -6494,17 +6540,22 @@ namespace PatternBreak {
                 }
               }
               /* ── C) ORPHANED PINNED WORDS (owner: "ok, no BOOST word") —
-                 a past label redress reset a posed copy's words to the
-                 stock word; only that signature heals, at the builder's
-                 own seat. A word that is neither pin nor stock is the
-                 maker's retype and stays. ── */
-              if (artT == null || string.IsNullOrEmpty(it2.posed) || string.IsNullOrEmpty(it2.label)) continue;
+                 a past label redress reset a copy's words to a SEED word
+                 (the stock word, or round-7's kit-wide seed); only those
+                 signatures heal, at the builder's own seat. A word that is
+                 neither pin nor seed is the maker's retype and stays.
+                 Round 10: un-posed LIVE copies heal too — the regression
+                 that put PLAY back on the BOOST button lived exactly in
+                 this gate's posed-only scope. */
+              if (string.IsNullOrEmpty(it2.label)) continue;
+              if (artT == null && !string.IsNullOrEmpty(it2.posed)) continue;
               var inst2 = ch.gameObject;
               var hl3 = inst2.GetComponentInChildren<HeroLabel>(true);
               var tmp3 = hl3 == null ? inst2.GetComponentInChildren<TMPro.TMP_Text>(true) : null;
               string now = hl3 != null ? hl3.text : (tmp3 != null ? tmp3.text : null);
               if (string.IsNullOrEmpty(now) || now == it2.label) continue;          // right already, or no label
-              if (now.Trim() != DefaultLabel(it2.component).Trim()) continue;        // the maker's own retype
+              var seedW2 = LabelWordOf(m, it2.component, DefaultLabel(it2.component));
+              if (now.Trim() != DefaultLabel(it2.component).Trim() && now.Trim() != seedW2.Trim()) continue; // the maker's own retype
               float trueSize2 = LabelSizeScene(m, it2.component);
               var rowH2 = LabelRow(m, it2.component);
               if (rowH2 != null && rowH2.labelFs > 1f) trueSize2 = rowH2.labelFs;
@@ -6521,7 +6572,7 @@ namespace PatternBreak {
 #pragma warning restore 0618
                 wt2.overflowMode = TMPro.TextOverflowModes.Overflow;
               }
-              SeatPosedLabel(inst2, it2, m);
+              if (!string.IsNullOrEmpty(it2.posed)) SeatPosedLabel(inst2, it2, m);
               healedW++;
             }
           }
@@ -6693,6 +6744,12 @@ namespace PatternBreak {
             // composed rigs publish under their own prefab names
             var pfName = NiceName(it.component);
             if (it.component == "progress") pfName = "ProgressBar";
+            else if (it.component == "speedo") pfName = "Speedo";
+            else if (it.component == "speedo2") pfName = "SpeedoArc";
+            else if (it.component == "tacho") pfName = "RevMeter";
+            else if (it.component == "loottag") pfName = "LootTag";
+            else if (it.component == "laptimes") pfName = "LapTimes";
+            else if (it.component == "segbar") pfName = "SegmentMeter";
             else if (it.component == "joystick") pfName = "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
@@ -6711,6 +6768,14 @@ namespace PatternBreak {
                 var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
                 if (tfPf != null) pf = tfPf;
               }
+            }
+            /* the pinned-word copy IS its word-variant instance (round 7,
+               the mandate): the word is structural — no later label
+               redress can strip it back to PLAY */
+            if (pf != null && !string.IsNullOrEmpty(it.label) && string.IsNullOrEmpty(it.posed)
+                && it.label != LabelWordOf(m, it.component, DefaultLabel(it.component))) {
+              var vPf = ResolveVariantPrefab(root, pfName, it.label);
+              if (vPf != null) pf = vPf;
             }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
@@ -6942,6 +7007,10 @@ namespace PatternBreak {
               var cntT = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
               if (cntT != null) cntT.text = Mathf.Clamp(Mathf.RoundToInt(it.value * 99f), 1, 99).ToString();
             }
+            /* the gauges are LIVE instances now (the mandate) — set the
+               board's staged Value on the dial */
+            var gdS = inst.GetComponent<GaugeDial>();
+            if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             if (it.component == "endturn" && it.value > 0f) {
               var arcT = inst.transform.Find("Arc");
               if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
@@ -8824,6 +8893,9 @@ namespace PatternBreak {
       return h;
     }
     static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
+    // a seat's HUMAN name: the string without rich-text tags (round-10
+    // field: a GameObject literally named "<color=#4ADE80>THR</color>…")
+    static string PlainWord(string s) { return s == null ? "" : System.Text.RegularExpressions.Regex.Replace(s, "<[^>]+>", ""); }
     static Vector2 SeatBox(PBSeat seat, float fs) {
       var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
       // generous, glyph-safe box centered on the seat — overflow shows, never reflows
@@ -8833,7 +8905,12 @@ namespace PatternBreak {
       float fs = SeatFs(seat, rootH);
       var box = SeatBox(seat, fs);
       var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
-      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - seat.fy);
+      // edge-hugging seats stay INSIDE: clamp the center so the glyph
+      // box can never cross the rect's top/bottom (round-10 field: the
+      // telemetry header rides ~8px under the sprite top — half a TMP
+      // metric away from poking out)
+      float fyC = rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
+      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
       /* TMP centers a middle-aligned rect on the LINE middle; a seat from
          a baseline-anchored node marks the CAP middle (midEm, measured).
          Lift the rect by the delta so the glyphs land on the app's pixels. */
@@ -8915,7 +8992,9 @@ namespace PatternBreak {
       foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
     }
     static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
-      float yf = Mathf.Clamp01(1f - rowFy);
+      float fsR = rowFfs * rootH;
+      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
+      float yf = Mathf.Clamp01(1f - rowFyC);
       var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
       var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
       bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
@@ -8977,9 +9056,10 @@ namespace PatternBreak {
       for (int i = 0; i < texts.Length; i++) {
         var t = texts[i];
         var seat = row.textSeats[i];
-        // the seed rides the GO name: a text that no longer matches it was
-        // RETYPED by the dev — theirs, wholesale
-        if (t.text != t.gameObject.name) { respected++; continue; }
+        /* the seed rides the GO name (markup-stripped; older imports may
+           carry tags in the name — compare both sides stripped): a text
+           that no longer matches its seed was RETYPED — theirs, wholesale */
+        if (PlainWord(t.text) != PlainWord(t.gameObject.name)) { respected++; continue; }
         bool inRow = rowCount.ContainsKey(seat.row) && rowCount[seat.row] >= 2;
         // the row container is the seat's parent when clustered — ours
         if (inRow) {
@@ -8990,9 +9070,9 @@ namespace PatternBreak {
         SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
         var srt = t.GetComponent<RectTransform>();
         if (srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
-        if (t.text != seat.text) {
+        if (t.text != seat.text || t.gameObject.name != PlainWord(seat.text)) {
           drift = true;
-          if (apply) { t.gameObject.name = seat.text; t.text = seat.text; }
+          if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
         }
         if (!DressSeatText(t, seat, face, mat, rootH, apply)) drift = true;
       }
@@ -9040,7 +9120,7 @@ namespace PatternBreak {
           }
           parent = rT;
         }
-        var go = new GameObject(seat.text, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        var go = new GameObject(PlainWord(seat.text), typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
         go.transform.SetParent(parent, false);
         var t = go.GetComponent<TextMeshProUGUI>();
         t.text = seat.text;
@@ -9263,6 +9343,23 @@ namespace PatternBreak {
       // the ALWAYS-printed completion line — zero requests is a result too
       Debug.Log("UI Kit Maker: label variants — " + pairs.Count + " request(s) from board-pinned words: " + made + " built, " + kept + " kept (yours after creation), " + squatters + " path collision(s) stepped aside, " + disconnected + " failed to variant-link." + (made > 0 ? " True Prefab Variants in Prefabs/Variants: restyle the kit and their art follows; only the word is theirs." : ""));
       ClearVariantsPending(lockPath, lockNow, newLedger);
+    }
+    /* which variant asset carries this word — the ledger names the exact
+       file (collision-proof); the plain filename is the fallback */
+    static GameObject ResolveVariantPrefab(string root, string baseName, string word) {
+      try {
+        var lockPath = root + "/kit.lock.json";
+        if (File.Exists(lockPath)) {
+          var l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath));
+          if (l != null && l.seededVariants != null)
+            foreach (var e in l.seededVariants)
+              if (e != null && e.word == word && !string.IsNullOrEmpty(e.path) && Path.GetFileName(e.path).StartsWith(baseName + " – ")) {
+                var viaLedger = AssetDatabase.LoadAssetAtPath<GameObject>(e.path);
+                if (viaLedger != null) return viaLedger;
+              }
+        }
+      } catch (Exception) { }
+      return AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Variants/" + baseName + " – " + FileSafeWord(word) + ".prefab");
     }
     /* the variant JOB completed: clear the receipt's pending flag and
        write the file→word ledger (kit.lock.json survives domain reloads,
