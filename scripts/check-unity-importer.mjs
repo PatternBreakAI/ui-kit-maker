@@ -97,6 +97,26 @@ else {
     if (!declared.has(u)) errors.push(`s.${u} is used in the C# but PBStyle declares no '${u}' field (CS1061 in Unity)`);
 }
 
+/* round-12 ordering invariants: pinned board words are placement-self-
+   sufficient. The field lost its BOOST three times to import-order trust;
+   these keep the contract honest at build time.
+   (1) the variants session flag clears in exactly ONE place — inside
+       ClearVariantsPending. A call-site clear turns the "prefabs first"
+       early return into a silent never-again.
+   (2) the scene builder resolves-or-MINTS each pinned word at placement.
+   (3) a pinned word that can't be made real counts the scene incomplete
+       (missing++) so the pbBoardPending marker self-heals it.
+   (4) the per-board pinned-words receipt (the K=0 field check) exists. */
+const pendingClears = (cs.match(/SetBool\("PBKitVariantsPending", false\)/g) ?? []).length;
+if (pendingClears !== 1)
+  errors.push(`PBKitVariantsPending must be cleared exactly once (inside ClearVariantsPending); found ${pendingClears} clear(s)`);
+if (!/EnsureVariantPrefab\(root, pfName, it\.label/.test(cs))
+  errors.push("BuildBoardScene must resolve-or-mint pinned words at placement (EnsureVariantPrefab call missing)");
+if (!/pinnedFallbacks\.Add\([\s\S]{0,220}?missing\+\+;/.test(cs))
+  errors.push("a pinned-word base fallback must count the scene incomplete (missing++) so it self-heals");
+if (!/minted at placement/.test(cs))
+  errors.push("the per-board pinned-words receipt (ordering self-test) is missing from the emitted C#");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

@@ -5916,7 +5916,7 @@ namespace PatternBreak {
            idempotent: existing variants are skipped, so a double run when
            the original delayCall DID fire is harmless */
         if (SessionState.GetBool("PBKitVariantsPending", false)) {
-          bool allRan = true;
+          bool anyFailed = false;
           foreach (var guid in manifests) {
             var mPath = AssetDatabase.GUIDToAssetPath(guid);
             var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
@@ -5924,9 +5924,15 @@ namespace PatternBreak {
             try { mv = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
             if (mv == null) continue;
             try { LabelVariantPrefabs(root, mv); }
-            catch (Exception e) { allRan = false; Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+            catch (Exception e) { anyFailed = true; Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
           }
-          if (allRan) SessionState.SetBool("PBKitVariantsPending", false); // clear only after success
+          /* a COMPLETED pass clears the flag itself (ClearVariantsPending)
+             and the prefabs-first early return leaves it armed — the round
+             that cleared it out here regardless is how the field lost its
+             pinned words: the wait contract said "not yet" and the caller
+             heard "done". A kit that threw re-arms so the next sweep
+             retries every kit (idempotent). */
+          if (anyFailed) SessionState.SetBool("PBKitVariantsPending", true);
         }
       };
     }
@@ -6185,10 +6191,15 @@ namespace PatternBreak {
          cause, and the post-reload sweep runs whatever is still armed */
       SessionState.SetBool("PBKitVariantsPending", true);
       EditorApplication.delayCall += () => {
-        /* variants FIRST: a pinned-word board copy places its word-variant
-           prefab instance (the word is structural — a later label redress
-           can never strip it; the old PLAY-for-BOOST regression class) */
-        try { LabelVariantPrefabs(root, manifest); SessionState.SetBool("PBKitVariantsPending", false); }
+        /* variants FIRST as the batch optimization — but scene correctness
+           no longer rests on it: BuildBoardScene resolves-or-MINTS each
+           pinned word at placement (EnsureVariantPrefab), so a died
+           delayCall, a thrown pass or a prefabs-not-yet ordering can't
+           put a base word on a pinned copy anymore (the third missing-
+           BOOST report). The pass clears its own pending flag when it
+           completes; the callers never do — the "prefabs first" early
+           return must stay armed. */
+        try { LabelVariantPrefabs(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
         BuildBoardScenes(root, manifest);
         /* a kit UPDATE leaves existing scenes wearing their FIRST build's
@@ -6752,6 +6763,11 @@ namespace PatternBreak {
           }
         }
         int placed = 0, missing = 0;
+        /* the ordering self-test (round 12): every pinned word on this
+           board is accounted for out loud — variant placed, minted right
+           here, or base fallback (named). The field reads one line. */
+        int pinned = 0, pinnedVariant = 0, pinnedMinted = 0;
+        var pinnedFallbacks = new List<string>();
         var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
         if (bd.items != null) foreach (var it in bd.items) {
           GameObject inst = null; RectTransform rt = null;
@@ -6843,20 +6859,39 @@ namespace PatternBreak {
                beyond its native aspect and the kit ships one. */
             PBAsset baseGeo = null;
             foreach (var aG in m.assets) if (aG != null && aG.component == it.component && aG.part == "base" && aG.shell != null) { baseGeo = aG; break; }
+            bool tiledFace = false;
             if (string.IsNullOrEmpty(it.posed) && baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
               float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
               if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
                 var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
-                if (tfPf != null) pf = tfPf;
+                if (tfPf != null) { pf = tfPf; tiledFace = true; }
               }
             }
             /* the pinned-word copy IS its word-variant instance (round 7,
                the mandate): the word is structural — no later label
-               redress can strip it back to PLAY */
+               redress can strip it back to PLAY. Round 12: the variant is
+               resolved OR MINTED right here — placement never again
+               trusts that the batch pass ran (the third missing-BOOST
+               report was exactly that trust). */
             if (pf != null && !string.IsNullOrEmpty(it.label) && string.IsNullOrEmpty(it.posed)
                 && it.label != LabelWordOf(m, it.component, DefaultLabel(it.component))) {
-              var vPf = ResolveVariantPrefab(root, pfName, it.label);
-              if (vPf != null) pf = vPf;
+              pinned++;
+              bool mintedHere;
+              var vPf = EnsureVariantPrefab(root, pfName, it.label, out mintedHere);
+              if (vPf != null) {
+                if (tiledFace)
+                  Debug.Log("UI Kit Maker: '" + it.label + "' on " + pfName + " — the word variant rides the BASE face, not the tiled face this copy's stretch would otherwise get; an extreme aspect may show nine-slice stretching.");
+                pf = vPf;
+                pinnedVariant++;
+                if (mintedHere) pinnedMinted++;
+              } else {
+                /* base fallback: the scene still shows the piece (the word
+                   heal dresses the word plainly meanwhile), and counting it
+                   into the missing tally arms the incomplete marker — THIS scene
+                   rebuilds itself next pass instead of freezing wrong */
+                pinnedFallbacks.Add("'" + it.label + "' on " + pfName);
+                missing++;
+              }
             }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
@@ -7137,7 +7172,11 @@ namespace PatternBreak {
           // scene automatically; a complete build clears the marker
           if (missing > 0) SessionState.SetBool("pbBoardPending:" + scenePath, true);
           else SessionState.EraseBool("pbBoardPending:" + scenePath);
-          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " skipped (no prefab yet — it rebuilds itself once prefabs finish, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
+          /* the pinned-word receipt, ALWAYS printed when the board pins
+             words — the one-glance field check is "0 base fallback(s)" */
+          if (pinned > 0)
+            Debug.Log("UI Kit Maker: board '" + bd.name + "' — " + pinned + " pinned cop(ies): " + pinnedVariant + " variant instance(s), " + pinnedMinted + " minted at placement, " + pinnedFallbacks.Count + " base fallback(s)" + (pinnedFallbacks.Count > 0 ? " (" + string.Join(", ", pinnedFallbacks.ToArray()) + " — wearing base dress until the scene self-heals)" : "") + ".");
+          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " incomplete (a prefab or pinned word isn't ready yet — the scene rebuilds itself once it is, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
         }
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the board scene at " + scenePath + ".");
@@ -9328,7 +9367,7 @@ namespace PatternBreak {
       var vdir = dir + "/Variants";
       var livePaths = new HashSet<string>();
       var newLedger = new Dictionary<string, string>();
-      int made = 0, kept = 0, disconnected = 0, squatters = 0;
+      var tally = new PBVariantTally();
       if (pairs.Count > 0 && !AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
       /* PREVIEW-SCENE ISOLATION: instantiating into the user's open scene
          dirtied it (and mid-edit scenes are sacred) — the whole pass works
@@ -9339,72 +9378,7 @@ namespace PatternBreak {
         var baseName = NiceName(pr.family);
         var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
         if (basePf == null) continue; // family shipped no prefab this kit
-        var path = vdir + "/" + baseName + " – " + FileSafeWord(pr.word) + ".prefab";
-        /* OCCUPANT RESOLUTION (ledger-backed): the file is OURS for this
-           word iff the ledger (or, pre-ledger, its own label) says so AND
-           it is a real Variant of our base. Anything else — a squatter
-           prefab, or a DIFFERENT pin truncation-colliding into the same
-           filename — steps aside via the suffix path, receipted. */
-        bool settled = false;
-        while (!settled) {
-          if (livePaths.Contains(path)) { path = path.Substring(0, path.Length - 7) + " x.prefab"; continue; }
-          var occupant = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-          if (occupant == null) { settled = true; break; } // free — create here
-          bool isOurVariant = PrefabUtility.GetPrefabAssetType(occupant) == PrefabAssetType.Variant
-            && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(occupant) == basePf;
-          string ledgWord;
-          bool inLedger = ledger.TryGetValue(path, out ledgWord);
-          if (isOurVariant && inLedger && ledgWord == pr.word) {
-            // ours, same word — the dev may have retyped its label; theirs
-            kept++; livePaths.Add(path); newLedger[path] = pr.word; settled = false; path = null; break;
-          }
-          if (isOurVariant && !inLedger) {
-            // pre-ledger variant: its own label tells whose word it holds
-            var lrOcc = FindOurLabelRoot(occupant);
-            var wordNow = lrOcc != null ? LabelText(lrOcc, null) : null;
-            if (wordNow == pr.word) { kept++; livePaths.Add(path); newLedger[path] = pr.word; settled = false; path = null; break; }
-          }
-          // squatter / collision: step aside and say so
-          squatters++;
-          Debug.Log("UI Kit Maker: '" + Path.GetFileName(path) + "' is occupied by " + (isOurVariant ? "a variant of a DIFFERENT pinned word (filename collision)" : "a prefab that isn't our variant") + " — building this pin alongside it.");
-          path = path.Substring(0, path.Length - 7) + " x.prefab";
-        }
-        if (path == null) continue; // resolved to an existing occupant
-        livePaths.Add(path);
-        var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
-        if (inst == null) continue;
-        try {
-          var lroot = FindOurLabelRoot(inst);
-          if (lroot == null || !SetLabelWord(lroot, pr.word)) continue;
-          /* the text write must be RECORDED as an instance override or the
-             save can drop it (HeroLabel fans one text into layer meshes —
-             record every TMP it drives, plus the stack owner itself) */
-          var hlRec = lroot.GetComponent<HeroLabel>();
-          if (hlRec != null) PrefabUtility.RecordPrefabInstancePropertyModifications(hlRec);
-          foreach (var tRec in lroot.GetComponentsInChildren<TMPro.TMP_Text>(true))
-            PrefabUtility.RecordPrefabInstancePropertyModifications(tRec);
-          var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
-          if (saved == null) continue;
-          made++;
-          newLedger[path] = pr.word;
-          /* the asserts this feature stands on: (1) a real VARIANT of OUR
-             base, so art restyles flow through; (2) the word actually
-             STUCK (read back from the saved asset) — a silently dropped
-             override is worse than a loud one */
-          bool linked = PrefabUtility.GetPrefabAssetType(saved) == PrefabAssetType.Variant
-            && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(saved) == basePf;
-          if (!linked) {
-            disconnected++;
-            Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant of " + baseName + " — the base connection did not survive, so future kit restyles will NOT flow into it (it still works as a frozen copy). Please report this; deleting the file and re-importing retries.");
-          }
-          var check = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-          var lrChk = check != null ? FindOurLabelRoot(check) : null;
-          var wordBack = lrChk != null ? LabelText(lrChk, null) : null;
-          if (wordBack != pr.word)
-            Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' — the word override did NOT persist through the save (reads '" + wordBack + "', wanted '" + pr.word + "'). Please report this; retype the label on the variant as the workaround.");
-        } finally {
-          UnityEngine.Object.DestroyImmediate(inst);
-        }
+        EnsureVariantAsset(vdir, basePf, baseName, pr.word, ledger, newLedger, livePaths, pscene, tally);
       }
       } finally {
         UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene);
@@ -9424,8 +9398,128 @@ namespace PatternBreak {
           Debug.Log("UI Kit Maker: " + stale.Count + " label variant(s) no longer match any board-pinned word — kept on disk (deletion is your click): " + string.Join(", ", stale.ToArray()));
       }
       // the ALWAYS-printed completion line — zero requests is a result too
-      Debug.Log("UI Kit Maker: label variants — " + pairs.Count + " request(s) from board-pinned words: " + made + " built, " + kept + " kept (yours after creation), " + squatters + " path collision(s) stepped aside, " + disconnected + " failed to variant-link." + (made > 0 ? " True Prefab Variants in Prefabs/Variants: restyle the kit and their art follows; only the word is theirs." : ""));
+      Debug.Log("UI Kit Maker: label variants — " + pairs.Count + " request(s) from board-pinned words: " + tally.made + " built, " + tally.kept + " kept (yours after creation), " + tally.squatters + " path collision(s) stepped aside, " + tally.disconnected + " failed to variant-link." + (tally.made > 0 ? " True Prefab Variants in Prefabs/Variants: restyle the kit and their art follows; only the word is theirs." : ""));
       ClearVariantsPending(lockPath, lockNow, newLedger);
+    }
+    class PBVariantTally { public int made, kept, squatters, disconnected; }
+    /* The per-pair core BOTH passes share — batch (LabelVariantPrefabs)
+       and placement-time (EnsureVariantPrefab): occupant resolution, the
+       mint, the variant-link and word-stuck asserts. Returns the asset
+       path that now carries the word (existing or fresh), null when the
+       word could not be made real. */
+    static string EnsureVariantAsset(string vdir, GameObject basePf, string baseName, string word,
+        Dictionary<string, string> ledger, Dictionary<string, string> newLedger, HashSet<string> livePaths,
+        UnityEngine.SceneManagement.Scene pscene, PBVariantTally tally) {
+      var path = vdir + "/" + baseName + " – " + FileSafeWord(word) + ".prefab";
+      /* OCCUPANT RESOLUTION (ledger-backed): the file is OURS for this
+         word iff the ledger (or, pre-ledger, its own label) says so AND
+         it is a real Variant of our base. Anything else — a squatter
+         prefab, or a DIFFERENT pin truncation-colliding into the same
+         filename — steps aside via the suffix path, receipted. */
+      while (true) {
+        if (livePaths.Contains(path)) { path = path.Substring(0, path.Length - 7) + " x.prefab"; continue; }
+        var occupant = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (occupant == null) break; // free — create here
+        bool isOurVariant = PrefabUtility.GetPrefabAssetType(occupant) == PrefabAssetType.Variant
+          && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(occupant) == basePf;
+        string ledgWord;
+        bool inLedger = ledger.TryGetValue(path, out ledgWord);
+        if (isOurVariant && inLedger && ledgWord == word) {
+          // ours, same word — the dev may have retyped its label; theirs
+          tally.kept++; livePaths.Add(path); newLedger[path] = word; return path;
+        }
+        if (isOurVariant && !inLedger) {
+          // pre-ledger variant: its own label tells whose word it holds
+          var lrOcc = FindOurLabelRoot(occupant);
+          var wordNow = lrOcc != null ? LabelText(lrOcc, null) : null;
+          if (wordNow == word) { tally.kept++; livePaths.Add(path); newLedger[path] = word; return path; }
+        }
+        // squatter / collision: step aside and say so
+        tally.squatters++;
+        Debug.Log("UI Kit Maker: '" + Path.GetFileName(path) + "' is occupied by " + (isOurVariant ? "a variant of a DIFFERENT pinned word (filename collision)" : "a prefab that isn't our variant") + " — building this pin alongside it.");
+        path = path.Substring(0, path.Length - 7) + " x.prefab";
+      }
+      livePaths.Add(path);
+      var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
+      if (inst == null) return null;
+      try {
+        var lroot = FindOurLabelRoot(inst);
+        if (lroot == null || !SetLabelWord(lroot, word)) return null;
+        /* the text write must be RECORDED as an instance override or the
+           save can drop it (HeroLabel fans one text into layer meshes —
+           record every TMP it drives, plus the stack owner itself) */
+        var hlRec = lroot.GetComponent<HeroLabel>();
+        if (hlRec != null) PrefabUtility.RecordPrefabInstancePropertyModifications(hlRec);
+        foreach (var tRec in lroot.GetComponentsInChildren<TMPro.TMP_Text>(true))
+          PrefabUtility.RecordPrefabInstancePropertyModifications(tRec);
+        var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
+        if (saved == null) return null;
+        tally.made++;
+        newLedger[path] = word;
+        /* the asserts this feature stands on: (1) a real VARIANT of OUR
+           base, so art restyles flow through; (2) the word actually
+           STUCK (read back from the saved asset) — a silently dropped
+           override is worse than a loud one */
+        bool linked = PrefabUtility.GetPrefabAssetType(saved) == PrefabAssetType.Variant
+          && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(saved) == basePf;
+        if (!linked) {
+          tally.disconnected++;
+          Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant of " + baseName + " — the base connection did not survive, so future kit restyles will NOT flow into it (it still works as a frozen copy). Please report this; deleting the file and re-importing retries.");
+        }
+        var check = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        var lrChk = check != null ? FindOurLabelRoot(check) : null;
+        var wordBack = lrChk != null ? LabelText(lrChk, null) : null;
+        if (wordBack != word)
+          Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' — the word override did NOT persist through the save (reads '" + wordBack + "', wanted '" + word + "'). Please report this; retype the label on the variant as the workaround.");
+        return path;
+      } finally {
+        UnityEngine.Object.DestroyImmediate(inst);
+      }
+    }
+    /* ONE pinned word made real at the moment a scene needs it: resolve,
+       or MINT inline with the same ledger/occupant rules as the batch
+       pass. The scene builder calls this at placement, so import order,
+       died delayCalls and domain reloads stop deciding whether a board
+       copy wears its word (the third missing-BOOST report was exactly
+       that dependency). Idempotent; a deliberately blank pin is a real
+       value, never a request. */
+    static GameObject EnsureVariantPrefab(string root, string family, string word, out bool minted) {
+      minted = false;
+      if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(family)) return null;
+      var baseName = NiceName(family);
+      var have = ResolveVariantPrefab(root, baseName, word);
+      if (have != null) return have;
+      var dir = root + "/Prefabs";
+      var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
+      if (basePf == null) return null; // no base yet — the caller counts and receipts
+      var vdir = dir + "/Variants";
+      if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
+      var lockPath = root + "/kit.lock.json";
+      PBLock lockNow = null;
+      try { if (File.Exists(lockPath)) lockNow = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+      var ledger = new Dictionary<string, string>();
+      if (lockNow != null && lockNow.seededVariants != null)
+        foreach (var le in lockNow.seededVariants) if (le != null && !string.IsNullOrEmpty(le.path)) ledger[le.path] = le.word;
+      var newLedger = new Dictionary<string, string>();
+      var tally = new PBVariantTally();
+      string path = null;
+      var pscene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+      try { path = EnsureVariantAsset(vdir, basePf, baseName, word, ledger, newLedger, new HashSet<string>(), pscene, tally); }
+      finally { UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene); }
+      if (path == null) return null;
+      /* the fresh row joins the ledger WITHOUT touching variantsPending —
+         the batch pass may still be owed its full run. No lock file yet
+         means the receipt pass hasn't written one; the filename fallback
+         still resolves this variant until the batch pass ledgers it. */
+      if (newLedger.Count > 0 && lockNow != null) {
+        foreach (var kv in newLedger) ledger[kv.Key] = kv.Value;
+        var rows = new List<PBVariantEntry>();
+        foreach (var kv in ledger) { var en = new PBVariantEntry(); en.path = kv.Key; en.word = kv.Value; rows.Add(en); }
+        lockNow.seededVariants = rows.ToArray();
+        try { File.WriteAllText(lockPath, JsonUtility.ToJson(lockNow, true)); } catch (Exception) { }
+      }
+      minted = tally.made > 0;
+      return AssetDatabase.LoadAssetAtPath<GameObject>(path);
     }
     /* which variant asset carries this word — the ledger names the exact
        file (collision-proof); the plain filename is the fallback */
@@ -9446,8 +9540,12 @@ namespace PatternBreak {
     }
     /* the variant JOB completed: clear the receipt's pending flag and
        write the file→word ledger (kit.lock.json survives domain reloads,
-       editor restarts and crashes — SessionState does not) */
+       editor restarts and crashes — SessionState does not). This is the
+       ONLY place the session flag clears — call sites used to clear it on
+       any normal return, which turned the "prefabs first" early return
+       into a silent never-again (round-12 root cause of the third BOOST miss). */
     static void ClearVariantsPending(string lockPath, PBLock lockNow, Dictionary<string, string> ledger) {
+      SessionState.SetBool("PBKitVariantsPending", false);
       if (lockNow == null) {
         try { if (File.Exists(lockPath)) lockNow = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
         if (lockNow == null) return;
