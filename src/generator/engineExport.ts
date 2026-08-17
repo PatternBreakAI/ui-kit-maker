@@ -55,8 +55,24 @@ interface AssetMeta {
    *  (data-gauge) in file px at pngScale: number center x/y + font size,
    *  then the unit line's y + size. The importer's live TMP numbers sit
    *  exactly where the app draws them (owner: "the prefab for the speedo
-   *  and rpm meter don't have numbers in them"). */
-  gauge?: { x: number; y: number; fs: number; unitY: number; unitFs: number } | null;
+   *  and rpm meter don't have numbers in them").
+   *  `ink` is the digits' TYPE RECIPE — the app draws gauge numbers with
+   *  the piece's content-text treatment (fill/gradient, outline, shadow,
+   *  glow), NOT the label material's dress; the importer styles the live
+   *  TMP from these numbers (owner: "the prefabs have text now, it's
+   *  styled incorrectly"). `unitInk` is the unit line's fill — the
+   *  piece's Glow role; the app sets it at 75% alpha in Inter 800. */
+  gauge?: {
+    x: number; y: number; fs: number; unitY: number; unitFs: number;
+    ink?: {
+      weight: number; italic: boolean; spacingEmPct: number;
+      fillMode: string; fill: string; fill2: string | null; fillOpacity: number;
+      outline: { color: string; color2: string | null; width: number } | null;
+      glow: { color: string; size: number; opacity: number } | null;
+      shadow: { color: string; x: number; y: number; blur: number; opacity: number } | null;
+    };
+    unitInk?: string;
+  } | null;
 }
 
 export interface EngineExportState {
@@ -1694,32 +1710,56 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* the READOUT SEAT rides each face render as a geo stamp (data-gauge —
      the season-track discipline): the importer's live TMP numbers sit
      exactly where the app draws them, measured, never eyeballed */
-  const gaugeOf = (svg: string): AssetMeta["gauge"] => {
+  const gaugeOf = (svg: string, id: KitComponentId): AssetMeta["gauge"] => {
     const gm = /data-gauge="([-\d. ]+)"/.exec(svg);
     if (!gm) return null;
     const v = gm[1].split(" ").map(Number);
     if (v.length !== 5 || v.some((n) => !Number.isFinite(n))) return null;
+    /* the readout's TYPE RECIPE rides the seat row. The app's gauge digits
+       wear the CONTENT-TEXT treatment (bevel's contentText: fill mode incl.
+       gradients, outline, shadow, glow — min-700 weight, the kit's
+       tracking), never the label material's halo — and the unit line wears
+       the instrument voice: Inter 800 at .24em in the Glow role at 75%.
+       Derived from the SAME piece cfg that rendered this face, so kit
+       designs and per-piece text fills travel with it (the master
+       typography.style would miss a speedo-scoped fork). */
+    const pc = pieceCfg(id);
+    const t = pc.type;
     return {
       x: Math.round(v[0] * PNG_SCALE), y: Math.round(v[1] * PNG_SCALE),
       fs: Math.round(v[2] * PNG_SCALE * 10) / 10,
       unitY: Math.round(v[3] * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
+      ink: {
+        weight: Math.max(700, t.weight),
+        italic: t.italic,
+        spacingEmPct: t.spacing,
+        fillMode: t.fillMode,
+        fill: t.fill,
+        fill2: t.fillMode === "gradient" ? t.fill2 : null,
+        fillOpacity: t.fillOpacity ?? 100,
+        outline: t.outline.on ? { color: t.outline.color, color2: t.outline.color2, width: t.outline.width } : null,
+        glow: t.glow.on ? { color: t.glow.color, size: t.glow.size, opacity: t.glow.opacity } : null,
+        shadow: t.shadow.on ? { color: t.shadow.color, x: t.shadow.x, y: t.shadow.y, blur: t.shadow.blur, opacity: t.shadow.opacity } : null,
+      },
+      // effect(effects, "Glow")'s exact fallback chain (bevel.ts)
+      unitInk: pc.effects.Glow ?? lighten(pc.effects.Bevel ?? "#0E9CC9", 0.55),
     };
   };
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
-    await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The readout is live engine text (the Speedo prefab wires it; seat in manifest > gauge).", gauge: gaugeOf(spFace) });
+    await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The readout is live engine text (the Speedo prefab wires it; seat in manifest > gauge).", gauge: gaugeOf(spFace, "speedo") });
   }
   await addPng("speedo/needle.png", shell("speedo", { part: "needle" }, undefined, 0), { component: "speedo", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Needle at zero (pointing to the sweep start). Rotate up to 270° around the canvas center from live speed." });
   {
     const sp2Face = shell("speedo2", { part: "face" }, undefined, 0);
-    await addPng("speedo2/face.png", sp2Face, { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD segment arc, all 24 segments unlit. Light segments with segment.png copies placed on the same polar grid; the readout is live engine text (seat in manifest > gauge).", gauge: gaugeOf(sp2Face) });
+    await addPng("speedo2/face.png", sp2Face, { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD segment arc, all 24 segments unlit. Light segments with segment.png copies placed on the same polar grid; the readout is live engine text (seat in manifest > gauge).", gauge: gaugeOf(sp2Face, "speedo2") });
   }
   /* the REV METER's rig parts (owner: the rpm meter's prefab needs its
      numbers): dial face with every zone segment unlit + the bare needle —
      same bare-canvas contract as the speedo's parts */
   {
     const tcFace = shell("tacho", { part: "face" }, undefined, 0);
-    await addPng("tacho/face.png", tcFace, { component: "tacho", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev-meter dial face — zone segments unlit, hub baked. The RevMeter prefab lights nothing (bones); needle and readout are live (seat in manifest > gauge).", gauge: gaugeOf(tcFace) });
+    await addPng("tacho/face.png", tcFace, { component: "tacho", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev-meter dial face — zone segments unlit, hub baked. The RevMeter prefab lights nothing (bones); needle and readout are live (seat in manifest > gauge).", gauge: gaugeOf(tcFace, "tacho") });
     await addPng("tacho/needle.png", shell("tacho", { part: "needle" }, undefined, 0), { component: "tacho", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev needle at zero (sweep start). Rotate up to 270° around the canvas center from live revs." });
   }
   await addPng("speedo2/segment.png", shell("speedo2", { part: "segment" }, undefined, 1), { component: "speedo2", part: "segment", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "One lit segment — instance and rotate per step; tint along the palette for the sweep gradient." });
@@ -5065,7 +5105,12 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
-  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; }
+  /* ink = the digits' type recipe (a PBStyle subset: fill, outline, glow,
+     shadow — the app's content-text treatment, not the label material's);
+     unitInk = the unit line's fill, the piece's Glow role (the app draws
+     it at 75% alpha). JsonUtility default-constructs missing nested
+     objects, so readers gate on ink.fillMode being non-empty. */
+  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public PBStyle ink; public string unitInk; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public PBGauge gauge; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -6656,7 +6701,12 @@ namespace PatternBreak {
       return fa;
     }
     static void ApplyStyle(Material mat, PBManifest m, string root) {
-      var s = m != null && m.typography != null ? m.typography.style : null;
+      ApplyStyleRecipe(mat, m != null && m.typography != null ? m.typography.style : null);
+    }
+    /* the same writes for ANY recipe — the master label style above, or a
+       gauge row's digit ink (which carries no emboss/pattern, so those
+       sections come off, exactly like the app's content-text voice) */
+    static void ApplyStyleRecipe(Material mat, PBStyle s) {
       if (mat == null || s == null) return;
       /* CreateFontAsset hands back a material on the MOBILE distance-field
          shader, which has no glow, bevel or face-texture sections — every
@@ -8054,6 +8104,147 @@ namespace PatternBreak {
         if (a != null && a.component == fam && a.part == "face" && a.gauge != null && a.gauge.fs > 1f) return a.gauge;
       return null;
     }
+    /* ── the readout's DRESS ──────────────────────────────────────────
+       The app draws gauge DIGITS in the piece's content-text voice — the
+       type recipe's fill/gradient, outline, shadow and glow — and the
+       UNIT line as plain Inter 800 at .24em tracking in the Glow role at
+       75%. Neither wears the label material's halo, which is exactly what
+       the first live readouts shipped in (owner: "the prefabs have text
+       now, it's styled incorrectly"). The recipe ships per face in
+       kit-manifest.json > gauge > ink / unitInk. */
+    static string GaugeMatPath(string root, string fam) { return root + "/fonts/KitFace Gauge " + NiceName(fam) + ".mat"; }
+    static bool GaugeInkShips(PBGauge g) { return g != null && g.ink != null && !string.IsNullOrEmpty(g.ink.fillMode); }
+    /* the digits' own material preset: the SDF face's atlas wearing ONLY
+       the digit recipe — outline/glow/underlay when the app's gauge
+       numbers actually carry them, never emboss (content text doesn't) */
+    static Material EnsureGaugeMaterial(string root, TMP_FontAsset face, PBStyle ink, string fam) {
+      if (face == null || face.material == null || ink == null) return null;
+      var path = GaugeMatPath(root, fam);
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+      if (mat == null) {
+        mat = new Material(face.material);
+        mat.name = "KitFace Gauge " + NiceName(fam);
+        AssetDatabase.CreateAsset(mat, path);
+      } else {
+        // re-imports reconverge in place — shader, atlas and every dial
+        mat.shader = face.material.shader;
+        mat.CopyPropertiesFromMaterial(face.material);
+      }
+      ApplyStyleRecipe(mat, ink);
+      EditorUtility.SetDirty(mat);
+      return mat;
+    }
+    /* the unit line's face: the app sets it in Inter, not the display
+       font — TMP's own LiberationSans (Essential Resources, already in:
+       TmpReady gates this whole styled path) is the shipped neutral
+       grotesk closest to it. If it's been moved out of the project, the
+       kit face stands in wearing a PLAIN material so the label halo never
+       rides along. */
+    static TMP_FontAsset GaugeUnitFace() {
+      return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
+    }
+    static Material EnsureGaugeUnitMaterial(string root, TMP_FontAsset kitFace) {
+      if (kitFace == null || kitFace.material == null) return null;
+      var path = root + "/fonts/KitFace Gauge Unit.mat";
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+      if (mat == null) {
+        mat = new Material(kitFace.material);
+        mat.name = "KitFace Gauge Unit";
+        AssetDatabase.CreateAsset(mat, path);
+      } else {
+        mat.shader = kitFace.material.shader;
+        mat.CopyPropertiesFromMaterial(kitFace.material);
+      }
+      ApplyStyleRecipe(mat, new PBStyle()); // an empty recipe strips outline, glow, underlay and bevel
+      EditorUtility.SetDirty(mat);
+      return mat;
+    }
+#if UNITY_2023_2_OR_NEWER
+    /* number dress, applied AND probed by the same hand (apply=false only
+       answers "is it current?") — dresser and probe disagreeing is an
+       infinite re-dress every import. The font itself is never converged
+       here; the material only rides a text still wearing the kit face
+       (a foreign font's atlas would make our preset render garbage). */
+    static bool DressGaugeNumber(TMP_Text t, PBStyle ink, TMP_FontAsset kitFace, Material mat, bool apply) {
+      Color top, bot; bool grad;
+      TargetInk(ink, out top, out bot, out grad);
+      float fo = ink.fillOpacity > 0f ? Mathf.Clamp01(ink.fillOpacity / 100f) : 1f;
+      top.a *= fo; bot.a *= fo;
+      var fs = TargetFontStyle(ink);
+      bool matOurs = mat != null && kitFace != null && t.font == kitFace;
+      bool current = t.fontStyle == fs
+        && Mathf.Approximately(t.characterSpacing, ink.spacingEmPct)
+        && t.enableVertexGradient == grad
+        && (grad ? t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white : t.color == top)
+        && (!matOurs || t.fontSharedMaterial == mat);
+      if (current || !apply) return current;
+      t.fontStyle = fs;
+      t.characterSpacing = ink.spacingEmPct;
+      if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
+      else { t.enableVertexGradient = false; t.color = top; }
+      if (matOurs) t.fontSharedMaterial = mat;
+      return false;
+    }
+    static bool DressGaugeUnit(TMP_Text t, Color ink, TMP_FontAsset face, Material plain, bool apply) {
+      bool current = t.color == ink
+        && t.fontStyle == FontStyles.Bold
+        && Mathf.Approximately(t.characterSpacing, 24f)
+        && (face == null || t.font == face)
+        && (plain == null || t.fontSharedMaterial == plain);
+      if (current || !apply) return current;
+      if (face != null) t.font = face; // assigning the font resets the material —
+      if (plain != null) t.fontSharedMaterial = plain; // — so the plain preset lands after
+      t.fontStyle = FontStyles.Bold;
+      t.characterSpacing = 24f;
+      t.color = ink;
+      return false;
+    }
+#endif
+    /* the app's unit ink: the FACE's own Glow role at 75% (a speedo-scoped
+       effects fork differs from the master palette); older manifests fall
+       back to palette.glow — the same color on unforked kits */
+    static Color GaugeUnitInk(PBManifest m, PBGauge g) {
+      Color ink = Color.white;
+      Color tint;
+      string hex = g != null && !string.IsNullOrEmpty(g.unitInk) ? g.unitInk : (m != null && m.palette != null ? m.palette.glow : null);
+      if (!string.IsNullOrEmpty(hex) && ColorUtility.TryParseHtmlString(hex, out tint)) { ink = tint; ink.a = 0.75f; }
+      return ink;
+    }
+    /* has a wired readout drifted from the recipe? (fresh manifest rows
+       over an older import) — probe-only mirror of the dress above */
+    static bool GaugeDressStale(GameObject asset, PBManifest m, string fam, string root) {
+#if UNITY_2023_2_OR_NEWER
+      var g = GaugeRow(m, fam);
+      if (!GaugeInkShips(g)) return false;
+      var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      var numT = asset.transform.Find("Number");
+      var numTmp = numT != null ? numT.GetComponent<TMP_Text>() : null;
+      // a dial wired while the manifest had no seat row: seat it now
+      // (a Number transform someone gutted of its text is theirs — skip)
+      if (numT == null) return true;
+      if (numTmp != null) {
+        // demand the digit material only where the dress pass can actually
+        // mint it — otherwise a fontless kit re-dresses forever
+        bool canMat = kitFace != null && kitFace.material != null;
+        var mat = canMat ? AssetDatabase.LoadAssetAtPath<Material>(GaugeMatPath(root, fam)) : null;
+        if (canMat && mat == null) return true; // the dress pass creates it
+        if (!DressGaugeNumber(numTmp, g.ink, kitFace, mat, false)) return true;
+      }
+      var uniT = asset.transform.Find("Unit");
+      var uniTmp = uniT != null ? uniT.GetComponent<TMP_Text>() : null;
+      if (uniTmp != null) {
+        var uFace = GaugeUnitFace();
+        Material uPlain = null;
+        if (uFace == null && kitFace != null) {
+          uPlain = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Gauge Unit.mat");
+          if (uPlain == null) return true; // the dress pass creates it
+          uFace = kitFace;
+        }
+        if (uFace != null && !DressGaugeUnit(uniTmp, GaugeUnitInk(m, g), uFace, uPlain, false)) return true;
+      }
+#endif
+      return false;
+    }
 #if UNITY_2023_2_OR_NEWER
     /* a gauge readout child at the manifest's measured seat — anchors are
        sprite fractions, so any resize keeps the seat */
@@ -8112,16 +8303,30 @@ namespace PatternBreak {
       }
 #if UNITY_2023_2_OR_NEWER
       var g = GaugeRow(m, fam);
+      Color unitInk = GaugeUnitInk(m, g);
       if (g != null && host.transform.Find("Number") == null) {
-        Color unitInk = Color.white;
-        Color gTint;
-        if (m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out gTint)) { unitInk = gTint; unitInk.a = 0.75f; }
         gd.number = GaugeText(host, img.sprite, pngScale, "0", "Number", g.x, g.y, g.fs, Color.white, false, root);
         GaugeText(host, img.sprite, pngScale, fam == "tacho" ? "RPM ×1000" : "MPH", "Unit", g.x, g.unitY, g.unitFs, unitInk, true, root);
       }
       if (gd.number == null) {
         var numT = host.transform.Find("Number");
         if (numT != null) gd.number = numT.GetComponent<TMP_Text>();
+      }
+      /* dress the readout in the app's own recipe — a fresh build and an
+         existing pair from an earlier importer take the same writes
+         (owner: white digits under the label material's halo) */
+      if (GaugeInkShips(g)) {
+        var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        if (gd.number != null)
+          DressGaugeNumber(gd.number, g.ink, kitFace, EnsureGaugeMaterial(root, kitFace, g.ink, fam), true);
+        var uniTr = host.transform.Find("Unit");
+        var uniTmp = uniTr != null ? uniTr.GetComponent<TMP_Text>() : null;
+        if (uniTmp != null) {
+          var uFace = GaugeUnitFace();
+          Material uPlain = null;
+          if (uFace == null && kitFace != null) { uFace = kitFace; uPlain = EnsureGaugeUnitMaterial(root, kitFace); }
+          DressGaugeUnit(uniTmp, unitInk, uFace, uPlain, true);
+        }
       }
 #endif
       gd.Apply(); // strike the resting pose so the prefab reads live
@@ -9087,9 +9292,13 @@ namespace PatternBreak {
         /* the gauges went LIVE after their bones shipped — a Speedo /
            SpeedoArc / RevMeter prefab without its GaugeDial gains the
            needle wiring and the seated readout IN PLACE (owner: "the
-           prefab for the speedo and rpm meter don't have numbers") */
+           prefab for the speedo and rpm meter don't have numbers") —
+           and a wired readout whose dress drifted from the manifest's
+           digit recipe re-dresses the same way (owner: "the prefabs
+           have text now, it's styled incorrectly") */
         bool wantGauge = (famName == "speedo" || famName == "speedo2" || famName == "tacho")
-          && spritePath.EndsWith("-face.png") && asset.GetComponent<GaugeDial>() == null;
+          && spritePath.EndsWith("-face.png")
+          && (asset.GetComponent<GaugeDial>() == null || GaugeDressStale(asset, m, famName, root));
         /* the tiled-face stack is three FULL-STRETCH layers over one rect
            (StretchFull at build) — an Over or PatternMask that drifted
            off that contract paints beside its siblings (field: the
@@ -9307,7 +9516,9 @@ namespace PatternBreak {
             if (patF != null && patF.GetComponent<RectTransform>() != null) StretchFull(patF.GetComponent<RectTransform>());
             faceRects++; changed = true;
           }
-          if (wantGauge && contents.GetComponent<GaugeDial>() == null) {
+          if (wantGauge) {
+            // WireGauge is idempotent: adds the missing GaugeDial wiring
+            // and/or re-dresses a drifted readout, existing children honored
             WireGauge(contents, root, m, famName, m.pngScale > 0 ? m.pngScale : 2);
             if (contents.GetComponent<GaugeDial>() != null) { gauged++; changed = true; }
           }
@@ -9437,7 +9648,7 @@ namespace PatternBreak {
       if (idled > 0)
         Debug.Log("UI Kit Maker: converged the idle shine on " + idled + " example prefab(s) to the kit's current setting — the wipe/edge components used to arrive only at first generation, so a shimmer turned on later never reached existing prefabs (or the scenes built from them). Placed copies pick it up automatically; dials on a component you tuned are never overwritten.");
       if (gauged > 0)
-        Debug.Log("UI Kit Maker: brought " + gauged + " gauge prefab(s) alive — needle wired and a live readout seated exactly where the app draws its numbers (the seat ships measured in kit-manifest.json > gauge). Drive Value on the Gauge Dial component and the needle and number both answer.");
+        Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
