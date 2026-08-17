@@ -5993,6 +5993,16 @@ namespace PatternBreak {
       if (!tmpPending) {
         var sdfFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
         if (sdfFace != null && TMP_Settings.instance != null) {
+          /* IMMUTABLE-PACKAGE GUARD (round-10 field: Unity's "assets
+             located in immutable packages were unexpectedly altered"):
+             when TMP's settings asset resolves INSIDE a package
+             (essentials not imported into Assets/), writing it corrupts
+             the package cache. We only ever write assets under Assets/ —
+             here, and as policy everywhere. */
+          var settingsPath = AssetDatabase.GetAssetPath(TMP_Settings.instance);
+          if (string.IsNullOrEmpty(settingsPath) || !settingsPath.Replace("\\\\", "/").StartsWith("Assets/")) {
+            Debug.Log("UI Kit Maker: TMP's settings asset lives inside a read-only package, so the project-default font stays untouched (import TMP Essential Resources — Window > TextMeshPro — to opt into the kit face as the default). If Unity warned about 'immutable packages… altered' on an EARLIER kit import, that was this write: nothing of the kit lives in Packages/, and the package heals via a Library reimport (delete Library/PackageCache entry) or version control — we never auto-touch it.");
+          } else {
           var curDefault = TMP_Settings.defaultFontAsset;
           if (curDefault == null || curDefault.name.StartsWith("LiberationSans")) {
             var so = new SerializedObject(TMP_Settings.instance);
@@ -6004,6 +6014,7 @@ namespace PatternBreak {
               AssetDatabase.SaveAssets();
               Debug.Log("UI Kit Maker: new TextMeshPro texts are now born in the kit's face (project default font = KitFace SDF). Change it anytime in Project Settings > TextMesh Pro > Settings.");
             }
+          }
           }
         }
       }
