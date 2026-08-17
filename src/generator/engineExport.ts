@@ -77,12 +77,15 @@ interface AssetMeta {
   /** Live TEXT SEATS for the bones prefabs (owner: "a lot of text wasn't
    *  appearing on these panels"): every text node the app renders for this
    *  component, lifted off the real render with the maker's own words —
-   *  string (TMP <color> markup for multi-ink lines), seat CENTER x/y +
-   *  font size in file px at pngScale (crop-adjusted like `shell`),
-   *  anchor, row cluster, voice (kit display face vs plain grotesk),
-   *  whether it wears the content-text dress, and its rendered ink. */
+   *  string (TMP <color> markup for multi-ink lines), then the seat as
+   *  NORMALIZED SPRITE FRACTIONS (fx/fy = seat CENTER as 0–1 of the
+   *  cropped sprite, y from the top; ffs = font size as a fraction of the
+   *  sprite HEIGHT). The importer multiplies by the prefab's live rect —
+   *  the same contract as the gauge seats, which landed right first try;
+   *  absolute file px shipped 2× wrong the moment the rect wasn't the
+   *  file's own scale (owner round 8, screenshots). */
   textSeats?: {
-    text: string; x: number; y: number; fs: number;
+    text: string; fx: number; fy: number; ffs: number;
     anchor: "start" | "middle" | "end"; row: number;
     kit: boolean; dressed: boolean;
     weight: number; italic: boolean; spacingEmPct: number;
@@ -1267,11 +1270,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const y0 = parseFloat(t.getAttribute("y") ?? "0");
       seats.push({
         text,
-        x: Math.round(x * 10) / 10,
+        /* INTERIM SVG UNITS here — the raster queue normalizes fx/fy/ffs
+           to sprite fractions once it knows the crop box and final raster
+           dimensions (the manifest never ships these raw numbers) */
+        fx: Math.round(x * 10) / 10,
         // seats speak the text's visual CENTER; baseline-anchored nodes
         // sit ~0.36em above their baseline mid-cap
-        y: Math.round((central ? y0 : y0 - fs * 0.36) * 10) / 10,
-        fs: Math.round(fs * 10) / 10,
+        fy: Math.round((central ? y0 : y0 - fs * 0.36) * 10) / 10,
+        ffs: Math.round(fs * 10) / 10,
         anchor: (t.getAttribute("text-anchor") as "start" | "middle" | "end" | null) ?? "start",
         row: 0,
         kit, dressed,
@@ -1287,12 +1293,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* ROW clustering by vertical seat — neighbors within 0.6 of the taller
        size share a row, so the leaderboard's rank/name/time triples come
        out as duplicable row objects */
-    const order = seats.map((_, i) => i).sort((a, b) => seats[a].y - seats[b].y);
+    const order = seats.map((_, i) => i).sort((a, b) => seats[a].fy - seats[b].fy);
     let row = 0;
     for (let i = 0; i < order.length; i++) {
       if (i > 0) {
         const prev = seats[order[i - 1]], cur = seats[order[i]];
-        if (Math.abs(cur.y - prev.y) > Math.max(cur.fs, prev.fs) * 0.6) row++;
+        if (Math.abs(cur.fy - prev.fy) > Math.max(cur.ffs, prev.ffs) * 0.6) row++;
       }
       seats[order[i]].row = row;
     }
@@ -1517,17 +1523,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           };
         }
       }
-      /* TEXT SEATS ride the same conversion as the shell row: measured in
-         the bake's viewBox units, shipped in the cropped file's pixels —
-         the same crop box, so the words land exactly on the art */
-      if (q.meta.textSeats && q.meta.textSeats.length) {
+      /* TEXT SEATS normalize here: measured in the bake's viewBox units,
+         shipped as FRACTIONS of the cropped file — same crop box as the
+         shell row, then divided by the final raster dimensions. The
+         importer multiplies by the prefab's live rect (the gauge-seat
+         contract), so no unit ever depends on pngScale bookkeeping again
+         (owner round 8: absolute px landed 2× wrong in rect space). */
+      if (q.meta.textSeats && q.meta.textSeats.length && w > 1 && h > 1) {
         const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         const [ovx, ovy] = vbm3 ? [+vbm3[1], +vbm3[2]] : [0, 0];
         q.meta.textSeats = q.meta.textSeats.map((s3) => ({
           ...s3,
-          x: Math.round(((s3.x - ovx) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
-          y: Math.round(((s3.y - ovy) * PNG_SCALE - (raster.box?.y0 ?? 0)) * 10) / 10,
-          fs: Math.round(s3.fs * PNG_SCALE * 10) / 10,
+          fx: Math.round((((s3.fx - ovx) * PNG_SCALE - (raster.box?.x0 ?? 0)) / w) * 10000) / 10000,
+          fy: Math.round((((s3.fy - ovy) * PNG_SCALE - (raster.box?.y0 ?? 0)) / h) * 10000) / 10000,
+          ffs: Math.round(((s3.ffs * PNG_SCALE) / h) * 10000) / 10000,
         }));
       }
       // Last line of defence: whatever the cap math says, borders must leave
@@ -5405,10 +5414,12 @@ namespace PatternBreak {
      objects, so readers gate on ink.fillMode being non-empty. */
   [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public PBStyle ink; public string unitInk; }
   /* a live TEXT SEAT: one text node of the app's render — the maker's own
-     string, its center in file px at pngScale, and its rendered voice.
-     Readers gate on text being non-empty (JsonUtility default-constructs
-     absent nested objects). */
-  [Serializable] class PBSeat { public string text; public float x; public float y; public float fs; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; }
+     string, its center as NORMALIZED SPRITE FRACTIONS (fx/fy, y from the
+     top) and its font size as a fraction of sprite height (ffs) — the
+     gauge contract; the importer multiplies by the prefab's live rect.
+     Readers gate on text non-empty AND ffs > 0 (px-era rows and
+     JsonUtility's default-constructed nested objects both read 0). */
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -5661,6 +5672,23 @@ namespace PatternBreak {
           var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
           if (force || Stale(root, mPath)) ImportKit(mPath);
         }
+        /* the LABEL-VARIANT pass armed by an import whose delayCall died
+           with the .cs-triggered domain reload (round-8 field: base label
+           seeding ran, no Variants folder ever appeared) resumes here —
+           idempotent: existing variants are skipped, so a double run when
+           the original delayCall DID fire is harmless */
+        if (SessionState.GetBool("PBKitVariantsPending", false)) {
+          SessionState.SetBool("PBKitVariantsPending", false);
+          foreach (var guid in manifests) {
+            var mPath = AssetDatabase.GUIDToAssetPath(guid);
+            var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+            PBManifest mv = null;
+            try { mv = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+            if (mv == null) continue;
+            try { LabelVariantPrefabs(root, mv); }
+            catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+          }
+        }
       };
     }
 
@@ -5897,6 +5925,10 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: Playground.unity kept as-is (yours). This update may have changed sizes or added pieces — Tools > PatternBreak > Rebuild Kit Playground Scene builds a fresh one.");
       // the maker's board scenes ride the same after-import beat — each
       // builds once, then it's yours (existing scenes are never touched)
+      /* ARM the variant pass in session state FIRST: the delayCall below
+         does not survive the domain reload this import's own .cs files
+         cause, and the post-reload sweep runs whatever is still armed */
+      SessionState.SetBool("PBKitVariantsPending", true);
       EditorApplication.delayCall += () => {
         BuildBoardScenes(root, manifest);
         /* a kit UPDATE leaves existing scenes wearing their FIRST build's
@@ -5926,8 +5958,12 @@ namespace PatternBreak {
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: board-word heal skipped — " + e.Message); }
         /* the board-pinned words' PREFAB VARIANTS (the owner's BOOST) —
            after scenes, still post-import: variant creation instantiates
-           into the open scene briefly, which mid-import would corrupt */
-        try { LabelVariantPrefabs(root, manifest); }
+           into the open scene briefly, which mid-import would corrupt.
+           The pending flag clears only on a completed run — this very
+           delayCall dies with the domain reload the zip's own .cs files
+           trigger (round-8 field: no Variants folder, no receipt, ever),
+           and the sweep resumes it after the reload. */
+        try { LabelVariantPrefabs(root, manifest); SessionState.SetBool("PBKitVariantsPending", false); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
       };
 
@@ -8574,16 +8610,18 @@ namespace PatternBreak {
     }
     /* ── LIVE TEXT SEATS: the bones prefabs' words ──────────────────────
        (owner: "did you notice that a lot of text wasn't appearing on
-       these panels"). Every manifest seat row becomes a TMP child under a
-       "Words" group, carrying the MAKER'S OWN string from the app (owner:
-       "they spent time customizing it… lets not let them down"), seated
-       at the measured sprite fraction and dressed per its rendered voice:
-       the kit display face (content-text material when the app dresses
-       it, the plain preset when it doesn't) or the plain instrument
-       grotesk. Clustered lines become duplicable "Row N" objects.
+       these panels"). Every seat row becomes a TMP child under "Words",
+       carrying the MAKER'S OWN string, seated by NORMALIZED FRACTIONS of
+       the sprite rect — the gauge contract, the one that landed right
+       first try; round 6's absolute file px arrived 2× wrong in rect
+       space (owner screenshots: titles outside the panel, names wrapping
+       into letter stacks). fx/fy anchor the seat, ffs × the prefab's own
+       rect height is the font size, and every TMP is hardened against
+       reflow: wrapping OFF, overflow Overflow, auto-size OFF.
        OWNERSHIP: the seeded string rides the GameObject name — a
-       re-import only updates a text still equal to its seed; anything the
-       dev retyped (or restructured) is theirs, with a Console receipt. */
+       re-import re-seeds words and heals geometry only on seats still
+       equal to their seed; anything the dev retyped is theirs, with a
+       Console receipt. */
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
       var img = host.GetComponent<Image>();
@@ -8592,7 +8630,8 @@ namespace PatternBreak {
       if (!p.StartsWith(root + "/")) return null;
       var rel = p.Substring(root.Length + 1);
       foreach (var a in m.assets)
-        if (a != null && a.file == rel && a.textSeats != null && a.textSeats.Length > 0 && !string.IsNullOrEmpty(a.textSeats[0].text)) return a;
+        if (a != null && a.file == rel && a.textSeats != null && a.textSeats.Length > 0
+            && !string.IsNullOrEmpty(a.textSeats[0].text) && a.textSeats[0].ffs > 0f) return a; // ffs gates out px-era rows
       return null;
     }
     // extras/ hosts several one-off prefabs — key materials by part there
@@ -8606,7 +8645,54 @@ namespace PatternBreak {
       else if (grotesk != null) { face = grotesk; mat = null; }
       else { face = kitFace; mat = plainKitMat; }
     }
-    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, int pngScale, bool apply) {
+    /* ── seat GEOMETRY, one hand for builder and probe ── */
+    static float SeatRootH(GameObject host, int pngScale) {
+      var rt = host.GetComponent<RectTransform>();
+      float h = rt != null ? rt.rect.height : 0f;
+      if (h < 2f) {
+        var img = host.GetComponent<Image>();
+        if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
+      }
+      return h;
+    }
+    static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
+    static Vector2 SeatBox(PBSeat seat, float fs) {
+      var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
+      // generous, glyph-safe box centered on the seat — overflow shows, never reflows
+      return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
+    }
+    static bool SeatRect(RectTransform rt, PBSeat seat, float rootH, bool inRow, float rowFy, bool apply) {
+      float fs = SeatFs(seat, rootH);
+      var box = SeatBox(seat, fs);
+      var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
+      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - seat.fy);
+      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH) : Vector2.zero;
+      bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
+        && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
+        && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rt.pivot = pv;
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = ap;
+      rt.sizeDelta = box;
+      return false;
+    }
+    /* never reflow: a seat is a placed word, not a paragraph (round-8
+       field: word wrap stacked HAMMER into vertical letters) */
+    static bool SeatHardened(TMP_Text t) {
+#pragma warning disable 0618
+      return !t.enableAutoSizing && !t.enableWordWrapping && t.overflowMode == TMPro.TextOverflowModes.Overflow && t.margin == Vector4.zero;
+#pragma warning restore 0618
+    }
+    static void SeatHarden(TMP_Text t) {
+      t.enableAutoSizing = false;
+#pragma warning disable 0618
+      t.enableWordWrapping = false;
+#pragma warning restore 0618
+      t.overflowMode = TMPro.TextOverflowModes.Overflow;
+      t.margin = Vector4.zero;
+    }
+    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, bool apply) {
       Color top = Color.white, bot = Color.white;
       bool grad = seat.fillMode == "gradient";
       Color c0;
@@ -8615,33 +8701,65 @@ namespace PatternBreak {
       float fo = seat.fillOpacity > 0f ? Mathf.Clamp01(seat.fillOpacity / 100f) : 1f;
       top.a *= fo; bot.a *= fo;
       var style = (seat.italic ? FontStyles.Italic : FontStyles.Normal) | (seat.weight >= 700 ? FontStyles.Bold : FontStyles.Normal);
-      float wantFs = pngScale > 0 ? seat.fs / pngScale : seat.fs;
+      float wantFs = SeatFs(seat, rootH);
       bool matOk = mat == null || face == null || t.font != face || t.fontSharedMaterial == mat;
       bool current = t.fontStyle == style
         && Mathf.Approximately(t.characterSpacing, seat.spacingEmPct)
-        && Mathf.Approximately(t.fontSize, wantFs)
+        && Mathf.Abs(t.fontSize - wantFs) < 0.05f
         && (face == null || t.font == face)
         && t.enableVertexGradient == grad
         && (grad ? t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white : t.color == top)
-        && matOk;
+        && matOk
+        && SeatHardened(t);
       if (current || !apply) return current;
       if (face != null && t.font != face) t.font = face;
       t.fontStyle = style;
       t.characterSpacing = seat.spacingEmPct;
       t.fontSize = wantFs;
-      t.enableAutoSizing = false;
+      SeatHarden(t);
       if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
       else { t.enableVertexGradient = false; t.color = top; }
       if (mat != null && face != null && t.font == face) t.fontSharedMaterial = mat;
       return false;
     }
+    /* the row layout, recomputed the same way everywhere */
+    static void SeatRows(PBAsset row, out Dictionary<int, int> count, out Dictionary<int, float> fy, out Dictionary<int, float> ffs) {
+      count = new Dictionary<int, int>(); fy = new Dictionary<int, float>(); ffs = new Dictionary<int, float>();
+      foreach (var s0 in row.textSeats) {
+        int k = s0.row;
+        count[k] = (count.ContainsKey(k) ? count[k] : 0) + 1;
+        fy[k] = (fy.ContainsKey(k) ? fy[k] : 0f) + s0.fy;
+        ffs[k] = Mathf.Max(ffs.ContainsKey(k) ? ffs[k] : 0f, s0.ffs);
+      }
+      foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
+    }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
+      float yf = Mathf.Clamp01(1f - rowFy);
+      var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
+      var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
+      bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
+        && rrt.pivot == new Vector2(0.5f, 0.5f)
+        && (rrt.sizeDelta - sz).sqrMagnitude < 0.01f
+        && rrt.anchoredPosition.sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rrt.anchorMin = mn; rrt.anchorMax = mx;
+      rrt.pivot = new Vector2(0.5f, 0.5f);
+      rrt.sizeDelta = sz;
+      rrt.anchoredPosition = Vector2.zero;
+      return false;
+    }
     /* probe + apply in one hand. Returns TRUE when a pass would (or did)
-       change something; a dev-restructured Words group changes nothing. */
+       change something; a dev-restructured Words group changes nothing.
+       Geometry, size and dress heal on seats still equal to their seed
+       (that includes every seat of the round-6 px-era import); a RETYPED
+       seat keeps everything — word, place, look — with a receipt. */
     static bool SeatsDrift(GameObject host, PBAsset row, string root, PBManifest m, int pngScale, bool apply) {
       var wordsT = host.transform.Find("Words");
       if (wordsT == null) return true; // unseeded — the builder path fills it
       var texts = wordsT.GetComponentsInChildren<TMP_Text>(true);
       if (texts.Length != row.textSeats.Length) return false; // dev restructured — theirs
+      float rootH = SeatRootH(host, pngScale);
+      if (rootH < 2f) return false;
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       bool canMat = kitFace != null && kitFace.material != null;
       bool needDress = false, needPlainKit = false;
@@ -8667,21 +8785,31 @@ namespace PatternBreak {
           plainKitMat = EnsureGaugeUnitMaterial(root, kitFace);
         }
       }
+      Dictionary<int, int> rowCount; Dictionary<int, float> rowFy; Dictionary<int, float> rowFfs;
+      SeatRows(row, out rowCount, out rowFy, out rowFfs);
       bool drift = false;
       int respected = 0;
       for (int i = 0; i < texts.Length; i++) {
         var t = texts[i];
         var seat = row.textSeats[i];
         // the seed rides the GO name: a text that no longer matches it was
-        // RETYPED by the dev — theirs, wholesale (size and dress included)
+        // RETYPED by the dev — theirs, wholesale
         if (t.text != t.gameObject.name) { respected++; continue; }
+        bool inRow = rowCount.ContainsKey(seat.row) && rowCount[seat.row] >= 2;
+        // the row container is the seat's parent when clustered — ours
+        if (inRow) {
+          var rrt = t.transform.parent as RectTransform;
+          if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
+        }
+        var srt = t.GetComponent<RectTransform>();
+        if (srt != null && !SeatRect(srt, seat, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
         TMP_FontAsset face; Material mat;
         SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
         if (t.text != seat.text) {
           drift = true;
           if (apply) { t.gameObject.name = seat.text; t.text = seat.text; }
         }
-        if (!DressSeatText(t, seat, face, mat, pngScale, apply)) drift = true;
+        if (!DressSeatText(t, seat, face, mat, rootH, apply)) drift = true;
       }
       if (apply && respected > 0)
         Debug.Log("UI Kit Maker: " + host.name + " — kept " + respected + " word(s) you retyped in Unity (a re-import only updates words still carrying their seeded text).");
@@ -8692,9 +8820,8 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
       var row = SeatRowOf(host, m, root);
       if (row == null) return;
-      var img = host.GetComponent<Image>();
-      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
-      if (rw < 2f || rh < 2f || pngScale < 1) return;
+      float rootH = SeatRootH(host, pngScale);
+      if (rootH < 2f) return;
       if (host.transform.Find("Words") != null) { SeatsDrift(host, row, root, m, pngScale, true); return; }
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       Material dressMat = SeatInkShips(row) && kitFace != null
@@ -8708,36 +8835,20 @@ namespace PatternBreak {
       words.transform.SetParent(host.transform, false);
       StretchFull(words.GetComponent<RectTransform>());
       var wordsT = words.transform;
-      // cluster sizes decide which lines earn a duplicable Row container
-      var rowCount = new Dictionary<int, int>();
-      var rowYm = new Dictionary<int, float>();
-      var rowHm = new Dictionary<int, float>();
-      foreach (var s0 in row.textSeats) {
-        int k = s0.row;
-        rowCount[k] = (rowCount.ContainsKey(k) ? rowCount[k] : 0) + 1;
-        rowYm[k] = (rowYm.ContainsKey(k) ? rowYm[k] : 0f) + s0.y;
-        rowHm[k] = Mathf.Max(rowHm.ContainsKey(k) ? rowHm[k] : 0f, s0.fs);
-      }
+      Dictionary<int, int> rowCount; Dictionary<int, float> rowFy; Dictionary<int, float> rowFfs;
+      SeatRows(row, out rowCount, out rowFy, out rowFfs);
       var made = new Dictionary<int, Transform>();
       int nRow = 0;
       foreach (var seat in row.textSeats) {
         Transform parent = wordsT;
-        float rowY = 0f;
         bool inRow = rowCount[seat.row] >= 2;
         if (inRow) {
-          rowY = rowYm[seat.row] / rowCount[seat.row];
           Transform rT;
           if (!made.TryGetValue(seat.row, out rT)) {
             nRow++;
             var rGo = new GameObject("Row " + nRow, typeof(RectTransform));
             rGo.transform.SetParent(wordsT, false);
-            var rrt = rGo.GetComponent<RectTransform>();
-            float yf = Mathf.Clamp01(1f - rowY / rh);
-            rrt.anchorMin = new Vector2(0f, yf);
-            rrt.anchorMax = new Vector2(1f, yf);
-            rrt.pivot = new Vector2(0.5f, 0.5f);
-            rrt.sizeDelta = new Vector2(0f, rowHm[seat.row] * 1.7f / pngScale);
-            rrt.anchoredPosition = Vector2.zero;
+            RowRect(rGo.GetComponent<RectTransform>(), rowFy[seat.row], rowFfs[seat.row], rootH, true);
             rT = rGo.transform;
             made[seat.row] = rT;
           }
@@ -8748,25 +8859,15 @@ namespace PatternBreak {
         var t = go.GetComponent<TextMeshProUGUI>();
         t.text = seat.text;
         t.raycastTarget = false;
-        t.enableAutoSizing = false;
+        // size at CREATION, the (field-proven) gauge way — never left to defaults
+        t.fontSize = SeatFs(seat, rootH);
+        SeatHarden(t);
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
-        var rt = go.GetComponent<RectTransform>();
-        rt.pivot = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
-        if (inRow) {
-          var cB = new Vector2(seat.x / rw, 0.5f);
-          rt.anchorMin = cB; rt.anchorMax = cB;
-          rt.anchoredPosition = new Vector2(0f, (rowY - seat.y) / pngScale);
-        } else {
-          var cA = new Vector2(seat.x / rw, 1f - seat.y / rh);
-          rt.anchorMin = cA; rt.anchorMax = cA;
-          rt.anchoredPosition = Vector2.zero;
-        }
-        var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
-        rt.sizeDelta = new Vector2(Mathf.Max(seat.fs * 2f, plain.Length * seat.fs * 0.75f) / pngScale, seat.fs * 1.7f / pngScale);
+        SeatRect(go.GetComponent<RectTransform>(), seat, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         TMP_FontAsset face; Material mat;
         SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
         if (face != null) t.font = face;
-        DressSeatText(t, seat, face, mat, pngScale, true);
+        DressSeatText(t, seat, face, mat, rootH, true);
       }
 #endif
     }
