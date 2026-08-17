@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -1820,6 +1820,17 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   // the vertical twin (blank panels): height stretch + planted edge
   const strv = useRef<{ y0: number; st0: number; shh0: number; by0: number; hy: number } | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
+  /* PRIMARY dim source (drift hardening): LiveArt reports width/height/
+     data-shell parsed from its memoized svg STRING in a layout effect —
+     the overlay updates in the same paint as the art, with no DOM read
+     and no observer race. A string without a shell stamp keeps the last
+     known shell; the observer's getBBox fallback below owns that case. */
+  const onArtDim = useCallback((a: { w: number; h: number; shell: [number, number, number, number] | null }) => {
+    setDim((d) => {
+      const shell = a.shell ?? d?.shell ?? null;
+      return d && d.w === a.w && d.h === a.h && String(d.shell) === String(shell) ? d : { w: a.w, h: a.h, shell };
+    });
+  }, []);
   useEffect(() => {
     const host = artRef.current;
     if (!host) return;
@@ -1869,10 +1880,14 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
        DOM write chain straight into the next measurement without ever
        yielding to the event loop. Coalescing through rAF puts a frame
        boundary in the cycle, so even pathological churn can only cost
-       one measurement per frame, never a wedged tab. */
+       one measurement per frame, never a wedged tab.
+       Drift hardening: cancel-then-reschedule instead of swallowing
+       mutations while a frame is parked — the read always captures the
+       LATEST batch, and the cost stays one read per frame. */
     let pend = 0;
     const mo = new MutationObserver(() => {
-      if (!pend) pend = requestAnimationFrame(() => { pend = 0; read(); });
+      if (pend) cancelAnimationFrame(pend);
+      pend = requestAnimationFrame(() => { pend = 0; read(); });
     });
     mo.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ["width", "height", "data-shell"] });
     // text geometry settles once webfonts arrive — re-measure then
@@ -1945,7 +1960,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              the measurement observer behind it) quiet between real edits.
              A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
              ids) while every per-piece read stays keyed by b.kitId. */
-          <LiveArt cfg={forkCfg} playing={playing} anchorContent
+          <LiveArt cfg={forkCfg} playing={playing} anchorContent onArt={onArtDim}
             kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: b.label ?? kitLabels[b.kitId], value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
@@ -1954,7 +1969,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
               row: baseOf(b.kitId) === "datarow" ? kitRow : undefined,
               themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }} />
         ) : (
-          <LiveArt cfg={item!.cfg} playing={playing} anchorContent
+          <LiveArt cfg={item!.cfg} playing={playing} anchorContent onArt={onArtDim}
             kit={item!.kit ? { id: item!.kit.id, size: item!.kit.size, shape: item!.kit.shape, label: item!.kit.label, value: item!.kit.v } : undefined} />
         )}
       </div>
