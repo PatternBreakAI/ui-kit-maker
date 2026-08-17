@@ -7,6 +7,7 @@ import { useCloudStatus } from "@/shell/useCloudStatus";
 import { openAuth } from "@/shell/authOverlay";
 import { navigate } from "@/shell/router";
 import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
+import { openGate } from "@/shell/gateModal";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadWebKit, downloadSettings, downloadGameKit, copyText, inlineKitFace } from "@/generator/exportUtils";
 import { fetchKitFont } from "@/generator/engineExport";
@@ -31,11 +32,17 @@ export function TopBar() {
   const { cfg, selectedState, theme, setTheme, replaceConfig, shine, setShine, tier, isAdmin, kitName, viewer, openProjectId, projectSavedAt, projectDirty, fileFlash } = useGen();
   const { on: tutorOn, setOn: setTutorOn } = useTutor();
   const tcaps = capsOf(tier);
-  /* Per-artifact, not one blanket "vectors yes/no" — student buys the
-     learning formats and stops short of the shipping ones, so the game kit
-     row locks for them while SVG and HTML stay open. */
+  /* Per-artifact, not one blanket "vectors yes/no" — the map stays
+     per-kind even though guest and free both read empty now (Gate Round:
+     every generated export is paid; free keeps the settings file and the
+     stock Unity test kit). */
   const may = (k: Parameters<typeof canExport>[1]) => canExport(tier, k);
-  const gate = () => { if (tier === "guest") openAuth("signin"); else navigate("#/pricing"); };
+  /* PNG is a client-side raster with no server leg, so its gate lives
+     here: paid tiers only, same as every other artifact. */
+  const paid = tier === "student" || tier === "pro";
+  /* a locked control opens the gate modal — the sign-up pitch for guests,
+     the Pro pitch (with the free test kit) for free accounts */
+  const gate = () => openGate("export");
   const lockrow = (label: string) => (<><Lock size={13} strokeWidth={2.2} /> {label} <i className="protag">PRO</i></>);
   const cloud = useCloudStatus();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -100,7 +107,7 @@ export function TopBar() {
      the menu LOOKS, the server decides whether the file is produced. */
   const handlers = {
     onSignIn: () => openAuth("signin"),
-    onUpgrade: () => navigate("#/pricing"),
+    onUpgrade: () => openGate("export"),
     onMessage: (m: string) => window.alert(m),
   };
   const dlSvg = () => void guardedExport("svg", handlers, async () =>
@@ -230,9 +237,16 @@ export function TopBar() {
               ) : (
                 <button className="lockedmi" title={`Vector exports are a Pro format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(t("exportSvg"))}</button>
               )}
-              <button onClick={() => { void (async () => downloadPng(await svgWithFace(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax))(); setMenuOpen(false); }}>
-                <Image size={15} strokeWidth={1.8} /> {t("exportPng")} {tcaps.pngScaleMax}×
-              </button>
+              {/* PNG renders entirely in the browser, so this gate is
+                  client-side by nature — the honest one we have. Paid only
+                  (Gate Round); the locked row opens the pitch. */}
+              {paid ? (
+                <button onClick={() => { void (async () => downloadPng(await svgWithFace(), `ui-${cfg.presetId}-${selectedState}@${tcaps.pngScaleMax}x.png`, tcaps.pngScaleMax))(); setMenuOpen(false); }}>
+                  <Image size={15} strokeWidth={1.8} /> {t("exportPng")} {tcaps.pngScaleMax}×
+                </button>
+              ) : (
+                <button className="lockedmi" title={`PNG export is a paid format. ${UPGRADE_LINES[tier]}`} onClick={() => { setMenuOpen(false); gate(); }}>{lockrow(`${t("exportPng")} 4×`)}</button>
+              )}
               {may("html") ? (
                 <button disabled={htmlProg !== null} onClick={() => { if (!htmlProg) dlHtml(); }}>
                   <FileDown size={15} strokeWidth={1.8} /> {htmlProg ? `Building web kit… ${htmlProg}` : t("downloadHtml")}
@@ -262,6 +276,14 @@ export function TopBar() {
                 title="Opens your kit page — the Unity ZIP is the big export button there.">
                 <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit — on the Kit page
               </button>
+              {/* the settings file stays FREE for accounts (owner mandate:
+                  backup/portability is workflow, not a deliverable) — but
+                  guests take nothing home, so it's part of the sign-up pitch */}
+              {tier === "guest" ? (
+                <button className="lockedmi" title="Your settings file comes with a free account — sign up and the recipe is yours." onClick={() => { setMenuOpen(false); gate(); }}>
+                  <Lock size={13} strokeWidth={2.2} /> {t("exportSettings")} <i className="protag">FREE</i>
+                </button>
+              ) : (
               <button onClick={() => {
                 void (async () => {
                   const st = useGen.getState();
@@ -283,6 +305,7 @@ export function TopBar() {
               }}>
                 <FileJson size={15} strokeWidth={1.8} /> {t("exportSettings")}
               </button>
+              )}
               <button onClick={() => { fileRef.current?.click(); }}>
                 <FileUp size={15} strokeWidth={1.8} /> {t("importSettings")}
               </button>

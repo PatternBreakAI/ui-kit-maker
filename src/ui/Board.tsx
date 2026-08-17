@@ -9,6 +9,7 @@ import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bev
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
+import { openGate } from "@/shell/gateModal";
 import { LiveArt, shellHit, stillSmil, stripSmil } from "./LiveArt";
 
 /* An SVG rasterized through an <img> — or downloaded and opened outside the
@@ -424,9 +425,23 @@ export function BoardView({ playing }: { playing: boolean }) {
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
     addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
-    duplicateBoardItem, componentReleases, isAdmin,
+    duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
   } = useGen();
+  /* ── the Gate Round's two board rules (owner mandate, 2026-08-17) ──
+     · exports (board PNG, piece SVG/PNG) are paid — these composites
+       render entirely in the browser, so the gate is client-side by
+       nature; the modal carries the pitch (sign-up for guests, Pro +
+       the free Unity test kit for accounts).
+     · guests get exactly ONE board — the second add opens the sign-up
+       pitch instead. Existing extra boards keep working; only ADDING
+       is gated, so nobody's saved desk is wrecked by the flip. */
+  const paidTier = tier === "student" || tier === "pro";
+  const guardExport = (run: () => void) => { if (paidTier) run(); else openGate("export"); };
+  const guardAddBoard = (run: () => void) => {
+    if (tier === "guest" && useGen.getState().boards.length >= 1) { openGate("board"); return; }
+    run();
+  };
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
@@ -1051,12 +1066,14 @@ export function BoardView({ playing }: { playing: boolean }) {
             <Shield size={13} strokeWidth={2} /> Safe area
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
-          <button className="bd-export" onClick={() => { if (act) exportPng(act); }}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
+          <button className="bd-export" onClick={() => guardExport(() => { if (act) void exportPng(act); })}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
           <button className="bd-export bd-exportall"
             title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
-            onClick={async () => {
-              for (const bd of boards) if (bd.items.length || bd.bgImage || bd.bgVideo) await exportPng(bd);
-            }}>
+            onClick={() => guardExport(() => {
+              void (async () => {
+                for (const bd of boards) if (bd.items.length || bd.bgImage || bd.bgVideo) await exportPng(bd);
+              })();
+            })}>
             <Download size={14} strokeWidth={2.2} /> All boards
           </button>
         </header>
@@ -1093,12 +1110,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onChange={(e) => renameBoard(bd.id, e.target.value)} />
                   <button className="bd-abtool" aria-label={`Export ${bd.name} as PNG`}
                     title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution — background, overlay and pieces`}
-                    onClick={() => void exportPng(bd)}>
+                    onClick={() => guardExport(() => void exportPng(bd))}>
                     <Download size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Duplicate ${bd.name}`}
                     title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
-                    onClick={() => duplicateBoard(bd.id)}>
+                    onClick={() => guardAddBoard(() => duplicateBoard(bd.id))}>
                     <Copy size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Clear ${bd.name}`}
@@ -1173,7 +1190,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {bd.items.map((b) => (
                       <StagePiece key={b.id} b={b} playing={playing}
                         selected={selIdsAll.includes(b.id)} solo={boardSel === b.id && selIdsAll.length === 1} fit={fit}
-                        onExport={() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
+                        onExport={() => guardExport(() => { const p = svgOf(b); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(b).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); })}
                         onSelect={(e) => pickPiece(bd.id, b.id, !!e?.shiftKey)}
                         onDragStart={(e) => {
                           // dragging any selected piece carries the whole selection
@@ -1251,13 +1268,13 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <button className="bd-addtab bd-addtab--r"
                     title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? " — the row rescales so both fit" : ""}`}
                     aria-label={`Add a board to the right of ${bd.name}`}
-                    onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
+                    onClick={() => guardAddBoard(() => addBoardAfter(bd.id, { aspect: sideAspect }))}>
                     <Plus size={14} strokeWidth={2.2} />
                   </button>
                 )}
                 <button className="bd-addtab bd-addtab--b" title={`Add a board below ${bd.name}`}
                   aria-label={`Add a board below ${bd.name}`}
-                  onClick={() => addBoardAfter(row[row.length - 1].id, { aspect: bd.aspect, nl: true })}>
+                  onClick={() => guardAddBoard(() => addBoardAfter(row[row.length - 1].id, { aspect: bd.aspect, nl: true }))}>
                   <Plus size={14} strokeWidth={2.2} />
                 </button>
                 </div>
@@ -1268,7 +1285,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </div>
             );
           })}
-          <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
+          <button className="bd-addboard-inline" onClick={() => guardAddBoard(addBoard)}><Plus size={14} strokeWidth={2.2} /> Add board</button>
         </div>
       </div>
 
@@ -1290,7 +1307,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </span>
               <span className="bd-pagename">{bd.name}</span>
               <span className="bd-pagectl">
-                <button title={`Duplicate ${bd.name}`} onClick={(e) => { e.stopPropagation(); duplicateBoard(bd.id); }}><Copy size={11} strokeWidth={2.4} /></button>
+                <button title={`Duplicate ${bd.name}`} onClick={(e) => { e.stopPropagation(); guardAddBoard(() => duplicateBoard(bd.id)); }}><Copy size={11} strokeWidth={2.4} /></button>
                 <button title="Move up" disabled={i === 0} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, -1); }}><ArrowUp size={11} strokeWidth={2.4} /></button>
                 <button title="Move down" disabled={i === boards.length - 1} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, 1); }}><ArrowDown size={11} strokeWidth={2.4} /></button>
                 <button title={`Delete ${bd.name}`} className="danger"
@@ -1300,7 +1317,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </span>
             </div>
           ))}
-          <button className="bd-addboard" onClick={addBoard}><Plus size={13} strokeWidth={2.2} /> Add board</button>
+          <button className="bd-addboard" onClick={() => guardAddBoard(addBoard)}><Plus size={13} strokeWidth={2.2} /> Add board</button>
         </div>
 
         {selIdsAll.length > 1 ? (
@@ -1490,11 +1507,11 @@ export function BoardView({ playing }: { playing: boolean }) {
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              <button onClick={() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); }}
+              <button onClick={() => guardExport(() => { const p = svgOf(sel); void svgWithFaces(p.svg, p.cfg).then((s) => downloadSvg(s, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`)); })}
                 title="This piece as a crisp, infinitely scalable SVG">
                 <Download size={13} strokeWidth={2.2} /> SVG
               </button>
-              <button onClick={() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); }}
+              <button onClick={() => guardExport(() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); })}
                 title="This piece as a transparent-background PNG at 2× — drops straight into an engine or a mockup">
                 <Download size={13} strokeWidth={2.2} /> PNG
               </button>
