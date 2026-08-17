@@ -86,6 +86,10 @@ interface AssetMeta {
    *  file's own scale (owner round 8, screenshots). */
   textSeats?: {
     text: string; fx: number; fy: number; ffs: number;
+    /** measured mid-cap height above the baseline, em — 0 = the seat came
+     *  from a central-baseline node (already line-centered). The importer
+     *  aligns TMP's own line middle to this visual center. */
+    midEm: number;
     anchor: "start" | "middle" | "end"; row: number;
     kit: boolean; dressed: boolean;
     weight: number; italic: boolean; spacingEmPct: number;
@@ -1255,6 +1259,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      guessed; the baked pixels stay untouched (the measure render never
      ships). Coordinates leave here in SVG viewBox units; the raster queue
      converts them to file px through the same crop box as the shell row. */
+  /* mid-cap calibration per text voice: canvas measureText on the PAGE
+     (the app's real loaded fonts — the same glyphs the maker sees) pins
+     where a cap line's visual center sits above the baseline, replacing
+     the round-6 0.36em guess. Cached per family; the estimate stands in
+     when the metrics API is missing. */
+  const capMidCache = new Map<string, number>();
+  const capMidOf = (family: string): number => {
+    const hit = capMidCache.get(family);
+    if (hit !== undefined) return hit;
+    let v = 0.36;
+    try {
+      const cx4 = document.createElement("canvas").getContext("2d");
+      if (cx4) {
+        cx4.font = `700 100px ${family}`;
+        const mH = cx4.measureText("H");
+        if (mH.actualBoundingBoxAscent > 10)
+          v = Math.round(((mH.actualBoundingBoxAscent - (mH.actualBoundingBoxDescent || 0)) / 2 / 100) * 1000) / 1000;
+      }
+    } catch { /* the estimate stands */ }
+    v = Math.min(0.55, Math.max(0.2, v));
+    capMidCache.set(family, v);
+    return v;
+  };
   const parseTextSeats = (svg: string, kitFont: string): NonNullable<AssetMeta["textSeats"]> | null => {
     let doc: Document;
     try { doc = new DOMParser().parseFromString(svg, "image/svg+xml"); } catch { return null; }
@@ -1279,7 +1306,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // build()-machinery labels ride the LABEL pipeline, never seats
       if (t.closest('[data-part="label"]')) continue;
       const fs = parseFloat(t.getAttribute("font-size") ?? "0");
-      const str0 = (t.textContent ?? "").trim();
+      const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
       if (!(fs > 1) || !str0) continue;
       /* rotated or path-riding text can't be a clean TMP seat — skipped
          (and none of the audited components carry any; if one ever does,
@@ -1308,7 +1335,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           if (!c0) return s;
           const aHex = c0.a < 1 ? Math.round(c0.a * 255).toString(16).padStart(2, "0").toUpperCase() : "";
           return `<color=${c0.hex.toUpperCase()}${aHex}>${s}</color>`;
-        }).join("");
+        }).join("").replace(/\s+(?![^<]*>)/g, " "); // normalize gaps, never inside tags
         fillAttr = "#FFFFFF"; // markup carries the inks; the base stays white
       }
       const kit = (t.getAttribute("font-family") ?? "").split(",")[0].trim().replace(/^['"]|['"]$/g, "") === kitFont;
@@ -1331,16 +1358,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const central = t.getAttribute("dominant-baseline") === "central";
       const x = parseFloat(t.getAttribute("x") ?? "0");
       const y0 = parseFloat(t.getAttribute("y") ?? "0");
+      // baseline-anchored nodes center on the MEASURED mid-cap of their
+      // own face (canvas metrics), not a constant guess
+      const midEm = central ? 0 : capMidOf(kit ? `'${kitFont}', Inter, sans-serif` : "Inter, sans-serif");
       seats.push({
         text,
         /* INTERIM SVG UNITS here — the raster queue normalizes fx/fy/ffs
            to sprite fractions once it knows the crop box and final raster
            dimensions (the manifest never ships these raw numbers) */
         fx: Math.round(x * 10) / 10,
-        // seats speak the text's visual CENTER; baseline-anchored nodes
-        // sit ~0.36em above their baseline mid-cap
-        fy: Math.round((central ? y0 : y0 - fs * 0.36) * 10) / 10,
+        fy: Math.round((central ? y0 : y0 - fs * midEm) * 10) / 10,
         ffs: Math.round(fs * 10) / 10,
+        midEm,
         anchor: (t.getAttribute("text-anchor") as "start" | "middle" | "end" | null) ?? "start",
         row: 0,
         kit, dressed,
@@ -2424,6 +2453,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       tier: st.scope,
       exported: new Date().toISOString(),
       pngScale: PNG_SCALE,
+      /* the text-seat unit contract version — the importer soft-gates on
+         it so a future contract change can never be misread as this one */
+      seatSpace: "sprite-fraction-v2",
       /* the health globe's visible well as frame fractions (bottom-left
          origin) — the prefab anchors the cropped liquid here so
          Image.fillAmount 0..1 is visually empty..full, no padding lie */
@@ -5493,7 +5525,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -5527,13 +5559,14 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
      its last seed; anything else is the dev's typing and stays */
   [Serializable] class PBSeedEntry { public string family; public string word; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; }
+  [Serializable] class PBVariantEntry { public string path; public string word; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -5744,7 +5777,19 @@ namespace PatternBreak {
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
           var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-          if (force || Stale(root, mPath)) ImportKit(mPath);
+          if (force || Stale(root, mPath)) { ImportKit(mPath); continue; }
+          /* receipt current but its variant JOB never completed (editor
+             restart ate the delayCall): finish it now */
+          PBLock lv = null;
+          try { if (File.Exists(root + "/kit.lock.json")) lv = JsonUtility.FromJson<PBLock>(File.ReadAllText(root + "/kit.lock.json")); } catch (Exception) { }
+          if (lv != null && lv.variantsPending) {
+            PBManifest mv = null;
+            try { mv = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
+            if (mv != null) {
+              try { LabelVariantPrefabs(root, mv); }
+              catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+            }
+          }
         }
         /* the LABEL-VARIANT pass armed by an import whose delayCall died
            with the .cs-triggered domain reload (round-8 field: base label
@@ -5752,7 +5797,7 @@ namespace PatternBreak {
            idempotent: existing variants are skipped, so a double run when
            the original delayCall DID fire is harmless */
         if (SessionState.GetBool("PBKitVariantsPending", false)) {
-          SessionState.SetBool("PBKitVariantsPending", false);
+          bool allRan = true;
           foreach (var guid in manifests) {
             var mPath = AssetDatabase.GUIDToAssetPath(guid);
             var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
@@ -5760,8 +5805,9 @@ namespace PatternBreak {
             try { mv = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
             if (mv == null) continue;
             try { LabelVariantPrefabs(root, mv); }
-            catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+            catch (Exception e) { allRan = false; Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
           }
+          if (allRan) SessionState.SetBool("PBKitVariantsPending", false); // clear only after success
         }
       };
     }
@@ -6061,6 +6107,14 @@ namespace PatternBreak {
          seeded (or converged) to this import — the next import re-seeds
          only labels still carrying these exact words */
       receipt.seededLabels = SeedTable(manifest);
+      /* the variant pass is a JOB the receipt carries: it runs post-import
+         (delayCall or the post-reload sweep) and CLEARS this flag in the
+         lock when it completes — so an editor crash/restart between the
+         receipt landing and the pass running can never strand it (Stale()
+         would say current forever; the flag says otherwise). */
+      receipt.variantsPending = true;
+      var prevVarLedger = prev != null ? prev.seededVariants : null;
+      receipt.seededVariants = prevVarLedger; // the pass rewrites this on completion
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -8715,8 +8769,18 @@ namespace PatternBreak {
     /* labels/word groups that WANTED the kit face during this pass and
        had to wear the plain fallback (fontless zip) — one loud receipt */
     static int faceStarved;
+    static bool seatSpaceWarned;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
+      /* soft contract gate: a seat space this importer doesn't speak is
+         skipped LOUDLY once — never misread (round-8's unit lesson) */
+      if (!string.IsNullOrEmpty(m.seatSpace) && m.seatSpace != "sprite-fraction-v2") {
+        if (!seatSpaceWarned) {
+          seatSpaceWarned = true;
+          Debug.LogWarning("UI Kit Maker: this kit's text seats speak contract '" + m.seatSpace + "', which this importer doesn't know — seated words are skipped. Re-extract the zip fully (its Editor/ scripts match its manifest).");
+        }
+        return null;
+      }
       var img = host.GetComponent<Image>();
       if (img == null || img.sprite == null) return null;
       var p = AssetDatabase.GetAssetPath(img.sprite).Replace("\\\\", "/");
@@ -8754,12 +8818,20 @@ namespace PatternBreak {
       // generous, glyph-safe box centered on the seat — overflow shows, never reflows
       return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
     }
-    static bool SeatRect(RectTransform rt, PBSeat seat, float rootH, bool inRow, float rowFy, bool apply) {
+    static bool SeatRect(RectTransform rt, PBSeat seat, TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply) {
       float fs = SeatFs(seat, rootH);
       var box = SeatBox(seat, fs);
       var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
       var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - seat.fy);
-      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH) : Vector2.zero;
+      /* TMP centers a middle-aligned rect on the LINE middle; a seat from
+         a baseline-anchored node marks the CAP middle (midEm, measured).
+         Lift the rect by the delta so the glyphs land on the app's pixels. */
+      float lift = 0f;
+      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f) {
+        float lineMidEm = (face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize;
+        lift = (lineMidEm - seat.midEm) * fs;
+      }
+      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH + lift) : new Vector2(0f, lift);
       bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
         && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
         && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
@@ -8774,7 +8846,8 @@ namespace PatternBreak {
        field: word wrap stacked HAMMER into vertical letters) */
     static bool SeatHardened(TMP_Text t) {
 #pragma warning disable 0618
-      return !t.enableAutoSizing && !t.enableWordWrapping && t.overflowMode == TMPro.TextOverflowModes.Overflow && t.margin == Vector4.zero;
+      return !t.enableAutoSizing && !t.enableWordWrapping && t.overflowMode == TMPro.TextOverflowModes.Overflow && t.margin == Vector4.zero
+        && t.extraPadding && !t.parseCtrlCharacters;
 #pragma warning restore 0618
     }
     static void SeatHarden(TMP_Text t) {
@@ -8784,6 +8857,8 @@ namespace PatternBreak {
 #pragma warning restore 0618
       t.overflowMode = TMPro.TextOverflowModes.Overflow;
       t.margin = Vector4.zero;
+      t.extraPadding = true;        // SDF glow/underlay never clips at glyph edges
+      t.parseCtrlCharacters = false; // a literal backslash in a maker's word stays literal
     }
     static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, bool apply) {
       Color top = Color.white, bot = Color.white;
@@ -8797,6 +8872,7 @@ namespace PatternBreak {
       float wantFs = SeatFs(seat, rootH);
       bool matOk = mat == null || face == null || t.font != face || t.fontSharedMaterial == mat;
       bool current = t.fontStyle == style
+        && t.richText == (seat.text != null && seat.text.Contains("<color="))
         && Mathf.Approximately(t.characterSpacing, seat.spacingEmPct)
         && Mathf.Abs(t.fontSize - wantFs) < 0.05f
         && (face == null || t.font == face)
@@ -8806,6 +8882,7 @@ namespace PatternBreak {
         && SeatHardened(t);
       if (current || !apply) return current;
       if (face != null && t.font != face) t.font = face;
+      t.richText = seat.text != null && seat.text.Contains("<color="); // never blanket-false: the telemetry legend IS markup
       t.fontStyle = style;
       t.characterSpacing = seat.spacingEmPct;
       t.fontSize = wantFs;
@@ -8850,7 +8927,11 @@ namespace PatternBreak {
       var wordsT = host.transform.Find("Words");
       if (wordsT == null) return true; // unseeded — the builder path fills it
       var texts = wordsT.GetComponentsInChildren<TMP_Text>(true);
-      if (texts.Length != row.textSeats.Length) return false; // dev restructured — theirs
+      if (texts.Length != row.textSeats.Length) {
+        // the dev restructured the group — theirs now, said out loud once
+        if (apply) Debug.Log("UI Kit Maker: " + host.name + " — its Words group holds " + texts.Length + " text(s) where the kit expects " + row.textSeats.Length + ", so the group is yours now and updates skip it. Delete the Words object and re-import to re-seed it fresh.");
+        return false;
+      }
       float rootH = SeatRootH(host, pngScale);
       if (rootH < 2f) return false;
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -8894,10 +8975,10 @@ namespace PatternBreak {
           var rrt = t.transform.parent as RectTransform;
           if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
         }
-        var srt = t.GetComponent<RectTransform>();
-        if (srt != null && !SeatRect(srt, seat, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
         TMP_FontAsset face; Material mat;
         SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
+        var srt = t.GetComponent<RectTransform>();
+        if (srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
         if (t.text != seat.text) {
           drift = true;
           if (apply) { t.gameObject.name = seat.text; t.text = seat.text; }
@@ -8953,13 +9034,14 @@ namespace PatternBreak {
         var t = go.GetComponent<TextMeshProUGUI>();
         t.text = seat.text;
         t.raycastTarget = false;
+        t.richText = seat.text != null && seat.text.Contains("<color=");
         // size at CREATION, the (field-proven) gauge way — never left to defaults
         t.fontSize = SeatFs(seat, rootH);
         SeatHarden(t);
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
-        SeatRect(go.GetComponent<RectTransform>(), seat, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         TMP_FontAsset face; Material mat;
         SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
+        SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         if (face != null) t.font = face;
         DressSeatText(t, seat, face, mat, rootH, true);
       }
@@ -9034,9 +9116,25 @@ namespace PatternBreak {
       return s2.Length > 0 ? s2 : "word";
     }
     static void LabelVariantPrefabs(string root, PBManifest m) {
-      if (m == null || m.boards == null || m.boards.Length == 0) return;
       var dir = root + "/Prefabs";
-      if (!AssetDatabase.IsValidFolder(dir)) return;
+      var lockPath = root + "/kit.lock.json";
+      // the ledger: which variant FILE carries which seeded word (ours)
+      PBLock lockNow = null;
+      try { if (File.Exists(lockPath)) lockNow = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+      var ledger = new Dictionary<string, string>();
+      if (lockNow != null && lockNow.seededVariants != null)
+        foreach (var le in lockNow.seededVariants) if (le != null && !string.IsNullOrEmpty(le.path)) ledger[le.path] = le.word;
+      // ZERO-REQUEST RECEIPTS: the pass always says what it did — silence
+      // was round-8's whole defect story
+      if (m == null || m.boards == null || m.boards.Length == 0) {
+        Debug.Log("UI Kit Maker: label variants — no board scenes in this kit, so no pinned words to build from (0 requests).");
+        ClearVariantsPending(lockPath, lockNow, ledger);
+        return;
+      }
+      if (!AssetDatabase.IsValidFolder(dir)) {
+        Debug.Log("UI Kit Maker: label variants — Prefabs/ isn't generated yet, so the pass waits for the next import.");
+        return; // deliberately NOT clearing the pending flag — prefabs first
+      }
       var famSet = new HashSet<string>(SeededFamilies);
       // distinct (family, word): dedup across boards and copies
       var pairs = new List<PBSeedEntry>();
@@ -9048,52 +9146,126 @@ namespace PatternBreak {
           if (!string.IsNullOrEmpty(it.stamp)) continue; // baked pieces place no prefab
           if (!famSet.Contains(it.component)) continue;
           if (it.label == LabelWordOf(m, it.component, DefaultLabel(it.component))) continue; // the base prefab already says it
-          if (!seen.Add(it.component + "\\u0001" + it.label)) continue;
+          if (!seen.Add(it.component + "\u0001" + it.label)) continue;
           var pr = new PBSeedEntry(); pr.family = it.component; pr.word = it.label;
           pairs.Add(pr);
         }
       }
       var vdir = dir + "/Variants";
       var livePaths = new HashSet<string>();
-      int made = 0, kept = 0, disconnected = 0;
+      var newLedger = new Dictionary<string, string>();
+      int made = 0, kept = 0, disconnected = 0, squatters = 0;
       if (pairs.Count > 0 && !AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
+      /* PREVIEW-SCENE ISOLATION: instantiating into the user's open scene
+         dirtied it (and mid-edit scenes are sacred) — the whole pass works
+         inside a throwaway preview scene instead */
+      var pscene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+      try {
       foreach (var pr in pairs) {
         var baseName = NiceName(pr.family);
-        var path = vdir + "/" + baseName + " – " + FileSafeWord(pr.word) + ".prefab";
-        // sanitize collisions (two pins mapping to one filename): suffix
-        while (livePaths.Contains(path)) path = path.Substring(0, path.Length - 7) + " x.prefab";
-        livePaths.Add(path);
-        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // yours after creation
         var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
         if (basePf == null) continue; // family shipped no prefab this kit
-        var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf);
-        if (inst == null) continue;
-        var lroot = FindOurLabelRoot(inst);
-        if (lroot == null || !SetLabelWord(lroot, pr.word)) { UnityEngine.Object.DestroyImmediate(inst); continue; }
-        var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
-        UnityEngine.Object.DestroyImmediate(inst);
-        if (saved == null) continue;
-        made++;
-        /* the assert this feature stands on: a VARIANT keeps its base
-           connection so art restyles flow through. A plain clone would
-           freeze silently — say it loudly instead of shipping a lie. */
-        if (PrefabUtility.GetPrefabAssetType(saved) != PrefabAssetType.Variant) {
-          disconnected++;
-          Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant — the base connection did not survive, so future kit restyles will NOT flow into it (it still works as a frozen copy). Please report this; deleting the file and re-importing retries.");
+        var path = vdir + "/" + baseName + " – " + FileSafeWord(pr.word) + ".prefab";
+        /* OCCUPANT RESOLUTION (ledger-backed): the file is OURS for this
+           word iff the ledger (or, pre-ledger, its own label) says so AND
+           it is a real Variant of our base. Anything else — a squatter
+           prefab, or a DIFFERENT pin truncation-colliding into the same
+           filename — steps aside via the suffix path, receipted. */
+        bool settled = false;
+        while (!settled) {
+          if (livePaths.Contains(path)) { path = path.Substring(0, path.Length - 7) + " x.prefab"; continue; }
+          var occupant = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+          if (occupant == null) { settled = true; break; } // free — create here
+          bool isOurVariant = PrefabUtility.GetPrefabAssetType(occupant) == PrefabAssetType.Variant
+            && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(occupant) == basePf;
+          string ledgWord;
+          bool inLedger = ledger.TryGetValue(path, out ledgWord);
+          if (isOurVariant && inLedger && ledgWord == pr.word) {
+            // ours, same word — the dev may have retyped its label; theirs
+            kept++; livePaths.Add(path); newLedger[path] = pr.word; settled = false; path = null; break;
+          }
+          if (isOurVariant && !inLedger) {
+            // pre-ledger variant: its own label tells whose word it holds
+            var lrOcc = FindOurLabelRoot(occupant);
+            var wordNow = lrOcc != null ? LabelText(lrOcc, null) : null;
+            if (wordNow == pr.word) { kept++; livePaths.Add(path); newLedger[path] = pr.word; settled = false; path = null; break; }
+          }
+          // squatter / collision: step aside and say so
+          squatters++;
+          Debug.Log("UI Kit Maker: '" + Path.GetFileName(path) + "' is occupied by " + (isOurVariant ? "a variant of a DIFFERENT pinned word (filename collision)" : "a prefab that isn't our variant") + " — building this pin alongside it.");
+          path = path.Substring(0, path.Length - 7) + " x.prefab";
         }
+        if (path == null) continue; // resolved to an existing occupant
+        livePaths.Add(path);
+        var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
+        if (inst == null) continue;
+        try {
+          var lroot = FindOurLabelRoot(inst);
+          if (lroot == null || !SetLabelWord(lroot, pr.word)) continue;
+          /* the text write must be RECORDED as an instance override or the
+             save can drop it (HeroLabel fans one text into layer meshes —
+             record every TMP it drives, plus the stack owner itself) */
+          var hlRec = lroot.GetComponent<HeroLabel>();
+          if (hlRec != null) PrefabUtility.RecordPrefabInstancePropertyModifications(hlRec);
+          foreach (var tRec in lroot.GetComponentsInChildren<TMPro.TMP_Text>(true))
+            PrefabUtility.RecordPrefabInstancePropertyModifications(tRec);
+          var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
+          if (saved == null) continue;
+          made++;
+          newLedger[path] = pr.word;
+          /* the asserts this feature stands on: (1) a real VARIANT of OUR
+             base, so art restyles flow through; (2) the word actually
+             STUCK (read back from the saved asset) — a silently dropped
+             override is worse than a loud one */
+          bool linked = PrefabUtility.GetPrefabAssetType(saved) == PrefabAssetType.Variant
+            && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(saved) == basePf;
+          if (!linked) {
+            disconnected++;
+            Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant of " + baseName + " — the base connection did not survive, so future kit restyles will NOT flow into it (it still works as a frozen copy). Please report this; deleting the file and re-importing retries.");
+          }
+          var check = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+          var lrChk = check != null ? FindOurLabelRoot(check) : null;
+          var wordBack = lrChk != null ? LabelText(lrChk, null) : null;
+          if (wordBack != pr.word)
+            Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' — the word override did NOT persist through the save (reads '" + wordBack + "', wanted '" + pr.word + "'). Please report this; retype the label on the variant as the workaround.");
+        } finally {
+          UnityEngine.Object.DestroyImmediate(inst);
+        }
+      }
+      } finally {
+        UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene);
       }
       /* pins that left the doc: their variants stay — named, never deleted */
       if (AssetDatabase.IsValidFolder(vdir)) {
         var stale = new List<string>();
         foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { vdir })) {
           var p = AssetDatabase.GUIDToAssetPath(g);
-          if (!livePaths.Contains(p)) stale.Add(Path.GetFileNameWithoutExtension(p));
+          if (!livePaths.Contains(p)) {
+            stale.Add(Path.GetFileNameWithoutExtension(p));
+            string oldWord; // a still-ledgered orphan keeps its ledger row so a returning pin finds it
+            if (ledger.TryGetValue(p, out oldWord)) newLedger[p] = oldWord;
+          }
         }
         if (stale.Count > 0)
           Debug.Log("UI Kit Maker: " + stale.Count + " label variant(s) no longer match any board-pinned word — kept on disk (deletion is your click): " + string.Join(", ", stale.ToArray()));
       }
-      if (made > 0)
-        Debug.Log("UI Kit Maker: built " + made + " label variant prefab(s) in Prefabs/Variants — one per distinct board-pinned word (your BOOST). True Prefab Variants: restyle the kit and their art follows on re-import; only the word is theirs." + (kept > 0 ? " " + kept + " existing variant(s) untouched (yours after creation)." : "") + (disconnected > 0 ? " " + disconnected + " did NOT variant-link — see the warning(s) above." : ""));
+      // the ALWAYS-printed completion line — zero requests is a result too
+      Debug.Log("UI Kit Maker: label variants — " + pairs.Count + " request(s) from board-pinned words: " + made + " built, " + kept + " kept (yours after creation), " + squatters + " path collision(s) stepped aside, " + disconnected + " failed to variant-link." + (made > 0 ? " True Prefab Variants in Prefabs/Variants: restyle the kit and their art follows; only the word is theirs." : ""));
+      ClearVariantsPending(lockPath, lockNow, newLedger);
+    }
+    /* the variant JOB completed: clear the receipt's pending flag and
+       write the file→word ledger (kit.lock.json survives domain reloads,
+       editor restarts and crashes — SessionState does not) */
+    static void ClearVariantsPending(string lockPath, PBLock lockNow, Dictionary<string, string> ledger) {
+      if (lockNow == null) {
+        try { if (File.Exists(lockPath)) lockNow = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+        if (lockNow == null) return;
+      }
+      lockNow.variantsPending = false;
+      var rows = new List<PBVariantEntry>();
+      foreach (var kv in ledger) { var e = new PBVariantEntry(); e.path = kv.Key; e.word = kv.Value; rows.Add(e); }
+      lockNow.seededVariants = rows.ToArray();
+      try { File.WriteAllText(lockPath, JsonUtility.ToJson(lockNow, true)); } catch (Exception) { }
     }
 #if UNITY_2023_2_OR_NEWER
     /* a gauge readout child at the manifest's measured seat — anchors are
@@ -9109,6 +9281,7 @@ namespace PatternBreak {
       t.enableAutoSizing = false;
       t.fontSize = gfs / pngScale;
       t.raycastTarget = false;
+      t.extraPadding = true; // the dressed digits carry glow — never clip it
       t.color = ink;
       if (unitStyle) { t.fontStyle = FontStyles.Bold; t.characterSpacing = 24f; }
       var faceAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
