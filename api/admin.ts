@@ -19,6 +19,8 @@
      { action: "designate", projectId, placement, presetName, publishAt?, dealNote? }
      { action: "designations" }                        → the release slate
      { action: "undesignate", designationId }
+     { action: "testKitStatus" }                       → is the blessed evaluation zip stocked?
+     { action: "testKitUpload", size }                 → signed upload URL to swap the blessed zip
 
    The release desk (find → preview → designate) exists for the pack
    pipeline: a maker emails the owner an awesome kit, they agree to
@@ -756,6 +758,88 @@ export async function POST(req: Request): Promise<Response> {
     }).catch(() => { /* audit table not migrated yet — the console line stands */ });
 
     return json({ ok: true });
+  }
+
+  /* ── the Unity test kit's shelf (Gate Round, 2026-08-17) ─────────────
+     The registered tier's free download is ONE canned stock kit zip —
+     served by /api/test-kit from the private `test-kit` bucket at a fixed
+     object path. These two actions are how the owner stocks and swaps the
+     blessed artifact WITHOUT a code change or redeploy: status reads the
+     shelf, upload mints a one-time signed URL so the browser PUTs the new
+     zip straight to storage (a kit zip would blow the function body
+     limit). The bucket is created lazily on first upload, so the desk
+     works even before migration 0095 has been pasted. */
+  const TK_BUCKET = "test-kit";
+  const TK_OBJECT = "unity-test-kit.zip";
+  const TK_CAP = 100 * 1024 * 1024;
+
+  if (body.action === "testKitStatus") {
+    const ls = await fetch(`${supaUrl}/storage/v1/object/list/${TK_BUCKET}`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json" },
+      body: JSON.stringify({ prefix: "", limit: 100, offset: 0 }),
+    });
+    const objects = ls.ok ? ((await ls.json()) as { name?: string; updated_at?: string; metadata?: { size?: number } | null }[]) : [];
+    const blessed = Array.isArray(objects) ? objects.find((o) => o.name === TK_OBJECT) : undefined;
+    return json({
+      ok: true,
+      stocked: !!blessed,
+      size: blessed ? Number(blessed.metadata?.size ?? 0) || null : null,
+      updatedAt: blessed?.updated_at ?? null,
+    });
+  }
+
+  if (body.action === "testKitUpload") {
+    const size = Number((body as { size?: unknown }).size);
+    if (!Number.isFinite(size) || size <= 0 || size > TK_CAP) {
+      return json({ error: `That file doesn't look like a kit zip — it must be under ${Math.round(TK_CAP / 1048576)} MB.` }, 400);
+    }
+
+    // the shelf may predate migration 0095 — build it on first use
+    const mk = await fetch(`${supaUrl}/storage/v1/bucket`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json" },
+      body: JSON.stringify({ id: TK_BUCKET, name: TK_BUCKET, public: false, file_size_limit: TK_CAP }),
+    });
+    if (!mk.ok) {
+      const detail = await mk.text().catch(() => "");
+      // an existing bucket answers 400/409 — that is the normal steady state
+      if (mk.status !== 400 && mk.status !== 409 && !/already exists/i.test(detail)) {
+        return json({ error: `Couldn't prepare the test-kit shelf (${mk.status}). ${detail.slice(0, 120)}` }, 502);
+      }
+    }
+
+    /* clear-then-sign instead of upsert: signed upload URLs refuse to
+       overwrite, and threading upsert claims through them is fragile.
+       If the upload after the delete fails, the shelf is empty until the
+       admin retries — /api/test-kit says "not stocked yet" honestly. */
+    await fetch(`${supaUrl}/storage/v1/object/${TK_BUCKET}/${TK_OBJECT}`, { method: "DELETE", headers: svc }).catch(() => { /* nothing to clear */ });
+
+    const sign = await fetch(`${supaUrl}/storage/v1/object/upload/sign/${TK_BUCKET}/${TK_OBJECT}`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!sign.ok) {
+      const detail = await sign.text().catch(() => "");
+      return json({ error: `Couldn't authorize the upload (${sign.status}). ${detail.slice(0, 120)}` }, 502);
+    }
+    const signed = (await sign.json()) as { url?: string };
+    const uploadToken = signed.url ? new URL(signed.url, supaUrl).searchParams.get("token") : null;
+    if (!uploadToken) return json({ error: "Couldn't authorize the upload — try again." }, 502);
+
+    const audit = {
+      at: new Date().toISOString(), admin: caller.id, adminEmail: caller.email ?? null,
+      bucket: TK_BUCKET, object: TK_OBJECT, size,
+    };
+    console.log(`[admin] testKitUpload ${JSON.stringify(audit)}`);
+    await fetch(`${supaUrl}/rest/v1/admin_audit`, {
+      method: "POST",
+      headers: { ...svc, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ admin_id: caller.id, target_id: caller.id, action: "testKitUpload", detail: audit }),
+    }).catch(() => { /* audit table optional — the console line stands */ });
+
+    return json({ ok: true, path: `${TK_BUCKET}/${TK_OBJECT}`, token: uploadToken });
   }
 
   return json({ error: "Unknown action." }, 400);

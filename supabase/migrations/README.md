@@ -32,6 +32,7 @@ miss cannot happen again.
 | 0091 release desk | kit_designations: frozen snapshots + deal notes, admin-only | applied 2026-07-26 (slate live, first designation frozen) |
 | 0092 refresh source | kit_designations.source_up_id for the desk's Refresh | **outstanding — run me** (Refresh on studio-sourced designations degrades to a name match until then) |
 | 0094 durable backdrops | private bg-assets bucket + owner read/delete policies (uploads only via /api/assets) | **outstanding — run me** (until then uploaded backdrops keep today's this-browser-only behavior; nothing breaks) |
+| 0095 test-kit bucket | private shelf for the blessed Unity evaluation zip (reads via /api/test-kit, swaps via /api/admin) | **outstanding — optional** (the admin desk's first upload creates the bucket lazily; run this for the record or on a fresh environment) |
 
 After running a file, update its row here in the same commit that ships
 the code depending on it. Anything earlier than v85 predates the ledger

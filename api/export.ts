@@ -34,25 +34,21 @@ const KINDS = new Set(["engine", "gamekit", "html", "svg", "sheet"]);
    it, and that difference is carried by the licence block below rather than
    by withholding formats. See entitlements.ts for the reasoning. */
 const ALLOWED: Record<string, Set<string>> = {
-  /* Free gets exactly one artifact: the STARTER engine kit (Unity bridge
-     spec, owner-ruled) — the payload builder scopes it to three pieces;
-     this door only decides that the kind may be issued at all. */
-  free: new Set(["engine"]),
+  /* Gate Round (owner mandate, 2026-08-17): every generated export is paid.
+     The free tier keeps the project/settings JSON (client-side, workflow not
+     deliverable), community publishing, and the stock Unity TEST KIT served
+     by /api/test-kit — a fixed evaluation artifact, never their own design.
+     The old three-piece starter grant (Unity bridge round) is retired. */
+  free: new Set<string>(),
   student: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
   pro: new Set(["engine", "gamekit", "html", "svg", "sheet"]),
 };
 
 /* The use grant, per plan. Mirrors LICENCE_GRANT in
    src/generator/entitlements.ts and Terms §5.6 — change all three
-   together or the file will disagree with the page that sold it. */
+   together or the file will disagree with the page that sold it.
+   No free entry: the free plan is never granted here (Gate Round). */
 const GRANT: Record<string, string> = {
-  free: `  This is the free STARTER kit — three pieces, yours to use in any
-  project, commercial included, no attribution required. It exists so
-  you can prove the workflow end to end before paying for anything.
-
-  The full kit — every component, every state — is one upgrade away at
-  uikitmaker.com/#/pricing. It lands in the exact same Unity folder, so
-  everything you've already placed just restyles.`,
   student: `  Coursework, portfolio, personal projects and non-commercial
   releases — on any number of them, with no attribution required.
 
@@ -76,11 +72,12 @@ function json(body: unknown, status = 200): Response {
     deterrent against redistribution, and a provenance record for the
     customer who actually bought it. */
 function licenceText(email: string, uid: string, kind: string, whenISO: string, nonce: string, plan: string): string {
+  // only paid plans reach this point (ALLOWED refuses free before any issue)
   return `UI Kit Maker — export licence
 ============================
 
-Artifact      : ${kind}${plan === "free" ? " (starter)" : ""}
-Plan          : ${plan === "free" ? "Free (starter kit)" : plan === "student" ? "Student / Educator (education licence)" : "Pro (commercial licence)"}
+Artifact      : ${kind}
+Plan          : ${plan === "student" ? "Student / Educator (education licence)" : "Pro (commercial licence)"}
 Licensed to   : ${email}
 Account       : ${uid}
 Issued        : ${whenISO}
@@ -140,7 +137,9 @@ export async function POST(req: Request): Promise<Response> {
 
   if (!ALLOWED[plan]?.has(kind)) {
     return json({
-      error: plan === "free" ? "Vector and full-kit exports are part of Pro." : "That export isn't part of your plan.",
+      error: plan === "free"
+        ? "Exports are part of Pro. Your account keeps the project file — and the free Unity test kit, if you want to prove the import pipeline first."
+        : "That export isn't part of your plan.",
       reason: "upgrade",
     }, 403);
   }
@@ -175,8 +174,10 @@ export async function POST(req: Request): Promise<Response> {
     issuedAt: whenISO,
     licensedTo: user.email ?? user.id,
     // the payload scope is a SERVER decision from plan_id — the builder
-    // keys off this, so a client-side tier flip cannot widen the payload
-    scope: plan === "free" ? "free" : "full",
+    // keys off this, so a client-side tier flip cannot widen the payload.
+    // Only paid plans get grants now, so every grant is full scope; the
+    // field stays so the builder's contract doesn't move.
+    scope: "full",
     licence: licenceText(user.email ?? "(no email on file)", user.id, kind, whenISO, nonce, plan),
   });
 }
