@@ -1623,13 +1623,21 @@ export function KitPage() {
         /* the briefing plays from here — the scope is settled, the wait
            is about to be real (board collection + every sprite render) */
         try { setBrief(buildUnityBriefing(st, scope)); setBriefHidden(false); } catch { setBrief(null); }
-        const exBoards = scope === "full" ? await collectExportBoards(st).catch(() => undefined) : undefined;
+        /* a failed board collection must never kill the export — but it
+           must never be SILENT either: without boards the zip ships no
+           scenes and no label variants, and that absence looks like an
+           importer bug (round-8 investigation) */
+        const exBoards = scope === "full" ? await collectExportBoards(st).catch((e) => { console.warn("UI Kit Maker: board collection failed — this export ships WITHOUT board scenes and label variants", e); return undefined; }) : undefined;
         await downloadEngineExport(
-          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, releases: st.componentReleases },
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, releases: st.componentReleases,
+            // the maker's own words ride into the bones prefabs' live text
+            kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
+          // a fontless zip is a real defect downstream — say it to the maker's face
+          (msg) => window.alert(msg),
         );
       });
     } finally {

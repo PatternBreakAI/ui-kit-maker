@@ -8716,7 +8716,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         return inject(track.replace("<svg ", '<svg data-race="speedo" '),
           `<defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs><g opacity="${dim}">${inner2}</g>`);
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="speedometer" data-race="speedo">
+      /* the READOUT SEAT rides the part render as a geo stamp (the season
+         track discipline): number center x/y + font size, then the unit
+         line's y + size — the Unity prefab's live numbers sit exactly
+         where the app draws them. Attributes never rasterize, so the
+         shipped pixels stay byte-identical. */
+      const gaugeStamp = `data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="speedometer" data-race="speedo" ${gaugeStamp}>
 <defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
 <g opacity="${dim}">${inner2}</g>
 </svg>`;
@@ -8761,7 +8767,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         return inject(track.replace("<svg ", '<svg data-race="speedo2" '),
           `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="HUD speedometer" data-race="speedo2">
+      // readout seat as a geo stamp — see the classic dial's note
+      const gaugeStamp2 = `data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="HUD speedometer" data-race="speedo2" ${gaugeStamp2}>
 <defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs>
 <g opacity="${dim}">${segs}${arc}${readout}</g>
 </svg>`;
@@ -8774,6 +8782,38 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          amber → red, lit up to the needle. */
       const d2 = ({ s: 176, m: 216, l: 264 } as Record<KitSize, number>)[size] * k;
       const v3 = clamp(value ?? 0.62, 0, 1);
+      /* rig parts (engine export, owner: the rpm meter's prefab): the dial
+         FACE — well, every zone segment unlit, hub — and the bare NEEDLE
+         at the sweep start, both on the bare canvas like the speedo's
+         parts. The face carries the readout seat as a geo stamp; the
+         housed render below is untouched. */
+      if (opts.part === "face" || opts.part === "needle") {
+        const padT = 46;
+        const WT = d2 + padT * 2, HT = d2 + padT * 2;
+        const cxP = WT / 2, cyP = HT / 2, r0P = d2 / 2;
+        const A0P = 0.75 * Math.PI, SWEEPP = 1.5 * Math.PI;
+        if (opts.part === "needle") {
+          const angP = A0P + clamp(value ?? 0, 0, 1) * SWEEPP;
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${WT.toFixed(0)}" height="${HT.toFixed(0)}" viewBox="0 0 ${WT.toFixed(0)} ${HT.toFixed(0)}" role="img" aria-label="rev needle">` +
+            `<line x1="${(cxP - Math.cos(angP) * 15 * k).toFixed(1)}" y1="${(cyP - Math.sin(angP) * 15 * k).toFixed(1)}" x2="${(cxP + Math.cos(angP) * (r0P - 32 * k)).toFixed(1)}" y2="${(cyP + Math.sin(angP) * (r0P - 32 * k)).toFixed(1)}" stroke="#FFFFFF" stroke-width="${(3.6 * k).toFixed(1)}" stroke-linecap="round" opacity="0.92"/>` +
+            candyKnob(cxP, cyP, 9 * k, bevel) + `</svg>`;
+        }
+        const zoneP = (t: number) => t < 0.6 ? "#3ECF6A" : t < 0.82 ? "#FFC531" : "#FF4D5A";
+        let segsP = "";
+        for (let i = 0; i < 28; i++) {
+          const t0 = i / 27;
+          const a = A0P + t0 * SWEEPP;
+          const rO = r0P - 11 * k, rI = rO - 15 * k;
+          segsP += `<line x1="${(cxP + Math.cos(a) * rI).toFixed(1)}" y1="${(cyP + Math.sin(a) * rI).toFixed(1)}" x2="${(cxP + Math.cos(a) * rO).toFixed(1)}" y2="${(cyP + Math.sin(a) * rO).toFixed(1)}" stroke="${zoneP(t0)}" stroke-width="${(6.5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.14"/>`;
+        }
+        const gidP = "tcp" + UID++;
+        const gaugeStampT = `data-gauge="${cxP.toFixed(1)} ${(cyP + r0P * 0.5).toFixed(1)} ${(Math.min(d2 * 0.16, r0P * 0.42) * typeK).toFixed(1)} ${(cyP + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${WT.toFixed(0)}" height="${HT.toFixed(0)}" viewBox="0 0 ${WT.toFixed(0)} ${HT.toFixed(0)}" role="img" aria-label="rev meter face" data-race="tacho" ${gaugeStampT}>` +
+          `<defs><linearGradient id="${gidP}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient></defs>` +
+          `<circle cx="${cxP}" cy="${cyP}" r="${r0P}" fill="url(#${gidP})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
+          `<circle cx="${cxP}" cy="${cyP}" r="${(r0P - 8 * k).toFixed(1)}" fill="${wellFill}"/>` +
+          segsP + candyKnob(cxP, cyP, 9 * k, bevel) + `</svg>`;
+      }
       // v71 · form factor: housed like its siblings — theme walls, extrusion
       const D = d2 + (bw + 18 * k) * 2;
       const cx3 = 39 + D / 2, cy3 = 30 + D / 2, r0 = d2 / 2;
