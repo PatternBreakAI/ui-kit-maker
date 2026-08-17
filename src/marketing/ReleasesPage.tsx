@@ -16,6 +16,44 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "Your kit arrives in Unity speaking your words",
+    items: [
+      {
+        h: "Gauges arrive alive",
+        p: "The speedometer and rev meter now land in Unity as working instruments: a needle that sweeps and a numeric readout that counts with it — dressed in your kit's own digit styling, down to the glow. Drag the Value slider in the Inspector and watch it go.",
+      },
+      {
+        h: "Every panel speaks your words",
+        p: "Leaderboards, lap-time charts, telemetry readouts, loot tags, list rows and their kin used to arrive as silent artwork. Now their words ride along — the exact text you typed on your boards, live and editable in Unity, seated and styled to match the app. Rows come as duplicable objects, so a five-row leaderboard becomes a six-row one with a copy.",
+      },
+      {
+        h: "A prefab for every word you pinned",
+        p: "Buttons, chips and tabs arrive already saying what you named them in the app — and every different word you pinned on a board becomes its own drag-ready Prefab Variant that keeps its word while inheriting every future restyle of its base automatically.",
+      },
+      {
+        h: "Retype anything; we won't fight you",
+        p: "Any word a developer retypes in Unity is theirs. Re-imports refresh only text still carrying our seeding, and the Console prints a receipt for every pass — even the ones that had nothing to do.",
+      },
+      {
+        h: "No component left behind",
+        p: "Every component you can place on a board now ships a prefab — the racing circuit, start lights, move counter, rarity frames and the rest — each with a plain-English note in the kit's README about what's wired and what's scaffolding.",
+      },
+      {
+        h: "Your typeface travels — and speaks up if it can't",
+        p: "The kit's font is now fetched from several independent sources at export time. In the rare case it still can't be bundled, the site tells you before you download instead of shipping a quiet zip — and the next successful export re-dresses everything already in your Unity project, in place.",
+      },
+      {
+        h: "Re-exports land on target",
+        p: "Exporting a kit again overwrites the same assets in place: scenes stop serving yesterday's art, and older prefabs adopt the newest look, styling and words right where they stand.",
+      },
+      {
+        h: "Play-mode polish",
+        p: "The fire button finally depresses like a button — the dome sinks, not the rim. Round toggles stay round, swallowtail banners keep their tails, and the wipe shine on type stamps hugs the letterforms themselves instead of the glow around them.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "Copies with a mind of their own",
     items: [
       {
