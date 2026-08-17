@@ -51,6 +51,12 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** The gauge READOUT seat, parsed from the face render's geo stamp
+   *  (data-gauge) in file px at pngScale: number center x/y + font size,
+   *  then the unit line's y + size. The importer's live TMP numbers sit
+   *  exactly where the app draws them (owner: "the prefab for the speedo
+   *  and rpm meter don't have numbers in them"). */
+  gauge?: { x: number; y: number; fs: number; unitY: number; unitFs: number } | null;
 }
 
 export interface EngineExportState {
@@ -359,10 +365,28 @@ export async function collectExportBoards(st: {
 
     const exItems: ExportBoardItemData[] = [];
     const stampFiles: { file: string; bytes: Uint8Array }[] = [];
-    /* companion CORE-ALPHA masks collect apart and append AFTER the walk —
-       stampFiles.length numbers every bake, and a mask consuming an
-       ordinal would shift every later stamp/pose name between exports */
+    /* companion CORE-ALPHA masks collect apart and append AFTER the walk */
     const maskFiles: { file: string; bytes: Uint8Array }[] = [];
+    /* ── STABLE BAKE NAMES (owner: "is this board reading old versions of
+       the components or something?"). The bakes used to number themselves
+       by WALK POSITION — add, remove or reorder one board item and every
+       later stamp/pose file changed its name on the next export. Existing
+       scenes never rebuild, so their objects kept pointing at the old
+       names: files nothing would ever overwrite again (frozen art), or
+       worse, names the next export refilled with a DIFFERENT item's
+       pixels. Every bake is now named by its board copy's own id, which
+       lives in the saved doc — the same file gets overwritten in place on
+       every re-export, exactly like the kit sprites, and scenes stay
+       current. (The importer re-points scenes still holding old-scheme
+       names once, position-keyed.) ── */
+    const usedSid = new Set<string>();
+    const sidOf = (b: { id?: string }) => {
+      let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
+      if (!s) s = `n${stampFiles.length + 1}`;
+      while (usedSid.has(s)) s += "x";
+      usedSid.add(s);
+      return s;
+    };
     for (const b of items) {
       if (b.stamp) {
         /* a stamp bakes to its own sprite: specimen svg → raster → the
@@ -388,7 +412,7 @@ export async function collectExportBoards(st: {
         cx2.drawImage(warped ?? bmp, padPx, padPx);
         const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
         if (!blob) { bmp.close(); continue; }
-        const file = `boardstamps/${slug}-${stampFiles.length + 1}.png`;
+        const file = `boardstamps/${slug}-s${sidOf(b)}.png`;
         stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
         /* CORE-ALPHA companion for the Unity wipe (owner: the shine "masks
            to the outer limits of the glow/shadow… it doesn't hug the core
@@ -466,7 +490,7 @@ export async function collectExportBoards(st: {
         const { bytes: pb } = await svgToPngBytes(svgL, 2);
         const swL = parseFloat(/width="([\d.]+)"/.exec(still)?.[1] ?? "200");
         const shL = parseFloat(/height="([\d.]+)"/.exec(still)?.[1] ?? "80");
-        const file = `boardstamps/${slug}-a${stampFiles.length + 1}.png`;
+        const file = `boardstamps/${slug}-a${sidOf(b)}.png`;
         stampFiles.push({ file, bytes: pb });
         const kL = b.scale ?? 1;
         const wL = swL * kL, hL = shL * kL;
@@ -544,7 +568,7 @@ export async function collectExportBoards(st: {
         const fdK = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
         const { bytes: pk } = await svgToPngBytes(svgK, 2);
-        const file = `boardstamps/${slug}-k${stampFiles.length + 1}.png`;
+        const file = `boardstamps/${slug}-k${sidOf(b)}.png`;
         stampFiles.push({ file, bytes: pk });
         exItems.push({
           // base id even for a clone — the baked pixels above already wear
@@ -679,8 +703,8 @@ export async function collectExportBoards(st: {
             if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
-          const poseN = stampFiles.length + 1;
-          const fileP = `boardstamps/${slug}-pose${poseN}.png`;
+          const poseSid = sidOf(b);
+          const fileP = `boardstamps/${slug}-p${poseSid}.png`;
           stampFiles.push({ file: fileP, bytes: pbp });
           posed = fileP;
           /* the copy's DESIGNED states, posed too — retiring Sprite Swap
@@ -710,7 +734,7 @@ export async function collectExportBoards(st: {
                 .replace(/width="[\d.]+"/, `width="${cropBox[2].toFixed(1)}"`)
                 .replace(/height="[\d.]+"/, `height="${cropBox[3].toFixed(1)}"`);
               const { bytes: pbS } = await svgToPngBytes(ssv, 2);
-              const fS = `boardstamps/${slug}-pose${poseN}-${stN}.png`;
+              const fS = `boardstamps/${slug}-p${poseSid}-${stN}.png`;
               stampFiles.push({ file: fS, bytes: pbS });
               posedStates[stN] = fS;
             }
@@ -1667,9 +1691,37 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
 
   /* ── racing HUD: dial face + needle, segment arc + one segment, track ── */
-  await addPng("speedo/face.png", shell("speedo", { part: "face" }, undefined, 0), { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The km/h readout is live engine text." });
+  /* the READOUT SEAT rides each face render as a geo stamp (data-gauge —
+     the season-track discipline): the importer's live TMP numbers sit
+     exactly where the app draws them, measured, never eyeballed */
+  const gaugeOf = (svg: string): AssetMeta["gauge"] => {
+    const gm = /data-gauge="([-\d. ]+)"/.exec(svg);
+    if (!gm) return null;
+    const v = gm[1].split(" ").map(Number);
+    if (v.length !== 5 || v.some((n) => !Number.isFinite(n))) return null;
+    return {
+      x: Math.round(v[0] * PNG_SCALE), y: Math.round(v[1] * PNG_SCALE),
+      fs: Math.round(v[2] * PNG_SCALE * 10) / 10,
+      unitY: Math.round(v[3] * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
+    };
+  };
+  {
+    const spFace = shell("speedo", { part: "face" }, undefined, 0);
+    await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The readout is live engine text (the Speedo prefab wires it; seat in manifest > gauge).", gauge: gaugeOf(spFace) });
+  }
   await addPng("speedo/needle.png", shell("speedo", { part: "needle" }, undefined, 0), { component: "speedo", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Needle at zero (pointing to the sweep start). Rotate up to 270° around the canvas center from live speed." });
-  await addPng("speedo2/face.png", shell("speedo2", { part: "face" }, undefined, 0), { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD segment arc, all 24 segments unlit. Light segments with segment.png copies placed on the same polar grid." });
+  {
+    const sp2Face = shell("speedo2", { part: "face" }, undefined, 0);
+    await addPng("speedo2/face.png", sp2Face, { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD segment arc, all 24 segments unlit. Light segments with segment.png copies placed on the same polar grid; the readout is live engine text (seat in manifest > gauge).", gauge: gaugeOf(sp2Face) });
+  }
+  /* the REV METER's rig parts (owner: the rpm meter's prefab needs its
+     numbers): dial face with every zone segment unlit + the bare needle —
+     same bare-canvas contract as the speedo's parts */
+  {
+    const tcFace = shell("tacho", { part: "face" }, undefined, 0);
+    await addPng("tacho/face.png", tcFace, { component: "tacho", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev-meter dial face — zone segments unlit, hub baked. The RevMeter prefab lights nothing (bones); needle and readout are live (seat in manifest > gauge).", gauge: gaugeOf(tcFace) });
+    await addPng("tacho/needle.png", shell("tacho", { part: "needle" }, undefined, 0), { component: "tacho", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev needle at zero (sweep start). Rotate up to 270° around the canvas center from live revs." });
+  }
   await addPng("speedo2/segment.png", shell("speedo2", { part: "segment" }, undefined, 1), { component: "speedo2", part: "segment", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "One lit segment — instance and rotate per step; tint along the palette for the sweep gradient." });
   await addPng("circuit/track.png", shell("circuit", { part: "track" }), { component: "circuit", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Circuit ribbon with start/finish tick. Position markers and the venue label are live engine sprites/text." });
   {
@@ -2282,6 +2334,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakTouchStick.cs", data: TOUCH_STICK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSwitchGlide.cs", data: SWITCH_GLIDE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakFireButton.cs", data: FIREBUTTON_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakGaugeDial.cs", data: GAUGE_DIAL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
@@ -2323,6 +2376,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakHeroLabel.cs", "Runtime/PatternBreakLabelStateInk.cs",
     "Runtime/PatternBreakTouchStick.cs", "Runtime/PatternBreakSeasonTrack.cs",
     "Runtime/PatternBreakSwitchGlide.cs", "Runtime/PatternBreakFireButton.cs",
+    "Runtime/PatternBreakGaugeDial.cs",
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
@@ -3625,6 +3679,53 @@ namespace PatternBreak {
    the tiles clickable"). The panel sprite ships RINGLESS; the exported
    cell boxes become transparent click targets and the app's own baked
    selection ring rides whichever tile was clicked. One class per file. */
+/* Runtime script: the racing gauges' one moving truth — set Value and the
+   needle sweeps its 270° while the readout counts in the gauge's own
+   scale (owner: "the prefab for the speedo and rpm meter don't have
+   numbers in them" — now number and needle both answer). */
+const GAUGE_DIAL_RUNTIME = `using UnityEngine;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* Gauge dial — drive Value (0..1): the needle rotates through Sweep
+     degrees from its baked zero and the readout counts value x Number
+     Scale (the speedo counts to 174, the rev meter to 9.0 with one
+     decimal). The LOOK is the kit's baked art; this component only moves
+     what shipped. */
+  [AddComponentMenu("UI Kit Maker/Gauge Dial")]
+  [ExecuteAlways]
+  public class GaugeDial : MonoBehaviour {
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The needle layer — baked pointing at the sweep start. Empty on needle-less gauges (the HUD arc).")]
+    public RectTransform needle;
+    [Tooltip("Degrees of needle travel across the full range.")]
+    public float sweep = 270f;
+    [Tooltip("The readout counts value x this scale (speedo 174, rev meter 9).")]
+    public float numberScale = 174f;
+    [Tooltip("Decimal places on the readout (the rev meter shows one).")]
+    public int decimals = 0;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The live readout text. The importer seats it exactly where the app draws the number (manifest > gauge).")]
+    public TMP_Text number;
+#endif
+    float shown = -1f;
+    public void Apply() {
+      if (needle != null) needle.localRotation = Quaternion.Euler(0f, 0f, -value * sweep);
+#if UNITY_2023_2_OR_NEWER
+      if (number != null)
+        number.text = decimals > 0
+          ? (value * numberScale).ToString("F" + decimals, System.Globalization.CultureInfo.InvariantCulture)
+          : Mathf.RoundToInt(value * numberScale).ToString();
+#endif
+      shown = value;
+    }
+    void Update() { if (!Mathf.Approximately(shown, value)) Apply(); }
+  }
+}
+`;
+
 const INVGRID_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 
@@ -4791,12 +4892,15 @@ the kit's Glow color — the swatch is in kit-manifest.json > palette >
 glow — and it sits in the same light as everything else. Position
 markers: lay copies of icons/dot.png on top and tint them.
 
-**Speedo**: the dial face plus a live **Needle** child — rotate the
-Needle from your speed (straight down the sweep, up to 270°). Swap the
-face for your own dial; keep the needle.
-
-**SpeedoArc**: every segment unlit. Light steps by layering copies of
-speedo2/speedo2-segment.png, rotated one notch per step.
+**Speedo / RevMeter / SpeedoArc** — the gauges are ALIVE: each carries a
+**Gauge Dial** component. Drive its *Value* (0–1) and the needle sweeps
+its 270° while the live readout counts in the gauge's own scale (the
+speedo to 174 MPH, the rev meter to 9.0 with a decimal). The numbers
+are real text seated exactly where the app draws them — measured at
+export, never eyeballed — wearing the kit's styled face. Swap the face
+sprite for your own dial art; keep the Needle and the texts. The
+SpeedoArc's segments stay unlit bones: light steps by layering copies
+of speedo2/speedo2-segment.png, rotated one notch per step.
 
 **Startlights**: the gantry, pods dark. Light a pod by dropping a small
 circle over it, tinted your countdown color.
@@ -4961,7 +5065,8 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; }
+  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public PBGauge gauge; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -5770,12 +5875,7 @@ namespace PatternBreak {
       if (m == null || m.boards == null) return;
       foreach (var bd in m.boards) {
         var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
-        if (!File.Exists(scenePath)) continue;
-        var pinned = new Dictionary<string, PBBoardItem>();
-        if (bd.items != null)
-          foreach (var it in bd.items)
-            if (it != null && !string.IsNullOrEmpty(it.posed) && !string.IsNullOrEmpty(it.label)) pinned[root + "/" + it.posed] = it;
-        if (pinned.Count == 0) continue;
+        if (!File.Exists(scenePath) || bd.items == null || bd.items.Length == 0) continue;
         var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
         bool wasLoaded = scene.IsValid() && scene.isLoaded;
         bool wasDirty = wasLoaded && scene.isDirty;
@@ -5784,14 +5884,86 @@ namespace PatternBreak {
           catch (Exception) { continue; }
           if (!scene.IsValid()) continue;
         }
-        int healedW = 0;
+        int healedW = 0, artFixed = 0;
         try {
+          /* every scene piece is matched to its board item by the
+             builder's OWN placement math (zone anchor + offset) — the one
+             key that survives any file rename. A piece the maker moved in
+             Unity simply stops matching and is left alone. */
           foreach (var rootGo in scene.GetRootGameObjects()) {
-            foreach (var art in rootGo.GetComponentsInChildren<Image>(true)) {
-              if (art.gameObject.name != "Posed art" || art.sprite == null || art.transform.parent == null) continue;
-              PBBoardItem it2;
-              if (!pinned.TryGetValue(AssetDatabase.GetAssetPath(art.sprite).Replace("\\\\", "/"), out it2)) continue;
-              var inst2 = art.transform.parent.gameObject;
+            var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
+            if (canvasC == null) continue;
+            foreach (Transform ch in canvasC.transform) {
+              var crt = ch as RectTransform;
+              if (crt == null) continue;
+              PBBoardItem it2 = null;
+              foreach (var it in bd.items) {
+                if (it == null) continue;
+                var want = new Vector2(it.cx - it.ax * bd.w, -(it.cy - (1f - it.ay) * bd.h));
+                if ((crt.anchoredPosition - want).sqrMagnitude < 0.25f
+                    && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) { it2 = it; break; }
+              }
+              if (it2 == null) continue;
+              /* ── A) BAKED ART RE-ADOPTION (owner: "is this board reading
+                 old versions of the components?"). Bakes used to be named
+                 by walk position — one board edit renamed every later
+                 file, and the scene kept pointing at art nothing would
+                 overwrite again (or worse, art the next export refilled
+                 with a different item's pixels). Names are per-copy now;
+                 this one pass re-points anything still holding an
+                 old-scheme file at its item's current bake. ── */
+              if (!string.IsNullOrEmpty(it2.stamp)) {
+                var img2 = ch.GetComponent<Image>();
+                var wantSp = S(root + "/" + it2.stamp);
+                if (img2 != null && wantSp != null && img2.sprite != wantSp) {
+                  img2.sprite = wantSp;
+                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  artFixed++;
+                }
+                // the stamp's wipe follows the kit dial and its CORE mask
+                var wsH = ch.GetComponent<WipeShine>();
+                if (m.idle != null && m.idle.wipe == 1) {
+                  if (wsH == null) { wsH = ch.gameObject.AddComponent<WipeShine>(); if (m.idle.freq > 0.5f) wsH.period = m.idle.freq; artFixed++; }
+                  if (!string.IsNullOrEmpty(it2.stampMask)) {
+                    var mk = S(root + "/" + it2.stampMask);
+                    if (mk != null && wsH.maskSprite != mk) { wsH.maskSprite = mk; artFixed++; }
+                  }
+                } else if (wsH != null && (m.idle == null || m.idle.wipe == 0)) {
+                  UnityEngine.Object.DestroyImmediate(wsH); artFixed++;
+                }
+                continue;
+              }
+              // ── B) POSED ART RE-ADOPTION: same rename story, art child +
+              // its swap skins re-point to the copy's current bakes
+              var artT = ch.Find("Posed art");
+              if (artT != null && !string.IsNullOrEmpty(it2.posed)) {
+                var aImg = artT.GetComponent<Image>();
+                var wantP = S(root + "/" + it2.posed);
+                if (aImg != null && wantP != null && aImg.sprite != wantP) {
+                  aImg.sprite = wantP;
+                  var aRt = artT as RectTransform;
+                  if (aRt != null) {
+                    aRt.sizeDelta = new Vector2(it2.posedW > 1f ? it2.posedW : it2.w, it2.posedH > 1f ? it2.posedH : it2.h);
+                    aRt.anchoredPosition = new Vector2(it2.posedDx, -it2.posedDy);
+                  }
+                  var pbtnH = ch.GetComponent<Button>();
+                  if (pbtnH != null && pbtnH.transition == Selectable.Transition.SpriteSwap) {
+                    var ssH = pbtnH.spriteState;
+                    ssH.highlightedSprite = string.IsNullOrEmpty(it2.posedHover) ? null : S(root + "/" + it2.posedHover);
+                    ssH.pressedSprite = string.IsNullOrEmpty(it2.posedPressed) ? null : S(root + "/" + it2.posedPressed);
+                    ssH.disabledSprite = string.IsNullOrEmpty(it2.posedDisabled) ? null : S(root + "/" + it2.posedDisabled);
+                    pbtnH.spriteState = ssH;
+                  }
+                  artFixed++;
+                }
+              }
+              /* ── C) ORPHANED PINNED WORDS (owner: "ok, no BOOST word") —
+                 a past label redress reset a posed copy's words to the
+                 stock word; only that signature heals, at the builder's
+                 own seat. A word that is neither pin nor stock is the
+                 maker's retype and stays. ── */
+              if (artT == null || string.IsNullOrEmpty(it2.posed) || string.IsNullOrEmpty(it2.label)) continue;
+              var inst2 = ch.gameObject;
               var hl3 = inst2.GetComponentInChildren<HeroLabel>(true);
               var tmp3 = hl3 == null ? inst2.GetComponentInChildren<TMPro.TMP_Text>(true) : null;
               string now = hl3 != null ? hl3.text : (tmp3 != null ? tmp3.text : null);
@@ -5817,13 +5989,16 @@ namespace PatternBreak {
               healedW++;
             }
           }
-          if (healedW > 0) {
+          if (healedW > 0 || artFixed > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+            string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
+              + (artFixed > 0 && healedW > 0 ? ", " : "")
+              + (healedW > 0 ? healedW + " pinned word(s) restored" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
-                Debug.Log("UI Kit Maker: restored " + healedW + " pinned word(s) on '" + bd.name + "' — a past update's label rebuild had reset them to the stock word. The board's own words are back; a word you typed IN the scene is never touched.");
+                Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
             } else
-              Debug.Log("UI Kit Maker: restored " + healedW + " pinned word(s) on the OPEN scene '" + bd.name + "' — it carries your unsaved edits, so save it yourself to keep the healed words.");
+              Debug.Log("UI Kit Maker: OPEN scene '" + bd.name + "' — " + what + " — it carries your unsaved edits, so save it yourself to keep the heal.");
           }
         } finally {
           if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
@@ -7871,21 +8046,92 @@ namespace PatternBreak {
     }
     /* the classic dial with its needle as a LIVE layer — rotate the
        Needle child from your speed (0 = sweep start, up to 270°) */
-    static bool SpeedoPrefab(string dir, string root, int pngScale) {
-      var face = S(root + "/assets/speedo/speedo-face.png");
-      if (face == null) return false;
-      var go = ImageObject("Speedo", face, pngScale);
-      var needle = S(root + "/assets/speedo/speedo-needle.png");
-      if (needle != null) {
-        // face and needle bake on ONE canvas — a full-stretch overlay
-        // keeps them registered at any size, and rotation pivots the
-        // shared canvas center exactly like the app's dial
-        var nGo = ImageObject("Needle", needle, pngScale);
-        nGo.transform.SetParent(go.transform, false);
-        nGo.GetComponent<Image>().raycastTarget = false;
-        StretchFull(nGo.GetComponent<RectTransform>());
+    /* the gauges' readout seat, measured by the render's own geo stamp
+       (manifest > gauge) — file px; the importer divides by pngScale */
+    static PBGauge GaugeRow(PBManifest m, string fam) {
+      if (m == null || m.assets == null) return null;
+      foreach (var a in m.assets)
+        if (a != null && a.component == fam && a.part == "face" && a.gauge != null && a.gauge.fs > 1f) return a.gauge;
+      return null;
+    }
+#if UNITY_2023_2_OR_NEWER
+    /* a gauge readout child at the manifest's measured seat — anchors are
+       sprite fractions, so any resize keeps the seat */
+    static TMP_Text GaugeText(GameObject host, Sprite face, int pngScale, string word, string goName, float gx, float gy, float gfs, Color ink, bool unitStyle, string root) {
+      float rw = face.rect.width, rh = face.rect.height;
+      if (rw < 2f || rh < 2f || pngScale < 1) return null;
+      var go = new GameObject(goName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      go.transform.SetParent(host.transform, false);
+      var t = go.GetComponent<TextMeshProUGUI>();
+      t.text = word;
+      t.alignment = TextAlignmentOptions.Center;
+      t.enableAutoSizing = false;
+      t.fontSize = gfs / pngScale;
+      t.raycastTarget = false;
+      t.color = ink;
+      if (unitStyle) { t.fontStyle = FontStyles.Bold; t.characterSpacing = 24f; }
+      var faceAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      if (faceAsset != null) t.font = faceAsset;
+      var rt = go.GetComponent<RectTransform>();
+      var c = new Vector2(gx / rw, 1f - gy / rh);
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = Vector2.zero;
+      rt.sizeDelta = new Vector2(rw / pngScale * 0.7f, gfs / pngScale * 1.5f);
+      return t;
+    }
+#endif
+    /* wire a gauge's moving parts IN PLACE — shared by the builders and
+       the maintenance pass, so a bones prefab from an earlier importer
+       gains its needle wiring and seated readout without being rebuilt
+       (owner: "the prefab for the speedo and rpm meter don't have
+       numbers in them"). Existing children are honored, never doubled. */
+    static void WireGauge(GameObject host, string root, PBManifest m, string fam, int pngScale) {
+      var img = host.GetComponent<Image>();
+      if (img == null || img.sprite == null) return;
+      var gd = host.GetComponent<GaugeDial>();
+      if (gd == null) gd = host.AddComponent<GaugeDial>();
+      gd.numberScale = fam == "tacho" ? 9f : 174f;
+      gd.decimals = fam == "tacho" ? 1 : 0;
+      string needleFile = fam == "speedo" ? "assets/speedo/speedo-needle.png" : fam == "tacho" ? "assets/tacho/tacho-needle.png" : null;
+      if (gd.needle == null && needleFile != null) {
+        var nT = host.transform.Find("Needle");
+        if (nT == null) {
+          var nSp = S(root + "/" + needleFile);
+          if (nSp != null) {
+            // face and needle bake on ONE canvas — a full-stretch overlay
+            // keeps them registered at any size, and rotation pivots the
+            // shared canvas center exactly like the app's dial
+            var nGo = ImageObject("Needle", nSp, pngScale);
+            nGo.transform.SetParent(host.transform, false);
+            nGo.GetComponent<Image>().raycastTarget = false;
+            StretchFull(nGo.GetComponent<RectTransform>());
+            nT = nGo.transform;
+          }
+        }
+        if (nT != null) gd.needle = nT as RectTransform;
       }
-      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Speedo.prefab");
+#if UNITY_2023_2_OR_NEWER
+      var g = GaugeRow(m, fam);
+      if (g != null && host.transform.Find("Number") == null) {
+        Color unitInk = Color.white;
+        Color gTint;
+        if (m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out gTint)) { unitInk = gTint; unitInk.a = 0.75f; }
+        gd.number = GaugeText(host, img.sprite, pngScale, "0", "Number", g.x, g.y, g.fs, Color.white, false, root);
+        GaugeText(host, img.sprite, pngScale, fam == "tacho" ? "RPM ×1000" : "MPH", "Unit", g.x, g.unitY, g.unitFs, unitInk, true, root);
+      }
+      if (gd.number == null) {
+        var numT = host.transform.Find("Number");
+        if (numT != null) gd.number = numT.GetComponent<TMP_Text>();
+      }
+#endif
+      gd.Apply(); // strike the resting pose so the prefab reads live
+    }
+    static bool GaugePrefab(string dir, string root, int pngScale, PBManifest m, string fam, string goName, string faceFile) {
+      var face = S(root + "/assets/" + faceFile);
+      if (face == null) return false;
+      var go = ImageObject(goName, face, pngScale);
+      WireGauge(go, root, m, fam, pngScale);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -8418,8 +8664,10 @@ namespace PatternBreak {
          each carries a README note naming what a dev swaps */
       if (PicturePrefab(dir, root, pngScale, "circuit/circuit-track.png", "Circuit", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, "startlights/startlights-base.png", "Startlights", false)) any = true;
-      if (SpeedoPrefab(dir, root, pngScale)) any = true;
-      if (PicturePrefab(dir, root, pngScale, "speedo2/speedo2-face.png", "SpeedoArc", false)) any = true;
+      /* the gauges are LIVE bones: needle + seated readout on a GaugeDial */
+      if (GaugePrefab(dir, root, pngScale, m, "speedo", "Speedo", "speedo/speedo-face.png")) any = true;
+      if (GaugePrefab(dir, root, pngScale, m, "speedo2", "SpeedoArc", "speedo2/speedo2-face.png")) any = true;
+      if (GaugePrefab(dir, root, pngScale, m, "tacho", "RevMeter", "tacho/tacho-face.png")) any = true;
       if (PicturePrefab(dir, root, pngScale, "segbar/segbar-base.png", "SegmentMeter", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, "loottag/loottag-base.9.png", "LootTag", true)) any = true;
       if (PicturePrefab(dir, root, pngScale, "dropdown/dropdown-base.9.png", "Dropdown", true)) any = true;
@@ -8696,7 +8944,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -8836,6 +9084,12 @@ namespace PatternBreak {
             wantEdgeCut = shineE2 == 0 && asset.GetComponent<EdgeShine>() != null;
           }
         }
+        /* the gauges went LIVE after their bones shipped — a Speedo /
+           SpeedoArc / RevMeter prefab without its GaugeDial gains the
+           needle wiring and the seated readout IN PLACE (owner: "the
+           prefab for the speedo and rpm meter don't have numbers") */
+        bool wantGauge = (famName == "speedo" || famName == "speedo2" || famName == "tacho")
+          && spritePath.EndsWith("-face.png") && asset.GetComponent<GaugeDial>() == null;
         /* the tiled-face stack is three FULL-STRETCH layers over one rect
            (StretchFull at build) — an Over or PatternMask that drifted
            off that contract paints beside its siblings (field: the
@@ -8996,7 +9250,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -9052,6 +9306,10 @@ namespace PatternBreak {
             var patF = contents.transform.Find("PatternMask/Pattern");
             if (patF != null && patF.GetComponent<RectTransform>() != null) StretchFull(patF.GetComponent<RectTransform>());
             faceRects++; changed = true;
+          }
+          if (wantGauge && contents.GetComponent<GaugeDial>() == null) {
+            WireGauge(contents, root, m, famName, m.pngScale > 0 ? m.pngScale : 2);
+            if (contents.GetComponent<GaugeDial>() != null) { gauged++; changed = true; }
           }
           if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
             var wsA = contents.AddComponent<WipeShine>();
@@ -9178,6 +9436,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: re-converged the layer stack on " + faceRects + " tiled-face prefab(s) — an overlay child had drifted off the full-stretch contract, painting its gloss/edge art beside the piece instead of over it. All three layers ride one rect again.");
       if (idled > 0)
         Debug.Log("UI Kit Maker: converged the idle shine on " + idled + " example prefab(s) to the kit's current setting — the wipe/edge components used to arrive only at first generation, so a shimmer turned on later never reached existing prefabs (or the scenes built from them). Placed copies pick it up automatically; dials on a component you tuned are never overwritten.");
+      if (gauged > 0)
+        Debug.Log("UI Kit Maker: brought " + gauged + " gauge prefab(s) alive — needle wired and a live readout seated exactly where the app draws its numbers (the seat ships measured in kit-manifest.json > gauge). Drive Value on the Gauge Dial component and the needle and number both answer.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
