@@ -681,7 +681,10 @@ export async function collectExportBoards(st: {
         /* the family sprite bakes at its STOCK-WORD geometry now — the
            divergence test must measure against the same words, or every
            stock-proportioned copy would falsely re-pose */
-        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] ?? "", icon: null });
+        /* the family sprite bakes at the MAKER'S word now (labeled-geometry,
+           round 7) — the divergence test must measure against the same word
+           or every custom-worded copy would falsely re-pose */
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitLabels[idBase] ?? PREF_LABEL[idBase]) : "", icon: null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -1666,9 +1669,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        at whatever width its words need — baked labeless, the shell hugged
        nothing and the prefab stretched ~2x to fit its live label, smearing
        the middle (owner: prefab vs scene screenshots). So labeled families
-       render WITH their stock words and the content group at opacity 0:
-       true geometry, labeless pixels. The words themselves stay live text. */
-    const word = PREF_LABEL[n.id];
+       render WITH their words and the content group at opacity 0: true
+       geometry, labeless pixels. The words themselves stay live text —
+       and they are the MAKER'S OWN words now (kitLabels; stock fallback):
+       the geometry hugs the word the prefab will actually wear, and the
+       word ships as labelText so the importer seeds it verbatim (round 7,
+       owner's BOOST: prefabs must arrive saying what the maker typed). */
+    const word = PREF_LABEL[n.id] !== undefined ? (st.kitLabels?.[n.id] ?? PREF_LABEL[n.id]) : undefined;
     const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
     const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
     const fullSvg = shell(n.id, wordOpts, ghost(slim));
@@ -1715,7 +1722,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ? textSeatsOf("datarow", fullSvg, { row: { avatar: false, progress: false, action: false } }, ghost(slim))
       : {};
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...rowSeats }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...rowSeats }, true, swap ? n.family : undefined);
     const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -1853,10 +1860,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       { id: "keycap", states: ["hover", "pressed", "disabled"], usage: "Key prompt cap, bare — the key glyph is LIVE text. Single-char width; wide keys (SPACE) stretch poorly, scale instead." },
       { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — coin and ribbon plate baked (v1: ribbon words too), the PRICE is live text." },
     ];
+    /* the labeled props' words: the maker's own (kitLabels) with the
+       importer's stock as fallback — mirror of DefaultLabel */
+    const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99" };
     for (const p of PROPS) {
       if (!shipProp(p.id)) continue;
+      const propWord = PROP_WORD[p.id] !== undefined ? (st.kitLabels?.[p.id] ?? PROP_WORD[p.id]) : undefined;
       await addPng(`${p.id}/base.png`, shell(p.id, {}, undefined, p.value),
-        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage }, true, p.id);
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}) }, true, p.id);
       for (const stName of p.states)
         await addPng(`${p.id}/base-${stName}.png`, stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -5238,6 +5249,21 @@ is the bones, and anything your game knows better than we do — words,
 numbers, tracks, rows — was left out of the pixels so you could put it
 in.
 
+### Label variants — one prefab per word
+
+Every distinct word you pinned on a board copy (a button that says
+BOOST while the family says PLAY) arrives as its own prefab in
+**Prefabs/Variants/** — e.g. "ButtonPrimary – BOOST.prefab". These are
+native Unity **Prefab Variants** of the family prefab: the only thing a
+variant owns is its word, so when you restyle the kit and re-import,
+the new art flows into every variant automatically — BOOST stays BOOST,
+wearing the new skin. Retype a variant's word and it's yours, like any
+label. To make your own: right-click the family prefab > Create >
+Prefab Variant, drop it in, and retype the label — that's all a
+variant is. Variants are never deleted by an update: if a pinned word
+leaves your boards, the Console names the leftover and the delete is
+your click.
+
 ---
 
 ## 08 · Why Unity's lights don't change the kit
@@ -5418,7 +5444,11 @@ namespace PatternBreak {
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; }
+  /* the word each labeled family's prefab was last SEEDED with — the
+     ownership ledger: a re-import re-seeds only a label still equal to
+     its last seed; anything else is the dev's typing and stays */
+  [Serializable] class PBSeedEntry { public string family; public string word; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -5841,7 +5871,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest); GenerateMissingPrefabs(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -5894,6 +5924,11 @@ namespace PatternBreak {
            rebuilt scenes are already right and heal as a no-op */
         try { HealBoardWords(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: board-word heal skipped — " + e.Message); }
+        /* the board-pinned words' PREFAB VARIANTS (the owner's BOOST) —
+           after scenes, still post-import: variant creation instantiates
+           into the open scene briefly, which mid-import would corrupt */
+        try { LabelVariantPrefabs(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
       };
 
       // ── the receipt ──
@@ -5907,6 +5942,10 @@ namespace PatternBreak {
       foreach (var a in manifest.assets) { var e = new PBLockEntry(); e.file = a.file; e.sha256 = a.sha256; entries.Add(e); }
       receipt.files = entries.ToArray();
       receipt.orphans = orphans.ToArray();
+      /* the word-seed ledger: what each labeled family's prefab label was
+         seeded (or converged) to this import — the next import re-seeds
+         only labels still carrying these exact words */
+      receipt.seededLabels = SeedTable(manifest);
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -8741,12 +8780,125 @@ namespace PatternBreak {
 #endif
     }
     /* the maker's word for LABEL-machinery pieces whose prefab wires a
-       live label from the manifest (dropdown value, badge count) */
+       live label from the manifest (dropdown value, badge count, and —
+       round 7 — every labeled family) */
     static string LabelWordOf(PBManifest m, string fam, string fallback) {
       if (m != null && m.assets != null)
         foreach (var a in m.assets)
           if (a != null && a.component == fam && a.part == "base" && !string.IsNullOrEmpty(a.labelText)) return a.labelText;
       return fallback;
+    }
+    /* write a word into OUR label root — HeroLabel stacks and plain TMP
+       both; shared by the word-seed convergence and the label variants */
+    static bool SetLabelWord(GameObject labelRoot, string word) {
+      var hl = labelRoot.GetComponent<HeroLabel>();
+      if (hl != null) { hl.SetText(word); return true; }
+      var tmp = labelRoot.GetComponentInChildren<TMPro.TMP_Text>(true);
+      if (tmp != null) { tmp.text = word; return true; }
+      var ut = labelRoot.GetComponentInChildren<Text>(true);
+      if (ut != null) { ut.text = word; return true; }
+      return false;
+    }
+    /* the ownership ledger: the word this family's prefab label was last
+       seeded with. No ledger entry (pre-round-7 import) = the stock word,
+       which is what every older importer seeded. */
+    static string LastSeededWord(PBLock prev, string fam) {
+      if (prev != null && prev.seededLabels != null)
+        foreach (var e in prev.seededLabels)
+          if (e != null && e.family == fam && !string.IsNullOrEmpty(e.word)) return e.word;
+      return DefaultLabel(fam);
+    }
+    // every family whose prefab wires a live label from LabelWordOf
+    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown" };
+    static PBSeedEntry[] SeedTable(PBManifest m) {
+      var outp = new List<PBSeedEntry>();
+      foreach (var fam in SeededFamilies) {
+        var e = new PBSeedEntry();
+        e.family = fam;
+        e.word = LabelWordOf(m, fam, DefaultLabel(fam));
+        outp.Add(e);
+      }
+      return outp.ToArray();
+    }
+    /* ── PREFAB VARIANTS for board-pinned words (the owner's BOOST) ─────
+       Every distinct (family, pinned word) across the boards whose word
+       differs from the family's seeded label becomes a NATIVE Unity
+       Prefab Variant — "<Family> – <WORD>.prefab" in Prefabs/Variants/ —
+       overriding ONLY the label text. Restyle the kit and the art flows
+       through from the base on re-import; the word stays the variant's.
+       Existing variant assets are never rebuilt (yours after creation —
+       a retyped variant word is trivially preserved) and never deleted:
+       a pin that vanished from the doc gets a Console receipt, deletion
+       is a human's click. */
+    static string FileSafeWord(string w) {
+      var bad = new char[] { '/', '\\\\', ':', '*', '?', '"', '<', '>', '|', '.' };
+      var sb = new System.Text.StringBuilder();
+      foreach (var ch in w) sb.Append(Array.IndexOf(bad, ch) >= 0 ? '_' : ch);
+      var s2 = sb.ToString().Trim();
+      if (s2.Length > 24) s2 = s2.Substring(0, 24).Trim();
+      return s2.Length > 0 ? s2 : "word";
+    }
+    static void LabelVariantPrefabs(string root, PBManifest m) {
+      if (m == null || m.boards == null || m.boards.Length == 0) return;
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return;
+      var famSet = new HashSet<string>(SeededFamilies);
+      // distinct (family, word): dedup across boards and copies
+      var pairs = new List<PBSeedEntry>();
+      var seen = new HashSet<string>();
+      foreach (var bd in m.boards) {
+        if (bd == null || bd.items == null) continue;
+        foreach (var it in bd.items) {
+          if (it == null || string.IsNullOrEmpty(it.label) || string.IsNullOrEmpty(it.component)) continue;
+          if (!string.IsNullOrEmpty(it.stamp)) continue; // baked pieces place no prefab
+          if (!famSet.Contains(it.component)) continue;
+          if (it.label == LabelWordOf(m, it.component, DefaultLabel(it.component))) continue; // the base prefab already says it
+          if (!seen.Add(it.component + "\\u0001" + it.label)) continue;
+          var pr = new PBSeedEntry(); pr.family = it.component; pr.word = it.label;
+          pairs.Add(pr);
+        }
+      }
+      var vdir = dir + "/Variants";
+      var livePaths = new HashSet<string>();
+      int made = 0, kept = 0, disconnected = 0;
+      if (pairs.Count > 0 && !AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
+      foreach (var pr in pairs) {
+        var baseName = NiceName(pr.family);
+        var path = vdir + "/" + baseName + " – " + FileSafeWord(pr.word) + ".prefab";
+        // sanitize collisions (two pins mapping to one filename): suffix
+        while (livePaths.Contains(path)) path = path.Substring(0, path.Length - 7) + " x.prefab";
+        livePaths.Add(path);
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // yours after creation
+        var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
+        if (basePf == null) continue; // family shipped no prefab this kit
+        var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf);
+        if (inst == null) continue;
+        var lroot = FindOurLabelRoot(inst);
+        if (lroot == null || !SetLabelWord(lroot, pr.word)) { UnityEngine.Object.DestroyImmediate(inst); continue; }
+        var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
+        UnityEngine.Object.DestroyImmediate(inst);
+        if (saved == null) continue;
+        made++;
+        /* the assert this feature stands on: a VARIANT keeps its base
+           connection so art restyles flow through. A plain clone would
+           freeze silently — say it loudly instead of shipping a lie. */
+        if (PrefabUtility.GetPrefabAssetType(saved) != PrefabAssetType.Variant) {
+          disconnected++;
+          Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant — the base connection did not survive, so future kit restyles will NOT flow into it (it still works as a frozen copy). Please report this; deleting the file and re-importing retries.");
+        }
+      }
+      /* pins that left the doc: their variants stay — named, never deleted */
+      if (AssetDatabase.IsValidFolder(vdir)) {
+        var stale = new List<string>();
+        foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { vdir })) {
+          var p = AssetDatabase.GUIDToAssetPath(g);
+          if (!livePaths.Contains(p)) stale.Add(Path.GetFileNameWithoutExtension(p));
+        }
+        if (stale.Count > 0)
+          Debug.Log("UI Kit Maker: " + stale.Count + " label variant(s) no longer match any board-pinned word — kept on disk (deletion is your click): " + string.Join(", ", stale.ToArray()));
+      }
+      if (made > 0)
+        Debug.Log("UI Kit Maker: built " + made + " label variant prefab(s) in Prefabs/Variants — one per distinct board-pinned word (your BOOST). True Prefab Variants: restyle the kit and their art follows on re-import; only the word is theirs." + (kept > 0 ? " " + kept + " existing variant(s) untouched (yours after creation)." : "") + (disconnected > 0 ? " " + disconnected + " did NOT variant-link — see the warning(s) above." : ""));
     }
 #if UNITY_2023_2_OR_NEWER
     /* a gauge readout child at the manifest's measured seat — anchors are
@@ -9396,7 +9548,7 @@ namespace PatternBreak {
       if (!hadTiledDir) AssetDatabase.CreateFolder(dir, "Tiled face");
       bool anyTiled = false;
       foreach (var tf in new string[] { "panel", "header", "button-primary", "button-secondary", "list-row", "item-slot" }) {
-        var tl = (tf == "button-primary" || tf == "button-secondary" || tf == "header-banner") ? DefaultLabel(tf) : null;
+        var tl = (tf == "button-primary" || tf == "button-secondary" || tf == "header-banner") ? LabelWordOf(m, tf, DefaultLabel(tf)) : null;
         if (TiledFacePrefab(tiledDir, root, pngScale, tf, tl, kitFont, m)) { any = true; anyTiled = true; }
       }
       // a kit with no pattern builds no tiled faces — leave no empty folder
@@ -9655,10 +9807,10 @@ namespace PatternBreak {
         return changed;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
-    static void MaintainExamplePrefabs(string root, PBManifest m) {
+    static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -9673,6 +9825,10 @@ namespace PatternBreak {
         var path = AssetDatabase.GUIDToAssetPath(g);
         var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (asset == null) continue;
+        /* label VARIANTS converge through their base — maintaining them
+           directly would pile override objects onto assets whose whole
+           point is a tiny override surface (the word) */
+        if (PrefabUtility.GetPrefabAssetType(asset) == PrefabAssetType.Variant) continue;
         // stale/broken sprite references re-adopt FIRST, so every probe
         // below reads the kit's current art (see ReadoptKitSprites)
         bool adoptedNow = ReadoptKitSprites(root, path, ref asset, m);
@@ -9821,6 +9977,26 @@ namespace PatternBreak {
         if (wantSeatLabel) {
           var lrPrb = LabelRow(m, famName);
           wantSeatLabel = lrPrb != null && lrPrb.labelFs > 1f;
+        }
+        /* PART A word seeding (owner's BOOST): the prefab label re-seeds
+           to the maker's current kit word — but ONLY while it still says
+           what WE last seeded (the lock's ledger; the stock word covers
+           imports older than the ledger). A word the dev typed is theirs;
+           when the maker's word changes over it, one receipt says so. */
+        bool wantWordSeed = false; string seedWordNew = null;
+        {
+          var lrootW = FindOurLabelRoot(asset);
+          if (lrootW != null) {
+            seedWordNew = LabelWordOf(m, famName, null);
+            if (!string.IsNullOrEmpty(seedWordNew)) {
+              string curW = LabelText(lrootW, null);
+              if (!string.IsNullOrEmpty(curW) && curW != seedWordNew) {
+                string lastW = LastSeededWord(prevLock, famName).Trim();
+                if (curW.Trim() == lastW) wantWordSeed = true;
+                else if (seedWordNew.Trim() != lastW) wordKept++; // fresh conflict — the dev's typing wins, once, loudly
+              }
+            }
+          }
         }
         /* the tiled-face stack is three FULL-STRETCH layers over one rect
            (StretchFull at build) — an Over or PatternMask that drifted
@@ -9982,7 +10158,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -10162,6 +10338,12 @@ namespace PatternBreak {
             }
           }
 #endif
+          /* word seeding runs LAST so a same-import label redress (which
+             preserves current text) can never resurrect the old word */
+          if (wantWordSeed && !string.IsNullOrEmpty(seedWordNew)) {
+            var lrootA = FindOurLabelRoot(contents);
+            if (lrootA != null && SetLabelWord(lrootA, seedWordNew)) { reseeded++; changed = true; }
+          }
           if (changed) PrefabUtility.SaveAsPrefabAsset(contents, path);
         } finally { PrefabUtility.UnloadPrefabContents(contents); }
       }
@@ -10199,6 +10381,10 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
       if (worded > 0)
         Debug.Log("UI Kit Maker: gave " + worded + " panel prefab(s) their WORDS — every text the app renders for the piece now rides as live TMP under a 'Words' group (or a live label), pre-filled with the words from your kit, seated and dressed as the app draws them (kit-manifest.json > textSeats / labelText). Words you retype in Unity are yours: a re-import never overwrites a text that no longer matches its seeded string.");
+      if (reseeded > 0)
+        Debug.Log("UI Kit Maker: re-seeded the label word on " + reseeded + " prefab(s) to the kit's current text — they still said what we last seeded (kit.lock.json > seededLabels), so they were ours to update.");
+      if (wordKept > 0)
+        Debug.Log("UI Kit Maker: kept the label word you typed on " + wordKept + " prefab(s) — the kit's word changed underneath, but a label retyped in Unity is yours. Retype it yourself (or delete the prefab and re-import) to adopt the kit's word.");
     }
 #if UNITY_2023_2_OR_NEWER
     static void HealHeroLabel(string root, string path, GameObject asset, ref int healed) {
