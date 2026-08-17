@@ -104,6 +104,10 @@ export interface ExportBoardItemData {
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
+  /** the stamp's CORE-ALPHA companion (same canvas, no shadow/glow
+      filter) — the wipe shine's stencil, so the band hugs the letterforms
+      instead of the halo. Ships only when the kit's idle wipe is on. */
+  stampMask?: string;
   /** a POSED bake for a prefab piece whose board pose diverges from the
       family sprite's natural aspect — the engine's own render at the
       exact board proportions, label stripped (words stay live). The
@@ -355,6 +359,10 @@ export async function collectExportBoards(st: {
 
     const exItems: ExportBoardItemData[] = [];
     const stampFiles: { file: string; bytes: Uint8Array }[] = [];
+    /* companion CORE-ALPHA masks collect apart and append AFTER the walk —
+       stampFiles.length numbers every bake, and a mask consuming an
+       ordinal would shift every later stamp/pose name between exports */
+    const maskFiles: { file: string; bytes: Uint8Array }[] = [];
     for (const b of items) {
       if (b.stamp) {
         /* a stamp bakes to its own sprite: specimen svg → raster → the
@@ -378,11 +386,51 @@ export async function collectExportBoards(st: {
         const sf = stampFilter(st.cfg, b.stamp);
         if (sf) cx2.filter = sf;
         cx2.drawImage(warped ?? bmp, padPx, padPx);
-        bmp.close();
         const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
-        if (!blob) continue;
+        if (!blob) { bmp.close(); continue; }
         const file = `boardstamps/${slug}-${stampFiles.length + 1}.png`;
         stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        /* CORE-ALPHA companion for the Unity wipe (owner: the shine "masks
+           to the outer limits of the glow/shadow… it doesn't hug the core
+           letterform"): the SAME stamp rendered with every halo OFF — the
+           instance filter is simply not applied, and the type style's own
+           shadow, glow, glints and shine (treatments that reach past the
+           glyph ink) are switched off for this render only. Fill, outline,
+           emboss and inflate stay: they ARE the glyph shape. Same text,
+           size, warp, pad and canvas — pixel-registered with the display
+           bake, or the mask doesn't ship at all. Only when the kit's idle
+           wipe is on (the only consumer), named after its stamp so it
+           never touches the ordinal counter. */
+        let maskFile: string | null = null;
+        if (st.cfg.idle?.wipe) {
+          try {
+            const coreCfg = JSON.parse(JSON.stringify(st.cfg)) as GenConfig;
+            const tC = coreCfg.type;
+            tC.shadow = { ...tC.shadow, on: false };
+            tC.glow = { ...tC.glow, on: false };
+            tC.emboss = { ...tC.emboss, on: false }; // its offset shade pokes past the glyph edge
+            if (tC.shine) tC.shine = { ...tC.shine, on: false };
+            if (tC.glints) tC.glints = { ...tC.glints, on: false };
+            if (coreCfg.idle) coreCfg.idle = { ...coreCfg.idle, wipe: false };
+            const coreSvgF = await inlineKitFace(stampSvg(coreCfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+            const { bytes: rawC, w: rwC, h: rhC } = await svgToPngBytes(coreSvgF, 2);
+            if (rwC === rw0 && rhC === rh0) {
+              const bmpC = await createImageBitmap(new Blob([rawC.slice().buffer as ArrayBuffer]));
+              const warpedC = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount
+                ? warpStampRaster(bmpC, rwC, rhC, b.stamp.warp) : null;
+              const mcv = document.createElement("canvas");
+              mcv.width = cv.width; mcv.height = cv.height;
+              mcv.getContext("2d")!.drawImage(warpedC ?? bmpC, padPx, padPx);
+              bmpC.close();
+              const mblob = await new Promise<Blob | null>((r) => mcv.toBlob(r, "image/png"));
+              if (mblob) {
+                maskFile = file.replace(/\.png$/, "-mask.png");
+                maskFiles.push({ file: maskFile, bytes: new Uint8Array(await mblob.arrayBuffer()) });
+              }
+            }
+          } catch { /* a stamp without its mask still shines — clipped to its full art */ }
+        }
+        bmp.close();
         const k = b.scale ?? 1;
         const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
         const cx = b.x + ((rw / 2) * k) / 2, cy = b.y + ((rh / 2) * k) / 2;
@@ -394,6 +442,7 @@ export async function collectExportBoards(st: {
           rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
+          ...(maskFile ? { stampMask: maskFile } : {}),
         });
         continue;
       }
@@ -709,7 +758,8 @@ export async function collectExportBoards(st: {
         ...(isFlipShape(st.kitShapes[id] ?? KIT_SHAPE[idBase] ?? st.cfg.shape) ? { flip: true } : {}),
       });
     }
-    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles });
+    // masks ride along AFTER the walk — ordinal names stay untouched
+    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles: [...stampFiles, ...maskFiles] });
   }
   return out;
 }
@@ -2875,6 +2925,8 @@ namespace PatternBreak {
     [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
     [Range(0f, 1f)] public float strength = 0.38f;
     public float tilt = -14f;
+    [Tooltip("Optional CORE-ALPHA stencil — set it and the band clips to THIS sprite's alpha instead of the host's. Type stamps ship one (same canvas, no glow/shadow halo) so the shine hugs the letterforms.")]
+    public Sprite maskSprite;
     float phase; RectTransform rt, bandRt, maskRt; Image band, maskImg, hostImg;
     static Sprite bandSprite;
     void OnEnable() {
@@ -2883,7 +2935,7 @@ namespace PatternBreak {
       /* no pixels, no band: an alpha-zero or sprite-less host (a posed
          copy's raycast body) has nothing for the stencil to hold — the
          old build swept a bar over thin air there */
-      if (hostImg == null || hostImg.sprite == null) return;
+      if ((hostImg == null || hostImg.sprite == null) && maskSprite == null) return;
       if (bandSprite == null) {
         var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false);
         var px = new Color[64];
@@ -2895,10 +2947,17 @@ namespace PatternBreak {
       var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
       mGo.hideFlags = HideFlags.DontSave;
       maskImg = mGo.GetComponent<Image>();
-      maskImg.sprite = hostImg.sprite;
-      maskImg.type = hostImg.type;
-      maskImg.preserveAspect = hostImg.preserveAspect;
-      maskImg.fillCenter = hostImg.fillCenter;
+      if (maskSprite != null) {
+        // the core stencil bakes on the SAME canvas as the host's art —
+        // a full-stretch Simple draw registers them pixel for pixel
+        maskImg.sprite = maskSprite;
+        maskImg.type = Image.Type.Simple;
+      } else {
+        maskImg.sprite = hostImg.sprite;
+        maskImg.type = hostImg.type;
+        maskImg.preserveAspect = hostImg.preserveAspect;
+        maskImg.fillCenter = hostImg.fillCenter;
+      }
       maskImg.raycastTarget = false;
       mGo.GetComponent<Mask>().showMaskGraphic = false;
       maskRt = (RectTransform)mGo.transform;
@@ -2922,8 +2981,9 @@ namespace PatternBreak {
     void Update() {
       if (band == null || rt == null) return;
       // the stencil twin follows the host's LIVE sprite — a pressed swap
-      // mid-sweep keeps the band on the pressed pixels
-      if (hostImg != null && maskImg.sprite != hostImg.sprite) maskImg.sprite = hostImg.sprite;
+      // mid-sweep keeps the band on the pressed pixels. A pinned core
+      // stencil (maskSprite) stays put by design.
+      if (maskSprite == null && hostImg != null && maskImg.sprite != hostImg.sprite) maskImg.sprite = hostImg.sprite;
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
       if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
@@ -4716,6 +4776,57 @@ The plain single-sprite prefabs still ship beside them; they're lighter
 (one draw instead of three), so keep those for pieces that barely
 stretch.
 
+### The bones — prefabs you're meant to gut
+
+Some pieces are scaffolding on purpose: nobody ships OUR racetrack in
+THEIR game. They come as prefabs anyway, so you can place them, size
+them and play with them — and then swap the parts that were always
+yours to swap.
+
+**Circuit** (the track outline): one sprite, the neon treatment baked
+into its pixels. To use your own track: draw it as a simple light line
+on a transparent PNG, drop it into your project, and swap it into the
+prefab's Image slot (or just your placed copy's). Tint the Image toward
+the kit's Glow color — the swatch is in kit-manifest.json > palette >
+glow — and it sits in the same light as everything else. Position
+markers: lay copies of icons/dot.png on top and tint them.
+
+**Speedo**: the dial face plus a live **Needle** child — rotate the
+Needle from your speed (straight down the sweep, up to 270°). Swap the
+face for your own dial; keep the needle.
+
+**SpeedoArc**: every segment unlit. Light steps by layering copies of
+speedo2/speedo2-segment.png, rotated one notch per step.
+
+**Startlights**: the gantry, pods dark. Light a pod by dropping a small
+circle over it, tinted your countdown color.
+
+**SegmentMeter**: the empty well. The lit strip ships beside it
+(segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
+
+**LapTimes / Leaderboard / Telemetry**: the plates only, sliced so they
+stretch. Rows, traces and numbers are live UI you build on top — the
+kit brings the material, your game brings the data.
+
+**LootTag**: the bare plate. The tier stripe is a rounded rectangle you
+tint to the tier color, the item name and tier word are live text —
+tier names and colors ride kit-manifest.json > rarity.
+
+**Dropdown**: the closed shell with its chevron; the value text is
+yours, live. The open-menu plate and the row highlight/check layers
+ship in assets/dropdown/ when you build the open state.
+
+**RarityFrame**: wears the first tier's frame; every other tier sits
+beside it in assets/rarityframe/ — swap the sprite per item.
+
+**MoveCounter / Achievement**: plates; the number and the announcement
+are live text on top.
+
+One rule holds for all of them: the sprite is the material, the layout
+is the bones, and anything your game knows better than we do — words,
+numbers, tracks, rows — was left out of the pixels so you could put it
+in.
+
 ---
 
 ## 08 · Why Unity's lights don't change the kit
@@ -4880,7 +4991,7 @@ namespace PatternBreak {
      tier cells land exactly on the art. */
   [Serializable] class PBSeasonGeo { public float x0; public float x1; public float spineY; public float laneFreeY; public float lanePremY; public float labelX; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -5357,6 +5468,10 @@ namespace PatternBreak {
             Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready.");
           }
         }
+        /* either way, KEPT scenes get their orphaned pinned words back —
+           rebuilt scenes are already right and heal as a no-op */
+        try { HealBoardWords(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: board-word heal skipped — " + e.Message); }
       };
 
       // ── the receipt ──
@@ -5621,6 +5736,101 @@ namespace PatternBreak {
       var s = sb.ToString().Trim('-');
       return string.IsNullOrEmpty(s) ? "Board" : s;
     }
+    /* one seat, two callers: the board-scene builder AND the orphaned-word
+       healer place a posed copy's live label EXACTLY the same way — the
+       shell-height v-scale and the copy's own label offset */
+    static void SeatPosedLabel(GameObject inst, PBBoardItem it, PBManifest m) {
+      var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
+      if (hl2 == null) return;
+      PBAsset baseA3 = null;
+      foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
+      float ps3 = m.pngScale > 0 ? m.pngScale : 2;
+      if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
+      var hlRt2 = hl2.GetComponent<RectTransform>();
+      if (hlRt2 != null) {
+        hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
+        hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
+        hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+      }
+    }
+    /* ── HEAL ORPHANED BOARD WORDS (owner, after the shield still: "ok,
+       no BOOST word"). A PAST import's label redress rebuilt prefab label
+       objects, and a board copy's pinned words + posed seat — instance
+       overrides living on those very objects — died with them: the scene
+       shows the prefab's stock word at the prefab's seat. The scene can't
+       re-pin itself, but the manifest still knows every copy's truth, and
+       a POSED copy names its item exactly (pose bakes are per-copy
+       files). The orphaning has a signature — the label wears the
+       family's STOCK word while the item pins another — and only that
+       heals: a word that is neither the pin nor the stock word is the
+       maker's own retype and is never touched. Runs on every import;
+       idempotent (a right word is a no-op). ── */
+    static void HealBoardWords(string root, PBManifest m) {
+#if UNITY_2023_2_OR_NEWER
+      if (m == null || m.boards == null) return;
+      foreach (var bd in m.boards) {
+        var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
+        if (!File.Exists(scenePath)) continue;
+        var pinned = new Dictionary<string, PBBoardItem>();
+        if (bd.items != null)
+          foreach (var it in bd.items)
+            if (it != null && !string.IsNullOrEmpty(it.posed) && !string.IsNullOrEmpty(it.label)) pinned[root + "/" + it.posed] = it;
+        if (pinned.Count == 0) continue;
+        var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        bool wasLoaded = scene.IsValid() && scene.isLoaded;
+        bool wasDirty = wasLoaded && scene.isDirty;
+        if (!wasLoaded) {
+          try { scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive); }
+          catch (Exception) { continue; }
+          if (!scene.IsValid()) continue;
+        }
+        int healedW = 0;
+        try {
+          foreach (var rootGo in scene.GetRootGameObjects()) {
+            foreach (var art in rootGo.GetComponentsInChildren<Image>(true)) {
+              if (art.gameObject.name != "Posed art" || art.sprite == null || art.transform.parent == null) continue;
+              PBBoardItem it2;
+              if (!pinned.TryGetValue(AssetDatabase.GetAssetPath(art.sprite).Replace("\\\\", "/"), out it2)) continue;
+              var inst2 = art.transform.parent.gameObject;
+              var hl3 = inst2.GetComponentInChildren<HeroLabel>(true);
+              var tmp3 = hl3 == null ? inst2.GetComponentInChildren<TMPro.TMP_Text>(true) : null;
+              string now = hl3 != null ? hl3.text : (tmp3 != null ? tmp3.text : null);
+              if (string.IsNullOrEmpty(now) || now == it2.label) continue;          // right already, or no label
+              if (now.Trim() != DefaultLabel(it2.component).Trim()) continue;        // the maker's own retype
+              float trueSize2 = LabelSizeScene(m, it2.component);
+              var rowH2 = LabelRow(m, it2.component);
+              if (rowH2 != null && rowH2.labelFs > 1f) trueSize2 = rowH2.labelFs;
+              if (hl3 != null) {
+                if (trueSize2 > 0f) hl3.fontSize = trueSize2;
+                hl3.SetText(it2.label);
+              } else if (tmp3 != null) {
+                tmp3.text = it2.label;
+                if (trueSize2 > 0f) { tmp3.enableAutoSizing = false; tmp3.fontSize = trueSize2; }
+              } else continue;
+              foreach (var wt2 in inst2.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+#pragma warning disable 0618
+                wt2.enableWordWrapping = false;
+#pragma warning restore 0618
+                wt2.overflowMode = TMPro.TextOverflowModes.Overflow;
+              }
+              SeatPosedLabel(inst2, it2, m);
+              healedW++;
+            }
+          }
+          if (healedW > 0) {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+            if (!wasDirty) {
+              if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
+                Debug.Log("UI Kit Maker: restored " + healedW + " pinned word(s) on '" + bd.name + "' — a past update's label rebuild had reset them to the stock word. The board's own words are back; a word you typed IN the scene is never touched.");
+            } else
+              Debug.Log("UI Kit Maker: restored " + healedW + " pinned word(s) on the OPEN scene '" + bd.name + "' — it carries your unsaved edits, so save it yourself to keep the healed words.");
+          }
+        } finally {
+          if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+        }
+      }
+#endif
+    }
     static void BuildBoardScenes(string root, PBManifest m) {
       if (m == null || m.boards == null || m.boards.Length == 0) return;
       foreach (var bd in m.boards) {
@@ -5752,6 +5962,9 @@ namespace PatternBreak {
             if (m.idle != null && m.idle.wipe == 1) {
               var wsSt = inst.AddComponent<WipeShine>();
               if (m.idle.freq > 0.5f) wsSt.period = m.idle.freq;
+              // the CORE-ALPHA companion, when the export shipped one —
+              // the band hugs the letterforms, not the glow/shadow halo
+              if (!string.IsNullOrEmpty(it.stampMask)) wsSt.maskSprite = S(root + "/" + it.stampMask);
             }
             /* the inventory grid's tiles go LIVE over the baked panel:
                the recorder shipped each well's box (the panel itself is
@@ -5859,27 +6072,10 @@ namespace PatternBreak {
                    sprite box, crop padding and extrusion included — while
                    this root wears the SHELL box, so the type undersized by
                    that ratio (owner: "type is too small"). Re-anchor it to
-                   the shell the scales actually speak. */
-                var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
-                if (hl2 != null) {
-                  PBAsset baseA3 = null;
-                  foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
-                  float ps3 = m.pngScale > 0 ? m.pngScale : 2;
-                  if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
-                  /* re-seat the label root for the SHELL-box root: its
-                     prefab anchors are sprite-rect fractions and mis-sit
-                     here. Full stretch + this copy's OWN label offset
-                     (board px, from its render) — the words land exactly
-                     where the app drew them. NO font change here: the
-                     authoredHeight override above already supplies the
-                     board scale, and a size here would double-scale. */
-                  var hlRt2 = hl2.GetComponent<RectTransform>();
-                  if (hlRt2 != null) {
-                    hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
-                    hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
-                    hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
-                  }
-                }
+                   the shell the scales actually speak. (SeatPosedLabel —
+                   shared with the orphaned-word healer, so a healed label
+                   can never seat differently from a built one.) */
+                SeatPosedLabel(inst, it, m);
                 /* the posed pixels carry the kit's own specular streak — the
                    prefab's overlay child would draw a second one on top */
                 var spT = inst.transform.Find("Specular");
@@ -7658,6 +7854,51 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* BONES PREFABS (owner: "is there a prefab for the racetrack…? If
+       not there should be… we are providing users with the bones to
+       customize"): the display pieces from the generic-prefab skip set
+       ship as SIMPLE prefabs — the bake at its native size, glow in the
+       pixels — each documented in the README's bones section with what's
+       scaffolding and what a dev is expected to swap. */
+    static bool PicturePrefab(string dir, string root, int pngScale, string file, string goName, bool sliced) {
+      var sp = S(root + "/assets/" + file);
+      if (sp == null) return false;
+      var go = ImageObject(goName, sp, pngScale);
+      if (sliced) go.GetComponent<Image>().type = Image.Type.Sliced;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the classic dial with its needle as a LIVE layer — rotate the
+       Needle child from your speed (0 = sweep start, up to 270°) */
+    static bool SpeedoPrefab(string dir, string root, int pngScale) {
+      var face = S(root + "/assets/speedo/speedo-face.png");
+      if (face == null) return false;
+      var go = ImageObject("Speedo", face, pngScale);
+      var needle = S(root + "/assets/speedo/speedo-needle.png");
+      if (needle != null) {
+        // face and needle bake on ONE canvas — a full-stretch overlay
+        // keeps them registered at any size, and rotation pivots the
+        // shared canvas center exactly like the app's dial
+        var nGo = ImageObject("Needle", needle, pngScale);
+        nGo.transform.SetParent(go.transform, false);
+        nGo.GetComponent<Image>().raycastTarget = false;
+        StretchFull(nGo.GetComponent<RectTransform>());
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Speedo.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the rarity frame has no "base" — one prefab wears the FIRST tier's
+       frame; swap the sprite per tier (all tiers ship beside it) */
+    static bool RarityFramePrefab(string dir, string root, int pngScale, PBManifest m) {
+      if (m == null || m.assets == null) return false;
+      foreach (var a in m.assets) {
+        if (a == null || a.component != "rarityframe" || string.IsNullOrEmpty(a.file)) continue;
+        return PicturePrefab(dir, root, pngScale, a.file.StartsWith("assets/") ? a.file.Substring(7) : a.file, "RarityFrame", false);
+      }
+      return false;
+    }
     /* the touch stick, WIRED: base + thumb + PatternBreak.TouchStick —
        drop it on a Canvas, press Play, drag. Value is the direction. */
     static bool JoystickPrefab(string dir, string root, int pngScale, PBManifest m) {
@@ -8172,6 +8413,22 @@ namespace PatternBreak {
       if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale)) any = true;
+      /* the BONES set: board-placeable display pieces from the skip set,
+         shipped as simple prefabs (owner: "the bones to customize") —
+         each carries a README note naming what a dev swaps */
+      if (PicturePrefab(dir, root, pngScale, "circuit/circuit-track.png", "Circuit", false)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "startlights/startlights-base.png", "Startlights", false)) any = true;
+      if (SpeedoPrefab(dir, root, pngScale)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "speedo2/speedo2-face.png", "SpeedoArc", false)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "segbar/segbar-base.png", "SegmentMeter", false)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "loottag/loottag-base.9.png", "LootTag", true)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "dropdown/dropdown-base.9.png", "Dropdown", true)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "laptimes/laptimes-base.9.png", "LapTimes", true)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "leaderboard/leaderboard-base.9.png", "Leaderboard", true)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "telemetry/telemetry-base.9.png", "Telemetry", true)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "extras/extras-movecounter.png", "MoveCounter", false)) any = true;
+      if (PicturePrefab(dir, root, pngScale, "extras/extras-achievement.png", "Achievement", false)) any = true;
+      if (RarityFramePrefab(dir, root, pngScale, m)) any = true;
       /* the stretch-safe variants live in their OWN folder (owner: "we
          need to draw a distinction between 9 slice elements and not…
          two different folders") — Prefabs/ stays the drag-in pieces,
