@@ -67,10 +67,12 @@ export function GateModal() {
             <h2>MAKE IT <span className="lootgrad">YOURS</span></h2>
             <p className="lootsub">Signing up is free, and it levels you up on the spot:</p>
             <ul className="gateperks">
-              <li><Check size={13} strokeWidth={3} /> The full kit — every component, plus two preset packs</li>
-              <li><Check size={13} strokeWidth={3} /> Your work saved to your account, boards unlimited</li>
-              <li><Check size={13} strokeWidth={3} /> Your settings file — the whole recipe, downloadable</li>
-              <li><Check size={13} strokeWidth={3} /> The <b>Unity test kit</b> — a stock kit ZIP that proves the import pipeline in your engine</li>
+              {/* one span per row — the li is a flex row, and bare text nodes
+                  beside a <b> would each become flex items and wrap apart */}
+              <li><Check size={13} strokeWidth={3} /><span>The full kit — every component, plus two preset packs</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>Your work saved to your account, boards unlimited</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>Your settings file — the whole recipe, downloadable</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>The <b>Unity test kit</b> — a stock kit ZIP that proves the import pipeline in your engine</span></li>
             </ul>
             <p className="gatefine">Exporting your own designs is the Pro unlock — sign up free first, upgrade if it earns it.</p>
             <button className="lootclaim" onClick={signUp}>
