@@ -4,3 +4,6 @@ tsconfig.tsbuildinfo
 
 # agent tooling state (workflow worktrees live under here mid-run)
 .claude/
+
+# parity-probe receipts (scripts/parity-probe.mjs) — on-demand, never committed
+.parity-out/
