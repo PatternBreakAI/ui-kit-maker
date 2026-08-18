@@ -8187,6 +8187,28 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           return `<path d="M-8 4 L0 -5 L8 4" fill="none" stroke="${rim}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.55" transform="translate(${px.toFixed(1)} ${py.toFixed(1)}) rotate(${deg.toFixed(0)})"/>`;
         };
         const gid = "gj" + UID++;
+        /* the knob's three circles, center-parameterized: the overlay draws
+           them at the deflected stick, the Unity thumb sprite draws them
+           alone on their own canvas (round 18 — the ghost ships a rig) */
+        const knobG = (kx: number, ky: number) => `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${krg.toFixed(1)}" fill="url(#${gid}k)" stroke="${rim}" stroke-width="2.5" opacity="0.95"/>
+  <circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${(krg * 0.42).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.5" opacity="0.55"/>
+  <circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(gInk, "#FFFFFF", 0.6)}" opacity="0.95"/>`;
+        /* Unity rig export (round 18, owner: "make sure to include
+           Joystick-ghost in the prefabs") — base and thumb ship as
+           SEPARATE sprites so the same TouchStick runtime drives the
+           ghost like its solid sibling. part: renders are export-only;
+           the app's overlay render below stays byte-identical. */
+        if (opts.part === "thumb") {
+          const padT = 12, sT = (krg + padT) * 2, cT = krg + padT;
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${sT.toFixed(0)}" height="${sT.toFixed(0)}" viewBox="0 0 ${sT.toFixed(0)} ${sT.toFixed(0)}" role="img" aria-label="ghost joystick thumb">
+<defs>
+  <radialGradient id="${gid}k" cx="0.38" cy="0.32" r="0.95"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/><stop offset="0.6" stop-color="${rim}" stop-opacity="0.16"/><stop offset="1" stop-color="${rim}" stop-opacity="0.05"/></radialGradient>
+</defs>
+<g>
+  ${knobG(cT, cT)}
+</g>
+</svg>`;
+        }
         const gsvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d2 + pad2 * 2}" height="${d2 + pad2 * 2}" viewBox="0 0 ${d2 + pad2 * 2} ${d2 + pad2 * 2}" role="img" aria-label="joystick overlay, ${state} state">
 <defs>
   <radialGradient id="${gid}w"><stop offset="0.55" stop-color="${gInk}" stop-opacity="0.05"/><stop offset="0.92" stop-color="${gInk}" stop-opacity="0.16"/><stop offset="1" stop-color="${gInk}" stop-opacity="0.02"/></radialGradient>
@@ -8198,11 +8220,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cxg}" cy="${cyg}" r="${(maxOffG + krg * 0.45).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.8" stroke-dasharray="2 9" stroke-linecap="round" opacity="0.7"/>
   ${tick(0)}${tick(Math.PI / 2)}${tick(Math.PI)}${tick(-Math.PI / 2)}
   ${chev(-Math.PI / 2)}${chev(0)}${chev(Math.PI / 2)}${chev(Math.PI)}
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${krg.toFixed(1)}" fill="url(#${gid}k)" stroke="${rim}" stroke-width="2.5" opacity="0.95"/>
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.42).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.5" opacity="0.55"/>
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(gInk, "#FFFFFF", 0.6)}" opacity="0.95"/>
+  ${opts.part === "base" ? "" : knobG(kxg, kyg)}
 </g>
 </svg>`;
+        if (opts.part === "base")
+          return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" data-shell="${(cxg - R).toFixed(1)} ${(cyg - R).toFixed(1)} ${(R * 2).toFixed(1)} ${(R * 2).toFixed(1)}" `);
         return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" `);
       }
       const kr2 = d2 * 0.3;

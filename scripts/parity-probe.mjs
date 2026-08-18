@@ -67,8 +67,8 @@ writeFileSync(entry, `
 import { renderKit } from "@/generator/bevel";
 import { downloadEngineExport, collectExportBoards } from "@/generator/engineExport";
 import { useGen, hydrate } from "@/generator/store";
-import { defaultConfig, applyKitDesign, applyKitTextFill } from "@/generator/model";
-(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, hydrate, defaultConfig, applyKitDesign, applyKitTextFill };
+import { defaultConfig, applyKitDesign, applyKitTextFill, effKitSize } from "@/generator/model";
+(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, hydrate, defaultConfig, applyKitDesign, applyKitTextFill, effKitSize };
 `);
 const bundle = join(OUT, "parity-bundle.js");
 const eb = spawnSync("npx", ["--prefix", REPO, "esbuild", entry, "--bundle", "--format=iife", `--outfile=${bundle}`,
@@ -214,9 +214,45 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
 
   /* ── 3 · per-item render: app truth + scene reconstruction ───────── */
   const CELL = 420;
-  const items = board.items;
+  /* round 18: the ghost stick is a prefab, not a board piece — it gets
+     its own bench row (owner: "make sure to include Joystick-ghost in
+     the prefabs"): app overlay render vs the zip's ghost sprites,
+     composed exactly the way JoystickGhostPrefab composes them. A LOCAL
+     copy — pushing into the store's own board would ride into the NEXT
+     kit's export as a bogus board item. */
+  const items = [...board.items, { component: "joystickghost", x: 0, y: 0, w: 376, h: 376 }];
   const results = [];
   const rowCanvases = [];
+
+  /* the row verdict: alpha-masked pixel diff of the two CELL canvases */
+  const diffPush = (it, A, S) => {
+    const da = A.getContext("2d").getImageData(0, 0, CELL, CELL).data;
+    const ds = S.getContext("2d").getImageData(0, 0, CELL, CELL).data;
+    const D = document.createElement("canvas"); D.width = CELL; D.height = CELL;
+    const dxq = D.getContext("2d");
+    const di = dxq.createImageData(CELL, CELL);
+    let lost = 0, added = 0, inkA = 0, both = 0, dsum = 0;
+    for (let i = 0; i < da.length; i += 4) {
+      const aA = da[i + 3] > 28, aS = ds[i + 3] > 28;
+      if (aA) inkA++;
+      if (aA && !aS) { lost++; di.data[i] = 255; di.data[i + 1] = 80; di.data[i + 2] = 80; di.data[i + 3] = 220; }
+      else if (!aA && aS) { added++; di.data[i] = 90; di.data[i + 1] = 200; di.data[i + 2] = 255; di.data[i + 3] = 220; }
+      else if (aA && aS) {
+        both++;
+        const d = (Math.abs(da[i] - ds[i]) + Math.abs(da[i + 1] - ds[i + 1]) + Math.abs(da[i + 2] - ds[i + 2])) / 3;
+        dsum += d;
+        di.data[i] = 40 + Math.min(215, d * 2); di.data[i + 1] = 40; di.data[i + 2] = 40; di.data[i + 3] = d > 24 ? 200 : 60;
+      }
+    }
+    dxq.putImageData(di, 0, 0);
+    results.push({
+      item: it.component,
+      lostPct: Math.round((lost / Math.max(1, inkA)) * 1000) / 10,
+      addedPct: Math.round((added / Math.max(1, inkA)) * 1000) / 10,
+      meanColorDelta: both ? Math.round((dsum / both) * 10) / 10 : 0,
+    });
+    rowCanvases.push([A.toDataURL(), S.toDataURL(), D.toDataURL()]);
+  };
 
   const svgToCanvas = (svg, scale) => new Promise((res, rej) => {
     const img = new Image();
@@ -233,6 +269,37 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
   const KIT_TO_ID = { "button-primary": "primary", "tab-back": "tabback", "header-banner": "header", "list-row": "datarow", "item-slot": "slot" };
 
   for (const it of items) {
+    if (it.component === "joystickghost") {
+      /* app column: the exact catalog render ("Joystick · Ghost") through
+         the fork pipeline at the same kit size the export used; scene
+         column: ghost-base + ghost-thumb from the zip, thumb seated on
+         the ring shell's center — JoystickGhostPrefab's own recipe. */
+      const kdJ = st.kitDesigns ? st.kitDesigns.joystick : null;
+      const cfgJ = JSON.parse(JSON.stringify(P.applyKitTextFill(P.applyKitDesign(cfg, kdJ), st.kitTextFill ? st.kitTextFill.joystick : null)));
+      cfgJ.shadow.opacity = 0; cfgJ.candy.contact.opacity = 0; cfgJ.candy.bloom.opacity = 0;
+      for (const s of Object.values(cfgJ.states)) s.glow = 0;
+      const sizeJ = P.effKitSize(st.kitSizes ? st.kitSizes.joystick : undefined);
+      const svgJ = P.renderKit(cfgJ, "joystick", sizeJ, "default", undefined, st.kitShapes ? st.kitShapes.joystick : undefined,
+        { overlay: "ghost", icon: null, label: "", slots: st.kitSlotVals ? st.kitSlotVals.joystick : undefined });
+      const appJ = await svgToCanvas(svgJ, 1);
+      const baseJ = await sprite("assets/joystick/joystick-ghost-base.png");
+      const thumbJ = await sprite("assets/joystick/joystick-ghost-thumb.png");
+      const rowJ = (m.assets ?? []).find((a) => a && a.file === "assets/joystick/joystick-ghost-base.png");
+      const A = document.createElement("canvas"); A.width = CELL; A.height = CELL;
+      const S = document.createElement("canvas"); S.width = CELL; S.height = CELL;
+      if (baseJ && thumbJ && rowJ && rowJ.shell) {
+        const kS = (CELL * 0.9) / Math.max(baseJ.width, baseJ.height);
+        const ox = (CELL - baseJ.width * kS) / 2, oy = (CELL - baseJ.height * kS) / 2;
+        const sxx = S.getContext("2d");
+        sxx.drawImage(baseJ, ox, oy, baseJ.width * kS, baseJ.height * kS);
+        const cxJ = rowJ.shell.x + rowJ.shell.w / 2, cyJ = rowJ.shell.y + rowJ.shell.h / 2;
+        sxx.drawImage(thumbJ, ox + (cxJ - thumbJ.width / 2) * kS, oy + (cyJ - thumbJ.height / 2) * kS, thumbJ.width * kS, thumbJ.height * kS);
+        const kA = kS * (baseJ.width / appJ.width); // pngScale cancels out
+        A.getContext("2d").drawImage(appJ, (CELL - appJ.width * kA) / 2, (CELL - appJ.height * kA) / 2, appJ.width * kA, appJ.height * kA);
+      }
+      diffPush(it, A, S);
+      continue;
+    }
     const famId = KIT_TO_ID[it.component] ?? it.component;
     const value = it.value == null ? undefined : it.value;
     const cellK = Math.min((CELL * 0.9) / it.w, (CELL * 0.9) / it.h, 1.2);
@@ -518,32 +585,7 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       }
     }
 
-    const da = ax.getImageData(0, 0, CELL, CELL).data;
-    const ds = sx.getImageData(0, 0, CELL, CELL).data;
-    const D = document.createElement("canvas"); D.width = CELL; D.height = CELL;
-    const dxq = D.getContext("2d");
-    const di = dxq.createImageData(CELL, CELL);
-    let lost = 0, added = 0, inkA = 0, both = 0, dsum = 0;
-    for (let i = 0; i < da.length; i += 4) {
-      const aA = da[i + 3] > 28, aS = ds[i + 3] > 28;
-      if (aA) inkA++;
-      if (aA && !aS) { lost++; di.data[i] = 255; di.data[i + 1] = 80; di.data[i + 2] = 80; di.data[i + 3] = 220; }
-      else if (!aA && aS) { added++; di.data[i] = 90; di.data[i + 1] = 200; di.data[i + 2] = 255; di.data[i + 3] = 220; }
-      else if (aA && aS) {
-        both++;
-        const d = (Math.abs(da[i] - ds[i]) + Math.abs(da[i + 1] - ds[i + 1]) + Math.abs(da[i + 2] - ds[i + 2])) / 3;
-        dsum += d;
-        di.data[i] = 40 + Math.min(215, d * 2); di.data[i + 1] = 40; di.data[i + 2] = 40; di.data[i + 3] = d > 24 ? 200 : 60;
-      }
-    }
-    dxq.putImageData(di, 0, 0);
-    results.push({
-      item: it.component,
-      lostPct: Math.round((lost / Math.max(1, inkA)) * 1000) / 10,
-      addedPct: Math.round((added / Math.max(1, inkA)) * 1000) / 10,
-      meanColorDelta: both ? Math.round((dsum / both) * 10) / 10 : 0,
-    });
-    rowCanvases.push([A.toDataURL(), S.toDataURL(), D.toDataURL()]);
+    diffPush(it, A, S);
   }
 
   /* ── 4 · GLOW-STATE GEOMETRY (round 15) — from the shipped C# ────── */

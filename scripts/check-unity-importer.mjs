@@ -308,6 +308,23 @@ if (!/Testing hover & press in the editor/.test(src)
     || !/Route All Editor Input To Game View\*\*/.test(src))
   errors.push("the README's editor-testing box (the focus-gate story + the menu pointer) is missing (round 18)");
 
+/* round-18: the ghost joystick is a PLACEABLE RIG (owner: "make sure to
+   include Joystick-ghost in the prefabs") — ghost base + thumb sprites
+   from the app's own overlay render, a TouchStick prefab, ghost-aware
+   re-adoption, and the README bones line. */
+if (!/aria-label="ghost joystick thumb"/.test(bevelSrc))
+  errors.push("the ghost joystick's thumb part render is missing from bevel.ts (round 18)");
+if (!/data-shell="\$\{\(cxg - R\)\.toFixed\(1\)\}/.test(bevelSrc))
+  errors.push("the ghost base render must stamp its ring shell (data-shell) — the prefab seats the thumb from it (round 18)");
+if (!/joystick\/ghost-base\.png/.test(src) || !/joystick\/ghost-thumb\.png/.test(src))
+  errors.push("the ghost stick's base/thumb sprites are not exported (round 18)");
+if (!/static bool JoystickGhostPrefab\(/.test(cs) || !/JoystickGhostPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+  errors.push("JoystickGhostPrefab is missing or never runs — the ghost ships no prefab (round 18)");
+if (!/ghostRig \? "ghost-base" : "base"/.test(cs))
+  errors.push("the joystick re-adoption sweep must be ghost-aware — a bare ghost rig would re-adopt the SOLID stick's art (round 18)");
+if (!/Joystick \/ JoystickGhost\*\*/.test(src))
+  errors.push("the README bones line for the sticks (Joystick / JoystickGhost) is missing (round 18)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

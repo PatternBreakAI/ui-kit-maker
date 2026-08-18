@@ -2372,6 +2372,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the content. ── */
   await addPng("joystick/base.png", shell("joystick", { part: "base" }), { component: "joystick", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick base — well and travel ring. The importer builds a wired Joystick prefab (PatternBreakJoystick drives the thumb)." });
   await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
+  /* the GHOST stick (round 18, owner: "make sure to include Joystick-ghost
+     in the prefabs") — the translucent overlay joystick is its own
+     placeable: same TouchStick rig, glass art, the Ghost color slot
+     honored exactly as the app honors it. */
+  await addPng("joystick/ghost-base.png", shell("joystick", { overlay: "ghost", part: "base", slots: st.kitSlotVals?.joystick }), { component: "joystick", part: "ghost-base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Ghost stick base — translucent rings and travel ring, built to sit over live gameplay. The importer builds JoystickGhost.prefab (PatternBreakJoystick drives the thumb)." });
+  await addPng("joystick/ghost-thumb.png", shell("joystick", { overlay: "ghost", part: "thumb", slots: st.kitSlotVals?.joystick }), { component: "joystick", part: "ghost-thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Ghost stick thumb (glass knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
   await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
   await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
   /* the liquid ships CROPPED to its real ink, and the manifest records
@@ -5985,6 +5991,14 @@ dress, so a restyle re-dresses them like every label.
 **SegmentMeter**: the empty well. The lit strip ships beside it
 (segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
 
+**Joystick / JoystickGhost**: both sticks are ALIVE — a **Touch Stick**
+component moves the thumb and reports a normalized direction: poll
+\`GetComponent<PatternBreak.TouchStick>().Value\` in Update, or hook
+*onChanged* in the Inspector. The ghost is the app's overlay stick —
+translucent glass rings built to sit ON TOP of live gameplay. Drag it
+over your scene, read the same Value; its inks follow the kit's Ghost
+color slot, so a re-export re-tints it with the rest of the kit.
+
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
 stretch — instrument well, grid and axis rails baked in — with titles,
 legends, rows and axis numbers all live text in the Words group (the
@@ -7060,7 +7074,7 @@ namespace PatternBreak {
            end. */
         var SECTIONS = new (string title, string[] names)[] {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
-          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick" }),
+          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick", "JoystickGhost" }),
           ("BARS & METERS", new[] { "ProgressBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
           ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
           ("PROPS", new[] { "Gearicon", "Trophyicon", "Gifticon", "Firebutton" }),
@@ -10832,6 +10846,34 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* the GHOST stick (round 18, owner: "make sure to include
+       Joystick-ghost in the prefabs") — the translucent overlay joystick
+       from the app's catalog, as its own placeable. Same TouchStick rig
+       as the solid stick, wearing the ghost's glass art; the base is the
+       touch surface, built to sit over live gameplay. */
+    static bool JoystickGhostPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/joystick/joystick-ghost-base.png");
+      var thumbSp = S(root + "/assets/joystick/joystick-ghost-thumb.png");
+      if (baseSp == null || thumbSp == null) return false; // older zips ship no ghost art
+      var go = ImageObject("JoystickGhost", baseSp, pngScale);
+      var th = ImageObject("Thumb", thumbSp, pngScale);
+      th.transform.SetParent(go.transform, false);
+      th.GetComponent<Image>().raycastTarget = false;
+      var stick = go.AddComponent<TouchStick>();
+      stick.thumb = th.GetComponent<RectTransform>();
+      /* seat + travel exactly like the solid sibling: the ghost-base row
+         carries the ring's shell, so the thumb rests on the ring's center
+         and the radius keeps the knob inside the dashed travel ring */
+      Vector2 shlG;
+      float half = ShellCenterAnchor(th, go, "joystick", m, out shlG)
+        ? Mathf.Min(shlG.x, shlG.y) * 0.5f
+        : (baseSp.rect.width / pngScale) * 0.5f;
+      float thumbHalf = (thumbSp.rect.width / pngScale) * 0.5f;
+      stick.radius = Mathf.Max(20f, half - thumbHalf - 6f);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/JoystickGhost.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the MINI-MAP, ALIVE (owner: "can we get some movement on the radar?
        … loosely wired up for real world use") — the kit frame plus a
        RadarDemo: sweeping line, two drifting blips, everything it moves
@@ -11335,6 +11377,7 @@ namespace PatternBreak {
       if (ProgressPrefab(dir, root, pngScale)) any = true;
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale, m)) any = true;
+      if (JoystickGhostPrefab(dir, root, pngScale, m)) any = true;
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
       if (MinimapPrefab(dir, root, pngScale, m)) any = true;
       if (TogglePrefabs(dir, root, pngScale, m)) any = true;
@@ -11560,9 +11603,11 @@ namespace PatternBreak {
           }
           if (im.sprite != null || stick == null) continue;
           // the joystick rig's parts are unambiguous: the root wears the
-          // base, the TouchStick's thumb wears the thumb
-          string part = im.transform == contents.transform ? "base"
-            : stick.thumb != null && im.transform == stick.thumb.transform ? "thumb" : null;
+          // base, the TouchStick's thumb wears the thumb — and the GHOST
+          // rig re-adopts its own glass parts, never the solid stick's
+          bool ghostRig = contents.name == "JoystickGhost";
+          string part = im.transform == contents.transform ? (ghostRig ? "ghost-base" : "base")
+            : stick.thumb != null && im.transform == stick.thumb.transform ? (ghostRig ? "ghost-thumb" : "thumb") : null;
           var fJ = AssetFile(m, "joystick", part);
           var spJ = fJ != null ? S(root + "/" + fJ) : null;
           if (spJ != null) { im.sprite = spJ; changed = true; }
