@@ -211,6 +211,18 @@ if (!/padTuned/.test(cs))
    must never seat a readout off the dial. */
 if (!/gz\.x - gvx - bx0/.test(src))
   errors.push("the gauge stamp must subtract the svg viewBox ORIGIN like the seats do (round 16, War Chuds seat drift hardening)");
+/* round-16 item C: the panels' graphs are LIVE (KitTrace). */
+const bevelSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/bevel.ts"), "utf8");
+if (!/data-chart=/.test(bevelSrc))
+  errors.push("the panel chart-zone stamp (data-chart) is missing from bevel.ts (round 16)");
+if (!/class KitTrace : MaskableGraphic/.test(src))
+  errors.push("the KitTrace runtime (live panel line graphs) is missing (round 16)");
+if (!/Runtime\/PatternBreakKitTrace\.cs/.test(src) || !/"Runtime\/PatternBreakKitTrace\.cs",/.test(src))
+  errors.push("PatternBreakKitTrace.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
+if (!/static void WireChartTraces\(/.test(cs))
+  errors.push("the panel trace builder is missing from the importer (round 16)");
+if (!/chartsSeeded/.test(cs) || !/rigGrafted/.test(cs))
+  errors.push("the one-shot rig graft (chartsSeeded arrival marker) is missing — existing projects never gain the live graphs (round 16)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

@@ -84,6 +84,18 @@ interface AssetMeta {
     };
     unitInk?: string;
   } | null;
+  /** The panel CHART ZONE + live traces (round 16 — owner: "two line
+   *  graphs in there that read data"). Zone in face FILE px (crop and
+   *  viewBox-origin adjusted, same discipline as the gauge stamp); each
+   *  trace's styling and demo values are PARSED from the app's own full
+   *  render — colors, widths, dashes, area fills and the data points all
+   *  come from the pixels' source, never re-hardcoded. values are 0..1
+   *  of the zone height, 1 = top. The importer builds KitTrace children
+   *  (edit values in the Inspector or SetValues at runtime). */
+  chart?: {
+    x0: number; y0: number; x1: number; y1: number;
+    traces: { name: string; color: string; alpha: number; w: number; opacity: number; dash: boolean; dots: boolean; fillOpacity: number; glowLine: boolean; values: number[] }[];
+  } | null;
   /** Live TEXT SEATS for the bones prefabs (owner: "a lot of text wasn't
    *  appearing on these panels"): every text node the app renders for this
    *  component, lifted off the real render with the maker's own words —
@@ -1733,6 +1745,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(gz.dialX !== undefined && gz.dialY !== undefined ? { dialX: gz.dialX - gvx - bx0, dialY: gz.dialY - gvy - by0 } : {}),
         };
       }
+      /* the chart zone travels the same road: file px through the viewBox
+         origin and the crop box */
+      if (q.meta.chart) {
+        const vbmC = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        const [cvx, cvy] = vbmC ? [+vbmC[1] * PNG_SCALE, +vbmC[2] * PNG_SCALE] : [0, 0];
+        const cbx0 = raster.box?.x0 ?? 0, cby0 = raster.box?.y0 ?? 0;
+        const cz = q.meta.chart;
+        q.meta.chart = { ...cz, x0: cz.x0 - cvx - cbx0, y0: cz.y0 - cvy - cby0, x1: cz.x1 - cvx - cbx0, y1: cz.y1 - cvy - cby0 };
+      }
       if (q.meta.textSeats && q.meta.textSeats.length && w > 1 && h > 1) {
         const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         const [ovx, ovy] = vbm3 ? [+vbm3[1], +vbm3[2]] : [0, 0];
@@ -2230,6 +2251,59 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       unitInk: pc.effects.Glow ?? lighten(pc.effects.Bevel ?? "#0E9CC9", 0.55),
     };
   };
+  /* ── the CHART ZONE + live traces (round 16). The zone rides the BASE
+     render's data-chart stamp; every trace's dress and demo data are
+     PARSED from the app's FULL render of the same panel — polyline
+     colors, widths, dashes, the matching area fills, the dot runs — so
+     the rig can never drift from what the app draws. values normalize to
+     the zone (1 = top). A hoisted function: the addPng rows above its
+     declaration point call it at run time, after shell/slim exist. ── */
+  function chartOf(baseSvg: string, id: KitComponentId): AssetMeta["chart"] {
+    const cm = /data-chart="([-\d. ]+)"/.exec(baseSvg);
+    if (!cm) return null;
+    const z = cm[1].split(" ").map(Number);
+    if (z.length !== 4 || z.some((n) => !Number.isFinite(n))) return null;
+    const [zx0, zy0, zx1, zy1] = z;
+    const full = shell(id, {}, slim);
+    const solidOf = (paint: string): { hex: string; a: number } => {
+      const mr = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(paint);
+      if (mr) return { hex: "#" + [mr[1], mr[2], mr[3]].map((v) => (+v).toString(16).padStart(2, "0")).join(""), a: Math.round(+mr[4] * 100) / 100 };
+      return { hex: paint, a: 1 };
+    };
+    const traces: NonNullable<AssetMeta["chart"]>["traces"] = [];
+    const polyRe = /<polyline points="([^"]+)" fill="none" stroke="([^"]+)" stroke-width="([\d.]+)"([^>]*)\/>/g;
+    const NAMES: Partial<Record<KitComponentId, string[]>> = { telemetry: ["THR", "BRK", "SPD"], laptimes: ["RIVAL", "YOU"] };
+    let pm: RegExpExecArray | null;
+    let ti = 0;
+    while ((pm = polyRe.exec(full))) {
+      const pts = pm[1].trim().split(/\s+/).map((pair) => pair.split(",").map(Number));
+      if (pts.length < 2 || pts.some((pp) => pp.length !== 2 || pp.some((n) => !Number.isFinite(n)))) continue;
+      const rest = pm[4];
+      const ink = solidOf(pm[2]);
+      const values = pts.map((pp) => Math.round((1 - (pp[1] - zy0) / (zy1 - zy0)) * 1000) / 1000);
+      /* the matching AREA fill (same paint, `<path d="M…Z"`) carries the
+         band's opacity; absent = a bare line */
+      const paintEsc = pm[2].replace(/[.*+?^$}{()|[\]\\]/g, "\\$&");
+      const am = new RegExp('<path d="M[^"]+Z" fill="' + paintEsc + '" opacity="([\\d.]+)"/>').exec(full);
+      /* dot runs: three or more circles in this trace's ink */
+      const dots = (full.match(new RegExp('<circle [^>]*fill="' + paintEsc + '"', "g")) ?? []).length >= 3;
+      const om = / opacity="([\d.]+)"/.exec(rest);
+      traces.push({
+        name: (NAMES[id] ?? [])[ti] ?? "TRACE " + (ti + 1),
+        color: ink.hex, alpha: ink.a,
+        w: Math.round(+pm[3] * PNG_SCALE * 10) / 10,
+        opacity: om ? +om[1] : 1,
+        dash: / stroke-dasharray="/.test(rest),
+        dots,
+        fillOpacity: am ? +am[1] : 0,
+        glowLine: / filter="url\(#/.test(rest),
+        values,
+      });
+      ti++;
+    }
+    if (!traces.length) return null;
+    return { x0: Math.round(zx0 * PNG_SCALE), y0: Math.round(zy0 * PNG_SCALE), x1: Math.round(zx1 * PNG_SCALE), y1: Math.round(zy1 * PNG_SCALE), traces };
+  }
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
     await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — HOUSED in the kit shell (round 12): walls, well, ticks; needle and readout are live. Seat + dial center in manifest > gauge.", gauge: gaugeOf(spFace, "speedo") }, true);
@@ -2258,9 +2332,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
   {
     const lpSvg = shell("laptimes", { part: "base" }, slim);
-    await addPng("laptimes/base.9.png", lpSvg, { component: "laptimes", part: "base", nineSlice: sliceOf("laptimes", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Lap-comparison panel. Traces stay in the art; title, legend, axis labels and the delta arrive as live text on the LapTimes prefab.", ...textSeatsOf("laptimes", lpSvg, {}, slim) }, true);
+    await addPng("laptimes/base.9.png", lpSvg, { component: "laptimes", part: "base", nineSlice: sliceOf("laptimes", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Lap-comparison panel — instrument well + grid baked; the RIVAL/YOU traces are LIVE KitTrace children seeded with the app's demo laps (manifest > chart; edit Values in the Inspector or SetValues at runtime); title, legend, axis labels and the delta arrive as live text.", chart: chartOf(lpSvg, "laptimes"), ...textSeatsOf("laptimes", lpSvg, {}, slim) }, true);
     const tmSvg = shell("telemetry", { part: "base" }, slim);
-    await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel. Traces stay in the art; title, the THR/BRK/SPD legend and axis labels arrive as live text on the Telemetry prefab.", ...textSeatsOf("telemetry", tmSvg, {}, slim) }, true);
+    await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel — instrument well + grid + axis rails baked; THR/BRK/SPD are LIVE KitTrace children seeded with the app's demo data (manifest > chart; edit Values in the Inspector or SetValues at runtime); title, legend and axis labels arrive as live text.", chart: chartOf(tmSvg, "telemetry"), ...textSeatsOf("telemetry", tmSvg, {}, slim) }, true);
   }
   {
     const slSvg = shell("startlights", { part: "base" });
@@ -2954,6 +3028,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
@@ -2992,6 +3067,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
+    "Runtime/PatternBreakKitTrace.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
        PatternBreak.Runtime assembly, and the shared Editor importer could
@@ -4470,6 +4546,109 @@ namespace PatternBreak {
 }
 `;
 
+const KIT_TRACE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* A LIVE line graph inside a kit panel (round 16 — owner: "can we
+     mirror the real component and put two line graphs in there that read
+     data"). The rect IS the chart zone (the importer seats it from the
+     manifest's chart stamp); Values are 0..1 of the zone height, 1 = top.
+     Edit Values in the Inspector, or push data at runtime:
+       GetComponent<PatternBreak.KitTrace>().SetValues(myFloats);
+     Styling (color, width, dash, dots, area fill) arrives from the app's
+     own render of this panel. Delete the component or the child and the
+     panel is untouched. */
+  [AddComponentMenu("UI Kit Maker/Kit Trace")]
+  [ExecuteAlways]
+  public class KitTrace : MaskableGraphic {
+    [Tooltip("The data points, evenly spaced left to right. 0 = the zone's bottom, 1 = its top.")]
+    public float[] values = new float[0];
+    [Tooltip("Line thickness in UI units.")]
+    public float width = 2f;
+    [Tooltip("Dash the line (the app's RIVAL trace style).")]
+    public bool dashed;
+    [Tooltip("A dot at every data point.")]
+    public bool dots;
+    [Tooltip("Dot radius in UI units.")]
+    public float dotRadius = 3f;
+    [Tooltip("0 = bare line; above 0 fills the area under the line at this alpha (the app's THR/BRK bands).")]
+    [Range(0f, 1f)] public float fillOpacity;
+    public void SetValues(float[] v) { values = v; SetVerticesDirty(); }
+    protected override void OnRectTransformDimensionsChange() { base.OnRectTransformDimensionsChange(); SetVerticesDirty(); }
+#if UNITY_EDITOR
+    protected override void OnValidate() { base.OnValidate(); SetVerticesDirty(); }
+#endif
+    static readonly Vector2[] ring = BuildRing();
+    static Vector2[] BuildRing() {
+      var r = new Vector2[8];
+      for (int i = 0; i < 8; i++) { float a = Mathf.PI * 2f * i / 8f; r[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)); }
+      return r;
+    }
+    protected override void OnPopulateMesh(VertexHelper vh) {
+      vh.Clear();
+      if (values == null || values.Length < 2) return;
+      var rect = GetPixelAdjustedRect();
+      int n = values.Length;
+      var pts = new Vector2[n];
+      for (int i = 0; i < n; i++)
+        pts[i] = new Vector2(rect.xMin + rect.width * i / (n - 1), rect.yMin + rect.height * Mathf.Clamp01(values[i]));
+      var c = color;
+      /* area fill first (under the line): one quad per segment down to the
+         zone floor, at the app's band alpha */
+      if (fillOpacity > 0.001f) {
+        var fc = new Color(c.r, c.g, c.b, c.a * fillOpacity);
+        for (int i = 0; i < n - 1; i++) {
+          int v0 = vh.currentVertCount;
+          vh.AddVert(new Vector3(pts[i].x, rect.yMin), fc, Vector2.zero);
+          vh.AddVert(new Vector3(pts[i].x, pts[i].y), fc, Vector2.zero);
+          vh.AddVert(new Vector3(pts[i + 1].x, pts[i + 1].y), fc, Vector2.zero);
+          vh.AddVert(new Vector3(pts[i + 1].x, rect.yMin), fc, Vector2.zero);
+          vh.AddTriangle(v0, v0 + 1, v0 + 2);
+          vh.AddTriangle(v0, v0 + 2, v0 + 3);
+        }
+      }
+      // the line: one quad per (sub)segment; dashes subdivide and skip
+      for (int i = 0; i < n - 1; i++) {
+        var a = pts[i]; var b = pts[i + 1];
+        if (!dashed) Quad(vh, a, b, c);
+        else {
+          float len = Vector2.Distance(a, b);
+          float dashL = Mathf.Max(3f, width * 2.5f), gapL = dashL;
+          float t = 0f;
+          while (t < len) {
+            float t2 = Mathf.Min(len, t + dashL);
+            Quad(vh, Vector2.Lerp(a, b, t / len), Vector2.Lerp(a, b, t2 / len), c);
+            t = t2 + gapL;
+          }
+        }
+      }
+      if (dots) {
+        for (int i = 0; i < n; i++) {
+          int c0 = vh.currentVertCount;
+          vh.AddVert(new Vector3(pts[i].x, pts[i].y), c, Vector2.zero);
+          for (int r = 0; r < 8; r++)
+            vh.AddVert(new Vector3(pts[i].x + ring[r].x * dotRadius, pts[i].y + ring[r].y * dotRadius), c, Vector2.zero);
+          for (int r = 0; r < 8; r++)
+            vh.AddTriangle(c0, c0 + 1 + r, c0 + 1 + (r + 1) % 8);
+        }
+      }
+    }
+    void Quad(VertexHelper vh, Vector2 a, Vector2 b, Color c) {
+      var d = (b - a).normalized;
+      var nrm = new Vector2(-d.y, d.x) * (width * 0.5f);
+      int v0 = vh.currentVertCount;
+      vh.AddVert(new Vector3(a.x - nrm.x, a.y - nrm.y), c, Vector2.zero);
+      vh.AddVert(new Vector3(a.x + nrm.x, a.y + nrm.y), c, Vector2.zero);
+      vh.AddVert(new Vector3(b.x + nrm.x, b.y + nrm.y), c, Vector2.zero);
+      vh.AddVert(new Vector3(b.x - nrm.x, b.y - nrm.y), c, Vector2.zero);
+      vh.AddTriangle(v0, v0 + 1, v0 + 2);
+      vh.AddTriangle(v0, v0 + 2, v0 + 3);
+    }
+  }
+}
+`;
+
 const INVGRID_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 
@@ -5677,10 +5856,19 @@ dress, so a restyle re-dresses them like every label.
 (segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
 
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
-stretch, their titles, legends, rows and axis numbers all live text in
-the Words group — the leaderboard's standings are Row objects you
-duplicate and bind. Traces stay in the art (they're the material);
-your game brings the data.
+stretch — instrument well, grid and axis rails baked in — with titles,
+legends, rows and axis numbers all live text in the Words group (the
+leaderboard's standings are Row objects you duplicate and bind). The
+GRAPHS ARE LIVE: Telemetry's THR/BRK/SPD and LapTimes' RIVAL/YOU are
+**Kit Trace** children under "Traces", seeded with the demo data the
+app drew and dressed in its exact inks. Each trace is a plain float
+array (0 = chart bottom, 1 = top, points evenly spaced) — edit Values
+in the Inspector to sketch a run, or feed it from your game:
+
+    GetComponent<PatternBreak.KitTrace>().SetValues(myLapDeltas);
+
+Add traces by duplicating one, remove them by deleting — the panel
+never minds.
 
 **LootTag**: the plate with your item name and the tier word as live
 text. The tier stripe is a rounded rectangle you tint to the tier
@@ -5860,6 +6048,10 @@ namespace PatternBreak {
      file px around the dial center, count + app-frame angles (y down) in
      degrees. n == 0 (absent block) = no live ring. */
   [Serializable] class PBGaugeSeg { public float rI; public float rO; public float w; public float n; public float a0; public float sweep; }
+  /* round 16: the panel chart zone + live traces — geometry in face file
+     px, values 0..1 of the zone (1 = top). traces empty = no rig. */
+  [Serializable] class PBChartTrace { public string name; public string color; public float alpha; public float w; public float opacity; public bool dash; public bool dots; public float fillOpacity; public bool glowLine; public float[] values; }
+  [Serializable] class PBChart { public float x0; public float y0; public float x1; public float y1; public PBChartTrace[] traces; }
   [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public float dialX; public float dialY; public PBGaugeSeg seg; public PBStyle ink; public string unitInk; }
   /* a live TEXT SEAT: one text node of the app's render — the maker's own
      string, its center as NORMALIZED SPRITE FRACTIONS (fx/fy, y from the
@@ -5868,7 +6060,7 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -5915,7 +6107,7 @@ namespace PatternBreak {
      its last seed; anything else is the dev's typing and stays */
   [Serializable] class PBSeedEntry { public string family; public string word; }
   [Serializable] class PBVariantEntry { public string path; public string word; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -6522,6 +6714,12 @@ namespace PatternBreak {
          receipt landing and the pass running can never strand it (Stale()
          would say current forever; the flag says otherwise). */
       receipt.variantsPending = true;
+      /* round 16: the chart-rig arrival marker — the ONE import where the
+         manifest first carries live-trace data grafts existing panel
+         prefabs; afterwards a deleted Traces child stays deleted. */
+      bool anyChart = false;
+      foreach (var aC in manifest.assets) if (aC != null && aC.chart != null && aC.chart.traces != null && aC.chart.traces.Length > 0) { anyChart = true; break; }
+      receipt.chartsSeeded = anyChart;
       var prevVarLedger = prev != null ? prev.seededVariants : null;
       receipt.seededVariants = prevVarLedger; // the pass rewrites this on completion
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
@@ -9143,11 +9341,56 @@ namespace PatternBreak {
        ship as SIMPLE prefabs — the bake at its native size, glow in the
        pixels — each documented in the README's bones section with what's
        scaffolding and what a dev is expected to swap. */
+    /* the LIVE LINE GRAPHS (round 16 — owner: "put two line graphs in
+       there that read data"): KitTrace children on the chart zone the app
+       stamped (manifest > chart), seeded with the app's own demo data and
+       dressed in the app's own trace inks. "Traces" is ownership-named:
+       a child by that name means the graphs are somebody's — step aside. */
+    static void WireChartTraces(GameObject go, PBManifest m, string fam, int pngScale) {
+      PBAsset rowC = null;
+      foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") { rowC = a; break; }
+      if (rowC == null || rowC.chart == null || rowC.chart.traces == null || rowC.chart.traces.Length == 0 || rowC.chart.x1 - rowC.chart.x0 < 4f) return;
+      if (go.transform.Find("Traces") != null) return;
+      var img = go.GetComponent<Image>();
+      if (img == null || img.sprite == null || pngScale <= 0) return;
+      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
+      var zone = new GameObject("Traces", typeof(RectTransform));
+      zone.transform.SetParent(go.transform, false);
+      zone.transform.SetAsFirstSibling(); // under the live words
+      var zrt = zone.GetComponent<RectTransform>();
+      zrt.anchorMin = new Vector2(rowC.chart.x0 / rw, 1f - rowC.chart.y1 / rh);
+      zrt.anchorMax = new Vector2(rowC.chart.x1 / rw, 1f - rowC.chart.y0 / rh);
+      zrt.offsetMin = Vector2.zero; zrt.offsetMax = Vector2.zero;
+      foreach (var t in rowC.chart.traces) {
+        if (t == null || t.values == null || t.values.Length < 2) continue;
+        var tg = new GameObject("Trace " + (string.IsNullOrEmpty(t.name) ? "?" : t.name), typeof(RectTransform), typeof(CanvasRenderer), typeof(KitTrace));
+        tg.transform.SetParent(zone.transform, false);
+        var trt = tg.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+        trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
+        var kt = tg.GetComponent<KitTrace>();
+        Color tc = Color.white;
+        if (!string.IsNullOrEmpty(t.color)) ColorUtility.TryParseHtmlString(t.color, out tc);
+        tc.a = Mathf.Clamp01((t.alpha <= 0f ? 1f : t.alpha) * (t.opacity <= 0f ? 1f : t.opacity));
+        kt.color = tc;
+        kt.raycastTarget = false;
+        kt.width = Mathf.Max(1f, t.w / pngScale);
+        kt.dashed = t.dash;
+        kt.dots = t.dots;
+        kt.dotRadius = Mathf.Max(2f, t.w / pngScale * 1.4f);
+        kt.fillOpacity = t.fillOpacity;
+        kt.values = t.values;
+      }
+    }
     static bool PicturePrefab(string dir, string root, int pngScale, PBManifest m, string file, string goName, bool sliced) {
       var sp = S(root + "/assets/" + file);
       if (sp == null) return false;
       var go = ImageObject(goName, sp, pngScale);
       if (sliced) go.GetComponent<Image>().type = Image.Type.Sliced;
+      var famP = file.IndexOf('/') > 0 ? file.Substring(0, file.IndexOf('/')) : file;
+      // panel rig first, words above it (round 16): live traces on the
+      // chart zone — a no-op when the manifest ships no chart for the family
+      WireChartTraces(go, m, famP, pngScale);
       // the piece's words, live (manifest textSeats) — bones stop shipping bare
       WireTextSeats(go, root, m, pngScale);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
@@ -11088,7 +11331,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -11183,6 +11426,30 @@ namespace PatternBreak {
               PrefabUtility.SaveAsPrefabAsset(contentsMM, path);
               mapGrafted++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsMM); }
+            asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null) continue;
+          }
+        }
+        /* round 16, same one-shot-arrival contract as the Demo Map: the
+           import where live-trace data FIRST ships (previous receipt
+           didn't know it) grafts the KitTrace rig onto existing panel
+           prefabs in place. After that moment the tree is the dev's —
+           a deleted Traces child never comes back. */
+        if ((famName == "telemetry" || famName == "laptimes")
+            && prevLock != null && !prevLock.chartsSeeded
+            && asset.transform.Find("Traces") == null) {
+          bool hasRig = false;
+          foreach (var aR in m.assets) if (aR != null && aR.component == famName && aR.part == "base"
+              && aR.chart != null && aR.chart.traces != null && aR.chart.traces.Length > 0) { hasRig = true; break; }
+          if (hasRig) {
+            var contentsCT = PrefabUtility.LoadPrefabContents(path);
+            try {
+              WireChartTraces(contentsCT, m, famName, m.pngScale > 0 ? m.pngScale : 2);
+              if (contentsCT.transform.Find("Traces") != null) {
+                PrefabUtility.SaveAsPrefabAsset(contentsCT, path);
+                rigGrafted++;
+              }
+            } finally { PrefabUtility.UnloadPrefabContents(contentsCT); }
             asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (asset == null) continue;
           }
@@ -11743,6 +12010,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
       if (mapGrafted > 0)
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
+      if (rigGrafted > 0)
+        Debug.Log("UI Kit Maker: gave " + rigGrafted + " panel prefab(s) their LIVE GRAPHS — KitTrace children on the chart zone (Telemetry: THR/BRK/SPD, LapTimes: RIVAL/YOU), seeded with the app's demo data. Edit Values in the Inspector or call SetValues at runtime; delete any trace and it stays deleted.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
       if (worded > 0)
