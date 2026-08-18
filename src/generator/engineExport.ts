@@ -3496,31 +3496,48 @@ namespace PatternBreak {
       glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
       MirrorHost();
     }
-    /* The halo MIRRORS the host's frame — anchors, pivot, scale, slot and
-       size — instead of copying it once. A layout group owns its children's
-       frames and rewrites them whenever it pleases, and a HORIZONTAL group
-       varies exactly the axis the old event-driven copy never carried (dev
-       field report: auras stacked in one place, spread on first mouse-over,
-       never sat right). Following every frame is the only honest contract.
-       Change-guarded: a quiet frame costs six compares and writes nothing,
-       so no canvas is dirtied at rest — the Playground slowdown of old was
-       per-frame ALLOCATION, and this allocates nothing. */
+    /* The halo FOLLOWS the host — but in the right coordinate space for
+       each structure (round 15, owner field test: "the glow does not
+       move with the button… it's just one big glow").
+       POSED copies: halo and art are SIBLINGS under the host, so the art
+       child's frame values live in the host's own space and a 1:1 copy
+       (plus the pad) seats the halo exactly under the art.
+       LIVE pieces: the halo is a CHILD of the host — copying the HOST's
+       anchors/anchoredPosition here applied PARENT-space values in child
+       space, displacing the halo by the host's own slot offset (the
+       Playground's separate blob past the end of the button row; scenes:
+       a big soft rectangle down-left of START), and copying the host's
+       localScale SQUARED the scale on scaled board copies. The child
+       instead STRETCHES over its parent's rect plus the pad — native
+       following, nothing to lag, nothing to displace.
+       Change-guarded: a quiet frame costs a few compares and writes
+       nothing, so no canvas is dirtied at rest. */
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
-      // the halo hugs the VISIBLE art: the posed child when the copy wears
-      // one, the host rect otherwise (the Body child stretches to it)
-      var tgt = artRt != null ? artRt : rt;
-      if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
-      if (glowRt.anchorMax != tgt.anchorMax) glowRt.anchorMax = tgt.anchorMax;
-      if (glowRt.pivot != tgt.pivot) glowRt.pivot = tgt.pivot;
-      if (glowRt.localScale != tgt.localScale) glowRt.localScale = tgt.localScale;
-      // the aura sprite is the piece plus a fixed overhang, so the pad is an
-      // ADDITIVE offset — correct whether the piece is fixed or stretched
-      var size = tgt.sizeDelta + glowPad * 2f;
-      if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
-      // the piece's own y already carries the lift — the halo just sits
-      // exactly where the art sits, no lift math of its own
-      if (glowRt.anchoredPosition != tgt.anchoredPosition) glowRt.anchoredPosition = tgt.anchoredPosition;
+      if (artRt != null) {
+        var tgt = artRt;
+        if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
+        if (glowRt.anchorMax != tgt.anchorMax) glowRt.anchorMax = tgt.anchorMax;
+        if (glowRt.pivot != tgt.pivot) glowRt.pivot = tgt.pivot;
+        if (glowRt.localScale != tgt.localScale) glowRt.localScale = tgt.localScale;
+        // the aura sprite is the piece plus a fixed overhang, so the pad is
+        // an ADDITIVE offset — correct whether the piece is fixed or stretched
+        var size = tgt.sizeDelta + glowPad * 2f;
+        if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
+        // the piece's own y already carries the lift — the halo just sits
+        // exactly where the art sits, no lift math of its own
+        if (glowRt.anchoredPosition != tgt.anchoredPosition) glowRt.anchoredPosition = tgt.anchoredPosition;
+        return;
+      }
+      // LIVE: the halo STRETCHES over the host rect + pad
+      if (glowRt.anchorMin != Vector2.zero) glowRt.anchorMin = Vector2.zero;
+      if (glowRt.anchorMax != Vector2.one) glowRt.anchorMax = Vector2.one;
+      var half = new Vector2(0.5f, 0.5f);
+      if (glowRt.pivot != half) glowRt.pivot = half;
+      if (glowRt.localScale != Vector3.one) glowRt.localScale = Vector3.one;
+      var pad2 = glowPad * 2f;
+      if (glowRt.sizeDelta != pad2) glowRt.sizeDelta = pad2;
+      if (glowRt.anchoredPosition != Vector2.zero) glowRt.anchoredPosition = Vector2.zero;
     }
     void LateUpdate() {
       if (rt == null) return;

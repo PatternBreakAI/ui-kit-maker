@@ -185,6 +185,20 @@ if (!/"Demo Map"/.test(cs))
 if (!/it\.component == "timerdigits"/.test(cs) || !/m\.timer\.shellH > 4f \? it\.h \/ m\.timer\.shellH : 1f/.test(cs))
   errors.push("the live Timer's shell-true placement is missing — canvas-to-shell scaling shrinks the scene's word (round 14)");
 
+/* round-15 invariants: halo GEOMETRY, not just structure. The child-mode
+   halo once copied the HOST's anchors/anchoredPosition — parent-space
+   values applied in child space — landing the aura displaced by the
+   host's own slot offset (Playground: a separate blob past the end of
+   the button row; scenes: "the glow does not move with the button"),
+   and copying the host's localScale squared the scale on scaled copies.
+   The live halo must STRETCH over its parent's rect plus the pad. */
+if (!/glowRt\.anchorMax != Vector2\.one\) glowRt\.anchorMax = Vector2\.one/.test(fx)
+    || !/glowRt\.anchoredPosition != Vector2\.zero\) glowRt\.anchoredPosition = Vector2\.zero/.test(fx)
+    || !/glowRt\.localScale != Vector3\.one\) glowRt\.localScale = Vector3\.one/.test(fx))
+  errors.push("the LIVE halo must stretch over the host rect (anchors 0-1, anchoredPosition zero, localScale one) — round 15");
+if (/var tgt = artRt != null \? artRt : rt;/.test(fx))
+  errors.push("the parent-space MirrorHost copy is back — host anchors/anchoredPosition must never be applied to a CHILD of the host (round 15)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
