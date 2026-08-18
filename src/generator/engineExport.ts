@@ -4554,7 +4554,7 @@ namespace PatternBreak {
     [Tooltip("Segment tint at the sweep end — the kit's Glow role.")]
     public Color segTo = Color.white;
 #if UNITY_2023_2_OR_NEWER
-    [Tooltip("The live readout text. The importer seats it exactly where the app draws the number (manifest > gauge).")]
+    [Tooltip("The live readout text (plain TMP). EMPTY IS NORMAL when the readout rides the HeroLabel echo stack — the dial finds the stack by its 'Number' child and drives it whole; scrub Value to see it count.")]
     public TMP_Text number;
 #endif
     float shown = -1f;
@@ -9705,6 +9705,23 @@ namespace PatternBreak {
          (round 14: the phantom halo). WireGauge disarms it in place. */
       var hlSt = numT.GetComponent<HeroLabel>();
       if (hlSt != null && hlSt.glintsInk != null) return true;
+      /* round 17 (owner, real War Chuds: the number "fills most of the
+         dial"): a readout born under an OLDER manifest kept its old
+         fontSize and seat anchors forever — the sprite re-adopted but
+         nothing ever re-seated the number. Stale geometry = stale dress. */
+      {
+        var imgS = asset.GetComponent<Image>();
+        var nrtS = numT as RectTransform;
+        if (imgS != null && imgS.sprite != null && nrtS != null) {
+          float rwS = imgS.sprite.rect.width, rhS = imgS.sprite.rect.height;
+          float psS = m.pngScale > 0 ? m.pngScale : 2f;
+          var cWantS = new Vector2(g.x / rwS, 1f - g.y / rhS);
+          if ((nrtS.anchorMin - cWantS).sqrMagnitude > 1e-5f) return true;
+          var hlS2 = numT.GetComponentInChildren<HeroLabel>(true);
+          if (hlS2 != null && Mathf.Abs(hlS2.fontSize - g.fs / psS) > 0.5f) return true;
+          if (numTmp != null && Mathf.Abs(numTmp.fontSize - g.fs / psS) > 0.5f) return true;
+        }
+      }
       if (numTmp != null) {
         // demand the digit material only where the dress pass can actually
         // mint it — otherwise a fontless kit re-dresses forever
@@ -10570,6 +10587,40 @@ namespace PatternBreak {
           Material uPlain = null;
           if (uFace == null && kitFace != null) { uFace = kitFace; uPlain = EnsureGaugeUnitMaterial(root, kitFace); }
           DressGaugeUnit(uniTmp, unitInk, uFace, uPlain, true);
+        }
+      }
+      /* round 17: the READOUT SEAT + SIZE converge with the CURRENT
+         manifest (owner, real War Chuds: a SpeedoArc born under an older
+         manifest kept its old fontSize and anchors — the number filled
+         the dial while MPH sat tiny). Seat anchors, box and font size
+         are OUR wiring and follow the manifest; the dev's TEXT stays.
+         Stack and plain-TMP readouts both converge. */
+      if (g != null && img.sprite != null && pngScale > 0) {
+        float rwC = img.sprite.rect.width, rhC = img.sprite.rect.height;
+        var numTC = host.transform.Find("Number");
+        var nrtC = numTC as RectTransform;
+        if (nrtC != null) {
+          var cWantC = new Vector2(g.x / rwC, 1f - g.y / rhC);
+          if ((nrtC.anchorMin - cWantC).sqrMagnitude > 1e-5f || (nrtC.anchorMax - cWantC).sqrMagnitude > 1e-5f) {
+            nrtC.anchorMin = cWantC; nrtC.anchorMax = cWantC;
+            nrtC.anchoredPosition = Vector2.zero;
+          }
+          var szWantC = new Vector2(rwC / pngScale * 0.7f, g.fs / pngScale * 1.5f);
+          if ((nrtC.sizeDelta - szWantC).sqrMagnitude > 0.5f) nrtC.sizeDelta = szWantC;
+          var hlC = numTC.GetComponentInChildren<HeroLabel>(true);
+          if (hlC != null && Mathf.Abs(hlC.fontSize - g.fs / pngScale) > 0.5f) { hlC.fontSize = g.fs / pngScale; hlC.SetText(hlC.text); }
+          var tmpC = numTC.GetComponent<TMP_Text>();
+          if (tmpC != null && Mathf.Abs(tmpC.fontSize - g.fs / pngScale) > 0.5f) { tmpC.enableAutoSizing = false; tmpC.fontSize = g.fs / pngScale; }
+        }
+        var uniTC = host.transform.Find("Unit") as RectTransform;
+        if (uniTC != null) {
+          var uWantC = new Vector2(g.x / rwC, 1f - g.unitY / rhC);
+          if ((uniTC.anchorMin - uWantC).sqrMagnitude > 1e-5f) {
+            uniTC.anchorMin = uWantC; uniTC.anchorMax = uWantC;
+            uniTC.anchoredPosition = Vector2.zero;
+          }
+          var uTmpC = uniTC.GetComponent<TMP_Text>();
+          if (uTmpC != null && Mathf.Abs(uTmpC.fontSize - g.unitFs / pngScale) > 0.5f) { uTmpC.enableAutoSizing = false; uTmpC.fontSize = g.unitFs / pngScale; }
         }
       }
 #endif

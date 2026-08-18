@@ -238,6 +238,25 @@ if (!/data-loottag-geo=/.test(bevelSrc))
 if (!/static void WireLootDress\(/.test(cs))
   errors.push("the loot-dress builder (Stripe + Gem, tier-tinted) is missing from the importer (round 16)");
 
+/* round-17 item B: the gauge READOUT seat + size converge with the
+   CURRENT manifest (owner, real War Chuds: a SpeedoArc born under an
+   older manifest kept its old anchors and fontSize — the number filled
+   the dial while MPH sat tiny). The stale-dress probe must SEE stale
+   readout geometry, and WireGauge must re-seat it. */
+if (!/var cWantS = new Vector2\(g\.x \/ rwS, 1f - g\.y \/ rhS\);/.test(cs)
+    || !/\(nrtS\.anchorMin - cWantS\)\.sqrMagnitude > 1e-5f/.test(cs))
+  errors.push("GaugeDressStale must probe the readout's seat anchors against the manifest (round 17 — the oversize '108' rode a stale seat)");
+if (!/hlS2\.fontSize - g\.fs \/ psS\) > 0\.5f/.test(cs))
+  errors.push("GaugeDressStale must probe the readout's fontSize against the manifest (round 17)");
+if (!/var cWantC = new Vector2\(g\.x \/ rwC, 1f - g\.y \/ rhC\);/.test(cs)
+    || !/var szWantC = new Vector2\(rwC \/ pngScale \* 0\.7f, g\.fs \/ pngScale \* 1\.5f\);/.test(cs))
+  errors.push("WireGauge's readout convergence (seat anchors + box from the current manifest) is missing (round 17)");
+if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
+    || !/uTmpC\.fontSize - g\.unitFs \/ pngScale\) > 0\.5f/.test(cs))
+  errors.push("WireGauge's UNIT convergence (MPH seat + size from the current manifest) is missing (round 17)");
+if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
+  errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

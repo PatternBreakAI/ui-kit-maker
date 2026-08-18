@@ -28,8 +28,10 @@
       (layout row, scaled scene copy, posed copy, drag-in). Semantics
       are DETECTED from the zip's own PatternBreakStateFx.cs — so the
       probe answers old zips honestly too. Asserts center/size/scale
-      per context + distinct hover/pressed alphas. These rows are HARD:
-      any FAIL exits nonzero.
+      per context + alphas that follow the kit's own hover/pressed dials
+      (distinct only when the dials themselves differ — a kit with
+      matched dials ships identical alphas BY DESIGN). These rows are
+      HARD: any FAIL exits nonzero.
 
    HOW TO RUN
      node scripts/parity-probe.mjs
@@ -64,9 +66,9 @@ const entry = join(OUT, "parity-entry.ts");
 writeFileSync(entry, `
 import { renderKit } from "@/generator/bevel";
 import { downloadEngineExport, collectExportBoards } from "@/generator/engineExport";
-import { useGen } from "@/generator/store";
-import { defaultConfig } from "@/generator/model";
-(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, defaultConfig };
+import { useGen, hydrate } from "@/generator/store";
+import { defaultConfig, applyKitDesign, applyKitTextFill } from "@/generator/model";
+(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, hydrate, defaultConfig, applyKitDesign, applyKitTextFill };
 `);
 const bundle = join(OUT, "parity-bundle.js");
 const eb = spawnSync("npx", ["--prefix", REPO, "esbuild", entry, "--bundle", "--format=iife", `--outfile=${bundle}`,
@@ -100,12 +102,21 @@ await page.addInitScript(() => {
 await page.goto(`http://127.0.0.1:${port}/`);
 await page.addScriptTag({ url: `http://127.0.0.1:${port}/b.js` });
 
-const runKit = async (kitName) => await page.evaluate(async (KIT) => {
+const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT, FIXTURE }) => {
   const P = window.__probe;
 
   /* ── 1 · the kit recipe + field board through the real store flow ── */
-  const cfg = JSON.parse(JSON.stringify(P.defaultConfig()));
-  if (KIT === "warchuds") {
+  let cfg = JSON.parse(JSON.stringify(P.defaultConfig()));
+  if (KIT === "warchuds-real") {
+    /* the owner's REAL kit (round 17): the exact settings export, through
+       the app's own import door — migration, healing and workspace forks
+       all apply exactly as a user import (settingsImport.ts contract) */
+    const parsed = JSON.parse(FIXTURE);
+    const ws = parsed.__workspace;
+    delete parsed.__workspace;
+    P.useGen.getState().loadKitPayload({ cfg: P.hydrate(parsed), ...(ws ?? {}) }, { viewer: false, phase: "master" });
+    cfg = JSON.parse(JSON.stringify(P.useGen.getState().cfg));
+  } else if (KIT === "warchuds") {
     cfg.shape = "notch";
     cfg.type.font = "Russo One"; cfg.type.italic = true;
     cfg.type.fillMode = "solid"; cfg.type.fill = "#EAF4D8"; cfg.type.fillOpacity = 100;
@@ -128,7 +139,7 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
     cfg.type.shadow.on = false; cfg.type.glow.on = false; cfg.type.emboss.on = false;
     cfg.type.glints = { on: false, opacity: 70 };
   }
-  P.useGen.setState({ cfg });
+  if (KIT !== "warchuds-real") P.useGen.setState({ cfg });
   let st = P.useGen.getState();
   st.addBoard();
   st = P.useGen.getState();
@@ -226,14 +237,23 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
     const value = it.value == null ? undefined : it.value;
     const cellK = Math.min((CELL * 0.9) / it.w, (CELL * 0.9) / it.h, 1.2);
 
-    const cfgCalm = JSON.parse(JSON.stringify(cfg));
+    /* the app column must ride the SAME per-piece fork pipeline the app
+       (and the export) use — applyKitDesign + applyKitTextFill + the
+       kitShapes override. The recipe kits carry no forks (no-op), but a
+       real owner kit does: War Chuds forks the minimap to "pill" (round
+       housing) and re-dresses the loot tag; rendering the root cfg here
+       diffed the probe's own blindness, not the export. Calm AFTER the
+       fork — a fork's states replace the base states whole. */
+    const kdFork = st.kitDesigns ? st.kitDesigns[famId] : null;
+    const shapeOv = st.kitShapes ? st.kitShapes[famId] : undefined;
+    const cfgCalm = JSON.parse(JSON.stringify(P.applyKitTextFill(P.applyKitDesign(cfg, kdFork), st.kitTextFill ? st.kitTextFill[famId] : null)));
     cfgCalm.shadow.opacity = 0;
     cfgCalm.candy.contact.opacity = 0;
     cfgCalm.candy.bloom.opacity = 0;
     for (const s of Object.values(cfgCalm.states)) s.glow = 0;
     // icon: the BOARD renders default icons (the loot tag's gem) — only
     // pieces the board itself strips pass icon:null
-    const appSvg = P.renderKit(cfgCalm, famId, "l", "default", value, undefined, { ...(it.component === "loottag" ? {} : { icon: null }), label: it.label ?? undefined });
+    const appSvg = P.renderKit(cfgCalm, famId, "l", "default", value, shapeOv ?? undefined, { ...(it.component === "loottag" ? {} : { icon: null }), label: it.label ?? undefined });
     const shm = /data-shell0?="([-\d. ]+)"/.exec(appSvg);
     const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(appSvg);
     const shell = shm ? shm[1].split(" ").map(Number) : null;
@@ -546,6 +566,17 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
     }
     const aHover = Math.round(Math.min(1, hoverG / 100) * 0.85 * 100) / 100;
     const aPress = Math.round(Math.min(1, pressG / 100) * 0.85 * 100) / 100;
+    /* app-truth dials — the same override rule applyKitDesign uses (a
+       piece fork's states REPLACE the base states whole, never merge).
+       The parity claim is "the zip follows the app's dials", not "the
+       dials differ": a kit whose hover and pressed dials genuinely match
+       (the owner's real War Chuds: 100/100) ships identical alphas BY
+       DESIGN, and calling that a failure would punish the kit for its
+       own recipe. Distinctness is only asserted when the dials differ. */
+    const appStates = (st.kitDesigns && st.kitDesigns.primary && st.kitDesigns.primary.states) || st.cfg.states;
+    const dialHover = Math.round(appStates.hover.glow), dialPress = Math.round(appStates.pressed.glow);
+    const followsDials = Math.abs(hoverG - dialHover) <= 0.5 && Math.abs(pressG - dialPress) <= 0.5;
+    const dialsDiffer = Math.abs(dialHover - dialPress) > 0.5;
     const V = (x, y) => ({ x, y });
     const resolve = (node) => {
       if (!node.parent) return { xMin: 0, yMin: 0, w: node.sizeDelta.x, h: node.sizeDelta.y, sx: 1, sy: 1 };
@@ -607,7 +638,12 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
       if (bakedSlide && rootGuard) glow.mode += " + baked-sink slide (round 17)";
     }
     glow.pad = pad;
-    glow.alphas = { hover: aHover, pressed: aPress, distinct: Math.abs(aHover - aPress) > 0.05 };
+    glow.alphas = {
+      hover: aHover, pressed: aPress,
+      dials: `app ${dialHover}/${dialPress} -> zip ${hoverG}/${pressG}`,
+      distinct: Math.abs(aHover - aPress) > 0.05,
+      ok: followsDials && (!dialsDiffer || Math.abs(aHover - aPress) > 0.05),
+    };
   }
 
   /* ── 5 · composite receipt ───────────────────────────────────────── */
@@ -630,16 +666,18 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
     }
   }
   return { results, glow, generatorVersion: m.generatorVersion, composite: comp.toDataURL("image/png") };
-}, kitName);
+}, { KIT: kitName, FIXTURE: fixtureJson ?? null });
 
 let hardFails = 0;
-for (const kitName of ["default", "warchuds", "hotrod"]) {
-  const out = await runKit(kitName);
+const wcFixture = readFileSync(join(REPO, "scripts/parity-fixtures/war-chuds.slim.json"), "utf8");
+for (const kitName of ["default", "warchuds", "hotrod", "warchuds-real"]) {
+  const out = await runKit(kitName, kitName === "warchuds-real" ? wcFixture : null);
   console.log(`\n══════ KIT: ${kitName} (export build ${out.generatorVersion}) ══════`);
   console.table(out.results);
-  console.log(`GLOW-STATE — semantics: ${out.glow.mode}; pad (${out.glow.pad.x}, ${out.glow.pad.y}); alphas hover ${out.glow.alphas.hover} / pressed ${out.glow.alphas.pressed} (${out.glow.alphas.distinct ? "distinct" : "NOT DISTINCT"})`);
+  const al = out.glow.alphas;
+  console.log(`GLOW-STATE — semantics: ${out.glow.mode}; pad (${out.glow.pad.x}, ${out.glow.pad.y}); alphas hover ${al.hover} / pressed ${al.pressed} — dials ${al.dials} ${al.ok ? (al.distinct ? "(follow dials, distinct)" : "(follow dials; matched dials, identical BY DESIGN)") : "(FAIL: zip does not follow the app's dials)"}`);
   console.table(out.glow.rows);
-  const glowFail = out.glow.rows.filter((r) => r.verdict !== "PASS").length + (out.glow.alphas.distinct ? 0 : 1);
+  const glowFail = out.glow.rows.filter((r) => r.verdict !== "PASS").length + (al.ok ? 0 : 1);
   hardFails += glowFail;
   console.log(glowFail === 0 ? "GLOW ROW: ALL PASS" : `GLOW ROW: ${glowFail} FAILURE(S)`);
   writeFileSync(join(OUT, `parity-${kitName}.png`), Buffer.from(out.composite.split(",")[1], "base64"));
