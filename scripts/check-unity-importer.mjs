@@ -276,6 +276,17 @@ if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"\]
   errors.push("the Runtime asmdef must reference Unity.InputSystem — the focus hint reads editorInputBehaviorInPlayMode under ENABLE_INPUT_SYSTEM (round 18)");
 if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(fx))
   errors.push("StateFx must never poll input — hover/press ride the EventSystem alone (round-18 verified contract)");
+/* round-18 menu action: removing the gate is an EXPLICIT choice, never an
+   import side effect, and the hint's menu reference must name the real menu. */
+if (!/const string RouteInputMenu = "Tools\/PatternBreak\/Route All Editor Input To Game View";/.test(cs)
+    || !/STRICTLY an explicit menu action/.test(cs))
+  errors.push("the Route All Editor Input To Game View menu action (explicit, never automatic) is missing (round 18)");
+if (!/#if ENABLE_INPUT_SYSTEM[^\0]{0,2000}const string RouteInputMenu/.test(cs))
+  errors.push("the route-input menu must sit inside #if ENABLE_INPUT_SYSTEM — legacy-input projects have no such setting (round 18)");
+if (!/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.asset"\)/.test(cs))
+  errors.push("the route-input menu must mint the settings asset when the project runs on in-memory defaults — the change would evaporate otherwise (round 18)");
+if (fx.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
+  errors.push("the focus hint must point at the real menu item by its exact name (round 18)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

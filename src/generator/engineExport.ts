@@ -6395,6 +6395,52 @@ namespace PatternBreak {
       foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
     }
 
+#if ENABLE_INPUT_SYSTEM
+    /* Round 18 — the editor's input-focus gate, removable BY CHOICE. The
+       Input System's default (editorInputBehaviorInPlayMode) delivers
+       Play-mode pointer events only while the Game view has focus; one
+       Console click and every hover goes quiet (owner video: "the glow
+       is not moving"). This toggle sets the package's own
+       "All Device Input Always Goes To Game View" option so editor input
+       flows regardless of focus. STRICTLY an explicit menu action — the
+       import must never touch project settings uninvited (the same
+       principle as never editing immutable packages). Editor-only either
+       way: builds never had the gate. */
+    const string RouteInputMenu = "Tools/PatternBreak/Route All Editor Input To Game View";
+    [MenuItem(RouteInputMenu, false, 900)]
+    static void RouteEditorInput() {
+      var iset = UnityEngine.InputSystem.InputSystem.settings;
+      if (iset == null) { Debug.LogWarning("UI Kit Maker: the Input System package reports no settings object — nothing changed."); return; }
+      bool routed = iset.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView;
+      if (!routed && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(iset))) {
+        /* the project runs on the package's in-memory defaults — a value
+           set there evaporates on the next domain reload. Mint the same
+           settings asset the package's Project Settings page creates on
+           first edit, and say so out loud. */
+        var asset = UnityEngine.Object.Instantiate(iset);
+        asset.name = "InputSystem.inputsettings";
+        AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
+        UnityEngine.InputSystem.InputSystem.settings = asset;
+        iset = asset;
+        Debug.Log("UI Kit Maker: created Assets/InputSystem.inputsettings.asset — the project had no Input System settings asset, and the setting needs one to persist. (This is the same asset Edit > Project Settings > Input System Package creates.)");
+      }
+      iset.editorInputBehaviorInPlayMode = routed
+        ? UnityEngine.InputSystem.InputSettings.EditorInputBehavior.PointersAndKeyboardsRespectGameViewFocus
+        : UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView;
+      EditorUtility.SetDirty(iset);
+      AssetDatabase.SaveAssetIfDirty(iset);
+      Debug.Log(routed
+        ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
+        : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
+    }
+    [MenuItem(RouteInputMenu, true)]
+    static bool RouteEditorInputCheck() {
+      var iset = UnityEngine.InputSystem.InputSystem.settings;
+      UnityEditor.Menu.SetChecked(RouteInputMenu, iset != null && iset.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView);
+      return iset != null;
+    }
+#endif
+
     /* ── the FIRST-DROP gap, closed. On a fresh drop the whole batch —
        manifest included — can finish importing before this script even
        compiles, so the postprocessor's "manifest arrived" trigger fires
