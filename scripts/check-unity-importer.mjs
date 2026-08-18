@@ -274,23 +274,27 @@ if (!/fx\.pressedSink = -ExpectedShift\(m, family, "pressed"\);/.test(cs) || !/f
 if (!/wantSinkFix/.test(cs) || !/fxSink\.pressedSink = pressedSinkWant/.test(cs))
   errors.push("the baked-sink convergence sweep is missing — prefabs armed before the sink fields existed keep a parked halo forever (round 18)");
 
-/* round-18: the editor's input-focus gate made loud. Hover rides the
-   EventSystem alone (no polling) — in the editor the Input System only
-   delivers pointer events while the Game view has focus, which reads as
-   "the glow broke" (owner video). The kit prints ONE editor-only Console
-   hint when the gate actually bites, and it must compile out of builds. */
-if (!/void FocusHintTick\(\)/.test(fx) || !/static bool focusHintDone, focusPointerSeen;/.test(fx))
-  errors.push("the editor focus-gate hint watcher is missing from StateFx (round 18)");
-if (!/Click the game once and sweep again/.test(fx))
+/* round-18 (re-cut by round-19 P0): the editor's input-focus gate made
+   loud. Hover rides the EventSystem alone (no polling) — in the editor
+   the Input System only delivers pointer events while the Game view has
+   focus, which reads as "the glow broke" (owner video). The WATCHER now
+   lives EDITOR-SIDE (PatternBreakKitImporter): a package API referenced
+   from the Runtime file broke a customer project's compile (CS0117).
+   The runtime keeps one dumb #if UNITY_EDITOR flag. */
+if (!/public static bool editorPointerSeen;/.test(fx))
+  errors.push("StateFx's editorPointerSeen flag (the runtime's ONLY editor-side surface) is missing (rounds 18/19)");
+if (/FocusHintTick|focusHintDone|UnityEditor\./.test(fx))
+  errors.push("the focus watcher crept back into the RUNTIME file — it lives in the Editor assembly (round 19 P0: a runtime package reference killed a customer compile)");
+if (!/static void FocusGateTick\(\)/.test(cs) || !/\[InitializeOnLoadMethod\]\s*\n\s*static void ArmFocusGateWatcher\(\)/.test(cs))
+  errors.push("the editor-side focus-gate watcher is missing from the importer (rounds 18/19)");
+if (!/Click the game once and sweep again/.test(cs))
   errors.push("the focus-gate hint's Console line is missing (round 18 — 'hover not moving' owner video)");
-if (!/#if UNITY_EDITOR\s*\n\s*if \(!focusHintDone\) FocusHintTick\(\);\s*\n#endif/.test(fx))
-  errors.push("the focus-hint Update hook must be #if UNITY_EDITOR — the watcher may not exist in builds (round 18)");
 if (!/over = true; Retarget\(\); MarkPointer\(\);/.test(fx) || !/down = true; Retarget\(\); MarkPointer\(\);/.test(fx))
   errors.push("MarkPointer must ride OnPointerEnter and OnPointerDown — the hint disarms when events actually flow (round 18)");
-if (!/InputSystemUIInputModule"\) return;/.test(fx))
-  errors.push("the focus hint must stay quiet under the legacy StandaloneInputModule — that module has no focus gate (round 18)");
-if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"\]/.test(src))
-  errors.push("the Runtime asmdef must reference Unity.InputSystem — the focus hint reads editorInputBehaviorInPlayMode under ENABLE_INPUT_SYSTEM (round 18)");
+if (!/InputSystemUIInputModule"\) return;/.test(cs))
+  errors.push("the focus watcher must stay quiet under the legacy StandaloneInputModule — that module has no focus gate (round 18)");
+if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI"\]/.test(src))
+  errors.push("the Runtime asmdef must reference ONLY the two UI staples — a package reference there is how round 19's compile break happened");
 if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(fx))
   errors.push("StateFx must never poll input — hover/press ride the EventSystem alone (round-18 verified contract)");
 /* round-18 menu action: removing the gate is an EXPLICIT choice, never an
@@ -298,12 +302,38 @@ if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Po
 if (!/const string RouteInputMenu = "Tools\/PatternBreak\/Route All Editor Input To Game View";/.test(cs)
     || !/STRICTLY an explicit menu action/.test(cs))
   errors.push("the Route All Editor Input To Game View menu action (explicit, never automatic) is missing (round 18)");
-if (!/#if ENABLE_INPUT_SYSTEM[^\0]{0,2000}const string RouteInputMenu/.test(cs))
-  errors.push("the route-input menu must sit inside #if ENABLE_INPUT_SYSTEM — legacy-input projects have no such setting (round 18)");
+if (!/Type\.GetType\("UnityEngine\.InputSystem\.InputSystem, Unity\.InputSystem"\)/.test(cs)
+    || !/GetProperty\("editorInputBehaviorInPlayMode"/.test(cs))
+  errors.push("the route-input machinery must reach the Input System by REFLECTION only (round 19 P0 — direct references break compiles on other package versions)");
 if (!/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.asset"\)/.test(cs))
   errors.push("the route-input menu must mint the settings asset when the project runs on in-memory defaults — the change would evaporate otherwise (round 18)");
-if (fx.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
+if (cs.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
   errors.push("the focus hint must point at the real menu item by its exact name (round 18)");
+
+/* ── round-19 P0 CLASS INVARIANT: version-fragile package APIs must never
+   be referenced directly in ANY emitted C#. InputSettings.EditorInputBehavior
+   compiled nowhere on the owner's Input System version — CS0117, every kit
+   script dead, the scene white boxes. The whole source file is scanned
+   (every template rides in it); reflection strings (quoted names) pass,
+   naked member access fails. New package APIs join the allowlist only
+   CONSCIOUSLY, with a version-stability argument in the commit. ── */
+{
+  const fragile = [
+    [/InputSettings\.EditorInputBehavior/, "InputSettings.EditorInputBehavior"],
+    [/(?<!")editorInputBehaviorInPlayMode(?!")/, "editorInputBehaviorInPlayMode as naked member access (reflection only)"],
+    [/UnityEngine\.InputSystem\.InputSystem\.settings/, "InputSystem.settings as a direct reference (reflection only)"],
+  ];
+  for (const [re, what] of fragile)
+    if (re.test(src))
+      errors.push(`version-fragile package API referenced directly: ${what} — this exact class broke a customer's compile (round 19 CS0117)`);
+  const inputAllow = ["UnityEngine.InputSystem.UI.InputSystemUIInputModule"]; // 1.0-era, define-guarded in the scene builders
+  for (const mm of src.matchAll(/UnityEngine\.InputSystem\.[A-Za-z0-9_.]+/g)) {
+    if (src[mm.index - 1] === '"' || src[mm.index - 1] === "'") continue; // quoted = reflection type-name string
+    const ref = mm[0].replace(/\.$/, "");
+    if (!inputAllow.some((a) => ref === a || ref.startsWith(a + ".")))
+      errors.push(`unlisted direct UnityEngine.InputSystem reference in emitted source: ${ref} — use reflection, or extend the guard allowlist consciously (round 19)`);
+  }
+}
 if (!/Testing hover & press in the editor/.test(src)
     || !/Route All Editor Input To Game View\*\*/.test(src))
   errors.push("the README's editor-testing box (the focus-gate story + the menu pointer) is missing (round 18)");

@@ -3030,13 +3030,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     data: JSON.stringify({
       name: "PatternBreak.Runtime",
       rootNamespace: "",
-      /* Unity.InputSystem: StateFx's editor-only focus hint reads the
-         package's editorInputBehaviorInPlayMode under #if
-         ENABLE_INPUT_SYSTEM (round 18). Same contract as the Editor
-         asmdef above: resolves when the package is installed, silently
-         ignored when it isn't — and the define only exists when the
-         package does. */
-      references: ["Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"],
+      /* NO package references beyond the two UI staples — round 19 (P0):
+         a version-fragile Input System API referenced from the Runtime
+         assembly failed to compile on a customer project (CS0117) and
+         killed every kit script. Anything that must talk to an optional
+         package does it from the EDITOR assembly, by reflection. */
+      references: ["Unity.TextMeshPro", "UnityEngine.UI"],
       includePlatforms: [],
       excludePlatforms: [],
       allowUnsafeCode: false,
@@ -3739,58 +3738,27 @@ namespace PatternBreak {
       Retarget();
     }
 
-    /* The editor's input-focus gate, made loud (round 18). With the Input
-       System package, PLAY-MODE POINTER EVENTS ONLY REACH THE GAME VIEW
-       WHILE IT HAS FOCUS (the package's editorInputBehaviorInPlayMode
-       default) — one click into the Console or Inspector and every hover
-       goes quiet, which reads as "the glow broke" (owner video: hover
-       dead after a Console click, instantly alive again on the next game
-       click). The kit's own path is pure EventSystem — no polling — so
-       the editor's gate is the ONLY gate; a real build always has focus.
-       One Console line, once per Play, only when the gate actually
-       bites; the whole watcher compiles out of builds. */
+    /* The editor's input-focus gate (round 18): under the Input System,
+       Play-mode pointer events only reach a FOCUSED Game view — one
+       Console click and every hover goes quiet, which reads as "the glow
+       broke". The WATCHER that explains this lives in the EDITOR assembly
+       (PatternBreakKitImporter): editor-settings API belongs there, and a
+       package API referenced from THIS file once broke a whole customer
+       project's compile (round 19, CS0117 — every kit script died, the
+       scene went white). The runtime keeps ONE dumb flag: "a pointer
+       event reached a kit piece this Play". Compiled out of builds. */
+#if UNITY_EDITOR
+    public static bool editorPointerSeen;
+#endif
     void MarkPointer() {
 #if UNITY_EDITOR
-      focusPointerSeen = true;
+      editorPointerSeen = true;
 #endif
     }
-#if UNITY_EDITOR
-    static bool focusHintDone, focusPointerSeen;
-    static double focusUnfocusedAt = -1.0, focusNextPoll;
-    void FocusHintTick() {
-      var nowT = UnityEditor.EditorApplication.timeSinceStartup;
-      if (nowT < focusNextPoll) return;
-      focusNextPoll = nowT + 0.25;
-      var es = EventSystem.current;
-      var mod = es != null ? es.currentInputModule : null;
-      // the legacy StandaloneInputModule has no focus gate — stay quiet
-      if (mod == null || mod.GetType().Name != "InputSystemUIInputModule") return;
-#if ENABLE_INPUT_SYSTEM
-      var ist = UnityEngine.InputSystem.InputSystem.settings;
-      if (ist != null && ist.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView) {
-        focusHintDone = true; return; // the project already routes input past the gate
-      }
-#endif
-      var w = UnityEditor.EditorWindow.focusedWindow;
-      var wn = w != null ? w.GetType().Name : "";
-      bool gameFocused = wn == "GameView" || wn == "SimulatorWindow" || wn.EndsWith("PlayModeView");
-      if (gameFocused) { focusUnfocusedAt = -1.0; return; }
-      if (focusUnfocusedAt < 0.0) { focusUnfocusedAt = nowT; focusPointerSeen = false; return; }
-      if (focusPointerSeen) { focusUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
-      if (nowT - focusUnfocusedAt < 2.5) return;
-      focusHintDone = true;
-      Debug.Log("UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View.");
-    }
-#endif
 
     /* Update runs ONLY while a transition is in flight — a component that
-       ticks forever is how the Playground got slow the first time. (The
-       editor-only focus hint above rides a static-bool early-out here and
-       does not exist in builds.) */
+       ticks forever is how the Playground got slow the first time. */
     void Update() {
-#if UNITY_EDITOR
-      if (!focusHintDone) FocusHintTick();
-#endif
       if (!settling) return;
       var step = fade > 0.001f ? Time.unscaledDeltaTime / fade : 1f;
       glowNow = Mathf.MoveTowards(glowNow, glowTo, Mathf.Abs(glowTo - glowNow) * 1f + step * 100f);
@@ -6432,51 +6400,131 @@ namespace PatternBreak {
       foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
     }
 
-#if ENABLE_INPUT_SYSTEM
-    /* Round 18 — the editor's input-focus gate, removable BY CHOICE. The
-       Input System's default (editorInputBehaviorInPlayMode) delivers
-       Play-mode pointer events only while the Game view has focus; one
-       Console click and every hover goes quiet (owner video: "the glow
-       is not moving"). This toggle sets the package's own
-       "All Device Input Always Goes To Game View" option so editor input
-       flows regardless of focus. STRICTLY an explicit menu action — the
-       import must never touch project settings uninvited (the same
-       principle as never editing immutable packages). Editor-only either
-       way: builds never had the gate. */
+    /* ── Round 19 (P0) — REFLECTION ONLY past this line. The Input
+       System's editor-behavior API varies by package version: a DIRECT
+       reference to the InputSettings editor-behavior enum failed to
+       compile on the owner's own project (CS0117), which took the whole
+       kit down — every script dead, the scene white boxes. A kit must
+       NEVER break a customer's compile; the package is probed at call time:
+       API present → feature on; absent (older/newer package, or a
+       legacy-input project with no package at all) → feature silently
+       off, and the gate still lifts the manual way (click the game). */
+    static object InputSettingsLive() {
+      var tIS = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
+      if (tIS == null) return null;
+      var p = tIS.GetProperty("settings", BindingFlags.Public | BindingFlags.Static);
+      return p != null ? p.GetValue(null, null) : null;
+    }
+    static PropertyInfo EditorBehaviorProp(object iset) {
+      if (iset == null) return null;
+      var p = iset.GetType().GetProperty("editorInputBehaviorInPlayMode", BindingFlags.Public | BindingFlags.Instance);
+      if (p == null || !p.PropertyType.IsEnum || !p.CanRead || !p.CanWrite) return null;
+      try { // both members must parse by NAME or we can neither read nor write safely
+        Enum.Parse(p.PropertyType, "AllDeviceInputAlwaysGoesToGameView");
+        Enum.Parse(p.PropertyType, "PointersAndKeyboardsRespectGameViewFocus");
+      } catch (Exception) { return null; }
+      return p;
+    }
+    static bool RoutedAllInput(object iset, PropertyInfo p) {
+      if (iset == null || p == null) return false;
+      try { var v = p.GetValue(iset, null); return v != null && v.ToString() == "AllDeviceInputAlwaysGoesToGameView"; }
+      catch (Exception) { return false; }
+    }
+    /* Round 18 — the editor's input-focus gate, removable BY CHOICE.
+       This toggle sets the package's own "All Device Input Always Goes
+       To Game View" option so editor input flows regardless of focus.
+       STRICTLY an explicit menu action — the import must never touch
+       project settings uninvited (the same principle as never editing
+       immutable packages). Editor-only either way: builds never had the
+       gate. */
     const string RouteInputMenu = "Tools/PatternBreak/Route All Editor Input To Game View";
     [MenuItem(RouteInputMenu, false, 900)]
     static void RouteEditorInput() {
-      var iset = UnityEngine.InputSystem.InputSystem.settings;
-      if (iset == null) { Debug.LogWarning("UI Kit Maker: the Input System package reports no settings object — nothing changed."); return; }
-      bool routed = iset.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView;
-      if (!routed && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(iset))) {
+      var iset = InputSettingsLive();
+      var prop = EditorBehaviorProp(iset);
+      if (prop == null) { Debug.LogWarning("UI Kit Maker: this project's Input System package does not expose the editor input-behavior setting (or the package is absent) — nothing changed. The gate still lifts the manual way: click the Game view once in Play mode."); return; }
+      bool routed = RoutedAllInput(iset, prop);
+      var uobj = iset as UnityEngine.Object;
+      if (!routed && uobj != null && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(uobj))) {
         /* the project runs on the package's in-memory defaults — a value
            set there evaporates on the next domain reload. Mint the same
            settings asset the package's Project Settings page creates on
            first edit, and say so out loud. */
-        var asset = UnityEngine.Object.Instantiate(iset);
+        var asset = UnityEngine.Object.Instantiate(uobj);
         asset.name = "InputSystem.inputsettings";
         AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
-        UnityEngine.InputSystem.InputSystem.settings = asset;
+        var tIS2 = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
+        var pSet = tIS2 != null ? tIS2.GetProperty("settings", BindingFlags.Public | BindingFlags.Static) : null;
+        if (pSet != null && pSet.CanWrite) pSet.SetValue(null, asset, null);
         iset = asset;
+        prop = EditorBehaviorProp(iset); // re-bind on the asset instance
+        if (prop == null) return;
         Debug.Log("UI Kit Maker: created Assets/InputSystem.inputsettings.asset — the project had no Input System settings asset, and the setting needs one to persist. (This is the same asset Edit > Project Settings > Input System Package creates.)");
       }
-      iset.editorInputBehaviorInPlayMode = routed
-        ? UnityEngine.InputSystem.InputSettings.EditorInputBehavior.PointersAndKeyboardsRespectGameViewFocus
-        : UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView;
-      EditorUtility.SetDirty(iset);
-      AssetDatabase.SaveAssetIfDirty(iset);
+      try {
+        prop.SetValue(iset, Enum.Parse(prop.PropertyType, routed ? "PointersAndKeyboardsRespectGameViewFocus" : "AllDeviceInputAlwaysGoesToGameView"), null);
+      } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
+      var dirty = iset as UnityEngine.Object;
+      if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
       Debug.Log(routed
         ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
         : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
     }
     [MenuItem(RouteInputMenu, true)]
     static bool RouteEditorInputCheck() {
-      var iset = UnityEngine.InputSystem.InputSystem.settings;
-      UnityEditor.Menu.SetChecked(RouteInputMenu, iset != null && iset.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView);
-      return iset != null;
+      var iset = InputSettingsLive();
+      var prop = EditorBehaviorProp(iset);
+      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(iset, prop));
+      return prop != null;
     }
-#endif
+    /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
+       the runtime keeps only StateFx.editorPointerSeen. One Console line,
+       once per Play, only when the gate actually bites: kit pieces
+       present, the Input System module live (the legacy module has no
+       gate), the project not already routing input past the gate, the
+       Game view unfocused for 2.5s with zero pointer events reaching kit
+       pieces. Never in builds — this whole file is editor-only. */
+    static bool fgHintShown, fgArmed, fgKitPresent;
+    static double fgUnfocusedAt = -1.0, fgNextPoll;
+    [InitializeOnLoadMethod]
+    static void ArmFocusGateWatcher() {
+      EditorApplication.playModeStateChanged += (st) => {
+        if (st == PlayModeStateChange.EnteredPlayMode) {
+          fgHintShown = false; fgUnfocusedAt = -1.0; fgKitPresent = false; fgArmed = true;
+          StateFx.editorPointerSeen = false;
+        } else if (st == PlayModeStateChange.ExitingPlayMode) fgArmed = false;
+      };
+      EditorApplication.update += FocusGateTick;
+    }
+    static void FocusGateTick() {
+      if (!fgArmed || fgHintShown || !EditorApplication.isPlaying) return;
+      var nowT = EditorApplication.timeSinceStartup;
+      if (nowT < fgNextPoll) return;
+      fgNextPoll = nowT + 0.25;
+      if (!fgKitPresent) {
+        // only speak where kit pieces actually live
+        fgKitPresent = Resources.FindObjectsOfTypeAll(typeof(StateFx)).Length > 0;
+        if (!fgKitPresent) return;
+      }
+      var es = UnityEngine.EventSystems.EventSystem.current;
+      var mod = es != null ? es.currentInputModule : null;
+      // the legacy StandaloneInputModule has no focus gate — stay quiet
+      if (mod == null || mod.GetType().Name != "InputSystemUIInputModule") return;
+      var isetW = InputSettingsLive();
+      var propW = EditorBehaviorProp(isetW);
+      if (RoutedAllInput(isetW, propW)) { fgHintShown = true; return; } // gate already removed project-side
+      var w = EditorWindow.focusedWindow;
+      var wn = w != null ? w.GetType().Name : "";
+      bool gameFocused = wn == "GameView" || wn == "SimulatorWindow" || wn.EndsWith("PlayModeView");
+      if (gameFocused) { fgUnfocusedAt = -1.0; return; }
+      if (fgUnfocusedAt < 0.0) { fgUnfocusedAt = nowT; StateFx.editorPointerSeen = false; return; }
+      if (StateFx.editorPointerSeen) { fgUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
+      if (nowT - fgUnfocusedAt < 2.5) return;
+      fgHintShown = true;
+      Debug.Log(propW != null
+        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View."
+        : "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate.");
+    }
 
     /* ── the FIRST-DROP gap, closed. On a fresh drop the whole batch —
        manifest included — can finish importing before this script even
