@@ -2622,7 +2622,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           const lgT = svgT.slice(svgT.indexOf('data-part="label"'));
           const fsT = parseFloat(/<text x="(?:-?[\d.]+)" y="(?:-?[\d.]+)" font-size="([\d.]+)"/.exec(lgT)?.[1] ?? "0");
           if (!(wT > 4 && hT > 4 && fsT > 1)) return undefined;
-          return { seconds: secsT, word: wordT, fs: Math.round(fsT * 10) / 10, w: Math.round(wT * 10) / 10, h: Math.round(hT * 10) / 10 };
+          /* the SHELL box too (round 14): board items speak shell
+             coordinates — the placement maps shell→item box and scales
+             the word by the same ratio, so the scene's digits match the
+             board's exactly (the canvas-to-shell fallback shrank them) */
+          const shT = /data-shell0?="([-\d. ]+)"/.exec(svgT)?.[1].split(" ").map(Number);
+          const shellOk = shT && shT.length === 4 && shT.every((n) => Number.isFinite(n)) && shT[2] > 4 && shT[3] > 4;
+          return { seconds: secsT, word: wordT, fs: Math.round(fsT * 10) / 10, w: Math.round(wT * 10) / 10, h: Math.round(hT * 10) / 10,
+            ...(shellOk ? { shellW: Math.round(shT[2] * 10) / 10, shellH: Math.round(shT[3] * 10) / 10 } : {}) };
         } catch { return undefined; }
       })(),
       /* the health globe's visible well as frame fractions (bottom-left
@@ -5847,7 +5854,10 @@ namespace PatternBreak {
   /* the live TIMER block: staged time, the app's exact word, and the
      specimen's canvas + rendered font size (readers gate on fs > 1 —
      JsonUtility default-constructs the block on older manifests) */
-  [Serializable] class PBTimerBlock { public float seconds; public string word; public float fs; public float w; public float h; }
+  /* shellW/shellH (round 14): the specimen's tight word box — board items
+     speak SHELL coordinates, and canvas-to-shell scaling shrank the placed
+     word. 0 on older manifests: the placement keeps the native size. */
+  [Serializable] class PBTimerBlock { public float seconds; public string word; public float fs; public float w; public float h; public float shellW; public float shellH; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
@@ -7209,6 +7219,25 @@ namespace PatternBreak {
               } else if (psp == null) {
                 Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
               }
+            } else if (it.component == "timerdigits") {
+              /* the TIMER places LIVE and pure (round 14: its posed bakes
+                 were blank by construction and no longer ship). The item
+                 rect is the app's SHELL — the tight word box — while the
+                 prefab rect is the specimen CANVAS; the generic canvas-
+                 to-shell scale shrank the word (and authoredHeight
+                 halved it again through the canvas-height ratio). Size
+                 the rect to the item box and pin the word to the app's
+                 own rendered size, scaled by the copy's shell ratio. */
+              rt.sizeDelta = new Vector2(it.w, it.h);
+              rt.localScale = Vector3.one;
+#if UNITY_2023_2_OR_NEWER
+              var hlTm = inst.GetComponentInChildren<HeroLabel>(true);
+              if (hlTm != null && m.timer != null && m.timer.fs > 1f) {
+                hlTm.authoredHeight = 0f; // the size below is board-true already
+                float kTm = m.timer.shellH > 4f ? it.h / m.timer.shellH : 1f;
+                hlTm.fontSize = m.timer.fs * kTm;
+              }
+#endif
             } else if (rt.sizeDelta.x > 1f) {
               /* SHELL-TO-SHELL sizing: the board records the shell's box
                  and the manifest records where that shell sits inside the

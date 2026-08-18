@@ -182,6 +182,8 @@ if (!/data-gauge-seg/.test(src))
   errors.push("the segment polar-grid stamp (data-gauge-seg) is missing from the export side");
 if (!/"Demo Map"/.test(cs))
   errors.push("the Minimap's 'Demo Map' layer is missing — the radar loses its map again");
+if (!/it\.component == "timerdigits"/.test(cs) || !/m\.timer\.shellH > 4f \? it\.h \/ m\.timer\.shellH : 1f/.test(cs))
+  errors.push("the live Timer's shell-true placement is missing — canvas-to-shell scaling shrinks the scene's word (round 14)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
