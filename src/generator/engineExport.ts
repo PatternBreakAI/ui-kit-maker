@@ -94,6 +94,11 @@ interface AssetMeta {
     kit: boolean; dressed: boolean;
     weight: number; italic: boolean; spacingEmPct: number;
     fillMode: "solid" | "gradient"; fill: string; fill2: string | null; fillOpacity: number;
+    /** The app's per-glyph understroke (paint-order: stroke) — the dark rim
+     *  that keeps instrument text legible over loud faces. Dropping it was
+     *  the "flatter/thinner than the app" delta on the HUD voices. Width is
+     *  % of an em; color carries its own alpha (0-100). Absent = no rim. */
+    stroke?: string; strokeA?: number; strokeEmPct?: number;
   }[];
   /** The piece's content-text recipe for its DRESSED seats (same shape the
    *  gauges ship as gauge.ink) — effects only; each seat carries its fill. */
@@ -906,15 +911,19 @@ async function fetchFontLicence(slug: string): Promise<{ name: string; text: str
   }
   return null;
 }
-export async function fetchKitFont(family: string): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
+export async function fetchKitFont(family: string, axis?: string, fileTag = "Regular"): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
   const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!slug) return null;
   /* ── 1 · Google Fonts css2 → fonts.gstatic.com TTF. The CSS names a
      TrueType URL when the client doesn't read as a modern browser; the
      fetch spec allows overriding User-Agent (Chromium honors it — engines
      that refuse simply fall through to the UA-less retry, then to GitHub),
-     and both hosts answer CORS with *. No auth, no meaningful rate limit. */
-  const cssQ = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}`;
+     and both hosts answer CORS with *. No auth, no meaningful rate limit.
+     An AXIS request (e.g. wght@800) asks css2 for that STATIC instance —
+     only source 1 can honor it; the repo sources ship variable files whose
+     default instance would wear the wrong weight, so an axis fetch that
+     misses here reports null rather than a lie. */
+  const cssQ = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}${axis ? ":" + axis : ""}`;
   for (const ua of ["UIKitMaker-export/1.0 (TTF bundler; +https://uikitmaker.com)", null]) {
     try {
       const res = await fetch(cssQ, ua ? { headers: { "User-Agent": ua } } : undefined);
@@ -927,13 +936,14 @@ export async function fetchKitFont(family: string): Promise<{ file: string; byte
       const bytes = new Uint8Array(await fr.arrayBuffer());
       const lic = await fetchFontLicence(slug).catch(() => null);
       return {
-        file: `${family.replace(/[^A-Za-z0-9]/g, "")}-Regular.ttf`,
+        file: `${family.replace(/[^A-Za-z0-9]/g, "")}-${fileTag}.ttf`,
         bytes,
         licenceName: lic?.name ?? "LICENCE-POINTER.txt",
         licenceText: lic?.text ?? licencePointer(family),
       };
     } catch { /* next UA / next source */ }
   }
+  if (axis) return null; // a wrong-weight variable file is worse than none
   /* ── 2 · google/fonts METADATA.pb over the raw CDN (unauthenticated,
      no API rate limit): names the real TTF files in the collection ── */
   for (const dir of ["ofl", "apache", "ufl"]) {
@@ -1390,6 +1400,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       if (foAttr) fillOpacity = Math.round(fillOpacity * parseFloat(foAttr));
       const opAttr = t.getAttribute("opacity");
       if (opAttr) fillOpacity = Math.round(fillOpacity * parseFloat(opAttr));
+      /* the UNDERSTROKE (paint-order: stroke) — hudText's dark rim and the
+         content voice's ink outline both paint a stroke UNDER the fill.
+         The seat carries it or the word arrives thinner than the app
+         (owner benchmark: "the type is looking better but not good
+         enough"). Style attr and plain attrs are both real spellings. */
+      let strokeRim: { hex: string; a: number; emPct: number } | null = null;
+      {
+        const styleAttr = t.getAttribute("style") ?? "";
+        const paintOrder = /paint-order:\s*stroke/.test(styleAttr) || t.getAttribute("paint-order") === "stroke";
+        const sc = /(?:^|;)\s*stroke:\s*([^;]+)/.exec(styleAttr)?.[1] ?? t.getAttribute("stroke");
+        const swRaw = /stroke-width:\s*([\d.]+)/.exec(styleAttr)?.[1] ?? t.getAttribute("stroke-width");
+        if (paintOrder && sc && sc !== "none") {
+          const c1 = solid(sc);
+          const sw = parseFloat(swRaw ?? "0");
+          if (c1 && sw > 0.05)
+            strokeRim = { hex: c1.hex, a: Math.round(c1.a * 100), emPct: Math.round((sw / fs) * 100 * 10) / 10 };
+        }
+      }
       const central = t.getAttribute("dominant-baseline") === "central";
       const x = parseFloat(t.getAttribute("x") ?? "0") + tdx;
       const y0 = parseFloat(t.getAttribute("y") ?? "0") + tdy;
@@ -1413,6 +1441,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         spacingEmPct: emPct(t.getAttribute("letter-spacing")),
         fillMode, fill, fill2,
         fillOpacity: Math.max(0, Math.min(100, fillOpacity)),
+        ...(strokeRim ? { stroke: strokeRim.hex, strokeA: strokeRim.a, strokeEmPct: strokeRim.emPct } : {}),
       });
       if (seats.length >= 40) break; // sanity cap
     }
@@ -2388,6 +2417,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; }
   }
   setEmbedFont(st.cfg.type.font, primaryFontBytes);
+  /* the INSTRUMENT voice: panels draw HUD and readout text in Inter at
+     real 650-900 cuts, and TMP's synthetic bold reads visibly thinner
+     (owner benchmark, LapTimes/Leaderboard/Telemetry: "the type is
+     looking better but not good enough"). Ship the real heavy cut; the
+     importer builds Instrument SDF from it and the seat machinery wears
+     it for heavy non-kit voices. A fetch miss = today's grotesk+fake-bold
+     fallback, and the importer's faceStarved receipt already tells it. */
+  let instrumentFile: string | null = null;
+  {
+    const inst = await fetchKitFont("Inter", "wght@800", "ExtraBold").catch(() => null);
+    if (inst) {
+      instrumentFile = `fonts/${inst.file}`;
+      files.push({ path: instrumentFile, data: inst.bytes });
+      files.push({ path: `fonts/inter-${inst.licenceName}`, data: inst.licenceText });
+    }
+  }
   /* a fontless zip must NEVER leave the browser silently again (round-9
      field: War Chuds shipped no fonts/, Unity degraded to a bare default
      face and nothing anywhere said why) — say it here, loudly, and stamp
@@ -2574,6 +2619,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* true = the fetch chain failed end to end at export time — the
            importer says so loudly and keeps its dress demands pending */
         fontMissing: !primaryFontFile,
+        /* the real heavy Inter cut for the instrument voice (HUD/readout
+           text on panels) — null = fetch miss, grotesk fallback in Unity */
+        instrumentFile,
         /* the styled-text recipe — enough numbers to rebuild the kit's
            display treatment as a TextMeshPro material preset: face fill
            (or vertex gradient), outline, and glow/underlay */
@@ -4260,10 +4308,16 @@ namespace PatternBreak {
     public void Apply() {
       if (needle != null) needle.localRotation = Quaternion.Euler(0f, 0f, -value * sweep);
 #if UNITY_2023_2_OR_NEWER
-      if (number != null)
-        number.text = decimals > 0
-          ? (value * numberScale).ToString("F" + decimals, System.Globalization.CultureInfo.InvariantCulture)
-          : Mathf.RoundToInt(value * numberScale).ToString();
+      string txt = decimals > 0
+        ? (value * numberScale).ToString("F" + decimals, System.Globalization.CultureInfo.InvariantCulture)
+        : Mathf.RoundToInt(value * numberScale).ToString();
+      /* a HeroLabel echo stack on the Number child is driven whole (the
+         KitTimer pattern) — the readout keeps the app's layered dress
+         while it counts; a plain TMP readout still works as ever */
+      var numT = transform.Find("Number");
+      var hl = numT != null ? numT.GetComponentInChildren<HeroLabel>(true) : null;
+      if (hl != null) { if (hl.text != txt) hl.SetText(txt); }
+      else if (number != null && number.text != txt) number.text = txt;
 #endif
       shown = value;
     }
@@ -5657,7 +5711,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -5674,7 +5728,7 @@ namespace PatternBreak {
   [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string markInk; public string radioInk; }
   /* the live TIMER block: staged time, the app's exact word, and the
      specimen's canvas + rendered font size (readers gate on fs > 1 —
@@ -8009,6 +8063,44 @@ namespace PatternBreak {
       t.fontSizeMax = ls;
       t.fontSizeMin = 12f;
     }
+    /* layered mini-hero, echo construction (owner: "the unified
+       background stroke thing and effects pass on the group, instead
+       of each individual letter"): ONE text lays the word out; the
+       soft shadow and the merged stroke are echoes of its mesh
+       painted behind it, the glints in front. HeroLabel builds the
+       echoes itself at load — the prefab carries only the text and
+       the ink assignments, so nothing here can go stale. Shared by
+       the label ladder and the gauge readout (round 12: dressed
+       display voices all ride the same echo construction). */
+    static void BuildHeroStack(GameObject labelRoot, string text, string root, float ls, float authoredHeight, TMP_FontAsset layersFa, Material strokeInk) {
+      var lgo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer));
+      lgo.transform.SetParent(labelRoot.transform, false);
+      var lrt = lgo.GetComponent<RectTransform>();
+      lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+      lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      var lt = lgo.AddComponent<TextMeshProUGUI>();
+      lt.text = text;
+      lt.alignment = TextAlignmentOptions.Center;
+      // the GROUP owns sizing: auto-fit re-solving the size behind the
+      // group's back is how sizes used to wander
+      lt.fontSize = ls;
+      lt.enableAutoSizing = false;
+      lt.raycastTarget = false;
+      lt.font = layersFa;
+      lt.color = Color.white;
+      /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
+         (a fresh stack briefly applied text=PLAY/size=150 defaults and
+         saved that way) — set everything, then re-Apply via SetText */
+      var hl = labelRoot.AddComponent<HeroLabel>();
+      hl.fontSize = ls;
+      hl.shadowInk = InkMaterial(root, "Shadow");
+      hl.strokeInk = strokeInk;
+      hl.glintsInk = InkMaterial(root, "Glints");
+      // resizing the BUTTON scales the type with it (owner: "scaling
+      // needs to work like scaling") — remember the authored height
+      hl.authoredHeight = authoredHeight;
+      hl.SetText(text);
+    }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
       /* the APP-TRUE size beats the calibrated shrink when the manifest
@@ -8028,41 +8120,8 @@ namespace PatternBreak {
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
       if (layersFa != null && strokeInk != null) {
-        /* layered mini-hero, echo construction (owner: "the unified
-           background stroke thing and effects pass on the group, instead
-           of each individual letter"): ONE text lays the word out; the
-           soft shadow and the merged stroke are echoes of its mesh
-           painted behind it, the glints in front. HeroLabel builds the
-           echoes itself at load — the prefab carries only the text and
-           the ink assignments, so nothing here can go stale. */
-        var lgo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer));
-        lgo.transform.SetParent(go.transform, false);
-        var lrt = lgo.GetComponent<RectTransform>();
-        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-        lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
-        var lt = lgo.AddComponent<TextMeshProUGUI>();
-        lt.text = text;
-        lt.alignment = TextAlignmentOptions.Center;
-        // the GROUP owns sizing: auto-fit re-solving the size behind the
-        // group's back is how sizes used to wander
-        lt.fontSize = ls;
-        lt.enableAutoSizing = false;
-        lt.raycastTarget = false;
-        lt.font = layersFa;
-        lt.color = Color.white;
-        /* AddComponent fires ExecuteAlways OnEnable BEFORE the fields land
-           (a fresh stack briefly applied text=PLAY/size=150 defaults and
-           saved that way) — set everything, then re-Apply via SetText */
-        var hl = go.AddComponent<HeroLabel>();
-        hl.fontSize = ls;
-        hl.shadowInk = InkMaterial(root, "Shadow");
-        hl.strokeInk = strokeInk;
-        hl.glintsInk = InkMaterial(root, "Glints");
-        // resizing the BUTTON scales the type with it (owner: "scaling
-        // needs to work like scaling") — remember the authored height
         var prt = parent.GetComponent<RectTransform>();
-        hl.authoredHeight = prt != null ? prt.rect.height : 0f;
-        hl.SetText(text);
+        BuildHeroStack(go, text, root, ls, prt != null ? prt.rect.height : 0f, layersFa, strokeInk);
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -8210,6 +8269,13 @@ namespace PatternBreak {
       var lrowA = LabelRow(m, family);
       float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
 #if UNITY_2023_2_OR_NEWER
+      /* exact pixels FIRST — the same ladder FamilyPrefab climbs: when the
+         kit ships its baked faces (and the family forks no dynamic ink),
+         the word rides the HeroLabel echo stack, glints, merged stroke and
+         all. The dressed timer and dropdown words were the visible gap:
+         they took the styled-SDF rung while buttons took the bake. */
+      var bakedRung = BakedLabelFace(m, root, family);
+      if (bakedRung != null) { AddBakedLabel(parent, text, root, bakedRung, m, family); return; }
       var face = EnsureTmpFace(root, m, kitFont);
       /* FONTLESS kit (round-9, War Chuds): no TTF in the zip means no
          KitFace SDF — but a TMP label in the plain grotesk still wears
@@ -8880,6 +8946,55 @@ namespace PatternBreak {
     static TMP_FontAsset GaugeUnitFace() {
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
     }
+#if UNITY_2023_2_OR_NEWER
+    /* the INSTRUMENT face — the real heavy Inter cut the zip ships for the
+       HUD/readout voices (typography.instrumentFile). TMP's synthetic bold
+       on the grotesk reads visibly thinner than the app's Inter 800 (owner
+       benchmark, the racing panels: "the type is looking better but not
+       good enough"); a real cut closes the weight for good. Null = the
+       export couldn't bundle it — SeatVoice keeps the grotesk + Bold
+       approximation exactly as before. */
+    static TMP_FontAsset EnsureInstrumentFace(string root, PBManifest m) {
+      var path = root + "/fonts/Instrument SDF.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+      if (existing != null) return existing;
+      if (m == null || m.typography == null || string.IsNullOrEmpty(m.typography.instrumentFile)) return null;
+      var ttf = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile);
+      if (ttf == null) return null;
+      TMP_FontAsset fa = null;
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "Instrument SDF";
+      AssetDatabase.CreateAsset(fa, path);
+      if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      AssetDatabase.SaveAssets();
+      Debug.Log("UI Kit Maker: generated the instrument face at " + path + " — panel HUD text wears the app's real heavy cut instead of synthetic bold.");
+      return fa;
+    }
+    /* the app's paint-order UNDERSTROKE — the dark rim that keeps
+       instrument text legible over loud faces. One preset material per
+       (face, rim) pair; the path carries the rim key so different rims
+       never fight over one asset. create=false: probe passes only look
+       (the apply pass mints, the GaugeDressStale pattern). */
+    static Material EnsureSeatStrokeMaterial(string root, TMP_FontAsset face, PBSeat seat, bool create) {
+      if (face == null || face.material == null || seat == null || seat.strokeEmPct <= 0.5f) return null;
+      Color rim = new Color(0.03f, 0.05f, 0.09f, 0.6f);
+      Color parsed;
+      if (!string.IsNullOrEmpty(seat.stroke) && ColorUtility.TryParseHtmlString(seat.stroke, out parsed)) {
+        rim = parsed;
+        rim.a = seat.strokeA > 0f ? Mathf.Clamp01(seat.strokeA / 100f) : 0.6f;
+      }
+      var key = ColorUtility.ToHtmlStringRGBA(rim) + "-" + Mathf.RoundToInt(seat.strokeEmPct);
+      var path = root + "/fonts/" + face.name.Replace("/", "-") + " Understroke " + key + ".mat";
+      if (!create) return AssetDatabase.LoadAssetAtPath<Material>(path);
+      var ink = new PBStyle();
+      ink.outline = new PBStyleOutline();
+      ink.outline.color = "#" + ColorUtility.ToHtmlStringRGBA(rim);
+      ink.outline.width = seat.strokeEmPct * 0.52f; // em% → the app's dial units (px at fs 52)
+      return EnsureInkPresetMaterial(face, ink, path);
+    }
+#endif
     static Material EnsureGaugeUnitMaterial(string root, TMP_FontAsset kitFace) {
       // an empty recipe strips outline, glow, underlay and bevel — the
       // PLAIN kit-face material (gauge units, undressed kit-voice seats)
@@ -9016,8 +9131,12 @@ namespace PatternBreak {
 #if UNITY_2023_2_OR_NEWER
     /* which face + material a seat wears — one resolver for builder,
        dresser and probe, so they can never disagree */
-    static void SeatVoice(PBSeat seat, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, out TMP_FontAsset face, out Material mat) {
+    static void SeatVoice(PBSeat seat, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, TMP_FontAsset instrument, out TMP_FontAsset face, out Material mat, out bool realWeight) {
+      realWeight = false;
       if (seat.kit) { face = kitFace; mat = seat.dressed ? dressMat : plainKitMat; }
+      /* the heavy instrument voices wear the REAL cut when it shipped —
+         synthetic bold was the visible "thinner than the app" delta */
+      else if (instrument != null && seat.weight >= 700) { face = instrument; mat = null; realWeight = true; }
       else if (grotesk != null) { face = grotesk; mat = null; }
       else { face = kitFace; mat = plainKitMat; }
     }
@@ -9087,7 +9206,7 @@ namespace PatternBreak {
       t.extraPadding = true;        // SDF glow/underlay never clips at glyph edges
       t.parseCtrlCharacters = false; // a literal backslash in a maker's word stays literal
     }
-    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, bool apply) {
+    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, bool realWeight, bool apply) {
       Color top = Color.white, bot = Color.white;
       bool grad = seat.fillMode == "gradient";
       Color c0;
@@ -9095,7 +9214,11 @@ namespace PatternBreak {
       if (grad) { bot = top; if (!string.IsNullOrEmpty(seat.fill2) && ColorUtility.TryParseHtmlString(seat.fill2, out c0)) bot = c0; }
       float fo = seat.fillOpacity > 0f ? Mathf.Clamp01(seat.fillOpacity / 100f) : 1f;
       top.a *= fo; bot.a *= fo;
-      var style = (seat.italic ? FontStyles.Italic : FontStyles.Normal) | (seat.weight >= 700 ? FontStyles.Bold : FontStyles.Normal);
+      /* a REAL weight cut carries its own boldness — the synthetic Bold flag
+         only papers over a face that lacks one (and 900 on an 800 cut gets
+         the flag back, the closest honest step) */
+      bool wantBold = seat.weight >= 900 || (seat.weight >= 700 && !realWeight);
+      var style = (seat.italic ? FontStyles.Italic : FontStyles.Normal) | (wantBold ? FontStyles.Bold : FontStyles.Normal);
       float wantFs = SeatFs(seat, rootH);
       bool matOk = mat == null || face == null || t.font != face || t.fontSharedMaterial == mat;
       bool current = t.fontStyle == style
@@ -9167,9 +9290,10 @@ namespace PatternBreak {
       bool canMat = kitFace != null && kitFace.material != null;
       bool needDress = false, needPlainKit = false;
       var grotesk = GaugeUnitFace();
+      var instrument = EnsureInstrumentFace(root, m);
       foreach (var s0 in row.textSeats) {
         if (s0.kit && s0.dressed) needDress = true;
-        if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null)) needPlainKit = true;
+        if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700))) needPlainKit = true;
       }
       needDress = needDress && SeatInkShips(row);
       Material dressMat = null, plainKitMat = null;
@@ -9205,15 +9329,22 @@ namespace PatternBreak {
           var rrt = t.transform.parent as RectTransform;
           if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
         }
-        TMP_FontAsset face; Material mat;
-        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
+        TMP_FontAsset face; Material mat; bool realWeight;
+        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, instrument, out face, out mat, out realWeight);
+        /* the understroke rim rides a preset material on the plain voices —
+           probe passes only look; a wanted-but-missing preset IS drift */
+        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f) {
+          var rimMat = EnsureSeatStrokeMaterial(root, face, seat, apply);
+          if (rimMat != null) mat = rimMat;
+          else if (!apply) drift = true;
+        }
         var srt = t.GetComponent<RectTransform>();
         if (srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
         if (t.text != seat.text || t.gameObject.name != PlainWord(seat.text)) {
           drift = true;
           if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
         }
-        if (!DressSeatText(t, seat, face, mat, rootH, apply)) drift = true;
+        if (!DressSeatText(t, seat, face, mat, rootH, realWeight, apply)) drift = true;
       }
       if (apply && respected > 0)
         Debug.Log("UI Kit Maker: " + host.name + " — kept " + respected + " word(s) you retyped in Unity (a re-import only updates words still carrying their seeded text).");
@@ -9233,8 +9364,9 @@ namespace PatternBreak {
         ? EnsureInkPresetMaterial(kitFace, row.seatInk, root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat")
         : null;
       var grotesk = GaugeUnitFace();
+      var instrument = EnsureInstrumentFace(root, m);
       bool needPlainKit = false;
-      foreach (var s0 in row.textSeats) if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null)) needPlainKit = true;
+      foreach (var s0 in row.textSeats) if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700))) needPlainKit = true;
       Material plainKitMat = needPlainKit && kitFace != null ? EnsureGaugeUnitMaterial(root, kitFace) : null;
       var words = new GameObject("Words", typeof(RectTransform));
       words.transform.SetParent(host.transform, false);
@@ -9269,11 +9401,13 @@ namespace PatternBreak {
         t.fontSize = SeatFs(seat, rootH);
         SeatHarden(t);
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
-        TMP_FontAsset face; Material mat;
-        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, out face, out mat);
+        TMP_FontAsset face; Material mat; bool realWeight;
+        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, instrument, out face, out mat, out realWeight);
+        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f)
+          mat = EnsureSeatStrokeMaterial(root, face, seat, true);
         SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         if (face != null) t.font = face;
-        DressSeatText(t, seat, face, mat, rootH, true);
+        DressSeatText(t, seat, face, mat, rootH, realWeight, true);
       }
 #endif
     }
@@ -9600,6 +9734,28 @@ namespace PatternBreak {
       return t;
     }
 #endif
+#if UNITY_2023_2_OR_NEWER
+    /* the gauge number as a HeroLabel echo stack, seated at the gauge's
+       own readout point — GaugeDial drives it whole (the KitTimer
+       pattern). False = the kit ships no layer faces (or the family
+       forks its ink) and the styled-TMP readout takes the seat instead. */
+    static bool GaugeNumberStack(GameObject host, Sprite sp, int pngScale, PBGauge g, string root, PBManifest m, string fam) {
+      var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
+      var strokeInk = InkMaterial(root, "Stroke");
+      if (layersFa == null || strokeInk == null || BakedLabelFace(m, root, fam) == null) return false;
+      float rw = sp.rect.width, rh = sp.rect.height;
+      if (rw < 2f || rh < 2f || pngScale <= 0) return false;
+      var go = new GameObject("Number", typeof(RectTransform));
+      go.transform.SetParent(host.transform, false);
+      var rt = go.GetComponent<RectTransform>();
+      var c = new Vector2(g.x / rw, 1f - g.y / rh);
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = Vector2.zero;
+      rt.sizeDelta = new Vector2(rw / pngScale * 0.7f, g.fs / pngScale * 1.5f);
+      BuildHeroStack(go, "0", root, g.fs / pngScale, 0f, layersFa, strokeInk);
+      return true;
+    }
+#endif
     /* wire a gauge's moving parts IN PLACE — shared by the builders and
        the maintenance pass, so a bones prefab from an earlier importer
        gains its needle wiring and seated readout without being rebuilt
@@ -9634,7 +9790,12 @@ namespace PatternBreak {
       var g = GaugeRow(m, fam);
       Color unitInk = GaugeUnitInk(m, g);
       if (g != null && host.transform.Find("Number") == null) {
-        gd.number = GaugeText(host, img.sprite, pngScale, "0", "Number", g.x, g.y, g.fs, Color.white, false, root);
+        /* the readout rides the HeroLabel echo stack when the kit ships
+           its baked layer faces — the app's layered digit dress (merged
+           stroke, glints, soft shadow) counting live, the same ladder the
+           labels climb. The styled-TMP readout stays the fallback rung. */
+        if (!GaugeNumberStack(host, img.sprite, pngScale, g, root, m, fam))
+          gd.number = GaugeText(host, img.sprite, pngScale, "0", "Number", g.x, g.y, g.fs, Color.white, false, root);
         GaugeText(host, img.sprite, pngScale, fam == "tacho" ? "RPM ×1000" : "MPH", "Unit", g.x, g.unitY, g.unitFs, unitInk, true, root);
       }
       if (gd.number == null) {
