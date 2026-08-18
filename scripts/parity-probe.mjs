@@ -530,7 +530,10 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
   const glow = { rows: [], mode: "?" };
   {
     const fxCs = new TextDecoder().decode(files.get("Runtime/PatternBreakStateFx.cs") ?? files.get("PatternBreakStateFx.cs") ?? new Uint8Array());
-    const stretch = /glowRt\.anchoredPosition = Vector2\.zero/.test(fxCs) && /glowRt\.anchorMax = Vector2\.one/.test(fxCs);
+    // stretch mode markers: round 15 wrote a zero offset; round 17 writes
+    // the baked-sink slide (zero at rest) — both are the stretch contract
+    const stretch = /glowRt\.anchorMax = Vector2\.one/.test(fxCs)
+      && (/glowRt\.anchoredPosition = Vector2\.zero/.test(fxCs) || /glowRt\.anchoredPosition = slide/.test(fxCs));
     const legacyCopy = /var tgt = artRt != null \? artRt : rt;/.test(fxCs);
     glow.mode = stretch ? "stretch (round 15)" : legacyCopy ? "LEGACY host-copy (pre-round-15)" : "unknown";
     const gImg = await sprite("assets/button-primary/button-primary-glow.png");
@@ -583,6 +586,25 @@ const runKit = async (kitName) => await page.evaluate(async (KIT) => {
       const wantW = rA.w + 2 * pad.x * rA.sx, wantH = rA.h + 2 * pad.y * rA.sy;
       const ok = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(rH.w - wantW) < 0.5 && Math.abs(rH.h - wantH) < 0.5 && Math.abs(rH.sx - rA.sx) < 1e-6;
       glow.rows.push({ ctx: c.name, verdict: ok ? "PASS" : "FAIL", centerDx: dx, centerDy: dy, size: `${Math.round(rH.w)}x${Math.round(rH.h)}`, want: `${Math.round(wantW)}x${Math.round(wantH)}` });
+    }
+    /* round 17: the pressed sink happens ONCE and the halo presses WITH
+       the face (app truth: face, label and aura travel together by the
+       state lift). Mechanism row with a synthetic −14 relative lift on a
+       swap build — semantics detected from the shipped C#: swap builds
+       bake the sink in the sprite, so the root must hold still and the
+       halo must slide by the lift; anything else is a parked glow or a
+       doubled sink. */
+    {
+      const bakedSlide = /BakedSink\(\) \? new Vector2\(0f, liftNow\)/.test(fxCs);
+      const rootGuard = /if \(!BakedSink\(\)\)/.test(fxCs);
+      const LIFT = -14;
+      const rootDelta = bakedSlide && rootGuard ? 0 : LIFT;
+      const bakedArt = LIFT;                        // inside the swap sprite
+      const faceTotal = rootDelta + bakedArt;       // what the eye sees sink
+      const haloTotal = rootDelta + (bakedSlide ? LIFT : 0);
+      const ok = faceTotal === LIFT && haloTotal === LIFT;
+      glow.rows.push({ ctx: "pressed sink (swap build)", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: haloTotal - faceTotal, size: `face ${faceTotal}, halo ${haloTotal}`, want: `both ${LIFT}` });
+      if (bakedSlide && rootGuard) glow.mode += " + baked-sink slide (round 17)";
     }
     glow.pad = pad;
     glow.alphas = { hover: aHover, pressed: aPress, distinct: Math.abs(aHover - aPress) > 0.05 };

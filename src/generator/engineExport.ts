@@ -3620,10 +3620,19 @@ namespace PatternBreak {
        localScale SQUARED the scale on scaled board copies. The child
        instead STRETCHES over its parent's rect plus the pad — native
        following, nothing to lag, nothing to displace.
+       ROUND 17 (owner: the glow "doesn't move with the button like they
+       do on the website"; app truth measured — face, label AND aura all
+       travel together by the state lift): on SWAP builds the sink is
+       baked INSIDE the state sprite — the rect never moves, so the halo
+       held still while the art sank. The halo now SLIDES by the live
+       lift in baked-sink mode, mirroring the sprite's internal shift;
+       on tiled/rig builds the root itself carries the sink (Push) and
+       the halo rides along natively as its child.
        Change-guarded: a quiet frame costs a few compares and writes
        nothing, so no canvas is dirtied at rest. */
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
+      var slide = BakedSink() ? new Vector2(0f, liftNow) : Vector2.zero;
       if (artRt != null) {
         var tgt = artRt;
         if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
@@ -3634,12 +3643,14 @@ namespace PatternBreak {
         // an ADDITIVE offset — correct whether the piece is fixed or stretched
         var size = tgt.sizeDelta + glowPad * 2f;
         if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
-        // the piece's own y already carries the lift — the halo just sits
-        // exactly where the art sits, no lift math of its own
-        if (glowRt.anchoredPosition != tgt.anchoredPosition) glowRt.anchoredPosition = tgt.anchoredPosition;
+        // the art child's own frame is static — the posed state skins bake
+        // the sink inside their pixels, so the halo adds the slide itself
+        var want = tgt.anchoredPosition + slide;
+        if (glowRt.anchoredPosition != want) glowRt.anchoredPosition = want;
         return;
       }
-      // LIVE: the halo STRETCHES over the host rect + pad
+      // LIVE: the halo STRETCHES over the host rect + pad, sliding with
+      // the baked sink so it presses WITH the face like the app's aura
       if (glowRt.anchorMin != Vector2.zero) glowRt.anchorMin = Vector2.zero;
       if (glowRt.anchorMax != Vector2.one) glowRt.anchorMax = Vector2.one;
       var half = new Vector2(0.5f, 0.5f);
@@ -3647,7 +3658,16 @@ namespace PatternBreak {
       if (glowRt.localScale != Vector3.one) glowRt.localScale = Vector3.one;
       var pad2 = glowPad * 2f;
       if (glowRt.sizeDelta != pad2) glowRt.sizeDelta = pad2;
-      if (glowRt.anchoredPosition != Vector2.zero) glowRt.anchoredPosition = Vector2.zero;
+      if (glowRt.anchoredPosition != slide) glowRt.anchoredPosition = slide;
+    }
+    /* SWAP builds bake the state sink INSIDE the sprite (the union-crop
+       contract: "a pressed sink stays a sink") — the root must hold
+       still or the sink doubles, and the halo mirrors the baked shift
+       instead. Tiled/rig builds (no swap sprites) keep root motion. */
+    bool BakedSink() {
+      if (sel == null || sel.transition != Selectable.Transition.SpriteSwap) return false;
+      var ss = sel.spriteState;
+      return ss.pressedSprite != null || ss.highlightedSprite != null;
     }
     void LateUpdate() {
       if (rt == null) return;
@@ -3711,10 +3731,18 @@ namespace PatternBreak {
       if (snap) { glowNow = glowTo; liftNow = liftTo; }
       if (glowImg != null) glowImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, Mathf.Clamp01(glowNow / 100f) * 0.85f);
       if (rt != null) {
-        rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
-        lastWroteY = baseY + liftNow;
+        /* WHO carries the sink (round 17, app truth: face, label and aura
+           travel together by the state lift, once): SWAP builds bake it
+           into the state sprite — moving the root as well DOUBLED the
+           sink on kits whose states differ in lift, and the halo slides
+           in MirrorHost instead. Builds without swap sprites keep the
+           root motion that has always been the sink. */
+        if (!BakedSink()) {
+          rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY + liftNow);
+          lastWroteY = baseY + liftNow;
+        } else lastWroteY = rt.anchoredPosition.y; // the adoption logic stays quiet
       }
-      // the halo follows in MirrorHost — the piece's y carries the lift
+      // the halo follows in MirrorHost — root motion or the baked slide
       MirrorHost();
     }
   }

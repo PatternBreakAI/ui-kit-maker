@@ -193,9 +193,18 @@ if (!/it\.component == "timerdigits"/.test(cs) || !/m\.timer\.shellH > 4f \? it\
    and copying the host's localScale squared the scale on scaled copies.
    The live halo must STRETCH over its parent's rect plus the pad. */
 if (!/glowRt\.anchorMax != Vector2\.one\) glowRt\.anchorMax = Vector2\.one/.test(fx)
-    || !/glowRt\.anchoredPosition != Vector2\.zero\) glowRt\.anchoredPosition = Vector2\.zero/.test(fx)
+    || !/glowRt\.anchoredPosition != slide\) glowRt\.anchoredPosition = slide/.test(fx)
     || !/glowRt\.localScale != Vector3\.one\) glowRt\.localScale = Vector3\.one/.test(fx))
-  errors.push("the LIVE halo must stretch over the host rect (anchors 0-1, anchoredPosition zero, localScale one) — round 15");
+  errors.push("the LIVE halo must stretch over the host rect (anchors 0-1, localScale one, anchoredPosition = the baked-sink slide) — rounds 15+17");
+/* round-17 item A: the sink happens ONCE and the glow presses WITH the
+   face (app truth measured: face, label and aura all travel together by
+   the state lift). Swap builds bake the sink in the sprite — the root
+   must hold still and the halo slides; tiled/rig builds keep root
+   motion. */
+if (!/bool BakedSink\(\)/.test(fx) || !/BakedSink\(\) \? new Vector2\(0f, liftNow\) : Vector2\.zero/.test(fx))
+  errors.push("the halo's baked-sink slide (round 17) is missing — the glow parks while the art presses");
+if (!/if \(!BakedSink\(\)\) \{\s*\n\s*rt\.anchoredPosition = new Vector2\(rt\.anchoredPosition\.x, baseY \+ liftNow\);/.test(fx))
+  errors.push("Push must guard the root lift behind !BakedSink() — swap builds double the baked sink otherwise (round 17)");
 if (/var tgt = artRt != null \? artRt : rt;/.test(fx))
   errors.push("the parent-space MirrorHost copy is back — host anchors/anchoredPosition must never be applied to a CHILD of the host (round 15)");
 
