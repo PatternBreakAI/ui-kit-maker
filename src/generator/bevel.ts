@@ -8449,6 +8449,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const mp: string[] = [`<path d="${wellP2}" fill="${wellFill}" opacity="0.94"/>`];
       // Unity extras export: frame + well only — the dev's map goes inside
       if (opts.part === "shell") return inject(track, mp.join(""));
+      /* export-only (round 14 — owner: "I didn't want to lose the normal
+         map"): the well's STATIC map content alone — grid + player arrow —
+         on a transparent well-box canvas. Round 10 made board copies place
+         the live Minimap prefab, and its shell-only sprite dropped what
+         the app draws inside the well; this part restores it as a
+         delete-friendly "Demo Map" layer. Blips and the compass letter
+         stay live (RadarDemo + the manifest text seat). */
+      if (opts.part === "map") {
+        const mx0 = 33 + inset4, my0 = 27 + inset4, mside = d4 - inset4 * 2;
+        const grid: string[] = [`<path d="M ${cx4 - innerR} ${cy4} H ${cx4 + innerR} M ${cx4} ${cy4 - innerR} V ${cy4 + innerR}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`];
+        if (!round2 && !circleWell) grid.push(`<path d="M ${mx0} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${mx0} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${my0} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${my0} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
+        grid.push(`<path d="M ${cx4} ${cy4 - 11} L ${cx4 + 8} ${cy4 + 8} L ${cx4} ${cy4 + 3} L ${cx4 - 8} ${cy4 + 8} Z" fill="#FFFFFF" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/>`);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${mside.toFixed(0)}" height="${mside.toFixed(0)}" viewBox="${mx0.toFixed(1)} ${my0.toFixed(1)} ${mside.toFixed(0)} ${mside.toFixed(0)}">${grid.join("")}</svg>`;
+      }
       mp.push(`<path d="M ${cx4 - innerR} ${cy4} H ${cx4 + innerR} M ${cx4} ${cy4 - innerR} V ${cy4 + innerR}" stroke="rgba(255,255,255,0.1)" stroke-width="1.4"/>`);
       if (!round2 && !circleWell) mp.push(`<path d="M ${33 + inset4} ${cy4 - innerR * 0.5} H ${33 + d4 - inset4} M ${33 + inset4} ${cy4 + innerR * 0.5} H ${33 + d4 - inset4} M ${cx4 - innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4} M ${cx4 + innerR * 0.5} ${27 + inset4} V ${27 + d4 - inset4}" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>`);
       // blips + player arrow
@@ -8768,8 +8782,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         segs += `<line x1="${(cx3 + Math.cos(a) * rI).toFixed(1)}" y1="${(cy3 + Math.sin(a) * rI).toFixed(1)}" x2="${(cx3 + Math.cos(a) * rO).toFixed(1)}" y2="${(cy3 + Math.sin(a) * rO).toFixed(1)}" stroke="${col}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round" opacity="${lit ? 0.95 : useHousing ? 0.2 : isDarkBg(cfg.canvas) ? 0.14 : 0.3}"${lit ? ` filter="url(#${gid8}g)"` : ""}/>`;
       }
       if (part === "segment") {
-        const segW = 10 * k, segH = 26 * k;
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${(segW * 2).toFixed(0)}" height="${(segH + 12).toFixed(0)}" viewBox="0 0 ${(segW * 2).toFixed(0)} ${(segH + 12).toFixed(0)}"><line x1="${segW}" y1="6" x2="${segW}" y2="${segH + 6}" stroke="${glow}" stroke-width="${segW.toFixed(1)}" stroke-linecap="round"/></svg>`;
+        /* export-only (round 14): ONE segment at the ARC'S OWN geometry —
+           stroke 8k, radial span rO−rI = 20k, round caps — and WHITE, so
+           the SpeedoArc's live segments tint cleanly along the palette
+           (Image.color multiplies; a glow-colored sprite can't reach the
+           bevel end of the ramp). The old 10k×26k glow-colored pill was a
+           near-match that could never sit pixel-true on the baked grid. */
+        const segW = 8 * k, segL = 20 * k, pad = 2;
+        const W3 = segW + pad * 2, H3 = segL + segW + pad * 2; // caps add segW/2 each end
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${W3.toFixed(0)}" height="${H3.toFixed(0)}" viewBox="0 0 ${W3.toFixed(0)} ${H3.toFixed(0)}"><line x1="${(W3 / 2).toFixed(1)}" y1="${(pad + segW / 2).toFixed(1)}" x2="${(W3 / 2).toFixed(1)}" y2="${(pad + segW / 2 + segL).toFixed(1)}" stroke="#FFFFFF" stroke-width="${segW.toFixed(1)}" stroke-linecap="round"/></svg>`;
       }
       const arc = `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 30 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.25)}" stroke-width="1.5" stroke-dasharray="3 7"/>`;
       const readout = part === "face" ? "" :
@@ -8779,8 +8800,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
         // the face part's seat + dial stamp — attributes never rasterize
+        /* the face part ALSO stamps the segment polar grid (round 14 —
+           owner: the scene's arc sat unlit while the board showed 62%):
+           rI rO strokeW count a0° sweep°, app coords (y down), same
+           attribute discipline — never rasterizes, the shipped pixels
+           stay byte-identical. The importer builds live segments on this
+           exact grid and GaugeDial lights them to the value. */
         const openTag2 = part === "face"
-          ? `<svg data-race="speedo2" data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
+          ? `<svg data-race="speedo2" data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" data-gauge-seg="${(r0 - 20 * k).toFixed(1)} ${r0.toFixed(1)} ${(8 * k).toFixed(1)} ${N} 135 270" `
           : '<svg data-race="speedo2" ';
         return inject(track.replace("<svg ", openTag2),
           `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);

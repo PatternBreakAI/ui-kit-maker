@@ -69,6 +69,12 @@ interface AssetMeta {
      *  needle child anchors here instead of stretching the whole rect.
      *  Absent on pre-housed manifests: the importer keeps full-stretch. */
     dialX?: number; dialY?: number;
+    /** The lit-segment polar grid (round 14, the HUD arc): radii/width in
+     *  face file px around the dial center, count and app-frame angles in
+     *  degrees (y down). The importer builds live segment sprites on this
+     *  grid; GaugeDial lights them to the value — the scene finally
+     *  strikes the lit pose the board showed. Absent = no live ring. */
+    seg?: { rI: number; rO: number; w: number; n: number; a0: number; sweep: number };
     ink?: {
       weight: number; italic: boolean; spacingEmPct: number;
       fillMode: string; fill: string; fill2: string | null; fillOpacity: number;
@@ -700,6 +706,14 @@ export async function collectExportBoards(st: {
       let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
       let posedStates: { hover?: string; pressed?: string; disabled?: string } | null = null;
       let posedLabelPx: { dx: number; dy: number } | null = null;
+      /* PURE-TYPE pieces never pose (round 14 — the owner's boardstamps
+         full of blank PNGs): the timer's render IS its label, so a
+         label-stripped pose bake is transparent by construction — four
+         dead files per copy (`-p<sid>.png` + three states), and the live
+         word already carries everything. The divergence test itself was
+         rigged against it: its natural render used label "" (no
+         PREF_LABEL row), so EVERY timer copy "diverged". */
+      const pureType = idBase === "timerdigits";
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
@@ -728,7 +742,7 @@ export async function collectExportBoards(st: {
            look, so the clone's own design, its designed state skins and
            its label seat exist nowhere else in the zip — they must travel
            as pixels regardless of how closely the pose matches */
-        if (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08) {
+        if (!pureType && (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08)) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
@@ -766,10 +780,18 @@ export async function collectExportBoards(st: {
              shifts by the same ratio, so the SHELL still lands precisely
              where the board drew it. */
           const pb3 = shellBoxOf(ps2);
+          /* a pose with NO INK ships nothing (round 14, the blank-stamps
+             field report): once the label strips, a piece whose visible
+             art was all label rasterizes fully transparent — four dead
+             PNGs per copy in the user's project. Blank is PROVEN (no
+             alpha at raster AND no drawable node left), never guessed —
+             on a failed alpha scan alone the art still ships. */
+          const ab = await svgAlphaBox(ps2, 2, 8).catch(() => null);
+          if (!ab && !new DOMParser().parseFromString(ps2, "image/svg+xml").querySelector("path,rect,circle,ellipse,line,polyline,polygon,image,text,use"))
+            throw new Error("blank pose — live placement carries the copy");
           let cropBox: [number, number, number, number] | null = null;
           if (pb3) {
             let box: [number, number, number, number] = pb3;
-            const ab = await svgAlphaBox(ps2, 2, 8).catch(() => null);
             const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(ps2);
             if (ab && vbm3) {
               const pad = 2; // soft AA tails below the alpha threshold
@@ -2177,11 +2199,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        designs and per-piece text fills travel with it (the master
        typography.style would miss a speedo-scoped fork). */
     const pc = pieceCfg(id);
+    /* the SEGMENT polar grid (round 14, the HUD arc): rI rO strokeW count
+       a0° sweep° in svg units off the face render — radii/width scale to
+       file px, angles/count travel verbatim. The importer builds live
+       segments on this grid and GaugeDial lights them to the value, so
+       the scene strikes the lit pose the board showed. */
+    const sm = /data-gauge-seg="([-\d. ]+)"/.exec(svg);
+    const sv = sm ? sm[1].split(" ").map(Number) : null;
+    const seg = sv && sv.length === 6 && sv.every((n) => Number.isFinite(n))
+      ? { rI: Math.round(sv[0] * PNG_SCALE), rO: Math.round(sv[1] * PNG_SCALE), w: Math.round(sv[2] * PNG_SCALE * 10) / 10, n: sv[3], a0: sv[4], sweep: sv[5] }
+      : null;
     return {
       x: Math.round(v[0] * PNG_SCALE), y: Math.round(v[1] * PNG_SCALE),
       fs: Math.round(v[2] * PNG_SCALE * 10) / 10,
       unitY: Math.round(v[3] * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
       ...(v.length === 7 ? { dialX: Math.round(v[5] * PNG_SCALE), dialY: Math.round(v[6] * PNG_SCALE) } : {}),
+      ...(seg ? { seg } : {}),
       ink: contentInkOf(id),
       // effect(effects, "Glow")'s exact fallback chain (bevel.ts)
       unitInk: pc.effects.Glow ?? lighten(pc.effects.Bevel ?? "#0E9CC9", 0.55),
@@ -2296,6 +2329,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   {
     const mmSvg = shell("minimap", { part: "shell" });
     await addPng("extras/minimap.png", mmSvg, { component: "minimap", part: "minimap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Mini-map frame in the kit silhouette — the Minimap prefab adds a demo radar sweep + blips (children named 'Demo …', delete freely and render your map inside the well); the compass letter is live text.", ...textSeatsOf("minimap", mmSvg) });
+    /* the well's MAP CONTENT (round 14 — owner: "I like the radar, but I
+       didn't want to lose the normal map"): grid + player arrow on a
+       transparent well-box canvas. Round 10's live Minimap prefab placed
+       the shell-only sprite on boards and the map the app draws inside
+       the well vanished with the baked art; this layer restores it as a
+       delete-friendly "Demo Map" child under the radar sweep. */
+    await addPng("extras/minimap-map.png", shell("minimap", { part: "map" }), { component: "minimap", part: "map", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The mini-map well's demo map content (grid + player arrow) — the app's own board render of the radar interior. Rides the Minimap prefab as 'Demo Map'; delete it and render your world map in the well instead." });
     const mcSvg = shell("movecounter", { part: "shell" }, undefined, 0.8);
     await addPng("extras/movecounter.png", mcSvg, { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption arrive as live text on the MoveCounter prefab (your app words and staged count).", ...textSeatsOf("movecounter", mcSvg, {}, undefined, 0.8) });
     const atSvg = shell("achievetoast", { part: "shell" });
@@ -3145,6 +3185,18 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
       });
     };
     for (const v of variants) {
+      /* glints OFF renders NOTHING — enforced by SKIPPING the render, not
+         by the mutate's fillOpacity=0: single-master faces paint their
+         synthetic-weight stroke in the FILL PAINT regardless of fill
+         opacity (Russo One at 700 leaves a full cream ring per glyph, and
+         ink shine/inflate ride the letterform the same way), so a
+         glints-off kit still shipped a "mask" full of pale rings. Unity
+         then armed the Glints ink and the GlintInk shader's style-0 path
+         drew that atlas RAW over every echo-stack word — the round-14
+         phantom halo on the timer and gauge readouts (owner: a pale
+         cream halo the design doesn't have). No render → no cells → no
+         layer → no ink material → no echo. */
+      if (v.key === "glints" && !base.type.glints?.on) continue;
       const box = await rasterInk(
         renderTypeSpecimen(base, ch, {
           keepCase: true, highlight: "", mutate: v.mutate, fxPad,
@@ -4333,6 +4385,12 @@ namespace PatternBreak {
     public float numberScale = 174f;
     [Tooltip("Decimal places on the readout (the rev meter shows one).")]
     public int decimals = 0;
+    [Tooltip("Live light segments (the HUD arc) — built by the importer on the app's own polar grid, lit up to Value exactly like the board. Empty on needle gauges.")]
+    public UnityEngine.UI.Image[] segments;
+    [Tooltip("Segment tint at the sweep start — the kit's Bevel role (the app ramps bevel to glow).")]
+    public Color segFrom = Color.white;
+    [Tooltip("Segment tint at the sweep end — the kit's Glow role.")]
+    public Color segTo = Color.white;
 #if UNITY_2023_2_OR_NEWER
     [Tooltip("The live readout text. The importer seats it exactly where the app draws the number (manifest > gauge).")]
     public TMP_Text number;
@@ -4340,6 +4398,25 @@ namespace PatternBreak {
     float shown = -1f;
     public void Apply() {
       if (needle != null) needle.localRotation = Quaternion.Euler(0f, 0f, -value * sweep);
+      /* the arc's value IS its lit ring (round 14 — the scene's arc sat
+         unlit while the board showed 62%): light segment i when
+         (i+0.5)/n <= value, tinted along the kit palette — the app's own
+         rule and ramp, verbatim. Unlit steps stay the baked face's ghost
+         ticks: the live sprite simply turns off. */
+      if (segments != null && segments.Length > 0) {
+        int n = segments.Length;
+        for (int i = 0; i < n; i++) {
+          var sg = segments[i];
+          if (sg == null) continue;
+          bool lit = (i + 0.5f) / n <= value;
+          if (sg.gameObject.activeSelf != lit) sg.gameObject.SetActive(lit);
+          if (lit) {
+            var c = Color.Lerp(segFrom, segTo, (float)i / n);
+            c.a = 0.95f; // the app's lit opacity
+            if (sg.color != c) sg.color = c;
+          }
+        }
+      }
 #if UNITY_2023_2_OR_NEWER
       string txt = decimals > 0
         ? (value * numberScale).ToString("F" + decimals, System.Globalization.CultureInfo.InvariantCulture)
@@ -5737,7 +5814,11 @@ namespace PatternBreak {
      unitInk = the unit line's fill, the piece's Glow role (the app draws
      it at 75% alpha). JsonUtility default-constructs missing nested
      objects, so readers gate on ink.fillMode being non-empty. */
-  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public float dialX; public float dialY; public PBStyle ink; public string unitInk; }
+  /* round 14: the HUD arc's lit-segment polar grid — radii/width in face
+     file px around the dial center, count + app-frame angles (y down) in
+     degrees. n == 0 (absent block) = no live ring. */
+  [Serializable] class PBGaugeSeg { public float rI; public float rO; public float w; public float n; public float a0; public float sweep; }
+  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public float dialX; public float dialY; public PBGaugeSeg seg; public PBStyle ink; public string unitInk; }
   /* a live TEXT SEAT: one text node of the app's render — the maker's own
      string, its center as NORMALIZED SPRITE FRACTIONS (fx/fy, y from the
      top) and its font size as a fraction of sprite height (ffs) — the
@@ -6179,6 +6260,37 @@ namespace PatternBreak {
         foreach (var o in prev.orphans)
           if (!string.IsNullOrEmpty(o) && !inManifest.Contains(o) && !orphans.Contains(o) && File.Exists(root + "/" + o))
             orphans.Add(o);
+      /* ── I3b (round 14): board-scene bakes live under boardstamps/ —
+         OUTSIDE the manifest's asset list — so a stale instance bake
+         (e.g. the blank timer poses earlier exports wrote, now never
+         written at all) was invisible to the orphan report forever. When
+         this zip ships boards, their stamp/pose/mask/background files
+         are the complete truth: name anything on disk they no longer
+         reference. Deletion stays a human's click, same as ever. A zip
+         that ships NO boards says nothing about scenes and skips the
+         sweep — old scenes keep their art unslandered. ── */
+      if (manifest.boards != null && manifest.boards.Length > 0 && Directory.Exists(root + "/boardstamps")) {
+        var stampsInUse = new HashSet<string>();
+        foreach (var bR in manifest.boards) {
+          if (bR == null) continue;
+          if (bR.bg != null && !string.IsNullOrEmpty(bR.bg.file)) stampsInUse.Add(bR.bg.file);
+          if (bR.items == null) continue;
+          foreach (var itR in bR.items) {
+            if (itR == null) continue;
+            foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled })
+              if (!string.IsNullOrEmpty(fR)) stampsInUse.Add(fR);
+          }
+        }
+        foreach (var fD in Directory.GetFiles(root + "/boardstamps")) {
+          var fp2 = fD.Replace("\\\\", "/");
+          if (fp2.EndsWith(".meta")) continue;
+          var relS = fp2.Substring(root.Length + 1);
+          if (!stampsInUse.Contains(relS) && !orphans.Contains(relS)) orphans.Add(relS);
+        }
+        // a name a PAST receipt orphaned can come back into use (the maker
+        // re-added that board copy) — in-use always beats the old slander
+        orphans.RemoveAll((oS) => stampsInUse.Contains(oS));
+      }
 
       /* ── the styled face + the FONT STORY, told out loud ── */
       bool tmpPending = false;
@@ -9162,6 +9274,11 @@ namespace PatternBreak {
       // a dial wired while the manifest had no seat row: seat it now
       // (a Number transform someone gutted of its text is theirs — skip)
       if (numT == null) return true;
+      /* an echo-stack readout from an earlier importer still arms the
+         label's Glints ink — the app's gauge digits never wear glints
+         (round 14: the phantom halo). WireGauge disarms it in place. */
+      var hlSt = numT.GetComponent<HeroLabel>();
+      if (hlSt != null && hlSt.glintsInk != null) return true;
       if (numTmp != null) {
         // demand the digit material only where the dress pass can actually
         // mint it — otherwise a fontless kit re-dresses forever
@@ -9189,6 +9306,15 @@ namespace PatternBreak {
       if (nT3 != null && g.dialX > 1f) {
         var nrt3 = nT3 as RectTransform;
         if (nrt3 != null && nrt3.anchorMin != nrt3.anchorMax) return true;
+      }
+      /* the HUD arc's live ring (round 14): the manifest ships a segment
+         grid but the prefab has no Segments child (or an unwired dial) —
+         WireGauge builds/adopts it. A dev's own "Segments" child with the
+         dial already wired stays theirs. */
+      if (g.seg != null && g.seg.n > 0.5f && g.dialX > 1f) {
+        var gdSeg = asset.GetComponent<GaugeDial>();
+        if (asset.transform.Find("Segments") == null) return true;
+        if (gdSeg != null && (gdSeg.segments == null || gdSeg.segments.Length == 0)) return true;
       }
 #endif
       return false;
@@ -9860,6 +9986,14 @@ namespace PatternBreak {
       rt.anchoredPosition = Vector2.zero;
       rt.sizeDelta = new Vector2(rw / pngScale * 0.7f, g.fs / pngScale * 1.5f);
       BuildHeroStack(go, "0", root, g.fs / pngScale, 0f, layersFa, strokeInk);
+      /* the app's gauge digits speak the CONTENT-TEXT voice (fill,
+         outline, shadow, glow) — never the label's glint field. The
+         shared stack arms every ink; the readout hands the glints back
+         (round 14: the armed Glints ink painted a halo the app's gauge
+         render doesn't have). The timer keeps its glints — its app
+         render IS the full type specimen. */
+      var hlG = go.GetComponent<HeroLabel>();
+      if (hlG != null) hlG.glintsInk = null;
       return true;
     }
 #endif
@@ -9912,6 +10046,64 @@ namespace PatternBreak {
           gd.needle.sizeDelta = new Vector2(nImgH.sprite.rect.width / pngScale, nImgH.sprite.rect.height / pngScale);
         }
       }
+      /* ── the HUD arc's LIVE RING (round 14). The manifest ships the
+         app's own segment polar grid (gauge.seg: radii, width, count,
+         start angle, sweep — app frame, y down); the importer plants one
+         white segment sprite per step around the dial center and
+         GaugeDial lights them to Value along the bevel→glow ramp — the
+         scene finally strikes the lit pose the board showed instead of
+         an all-ghost interior (owner: "hollow interior"). "Segments" is
+         ownership-named like Needle/Number: a dev's own child of that
+         name means the ring is theirs and the build steps aside. ── */
+      if (gRow != null && gRow.seg != null && gRow.seg.n > 0.5f && gRow.dialX > 1f && img.sprite != null && pngScale > 0) {
+        var segT = host.transform.Find("Segments");
+        if (segT == null) {
+          var segSp = S(root + "/assets/" + fam + "/" + fam + "-segment.png");
+          if (segSp != null) {
+            float rwS = img.sprite.rect.width, rhS = img.sprite.rect.height;
+            var segRoot = new GameObject("Segments", typeof(RectTransform));
+            segRoot.transform.SetParent(host.transform, false);
+            var srt = segRoot.GetComponent<RectTransform>();
+            var cS = new Vector2(gRow.dialX / rwS, 1f - gRow.dialY / rhS);
+            srt.anchorMin = cS; srt.anchorMax = cS;
+            srt.pivot = new Vector2(0.5f, 0.5f);
+            srt.anchoredPosition = Vector2.zero;
+            srt.sizeDelta = Vector2.zero;
+            int nSeg = Mathf.RoundToInt(gRow.seg.n);
+            float rMid = (gRow.seg.rI + gRow.seg.rO) * 0.5f / pngScale;
+            for (int i = 0; i < nSeg; i++) {
+              float aRad = (gRow.seg.a0 + (i + 0.5f) / nSeg * gRow.seg.sweep) * Mathf.Deg2Rad;
+              var dirS = new Vector2(Mathf.Cos(aRad), 0f - Mathf.Sin(aRad)); // app y runs down
+              var sgGo = new GameObject("Segment " + (i + 1), typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              sgGo.transform.SetParent(segRoot.transform, false);
+              var sgIm = sgGo.GetComponent<Image>();
+              sgIm.sprite = segSp;
+              sgIm.raycastTarget = false;
+              var sgRt = sgGo.GetComponent<RectTransform>();
+              sgRt.anchorMin = new Vector2(0.5f, 0.5f); sgRt.anchorMax = new Vector2(0.5f, 0.5f);
+              sgRt.pivot = new Vector2(0.5f, 0.5f);
+              sgRt.anchoredPosition = dirS * rMid;
+              // the sprite bakes the arc's exact stroke (8k wide, rO−rI
+              // long, round caps) — native size IS the grid size
+              sgRt.sizeDelta = new Vector2(segSp.rect.width / pngScale, segSp.rect.height / pngScale);
+              // local +Y points outward along the radial
+              sgRt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(dirS.y, dirS.x) * Mathf.Rad2Deg - 90f);
+            }
+            segT = segRoot.transform;
+          }
+        }
+        if (segT != null && (gd.segments == null || gd.segments.Length == 0)) {
+          var segList = new List<Image>();
+          foreach (Transform chS in segT) { var imS = chS.GetComponent<Image>(); if (imS != null) segList.Add(imS); }
+          gd.segments = segList.ToArray();
+          Color cFrom = Color.white, cTo = Color.white;
+          if (m != null && m.palette != null) {
+            if (!string.IsNullOrEmpty(m.palette.bevel)) ColorUtility.TryParseHtmlString(m.palette.bevel, out cFrom);
+            if (!string.IsNullOrEmpty(m.palette.glow)) ColorUtility.TryParseHtmlString(m.palette.glow, out cTo);
+          }
+          gd.segFrom = cFrom; gd.segTo = cTo;
+        }
+      }
 #if UNITY_2023_2_OR_NEWER
       var g = GaugeRow(m, fam);
       Color unitInk = GaugeUnitInk(m, g);
@@ -9927,6 +10119,15 @@ namespace PatternBreak {
       if (gd.number == null) {
         var numT = host.transform.Find("Number");
         if (numT != null) gd.number = numT.GetComponent<TMP_Text>();
+      }
+      /* round-14 heal, idempotent: an existing echo-stack readout may
+         still arm the label's Glints ink (built before the readout
+         handed it back) — the app's gauge digits never wear glints, and
+         a glints-off kit's stale mask painted the phantom halo. */
+      {
+        var numTH = host.transform.Find("Number");
+        var hlNum = numTH != null ? numTH.GetComponent<HeroLabel>() : null;
+        if (hlNum != null && hlNum.glintsInk != null) hlNum.glintsInk = null;
       }
       /* dress the readout in the app's own recipe — a fresh build and an
          existing pair from an earlier importer take the same writes
@@ -10036,6 +10237,25 @@ namespace PatternBreak {
       var radar = go.AddComponent<RadarDemo>();
       Color tint = Color.white;
       if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow)) ColorUtility.TryParseHtmlString(m.palette.glow, out tint);
+      /* the well's MAP (round 14 — owner: "I like the radar, but I didn't
+         want to lose the normal map"): the app draws grid + player arrow
+         inside the well, and the shell-only sprite dropped them when the
+         mini-map went live-prefab (round 10) — every board copy lost its
+         map. The app's own render of that content ships as its own layer
+         and rides here under the sweep, delete-friendly like every demo
+         child. Absent on older zips: nothing to place, nothing breaks. */
+      var mapSp = S(root + "/assets/extras/extras-minimap-map.png");
+      if (mapSp != null) {
+        var mapGo = new GameObject("Demo Map", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        mapGo.transform.SetParent(go.transform, false);
+        var mapIm = mapGo.GetComponent<Image>();
+        mapIm.sprite = mapSp;
+        mapIm.raycastTarget = false;
+        Vector2 shlMap;
+        ShellCenterAnchor(mapGo, go, "minimap", m, out shlMap);
+        var mapRt = mapGo.GetComponent<RectTransform>();
+        mapRt.sizeDelta = new Vector2(mapSp.rect.width / pngScale, mapSp.rect.height / pngScale);
+      }
       var sweep = new GameObject("Demo Sweep", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
       sweep.transform.SetParent(go.transform, false);
       var swIm = sweep.GetComponent<Image>();
@@ -10804,7 +11024,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -10872,6 +11092,37 @@ namespace PatternBreak {
           }
         }
 #endif
+        /* the mini-map's lost MAP (round 14): the ONE import where the map
+           layer first arrives (extras-minimap-map.png absent from the last
+           receipt), an existing Minimap prefab grafts the app's well
+           content in place, under the sweep. After that moment the tree is
+           the dev's — deleting "Demo Map" is a documented choice and is
+           never fought on later imports. */
+        if (asset.GetComponent<RadarDemo>() != null && asset.transform.Find("Demo Map") == null) {
+          bool mapNew = prevLock != null && prevLock.files != null;
+          if (mapNew)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/extras/extras-minimap-map.png") { mapNew = false; break; }
+          var mapSpH = mapNew ? S(root + "/assets/extras/extras-minimap-map.png") : null;
+          if (mapSpH != null) {
+            var contentsMM = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var mmGo = new GameObject("Demo Map", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              mmGo.transform.SetParent(contentsMM.transform, false);
+              mmGo.transform.SetSiblingIndex(0); // under the sweep and blips
+              var mmIm = mmGo.GetComponent<Image>();
+              mmIm.sprite = mapSpH;
+              mmIm.raycastTarget = false;
+              Vector2 shlMM;
+              ShellCenterAnchor(mmGo, contentsMM, "minimap", m, out shlMM);
+              float psMM = m != null && m.pngScale > 0 ? m.pngScale : 2;
+              mmGo.GetComponent<RectTransform>().sizeDelta = new Vector2(mapSpH.rect.width / psMM, mapSpH.rect.height / psMM);
+              PrefabUtility.SaveAsPrefabAsset(contentsMM, path);
+              mapGrafted++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsMM); }
+            asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (asset == null) continue;
+          }
+        }
         var hover = State(famDir, "hover");
         var pressed = State(famDir, "pressed");
         var disabled = State(famDir, "disabled");
@@ -11397,6 +11648,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the idle shine on " + idled + " example prefab(s) to the kit's current setting — the wipe/edge components used to arrive only at first generation, so a shimmer turned on later never reached existing prefabs (or the scenes built from them). Placed copies pick it up automatically; dials on a component you tuned are never overwritten.");
       if (gauged > 0)
         Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
+      if (mapGrafted > 0)
+        Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
       if (worded > 0)
         Debug.Log("UI Kit Maker: gave " + worded + " panel prefab(s) their WORDS — every text the app renders for the piece now rides as live TMP under a 'Words' group (or a live label), pre-filled with the words from your kit, seated and dressed as the app draws them (kit-manifest.json > textSeats / labelText). Words you retype in Unity are yours: a re-import never overwrites a text that no longer matches its seeded string.");
       if (reseeded > 0)
@@ -11579,6 +11832,14 @@ namespace PatternBreak {
         gti.mipmapEnabled = false;
         gti.alphaIsTransparency = true;
         gti.maxTextureSize = 8192;
+        /* instance bakes (round 14): scene-exact pixels at arbitrary
+           board-copy sizes — block compression would both smear the art
+           and warn on every non-multiple-of-4 dimension ("only textures
+           with width/height multiple of 4 can be compressed"). NOT fixed
+           by padding: the bake's pixel box IS the seat math (crop center,
+           label offsets) — pad it and every offset lies. Backgrounds are
+           the maker's own photos and keep Unity's default pipeline. */
+        if (path.Contains("/boardstamps/")) gti.textureCompression = TextureImporterCompression.Uncompressed;
         return;
       }
       /* Type Stamps — baked styled phrases exported at 4x — land under the

@@ -145,6 +145,44 @@ if (!/predates the attached-glow structure/.test(fx))
 if (!/rebodied/.test(cs))
   errors.push("the Body migration (wantBody/rebodied) is missing from the maintenance pass");
 
+/* round-14 invariants: truth from app to Unity on the readout dress, the
+   board-scene bakes, the HUD arc's lit ring, and the mini-map's map.
+   (1) a glints-OFF kit ships NO glints atlas — the fillOpacity=0 mask
+       leaked the synthetic-weight stroke (a cream ring per glyph) and the
+       GlintInk style-0 path drew it raw: the phantom halo. The skip lives
+       app-side (TS), checked on the source text.
+   (2) gauge readout stacks hand the Glints ink back (contentText voice),
+       and the maintenance disarms stacks armed by earlier importers.
+   (3) a pose bake proven blank never ships (the dead-file boardstamps),
+       and the timer never poses at all (pure display type).
+   (4) boardstamps files the current boards no longer reference join the
+       orphan receipt (never deleted), and instance bakes import
+       uncompressed (the NPOT compression warning).
+   (5) the HUD arc builds live segments on the manifest's polar grid and
+       GaugeDial lights them to Value — the app's own rule. */
+if (!/if \(v\.key === "glints" && !base\.type\.glints\?\.on\) continue;/.test(src))
+  errors.push("the glints-off atlas skip is missing (bakeAlphabetFace) — glints-off kits would ship a synthetic-stroke 'mask' and Unity would draw it raw (the phantom halo)");
+if (!/hlG\.glintsInk = null;/.test(cs))
+  errors.push("GaugeNumberStack must hand the Glints ink back — the app's gauge digits never wear glints");
+if (!/hlNum\.glintsInk = null;/.test(cs))
+  errors.push("WireGauge's in-place glints disarm (existing Number stacks) is missing");
+if (!/const pureType = idBase === "timerdigits";/.test(src))
+  errors.push("the timer's pure-type pose skip is missing — every timer copy would ship four blank boardstamps again");
+if (!/blank pose — live placement carries the copy/.test(src))
+  errors.push("the proven-blank pose guard is missing — ink-less pose bakes must not ship");
+if (!/stampsInUse/.test(cs))
+  errors.push("the boardstamps orphan sweep (I3b) is missing — stale instance bakes would stay invisible to the orphan report");
+if (!/path\.Contains\("\/boardstamps\/"\)\) gti\.textureCompression = TextureImporterCompression\.Uncompressed/.test(cs))
+  errors.push("boardstamps must import Uncompressed — block compression smears instance bakes and warns on NPOT sizes");
+if (!/\(i \+ 0\.5f\) \/ n <= value/.test(src))
+  errors.push("GaugeDial's segment lighting rule ((i+0.5)/n <= value — the app's own) is missing");
+if (!/gd\.segments = segList\.ToArray\(\);/.test(cs))
+  errors.push("WireGauge must adopt the built segment ring onto GaugeDial.segments");
+if (!/data-gauge-seg/.test(src))
+  errors.push("the segment polar-grid stamp (data-gauge-seg) is missing from the export side");
+if (!/"Demo Map"/.test(cs))
+  errors.push("the Minimap's 'Demo Map' layer is missing — the radar loses its map again");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
