@@ -96,6 +96,11 @@ interface AssetMeta {
     x0: number; y0: number; x1: number; y1: number;
     traces: { name: string; color: string; alpha: number; w: number; opacity: number; dash: boolean; dots: boolean; fillOpacity: number; glowLine: boolean; values: number[] }[];
   } | null;
+  /** The loot tag's tier dress geometry (round 16 — owner: "missing its
+   *  left color bar"): stripe rect + gem seat in FILE px (crop/origin
+   *  adjusted). The importer rebuilds both LIVE, tinted to the manifest
+   *  rarity tier; scene copies re-tint per their staged value. */
+  loot?: { sx: number; sy: number; sw: number; sh: number; gx: number; gy: number; gs: number } | null;
   /** Live TEXT SEATS for the bones prefabs (owner: "a lot of text wasn't
    *  appearing on these panels"): every text node the app renders for this
    *  component, lifted off the real render with the maker's own words —
@@ -1754,6 +1759,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const cz = q.meta.chart;
         q.meta.chart = { ...cz, x0: cz.x0 - cvx - cbx0, y0: cz.y0 - cvy - cby0, x1: cz.x1 - cvx - cbx0, y1: cz.y1 - cvy - cby0 };
       }
+      if (q.meta.loot) {
+        const vbmL = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        const [lvx, lvy] = vbmL ? [+vbmL[1] * PNG_SCALE, +vbmL[2] * PNG_SCALE] : [0, 0];
+        const lbx0 = raster.box?.x0 ?? 0, lby0 = raster.box?.y0 ?? 0;
+        const lz = q.meta.loot;
+        q.meta.loot = { ...lz, sx: lz.sx - lvx - lbx0, sy: lz.sy - lvy - lby0, gx: lz.gx - lvx - lbx0, gy: lz.gy - lvy - lby0 };
+      }
       if (q.meta.textSeats && q.meta.textSeats.length && w > 1 && h > 1) {
         const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         const [ovx, ovy] = vbm3 ? [+vbm3[1], +vbm3[2]] : [0, 0];
@@ -2170,8 +2182,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   {
     const ltSvg = shell("loottag", { overlay: "frame" }, slim);
     await addPng("loottag/base.9.png", ltSvg,
-      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. Stripe = a rounded rect tinted to the tier color; the item name and tier word arrive as live text on the LootTag prefab (colors in manifest > rarity).",
-        ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
+      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. The LootTag prefab rebuilds the tier stripe + gem LIVE (manifest > loot geometry, tinted per manifest > rarity); the item name and tier word arrive as live text.",
+        loot: lootOf(ltSvg), ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
+    // the stripe pill, WHITE — the prefab tints it to the tier (round 16:
+    // the app's left color bar was stripped and never rebuilt)
+    await addPng("loottag/stripe.png", shell("loottag", { part: "stripe" }, slim), { component: "loottag", part: "stripe", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The loot tag's rarity stripe, white — tint to the tier color (manifest > rarity). The LootTag prefab wears it as a live, re-tintable layer." });
   }
 
   /* ── dropdown: closed shell, menu plate, and the two row overlays.
@@ -2303,6 +2318,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     }
     if (!traces.length) return null;
     return { x0: Math.round(zx0 * PNG_SCALE), y0: Math.round(zy0 * PNG_SCALE), x1: Math.round(zx1 * PNG_SCALE), y1: Math.round(zy1 * PNG_SCALE), traces };
+  }
+  /* the loot tag's tier dress geometry off the frame render's stamp */
+  function lootOf(frameSvg: string): AssetMeta["loot"] {
+    const lm = /data-loottag-geo="([-\d. ]+)"/.exec(frameSvg);
+    if (!lm) return null;
+    const v = lm[1].split(" ").map(Number);
+    if (v.length !== 7 || v.some((n) => !Number.isFinite(n))) return null;
+    return { sx: Math.round(v[0] * PNG_SCALE), sy: Math.round(v[1] * PNG_SCALE), sw: Math.round(v[2] * PNG_SCALE * 10) / 10, sh: Math.round(v[3] * PNG_SCALE * 10) / 10,
+      gx: Math.round(v[4] * PNG_SCALE), gy: Math.round(v[5] * PNG_SCALE), gs: Math.round(v[6] * PNG_SCALE * 10) / 10 };
   }
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
@@ -5871,8 +5895,9 @@ Add traces by duplicating one, remove them by deleting — the panel
 never minds.
 
 **LootTag**: the plate with your item name and the tier word as live
-text. The tier stripe is a rounded rectangle you tint to the tier
-color — tier names and colors ride kit-manifest.json > rarity.
+text, wearing its tier dress LIVE — the left rarity stripe and the gem
+are tinted children (Stripe / Gem); re-tint them from your item data
+with the tier colors in kit-manifest.json > rarity.
 
 **Dropdown**: the closed shell with its chevron, your value word as a
 live label. The open-menu plate and the row highlight/check layers
@@ -6052,6 +6077,10 @@ namespace PatternBreak {
      px, values 0..1 of the zone (1 = top). traces empty = no rig. */
   [Serializable] class PBChartTrace { public string name; public string color; public float alpha; public float w; public float opacity; public bool dash; public bool dots; public float fillOpacity; public bool glowLine; public float[] values; }
   [Serializable] class PBChart { public float x0; public float y0; public float x1; public float y1; public PBChartTrace[] traces; }
+  /* round 16: the loot tag's tier dress geometry (file px; sw 0 = none) */
+  [Serializable] class PBLoot { public float sx; public float sy; public float sw; public float sh; public float gx; public float gy; public float gs; }
+  [Serializable] class PBRarityTier { public int index; public string name; public string color; }
+  [Serializable] class PBRarity { public string note; public PBRarityTier[] tiers; }
   [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public float dialX; public float dialY; public PBGaugeSeg seg; public PBStyle ink; public string unitInk; }
   /* a live TEXT SEAT: one text node of the app's render — the maker's own
      string, its center as NORMALIZED SPRITE FRACTIONS (fx/fy, y from the
@@ -6060,7 +6089,7 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -6100,7 +6129,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -6718,7 +6747,7 @@ namespace PatternBreak {
          manifest first carries live-trace data grafts existing panel
          prefabs; afterwards a deleted Traces child stays deleted. */
       bool anyChart = false;
-      foreach (var aC in manifest.assets) if (aC != null && aC.chart != null && aC.chart.traces != null && aC.chart.traces.Length > 0) { anyChart = true; break; }
+      foreach (var aC in manifest.assets) if (aC != null && ((aC.chart != null && aC.chart.traces != null && aC.chart.traces.Length > 0) || (aC.loot != null && aC.loot.sw > 0.5f))) { anyChart = true; break; }
       receipt.chartsSeeded = anyChart;
       var prevVarLedger = prev != null ? prev.seededVariants : null;
       receipt.seededVariants = prevVarLedger; // the pass rewrites this on completion
@@ -7603,6 +7632,20 @@ namespace PatternBreak {
               var vsp = S(root + "/assets/" + it.component + "/" + it.component + "-" + it.ov + ".png");
               var vim = inst.GetComponent<Image>();
               if (vsp != null && vim != null) vim.sprite = vsp;
+            }
+            /* the loot tag's staged TIER re-tints the live dress (round
+               16) — the same value the app's board pose used */
+            if (it.component == "loottag" && it.value > 0f && m.rarity != null && m.rarity.tiers != null && m.rarity.tiers.Length > 0) {
+              int tiL = Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp01(it.value) * (m.rarity.tiers.Length - 1)), 0, m.rarity.tiers.Length - 1);
+              Color tcL;
+              if (m.rarity.tiers[tiL] != null && !string.IsNullOrEmpty(m.rarity.tiers[tiL].color) && ColorUtility.TryParseHtmlString(m.rarity.tiers[tiL].color, out tcL)) {
+                var stT2 = inst.transform.Find("Stripe");
+                var stI2 = stT2 != null ? stT2.GetComponent<Image>() : null;
+                if (stI2 != null) stI2.color = tcL;
+                var gmT2 = inst.transform.Find("Gem");
+                var gmI2 = gmT2 != null ? gmT2.GetComponent<Image>() : null;
+                if (gmI2 != null) gmI2.color = Color.Lerp(tcL, Color.white, 0.15f);
+              }
             }
             if (it.component == "countbadge" && it.value > 0f) {
               var cntT = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
@@ -9382,6 +9425,52 @@ namespace PatternBreak {
         kt.values = t.values;
       }
     }
+    /* the loot tag's TIER DRESS, live (round 16 — owner: "missing its
+       left color bar"): the app's stripe + gem at the stamped geometry,
+       tinted to the manifest rarity tier (RARE by default, the app's own
+       resting pose). Scene copies re-tint per their staged value.
+       "Stripe" is ownership-named — a child by that name steps this aside. */
+    static void WireLootDress(GameObject go, string root, PBManifest m, string fam, int pngScale) {
+      if (fam != "loottag") return;
+      PBAsset rowL = null;
+      foreach (var a in m.assets) if (a != null && a.component == "loottag" && a.part == "base") { rowL = a; break; }
+      if (rowL == null || rowL.loot == null || rowL.loot.sw < 0.5f) return;
+      if (go.transform.Find("Stripe") != null) return;
+      var img = go.GetComponent<Image>();
+      if (img == null || img.sprite == null || pngScale <= 0) return;
+      float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
+      Color tier = new Color(0.23f, 0.51f, 0.96f, 1f); // factory RARE
+      if (m.rarity != null && m.rarity.tiers != null && m.rarity.tiers.Length > 2 && m.rarity.tiers[2] != null && !string.IsNullOrEmpty(m.rarity.tiers[2].color))
+        ColorUtility.TryParseHtmlString(m.rarity.tiers[2].color, out tier);
+      var l = rowL.loot;
+      var sSp = S(root + "/assets/loottag/loottag-stripe.png");
+      if (sSp != null) {
+        var sGo = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        sGo.transform.SetParent(go.transform, false);
+        sGo.transform.SetAsFirstSibling();
+        var sIm = sGo.GetComponent<Image>();
+        sIm.sprite = sSp; sIm.color = tier; sIm.raycastTarget = false;
+        var sRt = sGo.GetComponent<RectTransform>();
+        sRt.anchorMin = new Vector2(l.sx / rw, 1f - (l.sy + l.sh) / rh);
+        sRt.anchorMax = new Vector2((l.sx + l.sw) / rw, 1f - l.sy / rh);
+        sRt.offsetMin = Vector2.zero; sRt.offsetMax = Vector2.zero;
+      }
+      var gSp = S(root + "/assets/icons/gem.png");
+      if (gSp != null) {
+        var gGo = new GameObject("Gem", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        gGo.transform.SetParent(go.transform, false);
+        gGo.transform.SetSiblingIndex(sSp != null ? 1 : 0);
+        var gIm = gGo.GetComponent<Image>();
+        gIm.sprite = gSp; gIm.color = Color.Lerp(tier, Color.white, 0.15f); gIm.raycastTarget = false;
+        gIm.preserveAspect = true;
+        var gRt = gGo.GetComponent<RectTransform>();
+        var gc = new Vector2(l.gx / rw, 1f - l.gy / rh);
+        gRt.anchorMin = gc; gRt.anchorMax = gc;
+        gRt.pivot = new Vector2(0.5f, 0.5f);
+        gRt.anchoredPosition = Vector2.zero;
+        gRt.sizeDelta = new Vector2(l.gs / pngScale, l.gs / pngScale);
+      }
+    }
     static bool PicturePrefab(string dir, string root, int pngScale, PBManifest m, string file, string goName, bool sliced) {
       var sp = S(root + "/assets/" + file);
       if (sp == null) return false;
@@ -9391,6 +9480,8 @@ namespace PatternBreak {
       // panel rig first, words above it (round 16): live traces on the
       // chart zone — a no-op when the manifest ships no chart for the family
       WireChartTraces(go, m, famP, pngScale);
+      // the loot tag's tier stripe + gem, live — same no-op contract
+      WireLootDress(go, root, m, famP, pngScale);
       // the piece's words, live (manifest textSeats) — bones stop shipping bare
       WireTextSeats(go, root, m, pngScale);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
@@ -11435,17 +11526,18 @@ namespace PatternBreak {
            didn't know it) grafts the KitTrace rig onto existing panel
            prefabs in place. After that moment the tree is the dev's —
            a deleted Traces child never comes back. */
-        if ((famName == "telemetry" || famName == "laptimes")
+        if ((famName == "telemetry" || famName == "laptimes" || famName == "loottag")
             && prevLock != null && !prevLock.chartsSeeded
-            && asset.transform.Find("Traces") == null) {
+            && asset.transform.Find("Traces") == null && asset.transform.Find("Stripe") == null) {
           bool hasRig = false;
           foreach (var aR in m.assets) if (aR != null && aR.component == famName && aR.part == "base"
-              && aR.chart != null && aR.chart.traces != null && aR.chart.traces.Length > 0) { hasRig = true; break; }
+              && ((aR.chart != null && aR.chart.traces != null && aR.chart.traces.Length > 0) || (aR.loot != null && aR.loot.sw > 0.5f))) { hasRig = true; break; }
           if (hasRig) {
             var contentsCT = PrefabUtility.LoadPrefabContents(path);
             try {
               WireChartTraces(contentsCT, m, famName, m.pngScale > 0 ? m.pngScale : 2);
-              if (contentsCT.transform.Find("Traces") != null) {
+              WireLootDress(contentsCT, root, m, famName, m.pngScale > 0 ? m.pngScale : 2);
+              if (contentsCT.transform.Find("Traces") != null || contentsCT.transform.Find("Stripe") != null) {
                 PrefabUtility.SaveAsPrefabAsset(contentsCT, path);
                 rigGrafted++;
               }
@@ -12011,7 +12103,7 @@ namespace PatternBreak {
       if (mapGrafted > 0)
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
       if (rigGrafted > 0)
-        Debug.Log("UI Kit Maker: gave " + rigGrafted + " panel prefab(s) their LIVE GRAPHS — KitTrace children on the chart zone (Telemetry: THR/BRK/SPD, LapTimes: RIVAL/YOU), seeded with the app's demo data. Edit Values in the Inspector or call SetValues at runtime; delete any trace and it stays deleted.");
+        Debug.Log("UI Kit Maker: gave " + rigGrafted + " prefab(s) their live rigs — KitTrace graphs on the chart zone (Telemetry: THR/BRK/SPD, LapTimes: RIVAL/YOU; edit Values in the Inspector or call SetValues at runtime) and the loot tag's tier stripe + gem. Delete any of them and they stay deleted.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
       if (worded > 0)

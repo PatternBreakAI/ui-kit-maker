@@ -223,6 +223,11 @@ if (!/static void WireChartTraces\(/.test(cs))
   errors.push("the panel trace builder is missing from the importer (round 16)");
 if (!/chartsSeeded/.test(cs) || !/rigGrafted/.test(cs))
   errors.push("the one-shot rig graft (chartsSeeded arrival marker) is missing — existing projects never gain the live graphs (round 16)");
+/* round-16 item E: the loot tag's tier dress is live. */
+if (!/data-loottag-geo=/.test(bevelSrc))
+  errors.push("the loot-tag geometry stamp (data-loottag-geo) is missing from bevel.ts (round 16)");
+if (!/static void WireLootDress\(/.test(cs))
+  errors.push("the loot-dress builder (Stripe + Gem, tier-tinted) is missing from the importer (round 16)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

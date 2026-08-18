@@ -6251,8 +6251,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
       const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${esc(tier.name)}</text>`;
       // overlay "frame": engine-export cut — the bare plate; stripe, item
-      // icon, name and tier word are all live engine content
-      return inject(shell.replace("<svg ", '<svg data-loottag="1" '), opts.overlay === "frame" ? "" : stripe + gem + name + tag);
+      // icon, name and tier word are all live engine content.
+      // Round 16 (owner: "missing its left color bar"): the frame render
+      // stamps the stripe + gem geometry (svg units — attributes never
+      // rasterize) so the LootTag prefab rebuilds both LIVE, tier-tinted.
+      if (opts.overlay === "frame") {
+        const lootGeo = `${(39 + inset + 12 * k).toFixed(1)} ${(30 + inset + 12 * k).toFixed(1)} ${(6 * k).toFixed(1)} ${(h - inset * 2 - 24 * k).toFixed(1)} ${(39 + inset + 45 * k).toFixed(1)} ${cy.toFixed(1)} ${(30 * k).toFixed(1)}`;
+        return inject(shell.replace("<svg ", `<svg data-loottag="1" data-loottag-geo="${lootGeo}" `), "");
+      }
+      if (opts.part === "stripe") {
+        // export-only: the stripe pill alone, WHITE (Image.color tints it
+        // to the tier), at the app's exact geometry + round caps
+        const sw9 = 6 * k, sh9 = h - inset * 2 - 24 * k, pad9 = 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${(sw9 + pad9 * 2).toFixed(0)}" height="${(sh9 + pad9 * 2).toFixed(0)}" viewBox="0 0 ${(sw9 + pad9 * 2).toFixed(0)} ${(sh9 + pad9 * 2).toFixed(0)}"><rect x="${pad9}" y="${pad9}" width="${sw9.toFixed(1)}" height="${sh9.toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="#FFFFFF"/></svg>`;
+      }
+      return inject(shell.replace("<svg ", '<svg data-loottag="1" '), stripe + gem + name + tag);
     }
     case "crosshair": {
       /* Shooter · crosshair — four ticks + optional dot; spatial UI in the
