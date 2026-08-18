@@ -5,6 +5,7 @@ import { CanvasView } from "./ui/CanvasView";
 import { useGen, rehydrateBoardBgs, SAFE_BOOT } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { GateModal } from "./ui/GateModal";
+import { NewKitSheet } from "./ui/NewKitSheet";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 import { readFlightRings } from "./generator/flightRecorder";
 import { ensureFont } from "./generator/fonts";
@@ -298,6 +299,7 @@ export function App() {
       <TopBar />
       <LootModal />
       <GateModal />
+      <NewKitSheet />
       <TutorTip />
       <ChromeNudge />
       {SAFE_BOOT && <SafeBootBanner />}

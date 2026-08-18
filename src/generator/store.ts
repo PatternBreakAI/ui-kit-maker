@@ -470,6 +470,19 @@ interface GenStore {
       Callers settle unsaved work FIRST (Update / Save as new file /
       discard); this only clears the desk. */
   closeDesk: () => void;
+  /** New kit — the crisp boundary (owner, 2026-08-18: "too confusing to
+   *  know exactly where your old kit ends and your new kit begins").
+   *  A TRUE factory zero through loadKitPayload's own door: default
+   *  master, every per-piece/state residue cleared, boards reset to the
+   *  empty-board landing, fresh name, no cloud-preset target, and —
+   *  the heart of it — UNBOUND from any open project so the first Save
+   *  mints a NEW file instead of overwriting the old one. Unlike
+   *  closeDesk it also zeroes the STAGE (canvas color, rarity, editor
+   *  backdrop): a leftover stage is exactly the old-kit residue the
+   *  boundary exists to kill. Both undo lanes reset here — see the
+   *  implementation for why cross-document undo is unsafe. Callers own
+   *  the save prompt; this action assumes the goodbye is settled. */
+  newKit: () => void;
   /** One transient line under the TopBar file chip ("You're now working
       in Hot Rod 2 — Hot Rod is untouched") — self-clears after ~7s. */
   fileFlash: string | null;
@@ -1939,6 +1952,50 @@ export const useGen = create<GenStore>((set, get) => ({
     set({
       kitName: null, boards: [fresh], activeBoard: fresh.id, boardSel: null,
       boardPast: [], boardFuture: [], openProjectId: null, projectDirty: false, projectSavedAt: null,
+    });
+    saveBoards(get);
+  },
+  newKit: () => {
+    const st = get();
+    /* closeDesk's sibling, sharing the one document door (loadKitPayload →
+       persistence, healing, the cloud write-hook; absent maps clear to {}
+       — the whole WS_MAPS family: forks, shapes, icons, labels, kitNoText,
+       subs, text fills, nudges, bars, slots, vals, sizes, slices, clones —
+       plus locks, unitySlug/version and activeCloudPreset inside the door).
+       It differs on purpose: the STAGE goes factory too. Close keeps the
+       canvas because closing a file isn't a new beginning; New kit IS. */
+    st.loadKitPayload({ cfg: getDefault() }, { viewer: false, phase: "master" });
+    saveJson("ui-generator-kitname", null);
+    saveJson("ui-generator-bgimage", null);
+    /* the desk is factory-untouched again — TRUE by definition here, and
+       it makes the boundary test honest: startNewKit treats a touched,
+       unbound desk as unsaved work (projectDirty doesn't survive a
+       reload; the touched flag does). Cleared AFTER loadKitPayload,
+       whose owned-open branch marks touched. The side effects are the
+       right ones: the sign-in nudge rests until the first real edit,
+       and site-default adoption may retarget a desk that IS the default. */
+    try { localStorage.removeItem(TOUCHED_KEY); } catch { /* storage unavailable */ }
+    importTicket++; // supersede any in-flight board import
+    const fresh: BoardDef = { id: "ab" + Date.now().toString(36), name: "Board 1", aspect: "169", items: [] };
+    /* UNDO RESETS AT THE BOUNDARY — investigated for one-step undo (#64
+       machinery) and ruled out: HistSnap carries cfg + the kit maps but
+       NOT boards, kitName, the Unity identity or the project binding
+       (boards even keep their own separate lanes). A cross-document undo
+       would resurrect the old DESIGN headless — unbound, unnamed, on
+       empty boards — recreating in reverse the exact confusion this
+       boundary kills. The save prompt (NewKitSheet) is the guard; ⌘Z
+       never steps across a New kit. */
+    past.length = 0;
+    future.length = 0;
+    lastPush = 0;
+    set({
+      kitName: null, bgImage: null,
+      boards: [fresh], activeBoard: fresh.id, boardSel: null,
+      boardPast: [], boardFuture: [],
+      openProjectId: null, projectDirty: false, projectSavedAt: null,
+      // nothing from the old kit stays focused or mid-gesture
+      focus: null, sectionFilter: null, scope: "piece", selectedState: "default",
+      canvasMode: "design",
     });
     saveBoards(get);
   },

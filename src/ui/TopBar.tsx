@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CloudOff, Download, Image, Copy, RotateCcw, FileDown, FileUp, FileJson, FolderOpen, House, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
+import { CloudOff, Download, Image, Copy, RotateCcw, FileDown, FilePlus2, FileUp, FileJson, FolderOpen, House, User, Moon, Sun, Gamepad2, Star, ChevronDown, Lock, Save, ShieldCheck, GraduationCap } from "lucide-react";
 import { useTutor, TUTOR_SURFACED } from "@/tutor/tutor";
 import { useGen, getDefault, isTouched, exportableBoards } from "@/generator/store";
 import { importSettingsFile } from "@/generator/settingsImport";
@@ -13,6 +13,7 @@ import { downloadSvg, downloadPng, downloadWebKit, downloadSettings, downloadGam
 import { fetchKitFont } from "@/generator/engineExport";
 import { fontByName } from "@/generator/model";
 import { guardedExport } from "@/generator/exportGate";
+import { startNewKit } from "./NewKitSheet";
 import { t } from "@/shell/i18n";
 
 // The actual PatternBreak logo file, bundled from the repo's top-level
@@ -153,6 +154,14 @@ export function TopBar() {
           <span className="filechip-name">{fileName}</span>
           {viewer && <span className="filechip-state">· view only</span>}
           <span className={`filechip-dot${dirty ? " dirty" : ""}`} aria-hidden="true" />
+        </button>
+        {/* New kit — the crisp boundary, one click from the file's own
+            chrome (owner: "too confusing to know exactly where your old
+            kit ends and your new kit begins"). Unsaved work gets the
+            settle sheet; a clean desk just starts over. */}
+        <button className="newkitbtn" onClick={startNewKit} aria-label="New kit"
+          title="New kit — start from zero. Your current kit is offered a save first; it stays in My Projects.">
+          <FilePlus2 size={14} strokeWidth={1.9} /> New
         </button>
         {fileFlash && <div className="fileflash" role="status" aria-live="polite">{fileFlash}</div>}
       </div>
