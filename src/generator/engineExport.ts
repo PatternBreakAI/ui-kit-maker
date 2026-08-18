@@ -3024,7 +3024,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     data: JSON.stringify({
       name: "PatternBreak.Runtime",
       rootNamespace: "",
-      references: ["Unity.TextMeshPro", "UnityEngine.UI"],
+      /* Unity.InputSystem: StateFx's editor-only focus hint reads the
+         package's editorInputBehaviorInPlayMode under #if
+         ENABLE_INPUT_SYSTEM (round 18). Same contract as the Editor
+         asmdef above: resolves when the package is installed, silently
+         ignored when it isn't — and the define only exists when the
+         package does. */
+      references: ["Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"],
       includePlatforms: [],
       excludePlatforms: [],
       allowUnsafeCode: false,
@@ -3698,9 +3704,9 @@ namespace PatternBreak {
       lift = restLift; return restGlow;
     }
     void Retarget() { glowTo = Target(out liftTo); settling = true; }
-    public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); }
+    public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); MarkPointer(); }
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Retarget(); }
-    public void OnPointerDown(PointerEventData e) { down = true; Retarget(); }
+    public void OnPointerDown(PointerEventData e) { down = true; Retarget(); MarkPointer(); }
     public void OnPointerUp(PointerEventData e) {
       down = false;
       /* Unity parks a clicked Selectable in its SELECTED state, which
@@ -3715,9 +3721,58 @@ namespace PatternBreak {
       Retarget();
     }
 
+    /* The editor's input-focus gate, made loud (round 18). With the Input
+       System package, PLAY-MODE POINTER EVENTS ONLY REACH THE GAME VIEW
+       WHILE IT HAS FOCUS (the package's editorInputBehaviorInPlayMode
+       default) — one click into the Console or Inspector and every hover
+       goes quiet, which reads as "the glow broke" (owner video: hover
+       dead after a Console click, instantly alive again on the next game
+       click). The kit's own path is pure EventSystem — no polling — so
+       the editor's gate is the ONLY gate; a real build always has focus.
+       One Console line, once per Play, only when the gate actually
+       bites; the whole watcher compiles out of builds. */
+    void MarkPointer() {
+#if UNITY_EDITOR
+      focusPointerSeen = true;
+#endif
+    }
+#if UNITY_EDITOR
+    static bool focusHintDone, focusPointerSeen;
+    static double focusUnfocusedAt = -1.0, focusNextPoll;
+    void FocusHintTick() {
+      var nowT = UnityEditor.EditorApplication.timeSinceStartup;
+      if (nowT < focusNextPoll) return;
+      focusNextPoll = nowT + 0.25;
+      var es = EventSystem.current;
+      var mod = es != null ? es.currentInputModule : null;
+      // the legacy StandaloneInputModule has no focus gate — stay quiet
+      if (mod == null || mod.GetType().Name != "InputSystemUIInputModule") return;
+#if ENABLE_INPUT_SYSTEM
+      var ist = UnityEngine.InputSystem.InputSystem.settings;
+      if (ist != null && ist.editorInputBehaviorInPlayMode == UnityEngine.InputSystem.InputSettings.EditorInputBehavior.AllDeviceInputAlwaysGoesToGameView) {
+        focusHintDone = true; return; // the project already routes input past the gate
+      }
+#endif
+      var w = UnityEditor.EditorWindow.focusedWindow;
+      var wn = w != null ? w.GetType().Name : "";
+      bool gameFocused = wn == "GameView" || wn == "SimulatorWindow" || wn.EndsWith("PlayModeView");
+      if (gameFocused) { focusUnfocusedAt = -1.0; return; }
+      if (focusUnfocusedAt < 0.0) { focusUnfocusedAt = nowT; focusPointerSeen = false; return; }
+      if (focusPointerSeen) { focusUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
+      if (nowT - focusUnfocusedAt < 2.5) return;
+      focusHintDone = true;
+      Debug.Log("UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View.");
+    }
+#endif
+
     /* Update runs ONLY while a transition is in flight — a component that
-       ticks forever is how the Playground got slow the first time. */
+       ticks forever is how the Playground got slow the first time. (The
+       editor-only focus hint above rides a static-bool early-out here and
+       does not exist in builds.) */
     void Update() {
+#if UNITY_EDITOR
+      if (!focusHintDone) FocusHintTick();
+#endif
       if (!settling) return;
       var step = fade > 0.001f ? Time.unscaledDeltaTime / fade : 1f;
       glowNow = Mathf.MoveTowards(glowNow, glowTo, Mathf.Abs(glowTo - glowNow) * 1f + step * 100f);

@@ -257,6 +257,26 @@ if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
 if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
   errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
 
+/* round-18: the editor's input-focus gate made loud. Hover rides the
+   EventSystem alone (no polling) — in the editor the Input System only
+   delivers pointer events while the Game view has focus, which reads as
+   "the glow broke" (owner video). The kit prints ONE editor-only Console
+   hint when the gate actually bites, and it must compile out of builds. */
+if (!/void FocusHintTick\(\)/.test(fx) || !/static bool focusHintDone, focusPointerSeen;/.test(fx))
+  errors.push("the editor focus-gate hint watcher is missing from StateFx (round 18)");
+if (!/Click the game once and sweep again/.test(fx))
+  errors.push("the focus-gate hint's Console line is missing (round 18 — 'hover not moving' owner video)");
+if (!/#if UNITY_EDITOR\s*\n\s*if \(!focusHintDone\) FocusHintTick\(\);\s*\n#endif/.test(fx))
+  errors.push("the focus-hint Update hook must be #if UNITY_EDITOR — the watcher may not exist in builds (round 18)");
+if (!/over = true; Retarget\(\); MarkPointer\(\);/.test(fx) || !/down = true; Retarget\(\); MarkPointer\(\);/.test(fx))
+  errors.push("MarkPointer must ride OnPointerEnter and OnPointerDown — the hint disarms when events actually flow (round 18)");
+if (!/InputSystemUIInputModule"\) return;/.test(fx))
+  errors.push("the focus hint must stay quiet under the legacy StandaloneInputModule — that module has no focus gate (round 18)");
+if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"\]/.test(src))
+  errors.push("the Runtime asmdef must reference Unity.InputSystem — the focus hint reads editorInputBehaviorInPlayMode under ENABLE_INPUT_SYSTEM (round 18)");
+if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(fx))
+  errors.push("StateFx must never poll input — hover/press ride the EventSystem alone (round-18 verified contract)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
