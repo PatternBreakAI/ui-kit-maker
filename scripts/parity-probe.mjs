@@ -618,24 +618,61 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       const ok = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(rH.w - wantW) < 0.5 && Math.abs(rH.h - wantH) < 0.5 && Math.abs(rH.sx - rA.sx) < 1e-6;
       glow.rows.push({ ctx: c.name, verdict: ok ? "PASS" : "FAIL", centerDx: dx, centerDy: dy, size: `${Math.round(rH.w)}x${Math.round(rH.h)}`, want: `${Math.round(wantW)}x${Math.round(wantH)}` });
     }
-    /* round 17: the pressed sink happens ONCE and the halo presses WITH
-       the face (app truth: face, label and aura travel together by the
-       state lift). Mechanism row with a synthetic −14 relative lift on a
-       swap build — semantics detected from the shipped C#: swap builds
-       bake the sink in the sprite, so the root must hold still and the
-       halo must slide by the lift; anything else is a parked glow or a
-       doubled sink. */
+    /* round 18 (replacing round 17's synthetic row): the state slide,
+       replayed with REAL values. Round 17's row patched a synthetic −14
+       lift and ASSUMED the baked art moves by the manifest lift — the
+       exact premise the field broke: the owner's real kit sinks its
+       pressed face by the EXTRUSION COLLAPSE (labelStates dy) with every
+       lift dial equal, so lift read 0, the halo slid by nothing, and the
+       row still passed while the field failed. Now the probe MEASURES
+       the art's travel from the shipped swap sprites (face-top row) and
+       replays the shipped branch order against the kit's own manifest
+       numbers — art and halo must move TOGETHER, and the manifest must
+       tell the truth about the bake. */
     {
       const bakedSlide = /BakedSink\(\) \? new Vector2\(0f, liftNow\)/.test(fxCs);
       const rootGuard = /if \(!BakedSink\(\)\)/.test(fxCs);
-      const LIFT = -14;
-      const rootDelta = bakedSlide && rootGuard ? 0 : LIFT;
-      const bakedArt = LIFT;                        // inside the swap sprite
-      const faceTotal = rootDelta + bakedArt;       // what the eye sees sink
-      const haloTotal = rootDelta + (bakedSlide ? LIFT : 0);
-      const ok = faceTotal === LIFT && haloTotal === LIFT;
-      glow.rows.push({ ctx: "pressed sink (swap build)", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: haloTotal - faceTotal, size: `face ${faceTotal}, halo ${haloTotal}`, want: `both ${LIFT}` });
+      const sinkChannel = /pressedLift \+ \(baked \? pressedSink : 0f\)/.test(fxCs);
+      const ps2 = m.pngScale > 0 ? m.pngScale : 2;
+      const topOf = async (rel) => {
+        const im = await sprite(rel);
+        if (!im) return null;
+        const cv = document.createElement("canvas"); cv.width = im.width; cv.height = im.height;
+        const cx2 = cv.getContext("2d"); cx2.drawImage(im, 0, 0);
+        const dd = cx2.getImageData(0, 0, im.width, im.height).data;
+        for (let y = 0; y < im.height; y++) {
+          let n = 0;
+          for (let x = 0; x < im.width; x++) if (dd[(y * im.width + x) * 4 + 3] > 64) n++;
+          if (n > im.width * 0.05) return y;
+        }
+        return null;
+      };
+      const baseTop = await topOf("assets/button-primary/button-primary-base.9.png");
+      for (const sn of ["hover", "pressed"]) {
+        const stTop = await topOf(`assets/button-primary/button-primary-base-${sn}.9.png`);
+        if (baseTop == null || stTop == null) {
+          glow.rows.push({ ctx: `${sn} slide (swap build)`, verdict: "FAIL", centerDx: 0, centerDy: 0, size: "sprite missing", want: "state sprites" });
+          continue;
+        }
+        const fxRow = (m.stateFx ?? []).find((f) => f && f.family === "button-primary" && f.state === sn) ?? { lift: 0 };
+        const lsRow = (m.labelStates ?? []).find((l) => l && l.family === "button-primary" && l.state === sn) ?? { dy: 0 };
+        const artUnity = -((stTop - baseTop) / ps2);          // measured, Unity up-positive
+        const rootDelta = bakedSlide && rootGuard ? 0 : (fxRow.lift ?? 0);
+        const faceTotal = rootDelta + artUnity;               // what the eye sees
+        const haloTotal = rootDelta + (bakedSlide ? (fxRow.lift ?? 0) + (sinkChannel ? -(lsRow.dy ?? 0) : 0) : 0);
+        const manifestTravel = (fxRow.lift ?? 0) - (lsRow.dy ?? 0);
+        const okTogether = Math.abs(haloTotal - faceTotal) <= 1;
+        const okManifest = Math.abs(artUnity - manifestTravel) <= 1.5;
+        glow.rows.push({
+          ctx: `${sn} slide (swap build)`,
+          verdict: okTogether && okManifest ? "PASS" : "FAIL",
+          centerDx: 0, centerDy: Math.round((haloTotal - faceTotal) * 10) / 10,
+          size: `art ${Math.round(artUnity * 10) / 10}, halo ${Math.round(haloTotal * 10) / 10}`,
+          want: `together (manifest ${Math.round(manifestTravel * 10) / 10})`,
+        });
+      }
       if (bakedSlide && rootGuard) glow.mode += " + baked-sink slide (round 17)";
+      if (sinkChannel) glow.mode += " + extrusion-collapse sink (round 18)";
     }
     glow.pad = pad;
     glow.alphas = {

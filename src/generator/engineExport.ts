@@ -3542,6 +3542,8 @@ namespace PatternBreak {
     public float restGlow, hoverGlow = 100f, pressedGlow, disabledGlow;
     [Tooltip("Vertical shift in pixels per state — the press sink. Positive is up.")]
     public float restLift, hoverLift, pressedLift;
+    [Tooltip("Travel baked INSIDE the state sprite on swap builds (the app's press-pose extrusion collapse), Unity up-positive. The halo adds it so the glow rides the sunk art; the root never moves by it — the sprite already did.")]
+    public float hoverSink, pressedSink;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
 
@@ -3698,9 +3700,19 @@ namespace PatternBreak {
       Push(true);
     }
     float Target(out float lift) {
+      /* ROUND 18 — the halo travels by what the sprite ACTUALLY does. A
+         swap build bakes the press pose INSIDE the state sprite, and that
+         pose can sink further than the lift dial says: a pressed state
+         that collapses the extrusion (owner's War Chuds: depth 31 -> 14)
+         drops the face with all four lift dials equal, so the dial-only
+         channel read zero and the halo held its hover seat while the art
+         sank (owner: "the glow doesn't follow the new button"). The sink
+         fields carry that baked extra; builds without swap sprites leave
+         them dormant — their root motion is the lift alone, as always. */
+      bool baked = BakedSink();
       if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
-      if (down) { lift = pressedLift; return pressedGlow; }
-      if (over) { lift = hoverLift; return hoverGlow; }
+      if (down) { lift = pressedLift + (baked ? pressedSink : 0f); return pressedGlow; }
+      if (over) { lift = hoverLift + (baked ? hoverSink : 0f); return hoverGlow; }
       lift = restLift; return restGlow;
     }
     void Retarget() { glowTo = Target(out liftTo); settling = true; }
@@ -9359,6 +9371,13 @@ namespace PatternBreak {
       // the manifest already ships lift RELATIVE to rest and Unity-side up
       fx.restGlow = rest; fx.hoverGlow = hover; fx.pressedGlow = press; fx.disabledGlow = dis;
       fx.restLift = restL; fx.hoverLift = hoverL; fx.pressedLift = pressL;
+      /* the baked extra (round 18): labelStates dy is the app's own
+         face travel between state renders — the extrusion collapse the
+         label already rides (ExpectedShift). Negated into Unity-up so on
+         swap builds the halo slides exactly as far as the sprite's art
+         sinks; dial-only kits ship dy 0 and nothing changes. */
+      fx.hoverSink = -ExpectedShift(m, family, "hover");
+      fx.pressedSink = -ExpectedShift(m, family, "pressed");
     }
     static bool HasStateFx(PBManifest m, string family) {
       if (m == null || m.stateFx == null) return false;
@@ -11613,7 +11632,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -11792,6 +11811,23 @@ namespace PatternBreak {
                 (fxP.glowSprite.rect.height - bodyP.sprite.rect.height) * 0.5f / psP);
               if ((fxP.glowPad - glowPadWant).sqrMagnitude > 0.25f) wantGlowPad = true;
             }
+          }
+        }
+        /* round 18: the baked-sink channel converges with the CURRENT
+           manifest — StateFx components armed before the sink fields
+           existed serialize them as 0, so a swap build whose press pose
+           collapses the extrusion kept a parked halo forever (owner:
+           "the glow doesn't follow the new button"). Our wiring, our
+           number: labelStates dy negated, the same travel the label
+           rides. */
+        bool wantSinkFix = false;
+        float hoverSinkWant = 0f, pressedSinkWant = 0f;
+        {
+          var fxS = asset.GetComponent<StateFx>();
+          if (fxS != null && HasStateFx(m, famName)) {
+            hoverSinkWant = -ExpectedShift(m, famName, "hover");
+            pressedSinkWant = -ExpectedShift(m, famName, "pressed");
+            if (Mathf.Abs(fxS.hoverSink - hoverSinkWant) > 0.05f || Mathf.Abs(fxS.pressedSink - pressedSinkWant) > 0.05f) wantSinkFix = true;
           }
         }
         /* and where an earlier pass already swap-wired a tiled build, take
@@ -12058,7 +12094,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -12095,6 +12131,10 @@ namespace PatternBreak {
           if (wantGlowPad) {
             var fxTune = contents.GetComponent<StateFx>();
             if (fxTune != null) { fxTune.glowPad = glowPadWant; padTuned++; changed = true; }
+          }
+          if (wantSinkFix) {
+            var fxSink = contents.GetComponent<StateFx>();
+            if (fxSink != null) { fxSink.hoverSink = hoverSinkWant; fxSink.pressedSink = pressedSinkWant; sinkTuned++; changed = true; }
           }
           if (wantPad) {
             ShellRaycastPad(contents, famName, m);
@@ -12295,6 +12335,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
       if (rigGrafted > 0)
         Debug.Log("UI Kit Maker: gave " + rigGrafted + " prefab(s) their live rigs — KitTrace graphs on the chart zone (Telemetry: THR/BRK/SPD, LapTimes: RIVAL/YOU; edit Values in the Inspector or call SetValues at runtime) and the loot tag's tier stripe + gem. Delete any of them and they stay deleted.");
+      if (sinkTuned > 0)
+        Debug.Log("UI Kit Maker: armed the baked press sink on " + sinkTuned + " prefab(s) — their pressed pose sinks inside the swap sprite (extrusion collapse), and the hover halo now slides with it instead of holding its hover seat.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
       if (worded > 0)

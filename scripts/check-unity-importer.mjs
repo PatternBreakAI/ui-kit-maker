@@ -257,6 +257,23 @@ if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
 if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
   errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
 
+/* round-18 PRIMARY: the baked press sink reaches the halo. The manifest's
+   stateFx.lift carries only the LIFT DIAL delta — a pressed state that
+   collapses the extrusion (owner's real War Chuds: depth 31 -> 14, all
+   four lift dials equal) sinks the baked art ~17 UI px while lift reads 0,
+   so the halo slid by nothing and held its hover seat (owner: "the glow
+   doesn't follow the new button"). labelStates dy already ships that
+   travel (the label rides it); the halo must ride it too, on swap builds
+   only, and existing projects must converge. */
+if (!/public float hoverSink, pressedSink;/.test(fx))
+  errors.push("StateFx's baked-sink fields are missing (round 18 — the parked pressed halo)");
+if (!/pressedLift \+ \(baked \? pressedSink : 0f\)/.test(fx) || !/hoverLift \+ \(baked \? hoverSink : 0f\)/.test(fx))
+  errors.push("Target must add the baked sink to the travel channel on swap builds (round 18)");
+if (!/fx\.pressedSink = -ExpectedShift\(m, family, "pressed"\);/.test(cs) || !/fx\.hoverSink = -ExpectedShift\(m, family, "hover"\);/.test(cs))
+  errors.push("WireStateFx must arm the sink fields from labelStates dy — the app's own face travel (round 18)");
+if (!/wantSinkFix/.test(cs) || !/fxSink\.pressedSink = pressedSinkWant/.test(cs))
+  errors.push("the baked-sink convergence sweep is missing — prefabs armed before the sink fields existed keep a parked halo forever (round 18)");
+
 /* round-18: the editor's input-focus gate made loud. Hover rides the
    EventSystem alone (no polling) — in the editor the Input System only
    delivers pointer events while the Game view has focus, which reads as
