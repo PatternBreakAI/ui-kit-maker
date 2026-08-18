@@ -1714,13 +1714,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       /* the gauge seat/dial stamp travels through the crop like the seats
          do — housed faces ship CROPPED (round 12), so the file-px numbers
          shift by the crop box or every readout would seat into the old
-         padding */
-      if (q.meta.gauge && raster.box) {
+         padding.
+         Round 16 (owner, War Chuds: the number "rides high/off-center"):
+         the stamp must ALSO subtract the svg's viewBox ORIGIN, exactly as
+         the text seats always did — a kit whose silhouette/blur pushes the
+         housed render's viewBox negative shifts every raster pixel by
+         origin×scale, and the readout seated off by that much while kits
+         whose face happened to render at origin 0 landed perfectly.
+         Per-kit correctness cannot depend on where a viewBox starts. */
+      if (q.meta.gauge) {
+        const vbmG = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        const [gvx, gvy] = vbmG ? [+vbmG[1] * PNG_SCALE, +vbmG[2] * PNG_SCALE] : [0, 0];
+        const bx0 = raster.box?.x0 ?? 0, by0 = raster.box?.y0 ?? 0;
         const gz = q.meta.gauge;
         q.meta.gauge = {
           ...gz,
-          x: gz.x - raster.box.x0, y: gz.y - raster.box.y0, unitY: gz.unitY - raster.box.y0,
-          ...(gz.dialX !== undefined && gz.dialY !== undefined ? { dialX: gz.dialX - raster.box.x0, dialY: gz.dialY - raster.box.y0 } : {}),
+          x: gz.x - gvx - bx0, y: gz.y - gvy - by0, unitY: gz.unitY - gvy - by0,
+          ...(gz.dialX !== undefined && gz.dialY !== undefined ? { dialX: gz.dialX - gvx - bx0, dialY: gz.dialY - gvy - by0 } : {}),
         };
       }
       if (q.meta.textSeats && q.meta.textSeats.length && w > 1 && h > 1) {

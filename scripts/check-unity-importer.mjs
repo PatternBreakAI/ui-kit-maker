@@ -206,6 +206,11 @@ if (!/Export build \$\{stamp\}/.test(src))
   errors.push("the README title block must carry the export build stamp (round 16 — zip-vintage ambiguity)");
 if (!/padTuned/.test(cs))
   errors.push("the aura-pad convergence (stale serialized glowPad vs current sprites) is missing (round 16)");
+/* round-16 item D: the gauge stamp goes through the viewBox origin AND
+   the crop box — the seats' discipline, now shared. Per-kit housed crops
+   must never seat a readout off the dial. */
+if (!/gz\.x - gvx - bx0/.test(src))
+  errors.push("the gauge stamp must subtract the svg viewBox ORIGIN like the seats do (round 16, War Chuds seat drift hardening)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
