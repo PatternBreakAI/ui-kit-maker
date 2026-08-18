@@ -8963,27 +8963,41 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gid10 = "lb" + UID++;
       const ink = "rgba(255,255,255,0.9)", ink2 = "rgba(255,255,255,0.55)";
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
-      const parts = wellD +
-        `<defs><linearGradient id="${gid10}s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${hexRgba(bevel, 0.45)}"/><stop offset="0.5" stop-color="${hexRgba(glow, 0.5)}"/><stop offset="1" stop-color="${hexRgba(bevel, 0.45)}"/></linearGradient></defs>` +
-        `<text x="${x0.toFixed(1)}" y="${headY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="800" letter-spacing=".18em" fill="rgba(255,255,255,0.92)">${esc((opts.slots?.title ?? "TOP 5").slice(0, 16))}</text>` +
+      /* base-vs-full split (round 16 — owner, War Chuds: white words
+         floated on the full-bright camo shell). The base part now ships
+         every NON-LIVE layer the app draws — the deep well, the header
+         ticks, the rank divider, the row hairlines and the YOU highlight
+         ring — and strips ONLY the text (live seats). The full render is
+         reassembled from the same substrings, byte-identical. */
+      const lbDefs = `<defs><linearGradient id="${gid10}s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${hexRgba(bevel, 0.45)}"/><stop offset="0.5" stop-color="${hexRgba(glow, 0.5)}"/><stop offset="1" stop-color="${hexRgba(bevel, 0.45)}"/></linearGradient></defs>`;
+      const lbTicks =
         `<rect x="${(x1 - 30 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(20 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="${hexRgba(glow, 0.7)}"/>` +
         `<rect x="${(x1 - 8 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(8 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="rgba(255,255,255,0.3)"/>` +
         // rank column divider + row hairlines — the instrument grid
         `<line x1="${(x0 + 22 * k).toFixed(1)}" y1="${(listY0 + 3 * k).toFixed(1)}" x2="${(x0 + 22 * k).toFixed(1)}" y2="${(listY0 + rowH * rows.length - 3 * k).toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>` +
         rows.map((_, i) => i === 0 ? "" :
-          `<line x1="${(x0 - 6 * k).toFixed(1)}" y1="${(listY0 + rowH * i).toFixed(1)}" x2="${(x1 + 6 * k).toFixed(1)}" y2="${(listY0 + rowH * i).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`).join("") +
+          `<line x1="${(x0 - 6 * k).toFixed(1)}" y1="${(listY0 + rowH * i).toFixed(1)}" x2="${(x1 + 6 * k).toFixed(1)}" y2="${(listY0 + rowH * i).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`).join("");
+      const lbHl = (r: { you: boolean }, i: number) => {
+        const yC = listY0 + rowH * (i + 0.5);
+        return r.you
+          ? `<rect x="${(x0 - 8 * k).toFixed(1)}" y="${(yC - rowH * 0.46).toFixed(1)}" width="${(x1 - x0 + 16 * k).toFixed(1)}" height="${(rowH * 0.92).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="url(#${gid10}s)" stroke="${hexRgba(glow, 0.9)}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`
+          : "";
+      };
+      if (opts.part === "base")
+        return inject(track, `<g opacity="${dim}">${wellD}${lbDefs}${lbTicks}${rows.map(lbHl).join("")}</g>`);
+      const parts = wellD +
+        lbDefs +
+        `<text x="${x0.toFixed(1)}" y="${headY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="800" letter-spacing=".18em" fill="rgba(255,255,255,0.92)">${esc((opts.slots?.title ?? "TOP 5").slice(0, 16))}</text>` +
+        lbTicks +
         rows.map((r, i) => {
           const yC = listY0 + rowH * (i + 0.5);
-          const hl = r.you
-            ? `<rect x="${(x0 - 8 * k).toFixed(1)}" y="${(yC - rowH * 0.46).toFixed(1)}" width="${(x1 - x0 + 16 * k).toFixed(1)}" height="${(rowH * 0.92).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="url(#${gid10}s)" stroke="${hexRgba(glow, 0.9)}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`
-            : "";
+          const hl = lbHl(r, i);
           const w8 = r.you ? 900 : 700;
           return hl +
             `<text x="${(x0 + 4 * k).toFixed(1)}" y="${yC.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="${w8}" fill="${r.you ? "#FFFFFF" : ink2}" dominant-baseline="central">${r.p}</text>` +
             `<text x="${(x0 + 34 * k).toFixed(1)}" y="${yC.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(16 * k).toFixed(1)}" font-weight="${w8}" letter-spacing=".08em" fill="${r.you ? "#FFFFFF" : ink}" dominant-baseline="central">${r.d}</text>` +
             `<text x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13.5 * k).toFixed(1)}" font-weight="${r.you ? 800 : 600}" fill="${r.you ? hexMix(glow, "#FFFFFF", 0.4) : ink2}" text-anchor="end" dominant-baseline="central">${r.gap}</text>`;
         }).join("");
-      if (opts.part === "base") return track; // rows are live engine content
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="board" `);
     }
     case "trophy": {
@@ -9175,7 +9189,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          Every value is live engine data in real games. */
       const w = 350 * k, h = 240 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
-      if (opts.part === "base") return track;
       const inset = bw + 10;
       const dim = state === "disabled" ? 0.45 : 1;
       const gid12 = "lp" + UID++;
@@ -9190,11 +9203,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const line = (arr: number[]) => arr.map((v, i) => pt(v, i, arr).map((n) => n.toFixed(1)).join(",")).join(" ");
       const yLabs = ["1:22.5", "1:22.0", "1:21.5", "1:21.0", "1:20.5"];
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
-      const grid = [0, 0.25, 0.5, 0.75, 1].map((t, gi) =>
-        `<line x1="${px0.toFixed(1)}" y1="${(y0 + (y1 - y0) * t).toFixed(1)}" x2="${x1.toFixed(1)}" y2="${(y0 + (y1 - y0) * t).toFixed(1)}" stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="2 4"/>` +
-        `<text x="${x0.toFixed(1)}" y="${(y0 + (y1 - y0) * t).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.6)" dominant-baseline="central">${yLabs[gi]}</text>`).join("") +
-        [0.25, 0.5, 0.75].map((t) =>
+      /* grid split art/text (round 16): the dashed lines bake into the
+         base part; the time labels stay live seats. The full render
+         interleaves them per row exactly as before — byte-identical. */
+      const lpHline = (t: number) =>
+        `<line x1="${px0.toFixed(1)}" y1="${(y0 + (y1 - y0) * t).toFixed(1)}" x2="${x1.toFixed(1)}" y2="${(y0 + (y1 - y0) * t).toFixed(1)}" stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="2 4"/>`;
+      const lpVlines = [0.25, 0.5, 0.75].map((t) =>
         `<line x1="${(px0 + (x1 - px0) * t).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(px0 + (x1 - px0) * t).toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="2 4"/>`).join("");
+      const grid = [0, 0.25, 0.5, 0.75, 1].map((t, gi) =>
+        lpHline(t) +
+        `<text x="${x0.toFixed(1)}" y="${(y0 + (y1 - y0) * t).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(9 * k).toFixed(1)}" font-weight="600" fill="rgba(255,255,255,0.6)" dominant-baseline="central">${yLabs[gi]}</text>`).join("") +
+        lpVlines;
+      /* base part (round 16): well + dashed grid ship; traces go LIVE on
+         the KitTrace rig at the chart stamp; every text stays a seat. */
+      if (opts.part === "base")
+        return inject(track, `<g opacity="${dim}">${wellD}${[0, 0.25, 0.5, 0.75, 1].map(lpHline).join("")}${lpVlines}</g>`)
+          .replace("<svg ", `<svg data-chart="${px0.toFixed(1)} ${y0.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}" `);
       const youLast = pt(you[you.length - 1], you.length - 1, you);
       const dots = (arr: number[], c: string, r9: number) => arr.map((v, i) => {
         const [dx9, dy9] = pt(v, i, arr);
@@ -9225,7 +9249,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          data in real games. */
       const w = 350 * k, h = 240 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
-      if (opts.part === "base") return track;
       const inset = bw + 10;
       const dim = state === "disabled" ? 0.45 : 1;
       const gid13 = "tm" + UID++;
@@ -9248,6 +9271,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<line x1="${(px0 + W3 * t).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(px0 + W3 * t).toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="2 4"/>`).join("") +
         [0, 0.5, 1].map((t) =>
         `<line x1="${px0.toFixed(1)}" y1="${(y0 + H3 * t).toFixed(1)}" x2="${px1.toFixed(1)}" y2="${(y0 + H3 * t).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="2 4"/>`).join("");
+      /* the axis rails — one string, two consumers (base + full) */
+      const tmRailL = `<line x1="${px0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${px0.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
+      const tmRailR = `<line x1="${px1.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
+      const tmRailB = `<line x1="${px0.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
+      /* base part (round 16 — owner, War Chuds: "hard to read"): the app's
+         instrument dress SHIPS — well, dashed grid, axis rails. Texts stay
+         live seats; the traces go LIVE on the KitTrace rig, seated by the
+         chart stamp below (attributes never rasterize). */
+      if (opts.part === "base")
+        return inject(track, `<g opacity="${dim}">${wellD}${vgrid}${tmRailL}${tmRailR}${tmRailB}</g>`)
+          .replace("<svg ", `<svg data-chart="${px0.toFixed(1)} ${y0.toFixed(1)} ${px1.toFixed(1)} ${y1.toFixed(1)}" `);
       const legY = 30 + inset + 16 * k;
       const parts = wellD +
         `<defs><filter id="${gid13}g" x="-60%" y="-60%" width="220%" height="220%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.65)}</filter></defs>` +
@@ -9256,8 +9290,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         vgrid +
         axLab(px0 - 6 * k, y0, "100%", "end") + axLab(px0 - 6 * k, y0 + H3 * 0.5, "50%", "end") + axLab(px0 - 6 * k, y1, "0%", "end") +
         axLab(px1 + 6 * k, y0, "300", "start") + axLab(px1 + 6 * k, y0 + 12 * k, "KM/H", "start", 7.5 * k) + axLab(px1 + 6 * k, y0 + H3 * 0.5, "150", "start") +
-        `<line x1="${px0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${px0.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>` +
-        `<line x1="${px1.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>` +
+        tmRailL +
+        tmRailR +
         `<path d="${area(thr)}" fill="#4ADE80" opacity="0.22"/>` +
         `<polyline points="${edge(thr)}" fill="none" stroke="#4ADE80" stroke-width="${(1.8 * k).toFixed(1)}" stroke-linejoin="round" opacity="0.85"/>` +
         `<path d="${area(brk)}" fill="${brkC}" opacity="0.26"/>` +
@@ -9265,7 +9299,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<polyline points="${spd.map((v, i) => `${px(i, spd)},${py(v)}`).join(" ")}" fill="none" stroke="${glow}" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid13}g)"/>` +
         `<circle cx="${px(0, spd)}" cy="${py(spd[0])}" r="${(3 * k).toFixed(1)}" fill="${glow}"/>` +
         `<circle cx="${px(spd.length - 1, spd)}" cy="${py(spd[spd.length - 1])}" r="${(3.5 * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" filter="url(#${gid13}g)"/>` +
-        `<line x1="${px0.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>` +
+        tmRailB +
         hudText("T4", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
         hudText("T7", px1, y1 + 20 * k, 9.5 * k, "end", 700);
       return inject(track, `<g opacity="${dim}">${parts}</g>`).replace("<svg ", `<svg data-race="telemetry" `);
