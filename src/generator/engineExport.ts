@@ -65,6 +65,10 @@ interface AssetMeta {
    *  piece's Glow role; the app sets it at 75% alpha in Inter 800. */
   gauge?: {
     x: number; y: number; fs: number; unitY: number; unitFs: number;
+    /** The dial center in face file px (round 12, housed faces) — the
+     *  needle child anchors here instead of stretching the whole rect.
+     *  Absent on pre-housed manifests: the importer keeps full-stretch. */
+    dialX?: number; dialY?: number;
     ink?: {
       weight: number; italic: boolean; spacingEmPct: number;
       fillMode: string; fill: string; fill2: string | null; fillOpacity: number;
@@ -1685,6 +1689,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          importer multiplies by the prefab's live rect (the gauge-seat
          contract), so no unit ever depends on pngScale bookkeeping again
          (owner round 8: absolute px landed 2× wrong in rect space). */
+      /* the gauge seat/dial stamp travels through the crop like the seats
+         do — housed faces ship CROPPED (round 12), so the file-px numbers
+         shift by the crop box or every readout would seat into the old
+         padding */
+      if (q.meta.gauge && raster.box) {
+        const gz = q.meta.gauge;
+        q.meta.gauge = {
+          ...gz,
+          x: gz.x - raster.box.x0, y: gz.y - raster.box.y0, unitY: gz.unitY - raster.box.y0,
+          ...(gz.dialX !== undefined && gz.dialY !== undefined ? { dialX: gz.dialX - raster.box.x0, dialY: gz.dialY - raster.box.y0 } : {}),
+        };
+      }
       if (q.meta.textSeats && q.meta.textSeats.length && w > 1 && h > 1) {
         const vbm3 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         const [ovx, ovy] = vbm3 ? [+vbm3[1], +vbm3[2]] : [0, 0];
@@ -2149,7 +2165,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const gm = /data-gauge="([-\d. ]+)"/.exec(svg);
     if (!gm) return null;
     const v = gm[1].split(" ").map(Number);
-    if (v.length !== 5 || v.some((n) => !Number.isFinite(n))) return null;
+    // 5 numbers = the classic seat stamp; 7 adds the dial center (round 12,
+    // housed faces: the needle anchors on the dial, not the canvas center)
+    if ((v.length !== 5 && v.length !== 7) || v.some((n) => !Number.isFinite(n))) return null;
     /* the readout's TYPE RECIPE rides the seat row. The app's gauge digits
        wear the CONTENT-TEXT treatment (bevel's contentText: fill mode incl.
        gradients, outline, shadow, glow — min-700 weight, the kit's
@@ -2163,6 +2181,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       x: Math.round(v[0] * PNG_SCALE), y: Math.round(v[1] * PNG_SCALE),
       fs: Math.round(v[2] * PNG_SCALE * 10) / 10,
       unitY: Math.round(v[3] * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
+      ...(v.length === 7 ? { dialX: Math.round(v[5] * PNG_SCALE), dialY: Math.round(v[6] * PNG_SCALE) } : {}),
       ink: contentInkOf(id),
       // effect(effects, "Glow")'s exact fallback chain (bevel.ts)
       unitInk: pc.effects.Glow ?? lighten(pc.effects.Bevel ?? "#0E9CC9", 0.55),
@@ -2170,19 +2189,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
-    await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — ticks and red zone only. The readout is live engine text (the Speedo prefab wires it; seat in manifest > gauge).", gauge: gaugeOf(spFace, "speedo") });
+    await addPng("speedo/face.png", spFace, { component: "speedo", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Classic dial face — HOUSED in the kit shell (round 12): walls, well, ticks; needle and readout are live. Seat + dial center in manifest > gauge.", gauge: gaugeOf(spFace, "speedo") }, true);
   }
   await addPng("speedo/needle.png", shell("speedo", { part: "needle" }, undefined, 0), { component: "speedo", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Needle at zero (pointing to the sweep start). Rotate up to 270° around the canvas center from live speed." });
   {
     const sp2Face = shell("speedo2", { part: "face" }, undefined, 0);
-    await addPng("speedo2/face.png", sp2Face, { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD segment arc, all 24 segments unlit. Light segments with segment.png copies placed on the same polar grid; the readout is live engine text (seat in manifest > gauge).", gauge: gaugeOf(sp2Face, "speedo2") });
+    await addPng("speedo2/face.png", sp2Face, { component: "speedo2", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "HUD speedometer face — HOUSED (round 12): kit shell, recessed well, all 24 segments unlit. Light segments with segment.png copies on the same polar grid; the readout is live (seat + dial center in manifest > gauge).", gauge: gaugeOf(sp2Face, "speedo2") }, true);
   }
   /* the REV METER's rig parts (owner: the rpm meter's prefab needs its
      numbers): dial face with every zone segment unlit + the bare needle —
      same bare-canvas contract as the speedo's parts */
   {
     const tcFace = shell("tacho", { part: "face" }, undefined, 0);
-    await addPng("tacho/face.png", tcFace, { component: "tacho", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev-meter dial face — zone segments unlit, hub baked. The RevMeter prefab lights nothing (bones); needle and readout are live (seat in manifest > gauge).", gauge: gaugeOf(tcFace, "tacho") });
+    await addPng("tacho/face.png", tcFace, { component: "tacho", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev-meter face — HOUSED (round 12): kit shell, well, zone segments unlit, hub baked. Needle and readout are live (seat + dial center in manifest > gauge).", gauge: gaugeOf(tcFace, "tacho") }, true);
     await addPng("tacho/needle.png", shell("tacho", { part: "needle" }, undefined, 0), { component: "tacho", part: "needle", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Rev needle at zero (sweep start). Rotate up to 270° around the canvas center from live revs." });
   }
   await addPng("speedo2/segment.png", shell("speedo2", { part: "segment" }, undefined, 1), { component: "speedo2", part: "segment", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "One lit segment — instance and rotate per step; tint along the palette for the sweep gradient." });
@@ -5704,7 +5723,7 @@ namespace PatternBreak {
      unitInk = the unit line's fill, the piece's Glow role (the app draws
      it at 75% alpha). JsonUtility default-constructs missing nested
      objects, so readers gate on ink.fillMode being non-empty. */
-  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public PBStyle ink; public string unitInk; }
+  [Serializable] class PBGauge { public float x; public float y; public float fs; public float unitY; public float unitFs; public float dialX; public float dialY; public PBStyle ink; public string unitInk; }
   /* a live TEXT SEAT: one text node of the app's render — the maker's own
      string, its center as NORMALIZED SPRITE FRACTIONS (fx/fy, y from the
      top) and its font size as a fraction of sprite height (ffs) — the
@@ -9083,6 +9102,14 @@ namespace PatternBreak {
         }
         if (uFace != null && !DressGaugeUnit(uniTmp, GaugeUnitInk(m, g), uFace, uPlain, false)) return true;
       }
+      /* housed faces (round 12): a needle still full-stretched over the
+         housed canvas orbits the extrusion pad — WireGauge re-anchors it
+         at the manifest's dial center */
+      var nT3 = asset.transform.Find("Needle");
+      if (nT3 != null && g.dialX > 1f) {
+        var nrt3 = nT3 as RectTransform;
+        if (nrt3 != null && nrt3.anchorMin != nrt3.anchorMax) return true;
+      }
 #endif
       return false;
     }
@@ -9769,6 +9796,7 @@ namespace PatternBreak {
       gd.numberScale = fam == "tacho" ? 9f : 174f;
       gd.decimals = fam == "tacho" ? 1 : 0;
       string needleFile = fam == "speedo" ? "assets/speedo/speedo-needle.png" : fam == "tacho" ? "assets/tacho/tacho-needle.png" : null;
+      var gRow = GaugeRow(m, fam);
       if (gd.needle == null && needleFile != null) {
         var nT = host.transform.Find("Needle");
         if (nT == null) {
@@ -9785,6 +9813,24 @@ namespace PatternBreak {
           }
         }
         if (nT != null) gd.needle = nT as RectTransform;
+      }
+      /* HOUSED faces (round 12): the dial center sits off the canvas center
+         (the shell's extrusion pads the bottom), so a full-stretch needle
+         would orbit instead of spin. The manifest ships the dial center;
+         OUR needle child re-anchors there at its own baked size — the
+         rotation pivots the dial exactly like the app. A needle the dev
+         replaced with their own sprite is theirs and stays untouched. */
+      if (gRow != null && gRow.dialX > 1f && gd.needle != null && img.sprite != null && pngScale > 0) {
+        var nImgH = gd.needle.GetComponent<Image>();
+        var nPathH = nImgH != null && nImgH.sprite != null ? AssetDatabase.GetAssetPath(nImgH.sprite).Replace("\\\\", "/") : "";
+        if (needleFile != null && nPathH.EndsWith("/" + needleFile)) {
+          float rwH = img.sprite.rect.width, rhH = img.sprite.rect.height;
+          var cH = new Vector2(gRow.dialX / rwH, 1f - gRow.dialY / rhH);
+          gd.needle.anchorMin = cH; gd.needle.anchorMax = cH;
+          gd.needle.pivot = new Vector2(0.5f, 0.5f);
+          gd.needle.anchoredPosition = Vector2.zero;
+          gd.needle.sizeDelta = new Vector2(nImgH.sprite.rect.width / pngScale, nImgH.sprite.rect.height / pngScale);
+        }
       }
 #if UNITY_2023_2_OR_NEWER
       var g = GaugeRow(m, fam);

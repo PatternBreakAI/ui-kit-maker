@@ -8683,9 +8683,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const part = opts.part;
       /* v71 · form factor: the dial sinks into a real engine housing —
          walls, extrusion, gloss and shadow all come from the theme, so the
-         gauge extrudes like every other component. Engine-export part
-         layers keep the bare-canvas contract. */
-      const useHousing = !part;
+         gauge extrudes like every other component. Round 12 (owner: the
+         Unity gauges read "skeletal" beside the app's): the FACE part now
+         ships HOUSED too — the housed render minus its moving/live layers
+         (needle, readout) — so WYSIWYG holds from board to engine. Only
+         the NEEDLE keeps the bare, dial-centered canvas: its rotation
+         pivot is its own canvas center, and the manifest's dial center
+         anchors it on the housed face. */
+      const useHousing = !part || part === "face";
       const D = d2 + (bw + 18 * k) * 2;
       const W2 = d2 + pad2 * 2, H2 = d2 + pad2 * 2;
       const cx3 = useHousing ? 39 + D / 2 : W2 / 2, cy3 = useHousing ? 30 + D / 2 : H2 / 2, r0 = d2 / 2;
@@ -8713,7 +8718,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const inner2 = part === "needle" ? needle : part === "face" ? face : face + needle + readout;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
-        return inject(track.replace("<svg ", '<svg data-race="speedo" '),
+        /* the FACE part carries the readout seat + dial center as a geo
+           stamp (housed coordinates) — attributes never rasterize, so the
+           app's own render stays byte-identical */
+        const openTag = part === "face"
+          ? `<svg data-race="speedo" data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
+          : '<svg data-race="speedo" ';
+        return inject(track.replace("<svg ", openTag),
           `<defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs><g opacity="${dim}">${inner2}</g>`);
       }
       /* the READOUT SEAT rides the part render as a geo stamp (the season
@@ -8735,8 +8746,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const v3 = clamp(value ?? 0.62, 0, 1);
       const part = opts.part;
       // v71 · form factor: same housing rule as the classic dial — the
-      // light-segments sit in a recessed well inside the themed shell
-      const useHousing = !part;
+      // light-segments sit in a recessed well inside the themed shell.
+      // Round 12: the FACE part ships HOUSED (shell + recessed well +
+      // unlit segments) — the "skeletal" bare arc was the biggest
+      // board-to-Unity delta of the three gauges.
+      const useHousing = !part || part === "face";
       const D = d2 + (bw + 18 * k) * 2;
       const W2 = d2 + pad2 * 2, H2 = d2 + pad2 * 2;
       const cx3 = useHousing ? 39 + D / 2 : W2 / 2, cy3 = useHousing ? 30 + D / 2 : H2 / 2, r0 = d2 / 2;
@@ -8764,7 +8778,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
-        return inject(track.replace("<svg ", '<svg data-race="speedo2" '),
+        // the face part's seat + dial stamp — attributes never rasterize
+        const openTag2 = part === "face"
+          ? `<svg data-race="speedo2" data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
+          : '<svg data-race="speedo2" ';
+        return inject(track.replace("<svg ", openTag2),
           `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
       }
       // readout seat as a geo stamp — see the classic dial's note
@@ -8798,21 +8816,28 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
             `<line x1="${(cxP - Math.cos(angP) * 15 * k).toFixed(1)}" y1="${(cyP - Math.sin(angP) * 15 * k).toFixed(1)}" x2="${(cxP + Math.cos(angP) * (r0P - 32 * k)).toFixed(1)}" y2="${(cyP + Math.sin(angP) * (r0P - 32 * k)).toFixed(1)}" stroke="#FFFFFF" stroke-width="${(3.6 * k).toFixed(1)}" stroke-linecap="round" opacity="0.92"/>` +
             candyKnob(cxP, cyP, 9 * k, bevel) + `</svg>`;
         }
+        /* the FACE — HOUSED (round 12, same contract as the speedos):
+           themed shell + dial + well + every zone segment unlit + hub, the
+           moving layers (needle, lit segments, readout) left off. Seat and
+           dial center ride the geo stamp in housed coordinates. */
+        const DT = d2 + (bw + 18 * k) * 2;
+        const cxH = 39 + DT / 2, cyH = 30 + DT / 2;
         const zoneP = (t: number) => t < 0.6 ? "#3ECF6A" : t < 0.82 ? "#FFC531" : "#FF4D5A";
         let segsP = "";
         for (let i = 0; i < 28; i++) {
           const t0 = i / 27;
           const a = A0P + t0 * SWEEPP;
           const rO = r0P - 11 * k, rI = rO - 15 * k;
-          segsP += `<line x1="${(cxP + Math.cos(a) * rI).toFixed(1)}" y1="${(cyP + Math.sin(a) * rI).toFixed(1)}" x2="${(cxP + Math.cos(a) * rO).toFixed(1)}" y2="${(cyP + Math.sin(a) * rO).toFixed(1)}" stroke="${zoneP(t0)}" stroke-width="${(6.5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.14"/>`;
+          segsP += `<line x1="${(cxH + Math.cos(a) * rI).toFixed(1)}" y1="${(cyH + Math.sin(a) * rI).toFixed(1)}" x2="${(cxH + Math.cos(a) * rO).toFixed(1)}" y2="${(cyH + Math.sin(a) * rO).toFixed(1)}" stroke="${zoneP(t0)}" stroke-width="${(6.5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.14"/>`;
         }
         const gidP = "tcp" + UID++;
-        const gaugeStampT = `data-gauge="${cxP.toFixed(1)} ${(cyP + r0P * 0.5).toFixed(1)} ${(Math.min(d2 * 0.16, r0P * 0.42) * typeK).toFixed(1)} ${(cyP + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${WT.toFixed(0)}" height="${HT.toFixed(0)}" viewBox="0 0 ${WT.toFixed(0)} ${HT.toFixed(0)}" role="img" aria-label="rev meter face" data-race="tacho" ${gaugeStampT}>` +
+        const gaugeStampT = `data-gauge="${cxH.toFixed(1)} ${(cyH + r0P * 0.5).toFixed(1)} ${(Math.min(d2 * 0.16, r0P * 0.42) * typeK).toFixed(1)} ${(cyH + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cxH.toFixed(1)} ${cyH.toFixed(1)}"`;
+        const trackF = build(cfg, state, { x: 39, y: 30, h: DT, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: DT, shapeOverride: sov });
+        return inject(trackF.replace("<svg ", `<svg data-race="tacho" ${gaugeStampT} `),
           `<defs><linearGradient id="${gidP}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient></defs>` +
-          `<circle cx="${cxP}" cy="${cyP}" r="${r0P}" fill="url(#${gidP})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
-          `<circle cx="${cxP}" cy="${cyP}" r="${(r0P - 8 * k).toFixed(1)}" fill="${wellFill}"/>` +
-          segsP + candyKnob(cxP, cyP, 9 * k, bevel) + `</svg>`;
+          `<circle cx="${cxH}" cy="${cyH}" r="${r0P}" fill="url(#${gidP})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
+          `<circle cx="${cxH}" cy="${cyH}" r="${(r0P - 8 * k).toFixed(1)}" fill="${wellFill}"/>` +
+          segsP + candyKnob(cxH, cyH, 9 * k, bevel));
       }
       // v71 · form factor: housed like its siblings — theme walls, extrusion
       const D = d2 + (bw + 18 * k) * 2;
