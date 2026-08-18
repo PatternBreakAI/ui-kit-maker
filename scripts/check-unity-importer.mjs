@@ -117,6 +117,34 @@ if (!/pinnedFallbacks\.Add\([\s\S]{0,220}?missing\+\+;/.test(cs))
 if (!/minted at placement/.test(cs))
   errors.push("the per-board pinned-words receipt (ordering self-test) is missing from the emitted C#");
 
+/* round-13 invariants: the glow attaches by PARENTING. The mirrored
+   sibling chased the host's frame and lost it (owner: "didn't move with
+   the button"); the Body-child structure makes the halo a true first
+   child. The halo lives in STATE_FX_RUNTIME — a separate template from
+   the importer — so that literal is extracted the same way here. */
+const fxOpen = src.indexOf("const STATE_FX_RUNTIME = `");
+let fx = "";
+if (fxOpen < 0) errors.push("STATE_FX_RUNTIME not found — the halo runtime template is missing");
+else {
+  const fxStart = fxOpen + "const STATE_FX_RUNTIME = `".length;
+  let fxEnd = -1;
+  for (let i = fxStart; i < src.length; i++) {
+    if (src[i] === "\\") { i++; continue; }
+    if (src[i] === "`") { fxEnd = i; break; }
+  }
+  fx = fxEnd > 0 ? new Function("return `" + src.slice(fxStart, fxEnd) + "`;")() : "";
+}
+if (!/static Image BodyImage\(GameObject go\)/.test(cs))
+  errors.push("the BodyImage seam accessor is missing — sprite reads/swaps must serve both prefab structures");
+if (/SetSiblingIndex\(rt\.GetSiblingIndex\(\)\)/.test(fx))
+  errors.push("the mirrored-sibling glow mode is back — the halo must attach as a child (round 13)");
+if (!/glowRt\.SetAsFirstSibling\(\)/.test(fx))
+  errors.push("the halo must insert as the FIRST child (behind the Body/posed art)");
+if (!/predates the attached-glow structure/.test(fx))
+  errors.push("BuildGlow's legacy-root skip (draw nothing wrong, hint the upgrade) is missing");
+if (!/rebodied/.test(cs))
+  errors.push("the Body migration (wantBody/rebodied) is missing from the maintenance pass");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

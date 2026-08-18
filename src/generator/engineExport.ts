@@ -3389,11 +3389,13 @@ namespace PatternBreak {
       // halo must hug the VISIBLE art, not the invisible raycast body
       // (owner round 10: "the shadow being separate isn't great")
       artRt = transform.Find("Posed art") as RectTransform;
-      /* the halo has to draw BEHIND the piece, and in Unity UI a child
-         always draws in FRONT of its parent's own graphic — so it is a
-         SIBLING inserted just before us. Built at runtime, which also
-         keeps it out of the prefab and out of your scene until it's
-         actually doing something. */
+      /* the halo draws BEHIND the piece as its FIRST CHILD — the root
+         draws nothing on current prefabs (the sprite lives on the "Body"
+         child / the posed art child), so a child can sit behind the art.
+         Attachment by parenting: the halo can never lag or lose the
+         piece, which is exactly what the old mirrored SIBLING did.
+         Built at runtime, which also keeps it out of the prefab and out
+         of your scene until it's actually doing something. */
       if (Application.isPlaying && glowSprite != null && rt.parent != null) BuildGlow();
       Push(true);
     }
@@ -3402,8 +3404,22 @@ namespace PatternBreak {
       glowRt = null; glowImg = null;
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
     }
+    static bool legacyGlowHinted;
     void BuildGlow() {
       if (glowRt != null) return; // one halo, ever — a double enable must not stack auras
+      /* CHILD-ONLY (round 13): the halo attaches by parenting — first
+         child, behind the Body/posed art — and can never lag or lose the
+         piece. A root that still DRAWS predates the Body structure: a
+         child halo would paint OVER its art, so it stays off with the
+         one-line cure instead of drawing wrong. */
+      var img0 = GetComponent<Image>();
+      if (img0 != null && img0.sprite != null && img0.color.a >= 0.05f) {
+        if (!legacyGlowHinted) {
+          legacyGlowHinted = true;
+          Debug.Log("UI Kit Maker: " + name + " predates the attached-glow structure, so its hover halo stays off. Re-import the kit (or Tools > PatternBreak > Regenerate Example Prefabs) to upgrade — pieces you built yourself are never touched.");
+        }
+        return;
+      }
       var go = new GameObject(name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
       /* the halo is DECOR, not layout — and the exemption must exist BEFORE
@@ -3413,18 +3429,8 @@ namespace PatternBreak {
          report, round two: prefabs "spawn in grouped in one place"). */
       go.GetComponent<LayoutElement>().ignoreLayout = true;
       glowRt = go.GetComponent<RectTransform>();
-      var img0 = GetComponent<Image>();
-      bool rootInvisible = img0 == null || img0.sprite == null || img0.color.a < 0.05f;
-      if (rootInvisible && artRt != null) {
-        /* posed copies: the root draws nothing, so the halo can live INSIDE
-           the instance (first child = behind the art) and can never drift
-           from it — poses, moves and scales all ride along */
-        glowRt.SetParent(rt, false);
-        glowRt.SetAsFirstSibling();
-      } else {
-        glowRt.SetParent(rt.parent, false);
-        glowRt.SetSiblingIndex(rt.GetSiblingIndex()); // immediately before us = behind us
-      }
+      glowRt.SetParent(rt, false);
+      glowRt.SetAsFirstSibling(); // behind the Body / posed art — and it RIDES the piece
       glowImg = go.GetComponent<Image>();
       glowImg.sprite = glowSprite;
       glowImg.raycastTarget = false;
@@ -3442,9 +3448,9 @@ namespace PatternBreak {
        per-frame ALLOCATION, and this allocates nothing. */
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
-      // the halo hugs the VISIBLE art: the posed child when riding inside
-      // the instance, the host rect otherwise
-      var tgt = glowRt.parent == rt && artRt != null ? artRt : rt;
+      // the halo hugs the VISIBLE art: the posed child when the copy wears
+      // one, the host rect otherwise (the Body child stretches to it)
+      var tgt = artRt != null ? artRt : rt;
       if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
       if (glowRt.anchorMax != tgt.anchorMax) glowRt.anchorMax = tgt.anchorMax;
       if (glowRt.pivot != tgt.pivot) glowRt.pivot = tgt.pivot;
@@ -3559,6 +3565,14 @@ namespace PatternBreak {
     void OnEnable() {
       rt = GetComponent<RectTransform>();
       hostImg = GetComponent<Image>();
+      /* Body-structure pieces (round 13) draw through a full-stretch
+         "Body" child — the stencil borrows ITS sprite (same geometry,
+         the child stretches to this rect) */
+      if (hostImg == null || hostImg.sprite == null) {
+        var bodyT = transform.Find("Body");
+        var bodyImg = bodyT != null ? bodyT.GetComponent<Image>() : null;
+        if (bodyImg != null && bodyImg.sprite != null) hostImg = bodyImg;
+      }
       /* no pixels, no band: an alpha-zero or sprite-less host (a posed
          copy's raycast body) has nothing for the stencil to hold — the
          old build swept a bar over thin air there */
@@ -7014,6 +7028,12 @@ namespace PatternBreak {
               if (psp != null && pimg != null) {
                 pimg.sprite = null;
                 pimg.color = new Color(1f, 1f, 1f, 0f); // invisible, still the button's raycast body
+                /* Body-structure prefabs (round 13) draw through a child —
+                   a posed copy must silence IT too, or the base nine-slice
+                   ghosts under the posed pixels (a stacked double) */
+                var bodyP = inst.transform.Find("Body");
+                var bodyPImg = bodyP != null ? bodyP.GetComponent<Image>() : null;
+                if (bodyPImg != null) bodyPImg.enabled = false;
                 var pbtn = inst.GetComponent<Button>();
                 if (pbtn != null) pbtn.transition = Selectable.Transition.None;
                 rt.sizeDelta = new Vector2(it.w, it.h);
@@ -7085,12 +7105,13 @@ namespace PatternBreak {
                  oversized by its padding ratio (owner: "weird sizing
                  issues", while the baked boards came out right). */
               float ps = m.pngScale > 0 ? m.pngScale : 2;
-              var rootImg2 = inst.GetComponent<Image>();
+              var rootImg2 = BodyImage(inst);
               var rootSp = rootImg2 != null ? rootImg2.sprite : null;
-              /* the prefab's ROOT sprite names the truth — rig roots are
-                 not "base" (Slider roots on -track, Firebutton on -dome),
-                 so match the manifest row to the sprite actually worn,
-                 falling back to the family's base */
+              /* the piece's BODY sprite names the truth (the seam: Body
+                 child on round-13 glow families, the root elsewhere) —
+                 rig roots are not "base" (Slider roots on -track,
+                 Firebutton on -dome), so match the manifest row to the
+                 sprite actually worn, falling back to the family's base */
               PBAsset baseA = null;
               if (rootSp != null) foreach (var a in m.assets) {
                 if (a == null || a.component != it.component || a.file == null) continue;
@@ -8406,6 +8427,10 @@ namespace PatternBreak {
         btn.spriteState = ss;
         WireStateFx(go, root, m, baseAsset.component, basePath, pngScale);
       }
+      /* round 13 — glow families take the Body-child structure (one move,
+         shared with the migration pass): the halo attaches INSIDE the
+         piece, behind the art, and tracks it for good */
+      RebodyIfGlow(go, m, baseAsset.component);
       // interactive or not, the piece's raycast stops at its drawn shell
       ShellRaycastPad(go, baseAsset.component, m);
       /* Idle motion (owner spec): the kit's own resting-state animations,
@@ -8540,7 +8565,7 @@ namespace PatternBreak {
        kit, every future export. */
     static PBAsset ShellRowOf(GameObject host, string fam, PBManifest m) {
       if (m == null || m.assets == null) return null;
-      var img = host.GetComponent<Image>();
+      var img = BodyImage(host);
       var sp2 = img != null ? img.sprite : null;
       if (sp2 == null) return null;
       PBAsset byBase = null;
@@ -8573,9 +8598,57 @@ namespace PatternBreak {
        it's important to get this right"). Anchors, not anchoredPosition,
        so the seat scales with any resize and LabelStateInk's base stays
        untouched. */
+    /* ── the ONE SEAM for "which Image is the piece's visible body" ──
+       Round 13: glow families restructure — the ROOT becomes an invisible
+       raycast/layout body and a "Body" child carries the sprite, so the
+       runtime halo can be a true FIRST CHILD drawing behind the art
+       (attachment by parenting; the mirrored sibling is gone). Every
+       sprite read/swap goes through here so both structures — new Body
+       prefabs and everything older — stay first-class forever. */
+    static Image BodyImage(GameObject go) {
+      var rootImg = go.GetComponent<Image>();
+      if (rootImg != null && rootImg.sprite != null) return rootImg; // legacy: the root draws
+      var bodyT = go.transform.Find("Body");
+      var bodyImg = bodyT != null ? bodyT.GetComponent<Image>() : null;
+      return bodyImg != null && bodyImg.sprite != null ? bodyImg : rootImg;
+    }
+    /* the ONE MOVE generation and migration share: a drawing root's art
+       shifts into a full-stretch "Body" first child; the root keeps the
+       click (invisible — raycast ignores alpha) and any Selectable
+       re-targets the drawing image, so Sprite Swap keeps swapping the
+       art. The halo then parents at index 0: behind the Body, attached
+       for good. The "Body" name is load-bearing ownership — a child
+       already wearing it means the piece is a dev's, and the move steps
+       aside. Only glow families move; everything else keeps the
+       single-image shape it always had. */
+    static bool RebodyIfGlow(GameObject go, PBManifest m, string fam) {
+      if (!HasStateFx(m, fam)) return false;
+      var rootB = go.GetComponent<Image>();
+      if (rootB == null || rootB.sprite == null) return false; // already Body-shaped (or imageless rig)
+      if (go.transform.Find("Body") != null) return false; // occupied — theirs
+      var bodyGo2 = new GameObject("Body", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      bodyGo2.transform.SetParent(go.transform, false);
+      bodyGo2.transform.SetSiblingIndex(0); // under every layer; the halo inserts before it at Play
+      var bRt2 = bodyGo2.GetComponent<RectTransform>();
+      bRt2.anchorMin = Vector2.zero; bRt2.anchorMax = Vector2.one;
+      bRt2.offsetMin = Vector2.zero; bRt2.offsetMax = Vector2.zero;
+      var bImg2 = bodyGo2.GetComponent<Image>();
+      bImg2.sprite = rootB.sprite;
+      bImg2.type = rootB.type;
+      bImg2.preserveAspect = rootB.preserveAspect;
+      bImg2.fillCenter = rootB.fillCenter;
+      bImg2.pixelsPerUnitMultiplier = rootB.pixelsPerUnitMultiplier;
+      bImg2.color = rootB.color.a >= 0.05f ? rootB.color : Color.white;
+      bImg2.raycastTarget = false;
+      rootB.sprite = null;
+      rootB.color = new Color(1f, 1f, 1f, 0f); // invisible raycast body — the click stays here
+      var selB = go.GetComponent<Selectable>();
+      if (selB != null && (selB.targetGraphic == rootB || selB.targetGraphic == null)) selB.targetGraphic = bImg2;
+      return true;
+    }
     static void ShellSeatLabel(GameObject child, GameObject host, string fam, PBManifest m) {
       ShellStretch(child, host, fam, m);
-      var img = host.GetComponent<Image>();
+      var img = BodyImage(host);
       var shift = LabelSeatShift(LabelRow(m, fam), img != null ? img.sprite : null, m);
       if (shift == Vector2.zero) return;
       var rt = child.GetComponent<RectTransform>();
@@ -8583,7 +8656,7 @@ namespace PatternBreak {
     }
     static bool ShellStretch(GameObject child, GameObject host, string fam, PBManifest m) {
       var row = ShellRowOf(host, fam, m);
-      var img = host.GetComponent<Image>();
+      var img = BodyImage(host);
       if (row == null || img == null || img.sprite == null) return false;
       float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
       if (rw < 2f || rh < 2f) return false;
@@ -8598,7 +8671,7 @@ namespace PatternBreak {
     static bool ShellCenterAnchor(GameObject child, GameObject host, string fam, PBManifest m, out Vector2 shellSize) {
       shellSize = Vector2.zero;
       var row = ShellRowOf(host, fam, m);
-      var img = host.GetComponent<Image>();
+      var img = BodyImage(host);
       if (row == null || img == null || img.sprite == null) return false;
       float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
       if (rw < 2f || rh < 2f) return false;
@@ -8620,9 +8693,12 @@ namespace PatternBreak {
        their current rect. */
     static void ShellRaycastPad(GameObject host, string fam, PBManifest m) {
       var row = ShellRowOf(host, fam, m);
-      var img = host.GetComponent<Image>();
+      /* geometry reads the BODY (the sprite), but the padding lands on the
+         ROOT image — that is the raycast carrier on both structures */
+      var img = BodyImage(host);
+      var rootImg = host.GetComponent<Image>();
       var rt = host.GetComponent<RectTransform>();
-      if (row == null || img == null || img.sprite == null || rt == null) return;
+      if (row == null || img == null || img.sprite == null || rootImg == null || rt == null) return;
       float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
       if (rw < 4f || rh < 4f || row.shell.w < 4f || row.shell.h < 4f) return;
       float padL = row.shell.x, padT = row.shell.y;
@@ -8630,9 +8706,9 @@ namespace PatternBreak {
       if (padL < 0f || padT < 0f || padR < 0f || padB < 0f) return; // a shell outside its crop is a lie — leave the raycast alone
       if (img.type == Image.Type.Sliced) {
         float ps = m != null && m.pngScale > 0 ? m.pngScale : 2f;
-        img.raycastPadding = new Vector4(padL / ps, padB / ps, padR / ps, padT / ps);
+        rootImg.raycastPadding = new Vector4(padL / ps, padB / ps, padR / ps, padT / ps);
       } else if (rt.sizeDelta.x > 2f && rt.sizeDelta.y > 2f) {
-        img.raycastPadding = new Vector4(
+        rootImg.raycastPadding = new Vector4(
           padL / rw * rt.sizeDelta.x, padB / rh * rt.sizeDelta.y,
           padR / rw * rt.sizeDelta.x, padT / rh * rt.sizeDelta.y);
       }
@@ -8641,7 +8717,7 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return;
       var sp = S(root + "/assets/" + fam + "/" + fam + "-specular.png");
       if (sp == null) return;
-      var rootImg = go.GetComponent<Image>();
+      var rootImg = BodyImage(go);
       var rootSp = rootImg != null ? rootImg.sprite : null;
       if (rootSp == null || rootSp.rect.width < 2f) return;
       PBAsset specRow = null, rootRow = null;
@@ -8819,6 +8895,10 @@ namespace PatternBreak {
         btn.transition = Selectable.Transition.None;
         WireStateFx(go, root, m, fam, famDirT + "/" + fam + "-base.9.png", pngScale);
       }
+      /* round 13: the layered build takes the Body structure too — its
+         halo needs the same attached home. Paint order is unchanged (the
+         root drew before its children; Body at index 0 still does). */
+      RebodyIfGlow(go, m, fam);
       if (label != null) {
 #if UNITY_2023_2_OR_NEWER
         var bakedFaceT = BakedLabelFace(m, root, fam);
@@ -9172,7 +9252,7 @@ namespace PatternBreak {
       var rt = host.GetComponent<RectTransform>();
       float h = rt != null ? rt.rect.height : 0f;
       if (h < 2f) {
-        var img = host.GetComponent<Image>();
+        var img = BodyImage(host);
         if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
       }
       return h;
@@ -10211,6 +10291,7 @@ namespace PatternBreak {
         st2.disabledSprite = disabled;
         btn.spriteState = st2;
       }
+      RebodyIfGlow(go, m, "firebutton"); // round 13: the dome art moves to Body so the halo attaches
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Firebutton.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -10723,7 +10804,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -10746,7 +10827,10 @@ namespace PatternBreak {
         // below reads the kit's current art (see ReadoptKitSprites)
         bool adoptedNow = ReadoptKitSprites(root, path, ref asset, m);
         if (adoptedNow) readopted++;
-        var rootImg = asset.GetComponent<Image>();
+        /* the family is identified by the piece's BODY sprite — through
+           the one seam, so round-13 Body prefabs (root draws nothing)
+           keep every heal below instead of falling out of maintenance */
+        var rootImg = BodyImage(asset);
         if (rootImg == null || rootImg.sprite == null) {
 #if UNITY_2023_2_OR_NEWER
           // the HeroLabel prefab (no root Image): a Play-mode or
@@ -10800,8 +10884,21 @@ namespace PatternBreak {
         bool wantWiring = !tiledBuild && asset.GetComponent<Selectable>() == null && (hover != null || pressed != null || disabled != null);
         /* click areas that stop at the drawn shell — prefabs from older
            importers raycast their whole padded crop (owner: "very large
-           selection area"); pad any that still read zero */
-        bool wantPad = rootImg.raycastPadding == Vector4.zero && ShellRowOf(asset, famName, m) != null;
+           selection area"); pad any that still read zero. The padding
+           lives on the ROOT image (the raycast carrier on both
+           structures), so the probe reads the root, not the body. */
+        var rayImg = asset.GetComponent<Image>();
+        bool wantPad = rayImg != null && rayImg.raycastPadding == Vector4.zero && ShellRowOf(asset, famName, m) != null;
+        /* round 13 — the Body-child glow structure: a glow family whose
+           ROOT still draws predates the attached halo; its sprite moves
+           into a "Body" first child so the halo can draw behind the art.
+           The name is load-bearing ownership: a dev's own "Body" child
+           means the piece is theirs — skipped, said out loud. */
+        bool wantBody = false;
+        if (HasStateFx(m, famName) && rayImg != null && rayImg.sprite != null) { // tiled builds restructure too — their halo needs it
+          if (asset.transform.Find("Body") == null) wantBody = true;
+          else Debug.Log("UI Kit Maker: " + famName + " prefab — a child named 'Body' already lives there, so the attached-glow restructure steps aside (the piece is yours; its hover halo stays off).");
+        }
         /* a prefab built by an older importer already has its Button, so the
            wiring branch never fires — it would have kept its quiet face swap
            forever without this (owner: "I'm not getting the glows on hover") */
@@ -11071,7 +11168,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -11079,9 +11176,15 @@ namespace PatternBreak {
           // script GUIDs; the ghosts block nothing but confuse everything)
           foreach (var tr in contents.GetComponentsInChildren<Transform>(true))
             if (GameObjectUtility.RemoveMonoBehavioursWithMissingScript(tr.gameObject) > 0) { purgedGhosts++; changed = true; }
+          /* the Body restructure runs FIRST so every heal below sees the
+             final shape — sprite to a full-stretch "Body" first child,
+             the root goes invisible but keeps the click, and Sprite Swap
+             re-targets the drawing image. Sizing, words, wiring and the
+             dev's own children are untouched. */
+          if (wantBody && RebodyIfGlow(contents, m, famName)) { rebodied++; changed = true; }
           if (wantWiring && contents.GetComponent<Selectable>() == null) {
             var btn = contents.AddComponent<Button>();
-            btn.targetGraphic = contents.GetComponent<Image>();
+            btn.targetGraphic = BodyImage(contents);
             btn.transition = Selectable.Transition.SpriteSwap;
             var ss = new SpriteState();
             ss.highlightedSprite = hover;
@@ -11194,7 +11297,7 @@ namespace PatternBreak {
           }
           if (wantResize) {
             var rrtC = contents.GetComponent<RectTransform>();
-            var imgC = contents.GetComponent<Image>();
+            var imgC = BodyImage(contents);
             if (rrtC != null && imgC != null && imgC.sprite != null) {
               float psC = m != null && m.pngScale > 0 ? m.pngScale : 2;
               rrtC.sizeDelta = new Vector2(imgC.sprite.rect.width / psC, imgC.sprite.rect.height / psC);
@@ -11276,6 +11379,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)
         Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — prefabs generated by an older importer kept the sprite dimensions they were born with, and board scenes inherited the stale size.");
+      if (rebodied > 0)
+        Debug.Log("UI Kit Maker: moved the art of " + rebodied + " glow-family prefab(s) into a Body child — the hover halo now rides INSIDE each piece (a true first child, drawn behind the art), so it tracks every move with zero lag. Your own children, words and wiring are untouched.");
       if (speced > 0)
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
       if (retracked > 0)
