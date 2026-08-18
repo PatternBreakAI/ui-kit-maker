@@ -5239,7 +5239,15 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
    whole export in the order a dev actually meets it. */
 function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
+  /* the export build rides the TITLE BLOCK (round 16 — "is this zip the
+     latest?" must never be a guessing game): the same stamp the manifest
+     carries and the Console prints on every import. */
+  const stamp = typeof __BUILD_STAMP__ === "string" ? __BUILD_STAMP__ : "dev";
   return `# ${st.kitName} — the Unity walkthrough
+
+**Export build ${stamp}** · kit v${st.kitVersion} — the Console prints this same
+stamp on every import (\`[export build ${stamp}]\`); if a fix you expected
+isn't in the Console line's build, this zip predates it — re-export.
 
 Three steps, then a slide-by-slide tour of the whole export.
 
@@ -11070,7 +11078,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -11201,6 +11209,31 @@ namespace PatternBreak {
            forever without this (owner: "I'm not getting the glows on hover") */
         bool wantFx = !tiledBuild && (hover != null || pressed != null || disabled != null)
           && asset.GetComponent<StateFx>() == null && HasStateFx(m, famName);
+        /* round 16: the aura PAD converges with the CURRENT sprites — the
+           halo GameObject itself is runtime-only (DontSave, rebuilt each
+           Play), so no stale geometry can serialize, but the serialized
+           glowPad CAN go stale: a re-export changes the aura's blur reach,
+           sprite references re-adopt, and the halo then sizes off the old
+           overhang. Only OUR wiring converges (family aura + family base);
+           a pad the dev tuned onto their own sprites stays theirs. */
+        bool wantGlowPad = false;
+        Vector2 glowPadWant = Vector2.zero;
+        {
+          var fxP = asset.GetComponent<StateFx>();
+          var bodyP = BodyImage(asset);
+          if (fxP != null && fxP.glowSprite != null && bodyP != null && bodyP.sprite != null) {
+            var gpP = AssetDatabase.GetAssetPath(fxP.glowSprite).Replace("\\\\", "/");
+            var bpP = AssetDatabase.GetAssetPath(bodyP.sprite).Replace("\\\\", "/");
+            if (gpP.StartsWith(root + "/assets/") && gpP.EndsWith("-glow.png")
+                && (bpP.EndsWith("-base.9.png") || bpP.EndsWith("-base.png"))) {
+              float psP = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+              glowPadWant = new Vector2(
+                (fxP.glowSprite.rect.width - bodyP.sprite.rect.width) * 0.5f / psP,
+                (fxP.glowSprite.rect.height - bodyP.sprite.rect.height) * 0.5f / psP);
+              if ((fxP.glowPad - glowPadWant).sqrMagnitude > 0.25f) wantGlowPad = true;
+            }
+          }
+        }
         /* and where an earlier pass already swap-wired a tiled build, take
            the wrong transition OFF (our mistake, ours to clean) — the
            Button itself stays, clicks keep working */
@@ -11465,7 +11498,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -11498,6 +11531,10 @@ namespace PatternBreak {
           if (wantFx && contents.GetComponent<StateFx>() == null) {
             WireStateFx(contents, root, m, famName, spritePath, m.pngScale);
             if (contents.GetComponent<StateFx>() != null) { wired++; changed = true; }
+          }
+          if (wantGlowPad) {
+            var fxTune = contents.GetComponent<StateFx>();
+            if (fxTune != null) { fxTune.glowPad = glowPadWant; padTuned++; changed = true; }
           }
           if (wantPad) {
             ShellRaycastPad(contents, famName, m);
@@ -11696,6 +11733,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
       if (mapGrafted > 0)
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
+      if (padTuned > 0)
+        Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
       if (worded > 0)
         Debug.Log("UI Kit Maker: gave " + worded + " panel prefab(s) their WORDS — every text the app renders for the piece now rides as live TMP under a 'Words' group (or a live label), pre-filled with the words from your kit, seated and dressed as the app draws them (kit-manifest.json > textSeats / labelText). Words you retype in Unity are yours: a re-import never overwrites a text that no longer matches its seeded string.");
       if (reseeded > 0)

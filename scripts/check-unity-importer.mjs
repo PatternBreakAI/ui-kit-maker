@@ -199,6 +199,14 @@ if (!/glowRt\.anchorMax != Vector2\.one\) glowRt\.anchorMax = Vector2\.one/.test
 if (/var tgt = artRt != null \? artRt : rt;/.test(fx))
   errors.push("the parent-space MirrorHost copy is back — host anchors/anchoredPosition must never be applied to a CHILD of the host (round 15)");
 
+/* round-16 item A: zips self-identify (README title stamp; the Console
+   line already carries generatorVersion), and mid-generation serialized
+   aura pads converge with the current sprites. */
+if (!/Export build \$\{stamp\}/.test(src))
+  errors.push("the README title block must carry the export build stamp (round 16 — zip-vintage ambiguity)");
+if (!/padTuned/.test(cs))
+  errors.push("the aura-pad convergence (stale serialized glowPad vs current sprites) is missing (round 16)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
