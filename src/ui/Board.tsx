@@ -445,6 +445,12 @@ export function BoardView({ playing }: { playing: boolean }) {
   const [q, setQ] = useState("");
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
+  /* in-place words: the item whose text is being edited on the stage
+     (owner: "I need a way to edit the text here on in the right menu" —
+     this is the "here"). Double-click opens it; Enter/Escape/blur close.
+     Edits commit live through the same setters the panel uses, so the
+     board undo lane and persistence are identical either way. */
+  const [textEdit, setTextEdit] = useState<string | null>(null);
   // paste-a-URL video backdrop
   const [vidUrl, setVidUrl] = useState("");
   const [vidBusy, setVidBusy] = useState(false);
@@ -1190,6 +1196,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {bd.items.map((b) => (
                       <StagePiece key={b.id} b={b} playing={playing}
                         selected={selIdsAll.includes(b.id)} solo={boardSel === b.id && selIdsAll.length === 1} fit={fit}
+                        onTextEdit={b.stamp || (b.kitId && KIT_LABEL_EDITABLE.has(baseOf(b.kitId))) ? () => { pickPiece(bd.id, b.id, false); setTextEdit(b.id); } : undefined}
                         onSelect={(e) => pickPiece(bd.id, b.id, !!e?.shiftKey)}
                         onDragStart={(e) => {
                           // dragging any selected piece carries the whole selection
@@ -1209,6 +1216,31 @@ export function BoardView({ playing }: { playing: boolean }) {
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
+                    {/* the in-place words editor — floats just above the
+                        piece, counter-scaled so type stays readable inside
+                        the fit-scaled stage. Live commit through the same
+                        setters as the panel field; Enter/Escape/blur close. */}
+                    {textEdit && (() => {
+                      const eb = bd.items.find((i) => i.id === textEdit);
+                      if (!eb || playing) return null;
+                      const isStamp = !!eb.stamp;
+                      if (!isStamp && !eb.kitId) return null;
+                      const val = isStamp ? eb.stamp!.text : (eb.label ?? "");
+                      return (
+                        <input className="bd-inlineedit" autoFocus aria-label="Edit the words in place"
+                          value={val}
+                          maxLength={isStamp ? 40 : labelMaxOf(baseOf(eb.kitId!))}
+                          placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text — this copy" : "")}
+                          style={{ left: eb.x, top: Math.max(4, eb.y - 44 / fit), transform: `scale(${1 / fit})`, transformOrigin: "top left" }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (isStamp) useGen.getState().setBoardItemStamp(eb.id, { text: e.target.value });
+                            else useGen.getState().setBoardItemLabel(eb.id, e.target.value);
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); setTextEdit(null); } }}
+                          onBlur={() => setTextEdit(null)} />
+                      );
+                    })()}
                     {grpBox && grpBox.bd === bd.id && !playing && (
                       /* the frame itself never eats clicks (pointer-events:
                          none) — only its corner handles are interactive */
@@ -1401,11 +1433,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               </label>
             )}
             {sel.kitId && KIT_LABEL_EDITABLE.has(baseOf(sel.kitId)) && (
-              <input className="bd-abname" maxLength={labelMaxOf(baseOf(sel.kitId))} aria-label="Instance text"
-                title="Text — this copy only. Clear the field to follow the kit again."
-                placeholder={kitLabels[sel.kitId] || "Text — this copy"}
-                value={sel.label ?? ""}
-                onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
+              <label className="bd-slider" title="Text — this copy only. Clear the field to follow the kit again. Double-clicking the piece on the stage edits in place.">
+                The words — this copy
+                <input className="bd-abname bd-words" maxLength={labelMaxOf(baseOf(sel.kitId))} aria-label="Instance text"
+                  placeholder={kitLabels[sel.kitId] || "Text — this copy"}
+                  value={sel.label ?? ""}
+                  onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
+              </label>
             )}
             {sel.stamp && (() => {
               /* the stamp's own dials — instance-only, the kit's typography
@@ -1415,8 +1449,17 @@ export function BoardView({ playing }: { playing: boolean }) {
               const patch = (p: Partial<typeof st>) => useGen.getState().setBoardItemStamp(sel.id, p);
               return (<>
                 <div className="bd-h" style={{ marginTop: 14 }}>{st.plain ? "Plain text" : "Type stamp"}</div>
-                <input className="bd-abname" value={st.text} maxLength={40} aria-label="Stamp text"
-                  onChange={(e) => patch({ text: e.target.value })} />
+                {/* the WORDS, said out loud as a field (owner: "I need a way
+                    to edit the text here on in the right menu") — type here
+                    and the art follows live. One line by design: the
+                    specimen renderer draws a single phrase. Double-click
+                    the piece on the stage edits in place too. */}
+                <label className="bd-slider" title="The words this piece shows — type and the art follows live. Double-clicking the piece on the stage edits in place.">
+                  The words
+                  <input className="bd-abname bd-words" value={st.text} maxLength={40} aria-label="Stamp text"
+                    placeholder="Type the words…"
+                    onChange={(e) => patch({ text: e.target.value })} />
+                </label>
                 {/* the two text tiers (owner): Splash = the kit's full
                     lettering treatment; Plain = the same face, one flat
                     pickable color, for labels that must READ anywhere */}
@@ -1797,7 +1840,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
 /* depth guard for the shell-miss relay below — dispatchEvent is
    synchronous, so a simple counter bounds any pathological stack */
 let boardRelay = 0;
-function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, onDragMove, onDragEnd }: {
+function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, onDragMove, onDragEnd, onTextEdit }: {
   b: BoardItem; playing: boolean; selected: boolean;
   /** the ONE selected piece — toolbar and transform handles only render solo,
    *  so a multi-selection stays a clean field of boxes */
@@ -1806,6 +1849,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onDragStart: (e: React.PointerEvent) => void;
   onDragMove: (e: React.PointerEvent) => void;
   onDragEnd: () => void;
+  /** word-bearing pieces only (stamps, label-editable kit copies):
+   *  double-click opens the in-place words editor. Selection, drag and
+   *  the marquee are untouched — dblclick is two stationary clicks. */
+  onTextEdit?: () => void;
 }) {
   const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
   const sc = b.scale ?? 1;
@@ -1950,7 +1997,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
         onPointerMove: onDragMove,
         onPointerUp: onDragEnd,
         onPointerCancel: onDragEnd,
-      } : { onPointerDown: onSelect })}>
+      } : { onPointerDown: onSelect })}
+      {...(!playing && onTextEdit ? { onDoubleClick: (e: React.MouseEvent) => { e.stopPropagation(); onTextEdit(); } } : {})}>
       {/* THE DRIFT FIX (verified root cause, 2026-08-17): LiveArt's
           anchorContent pulls its glow pad in with a NEGATIVE TOP MARGIN
           (−pad). A plain block wrapper lets that margin COLLAPSE through

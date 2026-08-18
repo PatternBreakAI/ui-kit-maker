@@ -2249,6 +2249,12 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .bd-abname:hover { border-color: var(--line2); }
 .bd-abname:focus { border-color: var(--line2); background: var(--card); outline: none; }
 .bd-abmeta { font-size: 11px; color: var(--ink3); white-space: nowrap; }
+/* the WORDS fields in the side rail — real input chrome, always (the
+   artboard-header transparency made the text read as a static caption;
+   owner: "I need a way to edit the text here on in the right menu") */
+.bd-side .bd-words { border-color: var(--line2); background: var(--card); flex: none; width: 100%; }
+.bd-side .bd-words:focus { border-color: #6fd6ff; }
+.bd-side .bd-words::placeholder { color: var(--ink3); }
 .bd-abhead .bd-abtool:first-of-type { margin-left: auto; }
 .bd-abtool { border: 1px solid var(--line2); background: var(--card); color: var(--ink2); border-radius: 8px; padding: 4px 10px; font: 600 11.5px inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .bd-abtool:hover { color: var(--ink); }
@@ -2341,6 +2347,17 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
    retired — owner-directed, 2026-08-17; the right panel's Selected
    section carries every control it held.) */
 .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
+/* the in-place words editor — floats above its piece, counter-scaled to
+   stay screen-sized inside the fit-scaled stage; the selection accent so
+   it reads as part of the editing chrome */
+.bd-inlineedit {
+  position: absolute; z-index: 8; min-width: 200px; height: 32px; padding: 0 11px;
+  border: 1.5px solid #6fd6ff; border-radius: 9px; background: rgba(10, 14, 24, .95);
+  color: #e7ecf5; font: 650 13.5px/1 Inter, sans-serif; letter-spacing: .02em;
+  box-shadow: 0 10px 28px rgba(6, 8, 16, .55);
+}
+.bd-inlineedit:focus { outline: none; border-color: #9fe2ff; }
+.bd-inlineedit::placeholder { color: rgba(231, 236, 245, .4); }
 /* the stamp door — the one non-component asset, pinned above the groups */
 .bd-stampbtn {
   display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
