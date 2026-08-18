@@ -4343,9 +4343,10 @@ export interface KitOpts {
    *  re-renders wider — caps, knob and inset stay true instead of
    *  distorting. 1 = authored width. */
   stretch?: number;
-  /** Vertical 9-slice stretch — blank panels only: the shell re-renders
-   *  taller while tokenH keeps walls, rim and depth at component scale.
-   *  1 = authored height. */
+  /** Vertical 9-slice stretch — blank panels and the scrollbar: the shell
+   *  re-renders taller while tokenH keeps walls, rim and depth at
+   *  component scale (the scrollbar's end caps and arrows stay k-sized;
+   *  only the rail and thumb travel grow). 1 = authored height. */
   stretchY?: number;
   /** Alt tone — muted variant for empty/error titles; inert to hover. */
   tone?: "alt";
@@ -5187,8 +5188,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "scrollbar": {
       /* System chrome · scrollbar — vertical strip shell, sunken track,
-         candy thumb. value scrubs the thumb. */
-      const w = 66 * k, h = 380 * k;
+         candy thumb. value scrubs the thumb.
+         VERTICAL 9-SLICE (owner: "need to be able to vertically stretch
+         this scrollbar 9-slice style"): opts.stretchY re-renders the
+         whole strip at the pulled length — a real engine render, not a
+         bitmap stretch. Every cap stays chrome-sized (insets, arrows and
+         the track's 26k/52k end reserves are k-scaled, not h-scaled), so
+         only the rail and the thumb's travel grow — honest slices.
+         FENCE: stretchY undefined clamps to 1 → h is byte-identical to
+         the un-parameterized render; every existing call site (kit view,
+         catalog, exports without a board stretch) is untouched. */
+      const w = 66 * k, h = 380 * k * clamp(opts.stretchY ?? 1, 0.7, 3);
       /* editing contract: hover/pressed restyle the THUMB; the rail only
          dims for disabled. */
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });

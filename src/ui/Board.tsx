@@ -324,7 +324,7 @@ const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar"
 /* Blank panels stretch BOTH ways (owner: "two modes — 9-slice stretchable
    and scale... just the blank panels for now"): top/bottom handles pull the
    height, left/right the width, corners keep proportional scale. */
-const STRETCHABLE_V = new Set<string>(["panel"]);
+const STRETCHABLE_V = new Set<string>(["panel", "scrollbar"]);
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
