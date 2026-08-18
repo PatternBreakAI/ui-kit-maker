@@ -152,6 +152,9 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     { kitId: "circuit", x: 420, y: 560 },
     { kitId: "primary", x: 860, y: 620 },
     { kitId: "leaderboard", x: 1340, y: 500 },
+    /* the fire button is a GATED prop — board placement is what ships its
+       dome rows + sprites, which the fire-press glow row reads (round 18) */
+    { kitId: "firebutton", x: 1680, y: 860 },
     { kitId: "telemetry", x: 100, y: 860 },
     { kitId: "laptimes", x: 560, y: 860 },
     { kitId: "loottag", x: 1000, y: 900 },
@@ -220,7 +223,10 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
      composed exactly the way JoystickGhostPrefab composes them. A LOCAL
      copy — pushing into the store's own board would ride into the NEXT
      kit's export as a bogus board item. */
-  const items = [...board.items, { component: "joystickghost", x: 0, y: 0, w: 376, h: 376 }];
+  /* the firebutton board item exists to SHIP the gated dome art — its
+     press parity reads from the manifest stamps in the glow section, not
+     from a board-scene pixel row (the scene places a composed rig) */
+  const items = [...board.items.filter((b) => b.component !== "firebutton"), { component: "joystickghost", x: 0, y: 0, w: 376, h: 376 }];
   const results = [];
   const rowCanvases = [];
 
@@ -715,6 +721,32 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       }
       if (bakedSlide && rootGuard) glow.mode += " + baked-sink slide (round 17)";
       if (sinkChannel) glow.mode += " + extrusion-collapse sink (round 18)";
+    }
+    /* round 18: the fire button's press — disc vs icon (owner: "on press
+       the center white disc and icon should move"). The disc's trip is
+       BAKED (dome-pressed swap): its size is the shell-stamp delta plus
+       the dome's designed sink. The icon's trip is what the shipped
+       importer arms into FireButton.pressedLift — replayed here from the
+       zip's own Editor C#: the stamp-driven FireGlyphTrip, or the old
+       dial-only formula on earlier semantics. They must travel together. */
+    {
+      // shared Editor files sit OUTSIDE the slug folder — dual-key lookup,
+      // the same lesson the Runtime lookup learned in round 16
+      const impCs = new TextDecoder().decode(files.get("Editor/PatternBreakKitImporter.cs") ?? files.get("PatternBreakKitImporter.cs") ?? new Uint8Array());
+      const stampTrip = /static float FireGlyphTrip\(/.test(impCs) && /dP\.shell\.y - d0\.shell\.y/.test(impCs);
+      const d0 = (m.assets ?? []).find((a) => a && a.component === "firebutton" && a.part === "dome");
+      const dP = (m.assets ?? []).find((a) => a && a.component === "firebutton" && a.part === "dome-pressed");
+      if (d0 && dP && d0.shell && dP.shell) {
+        const ps3 = m.pngScale > 0 ? m.pngScale : 2;
+        const shellMin = Math.min(d0.shell.w, d0.shell.h) / ps3;
+        const discTrip = -((dP.shell.y - d0.shell.y) / ps3 + shellMin * 0.016);
+        const fxF = (m.stateFx ?? []).find((f) => f && f.family === "firebutton" && f.state === "pressed") ?? { lift: 0 };
+        const glyphTrip = stampTrip ? discTrip : (fxF.lift ?? 0) - shellMin * 0.016;
+        const ok = Math.abs(glyphTrip - discTrip) <= 0.5;
+        glow.rows.push({ ctx: "fire press (disc vs icon)", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: Math.round((glyphTrip - discTrip) * 10) / 10, size: `disc ${Math.round(discTrip * 10) / 10}, icon ${Math.round(glyphTrip * 10) / 10}`, want: "together" });
+      } else {
+        glow.rows.push({ ctx: "fire press (disc vs icon)", verdict: "FAIL", centerDx: 0, centerDy: 0, size: "dome rows missing", want: "dome + dome-pressed stamps" });
+      }
     }
     glow.pad = pad;
     glow.alphas = {

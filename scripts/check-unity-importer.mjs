@@ -325,6 +325,21 @@ if (!/ghostRig \? "ghost-base" : "base"/.test(cs))
 if (!/Joystick \/ JoystickGhost\*\*/.test(src))
   errors.push("the README bones line for the sticks (Joystick / JoystickGhost) is missing (round 18)");
 
+/* round-18: the fire button's press — the icon rides the disc's WHOLE
+   baked trip (owner: "on press the center white disc and icon should
+   move"). The dial-only formula left the icon floating ~15 UI px above
+   the sunk disc on the owner's kit (press-pose extrusion collapse, lift
+   dial 0). The trip now comes from the app's own dome shell stamps. */
+if (!/static float FireGlyphTrip\(PBManifest m, float domeShellW\)/.test(cs))
+  errors.push("FireGlyphTrip (the stamp-driven dome trip) is missing (round 18)");
+if (!/-\(\(dP\.shell\.y - d0\.shell\.y\) \/ ps \+ domeShellW \* 0\.016f\)/.test(cs))
+  errors.push("FireGlyphTrip must measure the baked face drop from the dome shell stamps, plus the dome's designed sink (round 18)");
+if (!/fb\.pressedLift = FireGlyphTrip\(m, domeShellW\);/.test(cs))
+  errors.push("FireButtonPrefab must arm the glyph with FireGlyphTrip (round 18)");
+if (!/fbWant = FireGlyphTrip\(m, shellMin\);/.test(cs)
+    || !/Mathf\.Approximately\(fbNow\.pressedLift, fbRow - shellMin \* 0\.016f\)/.test(cs))
+  errors.push("the fire-glyph convergence must target FireGlyphTrip and recognize the old dial+sink default as stale (round 18)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

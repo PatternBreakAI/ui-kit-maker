@@ -4488,7 +4488,7 @@ namespace PatternBreak {
     public int armed = 0;
     [Tooltip("Swipe distance (px) that counts as a weapon switch.")]
     public float swipePx = 34f;
-    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive; a press is negative). The importer sets it to the dome's full trip — the kit's press lift plus the dome's designed sink (1.6% of the dome shell) — so the icon travels WITH the dome instead of floating over the sunk artwork. Tune freely.")]
+    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive; a press is negative). The importer sets it to the dome art's WHOLE baked trip — the face drop measured from the app's own state stamps (lift dial + press-pose extrusion collapse) plus the dome's designed sink — so the icon travels WITH the disc instead of floating over the sunk artwork. Tune freely.")]
     public float pressedLift = 0f;
     [System.Serializable] public class WeaponEvent : UnityEngine.Events.UnityEvent<int> {}
     public WeaponEvent onWeaponChanged = new WeaponEvent();
@@ -11066,6 +11066,33 @@ namespace PatternBreak {
        tintable glyphs + the FireButton swipe runtime. Geometry mirrors
        the app's carousel: chamber sprites ship at their true sizes and
        sit tangent to the dome at -90 / -135 / -180 degrees. */
+    /* the glyph's WHOLE pressed trip, from the app's own stamps (round 18,
+       owner: "on press the center white disc and icon should move"): the
+       dome and dome-pressed rows both carry the drawn shell, and their Y
+       delta IS the baked face drop — the lift dial AND the press pose's
+       extrusion collapse, however the kit composed them (real War Chuds:
+       15 UI px of collapse with the lift dial at 0 — the old dial-only
+       formula left the icon floating over the sunk disc). Add the dome's
+       designed sink (1.6% of the shell, baked at cy + sink) and the icon
+       rides the disc exactly. Zips older than the stamps fall back to
+       the dial formula. Unity up-positive: a press is negative. */
+    static float FireGlyphTrip(PBManifest m, float domeShellW) {
+      float ps = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+      PBAsset d0 = null, dP = null;
+      if (m != null && m.assets != null)
+        foreach (var a in m.assets) {
+          if (a == null || a.component != "firebutton") continue;
+          if (a.part == "dome") d0 = a;
+          else if (a.part == "dome-pressed") dP = a;
+        }
+      if (d0 != null && dP != null && d0.shell != null && dP.shell != null && d0.shell.w > 4f && dP.shell.w > 4f)
+        return -((dP.shell.y - d0.shell.y) / ps + domeShellW * 0.016f);
+      float lift = 0f;
+      if (m != null && m.stateFx != null)
+        foreach (var f in m.stateFx)
+          if (f != null && f.family == "firebutton" && f.state == "pressed") { lift = f.lift; break; }
+      return lift - domeShellW * 0.016f;
+    }
     static bool FireButtonPrefab(string dir, string root, int pngScale, PBManifest m) {
       var dome = S(root + "/assets/firebutton/firebutton-dome.png");
       if (dome == null) return false;
@@ -11138,18 +11165,7 @@ namespace PatternBreak {
       var ws = new Sprite[nW]; int wi = 0;
       foreach (var wsp in weapons) if (wsp != null) ws[wi++] = wsp;
       fb.weapons = ws;
-      /* the glyph rides the DOME's whole pressed trip: the kit's press
-         lift (relative, from the manifest) PLUS the dome's own designed
-         sink — the shell-width x 0.016 the app bakes into the pressed
-         sprite's pixels. The old default was the bare lift delta, which
-         is 0 on lift-less kits: the glyph froze mid-air while the art
-         sank under it, and the press read inverted (owner: "instead of
-         the button depressing, its rim depresses instead"). */
-      float fbLift = 0f;
-      if (m != null && m.stateFx != null)
-        foreach (var f in m.stateFx)
-          if (f != null && f.family == "firebutton" && f.state == "pressed") { fbLift = f.lift; break; }
-      fb.pressedLift = fbLift - domeShellW * 0.016f;
+      fb.pressedLift = FireGlyphTrip(m, domeShellW);
       fb.DealNow(); // strike the armed pose so the prefab reads in edit mode
       // press/disabled ride Sprite Swap; the DOME's press sink is in the pixels
       var btn = go.AddComponent<Button>();
@@ -12018,8 +12034,14 @@ namespace PatternBreak {
             float shellMin = rowFb != null && rowFb.shell != null && rowFb.shell.w > 4f
               ? Mathf.Min(rowFb.shell.w, rowFb.shell.h) / psFb
               : rootImg.sprite.rect.width / psFb;
-            fbWant = fbRow - shellMin * 0.016f;
-            bool fbStale = Mathf.Abs(fbNow.pressedLift) < 0.001f || Mathf.Approximately(fbNow.pressedLift, fbRow);
+            fbWant = FireGlyphTrip(m, shellMin);
+            /* OUR older defaults, all three generations: 0 (pre-wire), the
+               bare lift delta, and the dial+sink formula that missed the
+               baked extrusion collapse (round 18). Any other number is
+               the maker's own tune and stays. */
+            bool fbStale = Mathf.Abs(fbNow.pressedLift) < 0.001f
+              || Mathf.Approximately(fbNow.pressedLift, fbRow)
+              || Mathf.Approximately(fbNow.pressedLift, fbRow - shellMin * 0.016f);
             if (fbStale && !Mathf.Approximately(fbNow.pressedLift, fbWant)) wantFbLift = true;
           }
         }
