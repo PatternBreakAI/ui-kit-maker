@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen, GraduationCap } from "lucide-react";
+import { Loader2, Search, ShieldCheck, CreditCard, FolderInput, Rocket, Star, CalendarClock, Trash2, RefreshCw, Users, Activity, Wand2, House, Eye, EyeOff, ChevronLeft, ChevronRight, Megaphone, Plus, SquarePen, GraduationCap, Gamepad2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { cloudConfig, myProfileTier, accessToken, listHiddenLandingKits, setHiddenLandingKits, listLandingKitOrder, setLandingKitOrder, uniqueName, listPromos, savePromos, readPromosLive, setPromosLive, promoIsLive, type PromoDef, type PromoKind } from "@/generator/cloud";
 import { useCloudStatus } from "@/shell/useCloudStatus";
@@ -9,6 +9,7 @@ import { hydrate, healStateIconPins, PRESET_DEFAULTS, retintText, useGen } from 
 import { PromoCardView } from "@/ui/PromoShelf";
 import { applyKitDesign, applyKitTextFill, applyPresetCandy, clampWeight, defaultCandy, defaultConfig, effKitSize, fontByName, migrateKitDesigns, PRESETS, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
+import { makeZip, readStoredZip } from "@/generator/exportUtils";
 import { ensureDocFonts, ensureFont } from "@/generator/fonts";
 import { tightenSvg } from "@/marketing/engine";
 import logoUrl from "../../pb-logo.png";
@@ -42,6 +43,46 @@ type Stats = {
 };
 
 const PLANS = ["pro", "student", "free"] as const;
+
+/* ── the evaluation paperwork the blessing stamps into the test kit ──
+   Replaces the personal licence the export pipeline wrote for the
+   owner's account. Kit-agnostic on purpose: bless Hot Rod today, bless
+   its successor tomorrow, and this text stays true. Mirrors the house
+   licence's shape (what you may / may not do) — see api/export.ts. */
+const EVAL_LICENCE = `UI Kit Maker — evaluation kit
+=============================
+
+Artifact      : engine kit (stock evaluation build)
+Licence       : Evaluation — free with a UI Kit Maker account
+
+WHAT THIS IS
+  A stock kit, the same for every account — not something you designed.
+  It exists to prove the whole import pipeline in your engine before
+  you pay for anything: prefabs, scenes, gauges, live text, the
+  in-place re-import, all of it.
+
+WHAT YOU MAY DO
+  Import it, wire it up, prototype against it, and judge the pipeline
+  by it — in any engine, any project, while you evaluate.
+
+WHAT YOU MAY NOT DO
+  Ship these assets in a product you release, or resell or
+  redistribute them — as a kit, an asset pack, a template, or any
+  other bundle whose value is these files.
+
+Designs you export yourself require a paid plan — and arrive under a
+licence that lets you ship them. Restyle everything at uikitmaker.com,
+re-export, and the same Unity folder updates in place.
+
+uikitmaker.com
+`;
+
+const EVAL_README_BANNER = `> **Evaluation kit.** This is UI Kit Maker's stock test kit — the same
+> artifact for every account, here so you can prove the import pipeline
+> before paying. It is not a personal export; see LICENCE.txt. Your own
+> kits export from uikitmaker.com in this exact folder layout.
+
+`;
 
 async function callAdmin(body: Record<string, unknown>): Promise<{ ok: boolean; data: Record<string, unknown> }> {
   const token = await accessToken();
@@ -343,6 +384,88 @@ export function AdminPage() {
   const [toEmail, setToEmail] = useState("");
   const [adoptBusy, setAdoptBusy] = useState(false);
   const [adoptNote, setAdoptNote] = useState<string | null>(null);
+
+  /* ── the Unity test kit shelf (Gate Round, 2026-08-17) — status +
+     swap. The blessed evaluation zip lives at test-kit/unity-test-kit.zip;
+     the swap is clear-then-sign, so the file chosen here goes straight
+     browser→storage against a one-time token and is live for every
+     registered account the moment the PUT lands. No code, no redeploy.
+
+     THE LICENCE REWRITE (owner call): the zip the owner uploads is their
+     OWN export off the live site — the entitlement machinery stamped a
+     personal licence into it (Licensed to / Account / Reference). The
+     canned kit gets redistributed (every registered user + the Asset
+     Store), so a personal stamp must never ride along. Blessing OPENS
+     the zip right here in the browser (our exports are stored-entry
+     zips — readStoredZip is makeZip's reader half), swaps every
+     LICENCE.txt for the evaluation text below, banners the kit README,
+     and re-packs before anything is uploaded. A zip with compressed
+     entries isn't one of ours and is refused, not guessed at. */
+  const [tkStatus, setTkStatus] = useState<{ stocked: boolean; size: number | null; updatedAt: string | null } | null>(null);
+  const [tkBusy, setTkBusy] = useState(false);
+  const [tkNote, setTkNote] = useState<string | null>(null);
+  const tkFileRef = useRef<HTMLInputElement>(null);
+  const loadTkStatus = async () => {
+    const { ok, data } = await callAdmin({ action: "testKitStatus" });
+    if (ok) setTkStatus({ stocked: !!data.stocked, size: (data.size as number | null) ?? null, updatedAt: (data.updatedAt as string | null) ?? null });
+  };
+  const swapTk = async (f: File) => {
+    if (tkBusy) return;
+    setTkBusy(true); setTkNote(null);
+    try {
+      // 1 · open the export and replace the personal paperwork
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const entries = readStoredZip(bytes);
+      if (!entries) {
+        setTkNote("That zip isn't one of the app's own exports (its entries are compressed or the index doesn't parse) — export the kit fresh from the live site and upload that file unmodified. Nothing was uploaded.");
+        return;
+      }
+      const isPersonalLicence = (p: string) => /(^|\/)LICENCE\.txt$/.test(p) && !/(^|\/)fonts\//.test(p);
+      let swapped = 0;
+      let licDir: string | null = null;
+      const rewritten: { path: string; data: string | Uint8Array }[] = entries.map((e) => {
+        if (isPersonalLicence(e.path)) {
+          swapped++;
+          licDir = e.path.slice(0, e.path.length - "LICENCE.txt".length);
+          return { path: e.path, data: EVAL_LICENCE };
+        }
+        return e;
+      });
+      if (swapped === 0) {
+        setTkNote("No LICENCE.txt in that zip — it doesn't look like an engine export. Export the kit from the live site (the big Unity button on the kit page) and upload that file. Nothing was uploaded.");
+        return;
+      }
+      // the kit README sits beside the licence — banner it as an evaluation artifact
+      const readmeAt = rewritten.findIndex((e) => e.path === `${licDir}README.md`);
+      if (readmeAt >= 0) {
+        const dec = new TextDecoder();
+        const old = typeof rewritten[readmeAt].data === "string" ? rewritten[readmeAt].data as string : dec.decode(rewritten[readmeAt].data as Uint8Array);
+        rewritten[readmeAt] = { path: rewritten[readmeAt].path, data: EVAL_README_BANNER + old };
+      }
+      const blob = makeZip(rewritten);
+
+      // 2 · grant + upload the REWRITTEN bytes
+      const grant = await callAdmin({ action: "testKitUpload", size: blob.size });
+      if (!grant.ok || !grant.data.token || !grant.data.path) {
+        setTkNote(String(grant.data.error ?? "Couldn't authorize the upload."));
+        return;
+      }
+      const cfg = cloudConfig();
+      if (!cfg) { setTkNote("Cloud isn't configured in this build."); return; }
+      const put = await fetch(
+        `${cfg.url}/storage/v1/object/upload/sign/${String(grant.data.path)}?token=${encodeURIComponent(String(grant.data.token))}`,
+        { method: "PUT", headers: { "content-type": "application/zip" }, body: blob },
+      );
+      if (!put.ok) {
+        setTkNote(`The upload didn't land (${put.status}) — the shelf is empty until a retry succeeds, and registered users see "not stocked yet".`);
+        return;
+      }
+      setTkNote(`Blessed. The personal licence was swapped for the evaluation licence (${swapped} file${swapped === 1 ? "" : "s"}${readmeAt >= 0 ? ", README bannered" : ""}), and the new test kit is what every registered account downloads from this moment on.`);
+      void loadTkStatus();
+    } finally {
+      setTkBusy(false);
+    }
+  };
 
   // the pulse — four headline numbers and a 14-day signup strip
   const [stats, setStats] = useState<Stats | null>(null);
@@ -715,7 +838,7 @@ export function AdminPage() {
   }, [cloud.state]);
 
   // the census and the pulse load themselves once the desk opens
-  useEffect(() => { if (allowed) { void loadCensus(0); void loadStats(); } }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (allowed) { void loadCensus(0); void loadStats(); void loadTkStatus(); } }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!allowed) return;
     void listHiddenLandingKits().then((keys) => setHomeHidden(new Set(keys.map((s) => s.toLowerCase()))));
@@ -1584,6 +1707,35 @@ export function AdminPage() {
             </button>
           </div>
           {adoptNote && <p className="fd-note">{adoptNote}</p>}
+        </section>
+
+        <section className="fd-card">
+          <h2 className="fd-card__title"><Gamepad2 size={17} strokeWidth={2.1} /> Unity test kit shelf</h2>
+          <p className="fd-fine">
+            The one download every <b>registered</b> account gets: a canned, stock evaluation
+            kit zip — the same fixed artifact for everyone, never their own design — so a
+            developer can prove the import pipeline before paying. It doubles as the Unity
+            Asset Store kit (the designated kit: <b>Hot Rod</b>). The flow: export the kit
+            from the live site (the big Unity button on its kit page — boards, scenes and
+            all), then upload that exact file here. Blessing opens the zip in this browser,
+            <b> swaps your personal licence for the evaluation licence</b>, banners the
+            README, re-packs, and ships it — live immediately, no deploy, no code.
+          </p>
+          <p className="fd-fine">
+            {tkStatus === null ? "Checking the shelf…"
+              : tkStatus.stocked
+                ? <>Stocked: <b>{tkStatus.size ? `${(tkStatus.size / 1048576).toFixed(1)} MB` : "size unknown"}</b>{tkStatus.updatedAt ? ` · blessed ${new Date(tkStatus.updatedAt).toLocaleDateString()}` : ""}</>
+                : <b>Not stocked — registered users currently see “the test kit isn't stocked yet.”</b>}
+          </p>
+          <div className="fd-actions">
+            <button className="fd-primary" disabled={tkBusy} onClick={() => tkFileRef.current?.click()}>
+              {tkBusy ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <Gamepad2 size={15} strokeWidth={2.1} />}
+              {tkBusy ? "Blessing…" : tkStatus?.stocked ? "Swap the blessed zip…" : "Stock the shelf…"}
+            </button>
+            <input ref={tkFileRef} type="file" accept=".zip,application/zip" style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void swapTk(f); e.target.value = ""; }} />
+          </div>
+          {tkNote && <p className="fd-note">{tkNote}</p>}
         </section>
       </main>
     </div>

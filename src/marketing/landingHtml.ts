@@ -131,7 +131,8 @@ export const LANDING_HTML = `</head>
                   <div class="ship-row" style="--i:0"><em>✓</em><b>engine/</b><span>unity.json · unreal.json</span></div>
                   <div class="ship-row" style="--i:1"><em>✓</em><b>web/</b><span>kit.html · kit.css</span></div>
                   <div class="ship-row" style="--i:2"><em>✓</em><b>vector/</b><span>SVG — every component</span></div>
-                  <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG @1× · @2×</span></div>
+                  <!-- cross-lane touch (app session, 2026-08-17): the NEVER-listed fixed-scale PNG claim corrected (owner-authorized) -->
+                  <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG up to @4×</span></div>
                   <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
                 </div>
                 <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.*</div>
@@ -561,7 +562,8 @@ export const LANDING_HTML = `</head>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 8 4.5-8 4.5-8-4.5zM4 12.5 12 17l8-4.5M4 17l8 4.5 8-4.5"/></svg><b id="fin3t">GAME-READY</b><i id="fin3s">Export anywhere</i></div>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><b id="fin4t">YOURS TO SHIP</b><i id="fin4s">Sell &amp; own*</i></div>
             </div>
-            <p class="f2-free"><span class="f2-check">✓</span> <span id="f2Free">Selected kits and limited PNG exports included free.</span></p>
+            <!-- cross-lane touch (app session, 2026-08-17): Gate Round — free-PNG-export claim retired; exports are paid -->
+            <p class="f2-free"><span class="f2-check">✓</span> <span id="f2Free">Selected kits free to play — exporting your designs is the Pro unlock.</span></p>
           </div>
         </div>
       </div>

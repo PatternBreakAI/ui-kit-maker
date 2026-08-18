@@ -53,6 +53,14 @@ button { font-family: inherit; color: inherit; }
    move the chip (owner: no layout jumps). */
 .filechip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: transparent; transition: background .2s ease; }
 .filechip-dot.dirty { background: #d97706; }
+/* New kit — the file chrome's second verb: quiet next to the chip, same
+   voice, a whisper of a border so it reads as an action not a label */
+.newkitbtn {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; margin-left: 2px;
+  border: 1px solid var(--line2); background: none; padding: 4px 10px; border-radius: 9px;
+  font: inherit; font-size: 12.5px; font-weight: 650; color: var(--ink2); cursor: pointer; white-space: nowrap;
+}
+.newkitbtn:hover { background: var(--soft); color: var(--ink); border-color: var(--line); }
 .fileflash {
   position: absolute; top: calc(100% + 7px); left: 50%; transform: translateX(-50%);
   background: #fff; border: 1px solid var(--line); border-radius: 10px;
@@ -2328,14 +2336,11 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .rarityrow { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .rarityrow .tinput { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; font-weight: 700; }
 
-/* on-piece controls (homepage-board port): toolbar above the shell + a
-   corner resize handle, both counter-scaled to stay screen-sized */
-.bd-ptoolwrap, .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
-.bd-ptool { position: absolute; bottom: 8px; left: 0; transform-origin: bottom left; display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: rgba(10, 12, 22, .92); border: 1px solid rgba(111, 214, 255, .55); box-shadow: 0 10px 26px rgba(6, 8, 16, .5); }
-.bd-ptool button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: #9fe2ff; cursor: pointer; padding: 0; }
-.bd-ptool button:hover { background: rgba(111, 214, 255, .18); color: #fff; }
-.bd-ptool button.danger:hover { background: rgba(229, 83, 75, .22); color: #ff9d97; }
-/* the instance-value slider — poses THIS piece (rarity tier, fill, needle) */
+/* on-piece controls: the corner resize handles, counter-scaled to stay
+   screen-sized. (The floating piece tray that lived beside them is
+   retired — owner-directed, 2026-08-17; the right panel's Selected
+   section carries every control it held.) */
+.bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
 /* the stamp door — the one non-component asset, pinned above the groups */
 .bd-stampbtn {
   display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
@@ -2372,20 +2377,6 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   position: absolute; bottom: 1.1%; left: 50%; transform: translateX(-50%);
   width: 36%; height: .6%; min-height: 3px; border-radius: 999px; background: rgba(231, 236, 245, .45);
 }
-.bd-pval { -webkit-appearance: none; appearance: none; width: 74px; height: 26px; margin: 0; padding: 0 4px; background: none; cursor: ew-resize; align-self: center; }
-/* per-instance text chip — "this copy only" words in the piece toolbar */
-.bd-ptext {
-  width: 108px; height: 22px; margin: 0; padding: 0 7px; align-self: center;
-  border: 1px solid rgba(159, 226, 255, .3); border-radius: 6px;
-  background: rgba(10, 14, 24, .8); color: #e7ecf5;
-  font: 600 11px/1 Inter, sans-serif; letter-spacing: .02em;
-}
-.bd-ptext::placeholder { color: rgba(231, 236, 245, .38); }
-.bd-ptext:focus { outline: none; border-color: #9fe2ff; }
-.bd-pval::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
-.bd-pval::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: #9fe2ff; border: 0; }
-.bd-pval::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(111, 214, 255, .35); }
-.bd-pval::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #9fe2ff; border: 0; }
 .bd-rsz2 { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 1.5px solid #6fd6ff; border-radius: 4px; background: rgba(10, 12, 22, .92); cursor: nwse-resize; touch-action: none; }
 /* top/bottom-center handlebars — wider pills, same accent language */
 .bd-rszbar { left: -11px; top: -5px; width: 22px; height: 10px; border-radius: 5px; }
@@ -2652,6 +2643,33 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 @media (prefers-reduced-motion: reduce) {
   .lootgrid, .lootsweep, .lootpackbtn, .lootpackbtn::before { animation: none; }
 }
+
+/* ── the gate modal (Gate Round) — the loot chrome, resized for a pitch:
+   what a locked export or a guest's second board opens instead of a hard
+   navigation. Guest: the sign-up perks. Free: Pro, with the Unity test
+   kit as the free counter-offer. ── */
+.gatemodal { width: min(480px, 94vw); padding-bottom: 24px; }
+.gatemodal .lootsub { margin-bottom: 16px; }
+.gatemodal .lootclaim { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; height: 48px; font-size: 13.5px; }
+.gateperks { position: relative; list-style: none; margin: 0 auto 4px; padding: 0; max-width: 400px; text-align: left; }
+.gateperks li { display: flex; align-items: baseline; gap: 8px; font-size: 13px; line-height: 1.45; color: rgba(226, 220, 245, .88); padding: 4px 0; }
+.gateperks li svg { flex: none; translate: 0 2px; color: #a78bfa; }
+.gateperks b { color: #fff; font-weight: 700; }
+.gatefine { position: relative; display: flex; align-items: baseline; justify-content: center; gap: 6px; margin: 12px auto 0; max-width: 400px; font-size: 11.5px; line-height: 1.45; color: rgba(226, 220, 245, .55); }
+.gatefine svg { flex: none; translate: 0 2px; }
+.gatequiet { position: relative; display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; border: 0; background: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; color: rgba(226, 220, 245, .6); }
+.gatequiet:hover { color: #fff; }
+.gateoffer { position: relative; margin: 18px auto 0; max-width: 420px; padding: 14px 16px 15px; text-align: left; border-radius: 14px; border: 1px solid rgba(139, 92, 246, .3); background: rgba(20, 12, 38, .55); }
+.gateoffer > b { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #c4b5fd; }
+.gateoffer p { margin: 7px 0 10px; font-size: 12.5px; line-height: 1.5; color: rgba(226, 220, 245, .78); }
+.gateoffer p b { color: #fff; font-weight: 700; }
+.gatesecondary { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 11px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 800; letter-spacing: .02em; color: #f3f0ff; background: rgba(139, 92, 246, .16); border: 1px solid rgba(168, 139, 250, .55); }
+.gatesecondary:hover { background: rgba(139, 92, 246, .28); }
+.gatesecondary:disabled { opacity: .6; cursor: default; }
+.gatenote { margin: 9px 0 0; font-size: 12px; color: #c4b5fd; }
+.gatemodal .fd-spin { animation: gatespin 1s linear infinite; }
+@keyframes gatespin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gatemodal .fd-spin { animation: none; } }
 
 /* v80: the type section is a compact spec sheet, not a poster — the deep
    dives (character set, construction, scale) fold away by default */

@@ -28,13 +28,15 @@ import logoUrl from "../../pb-logo.png";
 
 type Row = { label: string; on?: boolean; note?: boolean };
 
+/* Gate Round (2026-08-17): guests take nothing home — no PNG row, and
+   the off-row says exports plainly. One board is the guest taste. */
 const EXPLORER: Row[] = [
   { label: "Starter kit components" },
   { label: "4 starter presets" },
   { label: "100% zoom" },
-  { label: "Limited PNG export" },
+  { label: "One board to stage on" },
   { label: "Read-only share links" },
-  { label: "No vector exports or cloud saves", on: false },
+  { label: "No exports or cloud saves", on: false },
 ];
 
 const PRO: Row[] = [
@@ -256,6 +258,18 @@ export function PricingPage() {
             </button>
           </section>
         </div>
+
+        {/* The free-account line — the tier between Explorer and the paid
+            columns, without a fourth column crowding the console. The test
+            kit is the register incentive, said plainly: a stock kit, not
+            your design; exports of YOUR kit are the paid unlock. */}
+        <p className="fd-pricing__fine">
+          Signing up is free, and it's a real step up from Explorer: the full kit, unlimited
+          boards, cloud saves, your settings file, community publishing — and the free{" "}
+          <b>Unity test kit</b>, a stock evaluation ZIP (the same for everyone) that proves
+          the whole import pipeline in your engine before you pay. Exporting your own
+          designs is what Pro and Student add.
+        </p>
 
         {/* The annual-renewal disclosure of record. It must appear before
             payment: Stripe Managed Payments rejects custom_text, so Checkout

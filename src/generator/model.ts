@@ -1725,6 +1725,14 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   "rewardcard", "qtybadge", "claimbtn", "chestpanel",
 ]);
 
+/* Pieces that may render TEXT-LESS (the kitNoText flag — a "No text"
+   toggle in Component content, owner feature 2026-08-17). A deliberate
+   allowlist, opened family by family as the owner blesses each: a
+   wordless tab is a real pattern (icon tabs, spacer tabs); a wordless
+   primary button is usually a mistake. NOTE: there is no small-tab
+   component — `small` is button-small; the tab family is tab + tabback. */
+export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback"]);
+
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and
    the Global sliders still apply. Derived from bevel's pinDesign call

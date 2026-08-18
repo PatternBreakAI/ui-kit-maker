@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { addShine, renderBevel, renderKit, padSvg } from "@/generator/bevel";
 
@@ -105,7 +105,7 @@ export function shellRectHit(svgEl: SVGSVGElement | null | undefined, stamp: num
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops, onArt }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
@@ -144,6 +144,15 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
    *  but its SMIL loops park while the pointer is elsewhere — motion is
    *  user-initiated, never ambient. */
   stillLoops?: boolean;
+  /** The rendered art's intrinsic geometry — width/height and the
+   *  data-shell stamp — parsed from the svg STRING in a layout effect
+   *  the moment the memoized svg changes. Hosts that draw measured
+   *  overlays (the Board's selection box) key off this instead of
+   *  observing the DOM: same numbers, no observer race, no stale
+   *  window between a render and the next animation frame. shell is
+   *  null when the art carries no data-shell stamp (shell-free pieces)
+   *  — the host keeps its own fallback for those. */
+  onArt?: (art: { w: number; h: number; shell: [number, number, number, number] | null }) => void;
 }) {
   const id = kit?.id;
   const [live, setLive] = useState<GenStateName>("default");
@@ -195,9 +204,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     : (kit?.baseState ?? "default");
 
   // hosts pass fresh kit literals every render — key on the fields, not the
-  // object, so the (string-building) renderer only runs when something changed
+  // object, so the (string-building) renderer only runs when something changed.
+  // label undefined (stock words) and label "" (deliberately wordless — the
+  // kitNoText flag) are DIFFERENT renders: the sentinel keeps their keys apart
+  // or flipping "No text" on an unworded piece would never re-render.
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? ""}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
     : "";
   const svg = useMemo(
     () => {
@@ -220,6 +232,23 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     const m = svg.match(/width="([\d.]+)"/);
     return m ? +m[1] * scale : undefined;
   }, [svg, scale]);
+
+  /* the onArt report — string-parsed from the same memoized svg the DOM is
+     about to show, in a LAYOUT effect so the host's overlay state lands in
+     the same paint as the art it measures. The ref keeps a fresh callback
+     without re-reporting on every parent render. */
+  const onArtRef = useRef(onArt);
+  onArtRef.current = onArt;
+  useLayoutEffect(() => {
+    const cb = onArtRef.current;
+    if (!cb) return;
+    const w = parseFloat(svg.match(/width="([\d.]+)"/)?.[1] ?? "0");
+    const h = parseFloat(svg.match(/height="([\d.]+)"/)?.[1] ?? "0");
+    const raw = svg.match(/data-shell="([-\d.eE ]+)"/)?.[1]?.split(" ").map(Number);
+    const shell = raw && raw.length === 4 && raw.every(Number.isFinite)
+      ? (raw as [number, number, number, number]) : null;
+    if (w && h) cb({ w, h, shell });
+  }, [svg]);
 
   // the glow pad the renderer added — read back from the viewBox origin
   const pad = useMemo(() => {

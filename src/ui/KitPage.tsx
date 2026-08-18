@@ -14,6 +14,8 @@ import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { LiveArt, stillSmil } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
+import { openGate } from "@/shell/gateModal";
+import { downloadTestKit } from "@/generator/billing";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
@@ -312,7 +314,7 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
@@ -348,7 +350,7 @@ function usePiece(p: PieceOpts) {
       // an explicit "no icon" instance stays empty
       // slot POSES keep their identity (same rule as the catalog's rk()):
       // a specimen demonstrating "Premium" stays Premium under user edits
-      label: kitLabels[p.id] ?? p.label, slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
+      label: kitNoText[p.id] ? "" : (kitLabels[p.id] ?? p.label), slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
       icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
@@ -590,7 +592,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
         <button className="kp-dl" title={vectorOk ? `Export ${p.caption} SVG` : `SVG export is a Pro format. ${UPGRADE_LINES[tier2]}`} aria-label={`Export ${p.caption} SVG`}
           onClick={(e) => {
             e.stopPropagation();
-            if (!vectorOk) { if (tier2 === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
+            if (!vectorOk) { openGate("export"); return; }
             const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             // a clone exports through its base component wearing the
@@ -1563,7 +1565,7 @@ export function KitPage() {
      produced against a grant issued from plan_id in the database. */
   const gateHandlers = {
     onSignIn: () => openAuth("signin"),
-    onUpgrade: () => { window.location.hash = "#/pricing"; },
+    onUpgrade: () => openGate("export"),
     onMessage: (m: string) => window.alert(m),
   };
   /* the packed sheet is a VISUAL CATALOG; engines get atomic assets */
@@ -1631,7 +1633,7 @@ export function KitPage() {
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, releases: st.componentReleases,
             // the maker's own words ride into the bones prefabs' live text
-            kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals },
+            kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
@@ -1773,21 +1775,47 @@ const kitTier = useGen((s) => s.tier);
       setStampsOpen(false);
     }
   };
-  /* Per artifact, not one blanket flag: student buys the SVG pack and stops
-     at the engine kit, which is the shipping format. */
+  /* Per artifact, not one blanket flag — though under the Gate Round every
+     generated artifact reads locked for guest AND free; what the free tier
+     downloads instead is the stock Unity TEST KIT row below. */
   const mayEngine = canExport(kitTier, "engine");
   const maySvg = canExport(kitTier, "svg");
+  /* the sprite sheet renders entirely in the browser (no server leg), so
+     its gate is client-side by nature: paid tiers only */
+  const paidTier = kitTier === "student" || kitTier === "pro";
+  const [testKitBusy, setTestKitBusy] = useState(false);
+  const runTestKit = async () => {
+    if (testKitBusy) return;
+    if (kitTier === "guest") { openGate("export"); return; }
+    setTestKitBusy(true);
+    try {
+      const err = await downloadTestKit();
+      if (err) window.alert(err);
+    } finally {
+      setTestKitBusy(false);
+    }
+  };
   const exportActions = [
     { id: "engine",
       // THE Unity download, named as such (owner call) — Unreal is a
       // promise, not a format, until it gets the same first-class bridge
-      name: kitTier === "free" ? "Unity starter kit (ZIP)" : "Unity kit (ZIP)",
-      desc: kitTier === "free"
-        ? "Three wired pieces — button, chip, progress. Drop into Assets/, prefabs appear; re-download later and everything restyles in place. The full kit lands in the same folder when you upgrade."
-        : "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
+      name: "Unity kit (ZIP)",
+      desc: "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
       busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
+    /* the free tier's one download (Gate Round): a canned, admin-blessed
+       STOCK kit — the same evaluation zip for everyone, never this design.
+       Guests see it as a register incentive; paid tiers have the real
+       thing above, so the row steps aside for them. */
+    ...(!paidTier ? [{
+      id: "testkit",
+      name: "Unity test kit (ZIP) — free",
+      desc: kitTier === "guest"
+        ? "The stock Hot Rod evaluation kit — sign up free and prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine before paying."
+        : "The stock Hot Rod evaluation kit — the same fixed ZIP for everyone, not your design — to prove the whole import pipeline (prefabs, scenes, gauges, words) before you pay.",
+      busy: testKitBusy, run: () => void runTestKit(),
+    }] : []),
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
-    { id: "sprite", name: kitTier === "guest" ? "Starter sheet (PNG)" : "Sprite sheet (PNG)", desc: kitTier === "guest" ? "A labeled PNG of your five starter components." : "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, run: () => void downloadAllAssets() },
+    { id: "sprite", name: "Sprite sheet (PNG)", desc: "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, locked: !paidTier, run: () => { if (paidTier) void downloadAllAssets(); else openGate("export"); } },
     { id: "stamps", name: "Type stamps (PNG)", desc: "Your phrases in the kit's full display treatment, baked crisp at 4x — hero titles, banners, victory text. Lands in the same Unity folder as the kit.", busy: stampBusy, locked: !mayEngine, run: openStamps },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
@@ -1802,7 +1830,7 @@ const kitTier = useGen((s) => s.tier);
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
         o.slots = { ...st.kitSlotVals[cid], ...o.slots };
-        if (o.label === undefined) o.label = st.kitLabels[cid];
+        if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
         if (cid === "progress" || cid === "segbar") {
           const kb = st.kitBar[cid];
@@ -3091,7 +3119,7 @@ const kitTier = useGen((s) => s.tier);
               }
               if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
                 const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitNoText[cid] ? "" : st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
               });
               if (which === "all") {
                 files.push({

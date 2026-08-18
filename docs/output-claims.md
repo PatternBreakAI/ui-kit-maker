@@ -40,7 +40,7 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | Artifact | Reality |
 |---|---|
 | **SVG** (`Export SVG`) | One `<svg>` per component/state. Real vector geometry, gradients and SVG filter effects. Layer groups carry both `id` (e.g. `abc_shell`) and `data-part` (`cast-shadow`, `contact-shadow`, `outer-glow`, `extrusion`, `shell`, `face`, `pattern`, `inner-glow`, `bloom`, `gloss`, `specular`, `texture`, `content`, `label`, `icon`). No `version` attribute is emitted — the syntax is SVG 1.1-compatible; `version` has been deprecated since SVG 2 and importers ignore it. |
-| **PNG** (`Export PNG`) | Flat transparent raster, rendered through the browser's own SVG rasterizer. **1×** for guest and free, **up to 4×** for Pro. |
+| **PNG** (`Export PNG`) | Flat transparent raster, rendered through the browser's own SVG rasterizer. **Up to 4×, paid plans only** (Gate Round 2026-08-17: guests and free accounts have no PNG export — the old "1× for guest and free" is retired; never claim any free PNG export). |
 | **Copy SVG code** | The same SVG string to the clipboard. |
 | **HTML** | **One self-contained `.html` file** — inline CSS, inline SVG, a Google Fonts `<link>`, and a live state-swapping demo button. There is no separate stylesheet. |
 | **Settings JSON** | The full `GenConfig`, re-importable. |
@@ -52,7 +52,7 @@ Verified against `src/generator/exportUtils.ts`, `engineExport.ts` and
 | **SVG pack** (ZIP) | One layered SVG per catalog entry — every component, variant and state, with content overrides baked in. Fonts are **linked, not embedded**: the README names every face with its free install link. Design tools substitute installed fonts regardless of embedding, so this costs nothing there and keeps the export free of network calls. |
 | **Engine kit** (ZIP) | Atomic, **content-free**, transparent PNGs at **2×**, in `assets/`. Parts are separated for engine composition: `progress/track` + `fill`, `slider/track` + `fill` + `thumb`, `toggle/track` + `thumb`, `speedo/face` + `needle`, `speedo2/face` + `segment`, `checkbox/base`, `orb/lit` + `off`, icons as standalone tintable glyphs, `fx/drop-shadow` and `fx/glow` blobs, plus a `base-flat` variant per component with gloss/specular/pattern stripped for free tinting. Nine-slice assets are named `*.9.png`. `kit-manifest.json` carries per-asset `nativeW/nativeH`, `nineSlice` margins (in PNG pixels at 2×), `pivot`, `tintable`, `usage`, plus the palette, the typography face with its Google Fonts query, and the "nothing replaceable is baked" rules. Ships `unity/Editor/PatternBreakKitImporter.cs` (applies borders and pivots from the manifest), two example prefabs, and `unreal/README.md` with UMG recipes. |
 | **Game kit** | Sprite sheet PNG at **2×**, states stacked vertically, plus `ui-<preset>-kit.json` with per-state rects, suggested nine-slice insets, and Unity/Unreal import notes. |
-| **Sprite sheet** | One labelled catalog image. **A visual reference for humans, not a slicing source.** Guest gets a five-component starter sheet. |
+| **Sprite sheet** | One labelled catalog image. **A visual reference for humans, not a slicing source.** Paid plans only since the Gate Round (the guest five-component starter sheet is retired). |
 | **LICENCE.txt** | In every Pro bundle. Names the account, issue time and reference. |
 | **README.md** | In the SVG pack and engine kit: how the bundle is laid out, plus **the full recipe** — every colour role with its hex, silhouette and bevel, depth and light, gloss and specular geometry, pattern and texture, the complete typography block, and the per-state adjustments. Enough to rebuild the kit by hand in any tool. |
 | **settings.json** | The complete `GenConfig` beside the README — drop it into Export › Import settings to restore the exact kit. |
@@ -161,6 +161,21 @@ reason: the moment one drifts from what the code does, the page is lying.
 | "Maker profiles" | **APPROVED — LIVE 2026-07-25** | `#/u/<handle>` public pages + `#/studio` (own room). Profiles only surface curated kits, so marketing may show them without leaking anything unreviewed. |
 | "Free and Student kits join the community; Pro keeps kits private" | **APPROVED** | RLS-enforced (v89 insert/update policies) + the consent line at the save moment (owner's verbatim copy). Say it exactly this way — it is a licence-style trade, not a footnote. |
 | Homepage "Built by players" cards (front door) | **APPROVED — DEMO ART** | Three built-in presets (grape-jelly, deep-ocean, hero-chisel) rendered live in the browser by the real engine — the same mechanism the gallery uses. Kit names, handles, avatars and like counts are illustrative demo makers, not real accounts. The section copy claims only that cards are "drawn live in your browser from the kit's real settings", which is true of the demo cards and of real gallery cards alike. Swap in top curated kits once the gallery has inventory. |
+
+### The Gate Round — the tier model as of 2026-08-17 (owner mandate, decisions final)
+
+Every claim above this line predating 2026-08-17 reads through this table.
+The flip: **every generated export is paid**. No grandfathering.
+
+| Claim | Status | Backed by |
+|---|---|---|
+| "Guests can play the editor and stage one board; nothing exports" | **APPROVED** | `EXPORT_KINDS.guest = []` + the Board's one-board guard (second add opens the sign-up pitch). Guests also can't take the settings file — sign-up is where downloads begin. |
+| "Free accounts export nothing they designed — no PNG, SVG, HTML, board, game kit or engine zip" | **APPROVED** | `EXPORT_KINDS.free = []` client-side; `ALLOWED.free` empty in `api/export.ts` server-side (a tampered client gets a 403, not a kit). PNG/board/sheet renders are browser-side, so their gates are client-side by nature — say "no exports on free", never "server-blocked" for those. |
+| "The settings/project JSON stays free for accounts" | **APPROVED** | Owner call: backup/portability is workflow, not a deliverable. TopBar export menu, free for signed-in tiers. |
+| "Registered users get the free **Unity test kit** — a stock evaluation kit, the same fixed ZIP for everyone, never their own design" | **APPROVED** | `/api/test-kit` (signed-in check server-side) serving the admin-blessed zip from the private `test-kit` bucket; blessed via the #/admin desk, which **rewrites the personal licence to the evaluation licence** before upload. Say "stock evaluation kit"; never imply it's their design. The designated kit is **Hot Rod** (owner call) — naming it in conversion copy is fine, but keep the mechanism copy kit-agnostic so a swap needs no rewrite. |
+| "Pro and Student get every export" | **APPROVED** | Unchanged rows in `EXPORT_KINDS` / `ALLOWED`; the paid engine-export flow is byte-identical to the pre-flip round. |
+| "The free tier ships a three-piece Unity starter of your design" | **NEVER (retired 2026-08-17)** | The Unity-bridge-era starter grant is gone. Do not say it anywhere — the test kit replaced it, and the test kit is NOT the caller's design. |
+| "Limited PNG export" as a free/guest perk | **NEVER (retired 2026-08-17)** | Was on the pricing Explorer column and the landing's `finFree` line in all seven locales; both corrected in the Gate Round. |
 
 ### The monthly pack — read this before promoting it
 
@@ -372,6 +387,14 @@ it solves. This section keeps it honest.
 | `c_ps` | "layered, transparent PNGs at **1× and 2×**" | "Photoshop rasterizes SVG on import — place it as a Smart Object and scale it freely, or take the transparent PNGs at up to 4×…" | **Two errors.** PNG has no layer model, so "layered PNGs" cannot be true of any tool. And the scales were wrong. The Smart Object is Photoshop's real answer here. |
 | `c_gm` | "clean **1× and 2×** PNGs" | "clean transparent PNGs up to 4×" | Single-component PNG is 1× free / up to 4× Pro; engine atomics are 2×. |
 | `c_web` | "a live **kit.html and kit.css**" | "one self-contained HTML file with a live, clickable component… lift the CSS out of" | `downloadHtml` writes one document with inline CSS and inline SVG. There is no second file. |
+
+### Corrected 2026-08-17 (all seven locales — owner-authorized in the Boards fix round)
+
+| Key | Was | Now | Why |
+|---|---|---|---|
+| `c_png` | "Crisp transparent PNGs **at 1× and 2×**…" | "Crisp transparent PNGs **up to 4×**…" | The fixed-scale pair is on the NEVER list (§2), and under the Gate Round PNG is a paid capability — the corrected line claims capability honestly and implies nothing free. The demo's export-complete mock row ("raster/") got the same fix in `landingHtml.ts`. |
+
+(Noted, unfixed, Front Door lane: the same mock still lists "web/ kit.html · kit.css" — the NEVER-listed two-file claim — and `c_html` still says "kit.html + kit.css". Not authorized in this round's mandate; flagged for that lane.)
 
 ### Verified good — no change needed
 

@@ -38,7 +38,8 @@ export type TierCaps = {
   presetLimit: number;
   /** How many kit components render; the rest show as locked teasers. */
   kitComponents: number;
-  /** PNG export scale ceiling. */
+  /** PNG export scale ceiling. Gate Round: PNG export itself is paid-only
+      now — the guest/free values only label the locked row. */
   pngScaleMax: number;
   /** Any vector-grade export at all — drives whether a menu row reads
       locked. Which ones specifically is EXPORT_KINDS. */
@@ -48,15 +49,17 @@ export type TierCaps = {
 /** Which artifacts each tier may take. Enforced server-side. Student and
     pro are identical here; they differ in LICENCE_GRANT, not in this map.
 
-    FREE GETS THE ENGINE KIT — scoped, not locked (Unity bridge spec,
-    owner-ruled): the Smart Zip is the funnel's proof, so a signed-in free
-    account downloads a STARTER payload (master button + chip + progress —
-    states, nine-slice and the overwrite restyle all demonstrated) while
-    the paid tiers get every component. The scoping happens in the payload
-    builder; this map only opens the door. */
+    GATE ROUND (owner mandate, 2026-08-17): every generated export is
+    paid. The free tier's row went from ["engine"] (the old three-piece
+    starter, Unity bridge round) to empty — what a free account keeps is
+    the project/settings JSON (workflow, not a deliverable), community
+    publishing, and the stock Unity TEST KIT: one canned, admin-blessed
+    evaluation zip served by /api/test-kit, the same fixed artifact for
+    everyone, never their own design. Proving the import pipeline is
+    free; exporting YOUR kit is the paid unlock. */
 export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
   guest: [],
-  free: ["engine"],
+  free: [],
   student: ["svg", "html", "sheet", "gamekit", "engine"],
   pro: ["svg", "html", "sheet", "gamekit", "engine"],
 };
@@ -73,14 +76,15 @@ export const TIER_CAPS: Record<Tier, TierCaps> = {
     licence block /api/export stamps into every download; keep the two in
     step, and keep both in step with Terms §5.6. */
 export const LICENCE_GRANT: Record<"free" | "student" | "pro", string> = {
-  /* The starter's three pieces are deliberately commercial-OK: the free
-     taste exists to prove the Unity round-trip, and a use restriction on
-     three sprites would only blunt the wow. The STUDENT line staying
+  /* Gate Round: /api/export never grants the free plan any more, so no
+     licence is stamped for it — this line now describes the one thing a
+     free account can download (the stock evaluation kit, whose terms
+     ship inside the blessed zip itself). The STUDENT line staying
      non-commercial is not a contradiction — education pricing buys the
-     WHOLE tool for coursework; the starter is a demo of a sliver. */
+     WHOLE tool for coursework; the test kit is a demo of a stock look. */
   free:
-    "The starter kit's three pieces, in any project, commercial included, " +
-    "no attribution required. The full kit is the paid unlock.",
+    "Evaluation only: the stock Unity test kit exists to prove the import " +
+    "pipeline in your engine. Shipping assets in a product is the paid unlock.",
   student:
     "Coursework, portfolio, personal projects and non-commercial releases. " +
     "Selling a product built with these assets, or shipping them in anything " +

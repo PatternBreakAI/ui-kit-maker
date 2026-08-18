@@ -135,3 +135,33 @@ export async function requestExportGrant(kind: ExportKind): Promise<ExportGrant 
 export function isGrant(g: ExportGrant | GrantRefusal): g is ExportGrant {
   return (g as ExportGrant).licence !== undefined;
 }
+
+/* ── the Unity test kit (Gate Round, 2026-08-17) ───────────────────
+   The registered tier's one download: a canned, admin-blessed stock
+   evaluation zip — the same fixed artifact for everyone, never the
+   caller's design. /api/test-kit verifies the session server-side and
+   answers with a short-lived signed URL; this helper just follows it.
+   Returns null on success, or the message to show. */
+export async function downloadTestKit(): Promise<string | null> {
+  const token = await accessToken();
+  if (!token) return "Sign in first — the test kit comes with a free account.";
+  let res: Response;
+  try {
+    res = await fetch("/api/test-kit", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    });
+  } catch {
+    return "Couldn't reach the download service — check your connection.";
+  }
+  let body: { ok?: boolean; url?: string; filename?: string; error?: string } = {};
+  try { body = (await res.json()) as typeof body; } catch { /* platform error page */ }
+  if (!res.ok || !body.url) return body.error ?? `The download service returned ${res.status}.`;
+  const a = document.createElement("a");
+  a.href = body.url;
+  a.download = body.filename ?? "uikm-unity-test-kit.zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  return null;
+}

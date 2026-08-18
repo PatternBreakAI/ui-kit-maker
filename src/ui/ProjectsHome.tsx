@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Copy, ExternalLink, Eye, EyeOff, FileUp, FolderOpen, House, Loader2, Pencil, Trash2, Wand2, XCircle,
+  Copy, ExternalLink, Eye, EyeOff, FilePlus2, FileUp, FolderOpen, House, Loader2, Pencil, Trash2, Wand2, XCircle,
 } from "lucide-react";
 import "@/styles/pricing.css";
 import { navigate } from "@/shell/router";
@@ -14,6 +14,7 @@ import {
 } from "@/generator/cloud";
 import { useGen } from "@/generator/store";
 import { importSettingsFile } from "@/generator/settingsImport";
+import { NewKitSheet, startNewKit } from "./NewKitSheet";
 import { CardArt } from "./CommunityPage";
 import { PromoShelf } from "./PromoShelf";
 import logoUrl from "../../pb-logo.png";
@@ -247,6 +248,9 @@ export function ProjectsHome() {
             <p>Sign in and every project you save shows up here as a thumbnail — ready to open, organize and come back to any time.</p>
             <button className="fd-pricing__cta" onClick={() => openAuth("signin")}>Sign in</button>
             <p className="fd-rfine">Signing in is free — your work syncs to your account.</p>
+            {/* guests get the boundary too — their sheet says the discard
+                plainly, since nothing can be saved without an account */}
+            <button className="fd-linkbtn" onClick={startNewKit}>Or start a fresh kit from zero →</button>
           </section>
         ) : (
           <>
@@ -281,12 +285,24 @@ export function ProjectsHome() {
             ) : items.length === 0 ? (
               <section className="fd-studentcard">
                 <p>No saved kits yet. Build something in the editor, then save it as a project — it lands here.</p>
-                <p><button className="fd-pricing__cta" onClick={() => navigate("#/app")}><Wand2 size={15} strokeWidth={2} /> {t("openGenerator")}</button></p>
+                <p>
+                  <button className="fd-pricing__cta" onClick={() => navigate("#/app")}><Wand2 size={15} strokeWidth={2} /> {t("openGenerator")}</button>{" "}
+                  <button className="cg-open" onClick={startNewKit}><FilePlus2 size={15} strokeWidth={2} /> New kit — start from zero</button>
+                </p>
               </section>
             ) : rows.length === 0 ? (
               <section className="fd-studentcard"><p>Nothing named “{q}”.</p></section>
             ) : (
               <div className="cg-grid">
+                {/* New kit — a first-class door beside the files themselves
+                    (owner: the old/new boundary must be one obvious click).
+                    Unsaved work gets the settle sheet before anything moves. */}
+                <button type="button" className="ph-newcard" onClick={startNewKit}
+                  title="Start a new kit from zero — your current kit is offered a save first">
+                  <span className="ph-newcard__art" aria-hidden="true"><FilePlus2 size={30} strokeWidth={1.6} /></span>
+                  <b>New kit</b>
+                  <span className="ph-newcard__sub">A clean desk, from zero</span>
+                </button>
                 {rows.map((p) => {
                   const isOpen = openProjectId === p.id;
                   return (
@@ -346,6 +362,8 @@ export function ProjectsHome() {
           </>
         )}
       </main>
+
+      <NewKitSheet />
 
       {/* ── the close-settle sheet: unsaved work gets its yes, in file
            words (plan decision 3) — one question, three honest doors ── */}

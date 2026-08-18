@@ -76,6 +76,48 @@ export function downloadZip(name: string, files: { path: string; data: string | 
   download(name, makeZip(files));
 }
 
+/** The reader half of makeZip — parses a zip whose entries are STORED
+    (method 0), which is exactly what makeZip writes. Exists for the
+    admin desk's test-kit blessing (Gate Round): the owner's own engine
+    export is opened, its LICENCE.txt swapped for the evaluation text,
+    and the whole thing re-packed with makeZip. Returns null for any zip
+    with compressed entries — an honest refusal beats a silent
+    corruption, and every zip this app writes parses clean. */
+export function readStoredZip(bytes: Uint8Array): { path: string; data: Uint8Array }[] | null {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // end-of-central-directory: scan back over the (empty-comment) tail
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) return null;
+  const count = dv.getUint16(eocd + 10, true);
+  let at = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const out: { path: string; data: Uint8Array }[] = [];
+  for (let n = 0; n < count; n++) {
+    if (at + 46 > bytes.length || dv.getUint32(at, true) !== 0x02014b50) return null;
+    const method = dv.getUint16(at + 10, true);
+    const size = dv.getUint32(at + 20, true);
+    const usize = dv.getUint32(at + 24, true);
+    const nameLen = dv.getUint16(at + 28, true);
+    const extraLen = dv.getUint16(at + 30, true);
+    const commentLen = dv.getUint16(at + 32, true);
+    const localAt = dv.getUint32(at + 42, true);
+    if (method !== 0 || size !== usize) return null;
+    const path = dec.decode(bytes.subarray(at + 46, at + 46 + nameLen));
+    // the data offset comes from the LOCAL header's own name/extra lengths
+    if (localAt + 30 > bytes.length || dv.getUint32(localAt, true) !== 0x04034b50) return null;
+    const lName = dv.getUint16(localAt + 26, true);
+    const lExtra = dv.getUint16(localAt + 28, true);
+    const start = localAt + 30 + lName + lExtra;
+    if (start + size > bytes.length) return null;
+    out.push({ path, data: bytes.subarray(start, start + size) });
+    at += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
 /* Fonts inside a rasterized SVG: an SVG loaded through an <img> is a SEALED
    document — it cannot see the page's loaded fonts, so any <text> silently
    falls back to a system face at raster time (field: the baked alphabet
@@ -491,6 +533,9 @@ export interface WebKitState {
   kitShapes?: Partial<Record<KitComponentId, Shape>>;
   kitSizes?: Partial<Record<KitComponentId, KitSize | null>>;
   kitLabels?: Partial<Record<KitComponentId, string | null>>;
+  /** Text-less flag — maps to label:"" here so the pack can't resurrect
+      stock words on a piece the maker made wordless. */
+  kitNoText?: Partial<Record<KitComponentId, boolean>>;
   kitIcons?: Partial<Record<KitComponentId, unknown>>;
   kitVals?: Partial<Record<KitComponentId, number>>;
   releases?: Record<string, string>;
@@ -532,7 +577,7 @@ export async function downloadWebKit(
       try {
         const svg = stripLoops(renderKit(
           cfgP, id, effKitSize(st.kitSizes?.[id] ?? undefined), state, st.kitVals?.[id], st.kitShapes?.[id],
-          { label: st.kitLabels?.[id] ?? undefined, icon: resolveKitIcon(st.kitIcons?.[id] as never, undefined) },
+          { label: st.kitNoText?.[id] ? "" : (st.kitLabels?.[id] ?? undefined), icon: resolveKitIcon(st.kitIcons?.[id] as never, undefined) },
         ));
         const fd = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(svg, cfgP.type.font, fd.name === cfgP.type.font ? fd.css ?? null : null);
