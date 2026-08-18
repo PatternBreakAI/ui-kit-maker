@@ -5619,6 +5619,17 @@ fresh copy.
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
 
+> **Testing hover & press in the editor.** Unity delivers Play-mode
+> pointer input only while the GAME VIEW has focus (an Input System
+> editor rule) — click the Console or Inspector mid-Play and every
+> hover goes quiet until you click the game once more. That's the
+> editor, not the kit: a real build always has focus, so players never
+> see this. The kit prints a one-line Console reminder when the gate
+> actually bites. Prefer it gone entirely? **Tools > PatternBreak >
+> Route All Editor Input To Game View** flips the Input System's own
+> editor setting so input flows regardless of focus — run it again to
+> restore the Unity default.
+
 **Scene pieces vs Prefabs — the working contract.** A board scene is a
 FINISHED composition: every piece on it was crafted at its exact size,
 words and pose on uikitmaker.com, and it arrives here pixel-faithful to

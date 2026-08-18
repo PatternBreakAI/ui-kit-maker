@@ -287,6 +287,9 @@ if (!/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.as
   errors.push("the route-input menu must mint the settings asset when the project runs on in-memory defaults — the change would evaporate otherwise (round 18)");
 if (fx.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
   errors.push("the focus hint must point at the real menu item by its exact name (round 18)");
+if (!/Testing hover & press in the editor/.test(src)
+    || !/Route All Editor Input To Game View\*\*/.test(src))
+  errors.push("the README's editor-testing box (the focus-gate story + the menu pointer) is missing (round 18)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
