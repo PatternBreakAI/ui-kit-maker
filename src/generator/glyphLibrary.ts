@@ -190,3 +190,27 @@ export function glyphById(id: string): EngineGlyph | undefined { return BY_ID[id
 export function glyphShape(shape: string): EngineGlyph | undefined {
   return shape.startsWith("glyph:") ? BY_ID[shape.slice(6).replace(/~flip$/, "")] : undefined;
 }
+
+/* ── attribution travel ──────────────────────────────────────────────────
+   CC BY means the credit ships WITH the art: any export that bakes a
+   glyph piece derived from game-icons.net must carry this block in its
+   licence file. The generator takes the piece ids an export ACTUALLY
+   shipped and returns "" when none of them carry third-party art —
+   authored originals need no credit, and glyph-free exports stay clean.
+   The web zip consumes this today; the Unity export's LICENCE.txt should
+   call the same function when glyph travel lands there. */
+export function glyphAttribution(shippedPieceIds: string[]): string {
+  const rows = shippedPieceIds
+    .map((id) => (id.startsWith("glyph") ? BY_ID[id.slice(5)] : undefined))
+    .filter((g): g is EngineGlyph => !!g && /CC BY/.test(g.license));
+  if (!rows.length) return "";
+  return (
+    "\n----------------------------------------------------------------\n" +
+    "Third-party artwork attribution\n\n" +
+    "This kit contains icon silhouettes based on artwork from\n" +
+    "game-icons.net by Lorc, Delapouite and contributors, licensed\n" +
+    "CC BY 3.0 — https://creativecommons.org/licenses/by/3.0/\n\n" +
+    rows.map((g) => `  - ${g.name}: ${g.source} (${g.license})`).join("\n") +
+    "\n"
+  );
+}
