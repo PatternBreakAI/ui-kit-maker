@@ -257,6 +257,201 @@ if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
 if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
   errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
 
+/* round-22 item A: the fire pad is a HOUSING (owner field: "the ring
+   around the button is moving up, but the only thing that needs to move
+   is the white button with icon, down"). The press pose — state lift
+   dial + pressed extrusion collapse — must never slide the pad/ring;
+   the app pins the pad's pose to the resting state, so the baked swap
+   sprites carry a still ring and the disc's designed sink alone, and
+   FireGlyphTrip measures exactly that for the glyph. */
+if (!/const cfgPad = /.test(bevelSrc) || !/lift: cfg\.states\.default\.lift/.test(bevelSrc)
+    || !/const restDepth = designFor\(cfg, "default"\)\.candy\.extrusion\.depth;/.test(bevelSrc))
+  errors.push("the fire pad's pose pin (housing contract) is missing from bevel.ts (round 22 — the ring rode the press pose into the baked swap)");
+/* round-22 item B: the gauge seat ships the DRAWN point. contentText
+   nudges every digit block by the Typography offset dials (type.ox/oy · k)
+   and the italic optical centering (−0.07em); a stamp computed from dial
+   geometry alone strands Unity's readout wherever the kit's nudges no
+   longer draw (owner field: the real kit's "108" high-left of the dial —
+   while the bench read zero drift, because every bench recipe keeps the
+   dials at zero). All three gauges carry the nudges. */
+if (!/const numXS = cx3 \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsS \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYS = cy3 \+ r0 \* 0\.5 \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the speedo's gauge stamp lost the drawn-point nudges (round 22)");
+if (!/const numXS2 = cx3 \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsS2 \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYS2 = cy3 - 4 \* k \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the HUD arc's gauge stamp lost the drawn-point nudges (round 22 — the owner's high-left '108')");
+if (!/const numXT = cxH \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsT \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYT = cyH \+ r0P \* 0\.5 \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the rev meter's gauge stamp lost the drawn-point nudges (round 22)");
+
+/* round-21: board bars arrive KIT-DRESSED (owner mandate — truth from app
+   to Unity). The progress assets must be the real component's part
+   renders, the manifest must carry the well zone, and the ProgressBar
+   prefab + placement + heal must ride the shared mercury-seat builder. */
+if (!/addPng\("progress\/track\.9\.png", shell\("progress", \{ overlay: "track" \}/.test(src)
+    || !/addPng\("progress\/fill\.9\.png", shell\("progress", \{ overlay: "fill" \}/.test(src))
+  errors.push("the progress bar's assets must be the DRESSED part renders (overlay track/fill), not synthesized capsules (round 21)");
+if (!/const tzm = \/data-track=/.test(src))
+  errors.push("the raster pass must capture the bar renders' data-track zone into the manifest (round 21)");
+if (!/class PBTrack \{ public float x; public float w; \}/.test(cs))
+  errors.push("PBTrack (the manifest's well-zone row) is missing from the importer (round 21)");
+if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT\.track\.w > 2f/.test(cs))
+  errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
+if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, "progress", 0\.62f, false\)/.test(cs))
+  errors.push("ProgressPrefab must assemble the dressed rig through BuildBarFill (round 21)");
+if (!/\(it\.component == "progress" \|\| it\.component == "emblembar"\) && it\.value > 0f/.test(cs))
+  errors.push("board placement must drive the progress/emblem bars' fillAmount from the board's value (round 21)");
+if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+/.test(cs))
+  errors.push("the old-structure ProgressBar heal (Fill Area retrofit, barRigged receipt) is missing (round 21)");
+/* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
+   and the segment meter lights its cells. */
+if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
+    || !/addPng\("emblembar\/socket\.png", shell\("emblembar", \{ overlay: "dock"/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21)");
+if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
+  errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
+if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
+  errors.push("the VsBar/EmblemBar/SegmentMeter rig builders are missing from the importer (round 21)");
+if (!/it\.component == "vsbar" && it\.value > 0f/.test(cs) || !/it\.component == "segbar" && it\.value > 0f/.test(cs))
+  errors.push("board placement must drive the vsbar left fighter and the segbar lit cells from the board's value (round 21)");
+if (!/static float SegbarScissor\(/.test(cs) || !/Mathf\.Round\(v01 \* 5f\)/.test(cs))
+  errors.push("the segbar scissor must snap to whole cells on the manifest's well zone (round 21)");
+if (!/spritePath\.EndsWith\("\/segbar-base\.png"\) && asset\.transform\.Find\("Lit"\) == null/.test(cs))
+  errors.push("the SegmentMeter Lit graft (one arrival moment, the minimap's rule) is missing (round 21)");
+
+/* round-18 PRIMARY: the baked press sink reaches the halo. The manifest's
+   stateFx.lift carries only the LIFT DIAL delta — a pressed state that
+   collapses the extrusion (owner's real War Chuds: depth 31 -> 14, all
+   four lift dials equal) sinks the baked art ~17 UI px while lift reads 0,
+   so the halo slid by nothing and held its hover seat (owner: "the glow
+   doesn't follow the new button"). labelStates dy already ships that
+   travel (the label rides it); the halo must ride it too, on swap builds
+   only, and existing projects must converge. */
+if (!/public float hoverSink, pressedSink;/.test(fx))
+  errors.push("StateFx's baked-sink fields are missing (round 18 — the parked pressed halo)");
+if (!/pressedLift \+ \(baked \? pressedSink : 0f\)/.test(fx) || !/hoverLift \+ \(baked \? hoverSink : 0f\)/.test(fx))
+  errors.push("Target must add the baked sink to the travel channel on swap builds (round 18)");
+if (!/fx\.pressedSink = -ExpectedShift\(m, family, "pressed"\);/.test(cs) || !/fx\.hoverSink = -ExpectedShift\(m, family, "hover"\);/.test(cs))
+  errors.push("WireStateFx must arm the sink fields from labelStates dy — the app's own face travel (round 18)");
+if (!/wantSinkFix/.test(cs) || !/fxSink\.pressedSink = pressedSinkWant/.test(cs))
+  errors.push("the baked-sink convergence sweep is missing — prefabs armed before the sink fields existed keep a parked halo forever (round 18)");
+
+/* round-18 (re-cut by round-19 P0): the editor's input-focus gate made
+   loud. Hover rides the EventSystem alone (no polling) — in the editor
+   the Input System only delivers pointer events while the Game view has
+   focus, which reads as "the glow broke" (owner video). The WATCHER now
+   lives EDITOR-SIDE (PatternBreakKitImporter): a package API referenced
+   from the Runtime file broke a customer project's compile (CS0117).
+   The runtime keeps one dumb #if UNITY_EDITOR flag. */
+if (!/public static bool editorPointerSeen;/.test(fx))
+  errors.push("StateFx's editorPointerSeen flag (the runtime's ONLY editor-side surface) is missing (rounds 18/19)");
+if (/FocusHintTick|focusHintDone|UnityEditor\./.test(fx))
+  errors.push("the focus watcher crept back into the RUNTIME file — it lives in the Editor assembly (round 19 P0: a runtime package reference killed a customer compile)");
+if (!/static void FocusGateTick\(\)/.test(cs) || !/\[InitializeOnLoadMethod\]\s*\n\s*static void ArmFocusGateWatcher\(\)/.test(cs))
+  errors.push("the editor-side focus-gate watcher is missing from the importer (rounds 18/19)");
+if (!/Click the game once and sweep again/.test(cs))
+  errors.push("the focus-gate hint's Console line is missing (round 18 — 'hover not moving' owner video)");
+if (!/over = true; Retarget\(\); MarkPointer\(\);/.test(fx) || !/down = true; Retarget\(\); MarkPointer\(\);/.test(fx))
+  errors.push("MarkPointer must ride OnPointerEnter and OnPointerDown — the hint disarms when events actually flow (round 18)");
+if (!/InputSystemUIInputModule"\) return;/.test(cs))
+  errors.push("the focus watcher must stay quiet under the legacy StandaloneInputModule — that module has no focus gate (round 18)");
+if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI"\]/.test(src))
+  errors.push("the Runtime asmdef must reference ONLY the two UI staples — a package reference there is how round 19's compile break happened");
+if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(fx))
+  errors.push("StateFx must never poll input — hover/press ride the EventSystem alone (round-18 verified contract)");
+/* round-18 menu action: removing the gate is an EXPLICIT choice, never an
+   import side effect, and the hint's menu reference must name the real menu. */
+if (!/const string RouteInputMenu = "Tools\/PatternBreak\/Route All Editor Input To Game View";/.test(cs)
+    || !/STRICTLY an explicit menu action/.test(cs))
+  errors.push("the Route All Editor Input To Game View menu action (explicit, never automatic) is missing (round 18)");
+if (!/Type\.GetType\("UnityEngine\.InputSystem\.InputSystem, Unity\.InputSystem"\)/.test(cs)
+    || !/GetProperty\("editorInputBehaviorInPlayMode"/.test(cs))
+  errors.push("the route-input machinery must reach the Input System by REFLECTION only (round 19 P0 — direct references break compiles on other package versions)");
+if (!/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.asset"\)/.test(cs))
+  errors.push("the route-input menu must mint the settings asset when the project runs on in-memory defaults — the change would evaporate otherwise (round 18)");
+if (cs.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
+  errors.push("the focus hint must point at the real menu item by its exact name (round 18)");
+
+/* ── round-19 P0 CLASS INVARIANT: version-fragile package APIs must never
+   be referenced directly in ANY emitted C#. InputSettings.EditorInputBehavior
+   compiled nowhere on the owner's Input System version — CS0117, every kit
+   script dead, the scene white boxes. The whole source file is scanned
+   (every template rides in it); reflection strings (quoted names) pass,
+   naked member access fails. New package APIs join the allowlist only
+   CONSCIOUSLY, with a version-stability argument in the commit. ── */
+{
+  const fragile = [
+    [/InputSettings\.EditorInputBehavior/, "InputSettings.EditorInputBehavior"],
+    [/(?<!")editorInputBehaviorInPlayMode(?!")/, "editorInputBehaviorInPlayMode as naked member access (reflection only)"],
+    [/UnityEngine\.InputSystem\.InputSystem\.settings/, "InputSystem.settings as a direct reference (reflection only)"],
+  ];
+  for (const [re, what] of fragile)
+    if (re.test(src))
+      errors.push(`version-fragile package API referenced directly: ${what} — this exact class broke a customer's compile (round 19 CS0117)`);
+  const inputAllow = ["UnityEngine.InputSystem.UI.InputSystemUIInputModule"]; // 1.0-era, define-guarded in the scene builders
+  for (const mm of src.matchAll(/UnityEngine\.InputSystem\.[A-Za-z0-9_.]+/g)) {
+    if (src[mm.index - 1] === '"' || src[mm.index - 1] === "'") continue; // quoted = reflection type-name string
+    const ref = mm[0].replace(/\.$/, "");
+    if (!inputAllow.some((a) => ref === a || ref.startsWith(a + ".")))
+      errors.push(`unlisted direct UnityEngine.InputSystem reference in emitted source: ${ref} — use reflection, or extend the guard allowlist consciously (round 19)`);
+  }
+}
+if (!/Testing hover & press in the editor/.test(src)
+    || !/Route All Editor Input To Game View\*\*/.test(src))
+  errors.push("the README's editor-testing box (the focus-gate story + the menu pointer) is missing (round 18)");
+
+/* round-18: the ghost joystick is a PLACEABLE RIG (owner: "make sure to
+   include Joystick-ghost in the prefabs") — ghost base + thumb sprites
+   from the app's own overlay render, a TouchStick prefab, ghost-aware
+   re-adoption, and the README bones line. */
+if (!/aria-label="ghost joystick thumb"/.test(bevelSrc))
+  errors.push("the ghost joystick's thumb part render is missing from bevel.ts (round 18)");
+if (!/data-shell="\$\{\(cxg - R\)\.toFixed\(1\)\}/.test(bevelSrc))
+  errors.push("the ghost base render must stamp its ring shell (data-shell) — the prefab seats the thumb from it (round 18)");
+if (!/joystick\/ghost-base\.png/.test(src) || !/joystick\/ghost-thumb\.png/.test(src))
+  errors.push("the ghost stick's base/thumb sprites are not exported (round 18)");
+if (!/static bool JoystickGhostPrefab\(/.test(cs) || !/JoystickGhostPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+  errors.push("JoystickGhostPrefab is missing or never runs — the ghost ships no prefab (round 18)");
+if (!/ghostRig \? "ghost-base" : "base"/.test(cs))
+  errors.push("the joystick re-adoption sweep must be ghost-aware — a bare ghost rig would re-adopt the SOLID stick's art (round 18)");
+if (!/Joystick \/ JoystickGhost\*\*/.test(src))
+  errors.push("the README bones line for the sticks (Joystick / JoystickGhost) is missing (round 18)");
+
+/* round-18: the fire button's press — the icon rides the disc's WHOLE
+   baked trip (owner: "on press the center white disc and icon should
+   move"). The dial-only formula left the icon floating ~15 UI px above
+   the sunk disc on the owner's kit (press-pose extrusion collapse, lift
+   dial 0). The trip now comes from the app's own dome shell stamps. */
+if (!/static float FireGlyphTrip\(PBManifest m, float domeShellW\)/.test(cs))
+  errors.push("FireGlyphTrip (the stamp-driven dome trip) is missing (round 18)");
+if (!/-\(\(dP\.shell\.y - d0\.shell\.y\) \/ ps \+ domeShellW \* 0\.016f\)/.test(cs))
+  errors.push("FireGlyphTrip must measure the baked face drop from the dome shell stamps, plus the dome's designed sink (round 18)");
+if (!/fb\.pressedLift = FireGlyphTrip\(m, domeShellW\);/.test(cs))
+  errors.push("FireButtonPrefab must arm the glyph with FireGlyphTrip (round 18)");
+if (!/fbWant = FireGlyphTrip\(m, shellMin\);/.test(cs)
+    || !/Mathf\.Approximately\(fbNow\.pressedLift, fbRow - shellMin \* 0\.016f\)/.test(cs))
+  errors.push("the fire-glyph convergence must target FireGlyphTrip and recognize the old dial+sink default as stale (round 18)");
+
+/* round-20 item 2: the stretched bar keeps its knob. Bar rigs never pose
+   for a stretch (a bake buries the live control; a lost import race left
+   the stand-in uniform-scaled — the ballooned knob); placement trusts the
+   MANIFEST for sliced-ness, and a missing posed sprite falls through to
+   live sizing AND arms the incomplete-scene rebuild. */
+if (!/const BAR_RIGS = new Set\(\["slider", "progress", "segbar", "vsbar", "emblembar", "scrollbar"\]\);/.test(src)
+    || !/&& !BAR_RIGS\.has\(idBase\)/.test(src))
+  errors.push("the bar-rig posed exclusion is missing — a stretched slider would bake over its live rig again (round 20)");
+if (!/baseA\.nineSlice\.left \+ baseA\.nineSlice\.right \+ baseA\.nineSlice\.top \+ baseA\.nineSlice\.bottom > 2/.test(cs))
+  errors.push("slicedRoot must trust the manifest's nineSlice row — the sprite border can lose the first-drop race (round 20)");
+if (!/the sliced prefab stands in at board size/.test(cs) || !/missing\+\+;\s*\n\s*\}\s*\n\s*if \(pspPose != null\)/.test(cs))
+  errors.push("a missing posed sprite must count MISSING and fall through to live sizing (round 20 — the frozen natural-size stand-in)");
+
+/* round-20 item 1: a GHOST board copy places JoystickGhost, and kept
+   scenes wearing the solid stick on a ghost seat heal on re-import. */
+if (!/pfName = it\.ov == "ghost" \? "JoystickGhost" : "Joystick";/.test(cs))
+  errors.push("the scene builder's joystick mapping must be ghost-aware (round 20 — 'it's grabbing the old joystick')");
+if (!/it2\.component == "joystick" && it2\.ov == "ghost"/.test(cs) || !/ghost stick\(s\) swapped in/.test(cs))
+  errors.push("the kept-scene ghost-stick heal (position-matched swap) is missing (round 20)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

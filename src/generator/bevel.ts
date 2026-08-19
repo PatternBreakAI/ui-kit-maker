@@ -1,8 +1,9 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isDarkBg, userShapes } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
+import { glyphShape } from "./glyphLibrary";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
@@ -1071,9 +1072,18 @@ function gothicInset(outer: string, delta: number): string {
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
-    // the Gothic drop takes the drawing-resolution offset; everyone else runs
-    // the exact ladder they always did (owner: the rest is PERFECT — no step back)
-    if (silhouetteMeta(shape)?.gothicCut) {
+    /* the Gothic drop takes the drawing-resolution offset; everyone else runs
+       the exact ladder they always did (owner: the rest is PERFECT — no step back).
+       Imported (lab-registry) outlines ride the SAME reviewed kernel: the
+       legacy chord machinery tangles on their acute wedges — on a lightning
+       bolt's 17° spikes it chopped face regions with straight seams at rim
+       depth and failed outright at wall depth, dropping to the scaled-clone
+       inset (a floating mini-bolt face, not a parallel offset). The kernel
+       ladder erodes them honestly and still falls back to the legacy path on
+       structural failure. Production silhouettes don't reach this branch.
+       Semantic glyphs (glyph: prefix) ride the same ladder — their contract
+       bakes arcs to cubics precisely so the kernel never declines them. */
+    if (silhouetteMeta(shape)?.gothicCut || importedShape(shape) || glyphShape(shape)) {
       const g = gothicInset(outer, delta);
       if (g) return g;
     } else {
@@ -1225,6 +1235,13 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
     // `:caps` suffix opts a render into the three-slice experiment.
     if (shape.endsWith(":caps")) return transformPathCapAware(imp.path, imp.viewBox, x, y, w, h, imp.capSrc);
     return transformPath(imp.path, imp.viewBox, x, y, w, h);
+  }
+  const gl = glyphShape(shape);
+  if (gl) {
+    // Semantic glyphs fill the frame exactly: they are authored in square
+    // boxes with their own margins, and glyph pieces render square frames —
+    // the drawn proportion is preserved by construction, no cap machinery.
+    return transformPath(gl.d, gl.vb, x, y, w, h);
   }
   if (shape.startsWith("stock:")) {
     const st = stockShape(shape);
@@ -4343,9 +4360,10 @@ export interface KitOpts {
    *  re-renders wider — caps, knob and inset stay true instead of
    *  distorting. 1 = authored width. */
   stretch?: number;
-  /** Vertical 9-slice stretch — blank panels only: the shell re-renders
-   *  taller while tokenH keeps walls, rim and depth at component scale.
-   *  1 = authored height. */
+  /** Vertical 9-slice stretch — blank panels and the scrollbar: the shell
+   *  re-renders taller while tokenH keeps walls, rim and depth at
+   *  component scale (the scrollbar's end caps and arrows stay k-sized;
+   *  only the rail and thumb travel grow). 1 = authored height. */
   stretchY?: number;
   /** Alt tone — muted variant for empty/error titles; inert to hover. */
   tone?: "alt";
@@ -4639,6 +4657,112 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     return inject(out, `<g data-dock="${dock.side ?? "left"}">${shadow}<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})">${innerSvg}</g></g>`);
   };
 
+  /* ── semantic glyph pieces — one shared construction for the whole rack.
+     The registry outline IS the component (the gearicon canon, furnishing-
+     free): the kit's face, pattern, bevel wall, extrusion, glow and shadow
+     wrap the glyph silhouette with no shell box. Per-piece forks, sizes and
+     states ride the ordinary build() machinery; sov already resolves the
+     KIT_SHAPE glyph: entry, and a kitShapes override re-dresses the piece
+     like any other component. */
+  if (isGlyphPiece(id)) {
+    const dGl = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+    let outGl = build(cfg, state, { x: 39, y: 30, h: dGl, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dGl, shapeOverride: sov });
+    /* per-glyph furnishing (registry `detail`): seam/groove subpaths painted
+       in the kit's SHADOW role ink over the face, clipped to the silhouette
+       so authored bands may over-reach their gap (the coin's seams). Drawn
+       at the shell frame — the glyph family renders flat by default, where
+       shell and face coincide; walled interplay is deliberate follow-on. */
+    const glEntry = sov ? glyphShape(sov) : undefined;
+    if (glEntry?.detail || glEntry?.detailLight) {
+      const sil = shapePath(sov as Shape, 39, 30, dGl, dGl, 0);
+      const D2 = designFor(cfg, state);
+      const cid = "gd" + UID++;
+      const bake = (src: string): string => {
+        const p = transformPath(src, glEntry.vb, 39, 30, dGl, dGl);
+        return sov!.endsWith("~flip") ? mirrorPathX(p, 39 + dGl / 2) : p;
+      };
+      let bands = "";
+      if (glEntry.detail) {
+        const dd = bake(glEntry.detail);
+        bands += `<path d="${dd}" fill="${effect(D2.effects, "Shadow")}" opacity="0.92"/>`;
+        /* BASE GLOW in the engraved shadow regions (owner spec 2026-08-19,
+           visual reference: bloom pools rising from within the coin's rim
+           bands "the way it behaves on button extrusion shadows"). This is
+           the BUTTONS' machinery presented here, not a parallel system —
+           same ink (Inner glow color when set, else the Glow well), same
+           dial (Candy → Extrusion → Base glow), same soft radial pool at
+           the buttons' own proportions (rx 0.32 of the region's width,
+           belly at 0.45 of its height, reach 1.1× its height): a kit whose
+           buttons bloom makes these bands bloom identically, and a kit
+           that parks the dial at 0 keeps buttons and bands honestly quiet
+           together. One pool per engraved region, clipped to the region —
+           brightest inside the shadow, never an edge-light or outer halo.
+           The Band glow slot is a strength dial in the kit-following-with-
+           override shape (owner: "would it be easier to just make a new
+           control for this purpose"): absent follows the kit's dial live,
+           a stored number is this one glyph's own strength (0 = off, the
+           kit dial no longer moves it). Legacy values from the retired
+           two-state slot read through: "Off" is a 0 fork; "On" (the
+           retired self-strength luminesce toggle) and "Follow kit"
+           follow the kit. */
+        const dgRaw = opts.slots?.detailglow;
+        const dgOwn = dgRaw === "Off" ? 0
+          : dgRaw !== undefined && /^\d+$/.test(dgRaw) ? clamp(+dgRaw, 0, 100) : undefined;
+        const egOpG = ((dgOwn ?? D2.candy.extrusion.glow) / 100) * (state === "disabled" ? 0 : 1);
+        if (egOpG > 0.01) {
+          const gc = D2.candy.innerGlow.color ?? effect(D2.effects, "Glow");
+          const gpid = "gp" + UID++, gcid = "gq" + UID++;
+          let pools = "";
+          for (const sub of dd.match(/M[^M]+/g) ?? []) {
+            const ns = (sub.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+            let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+            for (let i = 0; i + 1 < ns.length; i += 2) {
+              if (ns[i] < x0) x0 = ns[i]; if (ns[i] > x1) x1 = ns[i];
+              if (ns[i + 1] < y0) y0 = ns[i + 1]; if (ns[i + 1] > y1) y1 = ns[i + 1];
+            }
+            const bwP = x1 - x0, bhP = y1 - y0;
+            if (!(bwP > 2 && bhP > 2)) continue;
+            pools += `<ellipse cx="${(x0 + bwP / 2).toFixed(1)}" cy="${(y0 + bhP * 0.45).toFixed(1)}" rx="${(bwP * 0.32).toFixed(1)}" ry="${Math.max(8, bhP * 1.1).toFixed(1)}" fill="url(#${gpid})"/>`;
+          }
+          if (pools) bands += `<radialGradient id="${gpid}"><stop offset="0" stop-color="${gc}" stop-opacity="1"/><stop offset="1" stop-color="${gc}" stop-opacity="0"/></radialGradient><clipPath id="${gcid}"><path d="${dd}"/></clipPath><g clip-path="url(#${gcid})" opacity="${egOpG.toFixed(2)}">${pools}</g>`;
+        }
+      }
+      /* light-catch furnishing (registry `detailLight`): painted in the
+         kit's HIGHLIGHT role over the shadow pass — the recessed coin
+         face's lower lip is the first tenant. */
+      if (glEntry.detailLight) bands += `<path d="${bake(glEntry.detailLight)}" fill="${effect(D2.effects, "Highlight")}" opacity="0.55"/>`;
+      outGl = inject(outGl, `<clipPath id="${cid}"><path d="${sil}"/></clipPath><g data-part="glyph-detail" clip-path="url(#${cid})">${bands}</g>`);
+    }
+    /* authored sparkle seats (registry `glints`): the kit's glint star
+       stamped where the entry says the face catches light — the indented
+       coin's shine (owner: "let's just add some shine or glint"). Kit-
+       following where the kit speaks: opacity and blend ride Typography →
+       Glints while that treatment is on; with kit glints off the seats
+       still shine at their authored strength — the sparkle is part of the
+       glyph's look, like its light catch. Unclipped on purpose, exactly
+       like the letterform glint stars. */
+    if (glEntry?.glints?.length && state !== "disabled") {
+      const GLK = designFor(cfg, state).type.glints;
+      const op = clamp((GLK?.on ? (GLK.opacity ?? 55) : 70) / 100, 0, 1);
+      if (op > 0.01) {
+        const star4g = (sx: number, sy: number, s: number, sr: number) =>
+          `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
+        const vb2 = glEntry.vb;
+        const stars = glEntry.glints.map((g) => {
+          let sx = 39 + ((g.x - vb2[0]) / vb2[2]) * dGl;
+          const sy = 30 + ((g.y - vb2[1]) / vb2[3]) * dGl;
+          let rr = g.r ?? 0;
+          if (sov!.endsWith("~flip")) { sx = 2 * (39 + dGl / 2) - sx; rr = -rr; }
+          return star4g(sx, sy, (g.s / vb2[2]) * dGl, rr);
+        }).join("");
+        let layer = `<g data-part="glyph-glint" opacity="${op.toFixed(2)}">${stars}</g>`;
+        if (GLK?.on && GLK.blend && GLK.blend !== "normal") layer = `<g style="mix-blend-mode:${GLK.blend}">${layer}</g>`;
+        outGl = inject(outGl, layer);
+      }
+    }
+    return outGl;
+  }
+
   switch (id) {
     case "primary":
       /* faceLayer rides through — without it the stretch-safe split assets
@@ -4815,12 +4939,41 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "emblembar": // first-class docked bar — progress with the socket built in
     case "progress": {
       const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
       const bh = h - inset * 2 - gapPad * 2;
       const trackW = w - inset * 2 - gapPad * 2;
+      /* rig LAYERS (overlay track/fill/dock, EXPORT-ONLY — round 21, the
+         slider's shape): the wired Unity ProgressBar assembles the REAL
+         component from these — dressed track, full-run mercury, and the
+         emblem bar's docked socket — so the scene's bar is the piece the
+         maker styled, not a capsule approximation. */
+      if (opts.overlay === "dock") {
+        /* the socket standalone — the same mini-piece applyDock composes
+           (icon resolution mirrored), shadowless: the merged ground
+           shadow makes the standalone sprite an egg and Unity centers
+           on the egg (the knob precedent) */
+        const D = h * 1.9;
+        const dIcon = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.clock ?? null);
+        return build(cfg, state, { x: 33, y: 27, h: D, fs: 0, iconSize: D * 0.5 }, { pinDesign: true, iconDef: dIcon, label: "", fixedW: D, shapeOverride: sov });
+      }
+      if (opts.overlay === "fill") {
+        /* the mercury at 100% — the silhouette-shaped full run, no shell,
+           no well, no socket. Unity's Filled image scissors it to the
+           live value, exactly like the app's clip does. */
+        const gid = "pg" + UID++;
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
+          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const v01p = clamp(value ?? 0.62, 0, 1);
       const fw = trackW * v01p;
       const gid = "pg" + UID++;
@@ -5003,17 +5156,55 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          Stretch widens the WELLS; the medallion and its center reserve
          hold their size, so the axis stays a fixed cap (9-slice spirit). */
       const w = 860 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 96 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3, gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
       const bh = h - inset * 2 - gapPad * 2;
       const trackW = w - inset * 2 - gapPad * 2;
       const cxV = 39 + w / 2;
       const halfW = trackW / 2 - 56 * k;
+      const rC = hexMix("#FF4D5A", glow, 0.25);
+      /* rig LAYERS (overlay track/fill/fill-right/medal, EXPORT-ONLY —
+         round 21, the slider's shape): the wired Unity VsBar assembles
+         the REAL component — dressed track, each fighter's full half-run
+         mercury (Filled images drain them toward center), the candy VS
+         medallion riding the axis — so the scene's bar is the piece the
+         maker styled. */
+      if (opts.overlay === "medal") {
+        /* the medallion standalone, VS baked in the kit's own type —
+           shadowless like every moving part (the knob precedent) */
+        const R = h * 0.46;
+        const cpad = Math.ceil(R + 20);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">` +
+          candyKnob(cpad, cpad, R, knobC, undefined, false) +
+          `<text x="${(cpad + typeOxK * k).toFixed(1)}" y="${(cpad + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text></svg>`;
+      }
+      if (opts.overlay === "fill" || opts.overlay === "fill-right") {
+        /* one fighter's mercury at 100% — the silhouette-shaped half-run,
+           square at the drain edge (center) so the Filled image's scissor
+           line is honest; the OUTER cap takes the component's contour
+           from the silhouette clip, exactly like the app's drain. */
+        const rightF = opts.overlay === "fill-right";
+        const gid = "vs" + UID++;
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const x0F = rightF ? bx + trackW - halfW : bx - 2;
+        const x1F = rightF ? bx + trackW + 2 : bx + halfW;
+        const gradF = rightF
+          ? `<linearGradient id="${gid}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>`
+          : `<linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs>${gradF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath></defs>
+          <g clip-path="url(#${gid}w)">
+            <rect x="${Math.min(x0F, x1F).toFixed(1)}" y="${by.toFixed(1)}" width="${Math.abs(x1F - x0F).toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#${gid})" opacity="0.95"/>
+            <rect x="${(Math.min(x0F, x1F) + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, Math.abs(x1F - x0F) - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>
+          </g></svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const wellP = wellOf(w, h, inset);
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellP}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const vL = clamp(value ?? 0.72, 0, 1), vR = 0.58;
       const gid = "vs" + UID++;
-      const wellP = wellOf(w, h, inset);
-      const rC = hexMix("#FF4D5A", glow, 0.25);
       /* the fills follow the silhouette (design canon, same as progress):
          both pills clip to a silhouette-shaped region over the track, so
          the OUTER caps inherit the component's contour — an ornate shell's
@@ -5187,8 +5378,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "scrollbar": {
       /* System chrome · scrollbar — vertical strip shell, sunken track,
-         candy thumb. value scrubs the thumb. */
-      const w = 66 * k, h = 380 * k;
+         candy thumb. value scrubs the thumb.
+         VERTICAL 9-SLICE (owner: "need to be able to vertically stretch
+         this scrollbar 9-slice style"): opts.stretchY re-renders the
+         whole strip at the pulled length — a real engine render, not a
+         bitmap stretch. Every cap stays chrome-sized (insets, arrows and
+         the track's 26k/52k end reserves are k-scaled, not h-scaled), so
+         only the rail and the thumb's travel grow — honest slices.
+         FENCE: stretchY undefined clamps to 1 → h is byte-identical to
+         the un-parameterized render; every existing call site (kit view,
+         catalog, exports without a board stretch) is untouched. */
+      const w = 66 * k, h = 380 * k * clamp(opts.stretchY ?? 1, 0.7, 3);
       /* editing contract: hover/pressed restyle the THUMB; the rail only
          dims for disabled. */
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 90 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
@@ -8187,6 +8387,28 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           return `<path d="M-8 4 L0 -5 L8 4" fill="none" stroke="${rim}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.55" transform="translate(${px.toFixed(1)} ${py.toFixed(1)}) rotate(${deg.toFixed(0)})"/>`;
         };
         const gid = "gj" + UID++;
+        /* the knob's three circles, center-parameterized: the overlay draws
+           them at the deflected stick, the Unity thumb sprite draws them
+           alone on their own canvas (round 18 — the ghost ships a rig) */
+        const knobG = (kx: number, ky: number) => `<circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${krg.toFixed(1)}" fill="url(#${gid}k)" stroke="${rim}" stroke-width="2.5" opacity="0.95"/>
+  <circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${(krg * 0.42).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.5" opacity="0.55"/>
+  <circle cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(gInk, "#FFFFFF", 0.6)}" opacity="0.95"/>`;
+        /* Unity rig export (round 18, owner: "make sure to include
+           Joystick-ghost in the prefabs") — base and thumb ship as
+           SEPARATE sprites so the same TouchStick runtime drives the
+           ghost like its solid sibling. part: renders are export-only;
+           the app's overlay render below stays byte-identical. */
+        if (opts.part === "thumb") {
+          const padT = 12, sT = (krg + padT) * 2, cT = krg + padT;
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${sT.toFixed(0)}" height="${sT.toFixed(0)}" viewBox="0 0 ${sT.toFixed(0)} ${sT.toFixed(0)}" role="img" aria-label="ghost joystick thumb">
+<defs>
+  <radialGradient id="${gid}k" cx="0.38" cy="0.32" r="0.95"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/><stop offset="0.6" stop-color="${rim}" stop-opacity="0.16"/><stop offset="1" stop-color="${rim}" stop-opacity="0.05"/></radialGradient>
+</defs>
+<g>
+  ${knobG(cT, cT)}
+</g>
+</svg>`;
+        }
         const gsvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d2 + pad2 * 2}" height="${d2 + pad2 * 2}" viewBox="0 0 ${d2 + pad2 * 2} ${d2 + pad2 * 2}" role="img" aria-label="joystick overlay, ${state} state">
 <defs>
   <radialGradient id="${gid}w"><stop offset="0.55" stop-color="${gInk}" stop-opacity="0.05"/><stop offset="0.92" stop-color="${gInk}" stop-opacity="0.16"/><stop offset="1" stop-color="${gInk}" stop-opacity="0.02"/></radialGradient>
@@ -8198,11 +8420,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cxg}" cy="${cyg}" r="${(maxOffG + krg * 0.45).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.8" stroke-dasharray="2 9" stroke-linecap="round" opacity="0.7"/>
   ${tick(0)}${tick(Math.PI / 2)}${tick(Math.PI)}${tick(-Math.PI / 2)}
   ${chev(-Math.PI / 2)}${chev(0)}${chev(Math.PI / 2)}${chev(Math.PI)}
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${krg.toFixed(1)}" fill="url(#${gid}k)" stroke="${rim}" stroke-width="2.5" opacity="0.95"/>
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.42).toFixed(1)}" fill="none" stroke="${rim}" stroke-width="1.5" opacity="0.55"/>
-  <circle cx="${kxg.toFixed(1)}" cy="${kyg.toFixed(1)}" r="${(krg * 0.14).toFixed(1)}" fill="${hexMix(gInk, "#FFFFFF", 0.6)}" opacity="0.95"/>
+  ${opts.part === "base" ? "" : knobG(kxg, kyg)}
 </g>
 </svg>`;
+        if (opts.part === "base")
+          return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" data-shell="${(cxg - R).toFixed(1)} ${(cyg - R).toFixed(1)} ${(R * 2).toFixed(1)} ${(R * 2).toFixed(1)}" `);
         return gsvg.replace("<svg ", `<svg data-stick="${cxg} ${cyg} ${maxOffG.toFixed(1)}" `);
       }
       const kr2 = d2 * 0.3;
@@ -8271,7 +8493,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // INSIDE the canvas so raster exports keep them (never in glow slack)
       const exF = Math.round(dF9 * 0.3);
       const x9 = 33 + exF, y9 = 27 + exF;
-      const track = build(cfg, state, { x: x9, y: y9, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
+      /* the pad is a HOUSING (round 22, owner: "the only thing that needs
+         to move is the white button with icon, down"): the press pose —
+         the state lift dial and the pressed fork's extrusion collapse —
+         used to slide the ring/pad while the ticks, well, dome and
+         satellites are drawn at fixed coordinates, so the ring detached
+         from its own dressing on press (and the baked swap carried the
+         slide into Unity). Pin the pad's POSE to the resting state; every
+         color and candy fork still follows the state. Only the dome disc
+         keeps its designed sink, and the glyph rides it. Default renders
+         byte-identically — the pin is the identity there. */
+      const cfgPad = (() => {
+        if (state === "default") return cfg;
+        const c2 = { ...cfg, states: { ...cfg.states, [state]: { ...cfg.states[state], lift: cfg.states.default.lift } } };
+        const fPad = c2.stateDesigns?.[state as Exclude<GenStateName, "default">];
+        if (fPad?.candy?.extrusion) {
+          const restDepth = designFor(cfg, "default").candy.extrusion.depth;
+          c2.stateDesigns = {
+            ...c2.stateDesigns,
+            [state]: { ...fPad, candy: { ...fPad.candy, extrusion: { ...fPad.candy.extrusion, depth: restDepth } } },
+          };
+        }
+        return c2;
+      })();
+      const track = build(cfgPad, state, { x: x9, y: y9, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
       const inset9 = bw + 5;
       const cx9 = x9 + dF9 / 2, cy9 = y9 + dF9 / 2;
       const krF = dF9 / 2 - inset9 - 13;
@@ -8743,13 +8988,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<circle cx="${cx3}" cy="${cy3}" r="${r0}" fill="url(#${gid8})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
         `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 9 * k).toFixed(1)}" fill="${wellFill}"/>` + ticks;
       const inner2 = part === "needle" ? needle : part === "face" ? face : face + needle + readout;
+      /* the stamp ships the DRAWN point (round 22, owner: the real kit's
+         readout sat high-left of the dial): contentText nudges every
+         digit block by the Typography offset dials (type.ox/oy · k) and
+         the italic optical centering (−0.07em) — a seat computed from
+         dial geometry alone strands Unity's readout wherever the kit's
+         nudges no longer draw. Zero-dial kits stamp identically. */
+      const numFsS = Math.min(d2 * 0.17, r0 * 0.44) * typeK;
+      const numXS = cx3 + typeOxK * k + (cfg.type.italic ? -numFsS * 0.07 : 0);
+      const numYS = cy3 + r0 * 0.5 + typeOyK * k;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         /* the FACE part carries the readout seat + dial center as a geo
            stamp (housed coordinates) — attributes never rasterize, so the
            app's own render stays byte-identical */
         const openTag = part === "face"
-          ? `<svg data-race="speedo" data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
+          ? `<svg data-race="speedo" data-gauge="${numXS.toFixed(1)} ${numYS.toFixed(1)} ${numFsS.toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
           : '<svg data-race="speedo" ';
         return inject(track.replace("<svg ", openTag),
           `<defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs><g opacity="${dim}">${inner2}</g>`);
@@ -8759,7 +9013,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          line's y + size — the Unity prefab's live numbers sit exactly
          where the app draws them. Attributes never rasterize, so the
          shipped pixels stay byte-identical. */
-      const gaugeStamp = `data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      const gaugeStamp = `data-gauge="${numXS.toFixed(1)} ${numYS.toFixed(1)} ${numFsS.toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="speedometer" data-race="speedo" ${gaugeStamp}>
 <defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
 <g opacity="${dim}">${inner2}</g>
@@ -8809,6 +9063,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const readout = part === "face" ? "" :
         contentText(String(Math.round(v3 * 174)), cx3, cy3 - 4 * k, Math.min(d2 * 0.24, r0 * 0.6) * typeK, { anchor: "middle", keepCase: true, opacity: dim }) +
         `<text x="${cx3}" y="${(cy3 + r0 * 0.46).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">${opts.slots?.unit === "KPH" ? "KPH" : "MPH"}</text>`;
+      /* the stamp ships the DRAWN point (round 22, owner: the real kit's
+         "108" sat high-left of the dial): contentText nudges the digit
+         block by the Typography offset dials and the italic optical
+         centering — the seat must carry them or Unity's readout strands
+         wherever the kit's nudges no longer draw. Zero-dial kits stamp
+         identically. */
+      const numFsS2 = Math.min(d2 * 0.24, r0 * 0.6) * typeK;
+      const numXS2 = cx3 + typeOxK * k + (cfg.type.italic ? -numFsS2 * 0.07 : 0);
+      const numYS2 = cy3 - 4 * k + typeOyK * k;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
@@ -8820,13 +9083,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            stay byte-identical. The importer builds live segments on this
            exact grid and GaugeDial lights them to the value. */
         const openTag2 = part === "face"
-          ? `<svg data-race="speedo2" data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" data-gauge-seg="${(r0 - 20 * k).toFixed(1)} ${r0.toFixed(1)} ${(8 * k).toFixed(1)} ${N} 135 270" `
+          ? `<svg data-race="speedo2" data-gauge="${numXS2.toFixed(1)} ${numYS2.toFixed(1)} ${numFsS2.toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" data-gauge-seg="${(r0 - 20 * k).toFixed(1)} ${r0.toFixed(1)} ${(8 * k).toFixed(1)} ${N} 135 270" `
           : '<svg data-race="speedo2" ';
         return inject(track.replace("<svg ", openTag2),
           `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
       }
       // readout seat as a geo stamp — see the classic dial's note
-      const gaugeStamp2 = `data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      const gaugeStamp2 = `data-gauge="${numXS2.toFixed(1)} ${numYS2.toFixed(1)} ${numFsS2.toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)}"`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="HUD speedometer" data-race="speedo2" ${gaugeStamp2}>
 <defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs>
 <g opacity="${dim}">${segs}${arc}${readout}</g>
@@ -8871,7 +9134,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           segsP += `<line x1="${(cxH + Math.cos(a) * rI).toFixed(1)}" y1="${(cyH + Math.sin(a) * rI).toFixed(1)}" x2="${(cxH + Math.cos(a) * rO).toFixed(1)}" y2="${(cyH + Math.sin(a) * rO).toFixed(1)}" stroke="${zoneP(t0)}" stroke-width="${(6.5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.14"/>`;
         }
         const gidP = "tcp" + UID++;
-        const gaugeStampT = `data-gauge="${cxH.toFixed(1)} ${(cyH + r0P * 0.5).toFixed(1)} ${(Math.min(d2 * 0.16, r0P * 0.42) * typeK).toFixed(1)} ${(cyH + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cxH.toFixed(1)} ${cyH.toFixed(1)}"`;
+        /* drawn-true seat (round 22): the Typography offset dials and the
+           italic optical centering travel with the stamp — see the
+           speedo's note */
+        const numFsT = Math.min(d2 * 0.16, r0P * 0.42) * typeK;
+        const numXT = cxH + typeOxK * k + (cfg.type.italic ? -numFsT * 0.07 : 0);
+        const numYT = cyH + r0P * 0.5 + typeOyK * k;
+        const gaugeStampT = `data-gauge="${numXT.toFixed(1)} ${numYT.toFixed(1)} ${numFsT.toFixed(1)} ${(cyH + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cxH.toFixed(1)} ${cyH.toFixed(1)}"`;
         const trackF = build(cfg, state, { x: 39, y: 30, h: DT, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: DT, shapeOverride: sov });
         return inject(trackF.replace("<svg ", `<svg data-race="tacho" ${gaugeStampT} `),
           `<defs><linearGradient id="${gidP}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient></defs>` +

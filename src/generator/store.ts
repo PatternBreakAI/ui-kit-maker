@@ -613,6 +613,10 @@ interface GenStore {
    *  Absent = still pending in the bay (admin-only). Cloud-stored. */
   componentReleases: Record<string, ReleaseStatus>;
   setComponentRelease: (id: KitComponentId, status: ReleaseStatus | null) => Promise<string | null>;
+  /** Batch form of the same ledger write — ONE cloud save for a set of
+   *  pieces (the bay's "release all glyphs"), atomic where a per-card loop
+   *  would race itself. Same semantics per entry as setComponentRelease. */
+  setComponentReleasesBatch: (patch: Partial<Record<KitComponentId, ReleaseStatus | null>>) => Promise<string | null>;
   /** Imported flat-vector silhouettes — see the spec in the Silhouette panel. */
   userShapes: UserShape[];
   addUserShape: (u: UserShape) => void;
@@ -2173,8 +2177,9 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitSlot: (id, slotId, val) => {
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
-       Color slots are look, so they stay frozen with the rest. */
-    if (get().kitLocks[id] && KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind === "color") return;
+       Color and dial slots are look, so they stay frozen with the rest. */
+    const slotKind = KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind;
+    if (get().kitLocks[id] && (slotKind === "color" || slotKind === "dial")) return;
     markTouched();
     pushHistory(get());
     const kitSlotVals = { ...get().kitSlotVals };
@@ -2426,6 +2431,18 @@ export const useGen = create<GenStore>((set, get) => ({
     if (!err) {
       set({ componentReleases: next });
       // the local gate snapshot follows the ledger the admin just wrote
+      writeGateSnapshot({ admin: get().isAdmin, tier: get().tier, releases: next });
+    }
+    return err;
+  },
+  setComponentReleasesBatch: async (patch) => {
+    const next = { ...get().componentReleases };
+    for (const [id, status] of Object.entries(patch)) {
+      if (status === null || status === undefined) delete next[id]; else next[id] = status;
+    }
+    const err = await saveComponentReleases(next);
+    if (!err) {
+      set({ componentReleases: next });
       writeGateSnapshot({ admin: get().isAdmin, tier: get().tier, releases: next });
     }
     return err;

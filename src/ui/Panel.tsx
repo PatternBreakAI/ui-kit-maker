@@ -1864,6 +1864,34 @@ export function Panel() {
               )}
               {slot.note && <div className="helper">{slot.note}</div>}
             </div>
+          ) : slot.kind === "dial" && !finLocked ? (
+            (() => {
+              /* the kit-following strength dial (owner, on the band glow:
+                 "would it be easier to just make a new control for this
+                 purpose") — untouched it MIRRORS the kit's Base glow dial
+                 live (stores nothing); the first drag forks this piece onto
+                 its own strength; 0 is the deliberate off. Legacy values
+                 from the retired two-state slot read through: "Off" is a 0
+                 fork, "On"/"Follow kit" are the unfetched follow. */
+              const raw = kitSlotVals[focus]?.[slot.id];
+              const own = raw === "Off" ? 0
+                : raw !== undefined && /^\d+$/.test(raw) ? Math.min(100, +raw) : undefined;
+              return (
+                <div key={slot.id}>
+                  <Slider label={slot.name} value={own ?? Math.round(cfg.candy.extrusion.glow)} min={0} max={100} unit="%"
+                    onChange={(v) => setKitSlot(focus, slot.id, String(v))} />
+                  {own !== undefined ? (
+                    <button className="resetstate" title="Drop this piece's own strength — mirror the kit's Base glow dial again"
+                      onClick={() => setKitSlot(focus, slot.id, null)}>
+                      <RotateCcw size={13} strokeWidth={2} /> Follow the kit
+                    </button>
+                  ) : (
+                    <div className="helper">Following the kit — this dial mirrors <b>Candy → Extrusion → Base glow</b> until you set it. Setting 0 quiets this piece alone.</div>
+                  )}
+                  {slot.note && <div className="helper">{slot.note}</div>}
+                </div>
+              );
+            })()
           ) : slot.kind === "value" ? (
             /* no input on purpose — the readout is DRIVEN; say so instead of
                offering a field that would be a lie */

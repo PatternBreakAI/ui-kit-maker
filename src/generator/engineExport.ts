@@ -36,6 +36,11 @@ interface AssetMeta {
    *  the sprite rect compared a glow-padded board box against a cropped
    *  sprite and every prefab landed oversized (owner: "weird sizing"). */
   shell?: { x: number; y: number; w: number; h: number } | null;
+  /** The bar family's WELL ZONE inside the shipped sprite (x, w in file
+   *  px at pngScale), parsed from the render's own data-track stamp —
+   *  the bar prefabs seat their mercury exactly on the app's zone
+   *  instead of guessing symmetric insets (round 21). */
+  track?: { x: number; w: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -305,6 +310,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
      (type stamps, timerdigits, backgrounds). */
   speedo: "speedo", speedo2: "speedo2", tacho: "tacho",
   circuit: "circuit", startlights: "startlights", segbar: "segbar",
+  /* the VS bar + emblem bar place as WIRED rigs too (round 21 — they
+     used to fall to the baked-stamp road: the right look, dead value) */
+  vsbar: "vsbar", emblembar: "emblembar",
   loottag: "loottag", dropdown: "dropdown",
   laptimes: "laptimes", leaderboard: "leaderboard", telemetry: "telemetry",
   // the timer too (owner 10.1: "the timer should be a prefab as well")
@@ -759,7 +767,17 @@ export async function collectExportBoards(st: {
            look, so the clone's own design, its designed state skins and
            its label seat exist nowhere else in the zip — they must travel
            as pixels regardless of how closely the pose matches */
-        if (!pureType && (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08)) {
+        /* the BAR FAMILY never poses for a stretch (round 20, owner:
+           Settings sliders stretched wide, "knobs grow big in Unity"):
+           their aspect divergence IS the 9-slice stretch gesture — the
+           app re-renders the rail wider while caps and knob stay true,
+           and the LIVE rig + the importer's honest-stretch placement
+           reproduce exactly that. A posed bake would bury the working
+           control under its own pixels (a second mercury under the live
+           fill, a dead knob under the live one) and one lost import race
+           left the stand-in uniform-scaled — the ballooned knob. */
+        const BAR_RIGS = new Set(["slider", "progress", "segbar", "vsbar", "emblembar", "scrollbar"]);
+        if (!pureType && (isCloneId(id) || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
@@ -888,6 +906,11 @@ export async function collectExportBoards(st: {
         // instance value wins, and the settings rigs always send their
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1
+          // the bar rigs' render defaults too (round 21) — the mercury
+          // pose the board actually showed (vsbar's left fighter rests
+          // at 0.72 in the app; the others at 0.62)
+          : (idBase === "progress" || idBase === "emblembar" || idBase === "segbar") ? 0.62
+          : idBase === "vsbar" ? 0.72
           // the gauges' render default — the needle pose the board showed
           : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho" || idBase === "timerdigits") ? 0.62 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
@@ -1722,6 +1745,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           };
         }
       }
+      /* the bar family's WELL ZONE (data-track) travels the same road as
+         the shell — viewBox origin, then the crop box — so the bar
+         prefabs seat their mercury exactly on the app's zone (round 21) */
+      let trackZone: AssetMeta["track"] = null;
+      {
+        const tzm = /data-track="([-\d. ]+)"/.exec(q.svg);
+        const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (tzm && vbm) {
+          const [tzx, tzw] = tzm[1].split(" ").map(Number);
+          trackZone = {
+            x: Math.round(((tzx - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
+            w: Math.round(tzw * PNG_SCALE * 10) / 10,
+          };
+        }
+      }
       /* TEXT SEATS normalize here: measured in the bake's viewBox units,
          shipped as FRACTIONS of the cropped file — same crop box as the
          shell row, then divided by the final raster dimensions. The
@@ -1833,7 +1871,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // per-piece forks can arm the edge shine even when the kit default is
       // off, so any armed fork keeps the outlines flowing into the manifest
       const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -1999,26 +2037,35 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
 
   /* ── controls: separated track / fill / thumb ─────────────────── */
-  const capsule = (w: number, h: number, fill: string, extra = "") =>
-    svgWrap(w, h, `<path d="${rr(0.5, 0.5, w - 1, h - 1, h / 2)}" fill="${fill}"/>` + extra);
-  const grad = (idp: string, a: string, b: string) =>
-    `<defs><linearGradient id="${idp}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`;
-
-  const trackSvg = (w: number, h: number) => capsule(w, h, wellC);
-  const fillSvg = (w: number, h: number) =>
-    svgWrap(w, h, grad("f", bevelC, glowC) +
-      `<path d="${rr(0.5, 0.5, w - 1, h - 1, h / 2)}" fill="url(#f)"/>` +
-      `<path d="${rr(w * 0.03, h * 0.09, w * 0.94, h * 0.34, h * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`);
-  const barSlice = (h: number) => ({ left: h, right: h, top: Math.round(h * 0.9), bottom: Math.round(h * 0.9) });
-
-  await addPng("progress/track.9.png", trackSvg(440, 44), { component: "progress", part: "track", nineSlice: barSlice(44), pivot: { x: 0, y: 0.5 }, tintable: true, usage: "Progress track. Stretch horizontally; fill goes above it." });
-  await addPng("progress/fill.9.png", fillSvg(440, 36), { component: "progress", part: "fill", nineSlice: barSlice(36), pivot: { x: 0, y: 0.5 }, tintable: false, usage: "Progress fill. Engine drives width/scissor from the live value." });
+  /* the progress bar, COMPONENT-TRUE (round 21, owner mandate: board
+     bars must arrive kit-dressed — truth from app to Unity): the REAL
+     piece split into rig layers like the slider before it — dressed
+     track (shell + well, the data-track zone riding the manifest) and
+     the silhouette-shaped full-run mercury. The old synthesized wellC
+     capsule and gradient pill are gone; SAME FILENAMES, so existing
+     projects upgrade in place and the maintenance pass reseats the rig. */
+  await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, exactly like the app's clip." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
   // the icon-button base: same silhouette, drop any art in the well.
-  await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. Layer lit cells above." });
-  await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — crop one cell for a tile, or scissor horizontally per lit count." });
+  await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. The SegmentMeter prefab layers the lit strip above, scissored per cell." });
+  await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — the prefab's Lit layer scissors it per lit count (Filled/Horizontal snapped to cell edges); crop one cell for a tile if you build your own." });
+  /* the VS bar + emblem bar go LIVE (round 21, owner mandate: board bars
+     arrive kit-dressed) — they used to travel as baked board stamps: the
+     right look, dead value. They now ship the real component's rig
+     layers and place as wired prefabs, like the slider and the progress
+     bar before them. */
+  await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% — Filled/Horizontal, Origin Right; fillAmount IS the right health." }, true);
+  await addPng("vsbar/medal.png", shell("vsbar", { overlay: "medal" }, slim), { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion, kit-typed — rides the axis over both fills and holds its size when the bar stretches." }, true);
+  await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
+  // icon undefined = the app's own default for a stock board copy (the
+  // clock emblem); a dev drops their art in the socket's well in-engine
+  await addPng("emblembar/socket.png", shell("emblembar", { overlay: "dock", icon: undefined }, slim), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, true);
   /* the settings controls, COMPONENT-TRUE (owner: "let's get those
      settings screens working this round") — the REAL slider and toggle
      pieces split into rig layers: track, full-run mercury, candy knob.
@@ -2372,6 +2419,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the content. ── */
   await addPng("joystick/base.png", shell("joystick", { part: "base" }), { component: "joystick", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick base — well and travel ring. The importer builds a wired Joystick prefab (PatternBreakJoystick drives the thumb)." });
   await addPng("joystick/thumb.png", shell("joystick", { part: "thumb" }), { component: "joystick", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Touch-stick thumb (candy knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
+  /* the GHOST stick (round 18, owner: "make sure to include Joystick-ghost
+     in the prefabs") — the translucent overlay joystick is its own
+     placeable: same TouchStick rig, glass art, the Ghost color slot
+     honored exactly as the app honors it. */
+  await addPng("joystick/ghost-base.png", shell("joystick", { overlay: "ghost", part: "base", slots: st.kitSlotVals?.joystick }), { component: "joystick", part: "ghost-base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Ghost stick base — translucent rings and travel ring, built to sit over live gameplay. The importer builds JoystickGhost.prefab (PatternBreakJoystick drives the thumb)." });
+  await addPng("joystick/ghost-thumb.png", shell("joystick", { overlay: "ghost", part: "thumb", slots: st.kitSlotVals?.joystick }), { component: "joystick", part: "ghost-thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Ghost stick thumb (glass knob) — PatternBreakJoystick moves it and reports a normalized Vector2." });
   await addPng("globe/rim.png", shell("healthglobe", { part: "rim" }, undefined, 0), { component: "globe", part: "rim", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe bezel — draws ABOVE the liquid." });
   await addPng("globe/glass.png", shell("healthglobe", { part: "glass" }, undefined, 0), { component: "globe", part: "glass", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe glass — the dark sphere behind the liquid; doubles as the liquid's circular mask." });
   /* the liquid ships CROPPED to its real ink, and the manifest records
@@ -3024,6 +3077,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     data: JSON.stringify({
       name: "PatternBreak.Runtime",
       rootNamespace: "",
+      /* NO package references beyond the two UI staples — round 19 (P0):
+         a version-fragile Input System API referenced from the Runtime
+         assembly failed to compile on a customer project (CS0117) and
+         killed every kit script. Anything that must talk to an optional
+         package does it from the EDITOR assembly, by reflection. */
       references: ["Unity.TextMeshPro", "UnityEngine.UI"],
       includePlatforms: [],
       excludePlatforms: [],
@@ -3536,6 +3594,8 @@ namespace PatternBreak {
     public float restGlow, hoverGlow = 100f, pressedGlow, disabledGlow;
     [Tooltip("Vertical shift in pixels per state — the press sink. Positive is up.")]
     public float restLift, hoverLift, pressedLift;
+    [Tooltip("Travel baked INSIDE the state sprite on swap builds (the app's press-pose extrusion collapse), Unity up-positive. The halo adds it so the glow rides the sunk art; the root never moves by it — the sprite already did.")]
+    public float hoverSink, pressedSink;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
 
@@ -3692,15 +3752,25 @@ namespace PatternBreak {
       Push(true);
     }
     float Target(out float lift) {
+      /* ROUND 18 — the halo travels by what the sprite ACTUALLY does. A
+         swap build bakes the press pose INSIDE the state sprite, and that
+         pose can sink further than the lift dial says: a pressed state
+         that collapses the extrusion (owner's War Chuds: depth 31 -> 14)
+         drops the face with all four lift dials equal, so the dial-only
+         channel read zero and the halo held its hover seat while the art
+         sank (owner: "the glow doesn't follow the new button"). The sink
+         fields carry that baked extra; builds without swap sprites leave
+         them dormant — their root motion is the lift alone, as always. */
+      bool baked = BakedSink();
       if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
-      if (down) { lift = pressedLift; return pressedGlow; }
-      if (over) { lift = hoverLift; return hoverGlow; }
+      if (down) { lift = pressedLift + (baked ? pressedSink : 0f); return pressedGlow; }
+      if (over) { lift = hoverLift + (baked ? hoverSink : 0f); return hoverGlow; }
       lift = restLift; return restGlow;
     }
     void Retarget() { glowTo = Target(out liftTo); settling = true; }
-    public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); }
+    public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); MarkPointer(); }
     public void OnPointerExit(PointerEventData e) { over = false; down = false; Retarget(); }
-    public void OnPointerDown(PointerEventData e) { down = true; Retarget(); }
+    public void OnPointerDown(PointerEventData e) { down = true; Retarget(); MarkPointer(); }
     public void OnPointerUp(PointerEventData e) {
       down = false;
       /* Unity parks a clicked Selectable in its SELECTED state, which
@@ -3713,6 +3783,24 @@ namespace PatternBreak {
       if (sel != null && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == gameObject)
         EventSystem.current.SetSelectedGameObject(null);
       Retarget();
+    }
+
+    /* The editor's input-focus gate (round 18): under the Input System,
+       Play-mode pointer events only reach a FOCUSED Game view — one
+       Console click and every hover goes quiet, which reads as "the glow
+       broke". The WATCHER that explains this lives in the EDITOR assembly
+       (PatternBreakKitImporter): editor-settings API belongs there, and a
+       package API referenced from THIS file once broke a whole customer
+       project's compile (round 19, CS0117 — every kit script died, the
+       scene went white). The runtime keeps ONE dumb flag: "a pointer
+       event reached a kit piece this Play". Compiled out of builds. */
+#if UNITY_EDITOR
+    public static bool editorPointerSeen;
+#endif
+    void MarkPointer() {
+#if UNITY_EDITOR
+      editorPointerSeen = true;
+#endif
     }
 
     /* Update runs ONLY while a transition is in flight — a component that
@@ -4415,7 +4503,7 @@ namespace PatternBreak {
     public int armed = 0;
     [Tooltip("Swipe distance (px) that counts as a weapon switch.")]
     public float swipePx = 34f;
-    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive; a press is negative). The importer sets it to the dome's full trip — the kit's press lift plus the dome's designed sink (1.6% of the dome shell) — so the icon travels WITH the dome instead of floating over the sunk artwork. Tune freely.")]
+    [Tooltip("How far the armed glyph rides while the dome is pressed (up positive; a press is negative). The importer sets it to the dome art's WHOLE baked trip — the face drop measured from the app's own state stamps (lift dial + press-pose extrusion collapse) plus the dome's designed sink — so the icon travels WITH the disc instead of floating over the sunk artwork. Tune freely.")]
     public float pressedLift = 0f;
     [System.Serializable] public class WeaponEvent : UnityEngine.Events.UnityEvent<int> {}
     public WeaponEvent onWeaponChanged = new WeaponEvent();
@@ -5564,6 +5652,17 @@ fresh copy.
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
 
+> **Testing hover & press in the editor.** Unity delivers Play-mode
+> pointer input only while the GAME VIEW has focus (an Input System
+> editor rule) — click the Console or Inspector mid-Play and every
+> hover goes quiet until you click the game once more. That's the
+> editor, not the kit: a real build always has focus, so players never
+> see this. The kit prints a one-line Console reminder when the gate
+> actually bites. Prefer it gone entirely? **Tools > PatternBreak >
+> Route All Editor Input To Game View** flips the Input System's own
+> editor setting so input flows regardless of focus — run it again to
+> restore the Unity default.
+
 **Scene pieces vs Prefabs — the working contract.** A board scene is a
 FINISHED composition: every piece on it was crafted at its exact size,
 words and pose on uikitmaker.com, and it arrives here pixel-faithful to
@@ -5904,8 +6003,26 @@ it down in Play mode (timers read as time remaining; it clamps at 0:00
 and stops — hook your own reset). The words wear the kit's full label
 dress, so a restyle re-dresses them like every label.
 
-**SegmentMeter**: the empty well. The lit strip ships beside it
-(segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
+**SegmentMeter**: the dressed well with a **Lit** layer above it —
+a Filled image scissored to whole cells. Drive \`Lit\`'s *Fill Amount*
+(it snaps to fifths: 0.2 per cell) or scissor the raw strip yourself
+(segbar/segbar-lit.png ships beside the base as always).
+
+**ProgressBar / EmblemBar / VsBar**: the real component's rig — the
+kit-dressed track with the mercury riding a Filled image exactly on
+the app's well zone. Drive *Fill Amount* on \`Fill Area > Fill\` (the
+VsBar has \`FillL\`/\`FillR\`, one per fighter, draining toward the
+center medallion; the EmblemBar's socket is yours — drop your emblem
+art in its well). Board-placed bars arrive already striking the pose
+the board showed.
+
+**Joystick / JoystickGhost**: both sticks are ALIVE — a **Touch Stick**
+component moves the thumb and reports a normalized direction: poll
+\`GetComponent<PatternBreak.TouchStick>().Value\` in Update, or hook
+*onChanged* in the Inspector. The ghost is the app's overlay stick —
+translucent glass rings built to sit ON TOP of live gameplay. Drag it
+over your scene, read the same Value; its inks follow the kit's Ghost
+color slot, so a re-export re-tints it with the rest of the kit.
 
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
 stretch — instrument well, grid and axis rails baked in — with titles,
@@ -6090,6 +6207,9 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
+  /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
+     px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
+  [Serializable] class PBTrack { public float x; public float w; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
   /* ink = the digits' type recipe (a PBStyle subset: fill, outline, glow,
@@ -6117,7 +6237,7 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -6338,6 +6458,132 @@ namespace PatternBreak {
         return;
       }
       foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
+    }
+
+    /* ── Round 19 (P0) — REFLECTION ONLY past this line. The Input
+       System's editor-behavior API varies by package version: a DIRECT
+       reference to the InputSettings editor-behavior enum failed to
+       compile on the owner's own project (CS0117), which took the whole
+       kit down — every script dead, the scene white boxes. A kit must
+       NEVER break a customer's compile; the package is probed at call time:
+       API present → feature on; absent (older/newer package, or a
+       legacy-input project with no package at all) → feature silently
+       off, and the gate still lifts the manual way (click the game). */
+    static object InputSettingsLive() {
+      var tIS = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
+      if (tIS == null) return null;
+      var p = tIS.GetProperty("settings", BindingFlags.Public | BindingFlags.Static);
+      return p != null ? p.GetValue(null, null) : null;
+    }
+    static PropertyInfo EditorBehaviorProp(object iset) {
+      if (iset == null) return null;
+      var p = iset.GetType().GetProperty("editorInputBehaviorInPlayMode", BindingFlags.Public | BindingFlags.Instance);
+      if (p == null || !p.PropertyType.IsEnum || !p.CanRead || !p.CanWrite) return null;
+      try { // both members must parse by NAME or we can neither read nor write safely
+        Enum.Parse(p.PropertyType, "AllDeviceInputAlwaysGoesToGameView");
+        Enum.Parse(p.PropertyType, "PointersAndKeyboardsRespectGameViewFocus");
+      } catch (Exception) { return null; }
+      return p;
+    }
+    static bool RoutedAllInput(object iset, PropertyInfo p) {
+      if (iset == null || p == null) return false;
+      try { var v = p.GetValue(iset, null); return v != null && v.ToString() == "AllDeviceInputAlwaysGoesToGameView"; }
+      catch (Exception) { return false; }
+    }
+    /* Round 18 — the editor's input-focus gate, removable BY CHOICE.
+       This toggle sets the package's own "All Device Input Always Goes
+       To Game View" option so editor input flows regardless of focus.
+       STRICTLY an explicit menu action — the import must never touch
+       project settings uninvited (the same principle as never editing
+       immutable packages). Editor-only either way: builds never had the
+       gate. */
+    const string RouteInputMenu = "Tools/PatternBreak/Route All Editor Input To Game View";
+    [MenuItem(RouteInputMenu, false, 900)]
+    static void RouteEditorInput() {
+      var iset = InputSettingsLive();
+      var prop = EditorBehaviorProp(iset);
+      if (prop == null) { Debug.LogWarning("UI Kit Maker: this project's Input System package does not expose the editor input-behavior setting (or the package is absent) — nothing changed. The gate still lifts the manual way: click the Game view once in Play mode."); return; }
+      bool routed = RoutedAllInput(iset, prop);
+      var uobj = iset as UnityEngine.Object;
+      if (!routed && uobj != null && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(uobj))) {
+        /* the project runs on the package's in-memory defaults — a value
+           set there evaporates on the next domain reload. Mint the same
+           settings asset the package's Project Settings page creates on
+           first edit, and say so out loud. */
+        var asset = UnityEngine.Object.Instantiate(uobj);
+        asset.name = "InputSystem.inputsettings";
+        AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
+        var tIS2 = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
+        var pSet = tIS2 != null ? tIS2.GetProperty("settings", BindingFlags.Public | BindingFlags.Static) : null;
+        if (pSet != null && pSet.CanWrite) pSet.SetValue(null, asset, null);
+        iset = asset;
+        prop = EditorBehaviorProp(iset); // re-bind on the asset instance
+        if (prop == null) return;
+        Debug.Log("UI Kit Maker: created Assets/InputSystem.inputsettings.asset — the project had no Input System settings asset, and the setting needs one to persist. (This is the same asset Edit > Project Settings > Input System Package creates.)");
+      }
+      try {
+        prop.SetValue(iset, Enum.Parse(prop.PropertyType, routed ? "PointersAndKeyboardsRespectGameViewFocus" : "AllDeviceInputAlwaysGoesToGameView"), null);
+      } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
+      var dirty = iset as UnityEngine.Object;
+      if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
+      Debug.Log(routed
+        ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
+        : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
+    }
+    [MenuItem(RouteInputMenu, true)]
+    static bool RouteEditorInputCheck() {
+      var iset = InputSettingsLive();
+      var prop = EditorBehaviorProp(iset);
+      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(iset, prop));
+      return prop != null;
+    }
+    /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
+       the runtime keeps only StateFx.editorPointerSeen. One Console line,
+       once per Play, only when the gate actually bites: kit pieces
+       present, the Input System module live (the legacy module has no
+       gate), the project not already routing input past the gate, the
+       Game view unfocused for 2.5s with zero pointer events reaching kit
+       pieces. Never in builds — this whole file is editor-only. */
+    static bool fgHintShown, fgArmed, fgKitPresent;
+    static double fgUnfocusedAt = -1.0, fgNextPoll;
+    [InitializeOnLoadMethod]
+    static void ArmFocusGateWatcher() {
+      EditorApplication.playModeStateChanged += (st) => {
+        if (st == PlayModeStateChange.EnteredPlayMode) {
+          fgHintShown = false; fgUnfocusedAt = -1.0; fgKitPresent = false; fgArmed = true;
+          StateFx.editorPointerSeen = false;
+        } else if (st == PlayModeStateChange.ExitingPlayMode) fgArmed = false;
+      };
+      EditorApplication.update += FocusGateTick;
+    }
+    static void FocusGateTick() {
+      if (!fgArmed || fgHintShown || !EditorApplication.isPlaying) return;
+      var nowT = EditorApplication.timeSinceStartup;
+      if (nowT < fgNextPoll) return;
+      fgNextPoll = nowT + 0.25;
+      if (!fgKitPresent) {
+        // only speak where kit pieces actually live
+        fgKitPresent = Resources.FindObjectsOfTypeAll(typeof(StateFx)).Length > 0;
+        if (!fgKitPresent) return;
+      }
+      var es = UnityEngine.EventSystems.EventSystem.current;
+      var mod = es != null ? es.currentInputModule : null;
+      // the legacy StandaloneInputModule has no focus gate — stay quiet
+      if (mod == null || mod.GetType().Name != "InputSystemUIInputModule") return;
+      var isetW = InputSettingsLive();
+      var propW = EditorBehaviorProp(isetW);
+      if (RoutedAllInput(isetW, propW)) { fgHintShown = true; return; } // gate already removed project-side
+      var w = EditorWindow.focusedWindow;
+      var wn = w != null ? w.GetType().Name : "";
+      bool gameFocused = wn == "GameView" || wn == "SimulatorWindow" || wn.EndsWith("PlayModeView");
+      if (gameFocused) { fgUnfocusedAt = -1.0; return; }
+      if (fgUnfocusedAt < 0.0) { fgUnfocusedAt = nowT; StateFx.editorPointerSeen = false; return; }
+      if (StateFx.editorPointerSeen) { fgUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
+      if (nowT - fgUnfocusedAt < 2.5) return;
+      fgHintShown = true;
+      Debug.Log(propW != null
+        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View."
+        : "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate.");
     }
 
     /* ── the FIRST-DROP gap, closed. On a fresh drop the whole batch —
@@ -6738,7 +6984,9 @@ namespace PatternBreak {
                     && (itG.component == "speedo" || itG.component == "speedo2" || itG.component == "tacho"
                         || itG.component == "circuit" || itG.component == "startlights" || itG.component == "segbar"
                         || itG.component == "loottag" || itG.component == "dropdown" || itG.component == "laptimes"
-                        || itG.component == "leaderboard" || itG.component == "telemetry")) liveGain++;
+                        || itG.component == "leaderboard" || itG.component == "telemetry"
+                        // round 21: the VS bar + emblem bar left the baked-stamp road
+                        || itG.component == "vsbar" || itG.component == "emblembar")) liveGain++;
             }
             Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready."
               + (liveGain > 0 ? " This update also turned " + liveGain + " baked board piece(s) into LIVE prefab instances — Rebuild swaps their flattened stand-ins for the real thing." : ""));
@@ -6936,8 +7184,8 @@ namespace PatternBreak {
            end. */
         var SECTIONS = new (string title, string[] names)[] {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
-          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick" }),
-          ("BARS & METERS", new[] { "ProgressBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
+          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick", "JoystickGhost" }),
+          ("BARS & METERS", new[] { "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
           ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
           ("PROPS", new[] { "Gearicon", "Trophyicon", "Gifticon", "Firebutton" }),
         };
@@ -7075,6 +7323,7 @@ namespace PatternBreak {
         }
         int healedW = 0, artFixed = 0;
         try {
+          var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
              key that survives any file rename. A piece the maker moved in
@@ -7093,6 +7342,20 @@ namespace PatternBreak {
                     && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) { it2 = it; break; }
               }
               if (it2 == null) continue;
+              /* ── ROUND-20 GHOST-STICK HEAL (owner: "it's grabbing the
+                 old joystick"): round 18 shipped JoystickGhost.prefab, but
+                 placement kept mapping a ghost board copy (ov "ghost") to
+                 the SOLID stick — every kept scene wears the wrong rig.
+                 A position-matched SOLID Joystick instance sitting on a
+                 GHOST item's seat is OUR mistake, ours to swap; a stick
+                 the maker moved stopped matching above and stays theirs.
+                 Deferred past the child walk — a swap mutates the list. */
+              if (string.IsNullOrEmpty(it2.stamp) && it2.component == "joystick" && it2.ov == "ghost") {
+                var srcPfG = PrefabUtility.GetCorrespondingObjectFromSource(ch.gameObject);
+                var srcPathG = srcPfG != null ? AssetDatabase.GetAssetPath(srcPfG).Replace("\\\\", "/") : null;
+                if (srcPathG != null && srcPathG.EndsWith("/Prefabs/Joystick.prefab"))
+                  ghostSwaps.Add(new KeyValuePair<Transform, PBBoardItem>(ch, it2));
+              }
               /* ── A) BAKED ART RE-ADOPTION (owner: "is this board reading
                  old versions of the components?"). Bakes used to be named
                  by walk position — one board edit renamed every later
@@ -7183,11 +7446,42 @@ namespace PatternBreak {
               healedW++;
             }
           }
-          if (healedW > 0 || artFixed > 0) {
+          /* the deferred ghost swaps — after the child walk (a swap
+             mutates the canvas's child list mid-enumeration otherwise) */
+          int ghostFixed = 0;
+          foreach (var gsw in ghostSwaps) {
+            var oldT = gsw.Key; var itG = gsw.Value;
+            var ghostPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/JoystickGhost.prefab");
+            if (ghostPf == null) { Debug.LogWarning("UI Kit Maker: '" + bd.name + "' places the GHOST stick but Prefabs/JoystickGhost.prefab is missing — re-export the kit (round-18+ zips ship the ghost art)."); break; }
+            var gInst = (GameObject)PrefabUtility.InstantiatePrefab(ghostPf, scene);
+            gInst.transform.SetParent(oldT.parent, false);
+            gInst.transform.SetSiblingIndex(oldT.GetSiblingIndex());
+            var gRt = gInst.GetComponent<RectTransform>();
+            var oldRt = oldT as RectTransform;
+            gRt.anchorMin = oldRt.anchorMin; gRt.anchorMax = oldRt.anchorMax;
+            gRt.pivot = new Vector2(0.5f, 0.5f);
+            gRt.anchoredPosition = oldRt.anchoredPosition; // the ghost's ring is canvas-centered — no shell-center correction to add
+            gRt.localRotation = oldRt.localRotation;
+            /* shell-true scale from the GHOST's own rows (the builder's
+               math) — copying the solid's scale would size the glass by
+               the solid art's crop */
+            PBAsset gRow = null;
+            foreach (var aG3 in m.assets) if (aG3 != null && aG3.component == "joystick" && aG3.part == "ghost-base") { gRow = aG3; break; }
+            float psG = m.pngScale > 0 ? m.pngScale : 2f;
+            float sG = gRow != null && gRow.shell != null && gRow.shell.w > 4f
+              ? itG.w * psG / gRow.shell.w
+              : (gRt.sizeDelta.x > 1f ? itG.w / gRt.sizeDelta.x : 1f);
+            gRt.localScale = new Vector3(sG, sG, 1f);
+            UnityEngine.Object.DestroyImmediate(oldT.gameObject);
+            ghostFixed++;
+          }
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
-              + (healedW > 0 ? healedW + " pinned word(s) restored" : "");
+              + (healedW > 0 ? healedW + " pinned word(s) restored" : "")
+              + ((artFixed > 0 || healedW > 0) && ghostFixed > 0 ? ", " : "")
+              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
                 Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
@@ -7362,8 +7656,13 @@ namespace PatternBreak {
             else if (it.component == "loottag") pfName = "LootTag";
             else if (it.component == "laptimes") pfName = "LapTimes";
             else if (it.component == "segbar") pfName = "SegmentMeter";
+            else if (it.component == "vsbar") pfName = "VsBar";
+            else if (it.component == "emblembar") pfName = "EmblemBar";
             else if (it.component == "timerdigits") pfName = "Timer";
-            else if (it.component == "joystick") pfName = "Joystick";
+            /* the GHOST stick is its own placeable (round 18) — a ghost
+               board copy (ov "ghost") must place IT, not the solid stick
+               (round 20, owner: "it's grabbing the old joystick") */
+            else if (it.component == "joystick") pfName = it.ov == "ghost" ? "JoystickGhost" : "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
             var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
@@ -7424,7 +7723,19 @@ namespace PatternBreak {
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
           if (string.IsNullOrEmpty(it.stamp)) {
-            if (!string.IsNullOrEmpty(it.posed)) {
+            var pspPose = string.IsNullOrEmpty(it.posed) ? null : S(root + "/" + it.posed);
+            if (!string.IsNullOrEmpty(it.posed) && pspPose == null) {
+              /* the pose's pixels lost the first-drop import race — count
+                 it MISSING so the incomplete-scene marker rebuilds this
+                 scene next pass, and fall through to LIVE sizing so the
+                 sliced prefab stands in at the BOARD box meanwhile. It
+                 used to stand in at natural size with no marker: a piece
+                 stretched on the board arrived natural and froze that way
+                 (round 20 — the stretched-slider field chain). */
+              Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in at board size; this scene rebuilds itself once the art lands.");
+              missing++;
+            }
+            if (pspPose != null) {
               /* the POSED bake is this copy's exact pixels at its board
                  proportions — worn 1:1, no slicing, no scale math (owner:
                  "the back of the flame button looks scrunched up"). The
@@ -7435,7 +7746,7 @@ namespace PatternBreak {
                  (owner: "bottom extrusion is cut off"). Sprite Swap rides
                  the art child with POSED state skins (the sliced skins
                  would not match the pose); State FX keeps the glow. */
-              var psp = S(root + "/" + it.posed);
+              var psp = pspPose;
               var pimg = inst.GetComponent<Image>();
               if (psp != null && pimg != null) {
                 pimg.sprite = null;
@@ -7506,9 +7817,8 @@ namespace PatternBreak {
                   var ws1 = artGo.AddComponent<WipeShine>();
                   ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
                 }
-              } else if (psp == null) {
-                Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
-              }
+              } // psp is non-null here by construction — the missing case
+                // took the live-sizing fallthrough above (round 20)
             } else if (it.component == "timerdigits") {
               /* the TIMER places LIVE and pure (round 14: its posed bakes
                  were blank by construction and no longer ship). The item
@@ -7564,7 +7874,14 @@ namespace PatternBreak {
                    label sizes keep their proportions, the footprint is
                    exactly the board's. */
                 float sH = shl.h > 4f && rt.sizeDelta.y > 1f ? (it.h / rt.sizeDelta.y) * (rootSp.rect.height / shl.h) : s;
-                bool slicedRoot = rootSp.border.sqrMagnitude > 0.5f;
+                /* the sprite's border can lose the first-drop race (a
+                   scene built before the import-settings pass lands it) —
+                   the MANIFEST row is the truth either way, and a lost
+                   race must never demote a stretched rail to uniform
+                   scale (round 20: the ballooned slider knob) */
+                bool slicedRoot = rootSp.border.sqrMagnitude > 0.5f
+                  || (baseA != null && baseA.nineSlice != null
+                      && baseA.nineSlice.left + baseA.nineSlice.right + baseA.nineSlice.top + baseA.nineSlice.bottom > 2);
                 if (slicedRoot && sH > 0.01f && Mathf.Abs(s / sH - 1f) > 0.08f) {
                   float fxW = shl.w / rootSp.rect.width; // shell's fraction of the sprite
                   rt.sizeDelta = new Vector2(it.w / (sH * fxW), rt.sizeDelta.y);
@@ -7688,6 +8005,26 @@ namespace PatternBreak {
             if (it.component == "endturn" && it.value > 0f) {
               var arcT = inst.transform.Find("Arc");
               if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
+            }
+            /* the bar rigs strike the board's pose too (round 21 — they
+               used to freeze at the prefab's staged pose, or arrive as
+               dead stamps, whatever the maker set on the board) */
+            if ((it.component == "progress" || it.component == "emblembar") && it.value > 0f) {
+              var pfT = inst.transform.Find("Fill Area/Fill");
+              var pfI = pfT != null ? pfT.GetComponent<Image>() : null;
+              if (pfI != null && pfI.type == Image.Type.Filled) pfI.fillAmount = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "vsbar" && it.value > 0f) {
+              // the board's value drives the LEFT fighter (the app's rule);
+              // the right keeps its staged pose
+              var vlT = inst.transform.Find("FillL Area/FillL");
+              var vlI = vlT != null ? vlT.GetComponent<Image>() : null;
+              if (vlI != null && vlI.type == Image.Type.Filled) vlI.fillAmount = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "segbar" && it.value > 0f) {
+              var sgT = inst.transform.Find("Lit");
+              var sgI = sgT != null ? sgT.GetComponent<Image>() : null;
+              if (sgI != null && sgI.type == Image.Type.Filled) sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
             }
             /* the settings rigs strike the board's pose (the exporter
                always sends these two an explicit value) */
@@ -9247,6 +9584,13 @@ namespace PatternBreak {
       // the manifest already ships lift RELATIVE to rest and Unity-side up
       fx.restGlow = rest; fx.hoverGlow = hover; fx.pressedGlow = press; fx.disabledGlow = dis;
       fx.restLift = restL; fx.hoverLift = hoverL; fx.pressedLift = pressL;
+      /* the baked extra (round 18): labelStates dy is the app's own
+         face travel between state renders — the extrusion collapse the
+         label already rides (ExpectedShift). Negated into Unity-up so on
+         swap builds the halo slides exactly as far as the sprite's art
+         sinks; dial-only kits ship dy 0 and nothing changes. */
+      fx.hoverSink = -ExpectedShift(m, family, "hover");
+      fx.pressedSink = -ExpectedShift(m, family, "pressed");
     }
     static bool HasStateFx(PBManifest m, string family) {
       if (m == null || m.stateFx == null) return false;
@@ -9265,23 +9609,219 @@ namespace PatternBreak {
       if (family == "badge") return "12";
       return "PLAY";
     }
-    static bool ProgressPrefab(string dir, string root, int pngScale) {
+    /* the bar family's mercury seat (round 21, owner: board bars arrive
+       kit-dressed): a Filled image inset inside the dressed track exactly
+       where the app drew the well — horizontal zone from the manifest's
+       data-track stamp when the kit ships it, the slider's symmetric
+       sprite-difference rule otherwise — riding the SHELL line
+       vertically (the track's extrusion pads its bottom; rect-centered
+       children sat below the well). Filled mode IS the app's clip
+       semantic: the engine drives fillAmount and leaves the rect alone. */
+    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string fam, float staged, bool fromRight) {
+      var rt0 = host.GetComponent<RectTransform>();
+      float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
+      float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
+      float upS = 0f; float zoneL = -1f, zoneR = -1f;
+      if (m != null && m.assets != null) foreach (var aT in m.assets) {
+        if (aT == null || aT.component != fam || aT.part != "track") continue;
+        if (aT.shell != null && aT.shell.h > 2f && track.rect.height > 1f)
+          upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+        if (aT.track != null && aT.track.w > 2f) {
+          zoneL = aT.track.x / pngScale;
+          zoneR = trackW - (aT.track.x + aT.track.w) / pngScale;
+        }
+        break;
+      }
+      float inXL = zoneL >= 0f ? Mathf.Max(1f, zoneL) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
+      float inXR = zoneR >= 0f ? Mathf.Max(1f, zoneR) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
+      float inY = Mathf.Max(2f, (trackH - fillH) * 0.5f);
+      var area = new GameObject(name + " Area", typeof(RectTransform));
+      area.transform.SetParent(host.transform, false);
+      var art = area.GetComponent<RectTransform>();
+      art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
+      art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
+      art.anchoredPosition += new Vector2(0f, upS);
+      var fillGo = ImageObject(name, fill, pngScale);
+      fillGo.transform.SetParent(area.transform, false);
+      var fImg = fillGo.GetComponent<Image>();
+      fImg.raycastTarget = false;
+      fImg.type = Image.Type.Filled;
+      fImg.preserveAspect = false; // the mercury stretches to the fill area by design
+      fImg.fillMethod = Image.FillMethod.Horizontal;
+      fImg.fillOrigin = fromRight ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+      fImg.fillAmount = staged;
+      var frt = fillGo.GetComponent<RectTransform>();
+      frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+      frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      return frt;
+    }
+    static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/progress/progress-track.9.png");
       if (track == null) return false;
       var go = ImageObject("ProgressBar", track, pngScale);
       var fill = S(root + "/assets/progress/progress-fill.9.png");
-      if (fill != null) {
-        var f = ImageObject("Fill", fill, pngScale);
-        f.transform.SetParent(go.transform, false);
-        var rt = f.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 0.5f);
-        rt.anchorMax = new Vector2(0f, 0.5f);
-        rt.pivot = new Vector2(0f, 0.5f);
-        rt.anchoredPosition = new Vector2(2f, 0f);
-        // staged at 65% — drive Fill's width from your live value
-        rt.sizeDelta = new Vector2((track.rect.width / pngScale) * 0.65f, fill.rect.height / pngScale);
-      }
+      // staged at 62% (the app's resting default) — drive Fill's
+      // fillAmount from your live value
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "progress", 0.62f, false);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the track row's shell-line rise for a bar family (the sprite's
+       extrusion pads its bottom — rect-centered children sat below the
+       well; owner, with the number, on the slider) */
+    static float BarShellRise(PBManifest m, string fam, Sprite track, float trackH) {
+      if (m == null || m.assets == null || track == null) return 0f;
+      foreach (var aT in m.assets) {
+        if (aT == null || aT.component != fam || aT.part != "track" || aT.shell == null) continue;
+        if (aT.shell.h > 2f && track.rect.height > 1f)
+          return (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+        break;
+      }
+      return 0f;
+    }
+    static PBTrack BarZone(PBManifest m, string fam) {
+      if (m == null || m.assets == null) return null;
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "track" && aT.track != null && aT.track.w > 2f) return aT.track;
+      return null;
+    }
+    /* the VS health bar, WIRED (round 21) — two Filled mercuries drain
+       toward center from the manifest's well zone, the candy medallion
+       holds the axis. Drive FillL/FillR's fillAmount for each fighter. */
+    static bool VsBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/vsbar/vsbar-track.9.png");
+      if (track == null) return false;
+      var go = ImageObject("VsBar", track, pngScale);
+      var rt0 = go.GetComponent<RectTransform>();
+      float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
+      float upS = BarShellRise(m, "vsbar", track, trackH);
+      var zone = BarZone(m, "vsbar");
+      float zoneL = zone != null ? zone.x / pngScale : trackW * 0.06f;
+      float zoneR = zone != null ? trackW - (zone.x + zone.w) / pngScale : trackW * 0.06f;
+      var fillL = S(root + "/assets/vsbar/vsbar-fill-l.png");
+      var fillR = S(root + "/assets/vsbar/vsbar-fill-r.png");
+      // each area spans its fighter's half-run: outer edge on the well
+      // zone, inner edge anchored to CENTER so a stretched bar widens the
+      // wells while the axis reserve holds (the app's stretch rule)
+      if (fillL != null) {
+        float fw = fillL.rect.width / pngScale, fh = fillL.rect.height / pngScale;
+        float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
+        var area = new GameObject("FillL Area", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        var art = area.GetComponent<RectTransform>();
+        art.anchorMin = new Vector2(0f, 0f); art.anchorMax = new Vector2(0.5f, 1f);
+        art.offsetMin = new Vector2(zoneL, inY);
+        art.offsetMax = new Vector2(zoneL + fw - trackW * 0.5f, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+        var fgo = ImageObject("FillL", fillL, pngScale);
+        fgo.transform.SetParent(area.transform, false);
+        var fi = fgo.GetComponent<Image>();
+        fi.raycastTarget = false; fi.type = Image.Type.Filled; fi.preserveAspect = false;
+        fi.fillMethod = Image.FillMethod.Horizontal; fi.fillOrigin = (int)Image.OriginHorizontal.Left;
+        fi.fillAmount = 0.72f; // the app's resting left fighter
+        var frt = fgo.GetComponent<RectTransform>();
+        frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      }
+      if (fillR != null) {
+        float fw = fillR.rect.width / pngScale, fh = fillR.rect.height / pngScale;
+        float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
+        var area = new GameObject("FillR Area", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        var art = area.GetComponent<RectTransform>();
+        art.anchorMin = new Vector2(0.5f, 0f); art.anchorMax = new Vector2(1f, 1f);
+        art.offsetMin = new Vector2(trackW * 0.5f - zoneR - fw, inY);
+        art.offsetMax = new Vector2(-zoneR, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+        var fgo = ImageObject("FillR", fillR, pngScale);
+        fgo.transform.SetParent(area.transform, false);
+        var fi = fgo.GetComponent<Image>();
+        fi.raycastTarget = false; fi.type = Image.Type.Filled; fi.preserveAspect = false;
+        fi.fillMethod = Image.FillMethod.Horizontal; fi.fillOrigin = (int)Image.OriginHorizontal.Right;
+        fi.fillAmount = 0.58f; // the app's resting right fighter
+        var frt = fgo.GetComponent<RectTransform>();
+        frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      }
+      var medal = S(root + "/assets/vsbar/vsbar-medal.png");
+      if (medal != null) {
+        var mgo = ImageObject("Medal", medal, pngScale);
+        mgo.transform.SetParent(go.transform, false); // last child — over both fills
+        var mi = mgo.GetComponent<Image>();
+        mi.raycastTarget = false; mi.preserveAspect = true;
+        var mrt = mgo.GetComponent<RectTransform>();
+        mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
+        mrt.anchoredPosition = new Vector2(0f, upS); // fixed size ON PURPOSE: the axis holds when the bar stretches
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/VsBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the emblem bar, WIRED (round 21) — the progress rig plus the docked
+       socket riding the track's left end, over the fill, where the app
+       composes it (applyDock: center at shellX + 0.46 x D, D = 1.9 x
+       shell height). */
+    static bool EmblemBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/emblembar/emblembar-track.9.png");
+      if (track == null) return false;
+      var go = ImageObject("EmblemBar", track, pngScale);
+      var fill = S(root + "/assets/emblembar/emblembar-fill.9.png");
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "emblembar", 0.62f, false);
+      var sock = S(root + "/assets/emblembar/emblembar-socket.png");
+      if (sock != null) {
+        var rt0 = go.GetComponent<RectTransform>();
+        float trackH = rt0.sizeDelta.y;
+        float upS = BarShellRise(m, "emblembar", track, trackH);
+        float shellX = 0f, shellH = trackH;
+        if (m != null && m.assets != null) foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "emblembar" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f) { shellX = aT.shell.x / pngScale; shellH = aT.shell.h / pngScale; }
+          break;
+        }
+        float D = shellH * 1.9f;
+        var sgo = ImageObject("Socket", sock, pngScale);
+        sgo.transform.SetParent(go.transform, false); // after Fill — over the mercury, like the app draws it
+        var si = sgo.GetComponent<Image>();
+        si.raycastTarget = false; si.preserveAspect = true;
+        var srt = sgo.GetComponent<RectTransform>();
+        srt.anchorMin = new Vector2(0f, 0.5f); srt.anchorMax = new Vector2(0f, 0.5f);
+        srt.anchoredPosition = new Vector2(shellX + D * 0.46f, upS);
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/EmblemBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the segmented meter's SCISSOR line (round 21): whole cells only,
+       snapped so the cut always lands in a gap — the app's snap mode.
+       Fraction of the LIT sprite's width from the manifest's well zone;
+       an old zip without the zone falls back to the raw value. */
+    static float SegbarScissor(PBManifest m, Sprite lit, float v) {
+      float v01 = Mathf.Clamp01(v);
+      float litCells = Mathf.Round(v01 * 5f);
+      var zone = BarZone(m, "segbar");
+      if (zone == null || lit == null || lit.rect.width < 2f) return litCells / 5f;
+      if (litCells <= 0f) return 0f;
+      return Mathf.Clamp01((zone.x + zone.w * (litCells / 5f)) / lit.rect.width);
+    }
+    /* the segmented meter goes LIVE (round 21) — the dressed base plus a
+       Lit layer scissored per cell. It used to place EMPTY: the well
+       arrived, the board's lit cells never did. */
+    static bool SegBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/segbar/segbar-base.png");
+      if (baseSp == null) return false;
+      var go = ImageObject("SegmentMeter", baseSp, pngScale);
+      var lit = S(root + "/assets/segbar/segbar-lit.png");
+      if (lit != null) {
+        var lgo = ImageObject("Lit", lit, pngScale);
+        lgo.transform.SetParent(go.transform, false);
+        var li = lgo.GetComponent<Image>();
+        li.raycastTarget = false; li.type = Image.Type.Filled; li.preserveAspect = false;
+        li.fillMethod = Image.FillMethod.Horizontal; li.fillOrigin = (int)Image.OriginHorizontal.Left;
+        li.fillAmount = SegbarScissor(m, lit, 0.62f); // 3 of 5 staged
+        var lrt = lgo.GetComponent<RectTransform>();
+        // base and lit bake on ONE canvas (no crop) — full-stretch overlay is pixel-true
+        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/SegmentMeter.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -10701,6 +11241,34 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* the GHOST stick (round 18, owner: "make sure to include
+       Joystick-ghost in the prefabs") — the translucent overlay joystick
+       from the app's catalog, as its own placeable. Same TouchStick rig
+       as the solid stick, wearing the ghost's glass art; the base is the
+       touch surface, built to sit over live gameplay. */
+    static bool JoystickGhostPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/joystick/joystick-ghost-base.png");
+      var thumbSp = S(root + "/assets/joystick/joystick-ghost-thumb.png");
+      if (baseSp == null || thumbSp == null) return false; // older zips ship no ghost art
+      var go = ImageObject("JoystickGhost", baseSp, pngScale);
+      var th = ImageObject("Thumb", thumbSp, pngScale);
+      th.transform.SetParent(go.transform, false);
+      th.GetComponent<Image>().raycastTarget = false;
+      var stick = go.AddComponent<TouchStick>();
+      stick.thumb = th.GetComponent<RectTransform>();
+      /* seat + travel exactly like the solid sibling: the ghost-base row
+         carries the ring's shell, so the thumb rests on the ring's center
+         and the radius keeps the knob inside the dashed travel ring */
+      Vector2 shlG;
+      float half = ShellCenterAnchor(th, go, "joystick", m, out shlG)
+        ? Mathf.Min(shlG.x, shlG.y) * 0.5f
+        : (baseSp.rect.width / pngScale) * 0.5f;
+      float thumbHalf = (thumbSp.rect.width / pngScale) * 0.5f;
+      stick.radius = Mathf.Max(20f, half - thumbHalf - 6f);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/JoystickGhost.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the MINI-MAP, ALIVE (owner: "can we get some movement on the radar?
        … loosely wired up for real world use") — the kit frame plus a
        RadarDemo: sweeping line, two drifting blips, everything it moves
@@ -10893,6 +11461,33 @@ namespace PatternBreak {
        tintable glyphs + the FireButton swipe runtime. Geometry mirrors
        the app's carousel: chamber sprites ship at their true sizes and
        sit tangent to the dome at -90 / -135 / -180 degrees. */
+    /* the glyph's WHOLE pressed trip, from the app's own stamps (round 18,
+       owner: "on press the center white disc and icon should move"): the
+       dome and dome-pressed rows both carry the drawn shell, and their Y
+       delta IS the baked face drop — the lift dial AND the press pose's
+       extrusion collapse, however the kit composed them (real War Chuds:
+       15 UI px of collapse with the lift dial at 0 — the old dial-only
+       formula left the icon floating over the sunk disc). Add the dome's
+       designed sink (1.6% of the shell, baked at cy + sink) and the icon
+       rides the disc exactly. Zips older than the stamps fall back to
+       the dial formula. Unity up-positive: a press is negative. */
+    static float FireGlyphTrip(PBManifest m, float domeShellW) {
+      float ps = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+      PBAsset d0 = null, dP = null;
+      if (m != null && m.assets != null)
+        foreach (var a in m.assets) {
+          if (a == null || a.component != "firebutton") continue;
+          if (a.part == "dome") d0 = a;
+          else if (a.part == "dome-pressed") dP = a;
+        }
+      if (d0 != null && dP != null && d0.shell != null && dP.shell != null && d0.shell.w > 4f && dP.shell.w > 4f)
+        return -((dP.shell.y - d0.shell.y) / ps + domeShellW * 0.016f);
+      float lift = 0f;
+      if (m != null && m.stateFx != null)
+        foreach (var f in m.stateFx)
+          if (f != null && f.family == "firebutton" && f.state == "pressed") { lift = f.lift; break; }
+      return lift - domeShellW * 0.016f;
+    }
     static bool FireButtonPrefab(string dir, string root, int pngScale, PBManifest m) {
       var dome = S(root + "/assets/firebutton/firebutton-dome.png");
       if (dome == null) return false;
@@ -10965,18 +11560,7 @@ namespace PatternBreak {
       var ws = new Sprite[nW]; int wi = 0;
       foreach (var wsp in weapons) if (wsp != null) ws[wi++] = wsp;
       fb.weapons = ws;
-      /* the glyph rides the DOME's whole pressed trip: the kit's press
-         lift (relative, from the manifest) PLUS the dome's own designed
-         sink — the shell-width x 0.016 the app bakes into the pressed
-         sprite's pixels. The old default was the bare lift delta, which
-         is 0 on lift-less kits: the glyph froze mid-air while the art
-         sank under it, and the press read inverted (owner: "instead of
-         the button depressing, its rim depresses instead"). */
-      float fbLift = 0f;
-      if (m != null && m.stateFx != null)
-        foreach (var f in m.stateFx)
-          if (f != null && f.family == "firebutton" && f.state == "pressed") { fbLift = f.lift; break; }
-      fb.pressedLift = fbLift - domeShellW * 0.016f;
+      fb.pressedLift = FireGlyphTrip(m, domeShellW);
       fb.DealNow(); // strike the armed pose so the prefab reads in edit mode
       // press/disabled ride Sprite Swap; the DOME's press sink is in the pixels
       var btn = go.AddComponent<Button>();
@@ -11201,9 +11785,10 @@ namespace PatternBreak {
       Font kitFont = null;
       if (m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
-      if (ProgressPrefab(dir, root, pngScale)) any = true;
+      if (ProgressPrefab(dir, root, pngScale, m)) any = true;
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale, m)) any = true;
+      if (JoystickGhostPrefab(dir, root, pngScale, m)) any = true;
       if (GlobePrefab(dir, root, pngScale, m)) any = true;
       if (MinimapPrefab(dir, root, pngScale, m)) any = true;
       if (TogglePrefabs(dir, root, pngScale, m)) any = true;
@@ -11221,7 +11806,9 @@ namespace PatternBreak {
       if (GaugePrefab(dir, root, pngScale, m, "speedo2", "SpeedoArc", "speedo2/speedo2-face.png")) any = true;
       if (GaugePrefab(dir, root, pngScale, m, "tacho", "RevMeter", "tacho/tacho-face.png")) any = true;
       if (TimerPrefab(dir, root, m, kitFont)) any = true;
-      if (PicturePrefab(dir, root, pngScale, m, "segbar/segbar-base.png", "SegmentMeter", false)) any = true;
+      if (SegBarPrefab(dir, root, pngScale, m)) any = true;
+      if (VsBarPrefab(dir, root, pngScale, m)) any = true;
+      if (EmblemBarPrefab(dir, root, pngScale, m)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "loottag/loottag-base.9.png", "LootTag", true)) any = true;
       if (DropdownPrefab(dir, root, pngScale, m, kitFont)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "laptimes/laptimes-base.9.png", "LapTimes", true)) any = true;
@@ -11429,9 +12016,11 @@ namespace PatternBreak {
           }
           if (im.sprite != null || stick == null) continue;
           // the joystick rig's parts are unambiguous: the root wears the
-          // base, the TouchStick's thumb wears the thumb
-          string part = im.transform == contents.transform ? "base"
-            : stick.thumb != null && im.transform == stick.thumb.transform ? "thumb" : null;
+          // base, the TouchStick's thumb wears the thumb — and the GHOST
+          // rig re-adopts its own glass parts, never the solid stick's
+          bool ghostRig = contents.name == "JoystickGhost";
+          string part = im.transform == contents.transform ? (ghostRig ? "ghost-base" : "base")
+            : stick.thumb != null && im.transform == stick.thumb.transform ? (ghostRig ? "ghost-thumb" : "thumb") : null;
           var fJ = AssetFile(m, "joystick", part);
           var spJ = fJ != null ? S(root + "/" + fJ) : null;
           if (spJ != null) { im.sprite = spJ; changed = true; }
@@ -11501,7 +12090,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -11569,6 +12158,66 @@ namespace PatternBreak {
           }
         }
 #endif
+        /* the progress bar's rig era (round 21, owner: board bars arrive
+           kit-dressed): a ProgressBar from the synthesized-capsule
+           generation still carries its old "Fill" child — a Sliced image
+           cut to a fraction of the track, which would wear the NEW
+           dressed mercury as a squashed strip (caps intact, body
+           crushed). Rebuild the innards once: Filled-mode mercury seated
+           on the manifest's well zone. The dev's staged width survives
+           as the staged fillAmount; words, user children and placed
+           copies ride along. */
+        if (spritePath.EndsWith("/progress-track.9.png") && asset.transform.Find("Fill Area") == null) {
+          var fillBar = S(root + "/assets/progress/progress-fill.9.png");
+          if (fillBar != null) {
+            var contentsPB = PrefabUtility.LoadPrefabContents(path);
+            try {
+              float stagedPB = 0.62f;
+              var oldFill = contentsPB.transform.Find("Fill");
+              if (oldFill != null) {
+                var ofR = oldFill as RectTransform;
+                var pbRt = contentsPB.GetComponent<RectTransform>();
+                if (ofR != null && pbRt != null && pbRt.sizeDelta.x > 1f && ofR.sizeDelta.x > 1f)
+                  stagedPB = Mathf.Clamp01(ofR.sizeDelta.x / pbRt.sizeDelta.x); // keep the dev's staged width
+                UnityEngine.Object.DestroyImmediate(oldFill.gameObject);
+              }
+              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, "progress", stagedPB, false);
+              PrefabUtility.SaveAsPrefabAsset(contentsPB, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
+            continue;
+          }
+        }
+        /* the segmented meter's LIT layer (round 21): a SegmentMeter from
+           the picture generation is just the empty well — graft the Lit
+           strip once (the kit always shipped segbar-lit.png), scissored
+           to the staged 3-of-5. ONE moment only, the minimap's rule: the
+           import where the round-21 bar rigs first arrive (the previous
+           receipt has no vsbar track). After that the tree is the dev's —
+           deleting Lit is a choice and is never fought. */
+        if (spritePath.EndsWith("/segbar-base.png") && asset.transform.Find("Lit") == null && asset.GetComponent<Image>() != null) {
+          bool segEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/vsbar/vsbar-track.9.png") { segEra = false; break; }
+          var litSp = segEra ? S(root + "/assets/segbar/segbar-lit.png") : null;
+          if (litSp != null) {
+            var contentsSB = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var lgo = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              lgo.transform.SetParent(contentsSB.transform, false);
+              var li = lgo.GetComponent<Image>();
+              li.sprite = litSp; li.raycastTarget = false;
+              li.type = Image.Type.Filled; li.preserveAspect = false;
+              li.fillMethod = Image.FillMethod.Horizontal; li.fillOrigin = (int)Image.OriginHorizontal.Left;
+              li.fillAmount = SegbarScissor(m, litSp, 0.62f);
+              var lrt = lgo.GetComponent<RectTransform>();
+              lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+              PrefabUtility.SaveAsPrefabAsset(contentsSB, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsSB); }
+            continue;
+          }
+        }
         /* the mini-map's lost MAP (round 14): the ONE import where the map
            layer first arrives (extras-minimap-map.png absent from the last
            receipt), an existing Minimap prefab grafts the app's well
@@ -11680,6 +12329,23 @@ namespace PatternBreak {
                 (fxP.glowSprite.rect.height - bodyP.sprite.rect.height) * 0.5f / psP);
               if ((fxP.glowPad - glowPadWant).sqrMagnitude > 0.25f) wantGlowPad = true;
             }
+          }
+        }
+        /* round 18: the baked-sink channel converges with the CURRENT
+           manifest — StateFx components armed before the sink fields
+           existed serialize them as 0, so a swap build whose press pose
+           collapses the extrusion kept a parked halo forever (owner:
+           "the glow doesn't follow the new button"). Our wiring, our
+           number: labelStates dy negated, the same travel the label
+           rides. */
+        bool wantSinkFix = false;
+        float hoverSinkWant = 0f, pressedSinkWant = 0f;
+        {
+          var fxS = asset.GetComponent<StateFx>();
+          if (fxS != null && HasStateFx(m, famName)) {
+            hoverSinkWant = -ExpectedShift(m, famName, "hover");
+            pressedSinkWant = -ExpectedShift(m, famName, "pressed");
+            if (Mathf.Abs(fxS.hoverSink - hoverSinkWant) > 0.05f || Mathf.Abs(fxS.pressedSink - pressedSinkWant) > 0.05f) wantSinkFix = true;
           }
         }
         /* and where an earlier pass already swap-wired a tiled build, take
@@ -11825,8 +12491,14 @@ namespace PatternBreak {
             float shellMin = rowFb != null && rowFb.shell != null && rowFb.shell.w > 4f
               ? Mathf.Min(rowFb.shell.w, rowFb.shell.h) / psFb
               : rootImg.sprite.rect.width / psFb;
-            fbWant = fbRow - shellMin * 0.016f;
-            bool fbStale = Mathf.Abs(fbNow.pressedLift) < 0.001f || Mathf.Approximately(fbNow.pressedLift, fbRow);
+            fbWant = FireGlyphTrip(m, shellMin);
+            /* OUR older defaults, all three generations: 0 (pre-wire), the
+               bare lift delta, and the dial+sink formula that missed the
+               baked extrusion collapse (round 18). Any other number is
+               the maker's own tune and stays. */
+            bool fbStale = Mathf.Abs(fbNow.pressedLift) < 0.001f
+              || Mathf.Approximately(fbNow.pressedLift, fbRow)
+              || Mathf.Approximately(fbNow.pressedLift, fbRow - shellMin * 0.016f);
             if (fbStale && !Mathf.Approximately(fbNow.pressedLift, fbWant)) wantFbLift = true;
           }
         }
@@ -11946,7 +12618,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -11983,6 +12655,10 @@ namespace PatternBreak {
           if (wantGlowPad) {
             var fxTune = contents.GetComponent<StateFx>();
             if (fxTune != null) { fxTune.glowPad = glowPadWant; padTuned++; changed = true; }
+          }
+          if (wantSinkFix) {
+            var fxSink = contents.GetComponent<StateFx>();
+            if (fxSink != null) { fxSink.hoverSink = hoverSinkWant; fxSink.pressedSink = pressedSinkWant; sinkTuned++; changed = true; }
           }
           if (wantPad) {
             ShellRaycastPad(contents, famName, m);
@@ -12167,6 +12843,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
       if (retracked > 0)
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
+      if (barRigged > 0)
+        Debug.Log("UI Kit Maker: converged " + barRigged + " bar prefab(s) onto the kit-dressed rig (round 21) — the progress bar's mercury rides a Filled image on the app's well zone (drive Fill Area > Fill's fillAmount), and the segment meter gained its Lit layer (drive Lit's fillAmount; it snaps to whole cells). Placed copies picked it up automatically.");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)
@@ -12183,6 +12861,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
       if (rigGrafted > 0)
         Debug.Log("UI Kit Maker: gave " + rigGrafted + " prefab(s) their live rigs — KitTrace graphs on the chart zone (Telemetry: THR/BRK/SPD, LapTimes: RIVAL/YOU; edit Values in the Inspector or call SetValues at runtime) and the loot tag's tier stripe + gem. Delete any of them and they stay deleted.");
+      if (sinkTuned > 0)
+        Debug.Log("UI Kit Maker: armed the baked press sink on " + sinkTuned + " prefab(s) — their pressed pose sinks inside the swap sprite (extrusion collapse), and the hover halo now slides with it instead of holding its hover seat.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
       if (worded > 0)

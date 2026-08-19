@@ -1,6 +1,7 @@
 import type { GenConfig, GenStateName, KitComponentId, KitDesign, KitSize, Shape } from "./model";
 import { fontByName, STATE_NAMES, KIT_COMPONENTS, KIT_SLICEABLE, applyKitDesign, applyKitTextFill, effKitSize, kitVisible, resolveKitIcon } from "./model";
 import { renderBevel, renderKit, glowPadOf } from "./bevel";
+import { glyphAttribution } from "./glyphLibrary";
 
 // Export utilities — every artifact derives from the same renderer string.
 
@@ -564,6 +565,7 @@ export async function downloadWebKit(
 
   const total = pieces.length;
   let done = 0;
+  const shippedIds: string[] = []; // pieces whose art actually landed in the zip
   for (const pc of pieces) {
     const id = pc.id;
     onProgress?.(done++, total, pc.name);
@@ -592,6 +594,7 @@ export async function downloadWebKit(
       }
     }
     if (!ok || !w0) continue;
+    shippedIds.push(id);
     const dw = Math.round(w0 / 2), dh = Math.round(h0 / 2);
     const has = (s: GenStateName) => states.includes(s);
     cssRules.push(
@@ -654,7 +657,11 @@ export async function downloadWebKit(
   });
   files.push({
     path: "LICENCE.txt",
-    data: licence ?? `${kitName} — exported from UI Kit Maker (uikitmaker.com) on ${stamp}.\nLicensed to the exporting account for use in its projects.\n`,
+    /* CC BY attribution travels with the art: when the zip actually ships
+       glyph pieces built on game-icons.net outlines, their credit block
+       rides the licence file — absent otherwise (compliance, per-export). */
+    data: (licence ?? `${kitName} — exported from UI Kit Maker (uikitmaker.com) on ${stamp}.\nLicensed to the exporting account for use in its projects.\n`)
+      + glyphAttribution(shippedIds),
   });
   files.push({
     path: "README.md",

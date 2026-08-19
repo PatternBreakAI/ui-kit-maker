@@ -6,6 +6,9 @@
 
 // safe despite silhouettes.ts importing from here: that edge is type-only
 import { SILHOUETTES } from "./silhouettes";
+// leaf module (no imports) — the semantic glyph registry drives the glyph
+// pieces' roster and shape map so a new glyph needs only its registry entry
+import { GLYPH_LIBRARY } from "./glyphLibrary";
 
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
@@ -39,6 +42,10 @@ export type Shape =
   // Authored artwork, not procedural geometry; rendered through the same
   // distortion-capped transform a user import gets.
   | `stock:${string}`
+  // the semantic glyph library (glyphLibrary.ts) — closed icon outlines the
+  // engine dresses in the kit's full layer cake. Staged feature: nothing in
+  // the production picker emits the prefix until the glyph pieces release.
+  | `glyph:${string}`
   // horizontally-mirrored variant of any shape — the suffix IS the state
   | `${string}~flip`;
 
@@ -1088,7 +1095,17 @@ export type KitComponentId =
   // illustrated settings gear (staged) — the cog itself wears the treatment
   | "gearicon"
   | "trophyicon" | "firebutton" | "countbadge"
-  | "gifticon";
+  | "gifticon"
+  // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
+  // citizen: its own per-piece forks, sizes, board placement. All staged.
+  | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
+  | "glyphcrown" | "glyphtrophy" | "glyphmedal" | "glyphflag" | "glyphcheckpoint" | "glyphlock" | "glyphcheckmark"
+  | "glyphbomb" | "glyphrocket" | "glyphhammer" | "glyphmagnet" | "glyphshield" | "glyphaddtime"
+  | "glyphchest" | "glyphgift" | "glyphprizewheel" | "glyphcalendar"
+  | "glyphstreak" | "glyphtimer" | "glyphtarget"
+  | "glyphcart" | "glyphsale" | "glyphplus" | "glyphpiggybank"
+  | "glyphhome" | "glyphpause" | "glyphplay" | "glyphreplay" | "glyphsettings" | "glyphsound" | "glyphmusic"
+  | "glyphmail" | "glyphfriends" | "glyphleaderboard" | "glyphnotification" | "glyphquests" | "glyphprofile";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -1101,7 +1118,7 @@ export type KitSize = "s" | "m" | "l";
    chosen values, the panel GENERATES its controls from it, and the i card
    generates its "what can I edit" manual from it. Proof components first
    (speedo family); the full sweep migrates everything else onto it. */
-export type SlotKind = "free" | "choice" | "value" | "locked" | "color";
+export type SlotKind = "free" | "choice" | "value" | "locked" | "color" | "dial";
 export type SlotDef = {
   id: string; name: string; kind: SlotKind;
   /** choice: the curated list, first entry is the default */
@@ -1116,6 +1133,12 @@ export type SlotDef = {
       stored sentinel value is the string "none" (owner, eyebrow stroke:
       "should have a none option"). Renderers must honor it. */
   allowNone?: boolean;
+  /** dial: a 0–100 strength that FOLLOWS a kit dial until touched — the
+      kit-following-with-override shape. Absent stores nothing and mirrors
+      the kit dial live; a stored number (stringified) is this piece's own
+      fork, "0" a deliberate off. Renderers must treat legacy two-state
+      values as reads, not errors: "Off" is a 0 fork, "On"/"Follow kit"
+      are the unfetched follow state. */
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1423,6 +1446,30 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   ],
 };
 
+/* Glyph pieces whose registry entry carries an engraved detail layer get
+   the detail dial — attached FROM the registry, so a new detailed glyph
+   inherits the control for free (the registry-alone-decides rule). The
+   engraved regions present the kit's BASE GLOW (owner spec 2026-08-19:
+   the same bloom the extrusion shadow carries on buttons — same ink,
+   same Candy → Extrusion → Base glow dial), so the factory default
+   FOLLOWS the kit like any piece: buttons that bloom make the bands
+   bloom identically; a kit that parks the dial keeps both honestly
+   quiet. The slot is a strength DIAL in the kit-following-with-override
+   shape the other glyph controls use (owner, on the band glow: "would
+   it be easier to just make a new control for this purpose"): untouched
+   it stores nothing and mirrors the kit's Base glow dial live; the
+   first drag forks this one glyph onto its own strength, and 0 is the
+   deliberate off. Legacy values from the retired two-state slot read
+   through: "Off" is a 0 fork, "On"/"Follow kit" are the unfetched
+   follow. */
+for (const g of GLYPH_LIBRARY) {
+  if (!g.detail) continue;
+  KIT_SLOTS[`glyph${g.id}` as KitComponentId] = [
+    { id: "detailglow", name: "Band glow", kind: "dial",
+      note: "The engraved bands (seams, recess shading) are inked in the kit's Shadow role and carry the same bloom the extrusion shadow wears on buttons — same ink (Inner glow color when set, else the Glow well), same dial. Band glow follows the kit's glow until you set it; a set dial is this glyph's own strength, and 0 keeps its engraving quiet." },
+  ];
+}
+
 /* ── Lessons — the authored half of the i card ────────────────────────
    What the pattern is called, where it comes from, who does it well, and
    further reading. Links open in new tabs (owner rule). One entry per
@@ -1633,6 +1680,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "telemetry", name: "Telemetry" },
   { id: "cardback", name: "Card back" },
   { id: "pack", name: "Card pack" },
+  /* the semantic glyph rack — roster derives from the registry, so a new
+     glyph needs only its glyphLibrary entry. Staged per the standing rule. */
+  ...GLYPH_LIBRARY.map((g) => ({ id: `glyph${g.id}` as KitComponentId, name: `Glyph · ${g.name}`, staged: true as const })),
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
@@ -1693,10 +1743,17 @@ export const mintCloneId = (base: KitComponentId): ClonePieceId =>
  *  per-piece maps — a clone would share content with its base, so they
  *  sit out of duplication until that content moves per-piece. */
 export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
+/** The glyph pieces as a narrowable sub-union — renderKit peels them off
+ *  before its switch, which stays compile-time exhaustive for the rest. */
+export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
+export const isGlyphPiece = (id: KitComponentId): id is GlyphPieceId => id.startsWith("glyph");
+
 /** True when a piece may be SHOWN: released pieces for everyone, staged
- *  pieces only for the admin (who tests them before release). */
+ *  pieces only for the admin (who tests them before release). A hard-deleted
+ *  piece (the trash's permanent tombstone) renders for NOBODY, admin
+ *  included — that permanence is the whole promise of the delete. */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
-  !STAGED_KIT.has(id) || releases[id] === "released" || admin;
+  releases[id] !== "deleted" && (!STAGED_KIT.has(id) || releases[id] === "released" || admin);
 
 /** How much label a piece can carry. Reading-line pieces (dialogue lines,
  *  toasts, messages) hold sentences; identity labels stay tight. The old
@@ -1896,8 +1953,24 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
     };
     if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }
+  /* ── the glyph family's FACTORY look is FLAT (owner mandate: glyphs are
+     judged pre-extrusion) — zero extrusion depth, no bevel wall; face
+     fill, pattern, outline rim and glow keep following the kit. Seeded as
+     an ordinary per-piece fork so every knob stays editable upward: a
+     glyph piece the owner already styled keeps that styling (only ABSENT
+     entries seed), and this runs at every load path — store boot,
+     workspace hydrate, preset load — so old saves pick it up too. */
+  for (const g of GLYPH_LIBRARY) {
+    const id = `glyph${g.id}` as KitComponentId;
+    if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
+  }
   return { forks: out, changed };
 }
+
+/** The flat factory fork every glyph piece is born with — a fresh object
+ *  each call so one piece's later edits can't alias into another's. */
+export const GLYPH_FLAT_DESIGN = (): KitDesign =>
+  ({ candy: { extrusion: { depth: 0 } }, bevel: { off: true } } as KitDesign);
 
 /** Per-component text color — the answer to "changing text color changes it
  *  everywhere". A piece with an override renders every glyph it draws in its
@@ -2002,6 +2075,9 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   speedo2: "pill",           // a pill on a square box is a perfect circle
   tacho: "pill",
 };
+// every glyph piece wears its registry outline — the piece's per-piece shape
+// override (kitShapes) can still re-dress it like any other component
+for (const g of GLYPH_LIBRARY) KIT_SHAPE[`glyph${g.id}` as KitComponentId] = `glyph:${g.id}`;
 
 /* Stock glyphs for kit components — canonical Lucide paths, embedded so the
    renderer stays pure. */

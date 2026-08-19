@@ -1428,6 +1428,15 @@ button.kp-fact { cursor: pointer; }
 .kp-tray .kp-piece { display: flex; flex-direction: column; }
 .kp-tray .kp-piece .kp-live { flex: 1; display: flex; align-items: center; justify-content: center; }
 .kp-slotgrid, .kp-ringrow { gap: 25px; padding: 25px; }
+/* slot grids obey rule 1 too (owner, glyph rack: "why does the star
+   formation box sit differently than the others?") — a piece's rendered
+   canvas height varies with its own fork (state glow pads the canvas, a
+   muted fork shrinks it), and packed cards let a short canvas drag its
+   caption up mid-card. The art rides a uniform stage instead: it takes
+   the card's spare height and centers, so every caption in a row sits on
+   one shared baseline no matter how each glyph's canvas came out. Cards
+   with equal canvases (the item-slot family) render exactly as before. */
+.kp-slotgrid .kp-piece .kp-live { flex: 1; display: flex; align-items: center; justify-content: center; }
 .kp-tray.kp-axis { align-items: stretch; }
 /* racing tray — gauges want open air between them */
 .kp-tray.kp-race { gap: 25px 64px; padding: 30px 34px; }
@@ -1723,8 +1732,11 @@ button.kp-fact { cursor: pointer; }
 .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .bd-asset { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg, #fff); cursor: pointer; min-width: 0; }
 .bd-asset:hover { border-color: var(--ink); }
-.bd-asset span { display: flex; align-items: center; justify-content: center; width: 100%; height: 42px; overflow: hidden; }
-.bd-asset span svg { max-width: 96%; max-height: 42px; width: auto; height: auto; }
+/* the art carries the Looks rack's presence (owner: "make the thumbnails
+   bigger here in Boards like they are in Looks") — same tighten-crop as
+   lookArt, same width-first sizing, a taller stage. Two columns hold. */
+.bd-asset span { display: flex; align-items: center; justify-content: center; width: 100%; height: 74px; overflow: hidden; }
+.bd-asset span svg { width: 100%; height: auto; max-height: 74px; max-width: 100%; }
 .bd-asset i { font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink2); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-hint { margin: 16px 2px 6px; font-size: 11px; line-height: 1.55; color: var(--ink2); }
 .bd-main { display: flex; flex-direction: column; min-width: 0; }
@@ -2003,6 +2015,9 @@ button.kp-fact { cursor: pointer; }
 .kp-baytoggle:hover { color: var(--kp-ink); border-color: var(--kp-ink3); }
 .kp-baygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; align-items: stretch; }
 .kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--line2); border-radius: 14px; background: var(--card); }
+/* the editor round-trip lands back on the card that was edited — a brief
+   flash marks it, then the class removes itself (a moment, not a state) */
+.kp-bayrow.kp-bayhot { border-style: solid; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(45, 212, 191, .22); transition: border-color .4s, box-shadow .4s; }
 .kp-bayrow .kp-tray { display: flex; justify-content: center; }
 .kp-bayside { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: auto; }
 .kp-baychip {
@@ -2249,6 +2264,12 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 .bd-abname:hover { border-color: var(--line2); }
 .bd-abname:focus { border-color: var(--line2); background: var(--card); outline: none; }
 .bd-abmeta { font-size: 11px; color: var(--ink3); white-space: nowrap; }
+/* the WORDS fields in the side rail — real input chrome, always (the
+   artboard-header transparency made the text read as a static caption;
+   owner: "I need a way to edit the text here on in the right menu") */
+.bd-side .bd-words { border-color: var(--line2); background: var(--card); flex: none; width: 100%; }
+.bd-side .bd-words:focus { border-color: #6fd6ff; }
+.bd-side .bd-words::placeholder { color: var(--ink3); }
 .bd-abhead .bd-abtool:first-of-type { margin-left: auto; }
 .bd-abtool { border: 1px solid var(--line2); background: var(--card); color: var(--ink2); border-radius: 8px; padding: 4px 10px; font: 600 11.5px inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .bd-abtool:hover { color: var(--ink); }
@@ -2341,6 +2362,17 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
    retired — owner-directed, 2026-08-17; the right panel's Selected
    section carries every control it held.) */
 .bd-rszwrap { position: absolute; width: 0; height: 0; z-index: 5; }
+/* the in-place words editor — floats above its piece, counter-scaled to
+   stay screen-sized inside the fit-scaled stage; the selection accent so
+   it reads as part of the editing chrome */
+.bd-inlineedit {
+  position: absolute; z-index: 8; min-width: 200px; height: 32px; padding: 0 11px;
+  border: 1.5px solid #6fd6ff; border-radius: 9px; background: rgba(10, 14, 24, .95);
+  color: #e7ecf5; font: 650 13.5px/1 Inter, sans-serif; letter-spacing: .02em;
+  box-shadow: 0 10px 28px rgba(6, 8, 16, .55);
+}
+.bd-inlineedit:focus { outline: none; border-color: #9fe2ff; }
+.bd-inlineedit::placeholder { color: rgba(231, 236, 245, .4); }
 /* the stamp door — the one non-component asset, pinned above the groups */
 .bd-stampbtn {
   display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
