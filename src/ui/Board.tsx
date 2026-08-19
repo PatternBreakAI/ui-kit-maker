@@ -7,6 +7,7 @@ import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } fro
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
@@ -79,6 +80,10 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
   { name: "Card battler", ids: ["cardback", "pack"] },
+  /* the semantic glyph rack — registry-derived so the tray and the kit page
+     can't drift; the kitVisible filter below keeps it admin-only while
+     staged, then per-glyph as releases land */
+  { name: "Semantic glyphs", ids: GLYPH_LIBRARY.map((g) => `glyph${g.id}`) },
 ];
 
 /* Search vocabulary: teams reach for genre words the component names don't
@@ -124,6 +129,11 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   quickslots: "equipment quadrant dpad loadout souls",
   vitalbar: "health mana bar readout hud",
 };
+// glyph pieces answer to "icon", their semantic name and their category
+// ("currencies", "boosters"…) — registry-derived like the tray group
+for (const g of GLYPH_LIBRARY) {
+  SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
+}
 
 /* Bundled backdrops — the owner's own scenes, served from public/. A path
    URL persists (and exports); only blob: uploads stay session-only. */
