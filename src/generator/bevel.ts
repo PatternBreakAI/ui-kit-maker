@@ -3,6 +3,7 @@ import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEF
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
+import { glyphShape } from "./glyphLibrary";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
@@ -1079,8 +1080,10 @@ export function insetShape(shape: Shape, outer: string, x: number, y: number, w:
        depth and failed outright at wall depth, dropping to the scaled-clone
        inset (a floating mini-bolt face, not a parallel offset). The kernel
        ladder erodes them honestly and still falls back to the legacy path on
-       structural failure. Production silhouettes don't reach this branch. */
-    if (silhouetteMeta(shape)?.gothicCut || importedShape(shape)) {
+       structural failure. Production silhouettes don't reach this branch.
+       Semantic glyphs (glyph: prefix) ride the same ladder — their contract
+       bakes arcs to cubics precisely so the kernel never declines them. */
+    if (silhouetteMeta(shape)?.gothicCut || importedShape(shape) || glyphShape(shape)) {
       const g = gothicInset(outer, delta);
       if (g) return g;
     } else {
@@ -1232,6 +1235,13 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
     // `:caps` suffix opts a render into the three-slice experiment.
     if (shape.endsWith(":caps")) return transformPathCapAware(imp.path, imp.viewBox, x, y, w, h, imp.capSrc);
     return transformPath(imp.path, imp.viewBox, x, y, w, h);
+  }
+  const gl = glyphShape(shape);
+  if (gl) {
+    // Semantic glyphs fill the frame exactly: they are authored in square
+    // boxes with their own margins, and glyph pieces render square frames —
+    // the drawn proportion is preserved by construction, no cap machinery.
+    return transformPath(gl.d, gl.vb, x, y, w, h);
   }
   if (shape.startsWith("stock:")) {
     const st = stockShape(shape);

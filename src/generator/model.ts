@@ -39,6 +39,10 @@ export type Shape =
   // Authored artwork, not procedural geometry; rendered through the same
   // distortion-capped transform a user import gets.
   | `stock:${string}`
+  // the semantic glyph library (glyphLibrary.ts) — closed icon outlines the
+  // engine dresses in the kit's full layer cake. Staged feature: nothing in
+  // the production picker emits the prefix until the glyph pieces release.
+  | `glyph:${string}`
   // horizontally-mirrored variant of any shape — the suffix IS the state
   | `${string}~flip`;
 
