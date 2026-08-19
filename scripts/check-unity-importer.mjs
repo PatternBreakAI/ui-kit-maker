@@ -370,6 +370,13 @@ if (!/fbWant = FireGlyphTrip\(m, shellMin\);/.test(cs)
     || !/Mathf\.Approximately\(fbNow\.pressedLift, fbRow - shellMin \* 0\.016f\)/.test(cs))
   errors.push("the fire-glyph convergence must target FireGlyphTrip and recognize the old dial+sink default as stale (round 18)");
 
+/* round-20 item 1: a GHOST board copy places JoystickGhost, and kept
+   scenes wearing the solid stick on a ghost seat heal on re-import. */
+if (!/pfName = it\.ov == "ghost" \? "JoystickGhost" : "Joystick";/.test(cs))
+  errors.push("the scene builder's joystick mapping must be ghost-aware (round 20 — 'it's grabbing the old joystick')");
+if (!/it2\.component == "joystick" && it2\.ov == "ghost"/.test(cs) || !/ghost stick\(s\) swapped in/.test(cs))
+  errors.push("the kept-scene ghost-stick heal (position-matched swap) is missing (round 20)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

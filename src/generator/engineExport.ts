@@ -7261,6 +7261,7 @@ namespace PatternBreak {
         }
         int healedW = 0, artFixed = 0;
         try {
+          var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
              key that survives any file rename. A piece the maker moved in
@@ -7279,6 +7280,20 @@ namespace PatternBreak {
                     && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) { it2 = it; break; }
               }
               if (it2 == null) continue;
+              /* ── ROUND-20 GHOST-STICK HEAL (owner: "it's grabbing the
+                 old joystick"): round 18 shipped JoystickGhost.prefab, but
+                 placement kept mapping a ghost board copy (ov "ghost") to
+                 the SOLID stick — every kept scene wears the wrong rig.
+                 A position-matched SOLID Joystick instance sitting on a
+                 GHOST item's seat is OUR mistake, ours to swap; a stick
+                 the maker moved stopped matching above and stays theirs.
+                 Deferred past the child walk — a swap mutates the list. */
+              if (string.IsNullOrEmpty(it2.stamp) && it2.component == "joystick" && it2.ov == "ghost") {
+                var srcPfG = PrefabUtility.GetCorrespondingObjectFromSource(ch.gameObject);
+                var srcPathG = srcPfG != null ? AssetDatabase.GetAssetPath(srcPfG).Replace("\\\\", "/") : null;
+                if (srcPathG != null && srcPathG.EndsWith("/Prefabs/Joystick.prefab"))
+                  ghostSwaps.Add(new KeyValuePair<Transform, PBBoardItem>(ch, it2));
+              }
               /* ── A) BAKED ART RE-ADOPTION (owner: "is this board reading
                  old versions of the components?"). Bakes used to be named
                  by walk position — one board edit renamed every later
@@ -7369,11 +7384,42 @@ namespace PatternBreak {
               healedW++;
             }
           }
-          if (healedW > 0 || artFixed > 0) {
+          /* the deferred ghost swaps — after the child walk (a swap
+             mutates the canvas's child list mid-enumeration otherwise) */
+          int ghostFixed = 0;
+          foreach (var gsw in ghostSwaps) {
+            var oldT = gsw.Key; var itG = gsw.Value;
+            var ghostPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/JoystickGhost.prefab");
+            if (ghostPf == null) { Debug.LogWarning("UI Kit Maker: '" + bd.name + "' places the GHOST stick but Prefabs/JoystickGhost.prefab is missing — re-export the kit (round-18+ zips ship the ghost art)."); break; }
+            var gInst = (GameObject)PrefabUtility.InstantiatePrefab(ghostPf, scene);
+            gInst.transform.SetParent(oldT.parent, false);
+            gInst.transform.SetSiblingIndex(oldT.GetSiblingIndex());
+            var gRt = gInst.GetComponent<RectTransform>();
+            var oldRt = oldT as RectTransform;
+            gRt.anchorMin = oldRt.anchorMin; gRt.anchorMax = oldRt.anchorMax;
+            gRt.pivot = new Vector2(0.5f, 0.5f);
+            gRt.anchoredPosition = oldRt.anchoredPosition; // the ghost's ring is canvas-centered — no shell-center correction to add
+            gRt.localRotation = oldRt.localRotation;
+            /* shell-true scale from the GHOST's own rows (the builder's
+               math) — copying the solid's scale would size the glass by
+               the solid art's crop */
+            PBAsset gRow = null;
+            foreach (var aG3 in m.assets) if (aG3 != null && aG3.component == "joystick" && aG3.part == "ghost-base") { gRow = aG3; break; }
+            float psG = m.pngScale > 0 ? m.pngScale : 2f;
+            float sG = gRow != null && gRow.shell != null && gRow.shell.w > 4f
+              ? itG.w * psG / gRow.shell.w
+              : (gRt.sizeDelta.x > 1f ? itG.w / gRt.sizeDelta.x : 1f);
+            gRt.localScale = new Vector3(sG, sG, 1f);
+            UnityEngine.Object.DestroyImmediate(oldT.gameObject);
+            ghostFixed++;
+          }
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
-              + (healedW > 0 ? healedW + " pinned word(s) restored" : "");
+              + (healedW > 0 ? healedW + " pinned word(s) restored" : "")
+              + ((artFixed > 0 || healedW > 0) && ghostFixed > 0 ? ", " : "")
+              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
                 Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
@@ -7549,7 +7595,10 @@ namespace PatternBreak {
             else if (it.component == "laptimes") pfName = "LapTimes";
             else if (it.component == "segbar") pfName = "SegmentMeter";
             else if (it.component == "timerdigits") pfName = "Timer";
-            else if (it.component == "joystick") pfName = "Joystick";
+            /* the GHOST stick is its own placeable (round 18) — a ghost
+               board copy (ov "ghost") must place IT, not the solid stick
+               (round 20, owner: "it's grabbing the old joystick") */
+            else if (it.component == "joystick") pfName = it.ov == "ghost" ? "JoystickGhost" : "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
             var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
