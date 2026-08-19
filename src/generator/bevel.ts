@@ -1071,9 +1071,16 @@ function gothicInset(outer: string, delta: number): string {
 
 export function insetShape(shape: Shape, outer: string, x: number, y: number, w: number, h: number, delta: number, softness: number): string {
   if (!/[Aa]/.test(outer)) {
-    // the Gothic drop takes the drawing-resolution offset; everyone else runs
-    // the exact ladder they always did (owner: the rest is PERFECT — no step back)
-    if (silhouetteMeta(shape)?.gothicCut) {
+    /* the Gothic drop takes the drawing-resolution offset; everyone else runs
+       the exact ladder they always did (owner: the rest is PERFECT — no step back).
+       Imported (lab-registry) outlines ride the SAME reviewed kernel: the
+       legacy chord machinery tangles on their acute wedges — on a lightning
+       bolt's 17° spikes it chopped face regions with straight seams at rim
+       depth and failed outright at wall depth, dropping to the scaled-clone
+       inset (a floating mini-bolt face, not a parallel offset). The kernel
+       ladder erodes them honestly and still falls back to the legacy path on
+       structural failure. Production silhouettes don't reach this branch. */
+    if (silhouetteMeta(shape)?.gothicCut || importedShape(shape)) {
       const g = gothicInset(outer, delta);
       if (g) return g;
     } else {
