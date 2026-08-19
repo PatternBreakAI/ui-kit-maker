@@ -4845,12 +4845,41 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "emblembar": // first-class docked bar — progress with the socket built in
     case "progress": {
       const w = 520 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 64 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3;
       const gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
       const bh = h - inset * 2 - gapPad * 2;
       const trackW = w - inset * 2 - gapPad * 2;
+      /* rig LAYERS (overlay track/fill/dock, EXPORT-ONLY — round 21, the
+         slider's shape): the wired Unity ProgressBar assembles the REAL
+         component from these — dressed track, full-run mercury, and the
+         emblem bar's docked socket — so the scene's bar is the piece the
+         maker styled, not a capsule approximation. */
+      if (opts.overlay === "dock") {
+        /* the socket standalone — the same mini-piece applyDock composes
+           (icon resolution mirrored), shadowless: the merged ground
+           shadow makes the standalone sprite an egg and Unity centers
+           on the egg (the knob precedent) */
+        const D = h * 1.9;
+        const dIcon = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.clock ?? null);
+        return build(cfg, state, { x: 33, y: 27, h: D, fs: 0, iconSize: D * 0.5 }, { pinDesign: true, iconDef: dIcon, label: "", fixedW: D, shapeOverride: sov });
+      }
+      if (opts.overlay === "fill") {
+        /* the mercury at 100% — the silhouette-shaped full run, no shell,
+           no well, no socket. Unity's Filled image scissors it to the
+           live value, exactly like the app's clip does. */
+        const gid = "pg" + UID++;
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
+          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const v01p = clamp(value ?? 0.62, 0, 1);
       const fw = trackW * v01p;
       const gid = "pg" + UID++;
@@ -5033,17 +5062,55 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          Stretch widens the WELLS; the medallion and its center reserve
          hold their size, so the axis stays a fixed cap (9-slice spirit). */
       const w = 860 * k * clamp(opts.stretch ?? 1, 0.7, 3), h = 96 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 3, gapPad = 6 * k;
       const bx = 39 + inset + gapPad, by = 30 + inset + gapPad;
       const bh = h - inset * 2 - gapPad * 2;
       const trackW = w - inset * 2 - gapPad * 2;
       const cxV = 39 + w / 2;
       const halfW = trackW / 2 - 56 * k;
+      const rC = hexMix("#FF4D5A", glow, 0.25);
+      /* rig LAYERS (overlay track/fill/fill-right/medal, EXPORT-ONLY —
+         round 21, the slider's shape): the wired Unity VsBar assembles
+         the REAL component — dressed track, each fighter's full half-run
+         mercury (Filled images drain them toward center), the candy VS
+         medallion riding the axis — so the scene's bar is the piece the
+         maker styled. */
+      if (opts.overlay === "medal") {
+        /* the medallion standalone, VS baked in the kit's own type —
+           shadowless like every moving part (the knob precedent) */
+        const R = h * 0.46;
+        const cpad = Math.ceil(R + 20);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">` +
+          candyKnob(cpad, cpad, R, knobC, undefined, false) +
+          `<text x="${(cpad + typeOxK * k).toFixed(1)}" y="${(cpad + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text></svg>`;
+      }
+      if (opts.overlay === "fill" || opts.overlay === "fill-right") {
+        /* one fighter's mercury at 100% — the silhouette-shaped half-run,
+           square at the drain edge (center) so the Filled image's scissor
+           line is honest; the OUTER cap takes the component's contour
+           from the silhouette clip, exactly like the app's drain. */
+        const rightF = opts.overlay === "fill-right";
+        const gid = "vs" + UID++;
+        const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const x0F = rightF ? bx + trackW - halfW : bx - 2;
+        const x1F = rightF ? bx + trackW + 2 : bx + halfW;
+        const gradF = rightF
+          ? `<linearGradient id="${gid}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>`
+          : `<linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
+        const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+          <defs>${gradF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath></defs>
+          <g clip-path="url(#${gid}w)">
+            <rect x="${Math.min(x0F, x1F).toFixed(1)}" y="${by.toFixed(1)}" width="${Math.abs(x1F - x0F).toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#${gid})" opacity="0.95"/>
+            <rect x="${(Math.min(x0F, x1F) + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, Math.abs(x1F - x0F) - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>
+          </g></svg>`;
+      }
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const wellP = wellOf(w, h, inset);
+      if (opts.overlay === "track")
+        return stampTrack(inject(track, `<path d="${wellP}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
       const vL = clamp(value ?? 0.72, 0, 1), vR = 0.58;
       const gid = "vs" + UID++;
-      const wellP = wellOf(w, h, inset);
-      const rC = hexMix("#FF4D5A", glow, 0.25);
       /* the fills follow the silhouette (design canon, same as progress):
          both pills clip to a silhouette-shaped region over the track, so
          the OUTER caps inherit the component's contour — an ornate shell's
