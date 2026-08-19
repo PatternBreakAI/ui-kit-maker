@@ -159,10 +159,20 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
        "ghost" and the importer must place JoystickGhost for it — the
        ghost-board glow row asserts both */
     { kitId: "joystick", ov: "ghost", x: 1680, y: 500 },
+    /* a STRETCHED slider (round 20): bar rigs ship LIVE with the wide
+       shell box; the stretched-slider glow row replays the placement */
+    { kitId: "slider", x: 120, y: 320 },
     { kitId: "telemetry", x: 100, y: 860 },
     { kitId: "laptimes", x: 560, y: 860 },
     { kitId: "loottag", x: 1000, y: 900 },
   ]);
+  st = P.useGen.getState();
+  {
+    // stretch the bench slider 2x through the store's own gesture
+    const bdS = st.boards[st.boards.length - 1];
+    const slB = bdS.items.find((i) => i.kitId === "slider");
+    if (slB) st.stretchBoardItem(slB.id, 2.0, slB.x);
+  }
   st = P.useGen.getState();
   const exBoards = await P.collectExportBoards(st);
   await P.downloadEngineExport({
@@ -230,7 +240,7 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
   /* the firebutton board item exists to SHIP the gated dome art — its
      press parity reads from the manifest stamps in the glow section, not
      from a board-scene pixel row (the scene places a composed rig) */
-  const items = [...board.items.filter((b) => b.component !== "firebutton" && !(b.component === "joystick" && b.ov === "ghost")), { component: "joystickghost", x: 0, y: 0, w: 376, h: 376 }];
+  const items = [...board.items.filter((b) => b.component !== "firebutton" && b.component !== "slider" && !(b.component === "joystick" && b.ov === "ghost")), { component: "joystickghost", x: 0, y: 0, w: 376, h: 376 }];
   const results = [];
   const rowCanvases = [];
 
@@ -739,6 +749,39 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       glow.rows.push({ ctx: "ghost stick board copy", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: 0,
         size: `ov ${bdGhost ? bdGhost.ov : "MISSING"}; map ${mapOk ? "ghost-aware" : "SOLID-ONLY"}; heal ${healOk ? "armed" : "none"}`,
         want: "ov ghost -> JoystickGhost" });
+    }
+    /* round 20: the STRETCHED slider — the rail stretches, the knob stays
+       natural (owner: Settings sliders wide, "knobs grow big in Unity").
+       Bar rigs ship LIVE (never posed for a stretch — a bake buries the
+       working control), and the shipped placement must take the
+       honest-stretch branch: the rect carries the width at the TRUE
+       vertical scale, so the fixed-size Handle keeps natural proportions.
+       Replayed with the kit's own numbers. */
+    {
+      const impCs2 = new TextDecoder().decode(files.get("Editor/PatternBreakKitImporter.cs") ?? files.get("PatternBreakKitImporter.cs") ?? new Uint8Array());
+      const slIt = (m.boards ?? []).flatMap((b) => (b && b.items) || []).find((i) => i && i.component === "slider");
+      const trackRow = (m.assets ?? []).find((a) => a && a.component === "slider" && a.part === "track");
+      const trackIm = await sprite("assets/slider/slider-track.9.png");
+      if (slIt && trackRow && trackRow.shell && trackIm) {
+        const ps5 = m.pngScale > 0 ? m.pngScale : 2;
+        const live = !slIt.posed;
+        const rtW = trackIm.width / ps5, rtH = trackIm.height / ps5;
+        const s2 = (slIt.w / rtW) * (trackIm.width / trackRow.shell.w);
+        const sH2 = (slIt.h / rtH) * (trackIm.height / trackRow.shell.h);
+        const ns = trackRow.nineSlice ?? {};
+        const manifestSliced = ((ns.left ?? 0) + (ns.right ?? 0) + (ns.top ?? 0) + (ns.bottom ?? 0)) > 2;
+        const honest = /bool slicedRoot = rootSp\.border\.sqrMagnitude > 0\.5f\s*\n\s*.*\n.*\n.*\n.*\n.*\n\s*\|\| \(baseA != null && baseA\.nineSlice != null/.test(impCs2)
+          || (/baseA\.nineSlice\.left \+ baseA\.nineSlice\.right \+ baseA\.nineSlice\.top \+ baseA\.nineSlice\.bottom > 2/.test(impCs2));
+        const stretched = Math.abs(s2 / sH2) > 1.5;
+        const branchFires = manifestSliced && honest && Math.abs(s2 / sH2 - 1) > 0.08;
+        const knobRel = live ? (branchFires ? 1 : Math.round((s2 / sH2) * 100) / 100) : NaN;
+        const ok = live && stretched && branchFires && knobRel === 1;
+        glow.rows.push({ ctx: "stretched slider (rail vs knob)", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: 0,
+          size: `live ${live}; stretch ${Math.round((s2 / sH2) * 100) / 100}x; knob x${knobRel} of natural`,
+          want: "live; rect carries; knob x1" });
+      } else {
+        glow.rows.push({ ctx: "stretched slider (rail vs knob)", verdict: "FAIL", centerDx: 0, centerDy: 0, size: "slider rows missing", want: "stretched slider on the bench board" });
+      }
     }
     /* round 18: the fire button's press — disc vs icon (owner: "on press
        the center white disc and icon should move"). The disc's trip is

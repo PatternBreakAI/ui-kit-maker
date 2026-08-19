@@ -370,6 +370,19 @@ if (!/fbWant = FireGlyphTrip\(m, shellMin\);/.test(cs)
     || !/Mathf\.Approximately\(fbNow\.pressedLift, fbRow - shellMin \* 0\.016f\)/.test(cs))
   errors.push("the fire-glyph convergence must target FireGlyphTrip and recognize the old dial+sink default as stale (round 18)");
 
+/* round-20 item 2: the stretched bar keeps its knob. Bar rigs never pose
+   for a stretch (a bake buries the live control; a lost import race left
+   the stand-in uniform-scaled — the ballooned knob); placement trusts the
+   MANIFEST for sliced-ness, and a missing posed sprite falls through to
+   live sizing AND arms the incomplete-scene rebuild. */
+if (!/const BAR_RIGS = new Set\(\["slider", "progress", "segbar", "vsbar", "emblembar", "scrollbar"\]\);/.test(src)
+    || !/&& !BAR_RIGS\.has\(idBase\)/.test(src))
+  errors.push("the bar-rig posed exclusion is missing — a stretched slider would bake over its live rig again (round 20)");
+if (!/baseA\.nineSlice\.left \+ baseA\.nineSlice\.right \+ baseA\.nineSlice\.top \+ baseA\.nineSlice\.bottom > 2/.test(cs))
+  errors.push("slicedRoot must trust the manifest's nineSlice row — the sprite border can lose the first-drop race (round 20)");
+if (!/the sliced prefab stands in at board size/.test(cs) || !/missing\+\+;\s*\n\s*\}\s*\n\s*if \(pspPose != null\)/.test(cs))
+  errors.push("a missing posed sprite must count MISSING and fall through to live sizing (round 20 — the frozen natural-size stand-in)");
+
 /* round-20 item 1: a GHOST board copy places JoystickGhost, and kept
    scenes wearing the solid stick on a ghost seat heal on re-import. */
 if (!/pfName = it\.ov == "ghost" \? "JoystickGhost" : "Joystick";/.test(cs))

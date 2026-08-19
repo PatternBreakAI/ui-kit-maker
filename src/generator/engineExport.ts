@@ -759,7 +759,17 @@ export async function collectExportBoards(st: {
            look, so the clone's own design, its designed state skins and
            its label seat exist nowhere else in the zip — they must travel
            as pixels regardless of how closely the pose matches */
-        if (!pureType && (isCloneId(id) || Math.abs(poseAspect / natAspect - 1) > 0.08)) {
+        /* the BAR FAMILY never poses for a stretch (round 20, owner:
+           Settings sliders stretched wide, "knobs grow big in Unity"):
+           their aspect divergence IS the 9-slice stretch gesture — the
+           app re-renders the rail wider while caps and knob stay true,
+           and the LIVE rig + the importer's honest-stretch placement
+           reproduce exactly that. A posed bake would bury the working
+           control under its own pixels (a second mercury under the live
+           fill, a dead knob under the live one) and one lost import race
+           left the stand-in uniform-scaled — the ballooned knob. */
+        const BAR_RIGS = new Set(["slider", "progress", "segbar", "vsbar", "emblembar", "scrollbar"]);
+        if (!pureType && (isCloneId(id) || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
@@ -7659,7 +7669,19 @@ namespace PatternBreak {
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
           if (string.IsNullOrEmpty(it.stamp)) {
-            if (!string.IsNullOrEmpty(it.posed)) {
+            var pspPose = string.IsNullOrEmpty(it.posed) ? null : S(root + "/" + it.posed);
+            if (!string.IsNullOrEmpty(it.posed) && pspPose == null) {
+              /* the pose's pixels lost the first-drop import race — count
+                 it MISSING so the incomplete-scene marker rebuilds this
+                 scene next pass, and fall through to LIVE sizing so the
+                 sliced prefab stands in at the BOARD box meanwhile. It
+                 used to stand in at natural size with no marker: a piece
+                 stretched on the board arrived natural and froze that way
+                 (round 20 — the stretched-slider field chain). */
+              Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in at board size; this scene rebuilds itself once the art lands.");
+              missing++;
+            }
+            if (pspPose != null) {
               /* the POSED bake is this copy's exact pixels at its board
                  proportions — worn 1:1, no slicing, no scale math (owner:
                  "the back of the flame button looks scrunched up"). The
@@ -7670,7 +7692,7 @@ namespace PatternBreak {
                  (owner: "bottom extrusion is cut off"). Sprite Swap rides
                  the art child with POSED state skins (the sliced skins
                  would not match the pose); State FX keeps the glow. */
-              var psp = S(root + "/" + it.posed);
+              var psp = pspPose;
               var pimg = inst.GetComponent<Image>();
               if (psp != null && pimg != null) {
                 pimg.sprite = null;
@@ -7741,9 +7763,8 @@ namespace PatternBreak {
                   var ws1 = artGo.AddComponent<WipeShine>();
                   ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
                 }
-              } else if (psp == null) {
-                Debug.LogWarning("UI Kit Maker: posed sprite missing for " + NiceName(it.component) + " on '" + bd.name + "' — the sliced prefab stands in.");
-              }
+              } // psp is non-null here by construction — the missing case
+                // took the live-sizing fallthrough above (round 20)
             } else if (it.component == "timerdigits") {
               /* the TIMER places LIVE and pure (round 14: its posed bakes
                  were blank by construction and no longer ship). The item
@@ -7799,7 +7820,14 @@ namespace PatternBreak {
                    label sizes keep their proportions, the footprint is
                    exactly the board's. */
                 float sH = shl.h > 4f && rt.sizeDelta.y > 1f ? (it.h / rt.sizeDelta.y) * (rootSp.rect.height / shl.h) : s;
-                bool slicedRoot = rootSp.border.sqrMagnitude > 0.5f;
+                /* the sprite's border can lose the first-drop race (a
+                   scene built before the import-settings pass lands it) —
+                   the MANIFEST row is the truth either way, and a lost
+                   race must never demote a stretched rail to uniform
+                   scale (round 20: the ballooned slider knob) */
+                bool slicedRoot = rootSp.border.sqrMagnitude > 0.5f
+                  || (baseA != null && baseA.nineSlice != null
+                      && baseA.nineSlice.left + baseA.nineSlice.right + baseA.nineSlice.top + baseA.nineSlice.bottom > 2);
                 if (slicedRoot && sH > 0.01f && Mathf.Abs(s / sH - 1f) > 0.08f) {
                   float fxW = shl.w / rootSp.rect.width; // shell's fraction of the sprite
                   rt.sizeDelta = new Vector2(it.w / (sH * fxW), rt.sizeDelta.y);
