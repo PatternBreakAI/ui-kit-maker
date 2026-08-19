@@ -1428,6 +1428,15 @@ button.kp-fact { cursor: pointer; }
 .kp-tray .kp-piece { display: flex; flex-direction: column; }
 .kp-tray .kp-piece .kp-live { flex: 1; display: flex; align-items: center; justify-content: center; }
 .kp-slotgrid, .kp-ringrow { gap: 25px; padding: 25px; }
+/* slot grids obey rule 1 too (owner, glyph rack: "why does the star
+   formation box sit differently than the others?") — a piece's rendered
+   canvas height varies with its own fork (state glow pads the canvas, a
+   muted fork shrinks it), and packed cards let a short canvas drag its
+   caption up mid-card. The art rides a uniform stage instead: it takes
+   the card's spare height and centers, so every caption in a row sits on
+   one shared baseline no matter how each glyph's canvas came out. Cards
+   with equal canvases (the item-slot family) render exactly as before. */
+.kp-slotgrid .kp-piece .kp-live { flex: 1; display: flex; align-items: center; justify-content: center; }
 .kp-tray.kp-axis { align-items: stretch; }
 /* racing tray — gauges want open air between them */
 .kp-tray.kp-race { gap: 25px 64px; padding: 30px 34px; }
