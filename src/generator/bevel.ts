@@ -4673,13 +4673,64 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
        at the shell frame — the glyph family renders flat by default, where
        shell and face coincide; walled interplay is deliberate follow-on. */
     const glEntry = sov ? glyphShape(sov) : undefined;
-    if (glEntry?.detail) {
-      let dd = transformPath(glEntry.detail, glEntry.vb, 39, 30, dGl, dGl);
-      if (sov!.endsWith("~flip")) dd = mirrorPathX(dd, 39 + dGl / 2);
+    if (glEntry?.detail || glEntry?.detailLight) {
       const sil = shapePath(sov as Shape, 39, 30, dGl, dGl, 0);
-      const ink = effect(designFor(cfg, state).effects, "Shadow");
+      const D2 = designFor(cfg, state);
       const cid = "gd" + UID++;
-      outGl = inject(outGl, `<clipPath id="${cid}"><path d="${sil}"/></clipPath><g data-part="glyph-detail" clip-path="url(#${cid})"><path d="${dd}" fill="${ink}" opacity="0.92"/></g>`);
+      const bake = (src: string): string => {
+        const p = transformPath(src, glEntry.vb, 39, 30, dGl, dGl);
+        return sov!.endsWith("~flip") ? mirrorPathX(p, 39 + dGl / 2) : p;
+      };
+      let bands = "";
+      if (glEntry.detail) {
+        const dd = bake(glEntry.detail);
+        bands += `<path d="${dd}" fill="${effect(D2.effects, "Shadow")}" opacity="0.92"/>`;
+        /* the Detail glow slot (default Off): On, the shadow-inked bands
+           LUMINESCE — a hot core over the engraved ink plus bloom in the
+           kit's glow ink (inner-glow color, else the Glow well). The
+           strength is the control's own, NEVER a glow dial's: riding
+           extrusion.glow gated the whole effect on a slider many kits
+           park at 0 (owner: base glow "has no effect") — the toggle must
+           read on every kit. Emission stays inside the silhouette clip:
+           lit grooves, never a halo past the outline. Additive by
+           construction — no slot, no change. */
+        if (opts.slots?.detailglow === "On" && state !== "disabled") {
+          const gc = D2.candy.innerGlow.color ?? effect(D2.effects, "Glow");
+          bands += `<g style="filter: drop-shadow(0 0 ${(dGl * 0.035).toFixed(1)}px ${gc}) drop-shadow(0 0 ${(dGl * 0.095).toFixed(1)}px ${hexRgba(gc, 0.6)})"><path d="${dd}" fill="${hexMix(gc, "#FFFFFF", 0.4)}" opacity="0.95"/></g>`;
+        }
+      }
+      /* light-catch furnishing (registry `detailLight`): painted in the
+         kit's HIGHLIGHT role over the shadow pass — the recessed coin
+         face's lower lip is the first tenant. */
+      if (glEntry.detailLight) bands += `<path d="${bake(glEntry.detailLight)}" fill="${effect(D2.effects, "Highlight")}" opacity="0.55"/>`;
+      outGl = inject(outGl, `<clipPath id="${cid}"><path d="${sil}"/></clipPath><g data-part="glyph-detail" clip-path="url(#${cid})">${bands}</g>`);
+    }
+    /* authored sparkle seats (registry `glints`): the kit's glint star
+       stamped where the entry says the face catches light — the indented
+       coin's shine (owner: "let's just add some shine or glint"). Kit-
+       following where the kit speaks: opacity and blend ride Typography →
+       Glints while that treatment is on; with kit glints off the seats
+       still shine at their authored strength — the sparkle is part of the
+       glyph's look, like its light catch. Unclipped on purpose, exactly
+       like the letterform glint stars. */
+    if (glEntry?.glints?.length && state !== "disabled") {
+      const GLK = designFor(cfg, state).type.glints;
+      const op = clamp((GLK?.on ? (GLK.opacity ?? 55) : 70) / 100, 0, 1);
+      if (op > 0.01) {
+        const star4g = (sx: number, sy: number, s: number, sr: number) =>
+          `<path d="M0 ${(-s).toFixed(1)} L${(s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} L${s.toFixed(1)} 0 L${(s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L0 ${s.toFixed(1)} L${(-s * 0.22).toFixed(1)} ${(s * 0.22).toFixed(1)} L${(-s).toFixed(1)} 0 L${(-s * 0.22).toFixed(1)} ${(-s * 0.22).toFixed(1)} Z" transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${sr})" fill="#FFFFFF"/>`;
+        const vb2 = glEntry.vb;
+        const stars = glEntry.glints.map((g) => {
+          let sx = 39 + ((g.x - vb2[0]) / vb2[2]) * dGl;
+          const sy = 30 + ((g.y - vb2[1]) / vb2[3]) * dGl;
+          let rr = g.r ?? 0;
+          if (sov!.endsWith("~flip")) { sx = 2 * (39 + dGl / 2) - sx; rr = -rr; }
+          return star4g(sx, sy, (g.s / vb2[2]) * dGl, rr);
+        }).join("");
+        let layer = `<g data-part="glyph-glint" opacity="${op.toFixed(2)}">${stars}</g>`;
+        if (GLK?.on && GLK.blend && GLK.blend !== "normal") layer = `<g style="mix-blend-mode:${GLK.blend}">${layer}</g>`;
+        outGl = inject(outGl, layer);
+      }
     }
     return outGl;
   }

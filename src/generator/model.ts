@@ -1440,6 +1440,22 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   ],
 };
 
+/* Glyph pieces whose registry entry carries an engraved detail layer get
+   the detail dial — attached FROM the registry, so a new detailed glyph
+   inherits the control for free (the registry-alone-decides rule). "On"
+   makes the shadow-inked bands luminesce in the kit's glow ink (Inner
+   glow color, else the Glow well) at the control's own strength — never
+   gated on a glow slider, so the toggle reads on every kit. Off is the
+   factory engraved look and stores nothing, so untouched kits render
+   exactly as before. */
+for (const g of GLYPH_LIBRARY) {
+  if (!g.detail) continue;
+  KIT_SLOTS[`glyph${g.id}` as KitComponentId] = [
+    { id: "detailglow", name: "Detail glow", kind: "choice", choices: ["Off", "On"],
+      note: "The engraved detail (seams, recess shading) is inked in the kit's Shadow role. On makes those bands luminesce — a backlit-seam read in the kit's glow ink (Inner glow color when set, else the Glow well)." },
+  ];
+}
+
 /* ── Lessons — the authored half of the i card ────────────────────────
    What the pattern is called, where it comes from, who does it well, and
    further reading. Links open in new tabs (owner rule). One entry per
