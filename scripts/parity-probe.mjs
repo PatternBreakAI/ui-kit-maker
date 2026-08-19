@@ -970,7 +970,15 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
        the dome's designed sink. The icon's trip is what the shipped
        importer arms into FireButton.pressedLift — replayed here from the
        zip's own Editor C#: the stamp-driven FireGlyphTrip, or the old
-       dial-only formula on earlier semantics. They must travel together. */
+       dial-only formula on earlier semantics. They must travel together.
+       Round 22 (owner field: "the ring around the button is moving up,
+       but the only thing that needs to move is the white button with
+       icon, down"): the row's blind spot was the RING — disc and icon
+       rode the pad's press pose TOGETHER, so the row passed while the
+       whole pad slid. Now the pad must be a HOUSING: the dome/pressed
+       shells must be EQUAL (stamp), the ring's own pixel rows must not
+       move between the two shipped sprites (pixels), and the disc's
+       whole trip must be the designed sink alone. */
     {
       // shared Editor files sit OUTSIDE the slug folder — dual-key lookup,
       // the same lesson the Runtime lookup learned in round 16
@@ -986,6 +994,33 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
         const glyphTrip = stampTrip ? discTrip : (fxF.lift ?? 0) - shellMin * 0.016;
         const ok = Math.abs(glyphTrip - discTrip) <= 0.5;
         glow.rows.push({ ctx: "fire press (disc vs icon)", verdict: ok ? "PASS" : "FAIL", centerDx: 0, centerDy: Math.round((glyphTrip - discTrip) * 10) / 10, size: `disc ${Math.round(discTrip * 10) / 10}, icon ${Math.round(glyphTrip * 10) / 10}`, want: "together" });
+        /* ring immobility (round 22) — stamps AND pixels */
+        const shellStill = dP.shell.y === d0.shell.y && dP.shell.x === d0.shell.x;
+        const ringBand = async (rel) => {
+          const im = await sprite(rel);
+          if (!im) return null;
+          const cv = document.createElement("canvas"); cv.width = im.width; cv.height = im.height;
+          const cx4 = cv.getContext("2d"); cx4.drawImage(im, 0, 0);
+          const dd = cx4.getImageData(0, 0, im.width, im.height).data;
+          // one column through the pad ring's right band, clear of ticks,
+          // disc and satellites: 12 png px inside the shell's right edge
+          const x4 = Math.min(im.width - 1, Math.round(d0.shell.x + d0.shell.w - 12));
+          let top = -1, bot = -1;
+          for (let y = 0; y < im.height; y++)
+            if (dd[(y * im.width + x4) * 4 + 3] > 28) { if (top < 0) top = y; bot = y; }
+          return { top, bot };
+        };
+        const rb0 = await ringBand("assets/firebutton/firebutton-dome.png");
+        const rbP = await ringBand("assets/firebutton/firebutton-dome-pressed.png");
+        const pxStill = rb0 && rbP && Math.abs(rb0.top - rbP.top) <= 1 && Math.abs(rb0.bot - rbP.bot) <= 1;
+        const sinkOnly = Math.abs(discTrip - (0 - shellMin * 0.016)) <= 0.5;
+        const okRing = shellStill && !!pxStill && sinkOnly;
+        glow.rows.push({
+          ctx: "fire press (ring immobile)", verdict: okRing ? "PASS" : "FAIL",
+          centerDx: 0, centerDy: rb0 && rbP ? rbP.top - rb0.top : 0,
+          size: `shellΔ ${Math.round((dP.shell.y - d0.shell.y) * 10) / 10}px; ring rows ${rb0 ? rb0.top + ".." + rb0.bot : "?"} -> ${rbP ? rbP.top + ".." + rbP.bot : "?"}; disc ${Math.round(discTrip * 10) / 10}`,
+          want: `ring still; disc ${Math.round(-shellMin * 0.016 * 10) / 10} (designed sink only)`,
+        });
       } else {
         glow.rows.push({ ctx: "fire press (disc vs icon)", verdict: "FAIL", centerDx: 0, centerDy: 0, size: "dome rows missing", want: "dome + dome-pressed stamps" });
       }

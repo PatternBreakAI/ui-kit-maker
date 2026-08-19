@@ -257,6 +257,17 @@ if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
 if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
   errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
 
+/* round-22 item A: the fire pad is a HOUSING (owner field: "the ring
+   around the button is moving up, but the only thing that needs to move
+   is the white button with icon, down"). The press pose — state lift
+   dial + pressed extrusion collapse — must never slide the pad/ring;
+   the app pins the pad's pose to the resting state, so the baked swap
+   sprites carry a still ring and the disc's designed sink alone, and
+   FireGlyphTrip measures exactly that for the glyph. */
+if (!/const cfgPad = /.test(bevelSrc) || !/lift: cfg\.states\.default\.lift/.test(bevelSrc)
+    || !/const restDepth = designFor\(cfg, "default"\)\.candy\.extrusion\.depth;/.test(bevelSrc))
+  errors.push("the fire pad's pose pin (housing contract) is missing from bevel.ts (round 22 — the ring rode the press pose into the baked swap)");
+
 /* round-21: board bars arrive KIT-DRESSED (owner mandate — truth from app
    to Unity). The progress assets must be the real component's part
    renders, the manifest must carry the well zone, and the ProgressBar

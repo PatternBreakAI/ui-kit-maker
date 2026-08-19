@@ -8465,7 +8465,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // INSIDE the canvas so raster exports keep them (never in glow slack)
       const exF = Math.round(dF9 * 0.3);
       const x9 = 33 + exF, y9 = 27 + exF;
-      const track = build(cfg, state, { x: x9, y: y9, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
+      /* the pad is a HOUSING (round 22, owner: "the only thing that needs
+         to move is the white button with icon, down"): the press pose —
+         the state lift dial and the pressed fork's extrusion collapse —
+         used to slide the ring/pad while the ticks, well, dome and
+         satellites are drawn at fixed coordinates, so the ring detached
+         from its own dressing on press (and the baked swap carried the
+         slide into Unity). Pin the pad's POSE to the resting state; every
+         color and candy fork still follows the state. Only the dome disc
+         keeps its designed sink, and the glyph rides it. Default renders
+         byte-identically — the pin is the identity there. */
+      const cfgPad = (() => {
+        if (state === "default") return cfg;
+        const c2 = { ...cfg, states: { ...cfg.states, [state]: { ...cfg.states[state], lift: cfg.states.default.lift } } };
+        const fPad = c2.stateDesigns?.[state as Exclude<GenStateName, "default">];
+        if (fPad?.candy?.extrusion) {
+          const restDepth = designFor(cfg, "default").candy.extrusion.depth;
+          c2.stateDesigns = {
+            ...c2.stateDesigns,
+            [state]: { ...fPad, candy: { ...fPad.candy, extrusion: { ...fPad.candy.extrusion, depth: restDepth } } },
+          };
+        }
+        return c2;
+      })();
+      const track = build(cfgPad, state, { x: x9, y: y9, h: dF9, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: dF9, shapeOverride: "pill" });
       const inset9 = bw + 5;
       const cx9 = x9 + dF9 / 2, cy9 = y9 + dF9 / 2;
       const krF = dF9 / 2 - inset9 - 13;
