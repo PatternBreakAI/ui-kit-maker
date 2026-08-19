@@ -66,9 +66,9 @@ const entry = join(OUT, "parity-entry.ts");
 writeFileSync(entry, `
 import { renderKit } from "@/generator/bevel";
 import { downloadEngineExport, collectExportBoards } from "@/generator/engineExport";
-import { useGen, hydrate } from "@/generator/store";
+import { useGen, hydrate, stampSvg } from "@/generator/store";
 import { defaultConfig, applyKitDesign, applyKitTextFill, effKitSize } from "@/generator/model";
-(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, hydrate, defaultConfig, applyKitDesign, applyKitTextFill, effKitSize };
+(window as unknown as Record<string, unknown>).__probe = { renderKit, downloadEngineExport, collectExportBoards, useGen, hydrate, stampSvg, defaultConfig, applyKitDesign, applyKitTextFill, effKitSize };
 `);
 const bundle = join(OUT, "parity-bundle.js");
 const eb = spawnSync("npx", ["--prefix", REPO, "esbuild", entry, "--bundle", "--format=iife", `--outfile=${bundle}`,
@@ -174,6 +174,32 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     if (slB) st.stretchBoardItem(slB.id, 2.0, slB.x);
   }
   st = P.useGen.getState();
+  /* round 20 item C: the MAIN-MENU composition (owner screenshots) —
+     title stamp high center, a START/OPTIONS stack beside the bench's
+     own primary, trophy low-left, gear top-right, progress top-left.
+     Per-item ink-centroid deltas quantify "small alignment issues". */
+  st.addBoardItems([
+    { kitId: "primary", x: 700, y: 260 },
+    { kitId: "primary", x: 700, y: 410 },
+    { kitId: "trophyicon", x: 130, y: 700 },
+    { kitId: "gearicon", x: 1770, y: 40 },
+    { kitId: "progress", x: 120, y: 40 },
+  ]);
+  st = P.useGen.getState();
+  {
+    const bdM = st.boards[st.boards.length - 1];
+    const prims = bdM.items.filter((i) => i.kitId === "primary");
+    if (prims.length >= 3) {
+      st.setBoardItemLabel(prims[1].id, "START");
+      st.setBoardItemLabel(prims[2].id, "OPTIONS");
+    }
+    st.addStampToBoard();
+    const st3 = P.useGen.getState();
+    const bdM2 = st3.boards[st3.boards.length - 1];
+    const stIt = bdM2.items.find((i) => i.stamp);
+    if (stIt) { st3.setBoardItemStamp(stIt.id, { text: "WAR CHUDS", size: 72 }); st3.moveBoardItem(stIt.id, 640, 40); }
+  }
+  st = P.useGen.getState();
   const exBoards = await P.collectExportBoards(st);
   await P.downloadEngineExport({
     cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes,
@@ -245,16 +271,19 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
   const rowCanvases = [];
 
   /* the row verdict: alpha-masked pixel diff of the two CELL canvases */
-  const diffPush = (it, A, S) => {
+  const diffPush = (it, A, S, kb = 1) => {
     const da = A.getContext("2d").getImageData(0, 0, CELL, CELL).data;
     const ds = S.getContext("2d").getImageData(0, 0, CELL, CELL).data;
     const D = document.createElement("canvas"); D.width = CELL; D.height = CELL;
     const dxq = D.getContext("2d");
     const di = dxq.createImageData(CELL, CELL);
     let lost = 0, added = 0, inkA = 0, both = 0, dsum = 0;
+    let axc = 0, ayc = 0, an = 0, sxc = 0, syc = 0, sn = 0;
     for (let i = 0; i < da.length; i += 4) {
       const aA = da[i + 3] > 28, aS = ds[i + 3] > 28;
-      if (aA) inkA++;
+      const pxI = (i >> 2) % CELL, pyI = ((i >> 2) / CELL) | 0;
+      if (aA) { inkA++; axc += pxI; ayc += pyI; an++; }
+      if (aS) { sxc += pxI; syc += pyI; sn++; }
       if (aA && !aS) { lost++; di.data[i] = 255; di.data[i + 1] = 80; di.data[i + 2] = 80; di.data[i + 3] = 220; }
       else if (!aA && aS) { added++; di.data[i] = 90; di.data[i + 1] = 200; di.data[i + 2] = 255; di.data[i + 3] = 220; }
       else if (aA && aS) {
@@ -266,10 +295,13 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     }
     dxq.putImageData(di, 0, 0);
     results.push({
-      item: it.component,
+      item: it.component + (it.label ? ` (${it.label})` : ""),
       lostPct: Math.round((lost / Math.max(1, inkA)) * 1000) / 10,
       addedPct: Math.round((added / Math.max(1, inkA)) * 1000) / 10,
       meanColorDelta: both ? Math.round((dsum / both) * 10) / 10 : 0,
+      /* ink-centroid drift, scene minus app, BOARD px — the alignment number */
+      dxPx: an && sn ? Math.round((sxc / sn - axc / an) * kb * 10) / 10 : null,
+      dyPx: an && sn ? Math.round((syc / sn - ayc / an) * kb * 10) / 10 : null,
     });
     rowCanvases.push([A.toDataURL(), S.toDataURL(), D.toDataURL()]);
   };
@@ -307,6 +339,7 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       const rowJ = (m.assets ?? []).find((a) => a && a.file === "assets/joystick/joystick-ghost-base.png");
       const A = document.createElement("canvas"); A.width = CELL; A.height = CELL;
       const S = document.createElement("canvas"); S.width = CELL; S.height = CELL;
+      let kGhost = 1;
       if (baseJ && thumbJ && rowJ && rowJ.shell) {
         const kS = (CELL * 0.9) / Math.max(baseJ.width, baseJ.height);
         const ox = (CELL - baseJ.width * kS) / 2, oy = (CELL - baseJ.height * kS) / 2;
@@ -315,9 +348,34 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
         const cxJ = rowJ.shell.x + rowJ.shell.w / 2, cyJ = rowJ.shell.y + rowJ.shell.h / 2;
         sxx.drawImage(thumbJ, ox + (cxJ - thumbJ.width / 2) * kS, oy + (cyJ - thumbJ.height / 2) * kS, thumbJ.width * kS, thumbJ.height * kS);
         const kA = kS * (baseJ.width / appJ.width); // pngScale cancels out
+        kGhost = kA;
         A.getContext("2d").drawImage(appJ, (CELL - appJ.width * kA) / 2, (CELL - appJ.height * kA) / 2, appJ.width * kA, appJ.height * kA);
       }
-      diffPush(it, A, S);
+      diffPush(it, A, S, 1 / kGhost);
+      continue;
+    }
+    if (it.component === "typestamp" && it.stamp) {
+      /* the TITLE STAMP: app = the store's own stampSvg for this text;
+         scene = the baked boardstamps PNG the importer places 1:1 */
+      const A = document.createElement("canvas"); A.width = CELL; A.height = CELL;
+      const S = document.createElement("canvas"); S.width = CELL; S.height = CELL;
+      /* DETERMINISTIC app column: the bench set this stamp itself
+         ({ text, size: 72 }) — rebuild the same object instead of
+         hunting the store's boards (a fixture kit's own boards carry
+         their own stamps and once handed us "new buffs" for the title) */
+      const srcIt = { stamp: { text: it.label, size: 72 } };
+      let kSt = 1;
+      if (srcIt) {
+        const appC = await svgToCanvas(P.stampSvg(P.useGen.getState().cfg, srcIt.stamp), 1);
+        kSt = Math.min((CELL * 0.9) / appC.width, (CELL * 0.9) / appC.height);
+        A.getContext("2d").drawImage(appC, (CELL - appC.width * kSt) / 2, (CELL - appC.height * kSt) / 2, appC.width * kSt, appC.height * kSt);
+        const bake = await sprite(it.stamp);
+        if (bake) {
+          const kB = kSt / ps;
+          S.getContext("2d").drawImage(bake, (CELL - bake.width * kB) / 2, (CELL - bake.height * kB) / 2, bake.width * kB, bake.height * kB);
+        }
+      }
+      diffPush(it, A, S, 1 / kSt);
       continue;
     }
     const famId = KIT_TO_ID[it.component] ?? it.component;
@@ -441,9 +499,30 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     };
 
     if (it.posed) {
+      /* the POSED copy, the builder's own recipe (round 20): the ART
+         child sits at (posedDx, posedDy) off the shell center at its
+         crop-box size, and the WORD rides live at posedLabelDx/Dy —
+         drawing the bake centered and wordless was the probe's blindness,
+         not the scene's (START read 14 px off and lost its word). */
+
       const img = await sprite(it.posed);
-      const pk = cellK / ps;
-      if (img) sx.drawImage(img, (CELL - img.width * pk) / 2, (CELL - img.height * pk) / 2, img.width * pk, img.height * pk);
+      if (img) {
+        const aw = (it.posedW > 1 ? it.posedW : it.w) * cellK;
+        const ah = (it.posedH > 1 ? it.posedH : it.h) * cellK;
+        sx.drawImage(img, CELL / 2 + (it.posedDx ?? 0) * cellK - aw / 2, CELL / 2 + (it.posedDy ?? 0) * cellK - ah / 2, aw, ah);
+      }
+      const brP = row(it.component, "base");
+      const word = it.label ?? brP?.labelText ?? "";
+      if (word && brP && brP.labelFs > 1 && brP.shell) {
+        const ty = m.typography?.style ?? {};
+        const fsB = (brP.labelFs * ps) * (it.h / (brP.shell.h / ps)); // family fs, height-proportional to this copy
+        const mapP = { ox: CELL / 2, oy: CELL / 2, scale: cellK };
+        text(word, (it.posedLabelDx ?? 0), (it.posedLabelDy ?? 0), fsB / ps, mapP, {
+          weight: ty.weight ?? 800, italic: !!ty.italic, fill: ty.fill ?? "#FFF",
+          strokeW: ty.outline ? ty.outline.width * ps * cellK : 0, stroke: ty.outline ? ty.outline.color : null,
+          spacing: ty.spacingEmPct ?? 0,
+        });
+      }
     } else if (["speedo", "speedo2", "tacho"].includes(it.component)) {
       const fr = row(it.component, "face");
       const g = gaugeRow(it.component);
@@ -574,6 +653,25 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
         }
         drawSeats(br, map, img0);
       }
+    } else if (it.component === "progress") {
+      const trRow = row("progress", "track");
+      const trImg = await sprite("assets/progress/progress-track.9.png");
+      // the synthetic track svg stamps no shell — center by the sprite box
+      const shlP = trRow?.shell ?? (trImg ? { x: 0, y: 0, w: trImg.width, h: trImg.height } : null);
+      const map = await drawSpriteShellCentered("assets/progress/progress-track.9.png", shlP);
+      if (map && shlP) {
+        const fillImg = await sprite("assets/progress/progress-fill.9.png");
+        if (fillImg) {
+          const v9 = value ?? 0.62;
+          sx.save();
+          sx.beginPath();
+          sx.rect(map.ox + shlP.x * map.scale, map.oy, shlP.w * map.scale * v9, CELL);
+          sx.clip();
+          const fy = map.oy + (shlP.y + shlP.h / 2) * map.scale - fillImg.height * map.scale / 2;
+          sx.drawImage(fillImg, map.ox + shlP.x * map.scale, fy, fillImg.width * map.scale, fillImg.height * map.scale);
+          sx.restore();
+        }
+      }
     } else {
       const br = row(it.component, "base");
       const map = await drawSpriteShellCentered(`assets/${it.component}/${it.component}-base.9.png`, br?.shell)
@@ -605,7 +703,7 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
       }
     }
 
-    diffPush(it, A, S);
+    diffPush(it, A, S, 1 / kApp);
   }
 
   /* ── 4 · GLOW-STATE GEOMETRY (round 15) — from the shipped C# ────── */
