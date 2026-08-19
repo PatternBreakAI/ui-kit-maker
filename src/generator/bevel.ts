@@ -4685,18 +4685,39 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (glEntry.detail) {
         const dd = bake(glEntry.detail);
         bands += `<path d="${dd}" fill="${effect(D2.effects, "Shadow")}" opacity="0.92"/>`;
-        /* the Detail glow slot (default Off): On, the shadow-inked bands
-           LUMINESCE — a hot core over the engraved ink plus bloom in the
-           kit's glow ink (inner-glow color, else the Glow well). The
-           strength is the control's own, NEVER a glow dial's: riding
-           extrusion.glow gated the whole effect on a slider many kits
-           park at 0 (owner: base glow "has no effect") — the toggle must
-           read on every kit. Emission stays inside the silhouette clip:
-           lit grooves, never a halo past the outline. Additive by
-           construction — no slot, no change. */
-        if (opts.slots?.detailglow === "On" && state !== "disabled") {
+        /* BASE GLOW in the engraved shadow regions (owner spec 2026-08-19,
+           visual reference: bloom pools rising from within the coin's rim
+           bands "the way it behaves on button extrusion shadows"). This is
+           the BUTTONS' machinery presented here, not a parallel system —
+           same ink (Inner glow color when set, else the Glow well), same
+           dial (Candy → Extrusion → Base glow), same soft radial pool at
+           the buttons' own proportions (rx 0.32 of the region's width,
+           belly at 0.45 of its height, reach 1.1× its height): a kit whose
+           buttons bloom makes these bands bloom identically, and a kit
+           that parks the dial at 0 keeps buttons and bands honestly quiet
+           together. One pool per engraved region, clipped to the region —
+           brightest inside the shadow, never an edge-light or outer halo.
+           The Detail glow slot is the follow/off override shape (the shine
+           chips' precedent): default/absent follows the kit's dial, Off
+           opts this one glyph out; a legacy stored "On" (the retired
+           self-strength luminesce toggle) follows the kit too. */
+        const egOpG = (D2.candy.extrusion.glow / 100) * (state === "disabled" ? 0 : 1);
+        if (opts.slots?.detailglow !== "Off" && egOpG > 0.01) {
           const gc = D2.candy.innerGlow.color ?? effect(D2.effects, "Glow");
-          bands += `<g style="filter: drop-shadow(0 0 ${(dGl * 0.035).toFixed(1)}px ${gc}) drop-shadow(0 0 ${(dGl * 0.095).toFixed(1)}px ${hexRgba(gc, 0.6)})"><path d="${dd}" fill="${hexMix(gc, "#FFFFFF", 0.4)}" opacity="0.95"/></g>`;
+          const gpid = "gp" + UID++, gcid = "gq" + UID++;
+          let pools = "";
+          for (const sub of dd.match(/M[^M]+/g) ?? []) {
+            const ns = (sub.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+            let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+            for (let i = 0; i + 1 < ns.length; i += 2) {
+              if (ns[i] < x0) x0 = ns[i]; if (ns[i] > x1) x1 = ns[i];
+              if (ns[i + 1] < y0) y0 = ns[i + 1]; if (ns[i + 1] > y1) y1 = ns[i + 1];
+            }
+            const bwP = x1 - x0, bhP = y1 - y0;
+            if (!(bwP > 2 && bhP > 2)) continue;
+            pools += `<ellipse cx="${(x0 + bwP / 2).toFixed(1)}" cy="${(y0 + bhP * 0.45).toFixed(1)}" rx="${(bwP * 0.32).toFixed(1)}" ry="${Math.max(8, bhP * 1.1).toFixed(1)}" fill="url(#${gpid})"/>`;
+          }
+          if (pools) bands += `<radialGradient id="${gpid}"><stop offset="0" stop-color="${gc}" stop-opacity="1"/><stop offset="1" stop-color="${gc}" stop-opacity="0"/></radialGradient><clipPath id="${gcid}"><path d="${dd}"/></clipPath><g clip-path="url(#${gcid})" opacity="${egOpG.toFixed(2)}">${pools}</g>`;
         }
       }
       /* light-catch furnishing (registry `detailLight`): painted in the
