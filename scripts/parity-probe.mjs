@@ -11,7 +11,9 @@
    WHAT IT DOES, per kit
    1. Runs a REAL store-flow export (field board: timer, all three
       gauges, minimap, circuit, primary button, leaderboard, telemetry,
-      laptimes, loottag) through the CURRENT source.
+      laptimes, loottag, and — round 21 — the dressed bar rigs: vsbar,
+      emblembar, segbar, plus the main-menu progress) through the
+      CURRENT source.
    2. LEFT column  = the app's own board render of every placed item
       (calmed: cast shadow / contact / state glow / bloom are
       engine-composed by design, never baked).
@@ -165,6 +167,12 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     { kitId: "telemetry", x: 100, y: 860 },
     { kitId: "laptimes", x: 560, y: 860 },
     { kitId: "loottag", x: 1000, y: 900 },
+    /* round 21: the bar family arrives KIT-DRESSED and live — each bar
+       gets its own parity row (the export ships their render defaults:
+       vsbar 0.72 left fighter, the others 0.62) */
+    { kitId: "vsbar", x: 420, y: 980 },
+    { kitId: "emblembar", x: 420, y: 200 },
+    { kitId: "segbar", x: 1400, y: 980 },
   ]);
   st = P.useGen.getState();
   {
@@ -396,9 +404,10 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
     cfgCalm.candy.contact.opacity = 0;
     cfgCalm.candy.bloom.opacity = 0;
     for (const s of Object.values(cfgCalm.states)) s.glow = 0;
-    // icon: the BOARD renders default icons (the loot tag's gem) — only
-    // pieces the board itself strips pass icon:null
-    const appSvg = P.renderKit(cfgCalm, famId, "l", "default", value, shapeOv ?? undefined, { ...(it.component === "loottag" ? {} : { icon: null }), label: it.label ?? undefined });
+    // icon: the BOARD renders default icons (the loot tag's gem, the
+    // emblem bar's docked clock) — only pieces the board itself strips
+    // pass icon:null
+    const appSvg = P.renderKit(cfgCalm, famId, "l", "default", value, shapeOv ?? undefined, { ...(it.component === "loottag" || it.component === "emblembar" ? {} : { icon: null }), label: it.label ?? undefined });
     const shm = /data-shell0?="([-\d. ]+)"/.exec(appSvg);
     const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(appSvg);
     const shell = shm ? shm[1].split(" ").map(Number) : null;
@@ -653,24 +662,98 @@ const runKit = async (kitName, fixtureJson) => await page.evaluate(async ({ KIT,
         }
         drawSeats(br, map, img0);
       }
-    } else if (it.component === "progress") {
-      const trRow = row("progress", "track");
-      const trImg = await sprite("assets/progress/progress-track.9.png");
-      // the synthetic track svg stamps no shell — center by the sprite box
+    } else if (it.component === "progress" || it.component === "emblembar") {
+      /* the DRESSED bar rig, the prefab's own recipe (round 21): mercury
+         stretched over the manifest's well zone, riding the shell line,
+         scissored Filled-style at the value; the emblem bar adds the
+         docked socket over the fill (shellX + 0.46 x D, D = 1.9 x
+         shell h). */
+      const fam9 = it.component;
+      const trRow = row(fam9, "track");
+      const trImg = await sprite(`assets/${fam9}/${fam9}-track.9.png`);
       const shlP = trRow?.shell ?? (trImg ? { x: 0, y: 0, w: trImg.width, h: trImg.height } : null);
-      const map = await drawSpriteShellCentered("assets/progress/progress-track.9.png", shlP);
-      if (map && shlP) {
-        const fillImg = await sprite("assets/progress/progress-fill.9.png");
+      const map = await drawSpriteShellCentered(`assets/${fam9}/${fam9}-track.9.png`, shlP);
+      if (map && shlP && trImg) {
+        const fillImg = await sprite(`assets/${fam9}/${fam9}-fill.9.png`);
         if (fillImg) {
+          const zone = trRow?.track && trRow.track.w > 2 ? trRow.track
+            : { x: (trImg.width - fillImg.width) / 2, w: fillImg.width };
           const v9 = value ?? 0.62;
+          const shellCy = shlP.y + shlP.h / 2;
           sx.save();
           sx.beginPath();
-          sx.rect(map.ox + shlP.x * map.scale, map.oy, shlP.w * map.scale * v9, CELL);
+          sx.rect(map.ox + zone.x * map.scale, map.oy, zone.w * map.scale * v9, CELL);
           sx.clip();
-          const fy = map.oy + (shlP.y + shlP.h / 2) * map.scale - fillImg.height * map.scale / 2;
-          sx.drawImage(fillImg, map.ox + shlP.x * map.scale, fy, fillImg.width * map.scale, fillImg.height * map.scale);
+          sx.drawImage(fillImg, map.ox + zone.x * map.scale, map.oy + shellCy * map.scale - fillImg.height * map.scale / 2,
+            zone.w * map.scale, fillImg.height * map.scale);
           sx.restore();
         }
+        if (fam9 === "emblembar") {
+          const sockImg = await sprite("assets/emblembar/emblembar-socket.png");
+          if (sockImg) {
+            const D9 = shlP.h * 1.9;
+            const scx = shlP.x + D9 * 0.46, scy = shlP.y + shlP.h / 2;
+            sx.drawImage(sockImg, map.ox + scx * map.scale - sockImg.width * map.scale / 2,
+              map.oy + scy * map.scale - sockImg.height * map.scale / 2,
+              sockImg.width * map.scale, sockImg.height * map.scale);
+          }
+        }
+      }
+    } else if (it.component === "vsbar") {
+      /* the VsBar prefab's recipe: each fighter's Filled mercury on its
+         half of the well zone (left drains left-to-center at the item's
+         value, right staged 0.58), candy medallion on the axis */
+      const trRow = row("vsbar", "track");
+      const trImg = await sprite("assets/vsbar/vsbar-track.9.png");
+      const shlP = trRow?.shell ?? (trImg ? { x: 0, y: 0, w: trImg.width, h: trImg.height } : null);
+      const map = await drawSpriteShellCentered("assets/vsbar/vsbar-track.9.png", shlP);
+      if (map && shlP && trImg) {
+        const shellCy = shlP.y + shlP.h / 2;
+        const zone = trRow?.track && trRow.track.w > 2 ? trRow.track : { x: trImg.width * 0.06, w: trImg.width * 0.88 };
+        const zoneR = trImg.width - (zone.x + zone.w);
+        const fillL = await sprite("assets/vsbar/vsbar-fill-l.png");
+        const fillR = await sprite("assets/vsbar/vsbar-fill-r.png");
+        const vL9 = value ?? 0.72, vR9 = 0.58;
+        if (fillL) {
+          sx.save(); sx.beginPath();
+          sx.rect(map.ox + zone.x * map.scale, map.oy, fillL.width * map.scale * vL9, CELL); sx.clip();
+          sx.drawImage(fillL, map.ox + zone.x * map.scale, map.oy + shellCy * map.scale - fillL.height * map.scale / 2,
+            fillL.width * map.scale, fillL.height * map.scale);
+          sx.restore();
+        }
+        if (fillR) {
+          const rx1 = trImg.width - zoneR; // area right edge in sprite px
+          sx.save(); sx.beginPath();
+          sx.rect(map.ox + (rx1 - fillR.width * vR9) * map.scale, map.oy, fillR.width * map.scale * vR9, CELL); sx.clip();
+          sx.drawImage(fillR, map.ox + (rx1 - fillR.width) * map.scale, map.oy + shellCy * map.scale - fillR.height * map.scale / 2,
+            fillR.width * map.scale, fillR.height * map.scale);
+          sx.restore();
+        }
+        const medal = await sprite("assets/vsbar/vsbar-medal.png");
+        if (medal) {
+          const mcx = shlP.x + shlP.w / 2;
+          sx.drawImage(medal, map.ox + mcx * map.scale - medal.width * map.scale / 2,
+            map.oy + shellCy * map.scale - medal.height * map.scale / 2,
+            medal.width * map.scale, medal.height * map.scale);
+        }
+      }
+    } else if (it.component === "segbar") {
+      /* the SegmentMeter rig: dressed base + the Lit strip scissored per
+         WHOLE cell on the well zone (base and lit bake on one canvas) */
+      const bRow = row("segbar", "base");
+      const bImg9 = await sprite("assets/segbar/segbar-base.png");
+      const shlP = bRow?.shell ?? (bImg9 ? { x: 0, y: 0, w: bImg9.width, h: bImg9.height } : null);
+      const map = await drawSpriteShellCentered("assets/segbar/segbar-base.png", shlP);
+      const litImg = await sprite("assets/segbar/segbar-lit.png");
+      if (map && litImg) {
+        const v9 = value ?? 0.62;
+        const litCells = Math.round(Math.min(1, Math.max(0, v9)) * 5);
+        const zone = bRow?.track && bRow.track.w > 2 ? bRow.track : null;
+        const frac = litCells <= 0 ? 0 : zone ? Math.min(1, (zone.x + zone.w * (litCells / 5)) / litImg.width) : litCells / 5;
+        sx.save(); sx.beginPath();
+        sx.rect(map.ox, map.oy, litImg.width * map.scale * frac, CELL); sx.clip();
+        sx.drawImage(litImg, map.ox, map.oy, litImg.width * map.scale, litImg.height * map.scale);
+        sx.restore();
       }
     } else {
       const br = row(it.component, "base");
