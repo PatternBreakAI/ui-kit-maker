@@ -6,6 +6,9 @@
 
 // safe despite silhouettes.ts importing from here: that edge is type-only
 import { SILHOUETTES } from "./silhouettes";
+// leaf module (no imports) — the semantic glyph registry drives the glyph
+// pieces' roster and shape map so a new glyph needs only its registry entry
+import { GLYPH_LIBRARY } from "./glyphLibrary";
 
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
@@ -1092,7 +1095,17 @@ export type KitComponentId =
   // illustrated settings gear (staged) — the cog itself wears the treatment
   | "gearicon"
   | "trophyicon" | "firebutton" | "countbadge"
-  | "gifticon";
+  | "gifticon"
+  // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
+  // citizen: its own per-piece forks, sizes, board placement. All staged.
+  | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
+  | "glyphcrown" | "glyphtrophy" | "glyphmedal" | "glyphflag" | "glyphcheckpoint" | "glyphlock" | "glyphcheckmark"
+  | "glyphbomb" | "glyphrocket" | "glyphhammer" | "glyphmagnet" | "glyphshield" | "glyphaddtime"
+  | "glyphchest" | "glyphgift" | "glyphprizewheel" | "glyphcalendar"
+  | "glyphstreak" | "glyphtimer" | "glyphtarget"
+  | "glyphcart" | "glyphsale" | "glyphplus" | "glyphpiggybank"
+  | "glyphhome" | "glyphpause" | "glyphplay" | "glyphreplay" | "glyphsettings" | "glyphsound" | "glyphmusic"
+  | "glyphmail" | "glyphfriends" | "glyphleaderboard" | "glyphnotification" | "glyphquests" | "glyphprofile";
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -1637,6 +1650,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "telemetry", name: "Telemetry" },
   { id: "cardback", name: "Card back" },
   { id: "pack", name: "Card pack" },
+  /* the semantic glyph rack — roster derives from the registry, so a new
+     glyph needs only its glyphLibrary entry. Staged per the standing rule. */
+  ...GLYPH_LIBRARY.map((g) => ({ id: `glyph${g.id}` as KitComponentId, name: `Glyph · ${g.name}`, staged: true as const })),
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
@@ -1697,6 +1713,11 @@ export const mintCloneId = (base: KitComponentId): ClonePieceId =>
  *  per-piece maps — a clone would share content with its base, so they
  *  sit out of duplication until that content moves per-piece. */
 export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
+/** The glyph pieces as a narrowable sub-union — renderKit peels them off
+ *  before its switch, which stays compile-time exhaustive for the rest. */
+export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
+export const isGlyphPiece = (id: KitComponentId): id is GlyphPieceId => id.startsWith("glyph");
+
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
@@ -2006,6 +2027,9 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   speedo2: "pill",           // a pill on a square box is a perfect circle
   tacho: "pill",
 };
+// every glyph piece wears its registry outline — the piece's per-piece shape
+// override (kitShapes) can still re-dress it like any other component
+for (const g of GLYPH_LIBRARY) KIT_SHAPE[`glyph${g.id}` as KitComponentId] = `glyph:${g.id}`;
 
 /* Stock glyphs for kit components — canonical Lucide paths, embedded so the
    renderer stays pure. */

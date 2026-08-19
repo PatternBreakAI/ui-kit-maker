@@ -1,5 +1,5 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isDarkBg, userShapes } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -4656,6 +4656,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const shadow = `<ellipse cx="${cx.toFixed(1)}" cy="${(cy + D * 0.46).toFixed(1)}" rx="${(D * 0.44).toFixed(1)}" ry="${(D * 0.1).toFixed(1)}" fill="rgba(0,0,0,0.35)"/>`;
     return inject(out, `<g data-dock="${dock.side ?? "left"}">${shadow}<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})">${innerSvg}</g></g>`);
   };
+
+  /* ── semantic glyph pieces — one shared construction for the whole rack.
+     The registry outline IS the component (the gearicon canon, furnishing-
+     free): the kit's face, pattern, bevel wall, extrusion, glow and shadow
+     wrap the glyph silhouette with no shell box. Per-piece forks, sizes and
+     states ride the ordinary build() machinery; sov already resolves the
+     KIT_SHAPE glyph: entry, and a kitShapes override re-dresses the piece
+     like any other component. */
+  if (isGlyphPiece(id)) {
+    const dGl = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+    return build(cfg, state, { x: 39, y: 30, h: dGl, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dGl, shapeOverride: sov });
+  }
 
   switch (id) {
     case "primary":
