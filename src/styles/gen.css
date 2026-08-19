@@ -2006,6 +2006,9 @@ button.kp-fact { cursor: pointer; }
 .kp-baytoggle:hover { color: var(--kp-ink); border-color: var(--kp-ink3); }
 .kp-baygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; align-items: stretch; }
 .kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--line2); border-radius: 14px; background: var(--card); }
+/* the editor round-trip lands back on the card that was edited — a brief
+   flash marks it, then the class removes itself (a moment, not a state) */
+.kp-bayrow.kp-bayhot { border-style: solid; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(45, 212, 191, .22); transition: border-color .4s, box-shadow .4s; }
 .kp-bayrow .kp-tray { display: flex; justify-content: center; }
 .kp-bayside { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: auto; }
 .kp-baychip {

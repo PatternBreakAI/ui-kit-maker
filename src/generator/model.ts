@@ -1719,9 +1719,11 @@ export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
 export const isGlyphPiece = (id: KitComponentId): id is GlyphPieceId => id.startsWith("glyph");
 
 /** True when a piece may be SHOWN: released pieces for everyone, staged
- *  pieces only for the admin (who tests them before release). */
+ *  pieces only for the admin (who tests them before release). A hard-deleted
+ *  piece (the trash's permanent tombstone) renders for NOBODY, admin
+ *  included — that permanence is the whole promise of the delete. */
 export const kitVisible = (id: KitComponentId, releases: Record<string, string>, admin: boolean): boolean =>
-  !STAGED_KIT.has(id) || releases[id] === "released" || admin;
+  releases[id] !== "deleted" && (!STAGED_KIT.has(id) || releases[id] === "released" || admin);
 
 /** How much label a piece can carry. Reading-line pieces (dialogue lines,
  *  toasts, messages) hold sentences; identity labels stay tight. The old

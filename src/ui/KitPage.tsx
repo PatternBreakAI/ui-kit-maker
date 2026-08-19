@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
-import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
+import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
@@ -286,8 +286,21 @@ function useShellRail(ref: React.RefObject<HTMLDivElement | null>, sel: string) 
   }, [ref, sel, cfg, kitDesigns, kitShapes, kitSizes]);
 }
 
+/* ── bay round-trip memory ──────────────────────────────────────────────
+   The owner's loop: open bay → Edit a card → editor → back to the kit page.
+   They must land with the bay still open, scrolled to the card they left.
+   Module scope on purpose: it survives the phase switch (the SPA never
+   reloads) but resets on a real page load — the bay's "collapsed is the
+   default every load" demo mandate stays intact. */
+let bayOpenMemo = false;
+let bayEditReturn: KitComponentId | null = null;
+
 interface PieceOpts {
   id: KitComponentId; size?: KitSize; label?: string; segments?: string[];
+  /** This card lives in the staging bay proper — its Edit round-trips back
+   *  to an open bay, scrolled to this card. (Distinct from `bay`, which
+   *  clone cards borrow purely as a staged-gate bypass.) */
+  bayHome?: boolean;
   icon?: IconDef | null; value?: number; baseState?: GenStateName; scale?: number;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string; iconScale?: number; trim?: boolean; tight?: boolean;
   /** render this instance FLAT — no extrusion, contact or cast shadow.
@@ -378,6 +391,9 @@ function usePiece(p: PieceOpts) {
       })() : {}),
     },
     onEdit: () => {
+      // a bay card remembers itself so the editor round-trip lands back
+      // on it — bay open, card in view (owner: the bay kept resetting)
+      if (p.bayHome) bayEditReturn = p.id;
       // the variant card's overlay rides along (the ghost joystick), the
       // stock card clears it — the canvas shows the face that was clicked
       setKitKind(p.kind ?? null); setKitOverlay(p.overlay ?? null); setFocus(p.id);
@@ -1408,8 +1424,31 @@ export function KitPage() {
   const { cfg, kitClones, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
-  // immediately pop up"), so collapsed is the default every load
-  const [bayOpen, setBayOpen] = useState(false);
+  // immediately pop up"), so collapsed is the default every load. Within
+  // a load, the editor round-trip keeps the bay the way it was left.
+  const [bayOpen, setBayOpenRaw] = useState(bayOpenMemo);
+  const setBayOpen = (v: boolean) => { bayOpenMemo = v; setBayOpenRaw(v); };
+  const [trashOpen, setTrashOpen] = useState(false);
+  /* landing back from a bay card's Edit: scroll to the card and flash it.
+     The flash rides REACT STATE (a row className), not a hand-added DOM
+     class — the mount-settling re-renders replace row nodes and would wipe
+     a manual class mid-flash. */
+  const [bayHot, setBayHot] = useState<KitComponentId | null>(null);
+  useEffect(() => {
+    if (!bayOpen || !bayEditReturn) return;
+    /* consume the memory INSIDE the timeout — StrictMode's double-mount
+       cleanup cancels the first timer, and consuming eagerly would leave
+       the second run with nothing to scroll to */
+    const t = window.setTimeout(() => {
+      const sid = bayEditReturn;
+      bayEditReturn = null;
+      if (!sid) return;
+      document.querySelector(`.kp-bayrow[data-bayid="${sid}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      setBayHot(sid);
+      window.setTimeout(() => setBayHot(null), 2600);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [bayOpen]);
   // injected showcase strips (screen patterns, collage, playground) are
   // design surfaces — their SMIL loops hold the settled frame too
   useEffect(() => {
@@ -2258,8 +2297,10 @@ const kitTier = useGen((s) => s.tier);
           Foundations and these pieces don't exist anywhere on the site. ── */}
       {isAdmin && STAGED_KIT.size > 0 && (() => {
         // released pieces LEAVE the queue (owner call) — they live in the
-        // kit proper now; a quiet footer keeps the pull-back reversible
-        const inBay = [...STAGED_KIT].filter((sid) => releases[sid] !== "released");
+        // kit proper now; a quiet footer keeps the pull-back reversible.
+        // Rejects leave too (owner: "somewhere else not here in staging
+        // bay") — they wait in the trash at the page bottom.
+        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
         const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
         const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
           if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -2274,9 +2315,9 @@ const kitTier = useGen((s) => s.tier);
         );
         return (
           <Sec n="00" title="The staging bay"
-            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
             <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
-            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
             {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
                 is a chore) — one atomic ledger write; every card stays
                 individually reversible afterward */}
@@ -2295,7 +2336,7 @@ const kitTier = useGen((s) => s.tier);
                     <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
                   </button>
                   <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
-                    `Park all ${glyphBay.length} glyphs? They stay staged and admin-only; restore any of them from its card.`)}>
+                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
                     Park all glyphs
                   </button>
                 </div>
@@ -2303,26 +2344,19 @@ const kitTier = useGen((s) => s.tier);
             })()}
             <div className="kp-baygrid">
               {inBay.map((sid) => {
-                const status = releases[sid];
                 const nm = pieceName(sid);
                 return (
-                  <div className="kp-bayrow" key={sid}>
+                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
                     <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} bay />
+                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
                     </div>
                     <div className="kp-bayside">
-                      <span className={`kp-baychip${status === "rejected" ? " rej" : ""}`}>
-                        {status === "rejected" ? "Rejected — parked" : "In the bay — only you see this"}
-                      </span>
+                      <span className="kp-baychip">In the bay — only you see this</span>
                       <div className="kp-bayacts">
                         <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
                           <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
                         </button>
-                        {status !== "rejected" ? (
-                          <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "rejected")}>Reject</button>
-                        ) : (
-                          <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
-                        )}
+                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
                       </div>
                     </div>
                   </div>
@@ -3857,6 +3891,55 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       </>}</Deferred>
+
+      {/* ── the trash — rejected pieces wait HERE, a full page away from
+          the bay (owner: "somewhere else not here in staging bay").
+          Admin-only, collapsed by default. Restore sends a piece back to
+          the bay; delete is FOREVER — the ledger keeps a tombstone so the
+          piece never resurfaces, for the admin included. ── */}
+      {isAdmin && (() => {
+        const trashed = [...STAGED_KIT].filter((sid) => releases[sid] === "rejected");
+        if (!trashed.length) return null;
+        const act = (sid: KitComponentId, next: "deleted" | null, confirmMsg?: string) => {
+          if (confirmMsg && !window.confirm(confirmMsg)) return;
+          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+        };
+        if (!trashOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setTrashOpen(true)}>
+              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashed.length} rejected — only you see this
+            </button>
+          </section>
+        );
+        return (
+          <Sec n="00" title="The trash"
+            note="Pieces you rejected from the staging bay. Restore sends one back to the bay to be judged again. Delete forever is permanent — the piece disappears for good and cannot be brought back, even by you.">
+            <button className="kp-baytoggle" onClick={() => setTrashOpen(false)}>Close the trash</button>
+            <div className="kp-baygrid">
+              {trashed.map((sid) => {
+                const nm = pieceName(sid);
+                return (
+                  <div className="kp-bayrow" key={sid}>
+                    <div className="kp-tray kp-axis">
+                      <Piece id={sid} caption={nm} scale={0.5} bay />
+                    </div>
+                    <div className="kp-bayside">
+                      <span className="kp-baychip rej">Rejected — in the trash</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
+                        <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "deleted",
+                          `Delete ${nm} forever? This is PERMANENT — the piece is removed for every maker and for you, and there is no way to bring it back.`)}>
+                          <Trash2 size={13} strokeWidth={2.2} /> Delete forever
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Sec>
+        );
+      })()}
       <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
       <KitDebugStrip />
     </div>

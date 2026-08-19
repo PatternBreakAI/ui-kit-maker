@@ -1032,7 +1032,10 @@ export async function setHiddenSilhouettes(ids: string[]): Promise<string | null
    this key is what flips one public without a deploy. Same app_settings
    RLS as the starters — world-readable, admin-writable. */
 const COMPONENT_RELEASES_KEY = "component_releases";
-export type ReleaseStatus = "released" | "rejected";
+/** "deleted" is the trash's hard-delete tombstone: the ledger keeps the id
+ *  forever so the piece can never resurface in the bay, and kitVisible
+ *  hides it from EVERYONE, admin included. */
+export type ReleaseStatus = "released" | "rejected" | "deleted";
 
 /** null = the read FAILED (keep whatever you had); {} = authoritatively
  *  empty. The two used to collapse into {}, so one flaked read hid every
@@ -1047,7 +1050,7 @@ export async function listComponentReleases(): Promise<Record<string, ReleaseSta
   if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
   const out: Record<string, ReleaseStatus> = {};
   for (const [id, st] of Object.entries(v as Record<string, unknown>)) {
-    if (st === "released" || st === "rejected") out[id] = st;
+    if (st === "released" || st === "rejected" || st === "deleted") out[id] = st;
   }
   return out;
 }
