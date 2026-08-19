@@ -1118,7 +1118,7 @@ export type KitSize = "s" | "m" | "l";
    chosen values, the panel GENERATES its controls from it, and the i card
    generates its "what can I edit" manual from it. Proof components first
    (speedo family); the full sweep migrates everything else onto it. */
-export type SlotKind = "free" | "choice" | "value" | "locked" | "color";
+export type SlotKind = "free" | "choice" | "value" | "locked" | "color" | "dial";
 export type SlotDef = {
   id: string; name: string; kind: SlotKind;
   /** choice: the curated list, first entry is the default */
@@ -1133,6 +1133,12 @@ export type SlotDef = {
       stored sentinel value is the string "none" (owner, eyebrow stroke:
       "should have a none option"). Renderers must honor it. */
   allowNone?: boolean;
+  /** dial: a 0–100 strength that FOLLOWS a kit dial until touched — the
+      kit-following-with-override shape. Absent stores nothing and mirrors
+      the kit dial live; a stored number (stringified) is this piece's own
+      fork, "0" a deliberate off. Renderers must treat legacy two-state
+      values as reads, not errors: "Off" is a 0 fork, "On"/"Follow kit"
+      are the unfetched follow state. */
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1448,15 +1454,19 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
    same Candy → Extrusion → Base glow dial), so the factory default
    FOLLOWS the kit like any piece: buttons that bloom make the bands
    bloom identically; a kit that parks the dial keeps both honestly
-   quiet. The slot is the follow/off override shape (the shine chips'
-   precedent): Follow kit is the default and stores nothing, Off opts
-   one glyph out. A legacy stored "On" (the retired self-strength
-   luminesce toggle) reads as follow. */
+   quiet. The slot is a strength DIAL in the kit-following-with-override
+   shape the other glyph controls use (owner, on the band glow: "would
+   it be easier to just make a new control for this purpose"): untouched
+   it stores nothing and mirrors the kit's Base glow dial live; the
+   first drag forks this one glyph onto its own strength, and 0 is the
+   deliberate off. Legacy values from the retired two-state slot read
+   through: "Off" is a 0 fork, "On"/"Follow kit" are the unfetched
+   follow. */
 for (const g of GLYPH_LIBRARY) {
   if (!g.detail) continue;
   KIT_SLOTS[`glyph${g.id}` as KitComponentId] = [
-    { id: "detailglow", name: "Detail glow", kind: "choice", choices: ["Follow kit", "Off"],
-      note: "The engraved detail (seams, recess shading) is inked in the kit's Shadow role and carries the kit's base glow — the same bloom the extrusion shadow wears on buttons (Candy → Extrusion → Base glow, in the Inner glow color when set, else the Glow well). Follow kit blooms whenever the kit's dial says so; Off keeps this glyph's engraving quiet." },
+    { id: "detailglow", name: "Band glow", kind: "dial",
+      note: "The engraved bands (seams, recess shading) are inked in the kit's Shadow role and carry the same bloom the extrusion shadow wears on buttons — same ink (Inner glow color when set, else the Glow well), same dial. Band glow follows the kit's glow until you set it; a set dial is this glyph's own strength, and 0 keeps its engraving quiet." },
   ];
 }
 

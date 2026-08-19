@@ -4697,12 +4697,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            that parks the dial at 0 keeps buttons and bands honestly quiet
            together. One pool per engraved region, clipped to the region —
            brightest inside the shadow, never an edge-light or outer halo.
-           The Detail glow slot is the follow/off override shape (the shine
-           chips' precedent): default/absent follows the kit's dial, Off
-           opts this one glyph out; a legacy stored "On" (the retired
-           self-strength luminesce toggle) follows the kit too. */
-        const egOpG = (D2.candy.extrusion.glow / 100) * (state === "disabled" ? 0 : 1);
-        if (opts.slots?.detailglow !== "Off" && egOpG > 0.01) {
+           The Band glow slot is a strength dial in the kit-following-with-
+           override shape (owner: "would it be easier to just make a new
+           control for this purpose"): absent follows the kit's dial live,
+           a stored number is this one glyph's own strength (0 = off, the
+           kit dial no longer moves it). Legacy values from the retired
+           two-state slot read through: "Off" is a 0 fork; "On" (the
+           retired self-strength luminesce toggle) and "Follow kit"
+           follow the kit. */
+        const dgRaw = opts.slots?.detailglow;
+        const dgOwn = dgRaw === "Off" ? 0
+          : dgRaw !== undefined && /^\d+$/.test(dgRaw) ? clamp(+dgRaw, 0, 100) : undefined;
+        const egOpG = ((dgOwn ?? D2.candy.extrusion.glow) / 100) * (state === "disabled" ? 0 : 1);
+        if (egOpG > 0.01) {
           const gc = D2.candy.innerGlow.color ?? effect(D2.effects, "Glow");
           const gpid = "gp" + UID++, gcid = "gq" + UID++;
           let pools = "";

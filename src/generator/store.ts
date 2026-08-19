@@ -2177,8 +2177,9 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitSlot: (id, slotId, val) => {
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
-       Color slots are look, so they stay frozen with the rest. */
-    if (get().kitLocks[id] && KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind === "color") return;
+       Color and dial slots are look, so they stay frozen with the rest. */
+    const slotKind = KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind;
+    if (get().kitLocks[id] && (slotKind === "color" || slotKind === "dial")) return;
     markTouched();
     pushHistory(get());
     const kitSlotVals = { ...get().kitSlotVals };
