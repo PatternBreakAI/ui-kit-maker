@@ -1405,7 +1405,7 @@ function KitDebugStrip() {
 }
 
 export function KitPage() {
-  const { cfg, kitClones, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease } = useGen();
+  const { cfg, kitClones, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load
@@ -2277,6 +2277,30 @@ const kitTier = useGen((s) => s.tier);
             note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject parks it; both are reversible.">
             <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
             {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released. New pieces will land here.</p>}
+            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
+                is a chore) — one atomic ledger write; every card stays
+                individually reversible afterward */}
+            {(() => {
+              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
+              if (glyphBay.length < 2) return null;
+              const batch = (next: "released" | "rejected", msg: string) => {
+                if (!window.confirm(msg)) return;
+                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
+                  .then((err) => { if (err) window.alert(err); });
+              };
+              return (
+                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
+                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
+                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
+                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
+                  </button>
+                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
+                    `Park all ${glyphBay.length} glyphs? They stay staged and admin-only; restore any of them from its card.`)}>
+                    Park all glyphs
+                  </button>
+                </div>
+              );
+            })()}
             <div className="kp-baygrid">
               {inBay.map((sid) => {
                 const status = releases[sid];
