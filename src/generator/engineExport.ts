@@ -310,6 +310,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
      (type stamps, timerdigits, backgrounds). */
   speedo: "speedo", speedo2: "speedo2", tacho: "tacho",
   circuit: "circuit", startlights: "startlights", segbar: "segbar",
+  /* the VS bar + emblem bar place as WIRED rigs too (round 21 — they
+     used to fall to the baked-stamp road: the right look, dead value) */
+  vsbar: "vsbar", emblembar: "emblembar",
   loottag: "loottag", dropdown: "dropdown",
   laptimes: "laptimes", leaderboard: "leaderboard", telemetry: "telemetry",
   // the timer too (owner 10.1: "the timer should be a prefab as well")
@@ -903,9 +906,11 @@ export async function collectExportBoards(st: {
         // instance value wins, and the settings rigs always send their
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1
-          // the progress bar's render default too (round 21) — the
-          // mercury pose the board actually showed
-          : idBase === "progress" ? 0.62
+          // the bar rigs' render defaults too (round 21) — the mercury
+          // pose the board actually showed (vsbar's left fighter rests
+          // at 0.72 in the app; the others at 0.62)
+          : (idBase === "progress" || idBase === "emblembar" || idBase === "segbar") ? 0.62
+          : idBase === "vsbar" ? 0.72
           // the gauges' render default — the needle pose the board showed
           : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho" || idBase === "timerdigits") ? 0.62 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
@@ -2045,8 +2050,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
   // the icon-button base: same silhouette, drop any art in the well.
-  await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. Layer lit cells above." });
-  await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — crop one cell for a tile, or scissor horizontally per lit count." });
+  await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. The SegmentMeter prefab layers the lit strip above, scissored per cell." });
+  await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — the prefab's Lit layer scissors it per lit count (Filled/Horizontal snapped to cell edges); crop one cell for a tile if you build your own." });
+  /* the VS bar + emblem bar go LIVE (round 21, owner mandate: board bars
+     arrive kit-dressed) — they used to travel as baked board stamps: the
+     right look, dead value. They now ship the real component's rig
+     layers and place as wired prefabs, like the slider and the progress
+     bar before them. */
+  await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% — Filled/Horizontal, Origin Right; fillAmount IS the right health." }, true);
+  await addPng("vsbar/medal.png", shell("vsbar", { overlay: "medal" }, slim), { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion, kit-typed — rides the axis over both fills and holds its size when the bar stretches." }, true);
+  await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
+  // icon undefined = the app's own default for a stock board copy (the
+  // clock emblem); a dev drops their art in the socket's well in-engine
+  await addPng("emblembar/socket.png", shell("emblembar", { overlay: "dock", icon: undefined }, slim), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, true);
   /* the settings controls, COMPONENT-TRUE (owner: "let's get those
      settings screens working this round") — the REAL slider and toggle
      pieces split into rig layers: track, full-run mercury, candy knob.
@@ -6955,7 +6974,9 @@ namespace PatternBreak {
                     && (itG.component == "speedo" || itG.component == "speedo2" || itG.component == "tacho"
                         || itG.component == "circuit" || itG.component == "startlights" || itG.component == "segbar"
                         || itG.component == "loottag" || itG.component == "dropdown" || itG.component == "laptimes"
-                        || itG.component == "leaderboard" || itG.component == "telemetry")) liveGain++;
+                        || itG.component == "leaderboard" || itG.component == "telemetry"
+                        // round 21: the VS bar + emblem bar left the baked-stamp road
+                        || itG.component == "vsbar" || itG.component == "emblembar")) liveGain++;
             }
             Debug.Log("UI Kit Maker: board scenes kept — Tools > PatternBreak > Rebuild Kit Board Scenes adopts this update's sizing and words whenever you're ready."
               + (liveGain > 0 ? " This update also turned " + liveGain + " baked board piece(s) into LIVE prefab instances — Rebuild swaps their flattened stand-ins for the real thing." : ""));
@@ -7625,6 +7646,8 @@ namespace PatternBreak {
             else if (it.component == "loottag") pfName = "LootTag";
             else if (it.component == "laptimes") pfName = "LapTimes";
             else if (it.component == "segbar") pfName = "SegmentMeter";
+            else if (it.component == "vsbar") pfName = "VsBar";
+            else if (it.component == "emblembar") pfName = "EmblemBar";
             else if (it.component == "timerdigits") pfName = "Timer";
             /* the GHOST stick is its own placeable (round 18) — a ghost
                board copy (ov "ghost") must place IT, not the solid stick
@@ -7973,13 +7996,25 @@ namespace PatternBreak {
               var arcT = inst.transform.Find("Arc");
               if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
             }
-            /* the progress bar strikes the board's pose too (round 21 —
-               it used to freeze at the prefab's staged 62% whatever the
-               maker set on the board) */
-            if (it.component == "progress" && it.value > 0f) {
+            /* the bar rigs strike the board's pose too (round 21 — they
+               used to freeze at the prefab's staged pose, or arrive as
+               dead stamps, whatever the maker set on the board) */
+            if ((it.component == "progress" || it.component == "emblembar") && it.value > 0f) {
               var pfT = inst.transform.Find("Fill Area/Fill");
               var pfI = pfT != null ? pfT.GetComponent<Image>() : null;
               if (pfI != null && pfI.type == Image.Type.Filled) pfI.fillAmount = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "vsbar" && it.value > 0f) {
+              // the board's value drives the LEFT fighter (the app's rule);
+              // the right keeps its staged pose
+              var vlT = inst.transform.Find("FillL Area/FillL");
+              var vlI = vlT != null ? vlT.GetComponent<Image>() : null;
+              if (vlI != null && vlI.type == Image.Type.Filled) vlI.fillAmount = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "segbar" && it.value > 0f) {
+              var sgT = inst.transform.Find("Lit");
+              var sgI = sgT != null ? sgT.GetComponent<Image>() : null;
+              if (sgI != null && sgI.type == Image.Type.Filled) sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
             }
             /* the settings rigs strike the board's pose (the exporter
                always sends these two an explicit value) */
@@ -9619,6 +9654,164 @@ namespace PatternBreak {
       // fillAmount from your live value
       if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "progress", 0.62f, false);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the track row's shell-line rise for a bar family (the sprite's
+       extrusion pads its bottom — rect-centered children sat below the
+       well; owner, with the number, on the slider) */
+    static float BarShellRise(PBManifest m, string fam, Sprite track, float trackH) {
+      if (m == null || m.assets == null || track == null) return 0f;
+      foreach (var aT in m.assets) {
+        if (aT == null || aT.component != fam || aT.part != "track" || aT.shell == null) continue;
+        if (aT.shell.h > 2f && track.rect.height > 1f)
+          return (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+        break;
+      }
+      return 0f;
+    }
+    static PBTrack BarZone(PBManifest m, string fam) {
+      if (m == null || m.assets == null) return null;
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "track" && aT.track != null && aT.track.w > 2f) return aT.track;
+      return null;
+    }
+    /* the VS health bar, WIRED (round 21) — two Filled mercuries drain
+       toward center from the manifest's well zone, the candy medallion
+       holds the axis. Drive FillL/FillR's fillAmount for each fighter. */
+    static bool VsBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/vsbar/vsbar-track.9.png");
+      if (track == null) return false;
+      var go = ImageObject("VsBar", track, pngScale);
+      var rt0 = go.GetComponent<RectTransform>();
+      float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
+      float upS = BarShellRise(m, "vsbar", track, trackH);
+      var zone = BarZone(m, "vsbar");
+      float zoneL = zone != null ? zone.x / pngScale : trackW * 0.06f;
+      float zoneR = zone != null ? trackW - (zone.x + zone.w) / pngScale : trackW * 0.06f;
+      var fillL = S(root + "/assets/vsbar/vsbar-fill-l.png");
+      var fillR = S(root + "/assets/vsbar/vsbar-fill-r.png");
+      // each area spans its fighter's half-run: outer edge on the well
+      // zone, inner edge anchored to CENTER so a stretched bar widens the
+      // wells while the axis reserve holds (the app's stretch rule)
+      if (fillL != null) {
+        float fw = fillL.rect.width / pngScale, fh = fillL.rect.height / pngScale;
+        float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
+        var area = new GameObject("FillL Area", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        var art = area.GetComponent<RectTransform>();
+        art.anchorMin = new Vector2(0f, 0f); art.anchorMax = new Vector2(0.5f, 1f);
+        art.offsetMin = new Vector2(zoneL, inY);
+        art.offsetMax = new Vector2(zoneL + fw - trackW * 0.5f, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+        var fgo = ImageObject("FillL", fillL, pngScale);
+        fgo.transform.SetParent(area.transform, false);
+        var fi = fgo.GetComponent<Image>();
+        fi.raycastTarget = false; fi.type = Image.Type.Filled; fi.preserveAspect = false;
+        fi.fillMethod = Image.FillMethod.Horizontal; fi.fillOrigin = (int)Image.OriginHorizontal.Left;
+        fi.fillAmount = 0.72f; // the app's resting left fighter
+        var frt = fgo.GetComponent<RectTransform>();
+        frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      }
+      if (fillR != null) {
+        float fw = fillR.rect.width / pngScale, fh = fillR.rect.height / pngScale;
+        float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
+        var area = new GameObject("FillR Area", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        var art = area.GetComponent<RectTransform>();
+        art.anchorMin = new Vector2(0.5f, 0f); art.anchorMax = new Vector2(1f, 1f);
+        art.offsetMin = new Vector2(trackW * 0.5f - zoneR - fw, inY);
+        art.offsetMax = new Vector2(-zoneR, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+        var fgo = ImageObject("FillR", fillR, pngScale);
+        fgo.transform.SetParent(area.transform, false);
+        var fi = fgo.GetComponent<Image>();
+        fi.raycastTarget = false; fi.type = Image.Type.Filled; fi.preserveAspect = false;
+        fi.fillMethod = Image.FillMethod.Horizontal; fi.fillOrigin = (int)Image.OriginHorizontal.Right;
+        fi.fillAmount = 0.58f; // the app's resting right fighter
+        var frt = fgo.GetComponent<RectTransform>();
+        frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      }
+      var medal = S(root + "/assets/vsbar/vsbar-medal.png");
+      if (medal != null) {
+        var mgo = ImageObject("Medal", medal, pngScale);
+        mgo.transform.SetParent(go.transform, false); // last child — over both fills
+        var mi = mgo.GetComponent<Image>();
+        mi.raycastTarget = false; mi.preserveAspect = true;
+        var mrt = mgo.GetComponent<RectTransform>();
+        mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
+        mrt.anchoredPosition = new Vector2(0f, upS); // fixed size ON PURPOSE: the axis holds when the bar stretches
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/VsBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the emblem bar, WIRED (round 21) — the progress rig plus the docked
+       socket riding the track's left end, over the fill, where the app
+       composes it (applyDock: center at shellX + 0.46 x D, D = 1.9 x
+       shell height). */
+    static bool EmblemBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var track = S(root + "/assets/emblembar/emblembar-track.9.png");
+      if (track == null) return false;
+      var go = ImageObject("EmblemBar", track, pngScale);
+      var fill = S(root + "/assets/emblembar/emblembar-fill.9.png");
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "emblembar", 0.62f, false);
+      var sock = S(root + "/assets/emblembar/emblembar-socket.png");
+      if (sock != null) {
+        var rt0 = go.GetComponent<RectTransform>();
+        float trackH = rt0.sizeDelta.y;
+        float upS = BarShellRise(m, "emblembar", track, trackH);
+        float shellX = 0f, shellH = trackH;
+        if (m != null && m.assets != null) foreach (var aT in m.assets) {
+          if (aT == null || aT.component != "emblembar" || aT.part != "track" || aT.shell == null) continue;
+          if (aT.shell.h > 2f) { shellX = aT.shell.x / pngScale; shellH = aT.shell.h / pngScale; }
+          break;
+        }
+        float D = shellH * 1.9f;
+        var sgo = ImageObject("Socket", sock, pngScale);
+        sgo.transform.SetParent(go.transform, false); // after Fill — over the mercury, like the app draws it
+        var si = sgo.GetComponent<Image>();
+        si.raycastTarget = false; si.preserveAspect = true;
+        var srt = sgo.GetComponent<RectTransform>();
+        srt.anchorMin = new Vector2(0f, 0.5f); srt.anchorMax = new Vector2(0f, 0.5f);
+        srt.anchoredPosition = new Vector2(shellX + D * 0.46f, upS);
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/EmblemBar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* the segmented meter's SCISSOR line (round 21): whole cells only,
+       snapped so the cut always lands in a gap — the app's snap mode.
+       Fraction of the LIT sprite's width from the manifest's well zone;
+       an old zip without the zone falls back to the raw value. */
+    static float SegbarScissor(PBManifest m, Sprite lit, float v) {
+      float v01 = Mathf.Clamp01(v);
+      float litCells = Mathf.Round(v01 * 5f);
+      var zone = BarZone(m, "segbar");
+      if (zone == null || lit == null || lit.rect.width < 2f) return litCells / 5f;
+      if (litCells <= 0f) return 0f;
+      return Mathf.Clamp01((zone.x + zone.w * (litCells / 5f)) / lit.rect.width);
+    }
+    /* the segmented meter goes LIVE (round 21) — the dressed base plus a
+       Lit layer scissored per cell. It used to place EMPTY: the well
+       arrived, the board's lit cells never did. */
+    static bool SegBarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var baseSp = S(root + "/assets/segbar/segbar-base.png");
+      if (baseSp == null) return false;
+      var go = ImageObject("SegmentMeter", baseSp, pngScale);
+      var lit = S(root + "/assets/segbar/segbar-lit.png");
+      if (lit != null) {
+        var lgo = ImageObject("Lit", lit, pngScale);
+        lgo.transform.SetParent(go.transform, false);
+        var li = lgo.GetComponent<Image>();
+        li.raycastTarget = false; li.type = Image.Type.Filled; li.preserveAspect = false;
+        li.fillMethod = Image.FillMethod.Horizontal; li.fillOrigin = (int)Image.OriginHorizontal.Left;
+        li.fillAmount = SegbarScissor(m, lit, 0.62f); // 3 of 5 staged
+        var lrt = lgo.GetComponent<RectTransform>();
+        // base and lit bake on ONE canvas (no crop) — full-stretch overlay is pixel-true
+        lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+      }
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/SegmentMeter.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -11603,7 +11796,9 @@ namespace PatternBreak {
       if (GaugePrefab(dir, root, pngScale, m, "speedo2", "SpeedoArc", "speedo2/speedo2-face.png")) any = true;
       if (GaugePrefab(dir, root, pngScale, m, "tacho", "RevMeter", "tacho/tacho-face.png")) any = true;
       if (TimerPrefab(dir, root, m, kitFont)) any = true;
-      if (PicturePrefab(dir, root, pngScale, m, "segbar/segbar-base.png", "SegmentMeter", false)) any = true;
+      if (SegBarPrefab(dir, root, pngScale, m)) any = true;
+      if (VsBarPrefab(dir, root, pngScale, m)) any = true;
+      if (EmblemBarPrefab(dir, root, pngScale, m)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "loottag/loottag-base.9.png", "LootTag", true)) any = true;
       if (DropdownPrefab(dir, root, pngScale, m, kitFont)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "laptimes/laptimes-base.9.png", "LapTimes", true)) any = true;
@@ -11980,6 +12175,36 @@ namespace PatternBreak {
               PrefabUtility.SaveAsPrefabAsset(contentsPB, path);
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
+            continue;
+          }
+        }
+        /* the segmented meter's LIT layer (round 21): a SegmentMeter from
+           the picture generation is just the empty well — graft the Lit
+           strip once (the kit always shipped segbar-lit.png), scissored
+           to the staged 3-of-5. ONE moment only, the minimap's rule: the
+           import where the round-21 bar rigs first arrive (the previous
+           receipt has no vsbar track). After that the tree is the dev's —
+           deleting Lit is a choice and is never fought. */
+        if (spritePath.EndsWith("/segbar-base.png") && asset.transform.Find("Lit") == null && asset.GetComponent<Image>() != null) {
+          bool segEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/vsbar/vsbar-track.9.png") { segEra = false; break; }
+          var litSp = segEra ? S(root + "/assets/segbar/segbar-lit.png") : null;
+          if (litSp != null) {
+            var contentsSB = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var lgo = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              lgo.transform.SetParent(contentsSB.transform, false);
+              var li = lgo.GetComponent<Image>();
+              li.sprite = litSp; li.raycastTarget = false;
+              li.type = Image.Type.Filled; li.preserveAspect = false;
+              li.fillMethod = Image.FillMethod.Horizontal; li.fillOrigin = (int)Image.OriginHorizontal.Left;
+              li.fillAmount = SegbarScissor(m, litSp, 0.62f);
+              var lrt = lgo.GetComponent<RectTransform>();
+              lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+              PrefabUtility.SaveAsPrefabAsset(contentsSB, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsSB); }
             continue;
           }
         }
@@ -12609,7 +12834,7 @@ namespace PatternBreak {
       if (retracked > 0)
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
       if (barRigged > 0)
-        Debug.Log("UI Kit Maker: rebuilt " + barRigged + " progress-bar prefab(s) around the kit-dressed rig — the track and mercury are now the real component's own layers (this kit ships them under the same filenames), and the fill rides a Filled image on the app's well zone. Drive Fill Area > Fill's fillAmount from your live value; placed copies picked it up automatically.");
+        Debug.Log("UI Kit Maker: converged " + barRigged + " bar prefab(s) onto the kit-dressed rig (round 21) — the progress bar's mercury rides a Filled image on the app's well zone (drive Fill Area > Fill's fillAmount), and the segment meter gained its Lit layer (drive Lit's fillAmount; it snaps to whole cells). Placed copies picked it up automatically.");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)

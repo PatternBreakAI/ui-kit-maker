@@ -272,10 +272,25 @@ if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT
   errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
 if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, "progress", 0\.62f, false\)/.test(cs))
   errors.push("ProgressPrefab must assemble the dressed rig through BuildBarFill (round 21)");
-if (!/it\.component == "progress" && it\.value > 0f/.test(cs))
-  errors.push("board placement must drive the progress bar's fillAmount from the board's value (round 21)");
+if (!/\(it\.component == "progress" \|\| it\.component == "emblembar"\) && it\.value > 0f/.test(cs))
+  errors.push("board placement must drive the progress/emblem bars' fillAmount from the board's value (round 21)");
 if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+/.test(cs))
   errors.push("the old-structure ProgressBar heal (Fill Area retrofit, barRigged receipt) is missing (round 21)");
+/* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
+   and the segment meter lights its cells. */
+if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
+    || !/addPng\("emblembar\/socket\.png", shell\("emblembar", \{ overlay: "dock"/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21)");
+if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
+  errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
+if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
+  errors.push("the VsBar/EmblemBar/SegmentMeter rig builders are missing from the importer (round 21)");
+if (!/it\.component == "vsbar" && it\.value > 0f/.test(cs) || !/it\.component == "segbar" && it\.value > 0f/.test(cs))
+  errors.push("board placement must drive the vsbar left fighter and the segbar lit cells from the board's value (round 21)");
+if (!/static float SegbarScissor\(/.test(cs) || !/Mathf\.Round\(v01 \* 5f\)/.test(cs))
+  errors.push("the segbar scissor must snap to whole cells on the manifest's well zone (round 21)");
+if (!/spritePath\.EndsWith\("\/segbar-base\.png"\) && asset\.transform\.Find\("Lit"\) == null/.test(cs))
+  errors.push("the SegmentMeter Lit graft (one arrival moment, the minimap's rule) is missing (round 21)");
 
 /* round-18 PRIMARY: the baked press sink reaches the halo. The manifest's
    stateFx.lift carries only the LIFT DIAL delta — a pressed state that
