@@ -1071,6 +1071,82 @@ for (const kitName of ["default", "warchuds", "hotrod", "warchuds-real"]) {
   writeFileSync(join(OUT, `parity-${kitName}.png`), Buffer.from(out.composite.split(",")[1], "base64"));
   console.log(`composite written: ${join(OUT, `parity-${kitName}.png`)}`);
 }
+
+/* ── GAUGE SEAT, DRAWN-TRUE (round 22) — a HARD assertion class the four
+   recipes cannot exercise: every bench kit keeps the Typography offset
+   dials (type.ox/oy) at zero, and with zero dials a stamp computed from
+   dial geometry happens to equal the drawn point — the exact blind spot
+   behind the owner's field "108 sits high-left" on a bench that read
+   zero drift. Here the dials are deliberately set (ox 18, oy 12), the
+   kit re-exports through the real door, and the manifest's speedo2 seat
+   must land on the app's own DRAWN number node (mapped through the
+   shell handshake into sprite px). Fails on any stamp that forgets what
+   contentText adds; the offsets must also demonstrably move the point,
+   so the row can never pass by testing a zero pose. ── */
+{
+  const seat = await page.evaluate(async () => {
+    const P = window.__probe;
+    let st = P.useGen.getState();
+    const cfg2 = JSON.parse(JSON.stringify(st.cfg));
+    cfg2.type.ox = 18; cfg2.type.oy = 12;
+    P.useGen.setState({ cfg: cfg2 });
+    st = P.useGen.getState();
+    const exBoards = await P.collectExportBoards(st);
+    await P.downloadEngineExport({
+      cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes,
+      kitSizes: st.kitSizes, kitName: "Parity seatcheck", slug: "parity-seatcheck", kitVersion: 16, scope: "full", boards: exBoards,
+      kitLabels: st.kitLabels, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
+    }, undefined, undefined, () => {}, () => {});
+    const buf = new Uint8Array(await window.__zipBlob.arrayBuffer());
+    const files = new Map();
+    const dv = new DataView(buf.buffer, buf.byteOffset);
+    let off = 0;
+    while (off + 30 <= buf.length) {
+      if (dv.getUint32(off, true) !== 0x04034b50) break;
+      const sz = dv.getUint32(off + 18, true);
+      const nl = dv.getUint16(off + 26, true), xl = dv.getUint16(off + 28, true);
+      const name = new TextDecoder().decode(buf.subarray(off + 30, off + 30 + nl));
+      const ds = off + 30 + nl + xl;
+      files.set(name.replace(/^UIKitMaker\/[^/]+\//, ""), buf.subarray(ds, ds + sz));
+      off = ds + sz;
+    }
+    const m = JSON.parse(new TextDecoder().decode(files.get("kit-manifest.json")));
+    const row = (m.assets ?? []).find((a) => a && a.component === "speedo2" && a.gauge);
+    if (!row || !row.shell) return { fail: "no speedo2 gauge row in the manifest" };
+    const g = row.gauge;
+    /* the app's own drawn number, independently: the full render's text
+       node, mapped through the shell handshake (data-shell in svg units
+       <-> the asset row's shell in png px) into sprite px */
+    const eff = P.applyKitTextFill(P.applyKitDesign(st.cfg, st.kitDesigns ? st.kitDesigns.speedo2 : null), st.kitTextFill ? st.kitTextFill.speedo2 : null);
+    const full = P.renderKit(eff, "speedo2", "l", "default", 0.6, st.kitShapes ? st.kitShapes.speedo2 : undefined);
+    const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(full);
+    const shm = /data-shell="([-\d. ]+)"/.exec(full);
+    if (!vbm || !shm) return { fail: "full render lost its viewBox/data-shell" };
+    const [vbx, vby] = [parseFloat(vbm[1]), parseFloat(vbm[2])];
+    const sh = shm[1].split(" ").map(Number);
+    const bx0 = (sh[0] - vbx) * 2 - row.shell.x, by0 = (sh[1] - vby) * 2 - row.shell.y;
+    let num = null;
+    for (const t of full.matchAll(/<text x="(-?[\d.]+)" y="(-?[\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>(\d+)<\/text>/g)) {
+      const c = { x: parseFloat(t[1]), y: parseFloat(t[2]), fs: parseFloat(t[3]) };
+      if (!num || c.fs > num.fs) num = c;
+    }
+    if (!num) return { fail: "no drawn digits found in the app's full render" };
+    const drawn = { x: (num.x - vbx) * 2 - bx0, y: (num.y - vby) * 2 - by0, fs: num.fs * 2 };
+    return {
+      drawn, seat: { x: g.x, y: g.y, fs: g.fs },
+      dx: Math.round((g.x - drawn.x) * 10) / 10, dy: Math.round((g.y - drawn.y) * 10) / 10,
+    };
+  });
+  if (seat.fail) {
+    console.log(`GAUGE SEAT (drawn-true): FAIL — ${seat.fail}`);
+    hardFails += 1;
+  } else {
+    const onPoint = Math.abs(seat.dx) <= 1.5 && Math.abs(seat.dy) <= 1.5;
+    const fsTrue = Math.abs(seat.seat.fs - seat.drawn.fs) <= 1;
+    console.log(`GAUGE SEAT (drawn-true, type.ox 18 / oy 12) — app draws (${Math.round(seat.drawn.x * 10) / 10}, ${Math.round(seat.drawn.y * 10) / 10}) fs ${Math.round(seat.drawn.fs * 10) / 10}; manifest seats (${seat.seat.x}, ${seat.seat.y}) fs ${seat.seat.fs}; Δ(${seat.dx}, ${seat.dy}) — ${onPoint && fsTrue ? "PASS" : "FAIL"}`);
+    if (!(onPoint && fsTrue)) hardFails += 1;
+  }
+}
 await browser.close();
 server.close();
 process.exit(hardFails === 0 ? 0 : 1);

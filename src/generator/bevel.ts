@@ -8960,13 +8960,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<circle cx="${cx3}" cy="${cy3}" r="${r0}" fill="url(#${gid8})" stroke="${darken(bevel, 0.45)}" stroke-width="2"/>` +
         `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 9 * k).toFixed(1)}" fill="${wellFill}"/>` + ticks;
       const inner2 = part === "needle" ? needle : part === "face" ? face : face + needle + readout;
+      /* the stamp ships the DRAWN point (round 22, owner: the real kit's
+         readout sat high-left of the dial): contentText nudges every
+         digit block by the Typography offset dials (type.ox/oy · k) and
+         the italic optical centering (−0.07em) — a seat computed from
+         dial geometry alone strands Unity's readout wherever the kit's
+         nudges no longer draw. Zero-dial kits stamp identically. */
+      const numFsS = Math.min(d2 * 0.17, r0 * 0.44) * typeK;
+      const numXS = cx3 + typeOxK * k + (cfg.type.italic ? -numFsS * 0.07 : 0);
+      const numYS = cy3 + r0 * 0.5 + typeOyK * k;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         /* the FACE part carries the readout seat + dial center as a geo
            stamp (housed coordinates) — attributes never rasterize, so the
            app's own render stays byte-identical */
         const openTag = part === "face"
-          ? `<svg data-race="speedo" data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
+          ? `<svg data-race="speedo" data-gauge="${numXS.toFixed(1)} ${numYS.toFixed(1)} ${numFsS.toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" `
           : '<svg data-race="speedo" ';
         return inject(track.replace("<svg ", openTag),
           `<defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs><g opacity="${dim}">${inner2}</g>`);
@@ -8976,7 +8985,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          line's y + size — the Unity prefab's live numbers sit exactly
          where the app draws them. Attributes never rasterize, so the
          shipped pixels stay byte-identical. */
-      const gaugeStamp = `data-gauge="${cx3.toFixed(1)} ${(cy3 + r0 * 0.5).toFixed(1)} ${(Math.min(d2 * 0.17, r0 * 0.44) * typeK).toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      const gaugeStamp = `data-gauge="${numXS.toFixed(1)} ${numYS.toFixed(1)} ${numFsS.toFixed(1)} ${(cy3 + r0 * 0.82).toFixed(1)} ${(11 * k).toFixed(1)}"`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="speedometer" data-race="speedo" ${gaugeStamp}>
 <defs><linearGradient id="${gid8}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
 <g opacity="${dim}">${inner2}</g>
@@ -9026,6 +9035,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const readout = part === "face" ? "" :
         contentText(String(Math.round(v3 * 174)), cx3, cy3 - 4 * k, Math.min(d2 * 0.24, r0 * 0.6) * typeK, { anchor: "middle", keepCase: true, opacity: dim }) +
         `<text x="${cx3}" y="${(cy3 + r0 * 0.46).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".24em" fill="${hexRgba(glow, 0.75)}" text-anchor="middle" opacity="${dim}">${opts.slots?.unit === "KPH" ? "KPH" : "MPH"}</text>`;
+      /* the stamp ships the DRAWN point (round 22, owner: the real kit's
+         "108" sat high-left of the dial): contentText nudges the digit
+         block by the Typography offset dials and the italic optical
+         centering — the seat must carry them or Unity's readout strands
+         wherever the kit's nudges no longer draw. Zero-dial kits stamp
+         identically. */
+      const numFsS2 = Math.min(d2 * 0.24, r0 * 0.6) * typeK;
+      const numXS2 = cx3 + typeOxK * k + (cfg.type.italic ? -numFsS2 * 0.07 : 0);
+      const numYS2 = cy3 - 4 * k + typeOyK * k;
       if (useHousing) {
         const track = build(cfg, state, { x: 39, y: 30, h: D, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: D, shapeOverride: sov });
         const well = `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(r0 + 8 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>`;
@@ -9037,13 +9055,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            stay byte-identical. The importer builds live segments on this
            exact grid and GaugeDial lights them to the value. */
         const openTag2 = part === "face"
-          ? `<svg data-race="speedo2" data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" data-gauge-seg="${(r0 - 20 * k).toFixed(1)} ${r0.toFixed(1)} ${(8 * k).toFixed(1)} ${N} 135 270" `
+          ? `<svg data-race="speedo2" data-gauge="${numXS2.toFixed(1)} ${numYS2.toFixed(1)} ${numFsS2.toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)} ${cx3.toFixed(1)} ${cy3.toFixed(1)}" data-gauge-seg="${(r0 - 20 * k).toFixed(1)} ${r0.toFixed(1)} ${(8 * k).toFixed(1)} ${N} 135 270" `
           : '<svg data-race="speedo2" ';
         return inject(track.replace("<svg ", openTag2),
           `<defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs><g opacity="${dim}">${well}${segs}${arc}${readout}</g>`);
       }
       // readout seat as a geo stamp — see the classic dial's note
-      const gaugeStamp2 = `data-gauge="${cx3.toFixed(1)} ${(cy3 - 4 * k).toFixed(1)} ${(Math.min(d2 * 0.24, r0 * 0.6) * typeK).toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)}"`;
+      const gaugeStamp2 = `data-gauge="${numXS2.toFixed(1)} ${numYS2.toFixed(1)} ${numFsS2.toFixed(1)} ${(cy3 + r0 * 0.46).toFixed(1)} ${(11 * k).toFixed(1)}"`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="HUD speedometer" data-race="speedo2" ${gaugeStamp2}>
 <defs><filter id="${gid8}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (4 * k).toFixed(1), glow, 0.7)}</filter></defs>
 <g opacity="${dim}">${segs}${arc}${readout}</g>
@@ -9088,7 +9106,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           segsP += `<line x1="${(cxH + Math.cos(a) * rI).toFixed(1)}" y1="${(cyH + Math.sin(a) * rI).toFixed(1)}" x2="${(cxH + Math.cos(a) * rO).toFixed(1)}" y2="${(cyH + Math.sin(a) * rO).toFixed(1)}" stroke="${zoneP(t0)}" stroke-width="${(6.5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.14"/>`;
         }
         const gidP = "tcp" + UID++;
-        const gaugeStampT = `data-gauge="${cxH.toFixed(1)} ${(cyH + r0P * 0.5).toFixed(1)} ${(Math.min(d2 * 0.16, r0P * 0.42) * typeK).toFixed(1)} ${(cyH + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cxH.toFixed(1)} ${cyH.toFixed(1)}"`;
+        /* drawn-true seat (round 22): the Typography offset dials and the
+           italic optical centering travel with the stamp — see the
+           speedo's note */
+        const numFsT = Math.min(d2 * 0.16, r0P * 0.42) * typeK;
+        const numXT = cxH + typeOxK * k + (cfg.type.italic ? -numFsT * 0.07 : 0);
+        const numYT = cyH + r0P * 0.5 + typeOyK * k;
+        const gaugeStampT = `data-gauge="${numXT.toFixed(1)} ${numYT.toFixed(1)} ${numFsT.toFixed(1)} ${(cyH + r0P * 0.82).toFixed(1)} ${(11 * k).toFixed(1)} ${cxH.toFixed(1)} ${cyH.toFixed(1)}"`;
         const trackF = build(cfg, state, { x: 39, y: 30, h: DT, fs: 0, iconSize: 0, tokenH: 280 }, { iconDef: null, label: "", fixedW: DT, shapeOverride: sov });
         return inject(trackF.replace("<svg ", `<svg data-race="tacho" ${gaugeStampT} `),
           `<defs><linearGradient id="${gidP}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${darken(bevel, 0.3)}"/></linearGradient></defs>` +

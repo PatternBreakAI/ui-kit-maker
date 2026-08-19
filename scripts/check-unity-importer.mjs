@@ -267,6 +267,22 @@ if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src)
 if (!/const cfgPad = /.test(bevelSrc) || !/lift: cfg\.states\.default\.lift/.test(bevelSrc)
     || !/const restDepth = designFor\(cfg, "default"\)\.candy\.extrusion\.depth;/.test(bevelSrc))
   errors.push("the fire pad's pose pin (housing contract) is missing from bevel.ts (round 22 — the ring rode the press pose into the baked swap)");
+/* round-22 item B: the gauge seat ships the DRAWN point. contentText
+   nudges every digit block by the Typography offset dials (type.ox/oy · k)
+   and the italic optical centering (−0.07em); a stamp computed from dial
+   geometry alone strands Unity's readout wherever the kit's nudges no
+   longer draw (owner field: the real kit's "108" high-left of the dial —
+   while the bench read zero drift, because every bench recipe keeps the
+   dials at zero). All three gauges carry the nudges. */
+if (!/const numXS = cx3 \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsS \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYS = cy3 \+ r0 \* 0\.5 \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the speedo's gauge stamp lost the drawn-point nudges (round 22)");
+if (!/const numXS2 = cx3 \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsS2 \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYS2 = cy3 - 4 \* k \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the HUD arc's gauge stamp lost the drawn-point nudges (round 22 — the owner's high-left '108')");
+if (!/const numXT = cxH \+ typeOxK \* k \+ \(cfg\.type\.italic \? -numFsT \* 0\.07 : 0\);/.test(bevelSrc)
+    || !/const numYT = cyH \+ r0P \* 0\.5 \+ typeOyK \* k;/.test(bevelSrc))
+  errors.push("the rev meter's gauge stamp lost the drawn-point nudges (round 22)");
 
 /* round-21: board bars arrive KIT-DRESSED (owner mandate — truth from app
    to Unity). The progress assets must be the real component's part
