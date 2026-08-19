@@ -4666,7 +4666,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      like any other component. */
   if (isGlyphPiece(id)) {
     const dGl = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-    return build(cfg, state, { x: 39, y: 30, h: dGl, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dGl, shapeOverride: sov });
+    let outGl = build(cfg, state, { x: 39, y: 30, h: dGl, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: dGl, shapeOverride: sov });
+    /* per-glyph furnishing (registry `detail`): seam/groove subpaths painted
+       in the kit's SHADOW role ink over the face, clipped to the silhouette
+       so authored bands may over-reach their gap (the coin's seams). Drawn
+       at the shell frame — the glyph family renders flat by default, where
+       shell and face coincide; walled interplay is deliberate follow-on. */
+    const glEntry = sov ? glyphShape(sov) : undefined;
+    if (glEntry?.detail) {
+      let dd = transformPath(glEntry.detail, glEntry.vb, 39, 30, dGl, dGl);
+      if (sov!.endsWith("~flip")) dd = mirrorPathX(dd, 39 + dGl / 2);
+      const sil = shapePath(sov as Shape, 39, 30, dGl, dGl, 0);
+      const ink = effect(designFor(cfg, state).effects, "Shadow");
+      const cid = "gd" + UID++;
+      outGl = inject(outGl, `<clipPath id="${cid}"><path d="${sil}"/></clipPath><g data-part="glyph-detail" clip-path="url(#${cid})"><path d="${dd}" fill="${ink}" opacity="0.92"/></g>`);
+    }
+    return outGl;
   }
 
   switch (id) {
