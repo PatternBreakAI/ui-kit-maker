@@ -6003,8 +6003,18 @@ it down in Play mode (timers read as time remaining; it clamps at 0:00
 and stops — hook your own reset). The words wear the kit's full label
 dress, so a restyle re-dresses them like every label.
 
-**SegmentMeter**: the empty well. The lit strip ships beside it
-(segbar/segbar-lit.png) — crop or scissor it per how many cells burn.
+**SegmentMeter**: the dressed well with a **Lit** layer above it —
+a Filled image scissored to whole cells. Drive \`Lit\`'s *Fill Amount*
+(it snaps to fifths: 0.2 per cell) or scissor the raw strip yourself
+(segbar/segbar-lit.png ships beside the base as always).
+
+**ProgressBar / EmblemBar / VsBar**: the real component's rig — the
+kit-dressed track with the mercury riding a Filled image exactly on
+the app's well zone. Drive *Fill Amount* on \`Fill Area > Fill\` (the
+VsBar has \`FillL\`/\`FillR\`, one per fighter, draining toward the
+center medallion; the EmblemBar's socket is yours — drop your emblem
+art in its well). Board-placed bars arrive already striking the pose
+the board showed.
 
 **Joystick / JoystickGhost**: both sticks are ALIVE — a **Touch Stick**
 component moves the thumb and reports a normalized direction: poll
@@ -7175,7 +7185,7 @@ namespace PatternBreak {
         var SECTIONS = new (string title, string[] names)[] {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
           ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick", "JoystickGhost" }),
-          ("BARS & METERS", new[] { "ProgressBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
+          ("BARS & METERS", new[] { "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
           ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
           ("PROPS", new[] { "Gearicon", "Trophyicon", "Gifticon", "Firebutton" }),
         };
