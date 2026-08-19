@@ -36,6 +36,11 @@ interface AssetMeta {
    *  the sprite rect compared a glow-padded board box against a cropped
    *  sprite and every prefab landed oversized (owner: "weird sizing"). */
   shell?: { x: number; y: number; w: number; h: number } | null;
+  /** The bar family's WELL ZONE inside the shipped sprite (x, w in file
+   *  px at pngScale), parsed from the render's own data-track stamp —
+   *  the bar prefabs seat their mercury exactly on the app's zone
+   *  instead of guessing symmetric insets (round 21). */
+  track?: { x: number; w: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -898,6 +903,9 @@ export async function collectExportBoards(st: {
         // instance value wins, and the settings rigs always send their
         // render default so the scene strikes the pose the board showed
         value: b.v ?? st.kitVals[id] ?? (idBase === "slider" ? 0.62 : idBase === "toggle" ? 1
+          // the progress bar's render default too (round 21) — the
+          // mercury pose the board actually showed
+          : idBase === "progress" ? 0.62
           // the gauges' render default — the needle pose the board showed
           : (idBase === "speedo" || idBase === "speedo2" || idBase === "tacho" || idBase === "timerdigits") ? 0.62 : null), ax: pax, ay: pay,
         anchor: `${pay === 1 ? "top" : pay === 0 ? "bottom" : "middle"}-${pax === 0 ? "left" : pax === 1 ? "right" : "center"}`, stamp: null,
@@ -1732,6 +1740,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           };
         }
       }
+      /* the bar family's WELL ZONE (data-track) travels the same road as
+         the shell — viewBox origin, then the crop box — so the bar
+         prefabs seat their mercury exactly on the app's zone (round 21) */
+      let trackZone: AssetMeta["track"] = null;
+      {
+        const tzm = /data-track="([-\d. ]+)"/.exec(q.svg);
+        const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (tzm && vbm) {
+          const [tzx, tzw] = tzm[1].split(" ").map(Number);
+          trackZone = {
+            x: Math.round(((tzx - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
+            w: Math.round(tzw * PNG_SCALE * 10) / 10,
+          };
+        }
+      }
       /* TEXT SEATS normalize here: measured in the bake's viewBox units,
          shipped as FRACTIONS of the cropped file — same crop box as the
          shell row, then divided by the final raster dimensions. The
@@ -1843,7 +1866,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // per-piece forks can arm the edge shine even when the kit default is
       // off, so any armed fork keeps the outlines flowing into the manifest
       const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -2009,20 +2032,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
 
   /* ── controls: separated track / fill / thumb ─────────────────── */
-  const capsule = (w: number, h: number, fill: string, extra = "") =>
-    svgWrap(w, h, `<path d="${rr(0.5, 0.5, w - 1, h - 1, h / 2)}" fill="${fill}"/>` + extra);
-  const grad = (idp: string, a: string, b: string) =>
-    `<defs><linearGradient id="${idp}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`;
-
-  const trackSvg = (w: number, h: number) => capsule(w, h, wellC);
-  const fillSvg = (w: number, h: number) =>
-    svgWrap(w, h, grad("f", bevelC, glowC) +
-      `<path d="${rr(0.5, 0.5, w - 1, h - 1, h / 2)}" fill="url(#f)"/>` +
-      `<path d="${rr(w * 0.03, h * 0.09, w * 0.94, h * 0.34, h * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`);
-  const barSlice = (h: number) => ({ left: h, right: h, top: Math.round(h * 0.9), bottom: Math.round(h * 0.9) });
-
-  await addPng("progress/track.9.png", trackSvg(440, 44), { component: "progress", part: "track", nineSlice: barSlice(44), pivot: { x: 0, y: 0.5 }, tintable: true, usage: "Progress track. Stretch horizontally; fill goes above it." });
-  await addPng("progress/fill.9.png", fillSvg(440, 36), { component: "progress", part: "fill", nineSlice: barSlice(36), pivot: { x: 0, y: 0.5 }, tintable: false, usage: "Progress fill. Engine drives width/scissor from the live value." });
+  /* the progress bar, COMPONENT-TRUE (round 21, owner mandate: board
+     bars must arrive kit-dressed — truth from app to Unity): the REAL
+     piece split into rig layers like the slider before it — dressed
+     track (shell + well, the data-track zone riding the manifest) and
+     the silhouette-shaped full-run mercury. The old synthesized wellC
+     capsule and gradient pill are gone; SAME FILENAMES, so existing
+     projects upgrade in place and the maintenance pass reseats the rig. */
+  await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, exactly like the app's clip." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
@@ -6160,6 +6178,9 @@ namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
   [Serializable] class PBPivot { public float x = 0.5f, y = 0.5f; }
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
+  /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
+     px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
+  [Serializable] class PBTrack { public float x; public float w; }
   [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
   /* ink = the digits' type recipe (a PBStyle subset: fill, outline, glow,
@@ -6187,7 +6208,7 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -7952,6 +7973,14 @@ namespace PatternBreak {
               var arcT = inst.transform.Find("Arc");
               if (arcT != null) { var ai2 = arcT.GetComponent<Image>(); if (ai2 != null) ai2.fillAmount = Mathf.Clamp01(it.value); }
             }
+            /* the progress bar strikes the board's pose too (round 21 —
+               it used to freeze at the prefab's staged 62% whatever the
+               maker set on the board) */
+            if (it.component == "progress" && it.value > 0f) {
+              var pfT = inst.transform.Find("Fill Area/Fill");
+              var pfI = pfT != null ? pfT.GetComponent<Image>() : null;
+              if (pfI != null && pfI.type == Image.Type.Filled) pfI.fillAmount = Mathf.Clamp01(it.value);
+            }
             /* the settings rigs strike the board's pose (the exporter
                always sends these two an explicit value) */
             if (it.component == "slider") {
@@ -9535,22 +9564,60 @@ namespace PatternBreak {
       if (family == "badge") return "12";
       return "PLAY";
     }
-    static bool ProgressPrefab(string dir, string root, int pngScale) {
+    /* the bar family's mercury seat (round 21, owner: board bars arrive
+       kit-dressed): a Filled image inset inside the dressed track exactly
+       where the app drew the well — horizontal zone from the manifest's
+       data-track stamp when the kit ships it, the slider's symmetric
+       sprite-difference rule otherwise — riding the SHELL line
+       vertically (the track's extrusion pads its bottom; rect-centered
+       children sat below the well). Filled mode IS the app's clip
+       semantic: the engine drives fillAmount and leaves the rect alone. */
+    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string fam, float staged, bool fromRight) {
+      var rt0 = host.GetComponent<RectTransform>();
+      float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
+      float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
+      float upS = 0f; float zoneL = -1f, zoneR = -1f;
+      if (m != null && m.assets != null) foreach (var aT in m.assets) {
+        if (aT == null || aT.component != fam || aT.part != "track") continue;
+        if (aT.shell != null && aT.shell.h > 2f && track.rect.height > 1f)
+          upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+        if (aT.track != null && aT.track.w > 2f) {
+          zoneL = aT.track.x / pngScale;
+          zoneR = trackW - (aT.track.x + aT.track.w) / pngScale;
+        }
+        break;
+      }
+      float inXL = zoneL >= 0f ? Mathf.Max(1f, zoneL) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
+      float inXR = zoneR >= 0f ? Mathf.Max(1f, zoneR) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
+      float inY = Mathf.Max(2f, (trackH - fillH) * 0.5f);
+      var area = new GameObject(name + " Area", typeof(RectTransform));
+      area.transform.SetParent(host.transform, false);
+      var art = area.GetComponent<RectTransform>();
+      art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
+      art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
+      art.anchoredPosition += new Vector2(0f, upS);
+      var fillGo = ImageObject(name, fill, pngScale);
+      fillGo.transform.SetParent(area.transform, false);
+      var fImg = fillGo.GetComponent<Image>();
+      fImg.raycastTarget = false;
+      fImg.type = Image.Type.Filled;
+      fImg.preserveAspect = false; // the mercury stretches to the fill area by design
+      fImg.fillMethod = Image.FillMethod.Horizontal;
+      fImg.fillOrigin = fromRight ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+      fImg.fillAmount = staged;
+      var frt = fillGo.GetComponent<RectTransform>();
+      frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+      frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      return frt;
+    }
+    static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/progress/progress-track.9.png");
       if (track == null) return false;
       var go = ImageObject("ProgressBar", track, pngScale);
       var fill = S(root + "/assets/progress/progress-fill.9.png");
-      if (fill != null) {
-        var f = ImageObject("Fill", fill, pngScale);
-        f.transform.SetParent(go.transform, false);
-        var rt = f.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 0.5f);
-        rt.anchorMax = new Vector2(0f, 0.5f);
-        rt.pivot = new Vector2(0f, 0.5f);
-        rt.anchoredPosition = new Vector2(2f, 0f);
-        // staged at 65% — drive Fill's width from your live value
-        rt.sizeDelta = new Vector2((track.rect.width / pngScale) * 0.65f, fill.rect.height / pngScale);
-      }
+      // staged at 62% (the app's resting default) — drive Fill's
+      // fillAmount from your live value
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "progress", 0.62f, false);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -11515,7 +11582,7 @@ namespace PatternBreak {
       Font kitFont = null;
       if (m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile))
         kitFont = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile);
-      if (ProgressPrefab(dir, root, pngScale)) any = true;
+      if (ProgressPrefab(dir, root, pngScale, m)) any = true;
       // the RIGS: working controls composed from their layer sprites
       if (JoystickPrefab(dir, root, pngScale, m)) any = true;
       if (JoystickGhostPrefab(dir, root, pngScale, m)) any = true;
@@ -11818,7 +11885,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -11886,6 +11953,36 @@ namespace PatternBreak {
           }
         }
 #endif
+        /* the progress bar's rig era (round 21, owner: board bars arrive
+           kit-dressed): a ProgressBar from the synthesized-capsule
+           generation still carries its old "Fill" child — a Sliced image
+           cut to a fraction of the track, which would wear the NEW
+           dressed mercury as a squashed strip (caps intact, body
+           crushed). Rebuild the innards once: Filled-mode mercury seated
+           on the manifest's well zone. The dev's staged width survives
+           as the staged fillAmount; words, user children and placed
+           copies ride along. */
+        if (spritePath.EndsWith("/progress-track.9.png") && asset.transform.Find("Fill Area") == null) {
+          var fillBar = S(root + "/assets/progress/progress-fill.9.png");
+          if (fillBar != null) {
+            var contentsPB = PrefabUtility.LoadPrefabContents(path);
+            try {
+              float stagedPB = 0.62f;
+              var oldFill = contentsPB.transform.Find("Fill");
+              if (oldFill != null) {
+                var ofR = oldFill as RectTransform;
+                var pbRt = contentsPB.GetComponent<RectTransform>();
+                if (ofR != null && pbRt != null && pbRt.sizeDelta.x > 1f && ofR.sizeDelta.x > 1f)
+                  stagedPB = Mathf.Clamp01(ofR.sizeDelta.x / pbRt.sizeDelta.x); // keep the dev's staged width
+                UnityEngine.Object.DestroyImmediate(oldFill.gameObject);
+              }
+              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, "progress", stagedPB, false);
+              PrefabUtility.SaveAsPrefabAsset(contentsPB, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
+            continue;
+          }
+        }
         /* the mini-map's lost MAP (round 14): the ONE import where the map
            layer first arrives (extras-minimap-map.png absent from the last
            receipt), an existing Minimap prefab grafts the app's well
@@ -12511,6 +12608,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
       if (retracked > 0)
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
+      if (barRigged > 0)
+        Debug.Log("UI Kit Maker: rebuilt " + barRigged + " progress-bar prefab(s) around the kit-dressed rig — the track and mercury are now the real component's own layers (this kit ships them under the same filenames), and the fill rides a Filled image on the app's well zone. Drive Fill Area > Fill's fillAmount from your live value; placed copies picked it up automatically.");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)

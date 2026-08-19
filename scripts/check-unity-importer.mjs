@@ -257,6 +257,26 @@ if (!/var uWantC = new Vector2\(g\.x \/ rwC, 1f - g\.unitY \/ rhC\);/.test(cs)
 if (!/EMPTY IS NORMAL when the readout rides the HeroLabel echo stack/.test(src))
   errors.push("GaugeDial.number's tooltip must explain the empty-by-design echo-stack wiring (round 17 — 'Needle=None, Number=None' owner confusion)");
 
+/* round-21: board bars arrive KIT-DRESSED (owner mandate — truth from app
+   to Unity). The progress assets must be the real component's part
+   renders, the manifest must carry the well zone, and the ProgressBar
+   prefab + placement + heal must ride the shared mercury-seat builder. */
+if (!/addPng\("progress\/track\.9\.png", shell\("progress", \{ overlay: "track" \}/.test(src)
+    || !/addPng\("progress\/fill\.9\.png", shell\("progress", \{ overlay: "fill" \}/.test(src))
+  errors.push("the progress bar's assets must be the DRESSED part renders (overlay track/fill), not synthesized capsules (round 21)");
+if (!/const tzm = \/data-track=/.test(src))
+  errors.push("the raster pass must capture the bar renders' data-track zone into the manifest (round 21)");
+if (!/class PBTrack \{ public float x; public float w; \}/.test(cs))
+  errors.push("PBTrack (the manifest's well-zone row) is missing from the importer (round 21)");
+if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT\.track\.w > 2f/.test(cs))
+  errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
+if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, "progress", 0\.62f, false\)/.test(cs))
+  errors.push("ProgressPrefab must assemble the dressed rig through BuildBarFill (round 21)");
+if (!/it\.component == "progress" && it\.value > 0f/.test(cs))
+  errors.push("board placement must drive the progress bar's fillAmount from the board's value (round 21)");
+if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+/.test(cs))
+  errors.push("the old-structure ProgressBar heal (Fill Area retrofit, barRigged receipt) is missing (round 21)");
+
 /* round-18 PRIMARY: the baked press sink reaches the halo. The manifest's
    stateFx.lift carries only the LIFT DIAL delta — a pressed state that
    collapses the extrusion (owner's real War Chuds: depth 31 -> 14, all
