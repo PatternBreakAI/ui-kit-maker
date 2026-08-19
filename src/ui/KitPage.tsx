@@ -3,6 +3,7 @@ import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -2009,6 +2010,9 @@ const kitTier = useGen((s) => s.tier);
         rk("techcard", "Tech · Researched", { label: "KEEN SIGHT", icon: STOCK_ICONS.crosshair, overlay: "done" }),
         rk("techcard", "Tech · Locked", { label: "???", overlay: "locked" }),
         rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
+        // the semantic glyph rack — catalog entries derive from the registry;
+        // the visibility filter below keeps them admin-only until released
+        ...GLYPH_LIBRARY.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
       // not hand over what the page keeps locked. Staging-bay pieces ride
@@ -2724,6 +2728,19 @@ const kitTier = useGen((s) => s.tier);
           </div>
           <div className="kp-meta"><span>A 3/4 gift box wearing the kit whole — lid slab, bow loops, receding side</span><span>Ribbon, lid shadow and bow glint ride as overlays on the kit's own material</span><span>A real button — hover and press work</span></div>
         </>)}
+        {/* the semantic glyph rack — staged residents; each glyph gates on its
+            own release, and the whole section stays silent until one ships */}
+        {(() => {
+          const visG = GLYPH_LIBRARY.filter((g) => kitVisible(`glyph${g.id}` as KitComponentId, releases, false));
+          if (!visG.length) return null;
+          return (<>
+            <div className="kp-subhead">Semantic glyphs — pre-treated icons in the kit's material</div>
+            <div className="kp-slotgrid">
+              {visG.map((g) => <Piece key={g.id} id={`glyph${g.id}` as KitComponentId} caption={g.name} scale={0.38} />)}
+            </div>
+            <div className="kp-meta"><span>The glyph itself wears the kit — face, pattern, bevel wall and extrusion wrap the outline, the gear/trophy canon</span><span>Real buttons — hover and press work; states fork like any piece</span><span>Style one alone with Edit; it follows the kit until you fork it</span></div>
+          </>);
+        })()}
         {kitVisible("firebutton", releases, false) && (<>
           <div className="kp-subhead">Fire button</div>
           <div className="kp-tray">
