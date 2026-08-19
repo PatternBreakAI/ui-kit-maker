@@ -732,10 +732,15 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(tc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
+        /* glyph thumbs wear their per-piece fork (the family is born with
+           a flat factory design) — a walled tray thumb would promise a
+           look that never lands on the board. Other stock thumbs stay the
+           master-look catalog they've always been. */
+        const gtc = kid.startsWith("glyph") ? applyKitDesign(tc, kitDesigns[kid]) : tc;
+        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
       }),
     }));
-  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, componentReleases, isAdmin]);
+  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, componentReleases, isAdmin]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design

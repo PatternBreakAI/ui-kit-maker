@@ -1923,8 +1923,24 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
     };
     if (d || Object.keys(extras).length) out[id] = { ...(d ?? {}), ...extras };
   }
+  /* ── the glyph family's FACTORY look is FLAT (owner mandate: glyphs are
+     judged pre-extrusion) — zero extrusion depth, no bevel wall; face
+     fill, pattern, outline rim and glow keep following the kit. Seeded as
+     an ordinary per-piece fork so every knob stays editable upward: a
+     glyph piece the owner already styled keeps that styling (only ABSENT
+     entries seed), and this runs at every load path — store boot,
+     workspace hydrate, preset load — so old saves pick it up too. */
+  for (const g of GLYPH_LIBRARY) {
+    const id = `glyph${g.id}` as KitComponentId;
+    if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
+  }
   return { forks: out, changed };
 }
+
+/** The flat factory fork every glyph piece is born with — a fresh object
+ *  each call so one piece's later edits can't alias into another's. */
+export const GLYPH_FLAT_DESIGN = (): KitDesign =>
+  ({ candy: { extrusion: { depth: 0 } }, bevel: { off: true } } as KitDesign);
 
 /** Per-component text color — the answer to "changing text color changes it
  *  everywhere". A piece with an override renders every glyph it draws in its
