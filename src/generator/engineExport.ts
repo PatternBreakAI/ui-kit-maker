@@ -9,6 +9,7 @@
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
+import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import type { KitOpts } from "./bevel";
@@ -245,6 +246,17 @@ export interface ExportBoardItemData {
       tiles from these and re-draws the selection ring itself */
   cells?: number[];
   cellSel?: number | null;
+  /** a BIG GLYPH item (the owner's board-art drop, bigGlyphs.ts): each
+      USED asset ships as ITS OWN PREFAB (owner mandate). `id`/`name` key
+      prefab convergence — every instance of the same asset resolves to
+      Prefabs/BigGlyphs/<Name>.prefab; `sprite` is this INSTANCE's shipped
+      file (`stamp` also carries it for generic-walk compatibility).
+      `fx` = true means the instance's shadow/glow dials are BAKED into
+      those pixels (the posed-pipeline precedent) and the file is
+      instance-suffixed; false means it wears the asset's clean sprite
+      (bigglyphs/<id>.png), shared by every clean instance. Live-effect
+      travel (Unity-side shadow/glow components) is a future option. */
+  big?: { id: string; name: string; sprite: string; fx: boolean };
 }
 export interface ExportBoardData {
   name: string;
@@ -262,7 +274,8 @@ export interface ExportBoardData {
     original: boolean;
   } | null;
   items: ExportBoardItemData[];
-  /** baked stamp sprites for this board — pushed into the zip beside bg */
+  /** baked sprite files for this board (type stamps, saved assets, big
+      glyphs) — pushed into the zip beside bg */
   stampFiles: { file: string; bytes: Uint8Array }[];
 }
 
@@ -361,7 +374,7 @@ export async function collectExportBoards(st: {
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -498,6 +511,8 @@ export async function collectExportBoards(st: {
        current. (The importer re-points scenes still holding old-scheme
        names once, position-keyed.) ── */
     const usedSid = new Set<string>();
+    /** clean big-glyph sprites ship ONCE per asset per board */
+    const bigClean = new Set<string>();
     const sidOf = (b: { id?: string }) => {
       let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
       if (!s) s = `n${stampFiles.length + 1}`;
@@ -585,6 +600,60 @@ export async function collectExportBoards(st: {
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
           ...(maskFile ? { stampMask: maskFile } : {}),
+        });
+        continue;
+      }
+      if (b.big) {
+        /* a BIG GLYPH (the owner's board-art drop): each USED asset ships
+           as its own prefab (owner mandate) — the importer converges every
+           instance of one asset onto Prefabs/BigGlyphs/<Name>.prefab. A
+           CLEAN instance wears the asset's original bytes, shipped once
+           per asset; an instance with shadow/glow dials bakes them into
+           its own sprite (the posed-pipeline precedent — live-effect
+           travel is a future option). */
+        const gl = bigGlyphById(b.big.gid);
+        if (!gl) continue;
+        const hasFx = !!(b.big.shadow || b.big.glow);
+        let file: string;
+        try {
+          if (!hasFx) {
+            file = `bigglyphs/${gl.id}.png`;
+            if (!bigClean.has(gl.id)) {
+              const resp = await fetch(bigGlyphUrl(gl.id));
+              stampFiles.push({ file, bytes: new Uint8Array(await resp.arrayBuffer()) });
+              bigClean.add(gl.id);
+            }
+          } else {
+            const img = await new Promise<HTMLImageElement>((res, rej) => {
+              const im = new Image();
+              im.onload = () => res(im); im.onerror = rej;
+              im.src = bigGlyphUrl(gl.id);
+            });
+            const padPx = bigGlyphFilterPad(b.big);
+            const cv = document.createElement("canvas");
+            cv.width = img.width + padPx * 2; cv.height = img.height + padPx * 2;
+            const cx2 = cv.getContext("2d")!;
+            const bf = bigGlyphFilter(st.cfg, b.big);
+            if (bf) cx2.filter = bf;
+            cx2.drawImage(img, padPx, padPx);
+            const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+            if (!blob) continue;
+            file = `bigglyphs/${gl.id}-${sidOf(b)}.png`;
+            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
+        } catch { continue; }
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        const wB = gl.w * kB, hB = gl.h * kB;
+        const cxB = b.x + wB / 2, cyB = b.y + hB / 2;
+        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
+        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
+          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
+          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
+          stamp: file,
+          big: { id: gl.id, name: gl.name, sprite: file, fx: hasFx },
         });
         continue;
       }

@@ -9,6 +9,7 @@ import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
+import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
@@ -392,6 +393,11 @@ interface GenStore {
   /** Drop lettering on the board — the kit's full splash treatment, or
    *  (plain = true) the PLAIN tier: kit face, flat pickable color. */
   addStampToBoard: (plain?: boolean) => void;
+  /** Drop one of the owner's big glyphs on the active board — boards-only
+   *  art, never a kit piece (see bigGlyphs.ts). */
+  addBigGlyphToBoard: (gid: string) => void;
+  /** THIS instance's shadow/glow dials — the stamp-dial contract. */
+  setBoardItemBig: (id: string, patch: Partial<BigGlyphFx>) => void;
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
@@ -732,6 +738,11 @@ export interface BoardItem {
      *  still ride on top, and the piece exports exactly like a stamp. */
     plain?: { color: string; outline?: boolean };
   };
+  /** A BIG GLYPH — the owner's high-res board art (see bigGlyphs.ts).
+   *  Boards-only by mandate ("should NOT appear in the kit, only Boards
+   *  options"); carries the instance's own Drop shadow + Glow dials, the
+   *  stamp grain. Scale/rotation/opacity ride the shared item fields. */
+  big?: BigGlyphFx;
 }
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
@@ -1715,6 +1726,30 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setBoardItemStamp: (id, patch) => mutateItem(get, set, `stamp:${id}`, id, (b) => (
     b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(25, Math.min(400, patch.size ?? b.stamp.size)) } } : b
+  )),
+  addBigGlyphToBoard: (gid) => {
+    const gl = bigGlyphById(gid);
+    if (!gl) return;
+    /* land centered on the active board's stage at the set's natural
+       footprint, shrunk further if a huge glyph would swamp a mobile
+       board — same landing contract as the type stamp */
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    let k = BIG_GLYPH_BASE;
+    while (gl.w * k > W * 0.86 && k > 0.1) k *= 0.8;
+    const scale = Math.max(0.3, Math.min(2, Math.round((k / BIG_GLYPH_BASE) * 100) / 100));
+    const w = gl.w * BIG_GLYPH_BASE * scale, h = gl.h * BIG_GLYPH_BASE * scale;
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "",
+      x: Math.max(0, Math.round((W - w) / 2)), y: Math.max(0, Math.round((H - h) / 2)),
+      ...(scale !== 1 ? { scale } : {}),
+      big: { gid },
+    };
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
+    set({ phase: "board", boardSel: item.id });
+  },
+  setBoardItemBig: (id, patch) => mutateItem(get, set, `big:${id}`, id, (b) => (
+    b.big ? { ...b, big: { ...b.big, ...patch } } : b
   )),
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
