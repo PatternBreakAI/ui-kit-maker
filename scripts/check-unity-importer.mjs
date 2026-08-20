@@ -452,6 +452,47 @@ if (!/pfName = it\.ov == "ghost" \? "JoystickGhost" : "Joystick";/.test(cs))
 if (!/it2\.component == "joystick" && it2\.ov == "ghost"/.test(cs) || !/ghost stick\(s\) swapped in/.test(cs))
   errors.push("the kept-scene ghost-stick heal (position-matched swap) is missing (round 20)");
 
+/* round-23: BIG GLYPHS cross the seam (owner mandate: "if used then they
+   should export with boards as their own prefabs"). The app half emits
+   manifest rows (component "bigglyph", big{id,name,sprite,fx}) plus
+   bigglyphs/<id>.png (clean, shared) and bigglyphs/<id>-<sid>.png
+   (per-copy fx bake, padded symmetrically — w/h describe the SHIPPED
+   raster). The importer half must: parse the row, build one prefab per
+   used asset at Prefabs/BigGlyphs/<Name>.prefab from the clean sprite,
+   converge every instance on it, put an fx copy's bake on the INSTANCE
+   (never the prefab), self-heal races, import the art losslessly, and
+   sweep stale bakes into the orphan receipt without slandering the
+   prefab's own clean file. */
+if (!/class PBBig \{ public string id; public string name; public string sprite; public bool fx; \}/.test(cs))
+  errors.push("PBBig (the manifest's big-glyph row) is missing from the importer (round 23)");
+if (!/public float\[\] cells; public int cellSel = -1; public PBBig big; \}/.test(cs))
+  errors.push("PBBoardItem must carry the big field — without it JsonUtility drops every big-glyph row (round 23)");
+if (!/static string BigGlyphPrefabName\(PBBig bg\)/.test(cs))
+  errors.push("BigGlyphPrefabName is missing — builder and placement must derive the prefab file name from ONE helper or they diverge (round 23)");
+if (!/static bool BigGlyphPrefabs\(/.test(cs) || !/if \(BigGlyphPrefabs\(dir, root, m\)\) any = true;/.test(cs))
+  errors.push("BigGlyphPrefabs is missing or never runs — used big glyphs would ship no prefab (round 23, the owner mandate)");
+if (!/"\/Prefabs\/BigGlyphs\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
+  errors.push("board placement must converge big-glyph instances on Prefabs/BigGlyphs/<Name>.prefab (round 23)");
+if (!/if \(bigSp != null && bigImg != null\) bigImg\.sprite = bigSp;/.test(cs))
+  errors.push("an fx copy's baked sprite must land on the INSTANCE Image (override), never the prefab (round 23)");
+if (!/the clean art stands in and the scene rebuilds itself/.test(cs)
+    || !/bigImg2\.sprite = bigSp; bigImg2\.raycastTarget = false; bigImg2\.preserveAspect = true;\s*\n\s*missing\+\+;/.test(cs))
+  errors.push("big-glyph import races must count the scene incomplete (missing++) so pbBoardPending self-heals it (round 23)");
+if (!/path\.Contains\("\/bigglyphs\/"\) \|\| path\.Contains\("\/boardstamps\/"\)\) gti\.textureCompression/.test(cs)
+    || !/path\.Contains\("\/backgrounds\/"\) \|\| path\.Contains\("\/bigglyphs\/"\) \|\| path\.Contains\("\/boardstamps\/"\)/.test(cs))
+  errors.push("bigglyphs/ must import as single sprites, Uncompressed — painted art at natural (non-multiple-of-4) sizes (round 23)");
+if (!/stampsInUse\.Add\("bigglyphs\/" \+ itR\.big\.id \+ "\.png"\);/.test(cs)
+    || !/new string\[\] \{ root \+ "\/boardstamps", root \+ "\/bigglyphs" \}/.test(cs))
+  errors.push("the orphan sweep must cover bigglyphs/ AND keep a used asset's clean original in-use (the prefab wears it even when every copy is fx) (round 23)");
+if (!/it2\.big != null && !string\.IsNullOrEmpty\(it2\.big\.id\)/.test(cs))
+  errors.push("the kept-scene heal must re-point a big-glyph copy's clean/fx flip and shield big rows from the stamp branch's WipeShine (round 23)");
+if (!/component: "bigglyph"/.test(src) || !/big: \{ id: gl\.id, name: gl\.name, sprite: file, fx: hasFx \}/.test(src))
+  errors.push("the app-side big-glyph emission seam (component bigglyph + big{id,name,sprite,fx}) is missing (round 23)");
+if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
+  errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
+if (!/Prefabs\/BigGlyphs\/\*\*/.test(src))
+  errors.push("the README's Prefabs/BigGlyphs pointer is missing (round 23)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
