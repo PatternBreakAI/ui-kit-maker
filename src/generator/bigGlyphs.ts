@@ -17,9 +17,10 @@
    The art lives OFF the JS bundle: full PNGs in public/bigglyphs (Vercel
    CDN, fetched only when placed or baked), 128px thumbs in
    public/bigglyph-thumbs (the tray renders these, lazily). Seven files
-   arrived OPAQUE (baked flat white backgrounds) — flagged `opaque`, held
-   out of the tray until the owner re-exports them with alpha or blesses
-   the white; the registry keeps them so the release is one flip. */
+   first arrived OPAQUE (baked flat white backgrounds) and sat parked
+   behind the `opaque` flag; the owner re-exported all seven with real
+   cutout alpha (2026-08-20) and the parked set is now EMPTY — the flag
+   machinery stays for future drops that land flat. */
 
 import type { GenConfig } from "./model";
 
@@ -48,8 +49,8 @@ export const BIG_GLYPHS: BigGlyphDef[] = [
   { id: "bomb", name: "Bomb", w: 914, h: 851, search: "explosive fuse black powerup" },
   { id: "candy", name: "Candy", w: 1048, h: 851, search: "sweet wrapper treat" },
   { id: "cannon", name: "Cannon", w: 878, h: 892, search: "weapon pirate artillery" },
-  { id: "castle", name: "Castle", w: 985, h: 1008, search: "fortress medieval keep kingdom", opaque: true },
-  { id: "catapult", name: "Catapult", w: 1070, h: 1008, search: "siege medieval weapon launcher", opaque: true },
+  { id: "castle", name: "Castle", w: 985, h: 1008, search: "fortress medieval keep kingdom" },
+  { id: "catapult", name: "Catapult", w: 1070, h: 1008, search: "siege medieval weapon launcher" },
   { id: "cherry_blossom", name: "Cherry Blossom", w: 805, h: 811, search: "sakura flower pink petal spring" },
   { id: "chick", name: "Chick", w: 805, h: 803, search: "bird baby chicken easter yellow" },
   { id: "clover", name: "Clover", w: 866, h: 851, search: "luck irish shamrock green" },
@@ -57,9 +58,9 @@ export const BIG_GLYPHS: BigGlyphDef[] = [
   { id: "compass", name: "Compass", w: 793, h: 835, search: "navigate map direction explorer" },
   { id: "cookie", name: "Cookie", w: 902, h: 843, search: "biscuit chocolate chip treat" },
   { id: "crown", name: "Crown", w: 829, h: 835, search: "king queen royal gold" },
-  { id: "cupcake", name: "Cupcake", w: 986, h: 963, search: "muffin frosting cherry dessert sweet", opaque: true },
+  { id: "cupcake", name: "Cupcake", w: 986, h: 963, search: "muffin frosting cherry dessert sweet" },
   { id: "diamond", name: "Diamond", w: 866, h: 851, search: "gem jewel blue crystal" },
-  { id: "die", name: "Die", w: 937, h: 1076, search: "dice random roll board game", opaque: true },
+  { id: "die", name: "Die", w: 937, h: 1076, search: "dice random roll board game" },
   { id: "dolphin", name: "Dolphin", w: 865, h: 803, search: "sea ocean animal marine" },
   { id: "donut", name: "Donut", w: 890, h: 843, search: "doughnut sprinkles sweet" },
   { id: "fish", name: "Fish", w: 829, h: 803, search: "sea ocean animal orange" },
@@ -91,12 +92,12 @@ export const BIG_GLYPHS: BigGlyphDef[] = [
   { id: "paintbrush", name: "Paintbrush", w: 866, h: 956, search: "art paint brush create" },
   { id: "panda", name: "Panda", w: 866, h: 803, search: "animal bear bamboo" },
   { id: "penguin", name: "Penguin", w: 829, h: 803, search: "bird ice antarctic animal" },
-  { id: "pinata", name: "Piñata", w: 1043, h: 967, search: "party horse candy fiesta birthday", opaque: true },
+  { id: "pinata", name: "Piñata", w: 1043, h: 967, search: "party horse candy fiesta birthday" },
   { id: "pinecone", name: "Pinecone", w: 757, h: 811, search: "pine forest autumn" },
-  { id: "popsicle", name: "Popsicle", w: 865, h: 963, search: "ice lolly frozen treat summer", opaque: true },
+  { id: "popsicle", name: "Popsicle", w: 865, h: 963, search: "ice lolly frozen treat summer" },
   { id: "potion_red", name: "Red Potion", w: 720, h: 835, search: "flask bottle elixir health brew" },
   { id: "purple_block", name: "Purple Block", w: 950, h: 907, search: "crate cube crystal tile" },
-  { id: "rocket", name: "Rocket", w: 865, h: 967, search: "firework spaceship launch", opaque: true },
+  { id: "rocket", name: "Rocket", w: 865, h: 967, search: "firework spaceship launch" },
   { id: "rose", name: "Rose", w: 721, h: 811, search: "flower red romance" },
   { id: "scroll", name: "Scroll", w: 806, h: 892, search: "parchment quest paper message" },
   { id: "shield", name: "Shield", w: 745, h: 835, search: "defense armor crest guard" },
