@@ -643,8 +643,12 @@ export async function collectExportBoards(st: {
           }
         } catch { continue; }
         const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        const wB = gl.w * kB, hB = gl.h * kB;
-        const cxB = b.x + wB / 2, cyB = b.y + hB / 2;
+        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
+           describe the shipped raster's footprint or the importer would
+           squeeze the halo into the art rect — the stamp rows' contract */
+        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
+        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
+        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
         const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
         const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
         exItems.push({
