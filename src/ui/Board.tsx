@@ -8,6 +8,7 @@ import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
+import { BIG_GLYPHS, BIG_GLYPH_GATE, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphUrl, bigGlyphFilter } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
@@ -785,6 +786,8 @@ export function BoardView({ playing }: { playing: boolean }) {
       return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
+    // big glyphs are raster art — the PNG compositor draws them directly
+    if (b.big) return { svg: "", cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label !== undefined ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
@@ -792,6 +795,7 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
+    if (b.big) return bigGlyphById(b.big.gid)?.name ?? "Big glyph";
     // clone-registry first — a copy-* id must never surface as a name
     const kid = b.kitId;
     if (kid) return kitClones[kid]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(kid))?.name ?? kid;
@@ -866,6 +870,31 @@ export function BoardView({ playing }: { playing: boolean }) {
     // recipe with the Unity background bake, so the two can't drift
     drawBoardOverlays(ctx, W, H, bd);
     for (const b of bd.items) {
+      if (b.big) {
+        /* big glyph: the PNG itself, the instance's shadow/glow filter on
+           the context — same pixels the stage shows (bigGlyphFilter is the
+           one shared recipe) */
+        const gl = bigGlyphById(b.big.gid);
+        if (!gl) continue;
+        const s = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        await new Promise<void>((res) => {
+          const img = new Image();
+          img.onload = () => {
+            const w = img.width * s, h = img.height * s;
+            ctx.save();
+            if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
+            const bf = bigGlyphFilter(cfg, b.big!);
+            if (bf) ctx.filter = bf;
+            ctx.translate(b.x + w / 2, b.y + h / 2);
+            if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            ctx.restore(); res();
+          };
+          img.onerror = () => res();
+          img.src = bigGlyphUrl(gl.id);
+        });
+        continue;
+      }
       const { svg: svg0, cfg: pc } = svgOf(b);
       if (!svg0) continue;
       // the compositor's raster trip is sealed too — faces ride inside.
@@ -1017,6 +1046,50 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: it.svg }} />
                       <i>{it.name}</i>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+          {/* ── Big glyphs — the owner's board-art drop (bigGlyphs.ts).
+              Boards-only by mandate; the WHOLE SET gates on one ledger key
+              (admin-only until released — the glyph-set batch precedent).
+              Thumbs are 128px webp served static; the full PNG is fetched
+              only when a glyph is placed. Opaque-delivered files stay
+              parked until the owner re-exports them with alpha. ── */}
+          {(isAdmin || componentReleases[BIG_GLYPH_GATE] === "released") && (() => {
+            const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+            const items = BIG_GLYPHS.filter((g) => !g.opaque).filter((g) => {
+              const hay = `${g.name} ${g.id} big glyphs board art ${g.search ?? ""}`.toLowerCase();
+              return terms.every((t) => hay.includes(t));
+            });
+            if (!items.length) return null;
+            const released = componentReleases[BIG_GLYPH_GATE] === "released";
+            return (
+              <div>
+                <div className="bd-cat">Big glyphs{!released ? " — in the bay, only you see this" : ""}</div>
+                {isAdmin && (
+                  <div className="bd-actions" style={{ marginBottom: 6 }}>
+                    {!released ? (
+                      <button title="Release the whole big-glyph set to every maker — it appears in this tray for everyone the moment you approve. Reversible."
+                        onClick={() => { if (window.confirm(`Release all ${items.length} big glyphs to every maker?`)) void useGen.getState().setComponentRelease(BIG_GLYPH_GATE as KitComponentId, "released").then((err) => { if (err) window.alert(err); }); }}>
+                        <Shield size={12} strokeWidth={2.2} /> Release the set
+                      </button>
+                    ) : (
+                      <button title="Pull the set back to admin-only"
+                        onClick={() => void useGen.getState().setComponentRelease(BIG_GLYPH_GATE as KitComponentId, null).then((err) => { if (err) window.alert(err); })}>
+                        Pull back to the bay
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="bd-grid">
+                  {items.map((g) => (
+                    <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
+                      onClick={() => useGen.getState().addBigGlyphToBoard(g.id)}>
+                      <span><img src={bigGlyphThumb(g.id)} alt={g.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: 64 }} /></span>
+                      <i>{g.name}</i>
                     </button>
                   ))}
                 </div>
@@ -1538,6 +1611,46 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
               </>);
             })()}
+            {sel.big && (() => {
+              /* the big glyph's own dials — instance-only, day one by
+                 owner mandate ("off the bat I will want to add drop
+                 shadows and glows to these"). The stamp dial grain. */
+              const bg = sel.big;
+              const patch = (p: Partial<typeof bg>) => useGen.getState().setBoardItemBig(sel.id, p);
+              const gname = bigGlyphById(bg.gid)?.name ?? "Big glyph";
+              return (<>
+                <div className="bd-h" style={{ marginTop: 14 }}>{gname}</div>
+                <label className="bd-slider">Drop shadow · {bg.shadow ?? 0}%
+                  <input type="range" min={0} max={100} value={bg.shadow ?? 0} onChange={(e) => patch({ shadow: +e.target.value })} />
+                </label>
+                {(bg.shadow ?? 0) > 0 && (<>
+                  <label className="bd-slider">Shadow X · {Math.round(bg.shadowX ?? 0)}px
+                    <input type="range" min={-40} max={40} value={Math.round(bg.shadowX ?? 0)} onChange={(e) => patch({ shadowX: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowX: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow Y · {Math.round(bg.shadowY ?? 2 + (bg.shadow ?? 0) * 0.1)}px
+                    <input type="range" min={-40} max={40} value={Math.round(bg.shadowY ?? 2 + (bg.shadow ?? 0) * 0.1)} onChange={(e) => patch({ shadowY: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowY: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow blur · {Math.round(bg.shadowBlur ?? 2 + (bg.shadow ?? 0) * 0.22)}px
+                    <input type="range" min={0} max={60} value={Math.round(bg.shadowBlur ?? 2 + (bg.shadow ?? 0) * 0.22)} onChange={(e) => patch({ shadowBlur: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowBlur: undefined })} />
+                  </label>
+                </>)}
+                <label className="bd-slider">Glow · {bg.glow ?? 0}%
+                  <input type="range" min={0} max={100} value={bg.glow ?? 0} onChange={(e) => patch({ glow: +e.target.value })} />
+                </label>
+                {(bg.glow ?? 0) > 0 && (
+                  <label className="bd-slider bd-inkrow">Glow ink
+                    <input type="color" value={bg.glowInk ?? (cfg.effects.Glow ?? "#7DF9FF")} aria-label="Glow ink"
+                      onChange={(e) => patch({ glowInk: e.target.value })} />
+                    <label className="bd-inkchk"><input type="checkbox" checked={!bg.glowInk}
+                      onChange={(e) => patch({ glowInk: e.target.checked ? undefined : (cfg.effects.Glow ?? "#7DF9FF") })} /> Kit's glow ink</label>
+                  </label>
+                )}
+                <div className="bd-note">The dials touch only THIS copy. Glow follows the kit's Glow color until you pick your own; shadow pose dials reset on double-click.</div>
+              </>);
+            })()}
             {/* stacking order — items render in array order, later = on top
                 (owner: "need some layering/stacking order controls") */}
             <div className="bd-h" style={{ marginTop: 14 }}>Layer</div>
@@ -1969,8 +2082,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
     if (typeof document !== "undefined" && document.fonts?.ready) void document.fonts.ready.then(() => read());
     return () => { cancelAnimationFrame(pend); mo.disconnect(); };
   }, []);
-  const item = b.kitId || b.stamp ? null : library.find((l) => l.id === b.libId);
-  if (!b.kitId && !b.stamp && !item) return null;
+  const item = b.kitId || b.stamp || b.big ? null : library.find((l) => l.id === b.libId);
+  if (!b.kitId && !b.stamp && !b.big && !item) return null;
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`} data-bid={b.id}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
@@ -2026,7 +2139,17 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
           formatting context, which keeps the child margin INSIDE the
           scaled box. The overlay math was measured correct all along. */}
       <div ref={artRef} style={{ display: "flow-root", transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
-        {b.stamp ? (
+        {b.big ? (() => {
+          /* a big glyph is finished raster art: the PNG at its stage
+             footprint, the instance's shadow/glow dials as a CSS filter —
+             bigGlyphFilter is the one recipe the PNG compositor and the
+             Unity bake share, so what you see is what ships */
+          const gl = bigGlyphById(b.big!.gid);
+          if (!gl) return null;
+          const w = Math.round(gl.w * BIG_GLYPH_BASE), h = Math.round(gl.h * BIG_GLYPH_BASE);
+          return <img src={bigGlyphUrl(gl.id)} width={w} height={h} data-shell={`0 0 ${w} ${h}`} draggable={false}
+            alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, b.big!) }} />;
+        })() : b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (
           /* per-component design forks apply on the stage exactly like the

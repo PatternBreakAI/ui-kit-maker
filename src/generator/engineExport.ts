@@ -9,6 +9,7 @@
 import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
+import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
 import type { KitOpts } from "./bevel";
@@ -245,6 +246,17 @@ export interface ExportBoardItemData {
       tiles from these and re-draws the selection ring itself */
   cells?: number[];
   cellSel?: number | null;
+  /** a BIG GLYPH item (the owner's board-art drop, bigGlyphs.ts): each
+      USED asset ships as ITS OWN PREFAB (owner mandate). `id`/`name` key
+      prefab convergence — every instance of the same asset resolves to
+      Prefabs/BigGlyphs/<Name>.prefab; `sprite` is this INSTANCE's shipped
+      file (`stamp` also carries it for generic-walk compatibility).
+      `fx` = true means the instance's shadow/glow dials are BAKED into
+      those pixels (the posed-pipeline precedent) and the file is
+      instance-suffixed; false means it wears the asset's clean sprite
+      (bigglyphs/<id>.png), shared by every clean instance. Live-effect
+      travel (Unity-side shadow/glow components) is a future option. */
+  big?: { id: string; name: string; sprite: string; fx: boolean };
 }
 export interface ExportBoardData {
   name: string;
@@ -262,7 +274,8 @@ export interface ExportBoardData {
     original: boolean;
   } | null;
   items: ExportBoardItemData[];
-  /** baked stamp sprites for this board — pushed into the zip beside bg */
+  /** baked sprite files for this board (type stamps, saved assets, big
+      glyphs) — pushed into the zip beside bg */
   stampFiles: { file: string; bytes: Uint8Array }[];
 }
 
@@ -361,7 +374,7 @@ export async function collectExportBoards(st: {
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -498,6 +511,8 @@ export async function collectExportBoards(st: {
        current. (The importer re-points scenes still holding old-scheme
        names once, position-keyed.) ── */
     const usedSid = new Set<string>();
+    /** clean big-glyph sprites ship ONCE per asset per board */
+    const bigClean = new Set<string>();
     const sidOf = (b: { id?: string }) => {
       let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
       if (!s) s = `n${stampFiles.length + 1}`;
@@ -585,6 +600,64 @@ export async function collectExportBoards(st: {
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
           ...(maskFile ? { stampMask: maskFile } : {}),
+        });
+        continue;
+      }
+      if (b.big) {
+        /* a BIG GLYPH (the owner's board-art drop): each USED asset ships
+           as its own prefab (owner mandate) — the importer converges every
+           instance of one asset onto Prefabs/BigGlyphs/<Name>.prefab. A
+           CLEAN instance wears the asset's original bytes, shipped once
+           per asset; an instance with shadow/glow dials bakes them into
+           its own sprite (the posed-pipeline precedent — live-effect
+           travel is a future option). */
+        const gl = bigGlyphById(b.big.gid);
+        if (!gl) continue;
+        const hasFx = !!(b.big.shadow || b.big.glow);
+        let file: string;
+        try {
+          if (!hasFx) {
+            file = `bigglyphs/${gl.id}.png`;
+            if (!bigClean.has(gl.id)) {
+              const resp = await fetch(bigGlyphUrl(gl.id));
+              stampFiles.push({ file, bytes: new Uint8Array(await resp.arrayBuffer()) });
+              bigClean.add(gl.id);
+            }
+          } else {
+            const img = await new Promise<HTMLImageElement>((res, rej) => {
+              const im = new Image();
+              im.onload = () => res(im); im.onerror = rej;
+              im.src = bigGlyphUrl(gl.id);
+            });
+            const padPx = bigGlyphFilterPad(b.big);
+            const cv = document.createElement("canvas");
+            cv.width = img.width + padPx * 2; cv.height = img.height + padPx * 2;
+            const cx2 = cv.getContext("2d")!;
+            const bf = bigGlyphFilter(st.cfg, b.big);
+            if (bf) cx2.filter = bf;
+            cx2.drawImage(img, padPx, padPx);
+            const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+            if (!blob) continue;
+            file = `bigglyphs/${gl.id}-${sidOf(b)}.png`;
+            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
+        } catch { continue; }
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
+           describe the shipped raster's footprint or the importer would
+           squeeze the halo into the art rect — the stamp rows' contract */
+        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
+        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
+        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
+        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
+        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
+          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
+          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
+          stamp: file,
+          big: { id: gl.id, name: gl.name, sprite: file, fx: hasFx },
         });
         continue;
       }
@@ -5647,6 +5720,12 @@ Open one, press Play; buttons respond. Like the Playground, a board
 scene builds once and is then yours — **Tools > PatternBreak > Rebuild
 Kit Board Scenes** regenerates them from the manifest when you want a
 fresh copy.
+${st.boards?.some((b) => b.items.some((i) => i.big)) ? `
+Big-glyph board art rides along: each glyph you used gets its own
+prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
+instances of it (a copy's shadow/glow dials arrive baked into that
+copy's own sprite).
+` : ""}
 
 > **Buttons ignoring the mouse in your own scene?** The usual suspects
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
@@ -6274,7 +6353,14 @@ namespace PatternBreak {
      tier cells land exactly on the art. */
   [Serializable] class PBSeasonGeo { public float x0; public float x1; public float spineY; public float laneFreeY; public float lanePremY; public float labelX; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; }
+  /* a BIG GLYPH row (the owner's board-art drop): id/name key prefab
+     convergence — every instance of one asset resolves to
+     Prefabs/BigGlyphs/<Name>.prefab; sprite is THIS copy's shipped file
+     (fx=true: shadow/glow baked into those pixels, instance-suffixed
+     name; false: the asset's clean original, shared). JsonUtility gives
+     every row a default instance — an empty id means "not a big glyph". */
+  [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -6809,7 +6895,7 @@ namespace PatternBreak {
          reference. Deletion stays a human's click, same as ever. A zip
          that ships NO boards says nothing about scenes and skips the
          sweep — old scenes keep their art unslandered. ── */
-      if (manifest.boards != null && manifest.boards.Length > 0 && Directory.Exists(root + "/boardstamps")) {
+      if (manifest.boards != null && manifest.boards.Length > 0 && (Directory.Exists(root + "/boardstamps") || Directory.Exists(root + "/bigglyphs"))) {
         var stampsInUse = new HashSet<string>();
         foreach (var bR in manifest.boards) {
           if (bR == null) continue;
@@ -6819,13 +6905,24 @@ namespace PatternBreak {
             if (itR == null) continue;
             foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled })
               if (!string.IsNullOrEmpty(fR)) stampsInUse.Add(fR);
+            /* a USED big glyph keeps BOTH its files: this copy's sprite
+               (stamp already carries it, belt-and-braces here) and the
+               asset's CLEAN original — the BigGlyphs prefab wears that
+               one even when every remaining board copy is fx-dialed */
+            if (itR.big != null && !string.IsNullOrEmpty(itR.big.id)) {
+              if (!string.IsNullOrEmpty(itR.big.sprite)) stampsInUse.Add(itR.big.sprite);
+              stampsInUse.Add("bigglyphs/" + itR.big.id + ".png");
+            }
           }
         }
-        foreach (var fD in Directory.GetFiles(root + "/boardstamps")) {
-          var fp2 = fD.Replace("\\\\", "/");
-          if (fp2.EndsWith(".meta")) continue;
-          var relS = fp2.Substring(root.Length + 1);
-          if (!stampsInUse.Contains(relS) && !orphans.Contains(relS)) orphans.Add(relS);
+        foreach (var dirS in new string[] { root + "/boardstamps", root + "/bigglyphs" }) {
+          if (!Directory.Exists(dirS)) continue;
+          foreach (var fD in Directory.GetFiles(dirS)) {
+            var fp2 = fD.Replace("\\\\", "/");
+            if (fp2.EndsWith(".meta")) continue;
+            var relS = fp2.Substring(root.Length + 1);
+            if (!stampsInUse.Contains(relS) && !orphans.Contains(relS)) orphans.Add(relS);
+          }
         }
         // a name a PAST receipt orphaned can come back into use (the maker
         // re-added that board copy) — in-use always beats the old slander
@@ -7356,6 +7453,21 @@ namespace PatternBreak {
                 if (srcPathG != null && srcPathG.EndsWith("/Prefabs/Joystick.prefab"))
                   ghostSwaps.Add(new KeyValuePair<Transform, PBBoardItem>(ch, it2));
               }
+              /* ── A0) BIG GLYPHS: a clean-to-fx flip (either direction)
+                 renames this copy's file — re-point the instance at its
+                 current sprite (fx dial changes overwrite in place and
+                 need no heal). The kit's wipe never rides board art, so
+                 the stamp branch below must not see these rows. ── */
+              if (it2.big != null && !string.IsNullOrEmpty(it2.big.id)) {
+                var bigImgH = ch.GetComponent<Image>();
+                var wantBig = string.IsNullOrEmpty(it2.big.sprite) ? null : S(root + "/" + it2.big.sprite);
+                if (bigImgH != null && wantBig != null && bigImgH.sprite != wantBig) {
+                  bigImgH.sprite = wantBig;
+                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  artFixed++;
+                }
+                continue;
+              }
               /* ── A) BAKED ART RE-ADOPTION (owner: "is this board reading
                  old versions of the components?"). Bakes used to be named
                  by walk position — one board edit renamed every later
@@ -7581,7 +7693,45 @@ namespace PatternBreak {
         var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
         if (bd.items != null) foreach (var it in bd.items) {
           GameObject inst = null; RectTransform rt = null;
-          if (!string.IsNullOrEmpty(it.stamp)) {
+          /* ── a BIG GLYPH (the owner's board-art drop): every instance
+             converges on its asset's OWN prefab (owner mandate: "if used
+             then they should export with boards as their own prefabs").
+             A clean copy wears the prefab's sprite untouched; a copy with
+             shadow/glow dials wears its own baked sprite as an INSTANCE
+             override — the fx live in the pixels, padded symmetrically,
+             so w/h and cx/cy already describe the shipped raster. Live
+             Unity-side shadow/glow components are a future option. ── */
+          if (it.big != null && !string.IsNullOrEmpty(it.big.id)) {
+            var bigNm = string.IsNullOrEmpty(it.big.name) ? it.big.id : it.big.name;
+            var bigSp = string.IsNullOrEmpty(it.big.sprite) ? null : S(root + "/" + it.big.sprite);
+            var bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/BigGlyphs/" + BigGlyphPrefabName(it.big) + ".prefab");
+            if (bigPf != null) {
+              inst = (GameObject)PrefabUtility.InstantiatePrefab(bigPf, scene);
+              inst.name = bigNm + (it.big.fx ? " (fx)" : "");
+              inst.transform.SetParent(canvasGo.transform, false);
+              if (it.big.fx) {
+                var bigImg = inst.GetComponent<Image>();
+                if (bigSp != null && bigImg != null) bigImg.sprite = bigSp; // this copy's bake; the prefab stays clean
+                else {
+                  Debug.LogWarning("UI Kit Maker: '" + bd.name + "' — the baked shadow/glow sprite for " + bigNm + " isn't imported yet; the clean art stands in and the scene rebuilds itself once it lands.");
+                  missing++;
+                }
+              }
+            } else {
+              /* prefab not generated yet (first-drop race) — the sprite
+                 stands in as a plain Image and missing++ arms the
+                 incomplete-scene rebuild, the posed-pipeline precedent */
+              if (bigSp == null) { missing++; continue; }
+              inst = new GameObject(bigNm + " (baked)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              inst.transform.SetParent(canvasGo.transform, false);
+              var bigImg2 = inst.GetComponent<Image>();
+              bigImg2.sprite = bigSp; bigImg2.raycastTarget = false; bigImg2.preserveAspect = true;
+              missing++;
+            }
+            rt = inst.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(it.w, it.h);
+            rt.localScale = Vector3.one;
+          } else if (!string.IsNullOrEmpty(it.stamp)) {
 #if UNITY_2023_2_OR_NEWER
             /* NUMERIC type stamps go LIVE (owner: "750 should be animating
                on play… :56 should be counting down"): the layered kit face
@@ -11778,6 +11928,57 @@ namespace PatternBreak {
       return true;
     }
 #endif
+    /* ── BIG GLYPHS (the owner's board-art drop): each asset USED on a
+       board ships as its own prefab (owner mandate: "if used then they
+       should export with boards as their own prefabs"), in their own
+       folder — Prefabs/BigGlyphs/<Name>.prefab. The prefab wears the
+       asset's CLEAN sprite (bigglyphs/<id>.png); board copies with
+       shadow/glow dials override the sprite per instance at placement,
+       so the prefab never carries one copy's fx. An asset used ONLY with
+       fx ships no clean file — its bake stands in so the prefab still
+       exists for every instance to converge on. ── */
+    static string BigGlyphPrefabName(PBBig bg) {
+      return FileSafeWord(string.IsNullOrEmpty(bg.name) ? bg.id : bg.name);
+    }
+    static bool BigGlyphPrefabs(string dir, string root, PBManifest m) {
+      if (m == null || m.boards == null) return false;
+      var wanted = new Dictionary<string, PBBig>();
+      foreach (var bd in m.boards) {
+        if (bd == null || bd.items == null) continue;
+        foreach (var it in bd.items) {
+          if (it == null || it.big == null || string.IsNullOrEmpty(it.big.id)) continue;
+          // prefer a clean row's file as the stand-in seed (fx rows are padded)
+          if (!wanted.ContainsKey(it.big.id) || (wanted[it.big.id].fx && !it.big.fx)) wanted[it.big.id] = it.big;
+        }
+      }
+      if (wanted.Count == 0) return false;
+      var sub = dir + "/BigGlyphs";
+      bool hadSub = AssetDatabase.IsValidFolder(sub);
+      if (!hadSub) AssetDatabase.CreateFolder(dir, "BigGlyphs");
+      bool any = false;
+      foreach (var bg in wanted.Values) {
+        var sp = S(root + "/bigglyphs/" + bg.id + ".png");
+        if (sp == null && !string.IsNullOrEmpty(bg.sprite)) sp = S(root + "/" + bg.sprite); // fx-only asset: the bake stands in
+        if (sp == null) continue;
+        var goName = BigGlyphPrefabName(bg);
+        var go = new GameObject(goName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var bImg = go.GetComponent<Image>();
+        bImg.sprite = sp;
+        bImg.type = Image.Type.Simple;
+        bImg.preserveAspect = true; // fixed painted art — any rect letterboxes honestly
+        bImg.raycastTarget = false; // board dressing, not a control
+        /* the app places big-glyph art at HALF its natural raster (the
+           ~800px set lands ~400 board px on a 1920 stage) — the drag-in
+           rect matches, so a fresh drop sits at the app's design size */
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width * 0.5f, sp.rect.height * 0.5f);
+        PrefabUtility.SaveAsPrefabAsset(go, sub + "/" + goName + ".prefab");
+        UnityEngine.Object.DestroyImmediate(go);
+        any = true;
+      }
+      // a kit whose boards use no importable big glyphs leaves no empty folder
+      if (!any && !hadSub) AssetDatabase.DeleteAsset(sub);
+      return any;
+    }
     static bool RunPrefabBuilders(string dir, string root, PBManifest m) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
       bool any = false;
@@ -11817,6 +12018,8 @@ namespace PatternBreak {
       if (PicturePrefab(dir, root, pngScale, m, "extras/extras-movecounter.png", "MoveCounter", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "extras/extras-achievement.png", "Achievement", false)) any = true;
       if (RarityFramePrefab(dir, root, pngScale, m)) any = true;
+      // big glyphs used on this export's boards — one prefab per asset
+      if (BigGlyphPrefabs(dir, root, m)) any = true;
       /* the stretch-safe variants live in their OWN folder (owner: "we
          need to draw a distinction between 9 slice elements and not…
          two different folders") — Prefabs/ stays the drag-in pieces,
@@ -13039,8 +13242,9 @@ namespace PatternBreak {
       }
       /* Board backdrops — the maker's own art, possibly 4K originals —
          arrive as single sprites so the board scenes' Background Image can
-         hold them. Full quality, no mips, big ceiling. */
-      if (path.Contains("UIKitMaker/") && (path.Contains("/backgrounds/") || path.Contains("/boardstamps/"))) {
+         hold them. Full quality, no mips, big ceiling. Big glyphs (the
+         owner's painted board art, bigglyphs/) ride the same road. */
+      if (path.Contains("UIKitMaker/") && (path.Contains("/backgrounds/") || path.Contains("/bigglyphs/") || path.Contains("/boardstamps/"))) {
         var gti = (TextureImporter)assetImporter;
         gti.textureType = TextureImporterType.Sprite;
         gti.spriteImportMode = SpriteImportMode.Single;
@@ -13052,9 +13256,12 @@ namespace PatternBreak {
            and warn on every non-multiple-of-4 dimension ("only textures
            with width/height multiple of 4 can be compressed"). NOT fixed
            by padding: the bake's pixel box IS the seat math (crop center,
-           label offsets) — pad it and every offset lies. Backgrounds are
-           the maker's own photos and keep Unity's default pipeline. */
-        if (path.Contains("/boardstamps/")) gti.textureCompression = TextureImporterCompression.Uncompressed;
+           label offsets) — pad it and every offset lies. Big glyphs share
+           the fate: painted art at the owner's natural sizes (rarely a
+           multiple of 4), and fx bakes at arbitrary padded boxes.
+           Backgrounds are the maker's own photos and keep Unity's default
+           pipeline. */
+        if (path.Contains("/bigglyphs/") || path.Contains("/boardstamps/")) gti.textureCompression = TextureImporterCompression.Uncompressed;
         return;
       }
       /* Type Stamps — baked styled phrases exported at 4x — land under the
