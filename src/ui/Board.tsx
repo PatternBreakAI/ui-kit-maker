@@ -8,7 +8,7 @@ import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
-import { BIG_GLYPHS, BIG_GLYPH_GATE, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphUrl, bigGlyphFilter } from "@/generator/bigGlyphs";
+import { BIG_GLYPHS, BIG_GLYPH_GATE, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
@@ -1889,6 +1889,31 @@ function BgKeepsafeLine() {
    at 2048px (exports still render full-res, one-shot), and frames live as
    object URLs that revoke their predecessor — the old data-URL-per-tick
    version could park hundreds of MB in renderer memory during one drag. */
+/* The stage's big-glyph art rides the TIERED rasters, never the original
+   (the owner's "boards take a long time to load" round — 8 placed glyphs
+   used to pull ~4.4MB of full PNGs just to display at ~400 board px).
+   Progressive: the 128 rail thumb (~3KB, usually already cached) paints
+   the instant the board opens, and the 512 mid webp (~20KB) swaps in when
+   it arrives. The ORIGINAL still feeds every bake — the board PNG
+   compositor and the Unity scene/prefab export read bigGlyphUrl untouched,
+   so shipped pixels are byte-identical to before this round. A glyph
+   whose mid raster hasn't been cut yet (a future drop) falls back to the
+   original rather than staying a blurry thumb. */
+function BigGlyphStageArt({ cfg, gl, fx }: { cfg: GenConfig; gl: BigGlyphDef; fx: BigGlyphFx }) {
+  const [src, setSrc] = useState(() => bigGlyphThumb(gl.id));
+  useEffect(() => {
+    let dead = false;
+    const im = new Image();
+    im.onload = () => { if (!dead) setSrc(bigGlyphMid(gl.id)); };
+    im.onerror = () => { if (!dead) setSrc(bigGlyphUrl(gl.id)); };
+    im.src = bigGlyphMid(gl.id);
+    return () => { dead = true; };
+  }, [gl.id]);
+  const w = Math.round(gl.w * BIG_GLYPH_BASE), h = Math.round(gl.h * BIG_GLYPH_BASE);
+  return <img src={src} width={w} height={h} data-shell={`0 0 ${w} ${h}`} draggable={false}
+    alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, fx) }} />;
+}
+
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
   /* glint stars snap to REAL letterform ink — a stamp rendered before its
      face finished loading snapped to the fallback font's run (the drifting
@@ -2140,15 +2165,15 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
           scaled box. The overlay math was measured correct all along. */}
       <div ref={artRef} style={{ display: "flow-root", transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
         {b.big ? (() => {
-          /* a big glyph is finished raster art: the PNG at its stage
-             footprint, the instance's shadow/glow dials as a CSS filter —
-             bigGlyphFilter is the one recipe the PNG compositor and the
-             Unity bake share, so what you see is what ships */
+          /* a big glyph is finished raster art at its stage footprint, the
+             instance's shadow/glow dials as a CSS filter — bigGlyphFilter
+             is the one recipe the PNG compositor and the Unity bake share,
+             so what you see is what ships. The pixels the stage shows are
+             the tiered display rasters (thumb → mid); the bakes read the
+             original (see BigGlyphStageArt). */
           const gl = bigGlyphById(b.big!.gid);
           if (!gl) return null;
-          const w = Math.round(gl.w * BIG_GLYPH_BASE), h = Math.round(gl.h * BIG_GLYPH_BASE);
-          return <img src={bigGlyphUrl(gl.id)} width={w} height={h} data-shell={`0 0 ${w} ${h}`} draggable={false}
-            alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, b.big!) }} />;
+          return <BigGlyphStageArt cfg={cfg} gl={gl} fx={b.big!} />;
         })() : b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (
