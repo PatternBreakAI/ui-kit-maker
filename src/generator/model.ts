@@ -741,7 +741,12 @@ export interface GenConfig extends StateDesign {
    *  site: they ride the document, every app render and the Unity export
    *  alike (owner: edge shine + wipe shine, user-toggleable). Off by
    *  default; hydrate() fills them into older documents. */
-  idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode };
+  /* Idle motion (owner round, field notes #3): freq = seconds between
+     passes (shared tempo); wipeDur/edgeDur = seconds each PASS takes,
+     independent per option; wipeWidth = the band's width in % of the
+     face; trigger "hover" arms the motion to play only under the
+     pointer (absent = always). */
+  idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode; wipeDur?: number; edgeDur?: number; wipeWidth?: number; trigger?: "hover" };
   /** Bar-fill styling layers (see BarFx) — optional, defaults off. */
   barFx?: BarFx;
   /** Dragger ball on sliders, toggles and joysticks — null = derived from

@@ -237,7 +237,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       // the document's own idle wipe joins the host-driven shine — same
       // clipped, staggered glint either way; the edge line already rides
       // inside the render (the renderer draws it beside the face layers)
-      return shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? { dur: cfg.idle?.freq, blend: cfg.idle?.blend } : undefined) : out;
+      return shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend } : undefined) : out;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );

@@ -1389,6 +1389,19 @@ export function Panel() {
           <>
             <Slider label="Frequency" value={cfgMaster.idle?.freq ?? 9} min={3} max={24} unit="s" def={9}
               onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, freq: v }; })} />
+            {/* per-option pass DURATION (field notes #3: tempo and pass
+                length decoupled — these dials feed the decoupled keyframes),
+                plus the wipe band's width */}
+            {cfgMaster.idle?.wipe && (<>
+              <Slider label="Wipe pass" value={cfgMaster.idle?.wipeDur ?? 1} min={0.3} max={4} step={0.1} unit="s" def={1}
+                onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, wipeDur: v }; })} />
+              <Slider label="Wipe width" value={cfgMaster.idle?.wipeWidth ?? 30} min={10} max={60} unit="%" def={30}
+                onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, wipeWidth: v }; })} />
+            </>)}
+            {cfgMaster.idle?.edge && (
+              <Slider label="Edge pass" value={cfgMaster.idle?.edgeDur ?? 2.3} min={0.5} max={5} step={0.1} unit="s" def={2.3}
+                onChange={(v) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, edgeDur: v }; })} />
+            )}
             <label className="fieldbox" style={{ minWidth: 0 }}>
               <span className="fl">Blend mode</span>
               <select value={cfgMaster.idle?.blend ?? "normal"} aria-label="Idle motion blend mode"
@@ -1396,7 +1409,19 @@ export function Panel() {
                 {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </label>
-            <div className="helper">Frequency is the seconds from one pass to the next; each piece still keeps its own offset. Blend recolors how the light lays over the art — screen and overlay read most like light.</div>
+            {/* hover-armed idle motion (owner-approved): the shine becomes a
+                touch of interactivity — parked until the pointer lands */}
+            <div className="sublabel">Plays</div>
+            <div className="segmini" role="radiogroup" aria-label="When idle motion plays">
+              {([["always", "Always"], ["hover", "On hover"]] as const).map(([v, lbl]) => {
+                const cur = cfgMaster.idle?.trigger === "hover" ? "hover" : "always";
+                return (
+                  <button key={v} className={cur === v ? "on" : ""} role="radio" aria-checked={cur === v}
+                    onClick={() => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: c.idle?.edge ?? false, ...c.idle, ...(v === "hover" ? { trigger: "hover" as const } : {}) }; if (v === "always") delete c.idle.trigger; })}>{lbl}</button>
+                );
+              })}
+            </div>
+            <div className="helper">Frequency is the seconds from one pass to the next; each pass keeps its own duration, so a slow tempo never stretches the sweep. Width is the wipe band's footprint on the face. On hover parks the motion until the pointer lands on the piece — on the live canvas and a playing board; the Unity importer picks these dials up in its next round. Blend recolors how the light lays over the art — screen and overlay read most like light.</div>
           </>
         )}
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (

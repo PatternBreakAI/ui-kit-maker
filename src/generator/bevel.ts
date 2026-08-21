@@ -3994,7 +3994,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
-    ${cfg.idle?.edge && !disabled ? `${idleEdgeKfs(cfg, id)}<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg, cfg.idle?.freq ? `kedg${id}` : undefined)}/>` : ""}
+    ${cfg.idle?.edge && !disabled ? `${idleEdgeKfs(cfg, id)}<path class="kit-edgeshine${cfg.idle?.trigger === "hover" ? " kit-edgeshine--armed" : ""}" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg, cfg.idle?.freq || cfg.idle?.edgeDur ? `kedg${id}` : undefined)}/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4328,8 +4328,8 @@ const sweepFrac = (sweepS: number, periodS: number): number =>
  *  computed travel window, the long rest fills the remainder. */
 function idleEdgeKfs(cfg: GenConfig, id: string): string {
   const freq = cfg.idle?.freq;
-  if (!freq) return "";
-  const f = sweepFrac(EDGE_SWEEP_S, freq) / 26;
+  if (!freq && !cfg.idle?.edgeDur) return "";
+  const f = sweepFrac(cfg.idle?.edgeDur ?? EDGE_SWEEP_S, freq ?? 9) / 26;
   const p = (n: number) => (n * f).toFixed(1);
   return `<style>@keyframes kedg${id}{0%{stroke-dasharray:14 86;stroke-dashoffset:0;opacity:0}${p(2)}%{opacity:.95}${p(5)}%{opacity:.5}${p(8)}%{opacity:.9}${p(12)}%{opacity:.4}${p(15)}%{opacity:.85}${p(19)}%{stroke-dasharray:5 95;opacity:.3}${p(23)}%{stroke-dasharray:2 98;opacity:.55}${p(26)}%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}100%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}}</style>`;
 }
@@ -4338,7 +4338,7 @@ function idleEdgeKfs(cfg: GenConfig, id: string): string {
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-export function addShine(svg: string, o?: { dur?: number; sweep?: number; blend?: string; clip?: "face" | "text" }): string {
+export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?: number; armed?: boolean; blend?: string; clip?: "face" | "text" }): string {
   /* clip:"text" masks the band to the LETTERFORM clipPath (build's textClip)
      instead of the component face — type stamps have an invisible shell, and
      a face-clipped band swept its ghost rectangle (owner: "showing its
@@ -4349,7 +4349,8 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; blend?
   if (!fc || !vb) return svg;
   const id = fc[1];
   const [, vx, vy, vw, vh] = vb.map(Number);
-  const bw = vw * 0.3;
+  // the band's width is an owner dial (% of the face); 30 is the classic
+  const bw = vw * Math.max(0.1, Math.min(0.6, (o?.width ?? 30) / 100));
   const grad = `<linearGradient id="${id}shn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.4"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
   /* the document's Frequency and Blend ride as inline style — the dur var
      outranks the page default while the kit page's per-piece DELAY var
@@ -4359,9 +4360,10 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; blend?
      duration and Frequency only sets the rest between passes (the
      stylesheet's fixed 9% travel stretched the pass with the cycle —
      field notes #3: "gets crazy at lower timings") */
-  const frac = o?.dur ? sweepFrac(o?.sweep ?? WIPE_SWEEP_S, o.dur) : 0;
+  const frac = o?.dur || o?.sweep ? sweepFrac(o?.sweep ?? WIPE_SWEEP_S, o?.dur ?? 11) : 0;
   const kfs = frac ? `<style>@keyframes kshn${id}{0%{transform:translateX(0)}${frac.toFixed(1)}%,100%{transform:translateX(175%)}}</style>` : "";
-  const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  const cls = `kit-shine${o?.armed ? " kit-shine--armed" : ""}`;
+  const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="${cls}"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 

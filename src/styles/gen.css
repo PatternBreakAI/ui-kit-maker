@@ -1138,7 +1138,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    quick sweep; the hero keeps its ambient loop — one element, the page's
    crown. The editor canvas is untouched (no .kitpage ancestor). The
    infinite motion demos and attention pulses rest the same way. */
-.kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
+.kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused !important; } /* design surfaces rest — hover-armed shines never override the gallery's stillness */
 /* The Board rests the same way in DESIGN mode (owner, 2026-08-16: "the
    idle animation should only play when play is pressed") — a screen full
    of perpetually-sweeping pieces kept the compositor repainting while the
@@ -1146,7 +1146,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    visible chug. Press Play and the shines run; paused at 0% both shines
    are invisible by construction (the wipe band starts off-face, the edge
    spark parks at dasharray 0 / opacity 0). */
-.board2:not(.playing) .kit-shine, .board2:not(.playing) .kit-edgeshine { animation-play-state: paused; }
+.board2:not(.playing) .kit-shine, .board2:not(.playing) .kit-edgeshine { animation-play-state: paused !important; }
+/* hover-armed idle motion (owner-approved): the pass waits until the pointer
+   is ON the piece — :hover reaches the svg from its hit rect even while the
+   canvas itself is pointer-transparent (the pointer-honesty pass) */
+.kit-shine--armed, .kit-edgeshine--armed { animation-play-state: paused; }
+svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-state: running; }
 /* No rollover one-shots for the idle shines here — a gallery where every
    piece flashes as the pointer crosses it read as chaos, not craft
    (owner: "the idle animations are happening on rollover in the kit...
