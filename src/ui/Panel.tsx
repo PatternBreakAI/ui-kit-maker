@@ -1335,10 +1335,12 @@ export function Panel() {
             focused, the merged view wears that piece's own idle fork, and a
             checkbox showing the fork's value would fight it — click after
             click with nothing moving (probe-caught) */}
+        {/* spread first — rebuilding {wipe, edge} from scratch dropped the
+            tuned frequency and blend (the glint-nudge reset's twin) */}
         <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
-          onChange={(e) => update((c) => { c.idle = { wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
         <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
-          onChange={(e) => update((c) => { c.idle = { wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* where the motion actually plays — judging it on the kit page reads
             as a dead control (the gallery rests by design, fcc7b6c); boards
             rest in Design too (owner, 2026-08-16: "the idle animation should
@@ -2697,11 +2699,13 @@ export function Panel() {
           <Slider label="Opacity" value={T2.glow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glow.opacity = v; })} />
         </FxToggle>
         <FxToggle label="Pattern fill" on={T2.stripes?.on ?? false}
-          onToggle={(v) => update((c) => { c.type.stripes = { on: v, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: c.type.stripes?.style ?? "stripes" }; })}>
+          onToggle={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? {}), on: v, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: c.type.stripes?.style ?? "stripes" }; })}>
           <div className="ctl">
             <label>Style</label>
+            {/* spread first — the rebuild-from-scratch shape dropped the
+                tuned Scale (the glint-nudge reset's twin) */}
             <select value={T2.stripes?.style ?? "stripes"} aria-label="Text pattern style"
-              onChange={(e) => update((c) => { c.type.stripes = { on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: e.target.value as Exclude<PatternType, "none"> }; })}>
+              onChange={(e) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? {}), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: e.target.value as Exclude<PatternType, "none"> }; })}>
               {PATTERN_TYPES.filter((pt) => pt.id !== "none").map((pt) => (
                 <option key={pt.id} value={pt.id}>{pt.name.split(" — ")[0]}</option>
               ))}
@@ -2732,8 +2736,12 @@ export function Panel() {
             <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
           </label>
           <Slider label="Opacity" value={T2.glints?.opacity ?? 55} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { on: true }), on: c.type.glints?.on ?? true, opacity: v }; })} />
-          <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: c.type.glints?.oy, ox: v }; })} />
-          <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: c.type.glints?.ox, oy: v }; })} />
+          {/* SPREAD the existing object like every sibling handler — the
+              nudges used to rebuild it from scratch and silently dropped
+              style and blend (field notes #3: "changing the nudge values
+              reset Glint style to Specular slab and stars") */}
+          <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: v }; })} />
+          <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: v }; })} />
           <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
           <div className="helper">Unity export: glints are per-letter painting no live-text engine can replay — they ship baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
         </FxToggle>
