@@ -1748,6 +1748,9 @@ button.kp-fact { cursor: pointer; }
 .bd-search input { flex: 1; border: 0; outline: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink); min-width: 0; }
 .bd-scroll { flex: 1; overflow-y: auto; margin-top: 4px; padding-right: 2px; }
 .bd-cat { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); margin: 14px 0 6px; }
+/* provenance note beside a category title (owner: "leave a note next to
+   Big Glyphs (ai generated)") — quiet, lowercase against the caps title */
+.bd-cat-note { font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: none; opacity: .65; margin-left: 2px; }
 .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .bd-asset { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg, #fff); cursor: pointer; min-width: 0; }
 .bd-asset:hover { border-color: var(--ink); }

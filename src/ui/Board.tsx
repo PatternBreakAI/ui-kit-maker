@@ -1288,7 +1288,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             if (!items.length) return null;
             return (
               <div>
-                <div className="bd-cat">Big glyphs</div>
+                <div className="bd-cat">Big glyphs <span className="bd-cat-note">AI-generated</span></div>
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
