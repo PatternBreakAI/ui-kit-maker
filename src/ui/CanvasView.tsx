@@ -363,9 +363,14 @@ export function CanvasView() {
             aria-pressed={!playing} onClick={() => setCanvasMode("design")}>
             <SquarePen size={17} strokeWidth={1.8} />
           </button>
-          <button className={playing ? "on" : ""} title="Play mode — hover and press the button live"
-            aria-pressed={playing} onClick={() => { setCanvasMode("play"); }}>
-            <Play size={17} strokeWidth={1.8} />
+          {/* while alive the control IS the exit — Play becomes Stop and one
+              click lands back in Design (field notes #3: "I didn't realize
+              I was in play mode"; owner-approved) */}
+          <button className={playing ? "on" : ""}
+            title={playing ? "Stop — leave Play and go back to editing" : "Play mode — hover and press the button live"}
+            aria-label={playing ? "Stop play mode" : "Play mode"}
+            aria-pressed={playing} onClick={() => setCanvasMode(playing ? "design" : "play")}>
+            {playing ? <Square size={15} strokeWidth={2} fill="currentColor" /> : <Play size={17} strokeWidth={1.8} />}
           </button>
           {/* Dissect, not "help": the owner named the interaction — the mode
               takes the artwork apart. A question mark undersold it. */}
