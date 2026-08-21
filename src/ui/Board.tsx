@@ -431,6 +431,17 @@ function BackdropLibrary({ aspect, current, apply }: {
   );
 }
 
+/* one idle-slice callback with a working-anyway timeout fallback; returns
+   the cleanup (the active-board-first mounting round's shared scheduler) */
+function idleOnce(fn: () => void): () => void {
+  type IdleWin = Window & { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void };
+  const w = window as IdleWin;
+  let dead = false;
+  const run = () => { if (!dead) fn(); };
+  const h = w.requestIdleCallback ? w.requestIdleCallback(run, { timeout: 900 }) : window.setTimeout(run, 130);
+  return () => { dead = true; if (w.cancelIdleCallback) w.cancelIdleCallback(h as number); else window.clearTimeout(h as number); };
+}
+
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
@@ -455,6 +466,39 @@ export function BoardView({ playing }: { playing: boolean }) {
     run();
   };
   const [q, setQ] = useState("");
+  /* ── active-board-first mounting (owner, after the raster-tier round:
+     "that first click still takes awhile.. I'd love for the boards to
+     load faster") ── measured on a prod build (6 boards, 42 kit pieces +
+     20 big glyphs, throttled 12Mbps/60ms, 4× CPU): the old
+     mount-everything desk spent one 3.5s task rendering every board's
+     SVG art before ANYTHING painted, and pulled every offscreen board's
+     backdrop (0.8MB + a 1.9MB video) alongside the active board's own
+     art. Now the ACTIVE board mounts its full stage immediately and the
+     rest join one per idle slice, nearest row-neighbors first — each
+     sleeping board holds a dimmed empty frame at exact stage size so the
+     desk's geometry never shifts. Once a board hydrates it STAYS
+     hydrated for the life of the desk (the never-refetch property):
+     the set only grows, so board switches after first visit stay
+     instant. Exports never wait on this — exportPng composes from
+     state, not the mounted DOM. */
+  const [hydrated, setHydrated] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const ids = boards.map((b) => b.id);
+    const ai = Math.max(0, ids.indexOf(activeBoard));
+    const pending = ids
+      .filter((id) => id !== activeBoard && !hydrated.has(id))
+      .sort((a, b) => Math.abs(ids.indexOf(a) - ai) - Math.abs(ids.indexOf(b) - ai));
+    if (!pending.length) return;
+    // one board per idle slice — the effect re-runs and schedules the next
+    return idleOnce(() => setHydrated((s) => new Set(s).add(pending[0])));
+  }, [boards, activeBoard, hydrated]);
+  /* the left tray's full-catalog thumbs (~a hundred renderKit calls in the
+     `assets` memo below) used to compute inside the FIRST desk render,
+     ahead of the active board's own paint. They wait one idle beat behind
+     it now: desk and active board first, the catalog pops in right after.
+     Same measured round as the hydration sweep above. */
+  const [trayReady, setTrayReady] = useState(false);
+  useEffect(() => idleOnce(() => setTrayReady(true)), []);
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
   /* in-place words: the item whose text is being edited on the stage
@@ -719,6 +763,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   // asset thumbnails render tight (glow pads collapse) and follow the style;
   // staging-bay pieces show only to the admin until released
   const assets = useMemo(() => {
+    if (!trayReady) return []; // catalog thumbs wait one idle beat behind the active board's paint
     const tc = clone(cfg);
     for (const s of Object.values(tc.states)) s.glow = 0;
     /* trophy/startlights are deregistered from the kit-page roster but the
@@ -741,7 +786,7 @@ export function BoardView({ playing }: { playing: boolean }) {
         return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
       }),
     }));
-  }, [cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, componentReleases, isAdmin]);
+  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, componentReleases, isAdmin]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design
@@ -1192,6 +1237,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                    neighbor: mobiles, in a row that isn't full — a 16:9
                    always stands alone (owner) */
                 const sideAspect = bd.aspect === "mobile" && row.length < 3 ? ("mobile" as const) : null;
+                /* the active board always renders live (even before the
+                   idle sweep records it) — activating a sleeping board
+                   hydrates it on the spot */
+                const live = bd.id === activeBoard || hydrated.has(bd.id);
                 return (
               <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
                 {/* the header hugs the stage's width and speaks in icons —
@@ -1233,6 +1282,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-stagewrap">
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
+                  {!live ? (
+                    /* sleeping board — a dimmed empty frame at exact stage
+                       size; art, backdrop and pieces mount at its idle turn
+                       (or the moment it's activated) */
+                    <div className="bd-sleep" aria-hidden="true" />
+                  ) : (<>
                   {bd.bgImage && (bd.bgShow ?? true) && (bd.bgFit === "fit" ? (
                     /* Fit: the WHOLE scene, over a blurred fill of itself —
                        for scenes whose aspect isn't the board's (owner:
@@ -1379,6 +1434,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                         (owner: hint text over a fresh upload) */}
                     {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
+                  </>)}
                 </div>
                 {/* grow the desk in either direction (owner: "plus signs
                     beneath and to the right of boards") — the side +
