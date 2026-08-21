@@ -834,6 +834,17 @@ export async function collectExportBoards(st: {
           c2.shadow.opacity = 0;
           c2.candy.contact.opacity = 0;
           for (const s2 of Object.values(c2.states)) s2.glow = 0;
+          /* forks are pickDesign SNAPSHOTS that outrank the master field
+             by field (designFor) — a designed hover carries its OWN
+             shadow/contact copy, and calming only the master let the fork
+             bake them back into its posed state skin (round 24, the
+             claim-button lesson; doubled worse now that the grounded
+             shadow ships as its own art sibling). */
+          for (const f2 of Object.values(c2.stateDesigns)) {
+            if (!f2) continue;
+            if (f2.shadow) f2.shadow = { ...f2.shadow, opacity: 0 };
+            if (f2.candy?.contact) f2.candy = { ...f2.candy, contact: { ...f2.candy.contact, opacity: 0 } };
+          }
           return c2;
         };
         const shellBoxOf = (s: string): [number, number, number, number] | null => {
@@ -2170,8 +2181,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        generic color-tint transitions never match the kit's own recipes */
     if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
+      /* the ghost must reach INSIDE the state forks too (round 24 — dev
+         field notes #3, the claim button: "the text doesn't update across
+         states"). A designed state is a pickDesign SNAPSHOT carrying its
+         own transparency copy, and designFor reads the fork's field over
+         the master's — so ghosting only the master baked the stock WORD
+         into every forked state's sprite: at rest the labeless base wore
+         the live CLAIM, on hover the swap flashed the baked PLAY under
+         it. Every state bake now ghosts the master AND each fork. */
+      const ghostStates = (c: GenConfig) => {
+        c.transparency.content = 0;
+        for (const fG of Object.values(c.stateDesigns)) if (fG?.transparency) fG.transparency = { ...fG.transparency, content: 0 };
+      };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? (c) => { c.transparency.content = 0; } : undefined),
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? ghostStates : undefined),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }

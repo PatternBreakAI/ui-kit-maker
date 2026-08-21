@@ -521,6 +521,20 @@ if (!/cSh\.transparency = \{ frame: 0, interior: 0, content: 0 \};/.test(src)
 if (!/const sidFor = \(\) => \(bakeSid \?\?= sidOf\(b\)\);/.test(src) || !/const poseSid = sidFor\(\);/.test(src))
   errors.push("pose and shadow bakes must share ONE per-copy sid (stable bake names) — separate sidOf calls would rename files on every export (round 24)");
 
+/* round-24: state bakes stay LABELESS through designed forks (dev field
+   notes #3, the claim button: retyping the label updated rest but hover
+   flashed the old baked word). A designed state is a pickDesign snapshot
+   whose transparency copy outranks the master in designFor — the ghost
+   must write content:0 into the master AND every fork, in the sliced
+   family state bakes and in the posed pipeline's calms alike. */
+if (!/const ghostStates = \(c: GenConfig\) => \{\s*\n\s*c\.transparency\.content = 0;\s*\n\s*for \(const fG of Object\.values\(c\.stateDesigns\)\) if \(fG\?\.transparency\) fG\.transparency = \{ \.\.\.fG\.transparency, content: 0 \};/.test(src))
+  errors.push("ghostStates (master + fork content ghosting for sliced state bakes) is missing — a forked hover bakes the stock word again (round 24)");
+if (!/stateShell\(n\.id, stName, wordOpts, undefined, true, word !== undefined \? ghostStates : undefined\)/.test(src))
+  errors.push("the NINE state bakes must ghost through ghostStates, not a master-only content:0 (round 24)");
+if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(src)
+    || !/if \(f2\.candy\?\.contact\) f2\.candy = \{ \.\.\.f2\.candy, contact: \{ \.\.\.f2\.candy\.contact, opacity: 0 \} \};/.test(src))
+  errors.push("the posed pipeline's shellCfg must calm fork shadow/contact too — a designed state would bake its shadow into the posed skin (round 24)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
