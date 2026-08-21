@@ -614,7 +614,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ list: { id: string; ox: number; oy: number }[]; dx: number; dy: number; fit: number } | null>(null);
+  const dragRef = useRef<{ list: { id: string; ox: number; oy: number; cox: number; coy: number }[]; dx: number; dy: number; fit: number } | null>(null);
   const [frameW, setFrameW] = useState(900);
 
   /* multi-select (owner): shift-click extends within ONE board. boardSel
@@ -1026,7 +1026,51 @@ export function BoardView({ playing }: { playing: boolean }) {
     cv.toBlob((bl) => { if (bl) download(`${slug}-${W}x${H}${alpha ? "-transparent" : ""}.png`, bl); }, "image/png");
   };
 
-  const snapV = (v: number) => (boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
+  /* ── CENTER-based position (owner, field notes #3: "let's snap from
+     center") ── the piece's stored x/y stays its box corner (no data
+     migration), but every control speaks CENTERS: the Selected panel's
+     X/Y reads and writes the visible art's center, and grid snap lands
+     centers on the grid — typing the board midpoint centers a crosshair
+     exactly. The center OFFSET (art center − stored x) is measured from
+     the live DOM: data-shell mapped through the svg (the geometry the
+     selection box hugs), the raster shell for warped stamps/big glyphs,
+     the host box as the last resort. The offset is translation-invariant,
+     so a one-frame DOM lag never skews it. */
+  const artCenterOffsetOf = (bdId: string, it: BoardItem): { cx: number; cy: number } => {
+    const bd = boards.find((b) => b.id === bdId);
+    const canvas = document.querySelector(`[data-board="${bdId}"] .bd-canvas`);
+    const host = canvas?.querySelector(`[data-bid="${it.id}"]`) as HTMLElement | null;
+    if (!bd || !canvas || !host) return { cx: 0, cy: 0 };
+    const f = fitOf(bd);
+    const cr = canvas.getBoundingClientRect();
+    let r = host.getBoundingClientRect();
+    const svg = host.querySelector("svg");
+    const img = svg ? null : host.querySelector("img");
+    if (svg) {
+      const stamp = svg.getAttribute("data-shell")?.split(" ").map(Number);
+      const vb = svg.viewBox?.baseVal;
+      const sr = svg.getBoundingClientRect();
+      if (stamp?.length === 4 && stamp.every(Number.isFinite) && vb?.width && sr.width) {
+        const k = sr.width / vb.width;
+        r = new DOMRect(sr.left + (stamp[0] - vb.x) * k, sr.top + (stamp[1] - vb.y) * k, stamp[2] * k, stamp[3] * k);
+      }
+    } else if (img) {
+      const stamp = img.getAttribute("data-shell")?.split(" ").map(Number);
+      const iw = parseFloat(img.getAttribute("width") ?? "0");
+      const ir = img.getBoundingClientRect();
+      if (stamp?.length === 4 && stamp.every(Number.isFinite) && iw && ir.width) {
+        const k = ir.width / iw;
+        r = new DOMRect(ir.left + stamp[0] * k, ir.top + stamp[1] * k, stamp[2] * k, stamp[3] * k);
+      }
+    }
+    return {
+      cx: (r.left + r.width / 2 - cr.left) / f - it.x,
+      cy: (r.top + r.height / 2 - cr.top) / f - it.y,
+    };
+  };
+  /* snap a piece's position so its CENTER (corner + off) lands on the
+     grid; without snap, plain pixel rounding as before */
+  const snapPos = (v: number, off: number) => (boardSnap ? Math.round((v + off) / 16) * 16 - off : Math.round(v));
 
   /* drag-to-place (ported from the homepage board): press an asset, drag a
      ghost across the page, release over any board — the piece lands under
@@ -1060,7 +1104,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       const f = r.width / STAGE[bd.aspect][0];
       const sv = (v: number) => (st.boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
       st.setActiveBoard(bid);
-      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: sv(Math.max(0, (e.clientX - r.left) / f - 110)), y: sv(Math.max(0, (e.clientY - r.top) / f - 55)) }]);
+      /* the drop point is the piece's intended CENTER-ish — snap THAT to
+         the grid, then back off the half-size estimate (center snap) */
+      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: Math.max(0, sv((e.clientX - r.left) / f) - 110), y: Math.max(0, sv((e.clientY - r.top) / f) - 55) }]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1392,7 +1438,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                           const group = selIdsAll.includes(b.id) && selIdsAll.length > 1
                             ? bd.items.filter((it) => selIdsAll.includes(it.id))
                             : [b];
-                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y })), dx: e.clientX, dy: e.clientY, fit };
+                          // center offsets captured at grab time — grid snap
+                          // lands each piece's visible CENTER on the grid
+                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y, ...(() => { const c = artCenterOffsetOf(bd.id, it); return { cox: c.cx, coy: c.cy }; })() })), dx: e.clientX, dy: e.clientY, fit };
                         }}
                         onDragMove={(e) => {
                           const d = dragRef.current;
@@ -1401,7 +1449,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                           if (!(e.buttons & 1)) { dragRef.current = null; return; }
                           const mdx = (e.clientX - d.dx) / d.fit, mdy = (e.clientY - d.dy) / d.fit;
                           applyBoardItemPatches(`grpmove:${d.list.map((g) => g.id).join(",")}`,
-                            d.list.map((g) => ({ id: g.id, x: snapV(g.ox + mdx), y: snapV(g.oy + mdy) })));
+                            d.list.map((g) => ({ id: g.id, x: snapPos(g.ox + mdx, g.cox), y: snapPos(g.oy + mdy, g.coy) })));
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
@@ -1578,10 +1626,18 @@ export function BoardView({ playing }: { playing: boolean }) {
           <>
             <div className="bd-h" style={{ marginTop: 16 }}>Selected</div>
             <div className="bd-selname">{nameOf(sel)}{selBoard ? <em> · {selBoard.name}</em> : null}</div>
-            <div className="bd-row2">
-              <label>X <input type="number" value={Math.round(sel.x)} onChange={(e) => moveBoardItem(sel.id, +e.target.value, sel.y)} /></label>
-              <label>Y <input type="number" value={Math.round(sel.y)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value)} /></label>
-            </div>
+            {/* X/Y speak the piece's visible CENTER (owner: "snap from
+                center") — typing the board midpoint centers a crosshair
+                exactly. Stored coords stay corner-based; the offset maps. */}
+            {(() => {
+              const co = selBoard ? artCenterOffsetOf(selBoard.id, sel) : { cx: 0, cy: 0 };
+              return (
+                <div className="bd-row2">
+                  <label>X <input type="number" value={Math.round(sel.x + co.cx)} onChange={(e) => moveBoardItem(sel.id, +e.target.value - co.cx, sel.y)} /></label>
+                  <label>Y <input type="number" value={Math.round(sel.y + co.cy)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value - co.cy)} /></label>
+                </div>
+              );
+            })()}
             {/* big glyphs dive to 5% (match-3 tiles on a mobile board need
                 ~12%); everything else keeps the 30% legibility floor. The
                 typed entry exists because one slider pixel jumps several
