@@ -2928,7 +2928,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // idle motion — the kit's resting-state animations (owner spec);
       // the importer wires removable rigs only when these say so
       idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
-        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal" },
+        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal",
+        /* the pass dials (owner round, field notes #3): per-option pass
+           DURATION (freq stays the rest between passes — decoupled
+           tempo), wipe band WIDTH (% of the face), and the On-hover ARM.
+           0/"" = dial untouched; the importer keeps the runtime defaults
+           so a kit that never opened these dials ships today's motion. */
+        wipeDur: st.cfg.idle?.wipeDur ?? 0, edgeDur: st.cfg.idle?.edgeDur ?? 0,
+        wipeWidth: st.cfg.idle?.wipeWidth ?? 0, trigger: st.cfg.idle?.trigger ?? "" },
       /* per-piece idle forks (owner: shine on/off per component) — keyed by
          sprite family; -1 follows the kit toggle, 0/1 pin off/on */
       idleForks: Object.entries(st.kitDesigns ?? {}).flatMap(([cid, kd]) => {
@@ -3794,6 +3801,10 @@ namespace PatternBreak {
     Image glowImg;
     Selectable sel;
     bool over, down;
+    /* the pointer's live word, read-only — the idle shines' hover arm
+       (WipeShine/EdgeShine, round 25) borrows THIS instead of adding a
+       second pointer listener; hover keeps exactly one ear per piece. */
+    public bool PointerOver { get { return over; } }
     float glowNow, glowTo, liftNow, liftTo, baseY;
     float lastWroteY = float.NaN;
     bool settling;
@@ -4062,13 +4073,18 @@ namespace PatternBreak {
      piece is untouched. */
   [AddComponentMenu("UI Kit Maker/Wipe Shine")]
   public class WipeShine : MonoBehaviour {
-    [Tooltip("Seconds from one sweep to the next.")] public float period = 9f;
-    [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
+    [Tooltip("Seconds from one sweep to the next — the rest between passes; the pass itself keeps its own clock (Sweep).")] public float period = 9f;
+    [Tooltip("Seconds one sweep takes — the app's pass-duration dial. Independent of Period: tempo and travel are decoupled.")] public float sweep = 1.4f;
     [Range(0f, 1f)] public float strength = 0.38f;
     public float tilt = -14f;
+    [Tooltip("Band width as a fraction of the piece's width — the app's Width dial (10-60%).")]
+    [Range(0.1f, 0.6f)] public float width = 0.3f;
+    [Tooltip("Armed: the sweep waits for the pointer and a pass fires on pointer-enter — the app's On-hover trigger. State FX on this piece or an ancestor is the ear (one pointer listener per piece); a piece without one rests.")]
+    public bool hoverArmed;
     [Tooltip("Optional CORE-ALPHA stencil — set it and the band clips to THIS sprite's alpha instead of the host's. Type stamps ship one (same canvas, no glow/shadow halo) so the shine hugs the letterforms.")]
     public Sprite maskSprite;
     float phase; RectTransform rt, bandRt, maskRt; Image band, maskImg, hostImg;
+    StateFx armFx; bool armOver, armParked;
     static Sprite bandSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
@@ -4128,6 +4144,9 @@ namespace PatternBreak {
       bandRt.localRotation = Quaternion.Euler(0f, 0f, tilt);
       // deterministic stagger, so a menu of pieces never flashes in unison
       phase = -(Mathf.Abs(name.GetHashCode()) % 1000) / 1000f * period;
+      // the hover arm hears the pointer through State FX — no second listener
+      armFx = GetComponentInParent<StateFx>();
+      armOver = false; armParked = hoverArmed;
     }
     void OnDisable() {
       if (maskRt != null) Destroy(maskRt.gameObject);
@@ -4139,13 +4158,34 @@ namespace PatternBreak {
       // mid-sweep keeps the band on the pressed pixels. A pinned core
       // stencil (maskSprite) stays put by design.
       if (maskSprite == null && hostImg != null && maskImg.sprite != hostImg.sprite) maskImg.sprite = hostImg.sprite;
+      /* the pass keeps its OWN clock: sweep never stretches with period
+         (the app's decoupled tempo), it only caps at 90% of the cycle so
+         a rest always survives — the app's own clamp */
+      float sw = Mathf.Max(0.05f, Mathf.Min(sweep, period * 0.9f));
+      if (hoverArmed) {
+        /* armed: the sweep waits under the pointer. Pointer-enter fires a
+           pass at once (State FX's own hover flag — no polling, no second
+           listener), a pass in flight always completes, a held pointer
+           keeps the period, and a piece with no State FX to hear rests. */
+        bool overNow = armFx != null && armFx.PointerOver;
+        if (overNow && !armOver) { phase = 0f; armParked = false; }
+        armOver = overNow;
+        if (armParked) { if (band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      }
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
-      if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      if (t < 0f || t > sw) {
+        if (hoverArmed && !armOver) armParked = true; // pass done, pointer gone — rest until the next enter
+        if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f);
+        return;
+      }
       float w = rt.rect.width, h = rt.rect.height;
-      bandRt.sizeDelta = new Vector2(w * 0.3f, h * 2.4f);
-      float u = t / sweep;
-      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-w * 0.75f, w * 0.75f, u), 0f);
+      float bw = Mathf.Clamp(width, 0.1f, 0.6f);
+      bandRt.sizeDelta = new Vector2(w * bw, h * 2.4f);
+      float u = t / sw;
+      // travel clears both edges at ANY width (0.3 -> the classic 0.75)
+      float travel = w * (0.6f + bw * 0.5f);
+      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-travel, travel, u), 0f);
       band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
     }
   }
@@ -4158,12 +4198,15 @@ namespace PatternBreak {
      with a plain index lerp. Procedural radial glow, no assets. */
   [AddComponentMenu("UI Kit Maker/Edge Shine")]
   public class EdgeShine : MonoBehaviour {
-    [Tooltip("Seconds from one run to the next.")] public float period = 11f;
-    [Tooltip("Seconds one lap takes.")] public float run = 2.6f;
+    [Tooltip("Seconds from one run to the next — the rest between laps; the lap keeps its own clock (Run).")] public float period = 11f;
+    [Tooltip("Seconds one lap takes — the app's pass-duration dial. Independent of Period: tempo and travel are decoupled.")] public float run = 2.6f;
     public Color color = Color.white;
+    [Tooltip("Armed: the lap waits for the pointer and fires on pointer-enter — the app's On-hover trigger. State FX on this piece or an ancestor is the ear (one pointer listener per piece); a piece without one rests.")]
+    public bool hoverArmed;
     [Tooltip("Outline stations as image fractions (x0,y0,x1,y1..., y down) — from kit-manifest.")]
     public float[] outline;
     float phase; int seed; RectTransform rt, sparkRt; Image spark;
+    StateFx armFx; bool armOver, armParked;
     static Sprite glowSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
@@ -4191,14 +4234,31 @@ namespace PatternBreak {
       sparkRt.anchorMin = sparkRt.anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
       seed = Mathf.Abs(name.GetHashCode());
       phase = -(seed % 1000) / 1000f * period;
+      // the hover arm hears the pointer through State FX — no second listener
+      armFx = GetComponentInParent<StateFx>();
+      armOver = false; armParked = hoverArmed;
     }
     void OnDisable() { if (spark != null) Destroy(spark.gameObject); spark = null; }
     void Update() {
       if (spark == null || rt == null || outline == null || outline.Length < 8) return;
+      // the lap keeps its own clock — period only sets the rest (see WipeShine)
+      float rn = Mathf.Max(0.05f, Mathf.Min(run, period * 0.9f));
+      if (hoverArmed) {
+        // armed: same contract as the wipe — enter fires, a lap in
+        // flight completes, no State FX to hear = the spark rests
+        bool overNow = armFx != null && armFx.PointerOver;
+        if (overNow && !armOver) { phase = 0f; armParked = false; }
+        armOver = overNow;
+        if (armParked) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
+      }
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
-      if (t < 0f || t > run) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
-      float u = t / run;
+      if (t < 0f || t > rn) {
+        if (hoverArmed && !armOver) armParked = true; // lap done, pointer gone — rest until the next enter
+        if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f);
+        return;
+      }
+      float u = t / rn;
       int n = outline.Length / 2;
       float fi = u * n;
       int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
@@ -6476,7 +6536,12 @@ namespace PatternBreak {
   /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
      px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
   [Serializable] class PBTrack { public float x; public float w; }
-  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
+  /* the pass dials (owner round, field notes #3): wipeDur/edgeDur =
+     seconds one PASS takes (freq only sets the rest between passes),
+     wipeWidth = the band as % of the face, trigger "hover" arms the
+     motion to fire under the pointer. 0/"" = dial untouched — the
+     runtime defaults stand, so old manifests behave exactly as before. */
+  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
   /* ink = the digits' type recipe (a PBStyle subset: fill, outline, glow,
      shadow — the app's content-text treatment, not the label material's);
@@ -7723,7 +7788,7 @@ namespace PatternBreak {
                 // the stamp's wipe follows the kit dial and its CORE mask
                 var wsH = ch.GetComponent<WipeShine>();
                 if (m.idle != null && m.idle.wipe == 1) {
-                  if (wsH == null) { wsH = ch.gameObject.AddComponent<WipeShine>(); if (m.idle.freq > 0.5f) wsH.period = m.idle.freq; artFixed++; }
+                  if (wsH == null) { wsH = ch.gameObject.AddComponent<WipeShine>(); TuneWipe(wsH, m); artFixed++; }
                   if (!string.IsNullOrEmpty(it2.stampMask)) {
                     var mk = S(root + "/" + it2.stampMask);
                     if (mk != null && wsH.maskSprite != mk) { wsH.maskSprite = mk; artFixed++; }
@@ -8020,7 +8085,7 @@ namespace PatternBreak {
                Wipe off = a resting stamp, exactly like the app. */
             if (m.idle != null && m.idle.wipe == 1) {
               var wsSt = inst.AddComponent<WipeShine>();
-              if (m.idle.freq > 0.5f) wsSt.period = m.idle.freq;
+              TuneWipe(wsSt, m);
               // the CORE-ALPHA companion, when the export shipped one —
               // the band hugs the letterforms, not the glow/shadow halo
               if (!string.IsNullOrEmpty(it.stampMask)) wsSt.maskSprite = S(root + "/" + it.stampMask);
@@ -8207,6 +8272,9 @@ namespace PatternBreak {
                   ws0.enabled = false;
                   var ws1 = artGo.AddComponent<WipeShine>();
                   ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
+                  // the round-25 dials ride the transplant too — the arm
+                  // still hears the ROOT's StateFx (GetComponentInParent)
+                  ws1.width = ws0.width; ws1.hoverArmed = ws0.hoverArmed;
                 }
               } // psp is non-null here by construction — the missing case
                 // took the live-sizing fallthrough above (round 20)
@@ -9600,6 +9668,26 @@ namespace PatternBreak {
       if (inks.Count == 0) inks.Add(Color.white);
       cb.inks = inks.ToArray();
     }
+    /* The kit's idle-motion dials, applied whenever a shine component is
+       BORN (round 25): pass duration per option, wipe band width, and
+       the On-hover arm — plus the Frequency that always traveled. Absent
+       manifest fields read 0/"" (JsonUtility) and leave the runtime
+       defaults, so an old manifest ships today's motion untouched. An
+       EXISTING component's dials are the maker's and are never re-tuned
+       (the redress rule: converge the COMPONENT only). */
+    static void TuneWipe(WipeShine ws, PBManifest m) {
+      if (ws == null || m == null || m.idle == null) return;
+      if (m.idle.freq > 0.5f) ws.period = m.idle.freq;
+      if (m.idle.wipeDur > 0.05f) ws.sweep = m.idle.wipeDur;
+      if (m.idle.wipeWidth > 0.5f) ws.width = Mathf.Clamp(m.idle.wipeWidth, 10f, 60f) / 100f;
+      ws.hoverArmed = m.idle.trigger == "hover";
+    }
+    static void TuneEdge(EdgeShine es, PBManifest m) {
+      if (es == null || m == null || m.idle == null) return;
+      if (m.idle.freq > 0.5f) es.period = m.idle.freq;
+      if (m.idle.edgeDur > 0.05f) es.run = m.idle.edgeDur;
+      es.hoverArmed = m.idle.trigger == "hover";
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -9660,14 +9748,14 @@ namespace PatternBreak {
         foreach (var fk in m.idleForks) if (fk.family == baseAsset.component) { if (fk.wipe >= 0) shineW = fk.wipe; if (fk.edge >= 0) shineE = fk.edge; }
       if (shineW == 1 && go.GetComponent<WipeShine>() == null) {
         var ws = go.AddComponent<WipeShine>();
-        if (m.idle != null && m.idle.freq > 0.5f) ws.period = m.idle.freq;
+        TuneWipe(ws, m);
       }
       if (shineE == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
         var es = go.AddComponent<EdgeShine>();
         es.outline = baseAsset.outline;
-        // Frequency travels; Blend stays app-side for now — UGUI needs
-        // a dedicated shader for a true screen mix
-        if (m.idle != null && m.idle.freq > 0.5f) es.period = m.idle.freq;
+        // the dials travel (TuneEdge); Blend stays app-side for now —
+        // UGUI needs a dedicated shader for a true screen mix
+        TuneEdge(es, m);
       }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
@@ -13241,7 +13329,7 @@ namespace PatternBreak {
           }
           if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
             var wsA = contents.AddComponent<WipeShine>();
-            if (m.idle != null && m.idle.freq > 0.5f) wsA.period = m.idle.freq;
+            TuneWipe(wsA, m);
             idled++; changed = true;
           }
           if (wantWipeCut) {
@@ -13253,7 +13341,7 @@ namespace PatternBreak {
             if (rowE != null && rowE.outline != null && rowE.outline.Length >= 8) {
               var esA = contents.AddComponent<EdgeShine>();
               esA.outline = rowE.outline;
-              if (m.idle != null && m.idle.freq > 0.5f) esA.period = m.idle.freq;
+              TuneEdge(esA, m);
               idled++; changed = true;
             }
           }

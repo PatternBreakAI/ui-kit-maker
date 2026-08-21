@@ -662,6 +662,63 @@ if (!/ArtRaycastPad\(bigImgH, it2\);/.test(cs) || !/ArtRaycastPad\(img2, it2\);/
 if (!/bool fxSeed = false;/.test(cs) || !/if \(fxSeed && itW\.artW > 2f && itW\.artH > 2f && itW\.w > 2f && itW\.h > 2f\)/.test(cs))
   errors.push("an fx-only big-glyph prefab (padded seed) must carry its fractional art-box inset (round 25)");
 
+/* round-25: the IDLE DIALS travel (app commits 4cb4f9f + 29e6ac8 — pass
+   duration per option, wipe band width, the On-hover arm, decoupled
+   tempo). Manifest: PBIdle grows wipeDur/edgeDur/wipeWidth/trigger,
+   0/"" = untouched so old zips ship today's motion. Runtime: the pass
+   keeps its OWN clock (period only sets the rest), width drives the
+   band geometry, and the arm borrows State FX's hover flag — ONE
+   pointer listener per piece, no input polling ever. Importer: every
+   shine BIRTH tunes through TuneWipe/TuneEdge; existing components'
+   dials are the maker's (the redress rule). */
+const idleOpen = src.indexOf("const IDLE_SHINE_RUNTIME = `");
+let idle = "";
+if (idleOpen < 0) errors.push("IDLE_SHINE_RUNTIME not found — the shine runtime template is missing");
+else {
+  const idleStart = idleOpen + "const IDLE_SHINE_RUNTIME = `".length;
+  let idleEnd = -1;
+  for (let i = idleStart; i < src.length; i++) {
+    if (src[i] === "\\") { i++; continue; }
+    if (src[i] === "`") { idleEnd = i; break; }
+  }
+  idle = idleEnd > 0 ? new Function("return `" + src.slice(idleStart, idleEnd) + "`;")() : "";
+}
+if (!/public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; \}/.test(cs))
+  errors.push("PBIdle must carry the pass dials (wipeDur/edgeDur/wipeWidth/trigger) — JsonUtility drops them without fields (round 25)");
+if (!/wipeDur: st\.cfg\.idle\?\.wipeDur \?\? 0, edgeDur: st\.cfg\.idle\?\.edgeDur \?\? 0,/.test(src)
+    || !/wipeWidth: st\.cfg\.idle\?\.wipeWidth \?\? 0, trigger: st\.cfg\.idle\?\.trigger \?\? ""/.test(src))
+  errors.push("the manifest's idle block must emit the pass dials with 0/'' untouched-defaults (round 25)");
+if (!/\[Range\(0\.1f, 0\.6f\)\] public float width = 0\.3f;/.test(idle))
+  errors.push("WipeShine's width dial (default 0.3 — the classic band) is missing (round 25)");
+if ((idle.match(/public bool hoverArmed;/g) ?? []).length !== 2)
+  errors.push("both shine halves must carry the hover arm (public bool hoverArmed on WipeShine AND EdgeShine) (round 25)");
+if ((idle.match(/armFx != null && armFx\.PointerOver/g) ?? []).length !== 2
+    || (idle.match(/armFx = GetComponentInParent<StateFx>\(\);/g) ?? []).length !== 2)
+  errors.push("the hover arm must borrow State FX's pointer flag via GetComponentInParent — one listener per piece (round 25)");
+if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(idle))
+  errors.push("the idle shines must never poll input — the arm rides State FX's EventSystem hover alone (round 25; the round-18 contract extended)");
+if (!/public bool PointerOver \{ get \{ return over; \} \}/.test(fx))
+  errors.push("StateFx.PointerOver (the read-only hover word the shines borrow) is missing (round 25)");
+if (!/float sw = Mathf\.Max\(0\.05f, Mathf\.Min\(sweep, period \* 0\.9f\)\);/.test(idle)
+    || !/float rn = Mathf\.Max\(0\.05f, Mathf\.Min\(run, period \* 0\.9f\)\);/.test(idle))
+  errors.push("the pass must keep its OWN clock capped at 90% of the cycle (decoupled tempo, the app's clamp) (round 25)");
+if (!/bandRt\.sizeDelta = new Vector2\(w \* bw, h \* 2\.4f\);/.test(idle) || !/float travel = w \* \(0\.6f \+ bw \* 0\.5f\);/.test(idle))
+  errors.push("the wipe band must draw at the width dial with travel that clears both edges (0.3 -> the classic 0.75) (round 25)");
+if (!/if \(hoverArmed && !armOver\) armParked = true;/.test(idle))
+  errors.push("an armed pass must COMPLETE before parking (exit mid-pass never freezes a visible band) (round 25)");
+if (!/static void TuneWipe\(WipeShine ws, PBManifest m\)/.test(cs) || !/static void TuneEdge\(EdgeShine es, PBManifest m\)/.test(cs))
+  errors.push("TuneWipe/TuneEdge (one seam for the idle dials at every shine birth) are missing (round 25)");
+if ((cs.match(/TuneWipe\(ws[A-Za-z0-9]*, m\);/g) ?? []).length < 4)
+  errors.push("every WipeShine birth must tune through TuneWipe — prefab build, stamp placement, stamp heal, redress add (round 25)");
+if ((cs.match(/TuneEdge\(es[A-Za-z0-9]*, m\);/g) ?? []).length < 2)
+  errors.push("every EdgeShine birth must tune through TuneEdge — prefab build and redress add (round 25)");
+if ((cs.match(/\.period = m\.idle\.freq;/g) ?? []).length !== 2)
+  errors.push("period-from-freq must live ONLY inside TuneWipe/TuneEdge (exactly 2 sites) — an inline site drifts past the dials (round 25)");
+if (!/if \(m\.idle\.wipeDur > 0\.05f\) ws\.sweep = m\.idle\.wipeDur;/.test(cs) || !/if \(m\.idle\.edgeDur > 0\.05f\) es\.run = m\.idle\.edgeDur;/.test(cs))
+  errors.push("absent dials must leave the runtime defaults (the 0-gate) — old manifests ship today's motion (round 25)");
+if (!/ws1\.width = ws0\.width; ws1\.hoverArmed = ws0\.hoverArmed;/.test(cs))
+  errors.push("the posed-copy wipe transplant must carry the round-25 dials (width + arm) to the art child (round 25)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
