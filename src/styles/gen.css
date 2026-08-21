@@ -541,7 +541,16 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   --ink: #ecedf1; --ink2: #a6adba; --ink3: #6f7683;
   --soft: #23252b; --card: #1b1c21;
   --accent: #818cf8; /* a step brighter so it carries on dark panels */
+  /* the browser must know the page is dark, or every NATIVE surface it
+     draws — the open <select> list above all — stays a light panel while
+     the options inherit our light ink: pale-on-white, unreadable (field
+     notes #3, the starter-screen dropdown). */
+  color-scheme: dark;
 }
+/* belt and braces for engines that paint option rows from CSS (Firefox):
+   every dropdown list row reads as panel ink on panel card, not just the
+   .fieldbox ones */
+[data-theme="dark"] select option { background: var(--card); color: var(--ink); }
 [data-theme="dark"] body { background: #131418; color: var(--ink); }
 [data-theme="dark"] .top, [data-theme="dark"] .menu-pop, [data-theme="dark"] .zoolbar,
 [data-theme="dark"] .gridpop, [data-theme="dark"] .fontpick-pop,
