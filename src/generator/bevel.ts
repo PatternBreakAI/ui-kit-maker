@@ -3994,7 +3994,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
-    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg)}/>` : ""}
+    ${cfg.idle?.edge && !disabled ? `${idleEdgeKfs(cfg, id)}<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg, cfg.idle?.freq ? `kedg${id}` : undefined)}/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4306,16 +4306,39 @@ function inject(track: string, extra: string): string {
    engines that never load gen.css never see it. This helper carries the
    two owner controls onto that path: Frequency (--shine-dur) and Blend
    (mix-blend-mode). */
-function idleShineStyle(cfg: GenConfig): string {
-  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
+function idleShineStyle(cfg: GenConfig, animName?: string): string {
+  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", animName ? `animation-name:${animName}` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
   return st ? ` style="${st}"` : "";
+}
+
+/* DECOUPLED tempo (field notes #3: "raising Shine frequency also
+   stretches duration — gets crazy at lower timings"): the stylesheet
+   keyframes travel over a fixed FRACTION of the cycle, so the Frequency
+   dial used to stretch the pass itself. When the owner sets a tempo the
+   render bakes per-instance keyframes instead: the pass keeps a constant
+   duration (these defaults; a duration dial can feed `sweep`) and
+   Frequency only sets the rest between passes. Stylesheet defaults stay
+   untouched for kits that never touched the dial. */
+const WIPE_SWEEP_S = 1.0;   // the stylesheet feel: 9% of the 11s default
+const EDGE_SWEEP_S = 2.3;   // 26% of the 9s default
+const sweepFrac = (sweepS: number, periodS: number): number =>
+  Math.max(2, Math.min(90, (sweepS / Math.max(1, periodS)) * 100));
+
+/** Per-instance edge-shine keyframes — the flicker stops scale into the
+ *  computed travel window, the long rest fills the remainder. */
+function idleEdgeKfs(cfg: GenConfig, id: string): string {
+  const freq = cfg.idle?.freq;
+  if (!freq) return "";
+  const f = sweepFrac(EDGE_SWEEP_S, freq) / 26;
+  const p = (n: number) => (n * f).toFixed(1);
+  return `<style>@keyframes kedg${id}{0%{stroke-dasharray:14 86;stroke-dashoffset:0;opacity:0}${p(2)}%{opacity:.95}${p(5)}%{opacity:.5}${p(8)}%{opacity:.9}${p(12)}%{opacity:.4}${p(15)}%{opacity:.85}${p(19)}%{stroke-dasharray:5 95;opacity:.3}${p(23)}%{stroke-dasharray:2 98;opacity:.55}${p(26)}%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}100%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}}</style>`;
 }
 
 /** Overlay a specular shine band, clipped to the component's face (the
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?: "face" | "text" }): string {
+export function addShine(svg: string, o?: { dur?: number; sweep?: number; blend?: string; clip?: "face" | "text" }): string {
   /* clip:"text" masks the band to the LETTERFORM clipPath (build's textClip)
      instead of the component face — type stamps have an invisible shell, and
      a face-clipped band swept its ghost rectangle (owner: "showing its
@@ -4332,7 +4355,13 @@ export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?:
      outranks the page default while the kit page's per-piece DELAY var
      still cascades, so the stagger survives an owner-set tempo */
   const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
-  const band = `<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  /* owner-set tempo → per-instance keyframes so the PASS keeps a constant
+     duration and Frequency only sets the rest between passes (the
+     stylesheet's fixed 9% travel stretched the pass with the cycle —
+     field notes #3: "gets crazy at lower timings") */
+  const frac = o?.dur ? sweepFrac(o?.sweep ?? WIPE_SWEEP_S, o.dur) : 0;
+  const kfs = frac ? `<style>@keyframes kshn${id}{0%{transform:translateX(0)}${frac.toFixed(1)}%,100%{transform:translateX(175%)}}</style>` : "";
+  const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 
