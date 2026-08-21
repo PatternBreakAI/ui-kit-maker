@@ -12,7 +12,7 @@ import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
 import type { GenStateName, KitComponentId } from "@/generator/model";
 import { KitPage } from "./KitPage";
-import { LiveArt, shellHit } from "./LiveArt";
+import { LiveArt, shellHit, shellRectHit } from "./LiveArt";
 import { BoardView } from "./Board";
 import { SliceStage } from "./SliceStage";
 import { FirstVisitHints } from "./FirstVisit";
@@ -45,6 +45,14 @@ export function CanvasView() {
   // live interaction: hovering/pressing the hero previews those states ("hot"),
   // while edits keep applying to the selected state.
   const [live, setLive] = useState<"hover" | "pressed" | null>(null);
+  // the master hero's RESTING shell stamp — unioned into play hit-tests so
+  // a posing lift never pulls the hitbox out from under the cursor
+  const heroDefShell = useRef<number[] | null>(null);
+  const heroHit = (e: React.PointerEvent): boolean => {
+    const svgEl = (e.currentTarget as HTMLElement).querySelector("svg");
+    return shellHit(svgEl, e.clientX, e.clientY) ||
+      (live !== null && !!heroDefShell.current && shellRectHit(svgEl, heroDefShell.current, e.clientX, e.clientY));
+  };
 
   /* ── Smart Help — rollover the art, land on the control ──────────
      Help mode turns the hero into an index of its own layers: hovering
@@ -250,6 +258,21 @@ export function CanvasView() {
                 : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play — the pencil brings your controls back`
                 : capOf(displayed)}
             </div>
+            {(() => {
+              /* jitter guard (field notes #3: "the hitbox shifts when
+                 hovering, moving out from under the mouse"): the hover
+                 pose LIFTS the drawn shell, and testing only the current
+                 stamp let the hitbox slide out from under a cursor parked
+                 near the vacated edge — un-hover, drop, re-hover, flicker.
+                 Remember the RESTING pose's shell and union it in, the
+                 same contract LiveArt's play surfaces carry. */
+              if (live === null) {
+                const m = /data-shell="([-\d. ]+)"/.exec(heroSvg);
+                const stamp = m?.[1].split(" ").map(Number);
+                if (stamp?.length === 4 && stamp.every(Number.isFinite)) heroDefShell.current = stamp;
+              }
+              return null;
+            })()}
             {playing && focus ? (
               /* v62: in Play mode the hero IS the live component — sliders
                  drag, toggles flip, bars replay — the same LiveArt engine
@@ -272,15 +295,15 @@ export function CanvasView() {
                 /* the hero's hit zone is the SHELL — the reserved glow pad
                    around it stays pointer-dead (shellHit) */
                 onPointerEnter: (e: React.PointerEvent) => {
-                  if (shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) setLive(e.buttons === 1 ? "pressed" : "hover");
+                  if (heroHit(e)) setLive(e.buttons === 1 ? "pressed" : "hover");
                 },
                 onPointerMove: (e: React.PointerEvent) => {
-                  const inside = shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY);
+                  const inside = heroHit(e);
                   setLive((l) => (l === "pressed" ? l : inside ? (l ?? "hover") : null));
                 },
                 onPointerLeave: () => setLive(null),
                 onPointerDown: (e: React.PointerEvent) => {
-                  if (!shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) return;
+                  if (!heroHit(e)) return;
                   e.stopPropagation();
                   setLive("pressed");
                 },
