@@ -473,7 +473,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
+    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
@@ -491,6 +491,32 @@ export function BoardView({ playing }: { playing: boolean }) {
   const guardAddBoard = (run: () => void) => {
     if (tier === "guest" && useGen.getState().boards.length >= 1) { openGate("board"); return; }
     run();
+  };
+  /* ── starter landing (owner design, field notes #3: "would be nice if it
+     asked me") ── picking a starter on a board that already has pieces no
+     longer piles on silently: a small modal offers Fresh board / Replace
+     this board's pieces / Add on top. Replace KEEPS the board's own
+     backdrop — that was the owner's whole concern; a board with no
+     backdrop borrows the starter's. */
+  const [starterAsk, setStarterAsk] = useState<string | null>(null);
+  const applyStarter = (tname: string, mode: "fresh" | "replace" | "stack") => {
+    const t = BOARD_TEMPLATES[tname];
+    if (!t) return;
+    const st = useGen.getState();
+    if (mode === "fresh") {
+      // a new board takes the starter whole — backdrop included
+      st.addBoardAfter(st.activeBoard, { aspect: t.aspect });
+      st.addBoardItems(t.items);
+      if (t.bg) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
+      return;
+    }
+    const bd = st.boards.find((b) => b.id === st.activeBoard);
+    if (mode === "replace" && bd) st.removeBoardItems(bd.items.map((i) => i.id));
+    // a stage-specific template retunes the board first — the Match-3
+    // grid is composed for the 390×844 portrait
+    if (t.aspect && bd?.aspect !== t.aspect) st.setBoardAspect(t.aspect);
+    st.addBoardItems(t.items);
+    if (t.bg && (mode === "stack" || !(bd?.bgImage || bd?.bgVideo))) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
   };
   const [q, setQ] = useState("");
   /* ── active-board-first mounting (owner, after the raster-tier round:
@@ -1273,13 +1299,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             <LayoutTemplate size={13} strokeWidth={2} />
             <select value="" aria-label="Add a starter screen"
               onChange={(e) => {
-                const t = BOARD_TEMPLATES[e.target.value];
-                if (!t) return;
-                // a stage-specific template retunes the board first — the
-                // Match-3 grid is composed for the 390×844 portrait
-                if (t.aspect && act?.aspect !== t.aspect) useGen.getState().setBoardAspect(t.aspect);
-                addBoardItems(t.items);
-                if (t.bg) setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
+                if (!BOARD_TEMPLATES[e.target.value]) return;
+                /* a board with pieces gets ASKED where the starter lands
+                   (owner design, field notes #3) — a bare board just deals */
+                if (act && act.items.length > 0) setStarterAsk(e.target.value);
+                else applyStarter(e.target.value, "stack");
               }}>
               <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES)
@@ -2019,6 +2043,32 @@ export function BoardView({ playing }: { playing: boolean }) {
           </>
         ) : null}
       </aside>
+
+      {/* the starter landing modal — GateModal's chrome, three honest
+          choices; the backdrop click or × walks away with nothing dealt */}
+      {starterAsk && (
+        <div className="lootback" role="dialog" aria-modal="true" aria-label="Where should this starter land?"
+          onClick={() => setStarterAsk(null)}>
+          <div className="lootmodal gatemodal" onClick={(e) => e.stopPropagation()}>
+            <span className="lootgrid" aria-hidden="true" />
+            <button className="lootclose" aria-label="Close" onClick={() => setStarterAsk(null)}><X size={16} strokeWidth={2.2} /></button>
+            <div className="lootkicker"><LayoutTemplate size={14} strokeWidth={2.2} /> STARTER SCREEN</div>
+            <h2>THIS BOARD HAS <span className="lootgrad">PIECES</span></h2>
+            <p className="lootsub">
+              <b>{starterAsk}</b> is ready to deal. Where should it land?
+            </p>
+            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); guardAddBoard(() => applyStarter(t, "fresh")); }}>
+              <Plus size={15} strokeWidth={2.4} /> A FRESH BOARD
+            </button>
+            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "replace"); }}>
+              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES — BACKDROP STAYS
+            </button>
+            <button className="gatequiet" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "stack"); }}>
+              Add on top of what's here
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
