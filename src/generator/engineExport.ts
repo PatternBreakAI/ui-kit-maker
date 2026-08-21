@@ -210,6 +210,14 @@ export interface ExportBoardItemData {
   /** zone anchor, Unity convention (ax 0..1 left→right, ay 0..1 bottom→top) */
   ax: number; ay: number;
   anchor: string;
+  /** the VISIBLE ART's footprint inside w/h (board px). Fx bakes — type
+      stamps and big-glyph shadow/glow copies — pad the shipped raster
+      SYMMETRICALLY so the halo never clips, which makes the placed rect
+      bigger than the art: an enabled raycast on it eats the neighbours'
+      clicks (the field's "middle card selected"). Pad per side =
+      (w - artW)/2; the importer insets hit-testing to this box. Absent =
+      the art fills the rect (older exports keep their raycasts as-is). */
+  artW?: number; artH?: number;
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
@@ -607,6 +615,9 @@ export async function collectExportBoards(st: {
         exItems.push({
           component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          // the pre-filter raster IS the visible art; the canvas pad around
+          // it is the halo's reach — raycasts stop at this box
+          artW: Math.round(((rw / 2) * k) * 10) / 10, artH: Math.round(((rh / 2) * k) * 10) / 10,
           rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
@@ -665,6 +676,9 @@ export async function collectExportBoards(st: {
         exItems.push({
           component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
           w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          // the glyph's own raster is the art box; an fx copy's symmetric
+          // filter pad is (w - artW)/2 per side — raycasts stop at the art
+          artW: Math.round(gl.w * kB * 10) / 10, artH: Math.round(gl.h * kB * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
           anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
           stamp: file,
@@ -6533,7 +6547,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -7684,6 +7698,7 @@ namespace PatternBreak {
                 if (bigImgH != null && wantBig != null && bigImgH.sprite != wantBig) {
                   bigImgH.sprite = wantBig;
                   crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  ArtRaycastPad(bigImgH, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
                 continue;
@@ -7702,6 +7717,7 @@ namespace PatternBreak {
                 if (img2 != null && wantSp != null && img2.sprite != wantSp) {
                   img2.sprite = wantSp;
                   crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  ArtRaycastPad(img2, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
                 // the stamp's wipe follows the kit dial and its CORE mask
@@ -7951,6 +7967,8 @@ namespace PatternBreak {
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
             rt.localScale = Vector3.one;
+            // an fx copy's rect is the PADDED bake — hits stop at the art box
+            ArtRaycastPad(inst.GetComponent<Image>(), it);
           } else if (!string.IsNullOrEmpty(it.stamp)) {
 #if UNITY_2023_2_OR_NEWER
             /* NUMERIC type stamps go LIVE (owner: "750 should be animating
@@ -7991,6 +8009,9 @@ namespace PatternBreak {
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
+            // the bake pads past the art (shadow/glow) — the inset is
+            // ready the moment anyone turns this raycast on
+            ArtRaycastPad(simg, it);
             /* the kit's idle wipe rides baked pieces too — the band clips
                to the baked pixels' own alpha (WipeShine's stencil twin),
                so on a type stamp the shine travels the LETTERFORMS, the
@@ -9905,6 +9926,21 @@ namespace PatternBreak {
           padL / rw * rt.sizeDelta.x, padB / rh * rt.sizeDelta.y,
           padR / rw * rt.sizeDelta.x, padT / rh * rt.sizeDelta.y);
       }
+    }
+    /* BAKED board art takes the same discipline: fx bakes (type stamps,
+       big-glyph shadow/glow copies) pad their raster symmetrically for
+       the halo's reach, so the placed rect is bigger than the visible
+       art — an enabled raycast on it eats the neighbours' clicks (the
+       field's "middle card selected"). The manifest ships the art box
+       (artW/artH, board px = this rect's units); the inset is written
+       even while raycastTarget is false, so flipping the target on — or
+       adding your own Button — already hits art-true. Older manifests
+       read artW 0 and change nothing. */
+    static void ArtRaycastPad(Image img, PBBoardItem it) {
+      if (img == null || it == null || it.artW < 2f || it.artH < 2f) return;
+      float padX = Mathf.Max(0f, (it.w - it.artW) * 0.5f);
+      float padY = Mathf.Max(0f, (it.h - it.artH) * 0.5f);
+      img.raycastPadding = new Vector4(padX, padY, padX, padY);
     }
     static void AddSpecular(GameObject go, string root, string fam, PBManifest m) {
       if (m == null || m.assets == null) return;
@@ -12210,13 +12246,13 @@ namespace PatternBreak {
     }
     static bool BigGlyphPrefabs(string dir, string root, PBManifest m) {
       if (m == null || m.boards == null) return false;
-      var wanted = new Dictionary<string, PBBig>();
+      var wanted = new Dictionary<string, PBBoardItem>();
       foreach (var bd in m.boards) {
         if (bd == null || bd.items == null) continue;
         foreach (var it in bd.items) {
           if (it == null || it.big == null || string.IsNullOrEmpty(it.big.id)) continue;
           // prefer a clean row's file as the stand-in seed (fx rows are padded)
-          if (!wanted.ContainsKey(it.big.id) || (wanted[it.big.id].fx && !it.big.fx)) wanted[it.big.id] = it.big;
+          if (!wanted.ContainsKey(it.big.id) || (wanted[it.big.id].big.fx && !it.big.fx)) wanted[it.big.id] = it;
         }
       }
       if (wanted.Count == 0) return false;
@@ -12224,9 +12260,11 @@ namespace PatternBreak {
       bool hadSub = AssetDatabase.IsValidFolder(sub);
       if (!hadSub) AssetDatabase.CreateFolder(dir, "BigGlyphs");
       bool any = false;
-      foreach (var bg in wanted.Values) {
+      foreach (var itW in wanted.Values) {
+        var bg = itW.big;
         var sp = S(root + "/bigglyphs/" + bg.id + ".png");
-        if (sp == null && !string.IsNullOrEmpty(bg.sprite)) sp = S(root + "/" + bg.sprite); // fx-only asset: the bake stands in
+        bool fxSeed = false;
+        if (sp == null && !string.IsNullOrEmpty(bg.sprite)) { sp = S(root + "/" + bg.sprite); fxSeed = bg.fx; } // fx-only asset: the bake stands in
         if (sp == null) continue;
         var goName = BigGlyphPrefabName(bg);
         var go = new GameObject(goName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -12238,7 +12276,17 @@ namespace PatternBreak {
         /* the app places big-glyph art at HALF its natural raster (the
            ~800px set lands ~400 board px on a 1920 stage) — the drag-in
            rect matches, so a fresh drop sits at the app's design size */
-        go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width * 0.5f, sp.rect.height * 0.5f);
+        var bRt = go.GetComponent<RectTransform>();
+        bRt.sizeDelta = new Vector2(sp.rect.width * 0.5f, sp.rect.height * 0.5f);
+        /* an fx-ONLY asset seeds from its padded bake — carry the seed
+           copy's art-box inset onto the prefab (as a fraction of its own
+           rect), so a raycast anyone enables stops at the art, not the
+           halo. Clean seeds pad zero by construction. */
+        if (fxSeed && itW.artW > 2f && itW.artH > 2f && itW.w > 2f && itW.h > 2f) {
+          float fxPW = Mathf.Max(0f, (itW.w - itW.artW) * 0.5f / itW.w) * bRt.sizeDelta.x;
+          float fxPH = Mathf.Max(0f, (itW.h - itW.artH) * 0.5f / itW.h) * bRt.sizeDelta.y;
+          bImg.raycastPadding = new Vector4(fxPW, fxPH, fxPW, fxPH);
+        }
         PrefabUtility.SaveAsPrefabAsset(go, sub + "/" + goName + ".prefab");
         UnityEngine.Object.DestroyImmediate(go);
         any = true;

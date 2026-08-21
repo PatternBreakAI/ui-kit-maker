@@ -631,6 +631,37 @@ for (const [needle, what] of [
   if (!cs.includes(needle))
     errors.push(`${what} the README documents is gone from the scene builder (round 24)`);
 
+/* round-25: raycasts stop at the VISIBLE art on the baked road too (the
+   in-engine twin of the app's pointer-blocking fix; field-confirmed:
+   invisible oversized rects eat clicks — "middle card selected"). Live
+   prefabs already inset via ShellRaycastPad (manifest shell rows; sliced
+   pieces absolute px, simple pieces rect fractions) — those branches are
+   pinned here so they can never quietly regress. NEW: fx bakes (type
+   stamps, big-glyph shadow/glow copies) pad their raster symmetrically,
+   so the item row now ships the ART BOX (artW/artH, pad per side =
+   (w-artW)/2) and the importer writes the inset wherever those bakes
+   place — dormant while raycastTarget is false, correct the moment a
+   dev arms a click. */
+if (!/static void ShellRaycastPad\(GameObject host, string fam, PBManifest m\)/.test(cs)
+    || !/rootImg\.raycastPadding = new Vector4\(padL \/ ps, padB \/ ps, padR \/ ps, padT \/ ps\);/.test(cs)
+    || !/padL \/ rw \* rt\.sizeDelta\.x, padB \/ rh \* rt\.sizeDelta\.y,/.test(cs))
+  errors.push("ShellRaycastPad (live prefabs: sliced absolute px / simple rect-fraction insets) lost a branch (round 25 pins the acb0722 fix)");
+if (!/public float artW; public float artH; public float rot;/.test(cs))
+  errors.push("PBBoardItem must carry the art box (artW/artH) — JsonUtility drops the fx-pad geometry without it (round 25)");
+if (!/artW: Math\.round\(\(\(rw \/ 2\) \* k\) \* 10\) \/ 10, artH: Math\.round\(\(\(rh \/ 2\) \* k\) \* 10\) \/ 10/.test(src))
+  errors.push("type-stamp items must ship their pre-filter art box (artW/artH) — the raycast inset has no truth without it (round 25)");
+if (!/artW: Math\.round\(gl\.w \* kB \* 10\) \/ 10, artH: Math\.round\(gl\.h \* kB \* 10\) \/ 10/.test(src))
+  errors.push("big-glyph items must ship the glyph's own art box (artW/artH) — fx pads are (w-artW)/2 per side (round 25)");
+if (!/static void ArtRaycastPad\(Image img, PBBoardItem it\)/.test(cs)
+    || !/float padX = Mathf\.Max\(0f, \(it\.w - it\.artW\) \* 0\.5f\);/.test(cs))
+  errors.push("ArtRaycastPad (the baked-art inset, symmetric from the manifest art box) is missing (round 25)");
+if (!/ArtRaycastPad\(inst\.GetComponent<Image>\(\), it\);/.test(cs) || !/ArtRaycastPad\(simg, it\);/.test(cs))
+  errors.push("scene placement must inset BOTH baked roads — big-glyph instances and type stamps (round 25)");
+if (!/ArtRaycastPad\(bigImgH, it2\);/.test(cs) || !/ArtRaycastPad\(img2, it2\);/.test(cs))
+  errors.push("the kept-scene heal must re-inset re-adopted bakes — a new export's pad can differ (round 25)");
+if (!/bool fxSeed = false;/.test(cs) || !/if \(fxSeed && itW\.artW > 2f && itW\.artH > 2f && itW\.w > 2f && itW\.h > 2f\)/.test(cs))
+  errors.push("an fx-only big-glyph prefab (padded seed) must carry its fractional art-box inset (round 25)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
