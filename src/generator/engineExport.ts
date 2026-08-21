@@ -5874,6 +5874,32 @@ prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
 instances of it (a copy's shadow/glow dials arrive baked into that
 copy's own sprite).
 ` : ""}
+### What arrives LIVE and what arrives as baked art
+
+Board pieces travel one of three roads, and the Hierarchy names each
+honestly so you know what you can grab:
+
+- **Live prefab instances** — buttons, tabs, chips, the bars and
+  gauges, toggles, the timer, the season track, the header banner:
+  real wired components with states, glow and live editable words.
+  They read as their prefab names (ButtonPrimary, SeasonTrack, …) and
+  behave exactly like a fresh drag-in from **${root}/Prefabs/**.
+- **Posed copies** — a copy whose board pose diverges from the
+  family's natural shape keeps the full rig (Button, state swaps, live
+  label) but wears its own exact pixels on a **Posed art** child.
+  Still fully functional; only the face is this copy's baked render.
+- **Baked art** — pieces that don't ship a prefab family yet (flip
+  clock, star tray, dialogue box, page dots and friends), type stamps,
+  and fx-dialed big-glyph copies arrive as pictures of exactly what
+  the board showed. They read as **"<Piece> (baked)"**, **"Stamp —
+  <text>"** or **"<Glyph> (fx)"**, and a piece's grounded drop shadow
+  arrives as its own **"<Piece> Shadow (art)"** sibling. Baked art is
+  final pixels — no states, no live words; restyle those pieces on
+  uikitmaker.com and re-export, and the scene re-points itself.
+
+More pieces move from the baked column to the live column as their
+prefab rigs land — the Hierarchy suffixes are the always-current truth.
+
 > **Buttons ignoring the mouse in your own scene?** The usual suspects
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.

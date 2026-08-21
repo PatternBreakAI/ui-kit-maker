@@ -615,6 +615,22 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
       errors.push(`menu entry names ${n}.prefab but no importer path is known to write it (round 24)`);
 }
 
+/* round-24: the README says which board pieces arrive LIVE vs BAKED
+   (dev field notes #3: "Some way of communicating what elements will be
+   fully functional prefabs vs what come as parts alone might be a good
+   way to manage expectations") and the Hierarchy suffixes it cites must
+   actually exist in the scene builder. */
+if (!/### What arrives LIVE and what arrives as baked art/.test(src))
+  errors.push("the README's live-vs-baked section is missing (round 24 — expectation management, tester ask)");
+for (const [needle, what] of [
+  ['NiceName(it.component) + " (baked)"', 'the "(baked)" suffix'],
+  ['"Stamp (live) — "', 'the live-stamp name'],
+  ['inst.name = bigNm + (it.big.fx ? " (fx)" : "");', 'the big-glyph "(fx)" suffix'],
+  ['NiceName(it.component) + " Shadow (art)"', 'the shadow "(art)" suffix'],
+])
+  if (!cs.includes(needle))
+    errors.push(`${what} the README documents is gone from the scene builder (round 24)`);
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
