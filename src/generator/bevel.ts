@@ -4544,6 +4544,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
+  /* fit-down (the unitplate precedent; owner round: type never crops or
+     overhangs when too big): shrink a run's font size so its estimated
+     width fits the given span. Identity when it already fits — existing
+     renders hold byte-still. */
+  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62) =>
+    fs3 * Math.min(1, avail / Math.max(1, txt.length * fs3 * perChar));
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
@@ -5276,7 +5282,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const armedSecondary = (value ?? 0) >= 0.5;
       const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
-      const title = contentText(opts.label ?? "QUEST COMPLETE", 42 + w / 2, 33 + inset + 34 * k, 38 * k * typeK, { anchor: "middle" });
+      /* the title fits DOWN to the plate (field notes #3: "QUEST COMPLETE"
+         overhung both edges at a big kit type size — and rode into Unity
+         baked that way) */
+      const titleTxt = opts.label ?? "QUEST COMPLETE";
+      const title = contentText(titleTxt, 42 + w / 2, 33 + inset + 34 * k, fitFs(titleTxt, 38 * k * typeK, w - inset * 2 - 24 * k), { anchor: "middle" });
       const wellY = 33 + inset + 68 * k;
       const wellH = h - inset * 2 - 68 * k - 92 * k;
       const well = `<path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/>`;
@@ -6159,7 +6169,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          piece's label (Typography), the eyebrow and objectives are text
          slots (Component content) */
       let inner = `<g data-part="slot-text"><text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="${opts.slots?.eyebrowColor ?? "rgba(255,255,255,0.5)"}" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text></g>` +
-        `<g data-part="label">${contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK)}</g>` +
+        `<g data-part="label">${(() => { const qt = opts.label ?? "THE EMBER VAULT"; return contentText(qt, x0, 33 + inset + 52 * k, fitFs(qt, 30 * k * typeK, xr - x0)); })()}</g>` +
         `<rect x="${x0.toFixed(1)}" y="${(33 + inset + 80 * k).toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
       const objs = [
         { lbl: (opts.slots?.obj1 ?? "Reach the vault gate").slice(0, 40) },
@@ -6178,7 +6188,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotQ = active && (state === "hover" || state === "pressed");
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
-        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
+        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
@@ -6204,15 +6214,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidB = "db" + UID++;
       const plate = `<defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
         <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
-        ${contentText((opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24), px0 + plateW / 2, py0 + plateH / 2 + 1, 19 * k * typeK, { anchor: "middle" })}`;
+        ${(() => { const sp = (opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24); return contentText(sp, px0 + plateW / 2, py0 + plateH / 2 + 1, fitFs(sp, 19 * k * typeK, plateW - 20 * k), { anchor: "middle" }); })()}`;
       // the body is READING text — it speaks the list face (owner: "list
       // font dropdown isn't working here"); the speaker plate is a title
       // the body's own ink (a color slot) — the speaker plate keeps the
       // kit's type color, which reads on the DARK plate but can fail on
       // the light face (owner: "different dialog text color here")
       const bodyInk = opts.slots?.bodyColor;
-      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true, list: true, ink: bodyInk });
-      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
+      const bodyAvail = w - inset * 2 - 36 * k;
+      const l1t = opts.label ?? "The old road is sealed since the tremor.";
+      const l2t = (opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60);
+      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, list: true, ink: bodyInk });
+      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"
