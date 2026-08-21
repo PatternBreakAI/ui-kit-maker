@@ -152,7 +152,34 @@ const BACKDROPS: { name: string; url: string; video?: true }[] = [
    The user nudges from here; every piece stays a live kit asset.
    Re-swept for the post-pack roster: weapon wheel, killfeed, quest
    panel, party frames, score bug, achievement toast, social pieces. */
-type Tpl = { bg?: string; items: { kitId: KitComponentId; x: number; y: number; scale?: number }[] };
+type Tpl = {
+  bg?: string;
+  /** template is composed for a specific stage — applying it retunes the
+   *  active board's aspect first (the Match-3 mobile grid) */
+  aspect?: "169" | "mobile";
+  /** big-glyph templates stay admin-only until the owner releases the set
+   *  (BIG_GLYPH_GATE) — the tray group's exact visibility rule */
+  gate?: "bigglyphs";
+  items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number }[];
+};
+/* The Match-3 board: 7×9 big-glyph tiles at 12% (~52px — the scale-floor
+   round's whole point) on the 390×844 stage. The tiles are the set's six
+   true fruits (owner: "layout the fruit in a grid"). Seeded MATCHLESS the
+   way a real round starts: tile kind = (col + 2·row) mod 6, so horizontal
+   neighbours differ by 1 and vertical by 2 — never a 3-run — with one
+   bomb dropped in as the power piece (a single bomb can't form a run). */
+const M3_TILES = ["apple", "blueberry", "bananas", "lime", "grapes", "orange"];
+const M3_GRID: { big: BigGlyphFx; x: number; y: number; scale: number }[] = [];
+for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) {
+  const gid = r === 4 && c === 3 ? "bomb" : M3_TILES[(c + 2 * r) % 6];
+  const gl = bigGlyphById(gid)!;
+  M3_GRID.push({
+    big: { gid },
+    x: Math.round(13 + c * 52 + (52 - gl.w * 0.06) / 2),
+    y: Math.round(176 + r * 52 + (52 - gl.h * 0.06) / 2),
+    scale: 0.12,
+  });
+}
 const BOARD_TEMPLATES: Record<string, Tpl> = {
   "Main menu": { items: [
     { kitId: "header", x: 560, y: 90, scale: 1.1 },
@@ -248,6 +275,19 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     ))),
     { kitId: "booster", x: 70, y: 640, scale: 0.85 },
     { kitId: "segbar", x: 660, y: 890 },
+  ] },
+  /* the owner: "let's have a match 3 mobile template in the dropdown that
+     populates the correct match 3 layout" — the real portrait shape: kit
+     header (moves + timer + goal bar), the 7×9 tile grid, boosters at the
+     thumb line. Gated with the big-glyph set until the owner releases it. */
+  "Match-3 (mobile)": { aspect: "mobile", gate: "bigglyphs", items: [
+    { kitId: "movecounter", x: 10, y: 30, scale: 0.38 },
+    { kitId: "stopwatch", x: 286, y: 26, scale: 0.3 },
+    { kitId: "segbar", x: 86, y: 118, scale: 0.3 },
+    ...M3_GRID,
+    { kitId: "booster", x: 42, y: 730, scale: 0.45 },
+    { kitId: "booster", x: 148, y: 730, scale: 0.45 },
+    { kitId: "booster", x: 254, y: 730, scale: 0.45 },
   ] },
   "RPG party": { items: [
     { kitId: "header", x: 560, y: 30 },
@@ -1208,11 +1248,19 @@ export function BoardView({ playing }: { playing: boolean }) {
               onChange={(e) => {
                 const t = BOARD_TEMPLATES[e.target.value];
                 if (!t) return;
+                // a stage-specific template retunes the board first — the
+                // Match-3 grid is composed for the 390×844 portrait
+                if (t.aspect && act?.aspect !== t.aspect) useGen.getState().setBoardAspect(t.aspect);
                 addBoardItems(t.items);
                 if (t.bg) setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
               }}>
               <option value="">Starter screen…</option>
-              {Object.keys(BOARD_TEMPLATES).map((t) => <option key={t} value={t}>{t}</option>)}
+              {Object.keys(BOARD_TEMPLATES)
+                /* gated templates follow their asset set's release: the
+                   big-glyph templates are admin-only until the owner
+                   releases the set — the tray group's visibility rule */
+                .filter((t) => BOARD_TEMPLATES[t].gate !== "bigglyphs" || isAdmin || componentReleases[BIG_GLYPH_GATE] === "released")
+                .map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
           <label className="bd-snap"><Grid3x3 size={13} strokeWidth={2} /> Snap to grid
