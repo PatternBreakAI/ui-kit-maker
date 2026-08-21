@@ -353,7 +353,7 @@ interface GenStore {
    *  and value — as a named library asset. The master is never touched. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of kit pieces (starter templates). */
-  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  addBoardItems: (items: { kitId: KitComponentId; x: number; y: number; scale?: number; ov?: string }[]) => void;
   /** Drop a live kit component on the board — follows the master style.
    *  `ov` picks a render variant (the ghost joystick). */
   addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
@@ -1635,13 +1635,11 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ phase: "board", boardSel: item.id, ...(get().phase !== "board" ? { zoom: 1 } : {}) });
   },
   addBoardItems: (items) => {
-    // starter templates: a full set of pieces, pre-sized and pre-placed —
-    // kit pieces or big-glyph tiles (the Match-3 template's grid)
+    // starter templates: a full set of pieces, pre-sized and pre-placed
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      libId: "", ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.big ? { big: it.big } : {}),
-      x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
+      libId: "", kitId: it.kitId, x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });
