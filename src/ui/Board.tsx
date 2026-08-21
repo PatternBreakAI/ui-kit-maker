@@ -266,16 +266,6 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "bignum", x: 770, y: 420, scale: 1.1 },
     { kitId: "primary", x: 700, y: 790, scale: 1.05 },
   ] },
-  "Match-3 round": { items: [
-    { kitId: "movecounter", x: 70, y: 55, scale: 0.85 },
-    { kitId: "stopwatch", x: 1500, y: 55, scale: 0.7 },
-    { kitId: "combo", x: 1520, y: 320, scale: 0.85 },
-    ...([0, 1, 2] as const).flatMap((r) => ([0, 1, 2] as const).map((c) => (
-      { kitId: "slot" as KitComponentId, x: 730 + c * 160, y: 290 + r * 160, scale: 0.9 }
-    ))),
-    { kitId: "booster", x: 70, y: 640, scale: 0.85 },
-    { kitId: "segbar", x: 660, y: 890 },
-  ] },
   /* the owner: "let's have a match 3 mobile template in the dropdown that
      populates the correct match 3 layout" — the real portrait shape: kit
      header (moves + timer + goal bar), the 7×9 tile grid, boosters at the
