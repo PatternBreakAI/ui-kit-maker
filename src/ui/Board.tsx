@@ -13,7 +13,7 @@ import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
 import { openGate } from "@/shell/gateModal";
-import { LiveArt, shellHit, stillSmil, stripSmil } from "./LiveArt";
+import { LiveArt, shellHit, imgShellHit, stillSmil, stripSmil } from "./LiveArt";
 
 /* An SVG rasterized through an <img> — or downloaded and opened outside the
    app — is a SEALED document: it cannot see the page's loaded fonts, so any
@@ -2314,7 +2314,15 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`} data-bid={b.id}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
-        width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined }}
+        width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined,
+        /* play-mode pointer honesty (field notes #3: a card's invisible
+           canvas blocked the button beneath it): the item box goes
+           pointer-transparent and LiveArt's injected hit rect re-enables
+           exactly the shell — clicks and hovers outside any shell fall
+           through the stack to the piece that really owns them. Stamps
+           and big glyphs are decorative while playing, so they pass
+           through whole. onSelect still fires via bubbling from the rect. */
+        ...(playing ? { pointerEvents: "none" as const } : {}) }}
       {...(!playing ? {
         onPointerDown: (e: React.PointerEvent) => {
           /* pointer honesty on the stage (owner: "you can click outside
@@ -2324,8 +2332,15 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              the click that used to steal a neighbour now reaches it.
              The relay may only DESCEND the hit stack (an overlapping
              pair would otherwise ping-pong the event forever). */
-          const svgHit = (e.currentTarget as HTMLElement).querySelector("svg");
-          if (svgHit && !shellHit(svgHit, e.clientX, e.clientY)) {
+          const hostEl = e.currentTarget as HTMLElement;
+          const svgHit = hostEl.querySelector("svg");
+          /* raster pieces (warped stamps, big glyphs) carry their shell on
+             the <img> — without this they answered whole-box and their
+             padded frames stole clicks from pieces beneath (field notes #3) */
+          const imgHit = svgHit ? null : hostEl.querySelector("img");
+          const missed = svgHit ? !shellHit(svgHit, e.clientX, e.clientY)
+            : imgHit ? !imgShellHit(imgHit, e.clientX, e.clientY) : false;
+          if (missed) {
             const self = e.currentTarget as Element;
             const stack = document.elementsFromPoint(e.clientX, e.clientY);
             let iSelf = -1;
