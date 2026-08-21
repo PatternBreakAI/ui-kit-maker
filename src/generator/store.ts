@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -744,6 +744,14 @@ export interface BoardItem {
    *  stamp grain. Scale/rotation/opacity ride the shared item fields. */
   big?: BigGlyphFx;
 }
+
+/** Instance Scale bounds per board item. Big glyphs may shrink to real
+ *  match-3 tile size (owner, from a mobile board: "I need to be able to
+ *  shrink the glyphs smaller than this") — 5% of the ~437px design
+ *  footprint is a ~22px tile, comfortably under the ~52px a 7-column
+ *  390px board needs (~12%). Everything else keeps the 30% legibility
+ *  floor; the 200% ceiling is shared. */
+export const boardScaleMin = (b: Pick<BoardItem, "big"> | null | undefined): number => (b?.big ? 0.05 : 0.3);
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
@@ -1673,8 +1681,8 @@ export const useGen = create<GenStore>((set, get) => ({
   boardSel: null,
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
-  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
-  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
+  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)) })),
+  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)), x, y })),
   stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
   stretchBoardItemV: (id, stretchY, y) => mutateItem(get, set, `stretchy:${id}`, id, (b) => ({ ...b, stretchY: Math.max(0.7, Math.min(3, stretchY)), y })),
   setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
@@ -1766,7 +1774,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const map = new Map(patches.map((p) => [p.id, p]));
     mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
       bd.items.some((b) => map.has(b.id))
-        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(0.3, Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(boardScaleMin(b), Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
         : bd));
   },
   removeBoardItems: (ids) => {
@@ -2668,6 +2676,9 @@ export const useGen = create<GenStore>((set, get) => ({
     const focus0 = get().focus;
     const lockedId = focus0 && get().kitDesigns[focus0] ? focus0 : null;
     const work = lockedId ? clone2(applyKitDesign(cfg, get().kitDesigns[lockedId])) : cfg;
+    /* the pre-edit working view — the fork writeback diffs against THIS to
+       learn exactly which design paths the edit moved (see below) */
+    const preWork = lockedId ? clone2(work) : null;
     /* idle motion is SHARED state: the Panel's kit toggles must reach the
        master even while a piece is focused, and a piece's own idle fork
        (edited via its chips, never via update) must not leak back into the
@@ -2794,7 +2805,30 @@ export const useGen = create<GenStore>((set, get) => ({
          writes through and keeps following the master. */
       const iconPin = !!kdPrev?.icon || JSON.stringify(work.icon) !== JSON.stringify(cfg.icon);
       if (!iconPin) cfg.icon = work.icon;
-      const nkd: KitDesign = { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}), ...(kdPrev?.contentMargin !== undefined ? { contentMargin: kdPrev.contentMargin } : {}) };
+      /* THE FORK STAYS SPARSE (owner: glyph thumbs "just keeping their old
+         thumbs if I say, remove extrusion"): this writeback used to store
+         pickDesign(work) — the piece's WHOLE merged design — so one focused
+         edit froze every key at that moment's master values and later kit
+         edits (remove extrusion, recolor) never flowed again. The v70
+         migration converts those full snapshots back to sparse at boot,
+         but only against the boot-time master — drift stayed pinned. Now
+         the fork keeps its previous pins plus exactly the design paths
+         THIS edit moved (diffed against the pre-edit working view), so an
+         untouched key keeps following the kit and a deliberate fork keeps
+         its own value. */
+      const prevSparse: KitDesign = {};
+      for (const [k, v] of Object.entries(kdPrev ?? {})) {
+        if (k === "stateDesigns" || k === "states" || k === "icon" || k === "idle" || k === "contentMargin") continue;
+        (prevSparse as Record<string, unknown>)[k] = v;
+      }
+      const editDiff = preWork ? designDiff(pickDesign(preWork), pickDesign(work)) : null;
+      const designPart = (editDiff ? deepMergeDesign(prevSparse, editDiff) : prevSparse) as KitDesign;
+      /* state forks pin the same honest way: only when the piece already
+         pinned them (any legacy fork carries the key, `{}` included) or
+         THIS edit touched a state — an unpinned piece keeps following the
+         master's state recipes instead of freezing them at edit time */
+      const sdPin = kdPrev?.stateDesigns !== undefined || JSON.stringify(work.stateDesigns ?? {}) !== JSON.stringify(preWork?.stateDesigns ?? {});
+      const nkd: KitDesign = { ...designPart, ...(sdPin ? { stateDesigns: work.stateDesigns ?? {} } : {}), ...(statesPin ? { states: work.states } : {}), ...(iconPin ? { icon: work.icon } : {}), ...(kdPrev?.idle ? { idle: kdPrev.idle } : {}), ...(kdPrev?.contentMargin !== undefined ? { contentMargin: kdPrev.contentMargin } : {}) };
       const kitDesigns = { ...get().kitDesigns, [lockedId]: nkd };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns });

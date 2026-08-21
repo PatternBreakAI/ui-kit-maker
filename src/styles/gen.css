@@ -1714,7 +1714,12 @@ button.kp-fact { cursor: pointer; }
    the row and zeroing min-heights makes each column its own scroller. */
 /* tray widths ride CSS vars set by the drag grips — the clamp() here is
    the hard rail: no drag (or bad stored value) can break the stage */
-.board2 { display: grid; grid-template-columns: clamp(200px, var(--trayl, 238px), 400px) minmax(0, 1fr) clamp(230px, var(--trayr, 270px), 420px); grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 620px; overflow: hidden; }
+.board2 { position: relative; display: grid; grid-template-columns: clamp(200px, var(--trayl, 238px), 400px) minmax(0, 1fr) clamp(230px, var(--trayr, 270px), 420px); grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 620px; overflow: hidden; }
+/* ── the boards curtain — the kit page's loading language on the desk.
+   Scoped to the boards surface (rail and top bar stay); dark by design
+   like the desk itself. Grace + minimum-display live in the component. */
+.bd-curtain { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; background: #0d0f16; color: #ecedf1; transition: opacity .42s ease; }
+.bd-curtain.leaving { opacity: 0; pointer-events: none; }
 .bd-assets, .bd-side { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 16px 14px; background: var(--card); }
 .bd-traygrip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 9; touch-action: none; }
 .bd-traygrip--l { right: -5px; }
@@ -1799,6 +1804,10 @@ button.kp-fact { cursor: pointer; }
 .bd-row2 label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: var(--ink2); }
 .bd-row2 input { height: 32px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg, #fff); width: 100%; }
 .bd-slider { display: flex; flex-direction: column; gap: 4px; margin-top: 13px; font-size: 11.5px; font-weight: 700; color: var(--ink2); }
+/* the Scale row's typed entry — the X/Y inputs' look at inline size */
+.bd-sliderhead { display: flex; align-items: center; gap: 5px; }
+.bd-scalenum { width: 54px; height: 24px; border: 1px solid var(--line2); border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12px; color: var(--ink); background: var(--bg, #fff); }
+[data-theme="dark"] .bd-scalenum { background: var(--card); }
 /* two columns, never wider than the panel — three inline buttons used to
    shove the inspector past the right edge */
 .bd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; min-width: 0; }

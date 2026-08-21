@@ -154,18 +154,27 @@ export interface BigGlyphFx {
 
 /** One filter string for a big glyph's dials — the stage, the board PNG
  *  compositor and the Unity scene bake all speak THIS, so they can't
- *  drift (the stampFilter contract). */
-export function bigGlyphFilter(cfg: GenConfig, fx: BigGlyphFx): string | undefined {
+ *  drift (the stampFilter contract).
+ *
+ *  `pxScale` scales the recipe's px values for a surface whose drawing
+ *  space does NOT already scale with the instance. The stage applies the
+ *  filter INSIDE the instance's `transform: scale()` wrapper (halo scales
+ *  for free, pxScale 1); the Unity bake filters the native raster and
+ *  ships sprite+halo as one scaled unit (pxScale 1). The board PNG
+ *  compositor filters the FLAT board canvas, so it must pass the
+ *  instance's scale or a 12% match-3 tile drowns under a 100%-sized
+ *  shadow (the scale-floor round). */
+export function bigGlyphFilter(cfg: GenConfig, fx: BigGlyphFx, pxScale = 1): string | undefined {
   const p: string[] = [];
   if (fx.shadow) {
-    const dx = fx.shadowX ?? 0;
-    const dy = fx.shadowY ?? 2 + fx.shadow * 0.1;
-    const bl = fx.shadowBlur ?? 2 + fx.shadow * 0.22;
+    const dx = (fx.shadowX ?? 0) * pxScale;
+    const dy = (fx.shadowY ?? 2 + fx.shadow * 0.1) * pxScale;
+    const bl = (fx.shadowBlur ?? 2 + fx.shadow * 0.22) * pxScale;
     p.push(`drop-shadow(${dx.toFixed(1)}px ${dy.toFixed(1)}px ${bl.toFixed(1)}px rgba(0,0,0,${(fx.shadow / 100 * 0.6).toFixed(2)}))`);
   }
   if (fx.glow) {
     const g = fx.glowInk ?? cfg.effects.Glow ?? "#7DF9FF";
-    p.push(`drop-shadow(0 0 ${(3 + fx.glow * 0.22).toFixed(1)}px ${g}) drop-shadow(0 0 ${(6 + fx.glow * 0.5).toFixed(1)}px ${g})`);
+    p.push(`drop-shadow(0 0 ${((3 + fx.glow * 0.22) * pxScale).toFixed(1)}px ${g}) drop-shadow(0 0 ${((6 + fx.glow * 0.5) * pxScale).toFixed(1)}px ${g})`);
   }
   return p.length ? p.join(" ") : undefined;
 }

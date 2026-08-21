@@ -1843,7 +1843,7 @@ export type KitDesign = DeepPartial<StateDesign> & {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 /* effects is a dynamic record where keys can be REMOVED — a merge can't
    express deletion, so the whole record is treated as one leaf value */
-function deepMergeDesign(base: unknown, over: unknown): unknown {
+export function deepMergeDesign(base: unknown, over: unknown): unknown {
   if (over === undefined) return base;
   if (!isObj(over) || !isObj(base)) return JSON.parse(JSON.stringify(over));
   const out: Record<string, unknown> = { ...base };

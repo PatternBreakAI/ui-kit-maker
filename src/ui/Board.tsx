@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
@@ -492,6 +492,17 @@ export function BoardView({ playing }: { playing: boolean }) {
     // one board per idle slice — the effect re-runs and schedules the next
     return idleOnce(() => setHydrated((s) => new Set(s).add(pending[0])));
   }, [boards, activeBoard, hydrated]);
+  /* one paint BEAT before any board art commits (the kit curtain's
+     chapters-behind-the-curtain pattern): the desk chrome and the dimmed
+     stage frames paint instantly, the boards curtain gets its slot, and
+     THEN the active board's heavy art render runs. Without the beat the
+     first commit is one long task and nothing — feedback included —
+     can paint until it ends (the silent gap the owner reported). */
+  const [artBeat, setArtBeat] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => requestAnimationFrame(() => setArtBeat(true)));
+    return () => cancelAnimationFrame(r);
+  }, []);
   /* the left tray's full-catalog thumbs (~a hundred renderKit calls in the
      `assets` memo below) used to compute inside the FIRST desk render,
      ahead of the active board's own paint. They wait one idle beat behind
@@ -928,7 +939,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             const w = img.width * s, h = img.height * s;
             ctx.save();
             if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
-            const bf = bigGlyphFilter(cfg, b.big!);
+            /* the canvas is FLAT board space — the stage scales the filter
+               inside the instance wrapper, so this bake must scale the
+               recipe's px itself or a tiny tile drowns under a full-size
+               shadow (pxScale, see bigGlyphFilter) */
+            const bf = bigGlyphFilter(cfg, b.big!, b.scale ?? 1);
             if (bf) ctx.filter = bf;
             ctx.translate(b.x + w / 2, b.y + h / 2);
             if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
@@ -1021,6 +1036,7 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   return (
     <div className={`board2${playing ? " playing" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
+      <BoardCurtain />
       {/* ── assets ── */}
       <aside className="bd-assets">
         <span className="bd-traygrip bd-traygrip--l" role="separator" aria-orientation="vertical" aria-label="Resize the assets tray"
@@ -1240,7 +1256,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 /* the active board always renders live (even before the
                    idle sweep records it) — activating a sleeping board
                    hydrates it on the spot */
-                const live = bd.id === activeBoard || hydrated.has(bd.id);
+                const live = artBeat && (bd.id === activeBoard || hydrated.has(bd.id));
                 return (
               <section key={bd.id} className={`bd-artboard${bd.id === activeBoard ? " on" : ""}`} data-board={bd.id}>
                 {/* the header hugs the stage's width and speaks in icons —
@@ -1397,15 +1413,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                                 e.stopPropagation();
                                 try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured scale still works */ }
                                 const pieces = bd.items.filter((it) => selIdsAll.includes(it.id))
-                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y }));
+                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: boardScaleMin(it) }));
                                 if (pieces.length < 2) return;
                                 grsz.current = {
                                   x0: e.clientX, y0: e.clientY,
                                   ax: grpBox.l + (1 - hx) * grpBox.w, ay: grpBox.t + (1 - hy) * grpBox.h,
                                   hpx: grpBox.l + hx * grpBox.w, hpy: grpBox.t + hy * grpBox.h,
                                   // clamp the GROUP factor so no piece leaves its own
-                                  // 0.3..2 range mid-gesture — relative spacing never warps
-                                  fMin: Math.max(...pieces.map((p) => 0.3 / p.s0)),
+                                  // floor..2 range mid-gesture — relative spacing never
+                                  // warps (big glyphs floor at 5%, the rest at 30%)
+                                  fMin: Math.max(...pieces.map((p) => p.min / p.s0)),
                                   fMax: Math.min(...pieces.map((p) => 2 / p.s0)),
                                   pieces,
                                 };
@@ -1536,8 +1553,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               <label>X <input type="number" value={Math.round(sel.x)} onChange={(e) => moveBoardItem(sel.id, +e.target.value, sel.y)} /></label>
               <label>Y <input type="number" value={Math.round(sel.y)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value)} /></label>
             </div>
-            <label className="bd-slider">Scale · {Math.round((sel.scale ?? 1) * 100)}%
-              <input type="range" min={30} max={200} value={Math.round((sel.scale ?? 1) * 100)}
+            {/* big glyphs dive to 5% (match-3 tiles on a mobile board need
+                ~12%); everything else keeps the 30% legibility floor. The
+                typed entry exists because one slider pixel jumps several
+                percent at the small end — the owner types 12 and gets 12. */}
+            <label className="bd-slider"><span className="bd-sliderhead">Scale ·
+              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.round(boardScaleMin(sel) * 100)} />%</span>
+              <input type="range" min={Math.round(boardScaleMin(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
                 onChange={(e) => scaleBoardItem(sel.id, +e.target.value / 100)} />
             </label>
             <label className="bd-slider">Rotation · {sel.rot ?? 0}°
@@ -1966,8 +1988,116 @@ function BigGlyphStageArt({ cfg, gl, fx }: { cfg: GenConfig; gl: BigGlyphDef; fx
     return () => { dead = true; };
   }, [gl.id]);
   const w = Math.round(gl.w * BIG_GLYPH_BASE), h = Math.round(gl.h * BIG_GLYPH_BASE);
+  /* data-soft marks the 128px thumb still awaiting its mid swap — the
+     boards curtain reads it as "art not sharpened yet", honest progress */
   return <img src={src} width={w} height={h} data-shell={`0 0 ${w} ${h}`} draggable={false}
+    data-soft={src.includes("bigglyph-thumbs") ? "1" : undefined}
     alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, fx) }} />;
+}
+
+/* ── the boards curtain — the kit page's loading language, spoken on the
+   desk (owner: "after we click boards, we need to see loading bars/
+   feedback (or maybe we 'load' it like we do the the kit with a loading
+   screen, but only if necessary?)"). Both halves honored:
+   · only if necessary — the no-flicker contract: nothing shows unless
+     the ENTRY board is still visually incomplete past a 250ms grace
+     (warm revisits and fast loads never see it); once shown it holds a
+     400ms minimum beat so it never strobes in and out.
+   · honest feedback — progress is read off the real stage, never
+     theater: the entry board's own images (backdrop, saved-asset art,
+     big-glyph rasters still wearing their 128px thumb awaiting the mid
+     swap — the data-soft mark), the backdrop video's first frame, and
+     the document fonts. The bar is monotonic; a stalled asset can't
+     trap the desk (8s failsafe).
+   Entry moment only: later board switches ride the hydration sweep's
+   existing instant path and stay curtain-free. */
+function BoardCurtain() {
+  const name = useGen((s) => s.boards.find((b) => b.id === s.activeBoard)?.name);
+  const accent = useGen((s) => s.cfg.effects.Bevel ?? "#0E9CC9");
+  const [mode, setMode] = useState<"grace" | "on" | "leaving" | "gone">("grace");
+  const [prog, setProg] = useState({ p: 0.08, stage: "Setting the desk" });
+  const entry = useRef<string | null>(null);
+  if (entry.current === null) entry.current = useGen.getState().activeBoard;
+  const pMax = useRef(0.08);
+  useEffect(() => {
+    let dead = false;
+    let shownAt = 0;
+    const t0 = Date.now();
+    const read = () => {
+      const el = document.querySelector(`[data-board="${entry.current}"]`);
+      if (!el) return { done: false, p: 0.08, stage: "Setting the desk" };
+      /* the stage frame commits a beat BEFORE its art (artBeat) — an
+         imageless read in that window must not pass for "complete" */
+      if (!el.querySelector(".bd-canvas")) return { done: false, p: 0.14, stage: "Setting the desk" };
+      const imgs = [...el.querySelectorAll("img")];
+      const soft = el.querySelectorAll("img[data-soft]").length;
+      const ok = Math.max(0, imgs.filter((im) => im.complete && im.naturalWidth > 0).length - soft);
+      const vid = el.querySelector("video");
+      const vidOk = !vid || vid.readyState >= 2;
+      const fonts = !document.fonts || document.fonts.status === "loaded";
+      const artP = imgs.length ? ok / imgs.length : 1;
+      return {
+        done: artP >= 1 && vidOk && fonts,
+        p: 0.18 + 0.12 * (fonts ? 1 : 0) + 0.12 * (vidOk ? 1 : 0) + 0.58 * artP,
+        stage: artP < 1 ? (soft ? "Sharpening the glyph art" : "Dressing the boards")
+          : !vidOk ? "Starting the backdrop" : !fonts ? "Loading typefaces" : "Polishing",
+      };
+    };
+    const iv = window.setInterval(() => {
+      if (dead) return;
+      const st = read();
+      const now = Date.now();
+      if (shownAt === 0) {
+        // the grace window — resolve fast and nothing ever shows
+        if (st.done) { dead = true; window.clearInterval(iv); setMode("gone"); return; }
+        if (now - t0 >= 250) { shownAt = now; setMode("on"); }
+        return;
+      }
+      pMax.current = Math.max(pMax.current, st.p);
+      setProg({ p: pMax.current, stage: st.stage });
+      if (st.done || now - t0 > 8000) {
+        dead = true; window.clearInterval(iv);
+        window.setTimeout(() => {
+          setMode("leaving");
+          window.setTimeout(() => setMode("gone"), 460);
+        }, Math.max(0, shownAt + 400 - Date.now()));
+      }
+    }, 120);
+    return () => { dead = true; window.clearInterval(iv); };
+  }, []);
+  if (mode === "grace" || mode === "gone") return null;
+  return (
+    <div className={`bd-curtain${mode === "leaving" ? " leaving" : ""}`} role="status" aria-live="polite">
+      <div className="kp-curtainbox">
+        <span className="kp-curtainkicker">UI Kit Maker</span>
+        <h2 className="kp-curtaintitle">Setting up {name ?? "the boards"}</h2>
+        <div className="kp-curtainbar" aria-hidden="true"><i style={{ width: `${Math.round(Math.min(1, prog.p) * 100)}%`, background: accent }} /></div>
+        <span className="kp-curtainstage">{prog.stage}…</span>
+      </div>
+    </div>
+  );
+}
+
+/* The Scale row's typed entry — one slider pixel jumps several percent at
+   the small end of a 5–200 range, so precise tile sizes (the owner's
+   match-3 12%) get typed instead. Draft-buffered: "12" must not commit as
+   a floor-clamped "1" mid-keystroke and rewrite the field under the
+   caret; only in-range values commit, blur (or Enter) resyncs. */
+function ScaleEntry({ id, pct, min }: { id: string; pct: number; min: number }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [id]);
+  return (
+    <input className="bd-scalenum" type="number" min={min} max={200} aria-label="Scale percent"
+      value={draft ?? pct}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        const n = Math.round(+v);
+        if (Number.isFinite(n) && n >= min && n <= 200) useGen.getState().scaleBoardItem(id, n / 100);
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+  );
 }
 
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
@@ -2316,7 +2446,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                       const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
                       // corners follow the diagonal (both axes, averaged);
                       // the handlebars are pure vertical stretch-to-scale
-                      const s2 = Math.max(0.3, Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
+                      const s2 = Math.max(boardScaleMin(b), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
                       useGen.getState().transformBoardItem(b.id, s2,
                         r.anchorX - (r.shx + r.axf * r.shw) * s2,
                         r.anchorY - (r.shy + r.ayf * r.shh) * s2);
