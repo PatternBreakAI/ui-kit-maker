@@ -745,6 +745,14 @@ export interface BoardItem {
   big?: BigGlyphFx;
 }
 
+/** Instance Scale bounds per board item. Big glyphs may shrink to real
+ *  match-3 tile size (owner, from a mobile board: "I need to be able to
+ *  shrink the glyphs smaller than this") — 5% of the ~437px design
+ *  footprint is a ~22px tile, comfortably under the ~52px a 7-column
+ *  390px board needs (~12%). Everything else keeps the 30% legibility
+ *  floor; the 200% ceiling is shared. */
+export const boardScaleMin = (b: Pick<BoardItem, "big"> | null | undefined): number => (b?.big ? 0.05 : 0.3);
+
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
  *  grade lands before the haze. */
@@ -1673,8 +1681,8 @@ export const useGen = create<GenStore>((set, get) => ({
   boardSel: null,
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
-  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)) })),
-  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(0.3, Math.min(2, scale)), x, y })),
+  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)) })),
+  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)), x, y })),
   stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
   stretchBoardItemV: (id, stretchY, y) => mutateItem(get, set, `stretchy:${id}`, id, (b) => ({ ...b, stretchY: Math.max(0.7, Math.min(3, stretchY)), y })),
   setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
@@ -1766,7 +1774,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const map = new Map(patches.map((p) => [p.id, p]));
     mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
       bd.items.some((b) => map.has(b.id))
-        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(0.3, Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(boardScaleMin(b), Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
         : bd));
   },
   removeBoardItems: (ids) => {

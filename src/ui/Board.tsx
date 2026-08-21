@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
@@ -928,7 +928,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             const w = img.width * s, h = img.height * s;
             ctx.save();
             if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
-            const bf = bigGlyphFilter(cfg, b.big!);
+            /* the canvas is FLAT board space — the stage scales the filter
+               inside the instance wrapper, so this bake must scale the
+               recipe's px itself or a tiny tile drowns under a full-size
+               shadow (pxScale, see bigGlyphFilter) */
+            const bf = bigGlyphFilter(cfg, b.big!, b.scale ?? 1);
             if (bf) ctx.filter = bf;
             ctx.translate(b.x + w / 2, b.y + h / 2);
             if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
@@ -1397,15 +1401,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                                 e.stopPropagation();
                                 try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured scale still works */ }
                                 const pieces = bd.items.filter((it) => selIdsAll.includes(it.id))
-                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y }));
+                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: boardScaleMin(it) }));
                                 if (pieces.length < 2) return;
                                 grsz.current = {
                                   x0: e.clientX, y0: e.clientY,
                                   ax: grpBox.l + (1 - hx) * grpBox.w, ay: grpBox.t + (1 - hy) * grpBox.h,
                                   hpx: grpBox.l + hx * grpBox.w, hpy: grpBox.t + hy * grpBox.h,
                                   // clamp the GROUP factor so no piece leaves its own
-                                  // 0.3..2 range mid-gesture — relative spacing never warps
-                                  fMin: Math.max(...pieces.map((p) => 0.3 / p.s0)),
+                                  // floor..2 range mid-gesture — relative spacing never
+                                  // warps (big glyphs floor at 5%, the rest at 30%)
+                                  fMin: Math.max(...pieces.map((p) => p.min / p.s0)),
                                   fMax: Math.min(...pieces.map((p) => 2 / p.s0)),
                                   pieces,
                                 };
@@ -1536,8 +1541,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               <label>X <input type="number" value={Math.round(sel.x)} onChange={(e) => moveBoardItem(sel.id, +e.target.value, sel.y)} /></label>
               <label>Y <input type="number" value={Math.round(sel.y)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value)} /></label>
             </div>
-            <label className="bd-slider">Scale · {Math.round((sel.scale ?? 1) * 100)}%
-              <input type="range" min={30} max={200} value={Math.round((sel.scale ?? 1) * 100)}
+            {/* big glyphs dive to 5% (match-3 tiles on a mobile board need
+                ~12%); everything else keeps the 30% legibility floor. The
+                typed entry exists because one slider pixel jumps several
+                percent at the small end — the owner types 12 and gets 12. */}
+            <label className="bd-slider"><span className="bd-sliderhead">Scale ·
+              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.round(boardScaleMin(sel) * 100)} />%</span>
+              <input type="range" min={Math.round(boardScaleMin(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
                 onChange={(e) => scaleBoardItem(sel.id, +e.target.value / 100)} />
             </label>
             <label className="bd-slider">Rotation · {sel.rot ?? 0}°
@@ -1970,6 +1980,28 @@ function BigGlyphStageArt({ cfg, gl, fx }: { cfg: GenConfig; gl: BigGlyphDef; fx
     alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, fx) }} />;
 }
 
+/* The Scale row's typed entry — one slider pixel jumps several percent at
+   the small end of a 5–200 range, so precise tile sizes (the owner's
+   match-3 12%) get typed instead. Draft-buffered: "12" must not commit as
+   a floor-clamped "1" mid-keystroke and rewrite the field under the
+   caret; only in-range values commit, blur (or Enter) resyncs. */
+function ScaleEntry({ id, pct, min }: { id: string; pct: number; min: number }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [id]);
+  return (
+    <input className="bd-scalenum" type="number" min={min} max={200} aria-label="Scale percent"
+      value={draft ?? pct}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        const n = Math.round(+v);
+        if (Number.isFinite(n) && n >= min && n <= 200) useGen.getState().scaleBoardItem(id, n / 100);
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+  );
+}
+
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
   /* glint stars snap to REAL letterform ink — a stamp rendered before its
      face finished loading snapped to the fallback font's run (the drifting
@@ -2316,7 +2348,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                       const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
                       // corners follow the diagonal (both axes, averaged);
                       // the handlebars are pure vertical stretch-to-scale
-                      const s2 = Math.max(0.3, Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
+                      const s2 = Math.max(boardScaleMin(b), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
                       useGen.getState().transformBoardItem(b.id, s2,
                         r.anchorX - (r.shx + r.axf * r.shw) * s2,
                         r.anchorY - (r.shy + r.ayf * r.shh) * s2);
