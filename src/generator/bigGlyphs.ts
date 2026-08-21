@@ -6,8 +6,9 @@
    shadows and glows to these." So:
    · they are BOARD ASSETS, never kit components — no roster entry, no kit
      page card, no shape map; the Boards tray is their only door
-   · staged behind ONE ledger key (BIG_GLYPH_GATE) — admin-only until the
-     owner releases the set; the batch precedent, not 71 approvals
+   · RELEASED to everyone, in code (owner order, verbatim 2026-08-21:
+     "release the set") — the set staged behind one ledger key until the
+     owner's call; the gate is gone now so no stale ledger row can hide it
    · day-one instance dials: Drop shadow + Glow (kit-following glow ink),
      the type stamp's dial grain exactly — one filter string shared by the
      stage, the board PNG compositor and the Unity scene bake
@@ -25,10 +26,6 @@
    machinery stays for future drops that land flat. */
 
 import type { GenConfig } from "./model";
-
-/** The whole set gates on this one componentReleases ledger key —
- *  board-asset class, so it deliberately is NOT a KitComponentId. */
-export const BIG_GLYPH_GATE = "bigglyphset";
 
 export interface BigGlyphDef {
   id: string; name: string;
