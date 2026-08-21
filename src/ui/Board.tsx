@@ -499,23 +499,73 @@ export function BoardView({ playing }: { playing: boolean }) {
      backdrop — that was the owner's whole concern; a board with no
      backdrop borrows the starter's. */
   const [starterAsk, setStarterAsk] = useState<string | null>(null);
+  /* ── mobile retune (owner, field notes #3: the older starters were
+     16:9-fixed) ── a 16:9-composed starter dealt onto a MOBILE frame
+     reflows to the 390×844 stage the way the Match-3 template was
+     hand-composed for it: positions map into the portrait frame, piece
+     scale steps down to phone proportion, and a settle pass measures
+     the real dealt art and pulls anything oversized or out-of-frame
+     back inside (shrink to fit, 12px margins). */
+  const MOBILE_DEAL_K = 0.62;
+  const dealStarterItems = (t: Tpl, bdId: string) => {
+    const st = useGen.getState();
+    const bd = st.boards.find((b) => b.id === bdId);
+    const retune = bd?.aspect === "mobile" && t.aspect !== "mobile";
+    const [SW, SH] = STAGE["169"], [TW, TH] = STAGE.mobile;
+    const items = retune
+      ? t.items.map((it) => ({
+          ...it,
+          x: Math.round((it.x / SW) * TW),
+          y: Math.round((it.y / SH) * TH),
+          scale: +(((it.scale ?? 1) * MOBILE_DEAL_K).toFixed(2)),
+        }))
+      : t.items;
+    const before = bd?.items.length ?? 0;
+    st.addBoardItems(items);
+    if (retune) window.setTimeout(() => fitMobileDeal(bdId, before), 550);
+  };
+  const fitMobileDeal = (bdId: string, fromIndex: number) => {
+    const st = useGen.getState();
+    const bd = st.boards.find((b) => b.id === bdId);
+    if (!bd) return;
+    const [TW, TH] = STAGE[bd.aspect];
+    const M = 12;
+    const patches: { id: string; scale: number; x: number; y: number }[] = [];
+    for (const it of bd.items.slice(fromIndex)) {
+      const r = artRectOf(bdId, it);
+      if (!r || !r.w || !r.h) continue;
+      const s = it.scale ?? 1;
+      const f = Math.min(1, (TW - M * 2) / r.w, (TH - M * 2) / r.h);
+      // art scales about the item origin — predict the shrunk shell, then
+      // clamp it into the frame
+      const l2 = it.x + (r.l - it.x) * f, t2 = it.y + (r.t - it.y) * f;
+      const w2 = r.w * f, h2 = r.h * f;
+      let dx = 0, dy = 0;
+      if (l2 < M) dx = M - l2; else if (l2 + w2 > TW - M) dx = TW - M - (l2 + w2);
+      if (t2 < M) dy = M - t2; else if (t2 + h2 > TH - M) dy = TH - M - (t2 + h2);
+      if (f < 1 || dx || dy) patches.push({ id: it.id, scale: +(s * f).toFixed(3), x: Math.round(it.x + dx), y: Math.round(it.y + dy) });
+    }
+    if (patches.length) st.transformBoardItems("mobiledeal", patches);
+  };
   const applyStarter = (tname: string, mode: "fresh" | "replace" | "stack") => {
     const t = BOARD_TEMPLATES[tname];
     if (!t) return;
     const st = useGen.getState();
     if (mode === "fresh") {
-      // a new board takes the starter whole — backdrop included
-      st.addBoardAfter(st.activeBoard, { aspect: t.aspect });
-      st.addBoardItems(t.items);
+      // a new board takes the starter whole at its NATIVE aspect —
+      // backdrop included
+      st.addBoardAfter(st.activeBoard, { aspect: t.aspect ?? "169" });
+      dealStarterItems(t, useGen.getState().activeBoard);
       if (t.bg) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
       return;
     }
     const bd = st.boards.find((b) => b.id === st.activeBoard);
     if (mode === "replace" && bd) st.removeBoardItems(bd.items.map((i) => i.id));
-    // a stage-specific template retunes the board first — the Match-3
-    // grid is composed for the 390×844 portrait
+    // a MOBILE-specific template still retunes the board first (the
+    // Match-3 grid is composed for the 390×844 portrait); a 16:9-composed
+    // starter dealt onto a mobile board reflows instead of flipping it
     if (t.aspect && bd?.aspect !== t.aspect) st.setBoardAspect(t.aspect);
-    st.addBoardItems(t.items);
+    dealStarterItems(t, st.activeBoard);
     if (t.bg && (mode === "stack" || !(bd?.bgImage || bd?.bgVideo))) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
   };
   const [q, setQ] = useState("");
@@ -1062,11 +1112,11 @@ export function BoardView({ playing }: { playing: boolean }) {
      selection box hugs), the raster shell for warped stamps/big glyphs,
      the host box as the last resort. The offset is translation-invariant,
      so a one-frame DOM lag never skews it. */
-  const artCenterOffsetOf = (bdId: string, it: BoardItem): { cx: number; cy: number } => {
+  const artRectOf = (bdId: string, it: BoardItem): { l: number; t: number; w: number; h: number } | null => {
     const bd = boards.find((b) => b.id === bdId);
     const canvas = document.querySelector(`[data-board="${bdId}"] .bd-canvas`);
     const host = canvas?.querySelector(`[data-bid="${it.id}"]`) as HTMLElement | null;
-    if (!bd || !canvas || !host) return { cx: 0, cy: 0 };
+    if (!bd || !canvas || !host) return null;
     const f = fitOf(bd);
     const cr = canvas.getBoundingClientRect();
     let r = host.getBoundingClientRect();
@@ -1089,10 +1139,11 @@ export function BoardView({ playing }: { playing: boolean }) {
         r = new DOMRect(ir.left + stamp[0] * k, ir.top + stamp[1] * k, stamp[2] * k, stamp[3] * k);
       }
     }
-    return {
-      cx: (r.left + r.width / 2 - cr.left) / f - it.x,
-      cy: (r.top + r.height / 2 - cr.top) / f - it.y,
-    };
+    return { l: (r.left - cr.left) / f, t: (r.top - cr.top) / f, w: r.width / f, h: r.height / f };
+  };
+  const artCenterOffsetOf = (bdId: string, it: BoardItem): { cx: number; cy: number } => {
+    const r = artRectOf(bdId, it);
+    return r ? { cx: r.l + r.w / 2 - it.x, cy: r.t + r.h / 2 - it.y } : { cx: 0, cy: 0 };
   };
   /* snap a piece's position so its CENTER (corner + off) lands on the
      grid; without snap, plain pixel rounding as before */
