@@ -1754,7 +1754,14 @@ button.kp-fact { cursor: pointer; }
 .bd-asset i { font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink2); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-hint { margin: 16px 2px 6px; font-size: 11px; line-height: 1.55; color: var(--ink2); }
 .bd-main { display: flex; flex-direction: column; min-width: 0; }
-.bd-top { display: flex; align-items: center; gap: 18px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
+/* the header WRAPS at smaller windows instead of crushing its controls —
+   the aspect pill used to shrink to a sliver and the Mobile option
+   disappeared entirely (field notes #3: "mobile view option clipped");
+   every control keeps its natural size and flows to the next row */
+.bd-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
+.bd-title { min-width: 0; }
+.bd-aspect, .bd-tpl, .bd-snap, .bd-top .bd-export { flex: none; }
+.bd-snap { white-space: nowrap; }
 .bd-title h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .bd-title span { font-size: 12px; color: var(--ink2); }
 .bd-aspect { margin-left: auto; display: inline-flex; border: 1px solid var(--line2); border-radius: 999px; overflow: hidden; }
