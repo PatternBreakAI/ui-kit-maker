@@ -60,6 +60,18 @@ export interface EngineGlyph {
    *  opacity/blend ride Typography → Glints while that treatment is on;
    *  otherwise the seats shine at their authored strength. */
   glints?: { x: number; y: number; s: number; r?: number }[];
+  /** retired from the SET (owner removal): the entry keeps its geometry so
+   *  every kit, board or clone that already placed the glyph renders
+   *  exactly as before — via KIT_SHAPE and glyphShape(), which read the
+   *  FULL registry — while every pickable surface (roster, staging bay,
+   *  Boards tray, search, catalog sheet) derives from LIVE_GLYPHS and
+   *  stops offering it. A stale release-ledger row can't resurrect a
+   *  retired glyph: the bay and its ledger lanes iterate the roster, and
+   *  the roster no longer carries it. Attribution stays honest for free —
+   *  glyphAttribution() is placement-driven and resolves through the full
+   *  registry, so a legacy-placed retired glyph still ships its credit
+   *  row and an unplaced one emits nothing. */
+  retired?: true;
   source: string;
   license: string;
 }
@@ -197,7 +209,10 @@ export const GLYPH_LIBRARY: EngineGlyph[] = [
   { id: "replay", name: "Replay", category: "Navigation & System", vb: [0, 0, 512, 512],
     source: "ClockwiseRotation — game-icons.net via react-icons", license: "CC BY 3.0",
     d: "M 263.09 50 C 251.21 49.99 239.21 51.02 227.23 53.13 C 142.03 68.16 75.16 135.03 60.13 220.23 C 45.11 305.44 85.08 391.15 160.01 434.41 C 192.79 453.34 229.26 462.41 265.47 461.96 C 312.02 461.39 358.14 445.1 395.42 413.81 L 364.57 377.05 C 313.62 419.8 241.6 426.1 184 392.84 C 126.41 359.59 95.85 294.07 107.4 228.57 C 118.95 163.07 170.07 111.95 235.57 100.4 C 287.23 91.29 338.89 108.38 374.74 144.26 L 327 192 L 455 192 L 455 64 L 408.66 110.34 C 370.24 71.96 317.83 50.03 263.09 50 Z" },
-  { id: "settings", name: "Settings", category: "Navigation & System", vb: [0, 0, 512, 512],
+  /* retired (owner, 2026-08-21: "remove this settings glyph — we already
+     have a settings component", the gearicon piece). Geometry stays for
+     legacy placements; no surface offers it for new ones. */
+  { id: "settings", name: "Settings", category: "Navigation & System", vb: [0, 0, 512, 512], retired: true,
     source: "Cog — game-icons.net via react-icons", license: "CC BY 3.0",
     d: "M 234.88 18.78 C 208.79 21.15 183.32 27.34 160 37.56 C 175.37 70.32 174.22 104.27 153.28 119.97 C 132.45 135.59 99.23 127.93 72.16 104.28 C 55.91 123.73 42.82 145.64 33.28 169.91 C 67.11 182.24 89.92 207.57 86.22 233.41 C 82.52 259.24 53.52 277.15 17.6 279.5 C 19.93 305.3 26.51 330.28 36.53 353.37 C 54.34 345.19 72.32 342.28 87.63 344.44 C 100.66 346.31 111.55 351.45 118.78 361.09 C 134.6 382.19 126.39 415.81 102 443.06 C 121.52 459.41 144.22 472.51 168.6 482.09 C 180.93 448.27 206.25 425.46 232.1 429.16 C 257.94 432.85 275.84 461.85 278.19 497.78 C 304.28 495.42 329.75 489.23 353.07 479 C 337.3 446 338.81 411.41 359.91 395.59 C 369.55 388.36 382.48 386.57 395.5 388.47 C 410.62 390.63 426.69 398.72 441.07 411.25 C 457.15 391.9 470.47 369.74 479.94 345.66 C 446.11 333.32 423.31 308 427 282.16 C 430.7 256.31 459.67 238.38 495.6 236.03 C 493.24 210.09 486.82 185.37 476.69 162.16 C 444.08 177.27 410.03 175.3 394.41 154.47 C 378.71 133.53 387.16 100.61 411.1 73.47 C 391.58 57.12 368.85 44.02 344.47 34.44 C 332.14 68.27 306.82 91.1 280.97 87.41 C 255.13 83.71 237.23 54.71 234.88 18.78 Z M 256.53 113.91 C 336.16 113.91 400.91 178.66 400.91 258.28 C 400.91 337.91 336.16 402.66 256.53 402.66 C 176.91 402.66 112.16 337.91 112.16 258.28 C 112.16 178.66 176.91 113.91 256.53 113.91 Z M 256.53 132.59 C 187.01 132.59 130.85 188.76 130.85 258.28 C 130.85 327.81 187.01 383.97 256.53 383.97 C 326.06 383.97 382.22 327.81 382.22 258.28 C 382.22 188.76 326.06 132.6 256.53 132.6 Z M 256.56 147.72 C 317.66 147.72 367.19 197.25 367.19 258.34 C 367.19 319.44 317.66 368.97 256.56 368.97 C 195.47 368.97 145.94 319.44 145.94 258.34 C 145.94 197.25 195.47 147.72 256.56 147.72 Z" },
   { id: "sound", name: "Sound", category: "Navigation & System", vb: [0, 0, 512, 512],
@@ -227,6 +242,11 @@ export const GLYPH_LIBRARY: EngineGlyph[] = [
 ];
 
 const BY_ID: Record<string, EngineGlyph> = Object.fromEntries(GLYPH_LIBRARY.map((g) => [g.id, g]));
+
+/** The pickable set — what the roster, bay, tray, search and catalog offer.
+ *  Retired glyphs stay in GLYPH_LIBRARY (and BY_ID) so legacy placements
+ *  keep rendering and keep their credit; they just stop being offered. */
+export const LIVE_GLYPHS: EngineGlyph[] = GLYPH_LIBRARY.filter((g) => !g.retired);
 
 export function glyphById(id: string): EngineGlyph | undefined { return BY_ID[id]; }
 

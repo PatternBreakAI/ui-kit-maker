@@ -8,7 +8,7 @@
 import { SILHOUETTES } from "./silhouettes";
 // leaf module (no imports) — the semantic glyph registry drives the glyph
 // pieces' roster and shape map so a new glyph needs only its registry entry
-import { GLYPH_LIBRARY } from "./glyphLibrary";
+import { GLYPH_LIBRARY, LIVE_GLYPHS } from "./glyphLibrary";
 
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
@@ -1686,8 +1686,11 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "cardback", name: "Card back" },
   { id: "pack", name: "Card pack" },
   /* the semantic glyph rack — roster derives from the registry, so a new
-     glyph needs only its glyphLibrary entry. Staged per the standing rule. */
-  ...GLYPH_LIBRARY.map((g) => ({ id: `glyph${g.id}` as KitComponentId, name: `Glyph · ${g.name}`, staged: true as const })),
+     glyph needs only its glyphLibrary entry. Staged per the standing rule.
+     LIVE only: a retired glyph leaves the roster (and with it the bay, the
+     tray, search and every picker) while KIT_SHAPE and the fork seeding
+     below keep reading the FULL registry so legacy placements render on. */
+  ...LIVE_GLYPHS.map((g) => ({ id: `glyph${g.id}` as KitComponentId, name: `Glyph · ${g.name}`, staged: true as const })),
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));

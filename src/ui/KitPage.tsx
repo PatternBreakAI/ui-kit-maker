@@ -3,7 +3,7 @@ import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
-import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
+import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
@@ -2051,7 +2051,7 @@ const kitTier = useGen((s) => s.tier);
         rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
         // the semantic glyph rack — catalog entries derive from the registry;
         // the visibility filter below keeps them admin-only until released
-        ...GLYPH_LIBRARY.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
+        ...LIVE_GLYPHS.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
       ];
       // the guest catalog is the five proof components — the PNG sheet must
       // not hand over what the page keeps locked. Staging-bay pieces ride
@@ -2789,7 +2789,7 @@ const kitTier = useGen((s) => s.tier);
         {/* the semantic glyph rack — staged residents; each glyph gates on its
             own release, and the whole section stays silent until one ships */}
         {(() => {
-          const visG = GLYPH_LIBRARY.filter((g) => kitVisible(`glyph${g.id}` as KitComponentId, releases, false));
+          const visG = LIVE_GLYPHS.filter((g) => kitVisible(`glyph${g.id}` as KitComponentId, releases, false));
           if (!visG.length) return null;
           return (<>
             <div className="kp-subhead">Semantic glyphs — pre-treated icons in the kit's material</div>

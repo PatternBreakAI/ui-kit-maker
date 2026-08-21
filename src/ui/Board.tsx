@@ -7,7 +7,7 @@ import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } fro
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
-import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
+import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
@@ -83,8 +83,9 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Card battler", ids: ["cardback", "pack"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
-     staged, then per-glyph as releases land */
-  { name: "Semantic glyphs", ids: GLYPH_LIBRARY.map((g) => `glyph${g.id}`) },
+     staged, then per-glyph as releases land. LIVE only — a retired glyph
+     leaves the tray while its legacy placements keep rendering. */
+  { name: "Semantic glyphs", ids: LIVE_GLYPHS.map((g) => `glyph${g.id}`) },
 ];
 
 /* Search vocabulary: teams reach for genre words the component names don't
@@ -132,7 +133,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
 };
 // glyph pieces answer to "icon", their semantic name and their category
 // ("currencies", "boosters"…) — registry-derived like the tray group
-for (const g of GLYPH_LIBRARY) {
+for (const g of LIVE_GLYPHS) {
   SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
 }
 
