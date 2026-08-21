@@ -591,6 +591,30 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
     errors.push("HERO_LABEL_RUNTIME must import UnityEngine.UI (LayoutElement would be CS0246 without it) (round 24)");
 }
 
+/* round-24: the GameObject right-click menu resolves EXACT prefab file
+   names (the scene builder's own) and picks a kit when several are
+   imported. The NiceName road shipped two dead entries — Toggle hunted
+   Toggle.prefab (the rig is Switch.prefab), Progress Bar hunted
+   Progress.prefab (ProgressBar.prefab). Every MenuItem handler must pass
+   a name that some SaveAsPrefabAsset call actually writes. */
+{
+  if (!/static void PlaceFromRoot\(string root, string pfName, string altName, GameObject ctxGo\)/.test(cs))
+    errors.push("PlaceFromRoot (exact-name, multi-kit-aware placement) is missing (round 24)");
+  if (!/var pick = new GenericMenu\(\);/.test(cs) || !/pick\.ShowAsContext\(\);/.test(cs))
+    errors.push("the multi-kit GenericMenu picker is missing — first-found would silently decide again (round 24)");
+  if (/PlaceKitPrefab\("[a-z][a-z-]*",/.test(cs))
+    errors.push("a MenuItem still passes a lowercase FAMILY name to PlaceKitPrefab — entries must name exact prefab files (round 24: Toggle/Progress Bar shipped dead)");
+  const menuNames = [...cs.matchAll(/PlaceKitPrefab\("([A-Za-z]+)"(?:, "([A-Za-z]+)")?, c\)/g)].flatMap((x) => [x[1], x[2]]).filter(Boolean);
+  const savedNames = new Set([
+    ...[...cs.matchAll(/SaveAsPrefabAsset\((?:go|inst|contents\w*), dir \+ "\/([A-Za-z]+)\.prefab"\)/g)].map((x) => x[1]),
+    // families saved via goName = NiceName(component) — the catalog sections list them
+    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|ListRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+  ]);
+  for (const n of menuNames)
+    if (!savedNames.has(n))
+      errors.push(`menu entry names ${n}.prefab but no importer path is known to write it (round 24)`);
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

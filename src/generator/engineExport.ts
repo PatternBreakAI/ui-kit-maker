@@ -5874,7 +5874,6 @@ prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
 instances of it (a copy's shadow/glow dials arrive baked into that
 copy's own sprite).
 ` : ""}
-
 > **Buttons ignoring the mouse in your own scene?** The usual suspects
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
 > whose input module doesn't match the project's Active Input Handling.
@@ -6593,41 +6592,88 @@ namespace PatternBreak {
        clicked object — or the scene's first Canvas — centered and
        undo-able. With several kits in one project the first manifest
        found wins, the same rule Kit Status lives by. */
-    static void PlaceKitPrefab(string fam, MenuCommand cmd) {
+    /* Entries name EXACT PREFAB FILES — the scene builder's own names.
+       The first cut resolved through NiceName(family), which is right for
+       the plain families but wrong for every rig with its own file name:
+       "Toggle" hunted Toggle.prefab (the rig is Switch.prefab) and
+       "Progress Bar" hunted Progress.prefab (ProgressBar.prefab) — both
+       menu entries could only ever show the not-imported-yet dialog.
+       MULTI-KIT (round 24): with several kits imported, a GenericMenu at
+       the mouse lists every kit-manifest by its kit name and places from
+       the chosen kit's folder — first-found stops silently deciding. */
+    static void PlaceKitPrefab(string pfName, MenuCommand cmd) { PlaceKitPrefab(pfName, null, cmd); }
+    static void PlaceKitPrefab(string pfName, string altName, MenuCommand cmd) {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
       if (manifests.Length == 0) {
         EditorUtility.DisplayDialog("UI Kit Maker", "No kit in this project yet — drop the UIKitMaker folder from the export zip into Assets/ first.", "OK");
         return;
       }
-      var root = Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/");
-      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+      var ctxGo = cmd != null ? cmd.context as GameObject : null;
+      if (manifests.Length == 1) {
+        PlaceFromRoot(Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/"), pfName, altName, ctxGo);
+        return;
+      }
+      var pick = new GenericMenu();
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        string kitLabel = Path.GetFileName(root);
+        try {
+          var mm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath));
+          if (mm != null && !string.IsNullOrEmpty(mm.kit)) kitLabel = mm.kit;
+        } catch (Exception) { }
+        var rootHeld = root;
+        pick.AddItem(new GUIContent(kitLabel), false, () => PlaceFromRoot(rootHeld, pfName, altName, ctxGo));
+      }
+      pick.ShowAsContext();
+    }
+    static void PlaceFromRoot(string root, string pfName, string altName, GameObject ctxGo) {
+      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+      // graceful fallback (e.g. CheckboxToggle -> Checkbox on older zips)
+      if (pf == null && !string.IsNullOrEmpty(altName)) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + altName + ".prefab");
       if (pf == null) {
-        EditorUtility.DisplayDialog("UI Kit Maker", NiceName(fam) + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
+        EditorUtility.DisplayDialog("UI Kit Maker", pfName + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
         return;
       }
       var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
       Transform parent = null;
-      var ctxGo = cmd != null ? cmd.context as GameObject : null;
       if (ctxGo != null) parent = ctxGo.transform;
       if (parent == null) { var cv = UnityEngine.Object.FindFirstObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
       if (parent != null) go.transform.SetParent(parent, false);
       var prt = go.transform as RectTransform;
       if (prt != null) prt.anchoredPosition = Vector2.zero;
-      Undo.RegisterCreatedObjectUndo(go, "Place " + NiceName(fam));
+      Undo.RegisterCreatedObjectUndo(go, "Place " + pf.name);
       Selection.activeGameObject = go;
     }
-    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("button-primary", c); }
-    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("button-secondary", c); }
-    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("button-small", c); }
-    [MenuItem("GameObject/UI Kit Maker/Chip", false, 13)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("chip", c); }
-    [MenuItem("GameObject/UI Kit Maker/Tab", false, 14)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("tab", c); }
-    [MenuItem("GameObject/UI Kit Maker/Slider", false, 15)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("slider", c); }
-    [MenuItem("GameObject/UI Kit Maker/Toggle", false, 16)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("toggle", c); }
-    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 17)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("checkbox", c); }
-    [MenuItem("GameObject/UI Kit Maker/Radio", false, 18)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("radio", c); }
-    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 19)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("progress", c); }
-    [MenuItem("GameObject/UI Kit Maker/Panel", false, 20)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("panel", c); }
-    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 21)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("input", c); }
+    // buttons & chips (priority gaps >= 11 draw the separators)
+    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("ButtonPrimary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("ButtonSecondary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("ButtonSmall", c); }
+    [MenuItem("GameObject/UI Kit Maker/Icon Button", false, 13)] static void PBGoIconB(MenuCommand c) { PlaceKitPrefab("Iconbtn", c); }
+    [MenuItem("GameObject/UI Kit Maker/Chip", false, 14)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("Chip", c); }
+    [MenuItem("GameObject/UI Kit Maker/Tab", false, 15)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("Tab", c); }
+    [MenuItem("GameObject/UI Kit Maker/Back Tab", false, 16)] static void PBGoTabB(MenuCommand c) { PlaceKitPrefab("TabBack", c); }
+    [MenuItem("GameObject/UI Kit Maker/Badge", false, 17)] static void PBGoBadge(MenuCommand c) { PlaceKitPrefab("Badge", c); }
+    // controls
+    [MenuItem("GameObject/UI Kit Maker/Slider", false, 30)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("Slider", c); }
+    [MenuItem("GameObject/UI Kit Maker/Switch (Toggle)", false, 31)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("Switch", c); }
+    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 32)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("CheckboxToggle", "Checkbox", c); }
+    [MenuItem("GameObject/UI Kit Maker/Radio", false, 33)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("RadioToggle", "Radio", c); }
+    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 34)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("ProgressBar", c); }
+    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 35)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("Input", c); }
+    [MenuItem("GameObject/UI Kit Maker/Dropdown", false, 36)] static void PBGoDrop(MenuCommand c) { PlaceKitPrefab("Dropdown", c); }
+    [MenuItem("GameObject/UI Kit Maker/Joystick", false, 37)] static void PBGoStick(MenuCommand c) { PlaceKitPrefab("Joystick", c); }
+    // panels & frames
+    [MenuItem("GameObject/UI Kit Maker/Panel", false, 50)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("Panel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Header Banner", false, 51)] static void PBGoHeader(MenuCommand c) { PlaceKitPrefab("HeaderBanner", c); }
+    [MenuItem("GameObject/UI Kit Maker/List Row", false, 52)] static void PBGoRow(MenuCommand c) { PlaceKitPrefab("ListRow", c); }
+    [MenuItem("GameObject/UI Kit Maker/Item Slot", false, 53)] static void PBGoSlot(MenuCommand c) { PlaceKitPrefab("ItemSlot", c); }
+    [MenuItem("GameObject/UI Kit Maker/Scroll View", false, 54)] static void PBGoScroll(MenuCommand c) { PlaceKitPrefab("ScrollView", c); }
+    // showpieces
+    [MenuItem("GameObject/UI Kit Maker/Hero Label (Title)", false, 70)] static void PBGoHero(MenuCommand c) { PlaceKitPrefab("HeroLabel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Timer", false, 71)] static void PBGoTimer(MenuCommand c) { PlaceKitPrefab("Timer", c); }
+    [MenuItem("GameObject/UI Kit Maker/Season Track", false, 72)] static void PBGoSeason(MenuCommand c) { PlaceKitPrefab("SeasonTrack", c); }
+    [MenuItem("GameObject/UI Kit Maker/Health Globe", false, 73)] static void PBGoGlobe(MenuCommand c) { PlaceKitPrefab("HealthGlobe", c); }
 
     [MenuItem("Tools/PatternBreak/Kit Status")]
     public static void KitStatus() {
