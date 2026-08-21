@@ -886,14 +886,21 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
 
   /* composite one artboard to a PNG at native resolution */
-  const exportPng = async (bd: BoardDef) => {
+  /* alpha: the no-background cut (owner-approved, field notes #3) — the
+     pieces composite onto a fully transparent canvas: no base fill, no
+     backdrop, no noise/overlay dressing. The piece-level PNG has shipped
+     alpha from day one; this is the whole-board twin. */
+  const exportPng = async (bd: BoardDef, opts?: { alpha?: boolean }) => {
+    const alpha = !!opts?.alpha;
     const [W, H] = STAGE[bd.aspect];
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d")!;
-    ctx.fillStyle = "#0D0F16";
-    ctx.fillRect(0, 0, W, H);
-    if (bd.bgVideo && (bd.bgShow ?? true)) {
+    if (!alpha) {
+      ctx.fillStyle = "#0D0F16";
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (!alpha && bd.bgVideo && (bd.bgShow ?? true)) {
       // a video backdrop exports its first frame — the still the mock rests on
       await new Promise<void>((res) => {
         const v = document.createElement("video");
@@ -917,7 +924,7 @@ export function BoardView({ playing }: { playing: boolean }) {
         v.src = bd.bgVideo!;
       });
     }
-    if (bd.bgImage && (bd.bgShow ?? true)) {
+    if (!alpha && bd.bgImage && (bd.bgShow ?? true)) {
       await new Promise<void>((res) => {
         const img = new Image();
         img.onload = () => {
@@ -947,11 +954,13 @@ export function BoardView({ playing }: { playing: boolean }) {
         img.src = bd.bgImage!;
       });
     }
-    // background film grain — independent of the overlay (owner: "noise")
-    drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
-    // the overlay stack (tint + its grain + center scrim) — one shared
-    // recipe with the Unity background bake, so the two can't drift
-    drawBoardOverlays(ctx, W, H, bd);
+    if (!alpha) {
+      // background film grain — independent of the overlay (owner: "noise")
+      drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
+      // the overlay stack (tint + its grain + center scrim) — one shared
+      // recipe with the Unity background bake, so the two can't drift
+      drawBoardOverlays(ctx, W, H, bd);
+    }
     for (const b of bd.items) {
       if (b.big) {
         /* big glyph: the PNG itself, the instance's shadow/glow filter on
@@ -1014,7 +1023,7 @@ export function BoardView({ playing }: { playing: boolean }) {
       });
     }
     const slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "board";
-    cv.toBlob((bl) => { if (bl) download(`${slug}-${W}x${H}.png`, bl); }, "image/png");
+    cv.toBlob((bl) => { if (bl) download(`${slug}-${W}x${H}${alpha ? "-transparent" : ""}.png`, bl); }, "image/png");
   };
 
   const snapV = (v: number) => (boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
@@ -1239,6 +1248,10 @@ export function BoardView({ playing }: { playing: boolean }) {
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
           <button className="bd-export" onClick={() => guardExport(() => { if (act) void exportPng(act); })}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
+          <button className="bd-export" title="Every piece on a transparent PNG — no backdrop, no base fill; drops straight into an engine or a mockup"
+            onClick={() => guardExport(() => { if (act) void exportPng(act, { alpha: true }); })}>
+            <Download size={14} strokeWidth={2.2} /> PNG · no background
+          </button>
           <button className="bd-export bd-exportall"
             title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
             onClick={() => guardExport(() => {
