@@ -8,7 +8,7 @@ import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
-import { BIG_GLYPHS, BIG_GLYPH_GATE, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
+import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
@@ -157,9 +157,6 @@ type Tpl = {
   /** template is composed for a specific stage — applying it retunes the
    *  active board's aspect first (the Match-3 mobile grid) */
   aspect?: "169" | "mobile";
-  /** big-glyph templates stay admin-only until the owner releases the set
-   *  (BIG_GLYPH_GATE) — the tray group's exact visibility rule */
-  gate?: "bigglyphs";
   items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number }[];
 };
 /* The Match-3 board: 7×9 big-glyph tiles at 12% (~52px — the scale-floor
@@ -269,8 +266,8 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
   /* the owner: "let's have a match 3 mobile template in the dropdown that
      populates the correct match 3 layout" — the real portrait shape: kit
      header (moves + timer + goal bar), the 7×9 tile grid, boosters at the
-     thumb line. Gated with the big-glyph set until the owner releases it. */
-  "Match-3 (mobile)": { aspect: "mobile", gate: "bigglyphs", items: [
+     thumb line. Released with the set (owner order, 2026-08-21). */
+  "Match-3 (mobile)": { aspect: "mobile", items: [
     { kitId: "movecounter", x: 10, y: 30, scale: 0.38 },
     { kitId: "stopwatch", x: 286, y: 26, scale: 0.3 },
     { kitId: "segbar", x: 86, y: 118, scale: 0.3 },
@@ -1144,37 +1141,22 @@ export function BoardView({ playing }: { playing: boolean }) {
             );
           })()}
           {/* ── Big glyphs — the owner's board-art drop (bigGlyphs.ts).
-              Boards-only by mandate; the WHOLE SET gates on one ledger key
-              (admin-only until released — the glyph-set batch precedent).
-              Thumbs are 128px webp served static; the full PNG is fetched
-              only when a glyph is placed. Opaque-delivered files stay
-              parked until the owner re-exports them with alpha. ── */}
-          {(isAdmin || componentReleases[BIG_GLYPH_GATE] === "released") && (() => {
+              Boards-only by mandate; RELEASED to everyone in code (owner
+              order, verbatim 2026-08-21: "release the set") — the old
+              one-key ledger gate is gone, so a stale ledger row can never
+              hide the set again. Thumbs are 128px webp served static; the
+              full PNG is fetched only when a glyph is placed. Opaque-
+              delivered files stay parked until re-exported with alpha. ── */}
+          {(() => {
             const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
             const items = BIG_GLYPHS.filter((g) => !g.opaque).filter((g) => {
               const hay = `${g.name} ${g.id} big glyphs board art ${g.search ?? ""}`.toLowerCase();
               return terms.every((t) => hay.includes(t));
             });
             if (!items.length) return null;
-            const released = componentReleases[BIG_GLYPH_GATE] === "released";
             return (
               <div>
-                <div className="bd-cat">Big glyphs{!released ? " — in the bay, only you see this" : ""}</div>
-                {isAdmin && (
-                  <div className="bd-actions" style={{ marginBottom: 6 }}>
-                    {!released ? (
-                      <button title="Release the whole big-glyph set to every maker — it appears in this tray for everyone the moment you approve. Reversible."
-                        onClick={() => { if (window.confirm(`Release all ${items.length} big glyphs to every maker?`)) void useGen.getState().setComponentRelease(BIG_GLYPH_GATE as KitComponentId, "released").then((err) => { if (err) window.alert(err); }); }}>
-                        <Shield size={12} strokeWidth={2.2} /> Release the set
-                      </button>
-                    ) : (
-                      <button title="Pull the set back to admin-only"
-                        onClick={() => void useGen.getState().setComponentRelease(BIG_GLYPH_GATE as KitComponentId, null).then((err) => { if (err) window.alert(err); })}>
-                        Pull back to the bay
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="bd-cat">Big glyphs</div>
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
@@ -1246,10 +1228,6 @@ export function BoardView({ playing }: { playing: boolean }) {
               }}>
               <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES)
-                /* gated templates follow their asset set's release: the
-                   big-glyph templates are admin-only until the owner
-                   releases the set — the tray group's visibility rule */
-                .filter((t) => BOARD_TEMPLATES[t].gate !== "bigglyphs" || isAdmin || componentReleases[BIG_GLYPH_GATE] === "released")
                 .map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
