@@ -4079,8 +4079,14 @@ namespace PatternBreak {
         bandSprite = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(.5f, .5f));
         bandSprite.hideFlags = HideFlags.DontSave;
       }
-      var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+      /* DECOR, not layout (round 24 — the halo's round-two lesson, extended
+         to every runtime-spawned child): the LayoutElement exists in the
+         constructor so no HORIZONTAL/vertical/grid group — on the piece or
+         above it — ever measures the stencil as a cell, even for the one
+         queued rebuild between parenting and a later exemption. */
+      var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image), typeof(Mask));
       mGo.hideFlags = HideFlags.DontSave;
+      mGo.GetComponent<LayoutElement>().ignoreLayout = true;
       maskImg = mGo.GetComponent<Image>();
       if (maskSprite != null) {
         // the core stencil bakes on the SAME canvas as the host's art —
@@ -4160,8 +4166,10 @@ namespace PatternBreak {
         glowSprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
         glowSprite.hideFlags = HideFlags.DontSave;
       }
-      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      // decor, not layout — same atomic exemption as the wipe stencil
+      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
+      go.GetComponent<LayoutElement>().ignoreLayout = true;
       spark = go.GetComponent<Image>();
       spark.sprite = glowSprite; spark.raycastTarget = false; spark.color = new Color(color.r, color.g, color.b, 0f);
       sparkRt = (RectTransform)go.transform;
@@ -4197,6 +4205,7 @@ namespace PatternBreak {
 `;
 
 const HERO_LABEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
 #endif
@@ -4404,12 +4413,16 @@ namespace PatternBreak {
         var prior = transform.Find("Glint stars (echo)");
         var go = prior != null ? prior.gameObject : null;
         if (go == null) {
-          go = new GameObject("Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer));
+          go = new GameObject("Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement));
           go.hideFlags = HideFlags.DontSave;
           go.transform.SetParent(transform, false);
         }
         starsEcho = go.GetComponent<CanvasRenderer>();
         if (starsEcho == null) starsEcho = go.AddComponent<CanvasRenderer>();
+        // decor, not layout — a group on the label must never count echoes
+        var leS = go.GetComponent<LayoutElement>();
+        if (leS == null) leS = go.AddComponent<LayoutElement>();
+        leS.ignoreLayout = true;
       }
       var b = t.textBounds;
       if (float.IsInfinity(b.size.x) || b.size.x < 0.01f) { starsEcho.gameObject.SetActive(false); return; }
@@ -4446,7 +4459,7 @@ namespace PatternBreak {
         var prior = transform.Find(echoName);
         var go = prior != null ? prior.gameObject : null;
         if (go == null) {
-          go = new GameObject(echoName, typeof(RectTransform), typeof(CanvasRenderer));
+          go = new GameObject(echoName, typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement));
           // never saved — rebuilt on load, in scenes and prefabs alike,
           // so an echo can never go stale on disk
           go.hideFlags = HideFlags.DontSave;
@@ -4454,6 +4467,10 @@ namespace PatternBreak {
         }
         slot = go.GetComponent<CanvasRenderer>();
         if (slot == null) slot = go.AddComponent<CanvasRenderer>();
+        // decor, not layout — a group on the label must never count echoes
+        var leE = go.GetComponent<LayoutElement>();
+        if (leE == null) leE = go.AddComponent<LayoutElement>();
+        leE.ignoreLayout = true;
       }
       if (!slot.gameObject.activeSelf) slot.gameObject.SetActive(true);
       /* the echo wears the text's exact frame, so the shared mesh lands
@@ -5106,8 +5123,10 @@ namespace PatternBreak {
     }
     void Build() {
       if (spark == null) return;
-      var fGo = new GameObject("Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      // decor, not layout — a group on the piece must never measure the burst
+      var fGo = new GameObject("Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       fGo.hideFlags = HideFlags.DontSave;
+      fGo.GetComponent<LayoutElement>().ignoreLayout = true;
       var fRt = fGo.GetComponent<RectTransform>();
       fRt.SetParent(rt, false);
       fRt.anchorMin = Vector2.zero; fRt.anchorMax = Vector2.one;
@@ -5119,8 +5138,9 @@ namespace PatternBreak {
       parts = new RectTransform[Mathf.Max(0, particles)];
       dirs = new Vector2[parts.Length];
       for (int i = 0; i < parts.Length; i++) {
-        var p = new GameObject("Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var p = new GameObject("Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
         p.hideFlags = HideFlags.DontSave;
+        p.GetComponent<LayoutElement>().ignoreLayout = true;
         var pr = p.GetComponent<RectTransform>();
         pr.SetParent(rt, false);
         float s = 6f + ((i * 13) % 8);

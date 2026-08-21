@@ -561,6 +561,36 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
     errors.push("WireStateFx/WireLabelStates must arm authoredHeight from the finished prefab rect (round 24)");
 }
 
+/* round-24: layout groups never meet kit decor (dev field notes: glow +
+   HORIZONTAL layout groups — the sibling-glow zips that produced the
+   report are gone since round 13, and the halo's atomic LayoutElement
+   already covers both axes; this pins that fix and extends the same
+   atomic exemption to EVERY runtime-spawned decor child: the wipe
+   stencil, the edge spark, the hero-label echoes and the claim burst.
+   A group on the piece, above it, horizontal, vertical or grid must
+   never measure decor as a cell — not even for the one queued rebuild
+   between parenting and a late exemption. */
+{
+  const atomicSpawns = [
+    ['name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the state halo"],
+    ['name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image), typeof(Mask)', "the wipe stencil"],
+    ['name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the edge spark"],
+    ['"Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement)', "the stars echo"],
+    ['echoName, typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement)', "the label echoes"],
+    ['"Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the claim flash"],
+    ['"Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the claim sparks"],
+  ];
+  for (const [needle, what] of atomicSpawns)
+    if (!src.includes(needle))
+      errors.push(`${what} must create its LayoutElement ATOMICALLY in the GameObject constructor (round 24 — layout groups vs decor)`);
+  const ignores = (src.match(/GetComponent<LayoutElement>\(\)\.ignoreLayout = true/g) ?? []).length
+    + (src.match(/le[SE]\.ignoreLayout = true/g) ?? []).length;
+  if (ignores < 7)
+    errors.push(`expected >=7 ignoreLayout arms across the runtime decor spawns, found ${ignores} (round 24)`);
+  if (!/using UnityEngine\.UI;\s*\n#if UNITY_2023_2_OR_NEWER\s*\nusing TMPro;/.test(src))
+    errors.push("HERO_LABEL_RUNTIME must import UnityEngine.UI (LayoutElement would be CS0246 without it) (round 24)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
