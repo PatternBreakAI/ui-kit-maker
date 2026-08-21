@@ -3771,6 +3771,8 @@ namespace PatternBreak {
     public float restLift, hoverLift, pressedLift;
     [Tooltip("Travel baked INSIDE the state sprite on swap builds (the app's press-pose extrusion collapse), Unity up-positive. The halo adds it so the glow rides the sunk art; the root never moves by it — the sprite already did.")]
     public float hoverSink, pressedSink;
+    [Tooltip("The piece height the pad, lifts and sinks were authored at. When set, resizing the piece scales them proportionally — same convention as Hero Label. 0 = off (fixed px, the pre-round-24 behavior).")]
+    public float authoredHeight;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
 
@@ -3868,6 +3870,7 @@ namespace PatternBreak {
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
       var slide = BakedSink() ? new Vector2(0f, liftNow) : Vector2.zero;
+      var pad = glowPad * SizeK(); // the aura overhang follows the piece's LIVE size
       if (artRt != null) {
         var tgt = artRt;
         if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
@@ -3876,7 +3879,7 @@ namespace PatternBreak {
         if (glowRt.localScale != tgt.localScale) glowRt.localScale = tgt.localScale;
         // the aura sprite is the piece plus a fixed overhang, so the pad is
         // an ADDITIVE offset — correct whether the piece is fixed or stretched
-        var size = tgt.sizeDelta + glowPad * 2f;
+        var size = tgt.sizeDelta + pad * 2f;
         if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
         // the art child's own frame is static — the posed state skins bake
         // the sink inside their pixels, so the halo adds the slide itself
@@ -3891,7 +3894,7 @@ namespace PatternBreak {
       var half = new Vector2(0.5f, 0.5f);
       if (glowRt.pivot != half) glowRt.pivot = half;
       if (glowRt.localScale != Vector3.one) glowRt.localScale = Vector3.one;
-      var pad2 = glowPad * 2f;
+      var pad2 = pad * 2f;
       if (glowRt.sizeDelta != pad2) glowRt.sizeDelta = pad2;
       if (glowRt.anchoredPosition != slide) glowRt.anchoredPosition = slide;
     }
@@ -3903,6 +3906,17 @@ namespace PatternBreak {
       if (sel == null || sel.transition != Selectable.Transition.SpriteSwap) return false;
       var ss = sel.spriteState;
       return ss.pressedSprite != null || ss.highlightedSprite != null;
+    }
+    /* px-per-authored-px (round 24 — dev field report: "reducing the
+       primary button in size throws off the wipe and specular"): the pad,
+       lifts and sinks were measured at the bake's own size, and fixed px
+       on a resized rect read oversized on a shrunk piece, cramped on a
+       grown one. Scaling by localScale was always fine (everything rides
+       it); this handles the RECT road. 0 = legacy fixed px. */
+    float SizeK() {
+      if (authoredHeight < 0.5f || rt == null) return 1f;
+      float h = rt.rect.height;
+      return h > 1f ? h / authoredHeight : 1f;
     }
     void LateUpdate() {
       if (rt == null) return;
@@ -3937,10 +3951,13 @@ namespace PatternBreak {
          fields carry that baked extra; builds without swap sprites leave
          them dormant — their root motion is the lift alone, as always. */
       bool baked = BakedSink();
-      if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
-      if (down) { lift = pressedLift + (baked ? pressedSink : 0f); return pressedGlow; }
-      if (over) { lift = hoverLift + (baked ? hoverSink : 0f); return hoverGlow; }
-      lift = restLift; return restGlow;
+      // lifts and sinks were authored at the bake's size — a resized rect
+      // travels proportionally (SizeK; 1 when authoredHeight is unset)
+      float kSz = SizeK();
+      if (sel != null && !sel.IsInteractable()) { lift = restLift * kSz; return disabledGlow; }
+      if (down) { lift = (pressedLift + (baked ? pressedSink : 0f)) * kSz; return pressedGlow; }
+      if (over) { lift = (hoverLift + (baked ? hoverSink : 0f)) * kSz; return hoverGlow; }
+      lift = restLift * kSz; return restGlow;
     }
     void Retarget() { glowTo = Target(out liftTo); settling = true; }
     public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); MarkPointer(); }
@@ -4497,8 +4514,15 @@ namespace PatternBreak {
     /* the label RIDES THE FACE: a state that sinks or lifts the face
        moves the label by the same delta (design px, positive = down) */
     public float hoverShift; public float pressedShift;
+    [Tooltip("The piece height the shifts were authored at. When set, resizing the piece scales the press travel proportionally — same convention as Hero Label. 0 = off (fixed px).")]
+    public float authoredHeight;
     bool over, down; Vector2 basePos; bool basePosSet;
     RectTransform Mover() { return shiftTarget != null ? shiftTarget : (label != null ? label.rectTransform : null); }
+    float SizeK() {
+      if (authoredHeight < 0.5f) return 1f;
+      var rt = transform as RectTransform;
+      return rt != null && rt.rect.height > 1f ? rt.rect.height / authoredHeight : 1f;
+    }
     void OnEnable() { over = false; down = false; ApplyCurrent(); }
     void OnDisable() { over = false; down = false; }
     public void OnPointerEnter(PointerEventData e) { over = true; ApplyCurrent(); }
@@ -4510,7 +4534,9 @@ namespace PatternBreak {
       if (mover != null) {
         // base captured lazily at first apply — no scene-load-order games
         if (!basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
-        float shift = down ? pressedShift : over ? hoverShift : 0f;
+        // the press travel was authored at the bake's size — a resized
+        // rect travels proportionally (SizeK; 1 when authoredHeight unset)
+        float shift = (down ? pressedShift : over ? hoverShift : 0f) * SizeK();
         mover.anchoredPosition = basePos + new Vector2(0f, -shift);
       }
       if (label == null || !inkOn) return;
@@ -9308,6 +9334,10 @@ namespace PatternBreak {
         if (fork.state == "hover") { ink.hoverShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.hoverOn = true; ink.hoverTop = top; ink.hoverBottom = bot; ink.hoverGradient = grad; } }
         else if (fork.state == "pressed") { ink.pressedShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.pressedOn = true; ink.pressedTop = top; ink.pressedBottom = bot; ink.pressedGradient = grad; } }
       }
+      /* the authored size (round 24): the press travel is app px at the
+         bake's own height — a later rect resize scales it (SizeK). */
+      var inkRt = go.transform as RectTransform;
+      if (inkRt != null && inkRt.sizeDelta.y > 1f) ink.authoredHeight = inkRt.sizeDelta.y;
       return true;
     }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s, float ls) {
@@ -9880,6 +9910,13 @@ namespace PatternBreak {
          sinks; dial-only kits ship dy 0 and nothing changes. */
       fx.hoverSink = -ExpectedShift(m, family, "hover");
       fx.pressedSink = -ExpectedShift(m, family, "pressed");
+      /* the authored size (round 24): the height the pad/lifts/sinks were
+         measured against — a later RECT resize then scales them (SizeK).
+         The prefab rect is final by this point (FamilyPrefab sizes it
+         before wiring); the sprite's own UI size is the fallback. */
+      var fxRt = go.transform as RectTransform;
+      if (fxRt != null && fxRt.sizeDelta.y > 1f) fx.authoredHeight = fxRt.sizeDelta.y;
+      else if (baseSp != null && pngScale > 0) fx.authoredHeight = baseSp.rect.height / pngScale;
     }
     static bool HasStateFx(PBManifest m, string family) {
       if (m == null || m.stateFx == null) return false;

@@ -535,6 +535,32 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
     || !/if \(f2\.candy\?\.contact\) f2\.candy = \{ \.\.\.f2\.candy, contact: \{ \.\.\.f2\.candy\.contact, opacity: 0 \} \};/.test(src))
   errors.push("the posed pipeline's shellCfg must calm fork shadow/contact too — a designed state would bake its shadow into the posed skin (round 24)");
 
+/* round-24: resize honesty — the state visuals derive from the CURRENT
+   rect, not baked dimensions (dev field report: "reducing the primary
+   button in size throws off the wipe and specular"). StateFx scales its
+   aura pad, lifts and baked sinks by rect/authoredHeight; LabelStateInk
+   scales the press travel the same way; both keep k=1 when
+   authoredHeight is unset so re-imported old projects never move. The
+   probe-detected lift channel expressions stay intact as substrings
+   (parity-probe reads them from the shipped C#). */
+{
+  /* StateFx / LabelStateInk ship from their OWN runtime template
+     literals, so these read the whole source (src), not the importer
+     literal (cs). */
+  const fxBlock = src.match(/public class StateFx[\s\S]*?LateUpdate/);
+  const inkBlock = src.match(/public class LabelStateInk[\s\S]*?ApplyCurrent\(\) \{[\s\S]*?\n    \}/);
+  if (!fxBlock || !/public float authoredHeight;/.test(fxBlock[0]) || !/float SizeK\(\)/.test(src))
+    errors.push("StateFx must carry authoredHeight + SizeK — fixed-px pads/sinks read wrong on a resized rect (round 24)");
+  if (!/var pad = glowPad \* SizeK\(\);/.test(src) || !/tgt\.sizeDelta \+ pad \* 2f/.test(src) || !/var pad2 = pad \* 2f;/.test(src))
+    errors.push("the halo pad must scale by SizeK in BOTH MirrorHost branches (round 24)");
+  if (!/\(pressedLift \+ \(baked \? pressedSink : 0f\)\) \* kSz/.test(src) || !/\(hoverLift \+ \(baked \? hoverSink : 0f\)\) \* kSz/.test(src))
+    errors.push("the lift/sink channels must scale by SizeK while keeping the probe-detected inner expressions verbatim (round 24)");
+  if (!inkBlock || !/public float authoredHeight;/.test(inkBlock[0]) || !/\* SizeK\(\);/.test(inkBlock[0]))
+    errors.push("LabelStateInk must scale its press travel by rect/authoredHeight (round 24)");
+  if (!/fx\.authoredHeight = fxRt\.sizeDelta\.y;/.test(cs) || !/ink\.authoredHeight = inkRt\.sizeDelta\.y;/.test(cs))
+    errors.push("WireStateFx/WireLabelStates must arm authoredHeight from the finished prefab rect (round 24)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
