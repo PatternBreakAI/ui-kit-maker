@@ -14,9 +14,11 @@
    · owner-owned art: no third-party attribution travels with these
      (unlike the game-icons glyph pieces)
 
-   The art lives OFF the JS bundle: full PNGs in public/bigglyphs (Vercel
-   CDN, fetched only when placed or baked), 128px thumbs in
-   public/bigglyph-thumbs (the tray renders these, lazily). Seven files
+   The art lives OFF the JS bundle in three tiers: full PNGs in
+   public/bigglyphs (Vercel CDN, fetched ONLY by the bakes — board PNG
+   compositor, Unity export), 512px mid webps in public/bigglyph-mid (what
+   the stage displays), and 128px thumbs in public/bigglyph-thumbs (the
+   tray's rail, lazy; also the stage's instant first paint). Seven files
    first arrived OPAQUE (baked flat white backgrounds) and sat parked
    behind the `opaque` flag; the owner re-exported all seven with real
    cutout alpha (2026-08-20) and the parked set is now EMPTY — the flag
@@ -116,10 +118,19 @@ export const BIG_GLYPHS: BigGlyphDef[] = [
 const BY_ID: Record<string, BigGlyphDef> = Object.fromEntries(BIG_GLYPHS.map((g) => [g.id, g]));
 export function bigGlyphById(id: string): BigGlyphDef | undefined { return BY_ID[id]; }
 
-/** Full-res art, served static from public/ (CDN on the live site). */
+/** Full-res art, served static from public/ (CDN on the live site).
+ *  BAKES ONLY — the board PNG compositor and the Unity scene/prefab
+ *  export read this; the stage never does (the "boards take a long time
+ *  to load" round: 8 placed glyphs used to pull ~4.4MB of originals just
+ *  to display). The bytes are sacred: they ship to Unity verbatim, so
+ *  nothing may recompress or rewrite public/bigglyphs. */
 export function bigGlyphUrl(id: string): string { return `/bigglyphs/${id}.png`; }
 /** The tray's 128px thumb — the rail must never pull the 34MB set. */
 export function bigGlyphThumb(id: string): string { return `/bigglyph-thumbs/${id}.webp`; }
+/** Mid-tier display raster: 512 fit-inside webp (~20KB), cut from the
+ *  original by the same fit-inside pipeline as the thumbs. This is what
+ *  the board STAGE shows; the 128 thumb paints first while it arrives. */
+export function bigGlyphMid(id: string): string { return `/bigglyph-mid/${id}.webp`; }
 
 /** Stage footprint: the art places at half its natural raster, which
  *  lands the typical ~800px glyph around 400 board px on a 1920 stage. */
