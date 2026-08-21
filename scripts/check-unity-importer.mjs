@@ -493,6 +493,34 @@ if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
 if (!/Prefabs\/BigGlyphs\/\*\*/.test(src))
   errors.push("the README's Prefabs/BigGlyphs pointer is missing (round 23)");
 
+/* round-24: the CAST SHADOW crosses the seam (dev field notes #3: the
+   mobile board's "Banner is also missing its shadow"). App half: live and
+   posed board copies bake their grounded cast shadow alone — transparency
+   zeros + DOM-hidden extrusion/outer-glow, extrusion DEPTH kept so the
+   drop offset stays true — into boardstamps/<slug>-sh<sid>.png with
+   shell-relative geometry. Importer half: PBBoardItem carries the shadow
+   row, the scene grounds the piece with an art SIBLING placed right
+   behind it (never a child — hover lifts move the piece, not its
+   shadow), races arm the incomplete-scene rebuild, and the orphan sweep
+   keeps in-use shadow bakes unslandered. */
+if (!/public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy;/.test(cs))
+  errors.push("PBBoardItem must carry the shadow row (shadow + shadowW/H/Dx/Dy) — JsonUtility drops the cast-shadow bake without it (round 24)");
+if (!/itR\.posedDisabled, itR\.shadow \}/.test(cs))
+  errors.push("the orphan sweep must keep in-use cast-shadow bakes (itR.shadow) unslandered (round 24)");
+if (!/Shadow \(art\)", typeof\(RectTransform\), typeof\(CanvasRenderer\), typeof\(Image\)/.test(cs))
+  errors.push("the scene builder's grounded shadow sibling ('<Name> Shadow (art)') is missing (round 24)");
+if (!/shGo\.transform\.SetSiblingIndex\(inst\.transform\.GetSiblingIndex\(\)\);/.test(cs))
+  errors.push("the shadow sibling must slot in right BEFORE the piece (SetSiblingIndex) so it draws behind it (round 24)");
+if (!/the cast-shadow sprite for/.test(cs) || !/isn't imported yet; the piece places unshadowed and the scene rebuilds itself/.test(cs))
+  errors.push("a missing shadow sprite must warn AND count the scene incomplete (missing++) so it self-heals (round 24)");
+if (!/boardstamps\/\$\{slug\}-sh\$\{sidFor\(\)\}\.png/.test(src))
+  errors.push("the app-side shadow bake emission (boardstamps/<slug>-sh<sid>.png) is missing (round 24)");
+if (!/cSh\.transparency = \{ frame: 0, interior: 0, content: 0 \};/.test(src)
+    || !/data-part="extrusion"\], \[data-part="outer-glow"\]/.test(src))
+  errors.push("the shadow bake must hide shell/face/content via transparency AND DOM-hide extrusion/outer-glow — anything else leaks art into the shadow sprite (round 24)");
+if (!/const sidFor = \(\) => \(bakeSid \?\?= sidOf\(b\)\);/.test(src) || !/const poseSid = sidFor\(\);/.test(src))
+  errors.push("pose and shadow bakes must share ONE per-copy sid (stable bake names) — separate sidOf calls would rename files on every export (round 24)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

@@ -246,6 +246,17 @@ export interface ExportBoardItemData {
       tiles from these and re-draws the selection ring itself */
   cells?: number[];
   cellSel?: number | null;
+  /** the copy's CAST SHADOW, baked alone (round 24 — dev field report:
+      "Banner is also missing its shadow"): prefab sprites strip the cast
+      shadow by design ("the engine owns shadows") and posed bakes calm it
+      too, but the BOARD drew it — the scene places this sprite as a
+      separate art sibling BEHIND the piece, grounded (it never rides
+      hover lifts). Absent = this kit/copy casts no shadow. */
+  shadow?: string;
+  /** the shadow sprite's footprint in board px and its center's offset
+      from the SHELL center (board y runs down) — same frame contract as
+      posedW/H/Dx/Dy. */
+  shadowW?: number; shadowH?: number; shadowDx?: number; shadowDy?: number;
   /** a BIG GLYPH item (the owner's board-art drop, bigGlyphs.ts): each
       USED asset ships as ITS OWN PREFAB (owner mandate). `id`/`name` key
       prefab convergence — every instance of the same asset resolves to
@@ -812,6 +823,11 @@ export async function collectExportBoards(st: {
          rigged against it: its natural render used label "" (no
          PREF_LABEL row), so EVERY timer copy "diverged". */
       const pureType = idBase === "timerdigits";
+      /* ONE bake sid per board copy — the pose and the shadow bake share
+         it, so re-exports overwrite the same files in place (the stable-
+         bake-names contract above). */
+      let bakeSid: string | null = null;
+      const sidFor = () => (bakeSid ??= sidOf(b));
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
@@ -924,7 +940,7 @@ export async function collectExportBoards(st: {
             if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
-          const poseSid = sidOf(b);
+          const poseSid = sidFor();
           const fileP = `boardstamps/${slug}-p${poseSid}.png`;
           stampFiles.push({ file: fileP, bytes: pbp });
           posed = fileP;
@@ -962,6 +978,63 @@ export async function collectExportBoards(st: {
           }
         }
       } catch { /* the sliced prefab remains the honest fallback */ }
+      /* ── the CAST SHADOW travels (round 24 — dev field report on the
+         mobile board: "Banner is also missing its shadow"). Prefab
+         sprites strip the cast shadow by design ("the engine owns
+         shadows") and the posed bakes calm it the same way — but the
+         BOARD drew it, and a scene that claims to be the board's truth
+         must ground its pieces identically. The shadow bakes ALONE:
+         transparency zeros hide shell/face/content, state glows are
+         zeroed, and the extrusion group — the one layer the transparency
+         dials can't reach — is DOM-hidden. Extrusion DEPTH stays in the
+         config, so the shadow keeps the exact drop the extruded piece
+         cast it at. Cropped to its own ink, shipped per copy
+         (boardstamps/<slug>-sh<sid>.png), placed by the importer as a
+         grounded art sibling behind the piece. */
+      let shadowMeta: { file: string; w: number; h: number; dx: number; dy: number } | null = null;
+      try {
+        if ((cfgP.shadow?.opacity ?? 0) > 0.5 && shm2 && vbm2) {
+          const cSh = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
+          cSh.stateDesigns = {}; // the bake renders "default" — forks never speak here
+          cSh.transparency = { frame: 0, interior: 0, content: 0 };
+          for (const s3 of Object.values(cSh.states)) s3.glow = 0;
+          if (cSh.idle) cSh.idle = { ...cSh.idle, wipe: false, edge: false };
+          let shSvg = renderKit(cSh, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          const domSh = new DOMParser().parseFromString(shSvg, "image/svg+xml");
+          for (const nSh of Array.from(domSh.querySelectorAll('[data-part="extrusion"], [data-part="outer-glow"]'))) nSh.setAttribute("display", "none");
+          shSvg = new XMLSerializer().serializeToString(domSh.documentElement)
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          const shShellM = (/data-shell="([-\d. ]+)"/.exec(shSvg) ?? /data-shell0="([-\d. ]+)"/.exec(shSvg))?.[1].split(" ").map(Number);
+          const vbSh = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(shSvg);
+          // threshold 4: a soft 4-sigma falloff must complete, not clip
+          const abSh = await svgAlphaBox(shSvg, 2, 4).catch(() => null);
+          if (abSh && vbSh && shShellM && shShellM.length === 4 && shShellM[2] > 4 && shShellM[3] > 4) {
+            const padS = 2;
+            const sx0 = +vbSh[1] + abSh.x0 / 2 - padS, sy0 = +vbSh[2] + abSh.y0 / 2 - padS;
+            const sx1 = +vbSh[1] + (abSh.x1 + 1) / 2 + padS, sy1 = +vbSh[2] + (abSh.y1 + 1) / 2 + padS;
+            const boxS: [number, number, number, number] = [sx0, sy0, sx1 - sx0, sy1 - sy0];
+            shSvg = shSvg
+              .replace(/viewBox="[^"]+"/, `viewBox="${boxS[0].toFixed(1)} ${boxS[1].toFixed(1)} ${boxS[2].toFixed(1)} ${boxS[3].toFixed(1)}"`)
+              .replace(/width="[\d.]+"/, `width="${boxS[2].toFixed(1)}"`)
+              .replace(/height="[\d.]+"/, `height="${boxS[3].toFixed(1)}"`);
+            const kxSh = pw / shShellM[2], kySh = ph / shShellM[3];
+            const { bytes: shBytes } = await svgToPngBytes(shSvg, 2);
+            const fileSh = `boardstamps/${slug}-sh${sidFor()}.png`;
+            stampFiles.push({ file: fileSh, bytes: shBytes });
+            shadowMeta = {
+              file: fileSh,
+              w: Math.round(boxS[2] * kxSh * 10) / 10, h: Math.round(boxS[3] * kySh * 10) / 10,
+              dx: Math.round((boxS[0] + boxS[2] / 2 - (shShellM[0] + shShellM[2] / 2)) * kxSh * 10) / 10,
+              dy: Math.round((boxS[1] + boxS[3] / 2 - (shShellM[1] + shShellM[3] / 2)) * kySh * 10) / 10,
+            };
+          }
+        }
+      } catch { /* a piece without its shadow still places — grounding is decor */ }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
@@ -1007,6 +1080,12 @@ export async function collectExportBoards(st: {
           ...(posedStates.hover ? { posedHover: posedStates.hover } : {}),
           ...(posedStates.pressed ? { posedPressed: posedStates.pressed } : {}),
           ...(posedStates.disabled ? { posedDisabled: posedStates.disabled } : {}),
+        } : {}),
+        /* the grounded cast shadow — its own art sibling in the scene */
+        ...(shadowMeta ? {
+          shadow: shadowMeta.file,
+          shadowW: shadowMeta.w, shadowH: shadowMeta.h,
+          shadowDx: shadowMeta.dx, shadowDy: shadowMeta.dy,
         } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
@@ -6360,7 +6439,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -6903,7 +6982,7 @@ namespace PatternBreak {
           if (bR.items == null) continue;
           foreach (var itR in bR.items) {
             if (itR == null) continue;
-            foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled })
+            foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled, itR.shadow })
               if (!string.IsNullOrEmpty(fR)) stampsInUse.Add(fR);
             /* a USED big glyph keeps BOTH its files: this copy's sprite
                (stamp already carries it, belt-and-braces here) and the
@@ -8073,6 +8152,43 @@ namespace PatternBreak {
             ShellRaycastPad(inst, it.component, m);
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
+          /* ── the copy's CAST SHADOW (round 24, dev field report: "Banner
+             is also missing its shadow"): prefab sprites strip the cast
+             shadow by design and posed bakes calm it — the export now
+             ships it as its own baked sprite, and the scene grounds the
+             piece with it: an art sibling right BEHIND the piece in draw
+             order, never a child, so hover lifts and press sinks move the
+             piece while the shadow stays grounded — exactly the app's
+             layering. Missing pixels (first-drop import race) arm the
+             incomplete-scene rebuild like every other bake. ── */
+          if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.shadow)) {
+            var shSp = S(root + "/" + it.shadow);
+            if (shSp == null) {
+              Debug.LogWarning("UI Kit Maker: '" + bd.name + "' — the cast-shadow sprite for " + NiceName(it.component) + " isn't imported yet; the piece places unshadowed and the scene rebuilds itself once it lands.");
+              missing++;
+            } else if (it.shadowW > 1f && it.shadowH > 1f) {
+              var shGo = new GameObject(NiceName(it.component) + " Shadow (art)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              shGo.transform.SetParent(canvasGo.transform, false);
+              var shRt = shGo.GetComponent<RectTransform>();
+              shRt.anchorMin = new Vector2(it.ax, it.ay); shRt.anchorMax = new Vector2(it.ax, it.ay);
+              shRt.pivot = new Vector2(0.5f, 0.5f);
+              float shOx = it.shadowDx, shOy = -it.shadowDy; // board y runs down
+              if (Mathf.Abs(it.rot) > 0.01f) {
+                // the bake lives in the piece's frame — rotate its offset with the piece
+                float caR = Mathf.Cos(-it.rot * Mathf.Deg2Rad), saR = Mathf.Sin(-it.rot * Mathf.Deg2Rad);
+                float rxR = shOx * caR - shOy * saR, ryR = shOx * saR + shOy * caR;
+                shOx = rxR; shOy = ryR;
+                shRt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
+              }
+              shRt.anchoredPosition = new Vector2(it.cx - axBoard + shOx, -(it.cy - ayBoard) + shOy);
+              shRt.sizeDelta = new Vector2(it.shadowW, it.shadowH);
+              var shImg = shGo.GetComponent<Image>();
+              shImg.sprite = shSp;
+              shImg.raycastTarget = false;
+              // slot in right before the piece: behind it, still its neighbor
+              shGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
+            }
+          }
           /* per-copy words (the maker typed them on this copy in the app) —
              the override must speak to the stack's OWNER: setting the TMP
              text alone left HeroLabel's own words in charge, and it
