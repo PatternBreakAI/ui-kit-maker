@@ -6,7 +6,7 @@
    Labels are LIVE ENGINE TEXT — the manifest carries
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
-import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
+import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
@@ -145,6 +145,12 @@ interface AssetMeta {
   /** The maker's word for label-machinery pieces whose prefab wires a live
    *  label from the manifest (dropdown value, badge count) — verbatim. */
   labelText?: string;
+  /** The piece's KIT ICON beside its words (round 26 — the chip's star):
+   *  center offset from the shell CENTER in design px (frame-invariant,
+   *  the labelDx discipline), rendered size, the shipped white glyph's
+   *  path, and the ink the app dressed it with. The prefab seats a
+   *  swappable tinted Icon child exactly where the app drew it. */
+  icon?: { dx: number; dy: number; s: number; file: string; ink: string } | null;
 }
 
 export interface EngineExportState {
@@ -190,6 +196,10 @@ export interface EngineExportState {
   kitSubs?: Partial<Record<KitComponentId, string>>;
   kitVals?: Partial<Record<KitComponentId, number>>;
   kitSlotVals?: Partial<Record<KitComponentId, Record<string, string>>>;
+  /** Per-component icon overrides (round 26 — the chip's star): the bake
+   *  and the shipped glyph honor them; absent = the stock default, so
+   *  older callers keep the app's own look. */
+  kitIcons?: Partial<Record<KitComponentId, IconDef | "none">>;
 }
 
 /* ── Boards→Scenes: the board document, serialized for the importer ──
@@ -2149,7 +2159,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        still holds, so the emission below keeps the field). Unity agent:
        treat empty labelText as a real value — never heal it to stock. */
     const word = PREF_LABEL[n.id] !== undefined ? (st.kitNoText?.[n.id] ? "" : (st.kitLabels?.[n.id] ?? PREF_LABEL[n.id])) : undefined;
-    const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
+    /* the CHIP'S STAR travels (round 26 — owner: the app's "NEW ☆" arrived
+       in Unity as bare NEW). The chip is the one NINE family that draws a
+       default glyph beside its words (STOCK_ICONS.star; per-kit override
+       and "none" both honored) — passing the resolved icon through lets
+       the bake carry the icon NODE the way it carries the label: ghosted
+       invisible by content transparency, TRUE geometry (the plate widens
+       by star + gap exactly as the app draws it, prefW included). Every
+       other family keeps its iconless bake byte-stable. */
+    const chipIconOv = n.id === "chip" ? st.kitIcons?.chip : undefined;
+    const chipIconDef = n.id === "chip" ? (chipIconOv === "none" ? null : (chipIconOv ?? STOCK_ICONS.star)) : null;
+    const iconOpt = n.id === "chip" ? { icon: resolveKitIcon(chipIconOv, undefined) } : {};
+    const wordOpts = word !== undefined ? { ...rowOpts, ...iconOpt, label: word } : { ...rowOpts, ...iconOpt };
     const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
     const fullSvg = shell(n.id, wordOpts, ghost(slim));
     const slice = sliceOf(n.id, n.h);
@@ -2187,6 +2208,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         };
       }
     }
+    /* the icon SEAT parses off the ghosted bake exactly like the label's:
+       iconGroup's own translate(x y) scale(s) is the glyph's top-left +
+       scale in the same rise/lift frame as the label <text>, so offsets
+       from the shell0 CENTER are frame-invariant. Size recovers through
+       the def's own viewBox (s maps it to a square of that side). The ink
+       is the FILL pass's color attribute — the LAST color= in the icon
+       group (an outline-inheriting icon renders its outline copy first);
+       a gradient url() falls back to the type's top fill. */
+    let iconMeta: AssetMeta["icon"] = null;
+    if (chipIconDef) {
+      const icAt = fullSvg.indexOf('data-part="icon"');
+      const icM = icAt >= 0 ? /transform="translate\((-?[\d.]+) (-?[\d.]+)\) scale\(([\d.]+)/.exec(fullSvg.slice(icAt)) : null;
+      const s0i = (/data-shell0="([-\d. ]+)"/.exec(fullSvg) ?? /data-shell="([-\d. ]+)"/.exec(fullSvg))?.[1].split(" ").map(Number);
+      if (icM && s0i && s0i.length === 4) {
+        const vbIc = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
+        const sIc = +icM[3] * Math.max(vbIc[2] || 24, vbIc[3] || 24);
+        const inks = [...fullSvg.slice(icAt).matchAll(/color="([^"]+)"/g)].map((m9) => m9[1]);
+        let ink = inks.length ? inks[inks.length - 1] : "#FFFFFF";
+        if (ink.startsWith("url(")) ink = pieceCfg(n.id).type.fill;
+        iconMeta = {
+          dx: Math.round((+icM[1] + sIc / 2 - (s0i[0] + s0i[2] / 2)) * 10) / 10,
+          dy: Math.round((+icM[2] + sIc / 2 - (s0i[1] + s0i[3] / 2)) * 10) / 10,
+          // the shipped path wears the self-describing family name (famPath)
+          s: Math.round(sIc * 10) / 10, file: "assets/chip/chip-icon.png", ink,
+        };
+      }
+    }
     /* the LIST ROW's words (owner: text wasn't appearing on the bones
        panels): title + subtitle arrive as live seats measured off a render
        with the maker's words and the SAME toggles as this bake (portrait,
@@ -2195,7 +2243,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ? textSeatsOf("datarow", fullSvg, { row: { avatar: false, progress: false, action: false } }, ghost(slim))
       : {};
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...rowSeats }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...(iconMeta ? { icon: iconMeta } : {}), ...rowSeats }, true, swap ? n.family : undefined);
+    /* the glyph itself ships white and tintable beside the kit — custom
+       library picks included, so the prefab never hunts a stock file */
+    if (iconMeta && chipIconDef) {
+      const strokeIc = chipIconDef.mode === "stroke";
+      const vbIc2 = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
+      const swIc = (((pieceCfg(n.id).icon?.strokeWidth ?? 24) / 10) * (Math.max(vbIc2[2] || 24, vbIc2[3] || 24) / 24)).toFixed(2);
+      await addPng("chip/icon.png", `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="${chipIconDef.viewBox}"><g fill="${strokeIc ? "none" : "#FFFFFF"}" stroke="${strokeIc ? "#FFFFFF" : "none"}" stroke-width="${swIc}" stroke-linecap="round" stroke-linejoin="round">${chipIconDef.inner}</g></svg>`,
+        { component: "chip", part: "icon", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip's own glyph (the star beside NEW), white — the prefab tints it to the kit's icon ink and seats it beside the live words. Swap it, retint it, or delete it." });
+    }
     const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -6576,7 +6633,12 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  /* the piece's kit icon beside its words (round 26 — the chip's star):
+     center offset from the shell center in design px, rendered size, the
+     shipped white glyph, and the app's ink. s 0 / file "" on older
+     manifests (JsonUtility defaults) — readers gate on both. */
+  [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -9742,6 +9804,40 @@ namespace PatternBreak {
       if (m.idle.edgeDur > 0.05f) es.run = m.idle.edgeDur;
       es.hoverArmed = m.idle.trigger == "hover";
     }
+    /* the piece's kit icon (round 26 — the chip's star): the base row
+       ships the seat (center offset from the shell center, design px —
+       the labelDx discipline, frame-invariant) and its white glyph; the
+       prefab wears a swappable tinted Icon child exactly where the app
+       drew it. Idempotent: an existing Icon child — ours or the dev's —
+       is never touched. Older manifests ship no seat and change nothing. */
+    static void WireIconSeat(GameObject go, string root, PBManifest m, string fam) {
+      var rowIc = LabelRow(m, fam);
+      if (rowIc == null || rowIc.icon == null || rowIc.icon.s < 2f || string.IsNullOrEmpty(rowIc.icon.file)) return;
+      if (go.transform.Find("Icon") != null) return;
+      var icSp = S(root + "/" + rowIc.icon.file);
+      if (icSp == null) return;
+      var bodyIc = BodyImage(go);
+      var bsIc = bodyIc != null ? bodyIc.sprite : null;
+      if (bsIc == null || rowIc.shell == null || rowIc.shell.w < 4f || bsIc.rect.width < 2f || bsIc.rect.height < 2f) return;
+      var icGo = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      icGo.transform.SetParent(go.transform, false);
+      var ici = icGo.GetComponent<Image>();
+      ici.sprite = icSp;
+      ici.preserveAspect = true;
+      ici.raycastTarget = false;
+      Color icInk;
+      if (!string.IsNullOrEmpty(rowIc.icon.ink) && ColorUtility.TryParseHtmlString(rowIc.icon.ink, out icInk)) ici.color = icInk;
+      float psIc = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+      var icRt = icGo.GetComponent<RectTransform>();
+      // anchor on the seat's fraction of the sprite — offsets from the
+      // shell center are frame-invariant (the label-seat discipline)
+      float fxI = (rowIc.shell.x + rowIc.shell.w / 2f + rowIc.icon.dx * psIc) / bsIc.rect.width;
+      float fyI = 1f - (rowIc.shell.y + rowIc.shell.h / 2f + rowIc.icon.dy * psIc) / bsIc.rect.height;
+      icRt.anchorMin = icRt.anchorMax = new Vector2(fxI, fyI);
+      icRt.pivot = new Vector2(0.5f, 0.5f);
+      icRt.anchoredPosition = Vector2.zero;
+      icRt.sizeDelta = new Vector2(rowIc.icon.s, rowIc.icon.s);
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -9857,6 +9953,11 @@ namespace PatternBreak {
          it, or drop your own art in its place. Once the badge carries its
          live COUNT (labelText-era manifests), the count is the content —
          the app's own default — and the star stands down. */
+      /* the piece's KIT ICON travels (round 26 — owner: the chip's
+         "NEW ☆" arrived as bare NEW): the base row ships the icon's
+         shell-relative seat and its own white glyph; the prefab wears it
+         as a swappable tinted child exactly where the app drew it. */
+      WireIconSeat(go, root, m, baseAsset.component);
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -13044,6 +13145,16 @@ namespace PatternBreak {
           var pS0 = AssetDatabase.GetAssetPath(imS0.sprite).Replace("\\\\", "/");
           if (pS0.StartsWith(root + "/assets/")) { wantShape = true; break; }
         }
+        /* KIT ICON convergence (round 26 — the chip's star): prefabs born
+           before the icon seat shipped gain the swappable Icon child in
+           place; an existing Icon — ours or the dev's — stays untouched
+           (WireIconSeat is idempotent on the name). */
+        bool wantIconAdd = false;
+        {
+          var rowIc0 = LabelRow(m, famName);
+          wantIconAdd = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
+            && !string.IsNullOrEmpty(rowIc0.icon.file) && asset.transform.Find("Icon") == null;
+        }
         /* IDLE SHINE convergence: the wipe/edge components only ever
            arrived at prefab GENERATION — a kit whose shimmer was turned
            on (or off) after the prefabs were born never reached them,
@@ -13279,7 +13390,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -13380,6 +13491,10 @@ namespace PatternBreak {
             AddLabel(contents, LabelWordOf(m, famName, DefaultLabel(famName)), null, root, m, famName);
 #endif
             if (FindOurLabelRoot(contents) != null) { worded++; changed = true; }
+          }
+          if (wantIconAdd && contents.transform.Find("Icon") == null) {
+            WireIconSeat(contents, root, m, famName);
+            if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
           }
           if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
             var wsA = contents.AddComponent<WipeShine>();

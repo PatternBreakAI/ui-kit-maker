@@ -756,6 +756,32 @@ if (!/var shadowsInUse = new HashSet<string>\(\);/.test(cs)
 if (!/stale shadow bake\(s\) removed/.test(cs))
   errors.push("the stale-shadow cull must speak in the heal receipt (round 26)");
 
+/* round-26 item 2: the chip's star travels (owner: the app's "NEW ☆"
+   arrived in Unity as bare NEW). App half: the chip bake carries the
+   resolved icon NODE (ghosted, true geometry — the plate widens by
+   star + gap), the seat parses off iconGroup's own transform against
+   the shell0 center (the labelDx discipline), and the glyph ships white
+   and tintable as chip/icon.png ("none" ships nothing). Importer half:
+   WireIconSeat seats a swappable tinted Icon child on generation AND
+   converges older prefabs in place; an existing Icon child is never
+   touched. */
+if (!/const iconOpt = n\.id === "chip" \? \{ icon: resolveKitIcon\(chipIconOv, undefined\) \} : \{\};/.test(src))
+  errors.push("the chip bake must carry the resolved kit icon (every other family stays iconless/byte-stable) (round 26)");
+if (!/chipIconOv === "none" \? null : \(chipIconOv \?\? STOCK_ICONS\.star\)/.test(src))
+  errors.push("the chip's effective icon must honor 'none' and per-kit overrides with the stock star as default (round 26)");
+if (!/addPng\("chip\/icon\.png"/.test(src) || !/file: "assets\/chip\/chip-icon\.png"/.test(src))
+  errors.push("the chip's glyph must ship white+tintable (famPath: chip/chip-icon.png) with its seat on the base row (round 26)");
+if (!/class PBIconSeat \{ public float dx; public float dy; public float s; public string file; public string ink; \}/.test(cs)
+    || !/public string labelText; public PBIconSeat icon;/.test(cs))
+  errors.push("PBAsset must carry the icon seat (PBIconSeat) — JsonUtility drops it without the field (round 26)");
+if (!/static void WireIconSeat\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
+    || !/WireIconSeat\(go, root, m, baseAsset\.component\);/.test(cs))
+  errors.push("FamilyPrefab must seat the kit icon through WireIconSeat (round 26)");
+if (!/wantIconAdd/.test(cs) || !/WireIconSeat\(contents, root, m, famName\);/.test(cs))
+  errors.push("the maintenance pass must converge older prefabs onto the icon seat (wantIconAdd) (round 26)");
+if (!/if \(go\.transform\.Find\("Icon"\) != null\) return;/.test(cs))
+  errors.push("WireIconSeat must step aside for an existing Icon child — ours or the dev's (round 26)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
