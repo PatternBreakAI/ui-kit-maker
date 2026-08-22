@@ -6911,17 +6911,34 @@ namespace PatternBreak {
       } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
       var dirty = iset as UnityEngine.Object;
       if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
+      SyncRouteMenuCheck(); // the checkmark follows the toggle — stamped OUTSIDE any menu-layout pass
       Debug.Log(routed
         ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
         : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
     }
     [MenuItem(RouteInputMenu, true)]
     static bool RouteEditorInputCheck() {
-      var iset = InputSettingsLive();
-      var prop = EditorBehaviorProp(iset);
-      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(iset, prop));
-      return prop != null;
+      /* VALIDATE ONLY — zero side effects (round 26, owner Console).
+         Menu.SetChecked used to live here, but a validator runs while
+         the editor is MID-MENU-LAYOUT (an IMGUI pass), and poking the
+         menu tree from inside it is exactly the re-entrancy IMGUI
+         forbids — the owner's Console filled with anonymous
+         "EndLayoutGroup: BeginLayoutGroup must be called first" errors.
+         The checkmark is stamped OUTSIDE GUI instead: once per domain
+         reload (ArmRouteMenuCheck) and on every toggle. If the setting
+         is flipped on the Project Settings page directly, the checkmark
+         catches up on the next reload — a stale tick is cosmetic; the
+         layout spam was not. */
+      return EditorBehaviorProp(InputSettingsLive()) != null;
     }
+    /* the ONE place the menu checkmark is written — never from a
+       validator, never from any OnGUI-adjacent context */
+    static void SyncRouteMenuCheck() {
+      var isetC = InputSettingsLive();
+      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(isetC, EditorBehaviorProp(isetC)));
+    }
+    [InitializeOnLoadMethod]
+    static void ArmRouteMenuCheck() { EditorApplication.delayCall += SyncRouteMenuCheck; }
     /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
        the runtime keeps only StateFx.editorPointerSeen. One Console line,
        once per Play, only when the gate actually bites: kit pieces

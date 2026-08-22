@@ -719,6 +719,27 @@ if (!/if \(m\.idle\.wipeDur > 0\.05f\) ws\.sweep = m\.idle\.wipeDur;/.test(cs) |
 if (!/ws1\.width = ws0\.width; ws1\.hoverArmed = ws0\.hoverArmed;/.test(cs))
   errors.push("the posed-copy wipe transplant must carry the round-25 dials (width + arm) to the art child (round 25)");
 
+/* round-26 P1: MenuItem VALIDATORS are side-effect free. The RouteInput
+   validator called Menu.SetChecked — a validator runs while the editor
+   is mid-menu-layout (an IMGUI pass), and poking the menu tree from
+   inside it is the re-entrancy IMGUI forbids: the owner's Console
+   filled with anonymous "EndLayoutGroup: BeginLayoutGroup must be
+   called first" errors. The checkmark now writes in exactly ONE place
+   (SyncRouteMenuCheck), stamped after domain reload and on toggle. */
+{
+  const setChecked = (cs.match(/Menu\.SetChecked\(/g) ?? []).length;
+  if (setChecked !== 1 || !/static void SyncRouteMenuCheck\(\) \{[\s\S]{0,400}?Menu\.SetChecked\(/.test(cs))
+    errors.push(`Menu.SetChecked must be written in exactly ONE place (SyncRouteMenuCheck), found ${setChecked} (round 26 — the EndLayoutGroup Console spam)`);
+  const validator = cs.match(/\[MenuItem\(RouteInputMenu, true\)\]\s*\n\s*static bool RouteEditorInputCheck\(\) \{[\s\S]*?\n    \}/);
+  if (!validator) errors.push("the RouteInput menu validator is missing (round 26)");
+  else if (/SetChecked\(|DisplayDialog\(|CreateAsset\(|SaveAsset|SetDirty\(|Debug\.Log\(/.test(validator[0]))
+    errors.push("the RouteInput menu validator must stay side-effect FREE — no SetChecked/dialogs/asset writes/logs inside it (round 26)");
+  if (!/\[InitializeOnLoadMethod\]\s*\n\s*static void ArmRouteMenuCheck\(\) \{ EditorApplication\.delayCall \+= SyncRouteMenuCheck; \}/.test(cs))
+    errors.push("the reload-time checkmark stamp (ArmRouteMenuCheck via delayCall) is missing (round 26)");
+  if (!/SyncRouteMenuCheck\(\); \/\/ the checkmark follows the toggle/.test(cs))
+    errors.push("the toggle handler must re-stamp the menu checkmark after flipping the setting (round 26)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
