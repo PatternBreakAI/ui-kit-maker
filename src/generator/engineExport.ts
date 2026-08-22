@@ -22,6 +22,59 @@ import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
 
+/* ── Chromium clips the INTERMEDIATE of a MULTI-function CSS filter chain
+   on SVG groups when the svg rasterizes through an <img> — the sealed-
+   document road every bake takes. Each pass's buffer gets under-computed
+   bounds and the last blur smears that clipped buffer into a SQUARE
+   plateau: the owner's emblem socket, its clock halo cut square at a
+   rect boundary (round 26). Probe bisect: a SINGLE-function filter
+   renders clean; the same chain split into NESTED single-function
+   groups — identical math, a chain IS function composition — renders
+   clean too. Bakes route their svg through this; the app's live DOM is
+   not this path. Only PURE drop-shadow chains of 2+ split (that is all
+   bevel emits as icon fx); anything else passes through untouched.
+   ORDER, probe-convicted: the BIG blur must sit INNERMOST (directly on
+   the raw content — small, well-computed bounds); nesting it outermost
+   re-rasterizes the already-filtered subtree and re-clips the square.
+   So the chain nests f1 outermost .. fN innermost — the reverse of CSS
+   composition, visually identical for additive drop-shadow glows and
+   the one order Chromium renders clean. Extra attributes (opacity)
+   stay on the outermost. */
+const splitFilterChains = (svg: string): string => {
+  const OPEN = '<g style="filter:';
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const at = svg.indexOf(OPEN, i);
+    if (at < 0) { out += svg.slice(i); break; }
+    const q0 = at + OPEN.length;
+    const q1 = svg.indexOf('"', q0);
+    const tagEnd = q1 >= 0 ? svg.indexOf(">", q1) : -1;
+    if (q1 < 0 || tagEnd < 0) { out += svg.slice(i); break; }
+    const chain = svg.slice(q0, q1);
+    const prims = chain.match(/drop-shadow\([^()]*(?:\([^()]*\))?[^()]*\)/g) ?? [];
+    const pure = prims.length >= 2 && prims.join(" ").replace(/\s+/g, " ").trim() === chain.replace(/\s+/g, " ").trim();
+    if (!pure) { out += svg.slice(i, tagEnd + 1); i = tagEnd + 1; continue; }
+    // find this group's balanced close (nested groups counted)
+    let depth = 1, j = tagEnd + 1;
+    while (j < svg.length && depth > 0) {
+      const nextOpen = svg.indexOf("<g", j);
+      const nextClose = svg.indexOf("</g>", j);
+      if (nextClose < 0) { depth = -1; break; }
+      if (nextOpen >= 0 && nextOpen < nextClose) { depth++; j = nextOpen + 2; }
+      else { depth--; j = nextClose + 4; }
+    }
+    if (depth !== 0) { out += svg.slice(i, tagEnd + 1); i = tagEnd + 1; continue; }
+    const extras = svg.slice(q1 + 1, tagEnd); // e.g. ' opacity="0.8"' — outermost keeps it
+    const inner = svg.slice(tagEnd + 1, j - 4);
+    let open = `<g style="filter:${prims[0]}"${extras}>`;
+    for (const pr of prims.slice(1)) open += `<g style="filter:${pr}">`;
+    out += svg.slice(i, at) + open + splitFilterChains(inner) + "</g>".repeat(prims.length);
+    i = j;
+  }
+  return out;
+};
+
 interface AssetMeta {
   file: string; component: string; part: string;
   nativeW: number; nativeH: number;
@@ -931,6 +984,8 @@ export async function collectExportBoards(st: {
             const fdP = fontByName(cfgP.type.font);
             ps2 = await inlineKitFace(ps2, cfgP.type.font, fdP.name === cfgP.type.font ? fdP.css ?? null : null);
           }
+          // icon-fx chains split for the raster road (round 26 — the square halo)
+          ps2 = splitFilterChains(ps2);
           /* crop to the DRAWN box, not the shell box — the extrusion (and
              bloom) reach past the shell, and a shell-tight crop cut the
              extrusion's bottom off in the scene (owner: "bottom extrusion
@@ -1001,7 +1056,8 @@ export async function collectExportBoards(st: {
                 const fdS = fontByName(cfgP.type.font);
                 ssv = await inlineKitFace(ssv, cfgP.type.font, fdS.name === cfgP.type.font ? fdS.css ?? null : null);
               }
-              ssv = ssv
+              // icon-fx chains split for the raster road (round 26)
+              ssv = splitFilterChains(ssv)
                 .replace(/viewBox="[^"]+"/, `viewBox="${cropBox[0].toFixed(1)} ${cropBox[1].toFixed(1)} ${cropBox[2].toFixed(1)} ${cropBox[3].toFixed(1)}"`)
                 .replace(/width="[\d.]+"/, `width="${cropBox[2].toFixed(1)}"`)
                 .replace(/height="[\d.]+"/, `height="${cropBox[3].toFixed(1)}"`);
@@ -1464,7 +1520,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     c.candy.contact.opacity = 0;
     for (const s of Object.values(c.states)) s.glow = 0;
     mutate?.(c);
-    return renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...opts });
+    // icon-fx chains split for the raster road (round 26 — the square halo)
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...opts }));
   };
   const flat = (c: GenConfig) => {
     c.candy.gloss.on = false;
@@ -1522,7 +1579,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     calm(c);
     for (const s of Object.values(c.states)) s.glow = 0;
     for (const f of Object.values(c.stateDesigns)) if (f) calm(f);
-    return renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts });
+    // icon-fx chains split for the raster road (round 26 — the square halo)
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts }));
   };
 
   /* ── the piece's CONTENT-TEXT dress (bevel's contentText): fill mode,

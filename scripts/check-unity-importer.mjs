@@ -782,6 +782,24 @@ if (!/wantIconAdd/.test(cs) || !/WireIconSeat\(contents, root, m, famName\);/.te
 if (!/if \(go\.transform\.Find\("Icon"\) != null\) return;/.test(cs))
   errors.push("WireIconSeat must step aside for an existing Icon child — ours or the dev's (round 26)");
 
+/* round-26 item 3: the emblem socket's halo completes (owner screenshot:
+   the clock's glow cut square at a rect boundary). Chromium clips the
+   intermediate of a MULTI-function CSS drop-shadow chain on SVG groups
+   rasterized through an <img> — probe bisect: single filters clean, the
+   chain squares, the chain SPLIT into nested singles (identical math)
+   clean. Every bake road routes through splitFilterChains: the shell and
+   state bakes and both posed-pipeline renders. */
+if (!/const splitFilterChains = \(svg: string\): string => \{/.test(src))
+  errors.push("splitFilterChains (the raster road's chain splitter) is missing (round 26 — the square halo)");
+if ((src.match(/return splitFilterChains\(renderKit\(/g) ?? []).length !== 2)
+  errors.push("shell() AND stateShell() must route their renders through splitFilterChains (round 26)");
+if (!/ps2 = splitFilterChains\(ps2\);/.test(src) || !/ssv = splitFilterChains\(ssv\)/.test(src))
+  errors.push("the posed pipeline (pose + state skins) must route through splitFilterChains (round 26)");
+if (!/const pure = prims\.length >= 2 && prims\.join\(" "\)/.test(src))
+  errors.push("splitFilterChains must split ONLY pure drop-shadow chains of 2+ — anything else passes through (round 26)");
+if (!/let open = `<g style="filter:\$\{prims\[0\]\}"\$\{extras\}>`;/.test(src) || /\[\.\.\.prims\]\.reverse\(\)/.test(src))
+  errors.push("split order is probe-convicted: f1 OUTERMOST, big blur innermost on raw content — reversing re-clips the square (round 26)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
