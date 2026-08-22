@@ -7455,7 +7455,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); HealScrollView(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -12381,21 +12381,50 @@ namespace PatternBreak {
        "prefabs for some of the more involved objects would be an awesome
        quality of life thing") — panel frame, RectMask2D viewport, empty
        Content ready for children, kit-dressed vertical scrollbar. */
-    static bool ScrollViewPrefab(string dir, string root, int pngScale) {
+    /* Round 26 — dev/owner field: "the placement/design/layout of the
+       scrollbar seems off". Two lies fixed. (1) SEAT: the panel sprite is
+       glow/shadow-PADDED, and the bar hung off the padded RECT's right
+       edge — inside the halo air, overlapping the drawn frame. The bar
+       (and the viewport) now inset from the panel's SHELL box, manifest-
+       measured, so both sit inside the visible plate. (2) WIDTH: the
+       kit's track bakes 44 design px wide with ~20px caps each side —
+       squeezing it to 22 collapsed the nine-slice into the reported
+       sliver. The bar now wears the track sprite's own natural width and
+       the handle keeps the bake's 4px lane. Jimi asked for real scroll
+       components — this prefab is the answer, so it reads deliberate. */
+    static bool ScrollViewPrefab(string dir, string root, int pngScale, PBManifest m) {
       var frame = S(root + "/assets/panel/panel-base.9.png");
       var track = S(root + "/assets/scrollview/scrollview-track.9.png");
       var handle = S(root + "/assets/scrollview/scrollview-handle.9.png");
       if (frame == null || track == null || handle == null) return false;
+      float ps = pngScale > 0 ? pngScale : 2f;
       var go = ImageObject("ScrollView", frame, pngScale);
       go.GetComponent<Image>().type = Image.Type.Sliced;
       var rt = go.GetComponent<RectTransform>();
       rt.sizeDelta = new Vector2(Mathf.Max(380f, rt.sizeDelta.x * 0.75f), 460f);
+      // clicks (and the wheel) stop at the drawn plate, not the halo air
+      ShellRaycastPad(go, "panel", m);
+      /* the panel's shell pads, design units — zero on manifests without
+         the row (everything then measures from the rect, the old truth) */
+      float padL = 0f, padR = 0f, padT = 0f, padB = 0f, shellDy = 0f;
+      PBAsset panRow = null;
+      if (m != null && m.assets != null) foreach (var aP in m.assets) if (aP != null && aP.component == "panel" && aP.part == "base" && aP.shell != null && aP.shell.w > 4f) { panRow = aP; break; }
+      if (panRow != null && frame.rect.width > 2f && frame.rect.height > 2f) {
+        float rw = frame.rect.width, rh = frame.rect.height;
+        float sx = rt.sizeDelta.x / (rw / ps), sy = rt.sizeDelta.y / (rh / ps); // the rect is resized — pads scale with it
+        padL = panRow.shell.x / ps * sx; padR = (rw - panRow.shell.x - panRow.shell.w) / ps * sx;
+        padT = panRow.shell.y / ps * sy; padB = (rh - panRow.shell.y - panRow.shell.h) / ps * sy;
+        shellDy = (rh / 2f - (panRow.shell.y + panRow.shell.h / 2f)) / ps * sy; // shell center above rect center = positive (Unity y up)
+      }
+      float barW = Mathf.Clamp(track.rect.width / ps, 16f, 56f); // the track's own bake width — honest caps
       var sr = go.AddComponent<ScrollRect>();
       var vp = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
       vp.transform.SetParent(go.transform, false);
       var vrt = vp.GetComponent<RectTransform>();
       vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-      vrt.offsetMin = new Vector2(18f, 18f); vrt.offsetMax = new Vector2(-46f, -18f); // the right lane belongs to the scrollbar
+      // content lives inside the VISIBLE plate; the right lane belongs to the bar
+      vrt.offsetMin = new Vector2(padL + 18f, padB + 18f);
+      vrt.offsetMax = new Vector2(-(padR + 12f + barW + 10f), -(padT + 18f));
       vrt.pivot = new Vector2(0f, 1f);
       var content = new GameObject("Content", typeof(RectTransform));
       content.transform.SetParent(vp.transform, false);
@@ -12409,14 +12438,15 @@ namespace PatternBreak {
       var sbrt = sb.GetComponent<RectTransform>();
       sbrt.anchorMin = new Vector2(1f, 0f); sbrt.anchorMax = new Vector2(1f, 1f);
       sbrt.pivot = new Vector2(1f, 0.5f);
-      sbrt.sizeDelta = new Vector2(22f, -36f);
-      sbrt.anchoredPosition = new Vector2(-10f, 0f);
+      sbrt.sizeDelta = new Vector2(barW, -(padT + padB + 28f)); // 14 in from the shell, top and bottom
+      sbrt.anchoredPosition = new Vector2(-(padR + 12f), shellDy);
       var bar = sb.AddComponent<Scrollbar>();
       var slide = new GameObject("Sliding Area", typeof(RectTransform));
       slide.transform.SetParent(sb.transform, false);
       var srt = slide.GetComponent<RectTransform>();
       srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
-      srt.offsetMin = new Vector2(3f, 7f); srt.offsetMax = new Vector2(-3f, -7f);
+      // the bake's own lane: handle 36 inside track 44 = 4 a side; 10 caps
+      srt.offsetMin = new Vector2(4f, 10f); srt.offsetMax = new Vector2(-4f, -10f);
       var hd = ImageObject("Handle", handle, pngScale);
       hd.transform.SetParent(slide.transform, false);
       var hi = hd.GetComponent<Image>();
@@ -12434,6 +12464,24 @@ namespace PatternBreak {
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    /* round 26: a ScrollView born with the SLIVER bar re-seats in place on
+       the next import — but only when it still wears OUR generation
+       constants beyond doubt (bar width 22, x -10) and its Content is
+       empty. A bar the dev moved or a view they filled is theirs; the
+       Regenerate menu remains their explicit upgrade road. */
+    static void HealScrollView(string root, PBManifest m) {
+      var path = root + "/Prefabs/ScrollView.prefab";
+      var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+      if (asset == null) return;
+      var sbT = asset.transform.Find("Scrollbar") as RectTransform;
+      var vpT = asset.transform.Find("Viewport") as RectTransform;
+      var contentT = vpT != null ? vpT.Find("Content") : null;
+      if (sbT == null || contentT == null) return;
+      bool oldSeat = Mathf.Abs(sbT.sizeDelta.x - 22f) < 0.5f && Mathf.Abs(sbT.anchoredPosition.x + 10f) < 0.5f;
+      if (!oldSeat || contentT.childCount != 0) return;
+      if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+        Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
     }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
@@ -12613,7 +12661,7 @@ namespace PatternBreak {
       if (SliderPrefab(dir, root, pngScale, m)) any = true;
       if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
-      if (ScrollViewPrefab(dir, root, pngScale)) any = true;
+      if (ScrollViewPrefab(dir, root, pngScale, m)) any = true;
       /* the BONES set: board-placeable display pieces from the skip set,
          shipped as simple prefabs (owner: "the bones to customize") —
          each carries a README note naming what a dev swaps */

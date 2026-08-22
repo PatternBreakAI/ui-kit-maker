@@ -800,6 +800,24 @@ if (!/const pure = prims\.length >= 2 && prims\.join\(" "\)/.test(src))
 if (!/let open = `<g style="filter:\$\{prims\[0\]\}"\$\{extras\}>`;/.test(src) || /\[\.\.\.prims\]\.reverse\(\)/.test(src))
   errors.push("split order is probe-convicted: f1 OUTERMOST, big blur innermost on raw content — reversing re-clips the square (round 26)");
 
+/* round-26 item 4: the ScrollView reads deliberate. The bar hung off the
+   panel's PADDED rect edge (halo air) at half its track's baked width —
+   the reported sliver. It now seats inside the manifest-measured SHELL
+   at the track sprite's own width; the viewport insets from the shell
+   too; existing untouched prefabs re-seat in place (our constants,
+   empty Content, said out loud). */
+if (!/static bool ScrollViewPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs))
+  errors.push("ScrollViewPrefab must take the manifest — the seat has no shell truth without it (round 26)");
+if (!/float barW = Mathf\.Clamp\(track\.rect\.width \/ ps, 16f, 56f\);/.test(cs))
+  errors.push("the scrollbar must wear the track sprite's own baked width — 22f was the sliver (round 26)");
+if (!/vrt\.offsetMin = new Vector2\(padL \+ 18f, padB \+ 18f\);/.test(cs)
+    || !/sbrt\.anchoredPosition = new Vector2\(-\(padR \+ 12f\), shellDy\);/.test(cs))
+  errors.push("viewport and scrollbar must inset from the panel's SHELL box, not the padded rect (round 26)");
+if (!/ShellRaycastPad\(go, "panel", m\);/.test(cs))
+  errors.push("the ScrollView's clicks must stop at the drawn plate (ShellRaycastPad on the panel row) (round 26)");
+if (!/static void HealScrollView\(string root, PBManifest m\)/.test(cs) || !/HealScrollView\(root, manifest\);/.test(cs))
+  errors.push("the sliver-bar heal (our constants + empty Content only) is missing or never runs (round 26)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
