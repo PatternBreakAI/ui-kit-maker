@@ -11,7 +11,7 @@ import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -1885,7 +1885,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; crop: boolean; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
   /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
      naming convention for everything makes some assets hard to find' —
      Unity search showed sixteen identical "base" rows). Every filename now
@@ -1900,7 +1900,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (NAME_EXEMPT.has(dir) || file.startsWith(dir + "-")) return path;
     return `${dir}/${dir}-${file}`;
   };
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false, group?: string): Promise<void> => {
+  /* crop: false = ship the svg canvas verbatim; true = tight alpha crop
+     (margin 4); a NUMBER = tight crop with that margin — fx-carrying
+     bakes hand the crop enough air that their halo's tail reaches true
+     zero inside the file (round 27 — the socket's square glow edge). */
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
     pngQueue.push({ path: famPath(path), svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
@@ -1988,7 +1992,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
-        grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+        grouped.get(qi) ?? (q.crop
+          ? await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)
+          : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
       /* shell-in-sprite, for shell-true scene sizing: the svg states its
          shell box in viewBox units; the crop box places it inside the
@@ -2440,7 +2446,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
-  await addPng("emblembar/socket.png", shell("emblembar", { overlay: "dock", icon: undefined }, slim), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, true);
+  /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
+     twice: "I'm still able to see the edges of the glow"). The socket is
+     the one family bake that ships a VISIBLE icon, and its icon-fx glow
+     is a fixed drop-shadow chain (5px + 12px radii; emboss ~3, shadow ~5)
+     that reaches ~(5+12)*3 ≈ 51px past the ink at any piece size — but
+     shell() zeroes the state glows, so glowPadOf gave this bake a 0px
+     canvas pad and the halo rendered INTO the canvas edge: the round-26
+     chain split let the falloff compute, and the wall it then hit was the
+     canvas (the owner's hard left/top edge — the bottom completed only
+     because the extrusion headroom happens to live there). padSvg reserves
+     the halo's full reach on every side; the tight crop then hugs the
+     REAL falloff, and the widened crop margin (24 raster px past the
+     alpha-8 tail) carries it to true zero inside the file. */
+  await addPng("emblembar/socket.png", padSvg(shell("emblembar", { overlay: "dock", icon: undefined }, slim), 64), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, 24);
   /* the settings controls, COMPONENT-TRUE (owner: "let's get those
      settings screens working this round") — the REAL slider and toggle
      pieces split into rig layers: track, full-run mercury, candy knob.

@@ -306,8 +306,8 @@ if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+
 /* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
    and the segment meter lights its cells. */
 if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
-    || !/addPng\("emblembar\/socket\.png", shell\("emblembar", \{ overlay: "dock"/.test(src))
-  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21)");
+    || !/addPng\("emblembar\/socket\.png", padSvg\(shell\("emblembar", \{ overlay: "dock"/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket rides padSvg since round 27)");
 if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
   errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
 if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
@@ -858,6 +858,18 @@ if (!/if \(icWantH != null && icHPath == icWantH\) \{ icHl\.gameObject\.SetActiv
   errors.push("the kept-scene doubled-star heal (ours by sprite, disable in place) is missing (round 27)");
 if (!/icon: idBase === "chip" \? resolveKitIcon\(st\.kitIcons\?\.\[idBase\], undefined\) : null/.test(src))
   errors.push("the pose divergence baseline must wear the chip's own star — an iconless baseline falsely poses every stock chip copy (round 27)");
+
+/* round-27 item 4: the socket's halo COMPLETES (owner, twice: "I'm
+   still able to see the edges of the glow"). The emblem socket is the
+   one family bake with a VISIBLE icon, and shell() zeroing the state
+   glows gave its canvas a 0px pad (glowPadOf keys on state glow) — the
+   icon-fx chain then rendered into the canvas edge. The bake now pads
+   its canvas for the chain's full reach and hands the tight crop a
+   wider margin so the falloff hits true zero inside the file. */
+if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: undefined \}, slim\), 64\)/.test(src))
+  errors.push("the emblem socket bake must pad its canvas (padSvg 64) — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27)");
+if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/Drop your own art in its well\." \}, 24\);/.test(src))
+  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27)");
 
 /* round-27 item 3: v1 fill-only Icons converge to the layered seat —
    ONLY when provably ours and untouched (childless, our sprite, our
