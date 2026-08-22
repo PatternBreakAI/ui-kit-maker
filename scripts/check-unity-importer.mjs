@@ -740,6 +740,22 @@ if (!/ws1\.width = ws0\.width; ws1\.hoverArmed = ws0\.hoverArmed;/.test(cs))
     errors.push("the toggle handler must re-stamp the menu checkmark after flipping the setting (round 26)");
 }
 
+/* round-26 item 1: the double "0:56". The round-24 cast-shadow bake fired
+   for the PURE-TYPE timer — the transparency dials govern shell pieces,
+   so the "shadow" shipped as a complete second readout in system glyphs
+   (probe-proven: bright saturated glyph ink, meanLum 172 / meanSat 124).
+   App half: pure type never bakes a shadow (the round-14 pose-skip
+   discipline extended). Importer half: kept scenes CULL a builder-named,
+   boardstamps-sprited shadow sibling the current manifest disowns. */
+if (!/if \(!pureType && \(cfgP\.shadow\?\.opacity \?\? 0\) > 0\.5 && shm2 && vbm2\) \{/.test(src))
+  errors.push("the pure-type shadow-bake skip is missing — the timer ships a second full-ink readout as its 'shadow' again (round 26)");
+if (!/var shadowsInUse = new HashSet<string>\(\);/.test(cs)
+    || !/if \(ch\.name\.EndsWith\(" Shadow \(art\)"\)\)/.test(cs)
+    || !/staleShadows\.Add\(ch\.gameObject\);/.test(cs))
+  errors.push("the kept-scene stale-shadow cull (name + boardstamps path + manifest-disowned) is missing (round 26)");
+if (!/stale shadow bake\(s\) removed/.test(cs))
+  errors.push("the stale-shadow cull must speak in the heal receipt (round 26)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

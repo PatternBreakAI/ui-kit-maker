@@ -1018,7 +1018,15 @@ export async function collectExportBoards(st: {
          grounded art sibling behind the piece. */
       let shadowMeta: { file: string; w: number; h: number; dx: number; dy: number } | null = null;
       try {
-        if ((cfgP.shadow?.opacity ?? 0) > 0.5 && shm2 && vbm2) {
+        /* PURE TYPE never bakes a shadow (round 26 — the owner's second
+           "0:56"): the transparency dials govern SHELL pieces, so a
+           display-type piece kept its full letterforms and the "shadow"
+           shipped as a complete second readout — rasterized without the
+           kit face (this path never inlines it), i.e. system glyphs, the
+           owner's "plain wrong font… just an image". The timer's text
+           shadow travels INSIDE the live label's dress instead — same
+           discipline as its round-14 pose skip. */
+        if (!pureType && (cfgP.shadow?.opacity ?? 0) > 0.5 && shm2 && vbm2) {
           const cSh = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
           cSh.stateDesigns = {}; // the bake renders "default" — forks never speak here
           cSh.transparency = { frame: 0, interior: 0, content: 0 };
@@ -7723,6 +7731,15 @@ namespace PatternBreak {
     static void HealBoardWords(string root, PBManifest m) {
 #if UNITY_2023_2_OR_NEWER
       if (m == null || m.boards == null) return;
+      /* every cast-shadow bake the CURRENT export still owns — a kept
+         scene's "<Piece> Shadow (art)" sibling pointing at a bake this
+         set disowns is stale art (round 26: the pure-type timer's bogus
+         glyph-ink "shadow", cut app-side) and is culled below. */
+      var shadowsInUse = new HashSet<string>();
+      foreach (var bdSh in m.boards) {
+        if (bdSh == null || bdSh.items == null) continue;
+        foreach (var itSh in bdSh.items) if (itSh != null && !string.IsNullOrEmpty(itSh.shadow)) shadowsInUse.Add(itSh.shadow);
+      }
       foreach (var bd in m.boards) {
         var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
         if (!File.Exists(scenePath) || bd.items == null || bd.items.Length == 0) continue;
@@ -7737,6 +7754,7 @@ namespace PatternBreak {
         int healedW = 0, artFixed = 0;
         try {
           var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
+          var staleShadows = new List<GameObject>(); // round 26 — culled after the walk
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
              key that survives any file rename. A piece the maker moved in
@@ -7747,6 +7765,19 @@ namespace PatternBreak {
             foreach (Transform ch in canvasC.transform) {
               var crt = ch as RectTransform;
               if (crt == null) continue;
+              /* ── STALE SHADOW CULL (round 26 — the second "0:56"): a
+                 shadow sibling sits OFFSET from its piece's seat, so it
+                 never matches an item below. Ours beyond doubt — builder
+                 name, boardstamps sprite — and the manifest no longer
+                 shipping that bake means it must go. Deferred: destroying
+                 mid-walk mutates the child list (the ghost-swap rule). */
+              if (ch.name.EndsWith(" Shadow (art)")) {
+                var shImgC = ch.GetComponent<Image>();
+                var shPathC = shImgC != null && shImgC.sprite != null ? AssetDatabase.GetAssetPath(shImgC.sprite).Replace("\\\\", "/") : null;
+                if (shPathC != null && shPathC.StartsWith(root + "/boardstamps/") && !shadowsInUse.Contains(shPathC.Substring(root.Length + 1)))
+                  staleShadows.Add(ch.gameObject);
+                continue;
+              }
               PBBoardItem it2 = null;
               foreach (var it in bd.items) {
                 if (it == null) continue;
@@ -7905,13 +7936,19 @@ namespace PatternBreak {
             UnityEngine.Object.DestroyImmediate(oldT.gameObject);
             ghostFixed++;
           }
-          if (healedW > 0 || artFixed > 0 || ghostFixed > 0) {
+          /* the deferred stale-shadow cull (round 26): builder-named,
+             boardstamps-sprited, manifest-disowned — see the walk above */
+          int shadowCut = 0;
+          foreach (var stSh in staleShadows) { UnityEngine.Object.DestroyImmediate(stSh); shadowCut++; }
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
               + (healedW > 0 ? healedW + " pinned word(s) restored" : "")
               + ((artFixed > 0 || healedW > 0) && ghostFixed > 0 ? ", " : "")
-              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "");
+              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "")
+              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0) && shadowCut > 0 ? ", " : "")
+              + (shadowCut > 0 ? shadowCut + " stale shadow bake(s) removed (this export no longer ships them)" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
                 Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
