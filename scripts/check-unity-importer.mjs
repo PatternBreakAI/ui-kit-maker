@@ -771,9 +771,9 @@ if (!/chipIconOv === "none" \? null : \(chipIconOv \?\? STOCK_ICONS\.star\)/.tes
   errors.push("the chip's effective icon must honor 'none' and per-kit overrides with the stock star as default (round 26)");
 if (!/addPng\("chip\/icon\.png"/.test(src) || !/file: "assets\/chip\/chip-icon\.png"/.test(src))
   errors.push("the chip's glyph must ship white+tintable (famPath: chip/chip-icon.png) with its seat on the base row (round 26)");
-if (!/class PBIconSeat \{ public float dx; public float dy; public float s; public string file; public string ink; \}/.test(cs)
+if (!/class PBIconSeat \{ public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; \}/.test(cs)
     || !/public string labelText; public PBIconSeat icon;/.test(cs))
-  errors.push("PBAsset must carry the icon seat (PBIconSeat) — JsonUtility drops it without the field (round 26)");
+  errors.push("PBAsset must carry the icon seat (PBIconSeat, round-27 shape: + strokeFile/strokeInk/strokeS) — JsonUtility drops it without the field (round 26/27)");
 if (!/static void WireIconSeat\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
     || !/WireIconSeat\(go, root, m, baseAsset\.component\);/.test(cs))
   errors.push("FamilyPrefab must seat the kit icon through WireIconSeat (round 26)");
@@ -817,6 +817,56 @@ if (!/ShellRaycastPad\(go, "panel", m\);/.test(cs))
   errors.push("the ScrollView's clicks must stop at the drawn plate (ShellRaycastPad on the panel row) (round 26)");
 if (!/static void HealScrollView\(string root, PBManifest m\)/.test(cs) || !/HealScrollView\(root, manifest\);/.test(cs))
   errors.push("the sliver-bar heal (our constants + empty Content only) is missing or never runs (round 26)");
+
+/* round-27 item 1: the chip's star wears its FULL app dress (owner field
+   test: "it is missing its styling (green stroke)"). App half: an
+   inheriting icon is two iconGroup passes — outline pen under fill pen —
+   and when the bake carries both (two color= attrs, stroke-mode def),
+   the outline pass ships as its own white glyph on a PADDED canvas
+   (half the pen hangs outside the path) plus its ink and box side on
+   the icon seat. Importer half: the seat layers Stroke (echo) under
+   Fill — the label's own echo naming — each tinted its own ink; rows
+   without the stroke keep the single flat image bit-for-bit. */
+if (!/chipIconDef\.mode === "stroke" && inks\.length >= 2/.test(src))
+  errors.push("the stroke echo must gate on app truth — a stroke-mode def with BOTH passes in the bake (round 27)");
+if (!/addPng\("chip\/icon-stroke\.png"/.test(src) || !/strokeFile: "assets\/chip\/chip-icon-stroke\.png"/.test(src))
+  errors.push("the outline pass must ship as its own white glyph (famPath: chip/chip-icon-stroke.png) on the icon seat (round 27)");
+if (!/const padIc = penIc \/ 2 \+ vbSideIc \/ 48;/.test(src))
+  errors.push("the stroke glyph's canvas must pad by half the pen — an unpadded canvas clips the widened stroke (round 27)");
+if (!/static void IconInkLayer\(Transform seat, string name, Sprite sp, string ink, float side\)/.test(cs))
+  errors.push("IconInkLayer (one tinted ink layer of the icon seat) is missing (round 27)");
+{
+  const iSt = cs.indexOf('IconInkLayer(icGo.transform, "Stroke (echo)", strokeSp, rowIc.icon.strokeInk, rowIc.icon.strokeS);');
+  const iFi = cs.indexOf('IconInkLayer(icGo.transform, "Fill", icSp, rowIc.icon.ink, rowIc.icon.s);');
+  if (iSt < 0 || iFi < 0 || iFi < iSt)
+    errors.push("WireIconSeat must layer Stroke (echo) UNDER Fill (sibling order is draw order) (round 27)");
+}
+if (!/rowIc\.icon\.strokeS > 2f && !string\.IsNullOrEmpty\(rowIc\.icon\.strokeFile\)/.test(cs))
+  errors.push("the layered seat must gate on strokeS + strokeFile — older manifests keep the single flat image (round 27)");
+
+/* round-27 item 2: the DOUBLED STAR (owner scene screenshot: "a
+   misplaced star with stroke"). Only the label strips from a posed
+   bake — the chip's styled star rides the posed pixels — so the
+   prefab's live Icon child beside it was a second, mis-seated star.
+   The build stands it down like Body/Specular; kept scenes heal the
+   same way (ours by sprite, disabled not destroyed); and the pose
+   divergence baseline wears the chip's star so stock-proportioned
+   chips stop falsely posing at all. */
+if (!/var icPos = inst\.transform\.Find\("Icon"\);\s*\n\s*if \(icPos != null\) icPos\.gameObject\.SetActive\(false\);/.test(cs))
+  errors.push("posed placement must stand the live Icon child down — the posed pixels already carry the styled star (round 27)");
+if (!/if \(icWantH != null && icHPath == icWantH\) \{ icHl\.gameObject\.SetActive\(false\); artFixed\+\+; \}/.test(cs))
+  errors.push("the kept-scene doubled-star heal (ours by sprite, disable in place) is missing (round 27)");
+if (!/icon: idBase === "chip" \? resolveKitIcon\(st\.kitIcons\?\.\[idBase\], undefined\) : null/.test(src))
+  errors.push("the pose divergence baseline must wear the chip's own star — an iconless baseline falsely poses every stock chip copy (round 27)");
+
+/* round-27 item 3: v1 fill-only Icons converge to the layered seat —
+   ONLY when provably ours and untouched (childless, our sprite, our
+   tint); anything the dev swapped, retinted or grew stays theirs. */
+if (!/wantIconStroke/.test(cs)
+    || !/AssetDatabase\.GetAssetPath\(icIm0\.sprite\)\.Replace\("\\\\", "\/"\) == root \+ "\/" \+ rowIc0\.icon\.file/.test(cs))
+  errors.push("the stroke-upgrade convergence must prove the Icon is ours by sprite path before touching it (round 27)");
+if (!/if \(icTU != null && icTU\.childCount == 0\) \{\s*\n\s*UnityEngine\.Object\.DestroyImmediate\(icTU\.gameObject, true\);\s*\n\s*WireIconSeat\(contents, root, m, famName\);/.test(cs))
+  errors.push("the stroke upgrade must rebuild through WireIconSeat and only ever remove a childless Icon (round 27)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

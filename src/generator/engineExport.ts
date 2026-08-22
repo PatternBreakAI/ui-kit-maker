@@ -202,8 +202,15 @@ interface AssetMeta {
    *  center offset from the shell CENTER in design px (frame-invariant,
    *  the labelDx discipline), rendered size, the shipped white glyph's
    *  path, and the ink the app dressed it with. The prefab seats a
-   *  swappable tinted Icon child exactly where the app drew it. */
-  icon?: { dx: number; dy: number; s: number; file: string; ink: string } | null;
+   *  swappable tinted Icon child exactly where the app drew it.
+   *  Round 27 — the icon's TYPE OUTLINE (owner: "missing its styling
+   *  (green stroke)"): when the app dresses the glyph with the type's
+   *  outline pass, the pass ships as its own white glyph (strokeFile,
+   *  padded canvas — the wider pen needs the air), its own ink
+   *  (strokeInk) and its rendered box side (strokeS, design px). The
+   *  prefab then layers Stroke (echo) under Fill — the label's own echo
+   *  grammar. Absent on kits whose icon carries no visible outline. */
+  icon?: { dx: number; dy: number; s: number; file: string; ink: string; strokeFile?: string; strokeInk?: string; strokeS?: number } | null;
 }
 
 export interface EngineExportState {
@@ -936,7 +943,13 @@ export async function collectExportBoards(st: {
         /* the family sprite bakes at the MAKER'S word now (labeled-geometry,
            round 7) — the divergence test must measure against the same word
            or every custom-worded copy would falsely re-pose */
-        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: null });
+        /* the family sprite bakes the CHIP'S ICON now too (round 26) — the
+           baseline must wear the same star or every stock-proportioned
+           chip copy reads star+gap wider than "natural" and falsely poses
+           (round 27, the owner's scene chip: a posed bake it never needed,
+           wearing a second star). Chip only — every other family's sprite
+           bakes iconless and its baseline must keep measuring that. */
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: idBase === "chip" ? resolveKitIcon(st.kitIcons?.[idBase], undefined) : null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -2275,21 +2288,58 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        group (an outline-inheriting icon renders its outline copy first);
        a gradient url() falls back to the type's top fill. */
     let iconMeta: AssetMeta["icon"] = null;
+    /* round 27 — the icon's outline pass, when the app draws one: pen
+       width in the glyph's own viewBox units and the canvas pad the wider
+       pen needs (both feed the shipped stroke glyph below) */
+    let iconStroke: { pen: number; pad: number } | null = null;
     if (chipIconDef) {
       const icAt = fullSvg.indexOf('data-part="icon"');
-      const icM = icAt >= 0 ? /transform="translate\((-?[\d.]+) (-?[\d.]+)\) scale\(([\d.]+)/.exec(fullSvg.slice(icAt)) : null;
+      /* bound the parse at the next data-part so gloss/specular/idle-edge
+         attributes never masquerade as icon passes */
+      const icEndAt = icAt >= 0 ? fullSvg.indexOf("data-part=", icAt + 16) : -1;
+      const icSlice = icAt >= 0 ? fullSvg.slice(icAt, icEndAt < 0 ? undefined : icEndAt) : "";
+      const icM = icAt >= 0 ? /transform="translate\((-?[\d.]+) (-?[\d.]+)\) scale\(([\d.]+)/.exec(icSlice) : null;
       const s0i = (/data-shell0="([-\d. ]+)"/.exec(fullSvg) ?? /data-shell="([-\d. ]+)"/.exec(fullSvg))?.[1].split(" ").map(Number);
       if (icM && s0i && s0i.length === 4) {
         const vbIc = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
-        const sIc = +icM[3] * Math.max(vbIc[2] || 24, vbIc[3] || 24);
-        const inks = [...fullSvg.slice(icAt).matchAll(/color="([^"]+)"/g)].map((m9) => m9[1]);
+        const vbSideIc = Math.max(vbIc[2] || 24, vbIc[3] || 24);
+        const sIc = +icM[3] * vbSideIc;
+        const inks = [...icSlice.matchAll(/color="([^"]+)"/g)].map((m9) => m9[1]);
         let ink = inks.length ? inks[inks.length - 1] : "#FFFFFF";
         if (ink.startsWith("url(")) ink = pieceCfg(n.id).type.fill;
+        /* the TYPE OUTLINE dresses the icon too (round 27 — owner field
+           test: "missing its styling (green stroke)"). An inheriting icon
+           is TWO iconGroup passes — a wider outline-ink pen UNDER the
+           fill-ink pen (bevel's inheritTypo road; visible only on
+           stroke-mode defs, a fill-mode underlay hides behind its fill).
+           Two color= attributes in the bake = the app drew the pass; its
+           ink is the FIRST color=, its pen the FIRST stroke-width= (both
+           in the glyph's own viewBox units — iconGroup writes them inside
+           the transformed group). Parsed off the render: app truth,
+           never re-derived. */
+        let strokeExtra: { strokeFile: string; strokeInk: string; strokeS: number } | null = null;
+        if (chipIconDef.mode === "stroke" && inks.length >= 2) {
+          let sInk = inks[0];
+          if (sInk.startsWith("url(")) sInk = pieceCfg(n.id).type.outline.color;
+          const penM = /stroke-width="([\d.]+)"/.exec(icSlice);
+          const penIc = penM ? +penM[1] : 0;
+          if (penIc > 0.01) {
+            // half the pen hangs outside the path; a hair more so round
+            // joins never kiss the canvas edge
+            const padIc = penIc / 2 + vbSideIc / 48;
+            iconStroke = { pen: penIc, pad: padIc };
+            strokeExtra = {
+              strokeFile: "assets/chip/chip-icon-stroke.png", strokeInk: sInk,
+              strokeS: Math.round(sIc * ((vbSideIc + 2 * padIc) / vbSideIc) * 10) / 10,
+            };
+          }
+        }
         iconMeta = {
           dx: Math.round((+icM[1] + sIc / 2 - (s0i[0] + s0i[2] / 2)) * 10) / 10,
           dy: Math.round((+icM[2] + sIc / 2 - (s0i[1] + s0i[3] / 2)) * 10) / 10,
           // the shipped path wears the self-describing family name (famPath)
           s: Math.round(sIc * 10) / 10, file: "assets/chip/chip-icon.png", ink,
+          ...(strokeExtra ?? {}),
         };
       }
     }
@@ -2310,6 +2360,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const swIc = (((pieceCfg(n.id).icon?.strokeWidth ?? 24) / 10) * (Math.max(vbIc2[2] || 24, vbIc2[3] || 24) / 24)).toFixed(2);
       await addPng("chip/icon.png", `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="${chipIconDef.viewBox}"><g fill="${strokeIc ? "none" : "#FFFFFF"}" stroke="${strokeIc ? "#FFFFFF" : "none"}" stroke-width="${swIc}" stroke-linecap="round" stroke-linejoin="round">${chipIconDef.inner}</g></svg>`,
         { component: "chip", part: "icon", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip's own glyph (the star beside NEW), white — the prefab tints it to the kit's icon ink and seats it beside the live words. Swap it, retint it, or delete it." });
+      /* round 27 — the OUTLINE pass ships as its own white glyph: same
+         geometry, the app's wider pen, on a canvas padded so the pen
+         never clips (half the stroke hangs outside the path). The prefab
+         tints it to the outline ink and layers it UNDER the fill —
+         Stroke (echo), the label's own echo grammar. */
+      if (iconStroke) {
+        const vxS = vbIc2[0] || 0, vyS = vbIc2[1] || 0, vwS = vbIc2[2] || 24, vhS = vbIc2[3] || 24;
+        const sideS = Math.max(vwS, vhS);
+        const padS = iconStroke.pad;
+        const pxS = Math.max(16, Math.round(96 * (sideS + 2 * padS) / sideS));
+        await addPng("chip/icon-stroke.png", `<svg xmlns="http://www.w3.org/2000/svg" width="${pxS}" height="${pxS}" viewBox="${(vxS - padS).toFixed(3)} ${(vyS - padS).toFixed(3)} ${(vwS + 2 * padS).toFixed(3)} ${(vhS + 2 * padS).toFixed(3)}"><g fill="none" stroke="#FFFFFF" stroke-width="${iconStroke.pen.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round">${chipIconDef.inner}</g></svg>`,
+          { component: "chip", part: "icon-stroke", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip glyph's OUTLINE pass, white — the prefab tints it to the kit's outline ink and layers it under the fill (the Stroke (echo) child). Padded canvas: the wider pen needs the air." });
+      }
     }
     const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
@@ -6694,8 +6757,12 @@ namespace PatternBreak {
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
-     manifests (JsonUtility defaults) — readers gate on both. */
-  [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; }
+     manifests (JsonUtility defaults) — readers gate on both. Round 27 —
+     the icon's TYPE OUTLINE: strokeFile/strokeInk/strokeS carry the
+     outline pass (its own white glyph on a padded canvas, its ink, its
+     rendered box side); strokeS 0 / strokeFile "" = no outline pass and
+     the seat wears the single flat image exactly as before. */
+  [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -7970,6 +8037,24 @@ namespace PatternBreak {
               // its swap skins re-point to the copy's current bakes
               var artT = ch.Find("Posed art");
               if (artT != null && !string.IsNullOrEmpty(it2.posed)) {
+                /* ── DOUBLED-STAR HEAL (round 27 — owner: "a misplaced
+                   star with stroke"): the posed pixels bake the styled
+                   icon, and a scene built before round 27 left OUR live
+                   Icon child active beside it — the double. Ours beyond
+                   doubt by sprite (the shipped glyph, flat or the layered
+                   seat's Fill); a swapped glyph is the dev's and stays.
+                   Disabled, not destroyed — reversible. */
+                var icHl = ch.Find("Icon");
+                if (icHl != null && icHl.gameObject.activeSelf) {
+                  var rowIcH = LabelRow(m, it2.component);
+                  string icWantH = rowIcH != null && rowIcH.icon != null && !string.IsNullOrEmpty(rowIcH.icon.file) ? root + "/" + rowIcH.icon.file : null;
+                  var icHImg = icHl.GetComponent<Image>();
+                  var icHFill = icHImg == null ? icHl.Find("Fill") : null;
+                  var icHFImg = icHFill != null ? icHFill.GetComponent<Image>() : null;
+                  var icHProbe = icHImg != null ? icHImg : icHFImg;
+                  var icHPath = icHProbe != null && icHProbe.sprite != null ? AssetDatabase.GetAssetPath(icHProbe.sprite).Replace("\\\\", "/") : null;
+                  if (icWantH != null && icHPath == icWantH) { icHl.gameObject.SetActive(false); artFixed++; }
+                }
                 var aImg = artT.GetComponent<Image>();
                 var wantP = S(root + "/" + it2.posed);
                 if (aImg != null && wantP != null && aImg.sprite != wantP) {
@@ -8435,6 +8520,16 @@ namespace PatternBreak {
                    prefab's overlay child would draw a second one on top */
                 var spT = inst.transform.Find("Specular");
                 if (spT != null) spT.gameObject.SetActive(false);
+                /* the posed pixels carry the kit's own STYLED ICON too
+                   (round 27 — the owner's doubled star): only the label
+                   strips from a posed bake, so the chip's star rides the
+                   art with its full app dress. The prefab's live Icon
+                   child would draw a SECOND star beside it — seated by
+                   sprite fractions this shell-box rect no longer matches
+                   (the owner's "misplaced star"). It stands down exactly
+                   like Body and Specular above. */
+                var icPos = inst.transform.Find("Icon");
+                if (icPos != null) icPos.gameObject.SetActive(false);
                 /* WipeShine masks its band with OUR image — a null-sprite,
                    alpha-0 root makes that stencil pass NOTHING and the whole
                    child stack vanishes the moment play starts (owner: "when
@@ -9862,12 +9957,36 @@ namespace PatternBreak {
       if (m.idle.edgeDur > 0.05f) es.run = m.idle.edgeDur;
       es.hoverArmed = m.idle.trigger == "hover";
     }
+    /* one ink layer of the icon seat (round 27): a centered child with
+       its own white sprite and its own tint — Stroke (echo) under Fill,
+       the label's own echo grammar, so the hierarchy reads the same. */
+    static void IconInkLayer(Transform seat, string name, Sprite sp, string ink, float side) {
+      var lg = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      lg.transform.SetParent(seat, false);
+      var li = lg.GetComponent<Image>();
+      li.sprite = sp;
+      li.preserveAspect = true;
+      li.raycastTarget = false;
+      Color lc;
+      if (!string.IsNullOrEmpty(ink) && ColorUtility.TryParseHtmlString(ink, out lc)) li.color = lc;
+      var lr = lg.GetComponent<RectTransform>();
+      lr.anchorMin = lr.anchorMax = new Vector2(0.5f, 0.5f);
+      lr.pivot = new Vector2(0.5f, 0.5f);
+      lr.anchoredPosition = Vector2.zero;
+      lr.sizeDelta = new Vector2(side, side);
+    }
     /* the piece's kit icon (round 26 — the chip's star): the base row
        ships the seat (center offset from the shell center, design px —
        the labelDx discipline, frame-invariant) and its white glyph; the
        prefab wears a swappable tinted Icon child exactly where the app
        drew it. Idempotent: an existing Icon child — ours or the dev's —
-       is never touched. Older manifests ship no seat and change nothing. */
+       is never touched. Older manifests ship no seat and change nothing.
+       Round 27 — the app's type outline dresses the icon too (owner:
+       "missing its styling (green stroke)"): when the row ships the
+       stroke echo, the seat carries two ink layers — Stroke (echo)
+       behind, Fill in front, each tinted its own ink. No stroke on the
+       row, or its sprite missing, and the seat wears the single flat
+       image exactly as before. */
     static void WireIconSeat(GameObject go, string root, PBManifest m, string fam) {
       var rowIc = LabelRow(m, fam);
       if (rowIc == null || rowIc.icon == null || rowIc.icon.s < 2f || string.IsNullOrEmpty(rowIc.icon.file)) return;
@@ -9877,14 +9996,23 @@ namespace PatternBreak {
       var bodyIc = BodyImage(go);
       var bsIc = bodyIc != null ? bodyIc.sprite : null;
       if (bsIc == null || rowIc.shell == null || rowIc.shell.w < 4f || bsIc.rect.width < 2f || bsIc.rect.height < 2f) return;
-      var icGo = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      icGo.transform.SetParent(go.transform, false);
-      var ici = icGo.GetComponent<Image>();
-      ici.sprite = icSp;
-      ici.preserveAspect = true;
-      ici.raycastTarget = false;
-      Color icInk;
-      if (!string.IsNullOrEmpty(rowIc.icon.ink) && ColorUtility.TryParseHtmlString(rowIc.icon.ink, out icInk)) ici.color = icInk;
+      var strokeSp = rowIc.icon.strokeS > 2f && !string.IsNullOrEmpty(rowIc.icon.strokeFile) ? S(root + "/" + rowIc.icon.strokeFile) : null;
+      GameObject icGo;
+      if (strokeSp != null) {
+        icGo = new GameObject("Icon", typeof(RectTransform));
+        icGo.transform.SetParent(go.transform, false);
+        IconInkLayer(icGo.transform, "Stroke (echo)", strokeSp, rowIc.icon.strokeInk, rowIc.icon.strokeS);
+        IconInkLayer(icGo.transform, "Fill", icSp, rowIc.icon.ink, rowIc.icon.s);
+      } else {
+        icGo = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        icGo.transform.SetParent(go.transform, false);
+        var ici = icGo.GetComponent<Image>();
+        ici.sprite = icSp;
+        ici.preserveAspect = true;
+        ici.raycastTarget = false;
+        Color icInk;
+        if (!string.IsNullOrEmpty(rowIc.icon.ink) && ColorUtility.TryParseHtmlString(rowIc.icon.ink, out icInk)) ici.color = icInk;
+      }
       float psIc = m != null && m.pngScale > 0 ? m.pngScale : 2f;
       var icRt = icGo.GetComponent<RectTransform>();
       // anchor on the seat's fraction of the sprite — offsets from the
@@ -13255,11 +13383,30 @@ namespace PatternBreak {
            before the icon seat shipped gain the swappable Icon child in
            place; an existing Icon — ours or the dev's — stays untouched
            (WireIconSeat is idempotent on the name). */
-        bool wantIconAdd = false;
+        bool wantIconAdd = false, wantIconStroke = false;
         {
           var rowIc0 = LabelRow(m, famName);
-          wantIconAdd = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
-            && !string.IsNullOrEmpty(rowIc0.icon.file) && asset.transform.Find("Icon") == null;
+          bool seatIc0 = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
+            && !string.IsNullOrEmpty(rowIc0.icon.file);
+          var icT0 = seatIc0 ? asset.transform.Find("Icon") : null;
+          wantIconAdd = seatIc0 && icT0 == null;
+          /* STROKE upgrade (round 27 — owner: the star arrived "missing
+             its styling (green stroke)"): a fill-only Icon WE built
+             earlier gains the app's outline layers — only when it is
+             provably ours and untouched: childless, a single Image still
+             wearing the shipped glyph at the shipped tint. A swapped
+             sprite, a retint, added children or a missing Image is the
+             dev's icon now and stays theirs. */
+          if (icT0 != null && icT0.childCount == 0 && rowIc0.icon.strokeS > 2f && !string.IsNullOrEmpty(rowIc0.icon.strokeFile)) {
+            var icIm0 = icT0.GetComponent<Image>();
+            if (icIm0 != null && icIm0.sprite != null
+                && AssetDatabase.GetAssetPath(icIm0.sprite).Replace("\\\\", "/") == root + "/" + rowIc0.icon.file) {
+              Color inkC0;
+              wantIconStroke = !string.IsNullOrEmpty(rowIc0.icon.ink) && ColorUtility.TryParseHtmlString(rowIc0.icon.ink, out inkC0)
+                ? Mathf.Abs(icIm0.color.r - inkC0.r) + Mathf.Abs(icIm0.color.g - inkC0.g) + Mathf.Abs(icIm0.color.b - inkC0.b) + Mathf.Abs(icIm0.color.a - inkC0.a) < 0.02f
+                : icIm0.color == Color.white;
+            }
+          }
         }
         /* IDLE SHINE convergence: the wipe/edge components only ever
            arrived at prefab GENERATION — a kit whose shimmer was turned
@@ -13496,7 +13643,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -13601,6 +13748,17 @@ namespace PatternBreak {
           if (wantIconAdd && contents.transform.Find("Icon") == null) {
             WireIconSeat(contents, root, m, famName);
             if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
+          }
+          /* round 27: the pristine fill-only Icon steps down and the
+             layered seat (Stroke (echo) + Fill) takes its place — the
+             ownership check above already cleared this prefab. */
+          if (wantIconStroke) {
+            var icTU = contents.transform.Find("Icon");
+            if (icTU != null && icTU.childCount == 0) {
+              UnityEngine.Object.DestroyImmediate(icTU.gameObject, true);
+              WireIconSeat(contents, root, m, famName);
+              if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
+            }
           }
           if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
             var wsA = contents.AddComponent<WipeShine>();
