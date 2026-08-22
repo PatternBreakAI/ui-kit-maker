@@ -12,7 +12,7 @@ import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
 import type { GenStateName, KitComponentId } from "@/generator/model";
 import { KitPage } from "./KitPage";
-import { LiveArt, shellHit } from "./LiveArt";
+import { LiveArt, shellHit, shellRectHit } from "./LiveArt";
 import { BoardView } from "./Board";
 import { SliceStage } from "./SliceStage";
 import { FirstVisitHints } from "./FirstVisit";
@@ -45,6 +45,14 @@ export function CanvasView() {
   // live interaction: hovering/pressing the hero previews those states ("hot"),
   // while edits keep applying to the selected state.
   const [live, setLive] = useState<"hover" | "pressed" | null>(null);
+  // the master hero's RESTING shell stamp — unioned into play hit-tests so
+  // a posing lift never pulls the hitbox out from under the cursor
+  const heroDefShell = useRef<number[] | null>(null);
+  const heroHit = (e: React.PointerEvent): boolean => {
+    const svgEl = (e.currentTarget as HTMLElement).querySelector("svg");
+    return shellHit(svgEl, e.clientX, e.clientY) ||
+      (live !== null && !!heroDefShell.current && shellRectHit(svgEl, heroDefShell.current, e.clientX, e.clientY));
+  };
 
   /* ── Smart Help — rollover the art, land on the control ──────────
      Help mode turns the hero into an index of its own layers: hovering
@@ -135,7 +143,7 @@ export function CanvasView() {
   const heroSvg = useMemo(
     // the document's idle wipe rides the design canvas too — same clipped
     // glint LiveArt applies on the playing surfaces
-    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
+    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns]
   );
   // Fixed order, selected included — the stack never reshuffles.
@@ -250,6 +258,21 @@ export function CanvasView() {
                 : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play — the pencil brings your controls back`
                 : capOf(displayed)}
             </div>
+            {(() => {
+              /* jitter guard (field notes #3: "the hitbox shifts when
+                 hovering, moving out from under the mouse"): the hover
+                 pose LIFTS the drawn shell, and testing only the current
+                 stamp let the hitbox slide out from under a cursor parked
+                 near the vacated edge — un-hover, drop, re-hover, flicker.
+                 Remember the RESTING pose's shell and union it in, the
+                 same contract LiveArt's play surfaces carry. */
+              if (live === null) {
+                const m = /data-shell="([-\d. ]+)"/.exec(heroSvg);
+                const stamp = m?.[1].split(" ").map(Number);
+                if (stamp?.length === 4 && stamp.every(Number.isFinite)) heroDefShell.current = stamp;
+              }
+              return null;
+            })()}
             {playing && focus ? (
               /* v62: in Play mode the hero IS the live component — sliders
                  drag, toggles flip, bars replay — the same LiveArt engine
@@ -272,15 +295,15 @@ export function CanvasView() {
                 /* the hero's hit zone is the SHELL — the reserved glow pad
                    around it stays pointer-dead (shellHit) */
                 onPointerEnter: (e: React.PointerEvent) => {
-                  if (shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) setLive(e.buttons === 1 ? "pressed" : "hover");
+                  if (heroHit(e)) setLive(e.buttons === 1 ? "pressed" : "hover");
                 },
                 onPointerMove: (e: React.PointerEvent) => {
-                  const inside = shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY);
+                  const inside = heroHit(e);
                   setLive((l) => (l === "pressed" ? l : inside ? (l ?? "hover") : null));
                 },
                 onPointerLeave: () => setLive(null),
                 onPointerDown: (e: React.PointerEvent) => {
-                  if (!shellHit((e.currentTarget as HTMLElement).querySelector("svg"), e.clientX, e.clientY)) return;
+                  if (!heroHit(e)) return;
                   e.stopPropagation();
                   setLive("pressed");
                 },
@@ -340,9 +363,14 @@ export function CanvasView() {
             aria-pressed={!playing} onClick={() => setCanvasMode("design")}>
             <SquarePen size={17} strokeWidth={1.8} />
           </button>
-          <button className={playing ? "on" : ""} title="Play mode — hover and press the button live"
-            aria-pressed={playing} onClick={() => { setCanvasMode("play"); }}>
-            <Play size={17} strokeWidth={1.8} />
+          {/* while alive the control IS the exit — Play becomes Stop and one
+              click lands back in Design (field notes #3: "I didn't realize
+              I was in play mode"; owner-approved) */}
+          <button className={playing ? "on" : ""}
+            title={playing ? "Stop — leave Play and go back to editing" : "Play mode — hover and press the button live"}
+            aria-label={playing ? "Stop play mode" : "Play mode"}
+            aria-pressed={playing} onClick={() => setCanvasMode(playing ? "design" : "play")}>
+            {playing ? <Square size={15} strokeWidth={2} fill="currentColor" /> : <Play size={17} strokeWidth={1.8} />}
           </button>
           {/* Dissect, not "help": the owner named the interaction — the mode
               takes the artwork apart. A question mark undersold it. */}
@@ -454,7 +482,7 @@ export function CanvasView() {
                   only the hero pays per frame — three extra engine renders per
                   tick were most of the drag's main-thread bill, and the cards
                   catch up the instant the pointer rests */}
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
+              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
             </button>
           ))}
         </div>

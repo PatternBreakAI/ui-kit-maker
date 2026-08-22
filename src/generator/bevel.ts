@@ -3994,7 +3994,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
     ${specular && (LO || LSP) ? `<g id="${id}_specular" data-part="specular" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${SP.blend && SP.blend !== "normal" ? ` style="mix-blend-mode:${SP.blend}"` : ""}>${specular}</g>` : ""}
-    ${cfg.idle?.edge && !disabled ? `<path class="kit-edgeshine" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg)}/>` : ""}
+    ${cfg.idle?.edge && !disabled ? `${idleEdgeKfs(cfg, id)}<path class="kit-edgeshine${cfg.idle?.trigger === "hover" ? " kit-edgeshine--armed" : ""}" data-part="idle-edge" d="${faceP}" pathLength="100" fill="none" stroke="#FFFFFF" stroke-width="${(2.6 * K).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0 100" opacity="0"${idleShineStyle(cfg, cfg.idle?.freq || cfg.idle?.edgeDur ? `kedg${id}` : undefined)}/>` : ""}
   </g>
 </g>
 </svg>`;
@@ -4306,16 +4306,39 @@ function inject(track: string, extra: string): string {
    engines that never load gen.css never see it. This helper carries the
    two owner controls onto that path: Frequency (--shine-dur) and Blend
    (mix-blend-mode). */
-function idleShineStyle(cfg: GenConfig): string {
-  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
+function idleShineStyle(cfg: GenConfig, animName?: string): string {
+  const st = [cfg.idle?.freq ? `--shine-dur:${cfg.idle.freq}s` : "", animName ? `animation-name:${animName}` : "", cfg.idle?.blend && cfg.idle.blend !== "normal" ? `mix-blend-mode:${cfg.idle.blend}` : ""].filter(Boolean).join(";");
   return st ? ` style="${st}"` : "";
+}
+
+/* DECOUPLED tempo (field notes #3: "raising Shine frequency also
+   stretches duration — gets crazy at lower timings"): the stylesheet
+   keyframes travel over a fixed FRACTION of the cycle, so the Frequency
+   dial used to stretch the pass itself. When the owner sets a tempo the
+   render bakes per-instance keyframes instead: the pass keeps a constant
+   duration (these defaults; a duration dial can feed `sweep`) and
+   Frequency only sets the rest between passes. Stylesheet defaults stay
+   untouched for kits that never touched the dial. */
+const WIPE_SWEEP_S = 1.0;   // the stylesheet feel: 9% of the 11s default
+const EDGE_SWEEP_S = 2.3;   // 26% of the 9s default
+const sweepFrac = (sweepS: number, periodS: number): number =>
+  Math.max(2, Math.min(90, (sweepS / Math.max(1, periodS)) * 100));
+
+/** Per-instance edge-shine keyframes — the flicker stops scale into the
+ *  computed travel window, the long rest fills the remainder. */
+function idleEdgeKfs(cfg: GenConfig, id: string): string {
+  const freq = cfg.idle?.freq;
+  if (!freq && !cfg.idle?.edgeDur) return "";
+  const f = sweepFrac(cfg.idle?.edgeDur ?? EDGE_SWEEP_S, freq ?? 9) / 26;
+  const p = (n: number) => (n * f).toFixed(1);
+  return `<style>@keyframes kedg${id}{0%{stroke-dasharray:14 86;stroke-dashoffset:0;opacity:0}${p(2)}%{opacity:.95}${p(5)}%{opacity:.5}${p(8)}%{opacity:.9}${p(12)}%{opacity:.4}${p(15)}%{opacity:.85}${p(19)}%{stroke-dasharray:5 95;opacity:.3}${p(23)}%{stroke-dasharray:2 98;opacity:.55}${p(26)}%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}100%{stroke-dasharray:1 99;stroke-dashoffset:-100;opacity:0}}</style>`;
 }
 
 /** Overlay a specular shine band, clipped to the component's face (the
  *  `…fc` clipPath every shell render carries). The band itself is static —
  *  gen.css sweeps `.kit-shine` across the viewBox and reduced-motion turns
  *  it off. Components without a face clip come back unchanged. */
-export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?: "face" | "text" }): string {
+export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?: number; armed?: boolean; blend?: string; clip?: "face" | "text" }): string {
   /* clip:"text" masks the band to the LETTERFORM clipPath (build's textClip)
      instead of the component face — type stamps have an invisible shell, and
      a face-clipped band swept its ghost rectangle (owner: "showing its
@@ -4326,13 +4349,21 @@ export function addShine(svg: string, o?: { dur?: number; blend?: string; clip?:
   if (!fc || !vb) return svg;
   const id = fc[1];
   const [, vx, vy, vw, vh] = vb.map(Number);
-  const bw = vw * 0.3;
+  // the band's width is an owner dial (% of the face); 30 is the classic
+  const bw = vw * Math.max(0.1, Math.min(0.6, (o?.width ?? 30) / 100));
   const grad = `<linearGradient id="${id}shn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.4"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>`;
   /* the document's Frequency and Blend ride as inline style — the dur var
      outranks the page default while the kit page's per-piece DELAY var
      still cascades, so the stagger survives an owner-set tempo */
   const st = [o?.dur ? `--shine-dur:${o.dur}s` : "", o?.blend && o.blend !== "normal" ? `mix-blend-mode:${o.blend}` : ""].filter(Boolean).join(";");
-  const band = `<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="kit-shine" x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
+  /* owner-set tempo → per-instance keyframes so the PASS keeps a constant
+     duration and Frequency only sets the rest between passes (the
+     stylesheet's fixed 9% travel stretched the pass with the cycle —
+     field notes #3: "gets crazy at lower timings") */
+  const frac = o?.dur || o?.sweep ? sweepFrac(o?.sweep ?? WIPE_SWEEP_S, o?.dur ?? 11) : 0;
+  const kfs = frac ? `<style>@keyframes kshn${id}{0%{transform:translateX(0)}${frac.toFixed(1)}%,100%{transform:translateX(175%)}}</style>` : "";
+  const cls = `kit-shine${o?.armed ? " kit-shine--armed" : ""}`;
+  const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="${cls}"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
   return inject(svg.replace("</defs>", grad + "</defs>"), band);
 }
 
@@ -4515,6 +4546,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
+  /* fit-down (the unitplate precedent; owner round: type never crops or
+     overhangs when too big): shrink a run's font size so its estimated
+     width fits the given span. Identity when it already fits — existing
+     renders hold byte-still. */
+  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62) =>
+    fs3 * Math.min(1, avail / Math.max(1, txt.length * fs3 * perChar));
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
@@ -5247,7 +5284,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const armedSecondary = (value ?? 0) >= 0.5;
       const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
-      const title = contentText(opts.label ?? "QUEST COMPLETE", 42 + w / 2, 33 + inset + 34 * k, 38 * k * typeK, { anchor: "middle" });
+      /* the title fits DOWN to the plate (field notes #3: "QUEST COMPLETE"
+         overhung both edges at a big kit type size — and rode into Unity
+         baked that way) */
+      const titleTxt = opts.label ?? "QUEST COMPLETE";
+      const title = contentText(titleTxt, 42 + w / 2, 33 + inset + 34 * k, fitFs(titleTxt, 38 * k * typeK, w - inset * 2 - 24 * k), { anchor: "middle" });
       const wellY = 33 + inset + 68 * k;
       const wellH = h - inset * 2 - 68 * k - 92 * k;
       const well = `<path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/>`;
@@ -6130,7 +6171,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          piece's label (Typography), the eyebrow and objectives are text
          slots (Component content) */
       let inner = `<g data-part="slot-text"><text x="${x0.toFixed(1)}" y="${(33 + inset + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="800" letter-spacing="0.22em" fill="${opts.slots?.eyebrowColor ?? "rgba(255,255,255,0.5)"}" dominant-baseline="central">${esc((opts.slots?.eyebrow ?? "SIDE QUEST").slice(0, 24))}</text></g>` +
-        `<g data-part="label">${contentText(opts.label ?? "THE EMBER VAULT", x0, 33 + inset + 52 * k, 30 * k * typeK)}</g>` +
+        `<g data-part="label">${(() => { const qt = opts.label ?? "THE EMBER VAULT"; return contentText(qt, x0, 33 + inset + 52 * k, fitFs(qt, 30 * k * typeK, xr - x0)); })()}</g>` +
         `<rect x="${x0.toFixed(1)}" y="${(33 + inset + 80 * k).toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
       const objs = [
         { lbl: (opts.slots?.obj1 ?? "Reach the vault gate").slice(0, 40) },
@@ -6149,7 +6190,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotQ = active && (state === "hover" || state === "pressed");
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
-        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, 22 * k * typeK, { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
+        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
@@ -6175,15 +6216,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidB = "db" + UID++;
       const plate = `<defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
         <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
-        ${contentText((opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24), px0 + plateW / 2, py0 + plateH / 2 + 1, 19 * k * typeK, { anchor: "middle" })}`;
+        ${(() => { const sp = (opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24); return contentText(sp, px0 + plateW / 2, py0 + plateH / 2 + 1, fitFs(sp, 19 * k * typeK, plateW - 20 * k), { anchor: "middle" }); })()}`;
       // the body is READING text — it speaks the list face (owner: "list
       // font dropdown isn't working here"); the speaker plate is a title
       // the body's own ink (a color slot) — the speaker plate keeps the
       // kit's type color, which reads on the DARK plate but can fail on
       // the light face (owner: "different dialog text color here")
       const bodyInk = opts.slots?.bodyColor;
-      const line1 = contentText(opts.label ?? "The old road is sealed since the tremor.", 42 + inset + 18 * k, 33 + inset + 46 * k, 23 * k * typeK, { keepCase: true, list: true, ink: bodyInk });
-      const line2 = contentText((opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60), 42 + inset + 18 * k, 33 + inset + 82 * k, 23 * k * typeK, { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
+      const bodyAvail = w - inset * 2 - 36 * k;
+      const l1t = opts.label ?? "The old road is sealed since the tremor.";
+      const l2t = (opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60);
+      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, list: true, ink: bodyInk });
+      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"

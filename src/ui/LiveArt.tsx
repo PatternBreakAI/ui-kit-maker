@@ -86,6 +86,23 @@ export function shellHit(svgEl: SVGSVGElement | null | undefined, clientX: numbe
   return shellRectHit(svgEl, stamp, clientX, clientY, slop);
 }
 
+/** shellHit for RASTER art — a warped stamp or big-glyph <img> whose
+ *  data-shell is stamped in the img's own width/height units. Same
+ *  contract: no usable stamp answers true (whole-box). */
+export function imgShellHit(imgEl: HTMLImageElement | null | undefined, clientX: number, clientY: number, slop = 14): boolean {
+  if (!imgEl) return true;
+  const stamp = imgEl.getAttribute("data-shell")?.split(" ").map(Number);
+  const iw = parseFloat(imgEl.getAttribute("width") ?? "0");
+  if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite) || !iw) return true;
+  const r = imgEl.getBoundingClientRect();
+  if (!r.width) return true;
+  const k = r.width / iw;
+  const x0 = r.left + stamp[0] * k - slop;
+  const y0 = r.top + stamp[1] * k - slop;
+  return clientX >= x0 && clientX <= x0 + stamp[2] * k + slop * 2 &&
+         clientY >= y0 && clientY <= y0 + stamp[3] * k + slop * 2;
+}
+
 /** The mapping half of shellHit, for an EXPLICIT shell rect (viewBox
  *  units) — so a caller can test a REMEMBERED shell against the current
  *  render instead of the one stamped on it. */
@@ -220,7 +237,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       // the document's own idle wipe joins the host-driven shine — same
       // clipped, staggered glint either way; the edge line already rides
       // inside the render (the renderer draws it beside the face layers)
-      return shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? { dur: cfg.idle?.freq, blend: cfg.idle?.blend } : undefined) : out;
+      return shine || cfg.idle?.wipe ? addShine(out, cfg.idle?.wipe ? { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend } : undefined) : out;
     },
     [cfg, kitKey, state, value, shine, stablePad, id === "joystick" ? stick : null, id === "input" ? typed : null] // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -695,6 +712,50 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     } catch { /* not laid out yet */ }
   }, [svg, id]);
 
+  /* Pointer honesty while ALIVE (field notes #3: pieces "invisibly block
+     clicks on others" / "the hitbox shifts when hovering"): the padded
+     canvas must never be the hit surface. When the render carries a shell
+     stamp, the root and svg go pointer-transparent and a PAINT-FREE hit
+     rect — the current shell UNIONED with the remembered default shell,
+     plus the touch slop — is injected into the svg with pointer-events
+     re-enabled on itself alone. Inside the union the browser targets this
+     subtree (handlers fire by bubbling, capture still owns drags); outside
+     it, events fall through to whatever really sits beneath — no relays,
+     the browser's own hit-testing does the work. An OPEN dropdown/badge
+     draws its menu outside the shell, so those keep the whole canvas hot
+     while open, exactly as before; pieces without a stamp keep the old
+     whole-box behavior. */
+  const passThrough = playing && !inert && /data-shell="/.test(svg)
+    && !((id === "dropdown" || id === "badge") && open);
+  useLayoutEffect(() => {
+    if (!playing) return;
+    const svgEl = ref.current?.querySelector("svg");
+    if (!svgEl) return;
+    svgEl.querySelector(":scope > rect[data-hitpad]")?.remove();
+    const stamp = svgEl.getAttribute("data-shell")?.split(" ").map(Number);
+    if (!passThrough || !stamp || stamp.length !== 4 || !stamp.every(Number.isFinite)) {
+      svgEl.style.pointerEvents = "";
+      return;
+    }
+    const d = defShell.current;
+    const x0 = d ? Math.min(stamp[0], d[0]) : stamp[0];
+    const y0 = d ? Math.min(stamp[1], d[1]) : stamp[1];
+    const x1 = d ? Math.max(stamp[0] + stamp[2], d[0] + d[2]) : stamp[0] + stamp[2];
+    const y1 = d ? Math.max(stamp[1] + stamp[3], d[1] + d[3]) : stamp[1] + stamp[3];
+    const vb = svgEl.viewBox?.baseVal;
+    const r = svgEl.getBoundingClientRect();
+    const slop = vb?.width && r.width ? 14 * (vb.width / r.width) : 14;
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("data-hitpad", "1");
+    rect.setAttribute("x", (x0 - slop).toFixed(1));
+    rect.setAttribute("y", (y0 - slop).toFixed(1));
+    rect.setAttribute("width", (x1 - x0 + slop * 2).toFixed(1));
+    rect.setAttribute("height", (y1 - y0 + slop * 2).toFixed(1));
+    rect.setAttribute("fill", "none");
+    rect.setAttribute("pointer-events", "fill");
+    svgEl.appendChild(rect);
+    svgEl.style.pointerEvents = "none";
+  }, [svg, playing, passThrough, live]);
   const anchorStyle = trimStyle ?? (anchorContent && pad > 0 ? { marginLeft: -pad, marginTop: -pad } : undefined);
   // choice controls render pinned to their resting pose — the hover answer
   // is a light-up on the wrapper (brightness), never a re-render that grows
@@ -706,7 +767,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const gestureStyle = id === "slider" || id === "setrow" || id === "segment" || id === "joystick" || id === "weaponwheel" || vtracked ? { touchAction: "none" as const } : undefined;
   return (
     <div ref={ref} className={`${shellFree ? `${className ?? ""} kp-shellfree` : className ?? ""}${burst ? " fx-igniting" : ""}${burst && id === "combo" ? " fx-combopop" : ""}`} title={title}
-      style={{ ...style, ...(width !== undefined ? { width } : {}), ...anchorStyle, ...gestureStyle, ...choiceHover }}
+      style={{ ...style, ...(width !== undefined ? { width } : {}), ...anchorStyle, ...gestureStyle, ...choiceHover,
+        /* explicit both ways: "none" hands the canvas to the hit rect,
+           "auto" reclaims the box even under a pointer-transparent host
+           (the Board's play stage) */
+        ...(playing && !inert ? { pointerEvents: passThrough ? ("none" as const) : ("auto" as const) } : {}) }}
       {...(playing ? playHandlers
         : onDesignClick ? {
             onClick: onDesignClick, role: "button", tabIndex: 0,

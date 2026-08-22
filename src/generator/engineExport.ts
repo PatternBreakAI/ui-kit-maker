@@ -6,12 +6,12 @@
    Labels are LIVE ENGINE TEXT — the manifest carries
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
-import type { GenConfig, KitComponentId, KitDesign, Shape } from "./model";
+import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -21,6 +21,59 @@ import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
+
+/* ── Chromium clips the INTERMEDIATE of a MULTI-function CSS filter chain
+   on SVG groups when the svg rasterizes through an <img> — the sealed-
+   document road every bake takes. Each pass's buffer gets under-computed
+   bounds and the last blur smears that clipped buffer into a SQUARE
+   plateau: the owner's emblem socket, its clock halo cut square at a
+   rect boundary (round 26). Probe bisect: a SINGLE-function filter
+   renders clean; the same chain split into NESTED single-function
+   groups — identical math, a chain IS function composition — renders
+   clean too. Bakes route their svg through this; the app's live DOM is
+   not this path. Only PURE drop-shadow chains of 2+ split (that is all
+   bevel emits as icon fx); anything else passes through untouched.
+   ORDER, probe-convicted: the BIG blur must sit INNERMOST (directly on
+   the raw content — small, well-computed bounds); nesting it outermost
+   re-rasterizes the already-filtered subtree and re-clips the square.
+   So the chain nests f1 outermost .. fN innermost — the reverse of CSS
+   composition, visually identical for additive drop-shadow glows and
+   the one order Chromium renders clean. Extra attributes (opacity)
+   stay on the outermost. */
+const splitFilterChains = (svg: string): string => {
+  const OPEN = '<g style="filter:';
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const at = svg.indexOf(OPEN, i);
+    if (at < 0) { out += svg.slice(i); break; }
+    const q0 = at + OPEN.length;
+    const q1 = svg.indexOf('"', q0);
+    const tagEnd = q1 >= 0 ? svg.indexOf(">", q1) : -1;
+    if (q1 < 0 || tagEnd < 0) { out += svg.slice(i); break; }
+    const chain = svg.slice(q0, q1);
+    const prims = chain.match(/drop-shadow\([^()]*(?:\([^()]*\))?[^()]*\)/g) ?? [];
+    const pure = prims.length >= 2 && prims.join(" ").replace(/\s+/g, " ").trim() === chain.replace(/\s+/g, " ").trim();
+    if (!pure) { out += svg.slice(i, tagEnd + 1); i = tagEnd + 1; continue; }
+    // find this group's balanced close (nested groups counted)
+    let depth = 1, j = tagEnd + 1;
+    while (j < svg.length && depth > 0) {
+      const nextOpen = svg.indexOf("<g", j);
+      const nextClose = svg.indexOf("</g>", j);
+      if (nextClose < 0) { depth = -1; break; }
+      if (nextOpen >= 0 && nextOpen < nextClose) { depth++; j = nextOpen + 2; }
+      else { depth--; j = nextClose + 4; }
+    }
+    if (depth !== 0) { out += svg.slice(i, tagEnd + 1); i = tagEnd + 1; continue; }
+    const extras = svg.slice(q1 + 1, tagEnd); // e.g. ' opacity="0.8"' — outermost keeps it
+    const inner = svg.slice(tagEnd + 1, j - 4);
+    let open = `<g style="filter:${prims[0]}"${extras}>`;
+    for (const pr of prims.slice(1)) open += `<g style="filter:${pr}">`;
+    out += svg.slice(i, at) + open + splitFilterChains(inner) + "</g>".repeat(prims.length);
+    i = j;
+  }
+  return out;
+};
 
 interface AssetMeta {
   file: string; component: string; part: string;
@@ -145,6 +198,19 @@ interface AssetMeta {
   /** The maker's word for label-machinery pieces whose prefab wires a live
    *  label from the manifest (dropdown value, badge count) — verbatim. */
   labelText?: string;
+  /** The piece's KIT ICON beside its words (round 26 — the chip's star):
+   *  center offset from the shell CENTER in design px (frame-invariant,
+   *  the labelDx discipline), rendered size, the shipped white glyph's
+   *  path, and the ink the app dressed it with. The prefab seats a
+   *  swappable tinted Icon child exactly where the app drew it.
+   *  Round 27 — the icon's TYPE OUTLINE (owner: "missing its styling
+   *  (green stroke)"): when the app dresses the glyph with the type's
+   *  outline pass, the pass ships as its own white glyph (strokeFile,
+   *  padded canvas — the wider pen needs the air), its own ink
+   *  (strokeInk) and its rendered box side (strokeS, design px). The
+   *  prefab then layers Stroke (echo) under Fill — the label's own echo
+   *  grammar. Absent on kits whose icon carries no visible outline. */
+  icon?: { dx: number; dy: number; s: number; file: string; ink: string; strokeFile?: string; strokeInk?: string; strokeS?: number } | null;
 }
 
 export interface EngineExportState {
@@ -190,6 +256,10 @@ export interface EngineExportState {
   kitSubs?: Partial<Record<KitComponentId, string>>;
   kitVals?: Partial<Record<KitComponentId, number>>;
   kitSlotVals?: Partial<Record<KitComponentId, Record<string, string>>>;
+  /** Per-component icon overrides (round 26 — the chip's star): the bake
+   *  and the shipped glyph honor them; absent = the stock default, so
+   *  older callers keep the app's own look. */
+  kitIcons?: Partial<Record<KitComponentId, IconDef | "none">>;
 }
 
 /* ── Boards→Scenes: the board document, serialized for the importer ──
@@ -210,6 +280,14 @@ export interface ExportBoardItemData {
   /** zone anchor, Unity convention (ax 0..1 left→right, ay 0..1 bottom→top) */
   ax: number; ay: number;
   anchor: string;
+  /** the VISIBLE ART's footprint inside w/h (board px). Fx bakes — type
+      stamps and big-glyph shadow/glow copies — pad the shipped raster
+      SYMMETRICALLY so the halo never clips, which makes the placed rect
+      bigger than the art: an enabled raycast on it eats the neighbours'
+      clicks (the field's "middle card selected"). Pad per side =
+      (w - artW)/2; the importer insets hit-testing to this box. Absent =
+      the art fills the rect (older exports keep their raycasts as-is). */
+  artW?: number; artH?: number;
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
@@ -246,6 +324,17 @@ export interface ExportBoardItemData {
       tiles from these and re-draws the selection ring itself */
   cells?: number[];
   cellSel?: number | null;
+  /** the copy's CAST SHADOW, baked alone (round 24 — dev field report:
+      "Banner is also missing its shadow"): prefab sprites strip the cast
+      shadow by design ("the engine owns shadows") and posed bakes calm it
+      too, but the BOARD drew it — the scene places this sprite as a
+      separate art sibling BEHIND the piece, grounded (it never rides
+      hover lifts). Absent = this kit/copy casts no shadow. */
+  shadow?: string;
+  /** the shadow sprite's footprint in board px and its center's offset
+      from the SHELL center (board y runs down) — same frame contract as
+      posedW/H/Dx/Dy. */
+  shadowW?: number; shadowH?: number; shadowDx?: number; shadowDy?: number;
   /** a BIG GLYPH item (the owner's board-art drop, bigGlyphs.ts): each
       USED asset ships as ITS OWN PREFAB (owner mandate). `id`/`name` key
       prefab convergence — every instance of the same asset resolves to
@@ -596,6 +685,9 @@ export async function collectExportBoards(st: {
         exItems.push({
           component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          // the pre-filter raster IS the visible art; the canvas pad around
+          // it is the halo's reach — raycasts stop at this box
+          artW: Math.round(((rw / 2) * k) * 10) / 10, artH: Math.round(((rh / 2) * k) * 10) / 10,
           rot: b.rot ?? 0, label: b.stamp.text, value: null, ax, ay,
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
@@ -654,6 +746,9 @@ export async function collectExportBoards(st: {
         exItems.push({
           component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
           w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          // the glyph's own raster is the art box; an fx copy's symmetric
+          // filter pad is (w - artW)/2 per side — raycasts stop at the art
+          artW: Math.round(gl.w * kB * 10) / 10, artH: Math.round(gl.h * kB * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
           anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
           stamp: file,
@@ -812,12 +907,28 @@ export async function collectExportBoards(st: {
          rigged against it: its natural render used label "" (no
          PREF_LABEL row), so EVERY timer copy "diverged". */
       const pureType = idBase === "timerdigits";
+      /* ONE bake sid per board copy — the pose and the shadow bake share
+         it, so re-exports overwrite the same files in place (the stable-
+         bake-names contract above). */
+      let bakeSid: string | null = null;
+      const sidFor = () => (bakeSid ??= sidOf(b));
       try {
         const shellCfg = (src: GenConfig) => {
           const c2 = JSON.parse(JSON.stringify(src)) as GenConfig;
           c2.shadow.opacity = 0;
           c2.candy.contact.opacity = 0;
           for (const s2 of Object.values(c2.states)) s2.glow = 0;
+          /* forks are pickDesign SNAPSHOTS that outrank the master field
+             by field (designFor) — a designed hover carries its OWN
+             shadow/contact copy, and calming only the master let the fork
+             bake them back into its posed state skin (round 24, the
+             claim-button lesson; doubled worse now that the grounded
+             shadow ships as its own art sibling). */
+          for (const f2 of Object.values(c2.stateDesigns)) {
+            if (!f2) continue;
+            if (f2.shadow) f2.shadow = { ...f2.shadow, opacity: 0 };
+            if (f2.candy?.contact) f2.candy = { ...f2.candy, contact: { ...f2.candy.contact, opacity: 0 } };
+          }
           return c2;
         };
         const shellBoxOf = (s: string): [number, number, number, number] | null => {
@@ -832,7 +943,13 @@ export async function collectExportBoards(st: {
         /* the family sprite bakes at the MAKER'S word now (labeled-geometry,
            round 7) — the divergence test must measure against the same word
            or every custom-worded copy would falsely re-pose */
-        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: null });
+        /* the family sprite bakes the CHIP'S ICON now too (round 26) — the
+           baseline must wear the same star or every stock-proportioned
+           chip copy reads star+gap wider than "natural" and falsely poses
+           (round 27, the owner's scene chip: a posed bake it never needed,
+           wearing a second star). Chip only — every other family's sprite
+           bakes iconless and its baseline must keep measuring that. */
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: idBase === "chip" ? resolveKitIcon(st.kitIcons?.[idBase], undefined) : null });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -880,6 +997,8 @@ export async function collectExportBoards(st: {
             const fdP = fontByName(cfgP.type.font);
             ps2 = await inlineKitFace(ps2, cfgP.type.font, fdP.name === cfgP.type.font ? fdP.css ?? null : null);
           }
+          // icon-fx chains split for the raster road (round 26 — the square halo)
+          ps2 = splitFilterChains(ps2);
           /* crop to the DRAWN box, not the shell box — the extrusion (and
              bloom) reach past the shell, and a shell-tight crop cut the
              extrusion's bottom off in the scene (owner: "bottom extrusion
@@ -924,7 +1043,7 @@ export async function collectExportBoards(st: {
             if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
-          const poseSid = sidOf(b);
+          const poseSid = sidFor();
           const fileP = `boardstamps/${slug}-p${poseSid}.png`;
           stampFiles.push({ file: fileP, bytes: pbp });
           posed = fileP;
@@ -950,7 +1069,8 @@ export async function collectExportBoards(st: {
                 const fdS = fontByName(cfgP.type.font);
                 ssv = await inlineKitFace(ssv, cfgP.type.font, fdS.name === cfgP.type.font ? fdS.css ?? null : null);
               }
-              ssv = ssv
+              // icon-fx chains split for the raster road (round 26)
+              ssv = splitFilterChains(ssv)
                 .replace(/viewBox="[^"]+"/, `viewBox="${cropBox[0].toFixed(1)} ${cropBox[1].toFixed(1)} ${cropBox[2].toFixed(1)} ${cropBox[3].toFixed(1)}"`)
                 .replace(/width="[\d.]+"/, `width="${cropBox[2].toFixed(1)}"`)
                 .replace(/height="[\d.]+"/, `height="${cropBox[3].toFixed(1)}"`);
@@ -962,6 +1082,71 @@ export async function collectExportBoards(st: {
           }
         }
       } catch { /* the sliced prefab remains the honest fallback */ }
+      /* ── the CAST SHADOW travels (round 24 — dev field report on the
+         mobile board: "Banner is also missing its shadow"). Prefab
+         sprites strip the cast shadow by design ("the engine owns
+         shadows") and the posed bakes calm it the same way — but the
+         BOARD drew it, and a scene that claims to be the board's truth
+         must ground its pieces identically. The shadow bakes ALONE:
+         transparency zeros hide shell/face/content, state glows are
+         zeroed, and the extrusion group — the one layer the transparency
+         dials can't reach — is DOM-hidden. Extrusion DEPTH stays in the
+         config, so the shadow keeps the exact drop the extruded piece
+         cast it at. Cropped to its own ink, shipped per copy
+         (boardstamps/<slug>-sh<sid>.png), placed by the importer as a
+         grounded art sibling behind the piece. */
+      let shadowMeta: { file: string; w: number; h: number; dx: number; dy: number } | null = null;
+      try {
+        /* PURE TYPE never bakes a shadow (round 26 — the owner's second
+           "0:56"): the transparency dials govern SHELL pieces, so a
+           display-type piece kept its full letterforms and the "shadow"
+           shipped as a complete second readout — rasterized without the
+           kit face (this path never inlines it), i.e. system glyphs, the
+           owner's "plain wrong font… just an image". The timer's text
+           shadow travels INSIDE the live label's dress instead — same
+           discipline as its round-14 pose skip. */
+        if (!pureType && (cfgP.shadow?.opacity ?? 0) > 0.5 && shm2 && vbm2) {
+          const cSh = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
+          cSh.stateDesigns = {}; // the bake renders "default" — forks never speak here
+          cSh.transparency = { frame: 0, interior: 0, content: 0 };
+          for (const s3 of Object.values(cSh.states)) s3.glow = 0;
+          if (cSh.idle) cSh.idle = { ...cSh.idle, wipe: false, edge: false };
+          let shSvg = renderKit(cSh, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          const domSh = new DOMParser().parseFromString(shSvg, "image/svg+xml");
+          for (const nSh of Array.from(domSh.querySelectorAll('[data-part="extrusion"], [data-part="outer-glow"]'))) nSh.setAttribute("display", "none");
+          shSvg = new XMLSerializer().serializeToString(domSh.documentElement)
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          const shShellM = (/data-shell="([-\d. ]+)"/.exec(shSvg) ?? /data-shell0="([-\d. ]+)"/.exec(shSvg))?.[1].split(" ").map(Number);
+          const vbSh = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(shSvg);
+          // threshold 4: a soft 4-sigma falloff must complete, not clip
+          const abSh = await svgAlphaBox(shSvg, 2, 4).catch(() => null);
+          if (abSh && vbSh && shShellM && shShellM.length === 4 && shShellM[2] > 4 && shShellM[3] > 4) {
+            const padS = 2;
+            const sx0 = +vbSh[1] + abSh.x0 / 2 - padS, sy0 = +vbSh[2] + abSh.y0 / 2 - padS;
+            const sx1 = +vbSh[1] + (abSh.x1 + 1) / 2 + padS, sy1 = +vbSh[2] + (abSh.y1 + 1) / 2 + padS;
+            const boxS: [number, number, number, number] = [sx0, sy0, sx1 - sx0, sy1 - sy0];
+            shSvg = shSvg
+              .replace(/viewBox="[^"]+"/, `viewBox="${boxS[0].toFixed(1)} ${boxS[1].toFixed(1)} ${boxS[2].toFixed(1)} ${boxS[3].toFixed(1)}"`)
+              .replace(/width="[\d.]+"/, `width="${boxS[2].toFixed(1)}"`)
+              .replace(/height="[\d.]+"/, `height="${boxS[3].toFixed(1)}"`);
+            const kxSh = pw / shShellM[2], kySh = ph / shShellM[3];
+            const { bytes: shBytes } = await svgToPngBytes(shSvg, 2);
+            const fileSh = `boardstamps/${slug}-sh${sidFor()}.png`;
+            stampFiles.push({ file: fileSh, bytes: shBytes });
+            shadowMeta = {
+              file: fileSh,
+              w: Math.round(boxS[2] * kxSh * 10) / 10, h: Math.round(boxS[3] * kySh * 10) / 10,
+              dx: Math.round((boxS[0] + boxS[2] / 2 - (shShellM[0] + shShellM[2] / 2)) * kxSh * 10) / 10,
+              dy: Math.round((boxS[1] + boxS[3] / 2 - (shShellM[1] + shShellM[3] / 2)) * kySh * 10) / 10,
+            };
+          }
+        }
+      } catch { /* a piece without its shadow still places — grounding is decor */ }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
@@ -1007,6 +1192,12 @@ export async function collectExportBoards(st: {
           ...(posedStates.hover ? { posedHover: posedStates.hover } : {}),
           ...(posedStates.pressed ? { posedPressed: posedStates.pressed } : {}),
           ...(posedStates.disabled ? { posedDisabled: posedStates.disabled } : {}),
+        } : {}),
+        /* the grounded cast shadow — its own art sibling in the scene */
+        ...(shadowMeta ? {
+          shadow: shadowMeta.file,
+          shadowW: shadowMeta.w, shadowH: shadowMeta.h,
+          shadowDx: shadowMeta.dx, shadowDy: shadowMeta.dy,
         } : {}),
         ov: b.ov ?? null,
         // flip provenance — the silhouette THIS copy rendered with
@@ -1342,7 +1533,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     c.candy.contact.opacity = 0;
     for (const s of Object.values(c.states)) s.glow = 0;
     mutate?.(c);
-    return renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...opts });
+    // icon-fx chains split for the raster road (round 26 — the square halo)
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...opts }));
   };
   const flat = (c: GenConfig) => {
     c.candy.gloss.on = false;
@@ -1400,7 +1592,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     calm(c);
     for (const s of Object.values(c.states)) s.glow = 0;
     for (const f of Object.values(c.stateDesigns)) if (f) calm(f);
-    return renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts });
+    // icon-fx chains split for the raster road (round 26 — the square halo)
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts }));
   };
 
   /* ── the piece's CONTENT-TEXT dress (bevel's contentText): fill mode,
@@ -1692,7 +1885,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; crop: boolean; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
   /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
      naming convention for everything makes some assets hard to find' —
      Unity search showed sixteen identical "base" rows). Every filename now
@@ -1707,7 +1900,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (NAME_EXEMPT.has(dir) || file.startsWith(dir + "-")) return path;
     return `${dir}/${dir}-${file}`;
   };
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop = false, group?: string): Promise<void> => {
+  /* crop: false = ship the svg canvas verbatim; true = tight alpha crop
+     (margin 4); a NUMBER = tight crop with that margin — fx-carrying
+     bakes hand the crop enough air that their halo's tail reaches true
+     zero inside the file (round 27 — the socket's square glow edge). */
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
     pngQueue.push({ path: famPath(path), svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
@@ -1795,7 +1992,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
-        grouped.get(qi) ?? (q.crop ? await svgToPngBytesTight(q.svg, PNG_SCALE) : await svgToPngBytes(q.svg, PNG_SCALE));
+        grouped.get(qi) ?? (q.crop
+          ? await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)
+          : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
       /* shell-in-sprite, for shell-true scene sizing: the svg states its
          shell box in viewBox units; the crop box places it inside the
@@ -2037,7 +2236,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        still holds, so the emission below keeps the field). Unity agent:
        treat empty labelText as a real value — never heal it to stock. */
     const word = PREF_LABEL[n.id] !== undefined ? (st.kitNoText?.[n.id] ? "" : (st.kitLabels?.[n.id] ?? PREF_LABEL[n.id])) : undefined;
-    const wordOpts = word !== undefined ? { ...rowOpts, label: word } : rowOpts;
+    /* the CHIP'S STAR travels (round 26 — owner: the app's "NEW ☆" arrived
+       in Unity as bare NEW). The chip is the one NINE family that draws a
+       default glyph beside its words (STOCK_ICONS.star; per-kit override
+       and "none" both honored) — passing the resolved icon through lets
+       the bake carry the icon NODE the way it carries the label: ghosted
+       invisible by content transparency, TRUE geometry (the plate widens
+       by star + gap exactly as the app draws it, prefW included). Every
+       other family keeps its iconless bake byte-stable. */
+    const chipIconOv = n.id === "chip" ? st.kitIcons?.chip : undefined;
+    const chipIconDef = n.id === "chip" ? (chipIconOv === "none" ? null : (chipIconOv ?? STOCK_ICONS.star)) : null;
+    const iconOpt = n.id === "chip" ? { icon: resolveKitIcon(chipIconOv, undefined) } : {};
+    const wordOpts = word !== undefined ? { ...rowOpts, ...iconOpt, label: word } : { ...rowOpts, ...iconOpt };
     const ghost = word !== undefined ? (m?: (c: GenConfig) => void) => (c: GenConfig) => { m?.(c); c.transparency.content = 0; } : (m?: (c: GenConfig) => void) => m;
     const fullSvg = shell(n.id, wordOpts, ghost(slim));
     const slice = sliceOf(n.id, n.h);
@@ -2075,6 +2285,70 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         };
       }
     }
+    /* the icon SEAT parses off the ghosted bake exactly like the label's:
+       iconGroup's own translate(x y) scale(s) is the glyph's top-left +
+       scale in the same rise/lift frame as the label <text>, so offsets
+       from the shell0 CENTER are frame-invariant. Size recovers through
+       the def's own viewBox (s maps it to a square of that side). The ink
+       is the FILL pass's color attribute — the LAST color= in the icon
+       group (an outline-inheriting icon renders its outline copy first);
+       a gradient url() falls back to the type's top fill. */
+    let iconMeta: AssetMeta["icon"] = null;
+    /* round 27 — the icon's outline pass, when the app draws one: pen
+       width in the glyph's own viewBox units and the canvas pad the wider
+       pen needs (both feed the shipped stroke glyph below) */
+    let iconStroke: { pen: number; pad: number } | null = null;
+    if (chipIconDef) {
+      const icAt = fullSvg.indexOf('data-part="icon"');
+      /* bound the parse at the next data-part so gloss/specular/idle-edge
+         attributes never masquerade as icon passes */
+      const icEndAt = icAt >= 0 ? fullSvg.indexOf("data-part=", icAt + 16) : -1;
+      const icSlice = icAt >= 0 ? fullSvg.slice(icAt, icEndAt < 0 ? undefined : icEndAt) : "";
+      const icM = icAt >= 0 ? /transform="translate\((-?[\d.]+) (-?[\d.]+)\) scale\(([\d.]+)/.exec(icSlice) : null;
+      const s0i = (/data-shell0="([-\d. ]+)"/.exec(fullSvg) ?? /data-shell="([-\d. ]+)"/.exec(fullSvg))?.[1].split(" ").map(Number);
+      if (icM && s0i && s0i.length === 4) {
+        const vbIc = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
+        const vbSideIc = Math.max(vbIc[2] || 24, vbIc[3] || 24);
+        const sIc = +icM[3] * vbSideIc;
+        const inks = [...icSlice.matchAll(/color="([^"]+)"/g)].map((m9) => m9[1]);
+        let ink = inks.length ? inks[inks.length - 1] : "#FFFFFF";
+        if (ink.startsWith("url(")) ink = pieceCfg(n.id).type.fill;
+        /* the TYPE OUTLINE dresses the icon too (round 27 — owner field
+           test: "missing its styling (green stroke)"). An inheriting icon
+           is TWO iconGroup passes — a wider outline-ink pen UNDER the
+           fill-ink pen (bevel's inheritTypo road; visible only on
+           stroke-mode defs, a fill-mode underlay hides behind its fill).
+           Two color= attributes in the bake = the app drew the pass; its
+           ink is the FIRST color=, its pen the FIRST stroke-width= (both
+           in the glyph's own viewBox units — iconGroup writes them inside
+           the transformed group). Parsed off the render: app truth,
+           never re-derived. */
+        let strokeExtra: { strokeFile: string; strokeInk: string; strokeS: number } | null = null;
+        if (chipIconDef.mode === "stroke" && inks.length >= 2) {
+          let sInk = inks[0];
+          if (sInk.startsWith("url(")) sInk = pieceCfg(n.id).type.outline.color;
+          const penM = /stroke-width="([\d.]+)"/.exec(icSlice);
+          const penIc = penM ? +penM[1] : 0;
+          if (penIc > 0.01) {
+            // half the pen hangs outside the path; a hair more so round
+            // joins never kiss the canvas edge
+            const padIc = penIc / 2 + vbSideIc / 48;
+            iconStroke = { pen: penIc, pad: padIc };
+            strokeExtra = {
+              strokeFile: "assets/chip/chip-icon-stroke.png", strokeInk: sInk,
+              strokeS: Math.round(sIc * ((vbSideIc + 2 * padIc) / vbSideIc) * 10) / 10,
+            };
+          }
+        }
+        iconMeta = {
+          dx: Math.round((+icM[1] + sIc / 2 - (s0i[0] + s0i[2] / 2)) * 10) / 10,
+          dy: Math.round((+icM[2] + sIc / 2 - (s0i[1] + s0i[3] / 2)) * 10) / 10,
+          // the shipped path wears the self-describing family name (famPath)
+          s: Math.round(sIc * 10) / 10, file: "assets/chip/chip-icon.png", ink,
+          ...(strokeExtra ?? {}),
+        };
+      }
+    }
     /* the LIST ROW's words (owner: text wasn't appearing on the bones
        panels): title + subtitle arrive as live seats measured off a render
        with the maker's words and the SAME toggles as this bake (portrait,
@@ -2083,7 +2357,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ? textSeatsOf("datarow", fullSvg, { row: { avatar: false, progress: false, action: false } }, ghost(slim))
       : {};
     await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...rowSeats }, true, swap ? n.family : undefined);
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...(iconMeta ? { icon: iconMeta } : {}), ...rowSeats }, true, swap ? n.family : undefined);
+    /* the glyph itself ships white and tintable beside the kit — custom
+       library picks included, so the prefab never hunts a stock file */
+    if (iconMeta && chipIconDef) {
+      const strokeIc = chipIconDef.mode === "stroke";
+      const vbIc2 = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
+      const swIc = (((pieceCfg(n.id).icon?.strokeWidth ?? 24) / 10) * (Math.max(vbIc2[2] || 24, vbIc2[3] || 24) / 24)).toFixed(2);
+      await addPng("chip/icon.png", `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="${chipIconDef.viewBox}"><g fill="${strokeIc ? "none" : "#FFFFFF"}" stroke="${strokeIc ? "#FFFFFF" : "none"}" stroke-width="${swIc}" stroke-linecap="round" stroke-linejoin="round">${chipIconDef.inner}</g></svg>`,
+        { component: "chip", part: "icon", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip's own glyph (the star beside NEW), white — the prefab tints it to the kit's icon ink and seats it beside the live words. Swap it, retint it, or delete it." });
+      /* round 27 — the OUTLINE pass ships as its own white glyph: same
+         geometry, the app's wider pen, on a canvas padded so the pen
+         never clips (half the stroke hangs outside the path). The prefab
+         tints it to the outline ink and layers it UNDER the fill —
+         Stroke (echo), the label's own echo grammar. */
+      if (iconStroke) {
+        const vxS = vbIc2[0] || 0, vyS = vbIc2[1] || 0, vwS = vbIc2[2] || 24, vhS = vbIc2[3] || 24;
+        const sideS = Math.max(vwS, vhS);
+        const padS = iconStroke.pad;
+        const pxS = Math.max(16, Math.round(96 * (sideS + 2 * padS) / sideS));
+        await addPng("chip/icon-stroke.png", `<svg xmlns="http://www.w3.org/2000/svg" width="${pxS}" height="${pxS}" viewBox="${(vxS - padS).toFixed(3)} ${(vyS - padS).toFixed(3)} ${(vwS + 2 * padS).toFixed(3)} ${(vhS + 2 * padS).toFixed(3)}"><g fill="none" stroke="#FFFFFF" stroke-width="${iconStroke.pen.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round">${chipIconDef.inner}</g></svg>`,
+          { component: "chip", part: "icon-stroke", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip glyph's OUTLINE pass, white — the prefab tints it to the kit's outline ink and layers it under the fill (the Stroke (echo) child). Padded canvas: the wider pen needs the air." });
+      }
+    }
     const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
@@ -2091,8 +2387,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        generic color-tint transitions never match the kit's own recipes */
     if (swap) {
       const SWAP: Record<string, string> = { hover: "Highlighted (and Selected)", pressed: "Pressed", disabled: "Disabled" };
+      /* the ghost must reach INSIDE the state forks too (round 24 — dev
+         field notes #3, the claim button: "the text doesn't update across
+         states"). A designed state is a pickDesign SNAPSHOT carrying its
+         own transparency copy, and designFor reads the fork's field over
+         the master's — so ghosting only the master baked the stock WORD
+         into every forked state's sprite: at rest the labeless base wore
+         the live CLAIM, on hover the swap flashed the baked PLAY under
+         it. Every state bake now ghosts the master AND each fork. */
+      const ghostStates = (c: GenConfig) => {
+        c.transparency.content = 0;
+        for (const fG of Object.values(c.stateDesigns)) if (fG?.transparency) fG.transparency = { ...fG.transparency, content: 0 };
+      };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? (c) => { c.transparency.content = 0; } : undefined),
+        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? ghostStates : undefined),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
@@ -2138,7 +2446,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
-  await addPng("emblembar/socket.png", shell("emblembar", { overlay: "dock", icon: undefined }, slim), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, true);
+  /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
+     twice: "I'm still able to see the edges of the glow"). The socket is
+     the one family bake that ships a VISIBLE icon, and its icon-fx glow
+     is a fixed drop-shadow chain (5px + 12px radii; emboss ~3, shadow ~5)
+     that reaches ~(5+12)*3 ≈ 51px past the ink at any piece size — but
+     shell() zeroes the state glows, so glowPadOf gave this bake a 0px
+     canvas pad and the halo rendered INTO the canvas edge: the round-26
+     chain split let the falloff compute, and the wall it then hit was the
+     canvas (the owner's hard left/top edge — the bottom completed only
+     because the extrusion headroom happens to live there). padSvg reserves
+     the halo's full reach on every side; the tight crop then hugs the
+     REAL falloff, and the widened crop margin (24 raster px past the
+     alpha-8 tail) carries it to true zero inside the file. */
+  await addPng("emblembar/socket.png", padSvg(shell("emblembar", { overlay: "dock", icon: undefined }, slim), 64), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, 24);
   /* the settings controls, COMPONENT-TRUE (owner: "let's get those
      settings screens working this round") — the REAL slider and toggle
      pieces split into rig layers: track, full-run mercury, candy knob.
@@ -2812,7 +3133,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // idle motion — the kit's resting-state animations (owner spec);
       // the importer wires removable rigs only when these say so
       idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
-        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal" },
+        freq: st.cfg.idle?.freq ?? 0, blend: st.cfg.idle?.blend ?? "normal",
+        /* the pass dials (owner round, field notes #3): per-option pass
+           DURATION (freq stays the rest between passes — decoupled
+           tempo), wipe band WIDTH (% of the face), and the On-hover ARM.
+           0/"" = dial untouched; the importer keeps the runtime defaults
+           so a kit that never opened these dials ships today's motion. */
+        wipeDur: st.cfg.idle?.wipeDur ?? 0, edgeDur: st.cfg.idle?.edgeDur ?? 0,
+        wipeWidth: st.cfg.idle?.wipeWidth ?? 0, trigger: st.cfg.idle?.trigger ?? "" },
       /* per-piece idle forks (owner: shine on/off per component) — keyed by
          sprite family; -1 follows the kit toggle, 0/1 pin off/on */
       idleForks: Object.entries(st.kitDesigns ?? {}).flatMap(([cid, kd]) => {
@@ -3669,6 +3997,8 @@ namespace PatternBreak {
     public float restLift, hoverLift, pressedLift;
     [Tooltip("Travel baked INSIDE the state sprite on swap builds (the app's press-pose extrusion collapse), Unity up-positive. The halo adds it so the glow rides the sunk art; the root never moves by it — the sprite already did.")]
     public float hoverSink, pressedSink;
+    [Tooltip("The piece height the pad, lifts and sinks were authored at. When set, resizing the piece scales them proportionally — same convention as Hero Label. 0 = off (fixed px, the pre-round-24 behavior).")]
+    public float authoredHeight;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
 
@@ -3676,6 +4006,10 @@ namespace PatternBreak {
     Image glowImg;
     Selectable sel;
     bool over, down;
+    /* the pointer's live word, read-only — the idle shines' hover arm
+       (WipeShine/EdgeShine, round 25) borrows THIS instead of adding a
+       second pointer listener; hover keeps exactly one ear per piece. */
+    public bool PointerOver { get { return over; } }
     float glowNow, glowTo, liftNow, liftTo, baseY;
     float lastWroteY = float.NaN;
     bool settling;
@@ -3766,6 +4100,7 @@ namespace PatternBreak {
     void MirrorHost() {
       if (glowRt == null || rt == null) return;
       var slide = BakedSink() ? new Vector2(0f, liftNow) : Vector2.zero;
+      var pad = glowPad * SizeK(); // the aura overhang follows the piece's LIVE size
       if (artRt != null) {
         var tgt = artRt;
         if (glowRt.anchorMin != tgt.anchorMin) glowRt.anchorMin = tgt.anchorMin;
@@ -3774,7 +4109,7 @@ namespace PatternBreak {
         if (glowRt.localScale != tgt.localScale) glowRt.localScale = tgt.localScale;
         // the aura sprite is the piece plus a fixed overhang, so the pad is
         // an ADDITIVE offset — correct whether the piece is fixed or stretched
-        var size = tgt.sizeDelta + glowPad * 2f;
+        var size = tgt.sizeDelta + pad * 2f;
         if (glowRt.sizeDelta != size) glowRt.sizeDelta = size;
         // the art child's own frame is static — the posed state skins bake
         // the sink inside their pixels, so the halo adds the slide itself
@@ -3789,7 +4124,7 @@ namespace PatternBreak {
       var half = new Vector2(0.5f, 0.5f);
       if (glowRt.pivot != half) glowRt.pivot = half;
       if (glowRt.localScale != Vector3.one) glowRt.localScale = Vector3.one;
-      var pad2 = glowPad * 2f;
+      var pad2 = pad * 2f;
       if (glowRt.sizeDelta != pad2) glowRt.sizeDelta = pad2;
       if (glowRt.anchoredPosition != slide) glowRt.anchoredPosition = slide;
     }
@@ -3801,6 +4136,17 @@ namespace PatternBreak {
       if (sel == null || sel.transition != Selectable.Transition.SpriteSwap) return false;
       var ss = sel.spriteState;
       return ss.pressedSprite != null || ss.highlightedSprite != null;
+    }
+    /* px-per-authored-px (round 24 — dev field report: "reducing the
+       primary button in size throws off the wipe and specular"): the pad,
+       lifts and sinks were measured at the bake's own size, and fixed px
+       on a resized rect read oversized on a shrunk piece, cramped on a
+       grown one. Scaling by localScale was always fine (everything rides
+       it); this handles the RECT road. 0 = legacy fixed px. */
+    float SizeK() {
+      if (authoredHeight < 0.5f || rt == null) return 1f;
+      float h = rt.rect.height;
+      return h > 1f ? h / authoredHeight : 1f;
     }
     void LateUpdate() {
       if (rt == null) return;
@@ -3835,10 +4181,13 @@ namespace PatternBreak {
          fields carry that baked extra; builds without swap sprites leave
          them dormant — their root motion is the lift alone, as always. */
       bool baked = BakedSink();
-      if (sel != null && !sel.IsInteractable()) { lift = restLift; return disabledGlow; }
-      if (down) { lift = pressedLift + (baked ? pressedSink : 0f); return pressedGlow; }
-      if (over) { lift = hoverLift + (baked ? hoverSink : 0f); return hoverGlow; }
-      lift = restLift; return restGlow;
+      // lifts and sinks were authored at the bake's size — a resized rect
+      // travels proportionally (SizeK; 1 when authoredHeight is unset)
+      float kSz = SizeK();
+      if (sel != null && !sel.IsInteractable()) { lift = restLift * kSz; return disabledGlow; }
+      if (down) { lift = (pressedLift + (baked ? pressedSink : 0f)) * kSz; return pressedGlow; }
+      if (over) { lift = (hoverLift + (baked ? hoverSink : 0f)) * kSz; return hoverGlow; }
+      lift = restLift * kSz; return restGlow;
     }
     void Retarget() { glowTo = Target(out liftTo); settling = true; }
     public void OnPointerEnter(PointerEventData e) { over = true; Retarget(); MarkPointer(); }
@@ -3929,13 +4278,18 @@ namespace PatternBreak {
      piece is untouched. */
   [AddComponentMenu("UI Kit Maker/Wipe Shine")]
   public class WipeShine : MonoBehaviour {
-    [Tooltip("Seconds from one sweep to the next.")] public float period = 9f;
-    [Tooltip("Seconds one sweep takes.")] public float sweep = 1.4f;
+    [Tooltip("Seconds from one sweep to the next — the rest between passes; the pass itself keeps its own clock (Sweep).")] public float period = 9f;
+    [Tooltip("Seconds one sweep takes — the app's pass-duration dial. Independent of Period: tempo and travel are decoupled.")] public float sweep = 1.4f;
     [Range(0f, 1f)] public float strength = 0.38f;
     public float tilt = -14f;
+    [Tooltip("Band width as a fraction of the piece's width — the app's Width dial (10-60%).")]
+    [Range(0.1f, 0.6f)] public float width = 0.3f;
+    [Tooltip("Armed: the sweep waits for the pointer and a pass fires on pointer-enter — the app's On-hover trigger. State FX on this piece or an ancestor is the ear (one pointer listener per piece); a piece without one rests.")]
+    public bool hoverArmed;
     [Tooltip("Optional CORE-ALPHA stencil — set it and the band clips to THIS sprite's alpha instead of the host's. Type stamps ship one (same canvas, no glow/shadow halo) so the shine hugs the letterforms.")]
     public Sprite maskSprite;
     float phase; RectTransform rt, bandRt, maskRt; Image band, maskImg, hostImg;
+    StateFx armFx; bool armOver, armParked;
     static Sprite bandSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
@@ -3960,8 +4314,14 @@ namespace PatternBreak {
         bandSprite = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(.5f, .5f));
         bandSprite.hideFlags = HideFlags.DontSave;
       }
-      var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+      /* DECOR, not layout (round 24 — the halo's round-two lesson, extended
+         to every runtime-spawned child): the LayoutElement exists in the
+         constructor so no HORIZONTAL/vertical/grid group — on the piece or
+         above it — ever measures the stencil as a cell, even for the one
+         queued rebuild between parenting and a later exemption. */
+      var mGo = new GameObject(name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image), typeof(Mask));
       mGo.hideFlags = HideFlags.DontSave;
+      mGo.GetComponent<LayoutElement>().ignoreLayout = true;
       maskImg = mGo.GetComponent<Image>();
       if (maskSprite != null) {
         // the core stencil bakes on the SAME canvas as the host's art —
@@ -3989,6 +4349,9 @@ namespace PatternBreak {
       bandRt.localRotation = Quaternion.Euler(0f, 0f, tilt);
       // deterministic stagger, so a menu of pieces never flashes in unison
       phase = -(Mathf.Abs(name.GetHashCode()) % 1000) / 1000f * period;
+      // the hover arm hears the pointer through State FX — no second listener
+      armFx = GetComponentInParent<StateFx>();
+      armOver = false; armParked = hoverArmed;
     }
     void OnDisable() {
       if (maskRt != null) Destroy(maskRt.gameObject);
@@ -4000,13 +4363,34 @@ namespace PatternBreak {
       // mid-sweep keeps the band on the pressed pixels. A pinned core
       // stencil (maskSprite) stays put by design.
       if (maskSprite == null && hostImg != null && maskImg.sprite != hostImg.sprite) maskImg.sprite = hostImg.sprite;
+      /* the pass keeps its OWN clock: sweep never stretches with period
+         (the app's decoupled tempo), it only caps at 90% of the cycle so
+         a rest always survives — the app's own clamp */
+      float sw = Mathf.Max(0.05f, Mathf.Min(sweep, period * 0.9f));
+      if (hoverArmed) {
+        /* armed: the sweep waits under the pointer. Pointer-enter fires a
+           pass at once (State FX's own hover flag — no polling, no second
+           listener), a pass in flight always completes, a held pointer
+           keeps the period, and a piece with no State FX to hear rests. */
+        bool overNow = armFx != null && armFx.PointerOver;
+        if (overNow && !armOver) { phase = 0f; armParked = false; }
+        armOver = overNow;
+        if (armParked) { if (band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      }
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
-      if (t < 0f || t > sweep) { if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f); return; }
+      if (t < 0f || t > sw) {
+        if (hoverArmed && !armOver) armParked = true; // pass done, pointer gone — rest until the next enter
+        if (band.canvasRenderer.GetAlpha() != 0f || band.color.a != 0f) band.color = new Color(1f, 1f, 1f, 0f);
+        return;
+      }
       float w = rt.rect.width, h = rt.rect.height;
-      bandRt.sizeDelta = new Vector2(w * 0.3f, h * 2.4f);
-      float u = t / sweep;
-      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-w * 0.75f, w * 0.75f, u), 0f);
+      float bw = Mathf.Clamp(width, 0.1f, 0.6f);
+      bandRt.sizeDelta = new Vector2(w * bw, h * 2.4f);
+      float u = t / sw;
+      // travel clears both edges at ANY width (0.3 -> the classic 0.75)
+      float travel = w * (0.6f + bw * 0.5f);
+      bandRt.anchoredPosition = new Vector2(Mathf.Lerp(-travel, travel, u), 0f);
       band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
     }
   }
@@ -4019,12 +4403,15 @@ namespace PatternBreak {
      with a plain index lerp. Procedural radial glow, no assets. */
   [AddComponentMenu("UI Kit Maker/Edge Shine")]
   public class EdgeShine : MonoBehaviour {
-    [Tooltip("Seconds from one run to the next.")] public float period = 11f;
-    [Tooltip("Seconds one lap takes.")] public float run = 2.6f;
+    [Tooltip("Seconds from one run to the next — the rest between laps; the lap keeps its own clock (Run).")] public float period = 11f;
+    [Tooltip("Seconds one lap takes — the app's pass-duration dial. Independent of Period: tempo and travel are decoupled.")] public float run = 2.6f;
     public Color color = Color.white;
+    [Tooltip("Armed: the lap waits for the pointer and fires on pointer-enter — the app's On-hover trigger. State FX on this piece or an ancestor is the ear (one pointer listener per piece); a piece without one rests.")]
+    public bool hoverArmed;
     [Tooltip("Outline stations as image fractions (x0,y0,x1,y1..., y down) — from kit-manifest.")]
     public float[] outline;
     float phase; int seed; RectTransform rt, sparkRt; Image spark;
+    StateFx armFx; bool armOver, armParked;
     static Sprite glowSprite;
     void OnEnable() {
       rt = GetComponent<RectTransform>();
@@ -4041,8 +4428,10 @@ namespace PatternBreak {
         glowSprite = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
         glowSprite.hideFlags = HideFlags.DontSave;
       }
-      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      // decor, not layout — same atomic exemption as the wipe stencil
+      var go = new GameObject(name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       go.hideFlags = HideFlags.DontSave;
+      go.GetComponent<LayoutElement>().ignoreLayout = true;
       spark = go.GetComponent<Image>();
       spark.sprite = glowSprite; spark.raycastTarget = false; spark.color = new Color(color.r, color.g, color.b, 0f);
       sparkRt = (RectTransform)go.transform;
@@ -4050,14 +4439,31 @@ namespace PatternBreak {
       sparkRt.anchorMin = sparkRt.anchorMax = new Vector2(0f, 1f); // image fractions are y-down from the top-left
       seed = Mathf.Abs(name.GetHashCode());
       phase = -(seed % 1000) / 1000f * period;
+      // the hover arm hears the pointer through State FX — no second listener
+      armFx = GetComponentInParent<StateFx>();
+      armOver = false; armParked = hoverArmed;
     }
     void OnDisable() { if (spark != null) Destroy(spark.gameObject); spark = null; }
     void Update() {
       if (spark == null || rt == null || outline == null || outline.Length < 8) return;
+      // the lap keeps its own clock — period only sets the rest (see WipeShine)
+      float rn = Mathf.Max(0.05f, Mathf.Min(run, period * 0.9f));
+      if (hoverArmed) {
+        // armed: same contract as the wipe — enter fires, a lap in
+        // flight completes, no State FX to hear = the spark rests
+        bool overNow = armFx != null && armFx.PointerOver;
+        if (overNow && !armOver) { phase = 0f; armParked = false; }
+        armOver = overNow;
+        if (armParked) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
+      }
       phase += Time.unscaledDeltaTime;
       float t = phase % period;
-      if (t < 0f || t > run) { if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f); return; }
-      float u = t / run;
+      if (t < 0f || t > rn) {
+        if (hoverArmed && !armOver) armParked = true; // lap done, pointer gone — rest until the next enter
+        if (spark.color.a != 0f) spark.color = new Color(color.r, color.g, color.b, 0f);
+        return;
+      }
+      float u = t / rn;
       int n = outline.Length / 2;
       float fi = u * n;
       int i0 = ((int)fi) % n, i1 = (i0 + 1) % n;
@@ -4078,6 +4484,7 @@ namespace PatternBreak {
 `;
 
 const HERO_LABEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
 #endif
@@ -4285,12 +4692,16 @@ namespace PatternBreak {
         var prior = transform.Find("Glint stars (echo)");
         var go = prior != null ? prior.gameObject : null;
         if (go == null) {
-          go = new GameObject("Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer));
+          go = new GameObject("Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement));
           go.hideFlags = HideFlags.DontSave;
           go.transform.SetParent(transform, false);
         }
         starsEcho = go.GetComponent<CanvasRenderer>();
         if (starsEcho == null) starsEcho = go.AddComponent<CanvasRenderer>();
+        // decor, not layout — a group on the label must never count echoes
+        var leS = go.GetComponent<LayoutElement>();
+        if (leS == null) leS = go.AddComponent<LayoutElement>();
+        leS.ignoreLayout = true;
       }
       var b = t.textBounds;
       if (float.IsInfinity(b.size.x) || b.size.x < 0.01f) { starsEcho.gameObject.SetActive(false); return; }
@@ -4327,7 +4738,7 @@ namespace PatternBreak {
         var prior = transform.Find(echoName);
         var go = prior != null ? prior.gameObject : null;
         if (go == null) {
-          go = new GameObject(echoName, typeof(RectTransform), typeof(CanvasRenderer));
+          go = new GameObject(echoName, typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement));
           // never saved — rebuilt on load, in scenes and prefabs alike,
           // so an echo can never go stale on disk
           go.hideFlags = HideFlags.DontSave;
@@ -4335,6 +4746,10 @@ namespace PatternBreak {
         }
         slot = go.GetComponent<CanvasRenderer>();
         if (slot == null) slot = go.AddComponent<CanvasRenderer>();
+        // decor, not layout — a group on the label must never count echoes
+        var leE = go.GetComponent<LayoutElement>();
+        if (leE == null) leE = go.AddComponent<LayoutElement>();
+        leE.ignoreLayout = true;
       }
       if (!slot.gameObject.activeSelf) slot.gameObject.SetActive(true);
       /* the echo wears the text's exact frame, so the shared mesh lands
@@ -4395,8 +4810,15 @@ namespace PatternBreak {
     /* the label RIDES THE FACE: a state that sinks or lifts the face
        moves the label by the same delta (design px, positive = down) */
     public float hoverShift; public float pressedShift;
+    [Tooltip("The piece height the shifts were authored at. When set, resizing the piece scales the press travel proportionally — same convention as Hero Label. 0 = off (fixed px).")]
+    public float authoredHeight;
     bool over, down; Vector2 basePos; bool basePosSet;
     RectTransform Mover() { return shiftTarget != null ? shiftTarget : (label != null ? label.rectTransform : null); }
+    float SizeK() {
+      if (authoredHeight < 0.5f) return 1f;
+      var rt = transform as RectTransform;
+      return rt != null && rt.rect.height > 1f ? rt.rect.height / authoredHeight : 1f;
+    }
     void OnEnable() { over = false; down = false; ApplyCurrent(); }
     void OnDisable() { over = false; down = false; }
     public void OnPointerEnter(PointerEventData e) { over = true; ApplyCurrent(); }
@@ -4408,7 +4830,9 @@ namespace PatternBreak {
       if (mover != null) {
         // base captured lazily at first apply — no scene-load-order games
         if (!basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
-        float shift = down ? pressedShift : over ? hoverShift : 0f;
+        // the press travel was authored at the bake's size — a resized
+        // rect travels proportionally (SizeK; 1 when authoredHeight unset)
+        float shift = (down ? pressedShift : over ? hoverShift : 0f) * SizeK();
         mover.anchoredPosition = basePos + new Vector2(0f, -shift);
       }
       if (label == null || !inkOn) return;
@@ -4978,8 +5402,10 @@ namespace PatternBreak {
     }
     void Build() {
       if (spark == null) return;
-      var fGo = new GameObject("Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      // decor, not layout — a group on the piece must never measure the burst
+      var fGo = new GameObject("Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
       fGo.hideFlags = HideFlags.DontSave;
+      fGo.GetComponent<LayoutElement>().ignoreLayout = true;
       var fRt = fGo.GetComponent<RectTransform>();
       fRt.SetParent(rt, false);
       fRt.anchorMin = Vector2.zero; fRt.anchorMax = Vector2.one;
@@ -4991,8 +5417,9 @@ namespace PatternBreak {
       parts = new RectTransform[Mathf.Max(0, particles)];
       dirs = new Vector2[parts.Length];
       for (int i = 0; i < parts.Length; i++) {
-        var p = new GameObject("Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        var p = new GameObject("Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
         p.hideFlags = HideFlags.DontSave;
+        p.GetComponent<LayoutElement>().ignoreLayout = true;
         var pr = p.GetComponent<RectTransform>();
         pr.SetParent(rt, false);
         float s = 6f + ((i * 13) % 8);
@@ -5726,6 +6153,31 @@ prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
 instances of it (a copy's shadow/glow dials arrive baked into that
 copy's own sprite).
 ` : ""}
+### What arrives LIVE and what arrives as baked art
+
+Board pieces travel one of three roads, and the Hierarchy names each
+honestly so you know what you can grab:
+
+- **Live prefab instances** — buttons, tabs, chips, the bars and
+  gauges, toggles, the timer, the season track, the header banner:
+  real wired components with states, glow and live editable words.
+  They read as their prefab names (ButtonPrimary, SeasonTrack, …) and
+  behave exactly like a fresh drag-in from **${root}/Prefabs/**.
+- **Posed copies** — a copy whose board pose diverges from the
+  family's natural shape keeps the full rig (Button, state swaps, live
+  label) but wears its own exact pixels on a **Posed art** child.
+  Still fully functional; only the face is this copy's baked render.
+- **Baked art** — pieces that don't ship a prefab family yet (flip
+  clock, star tray, dialogue box, page dots and friends), type stamps,
+  and fx-dialed big-glyph copies arrive as pictures of exactly what
+  the board showed. They read as **"<Piece> (baked)"**, **"Stamp —
+  <text>"** or **"<Glyph> (fx)"**, and a piece's grounded drop shadow
+  arrives as its own **"<Piece> Shadow (art)"** sibling. Baked art is
+  final pixels — no states, no live words; restyle those pieces on
+  uikitmaker.com and re-export, and the scene re-points itself.
+
+More pieces move from the baked column to the live column as their
+prefab rigs land — the Hierarchy suffixes are the always-current truth.
 
 > **Buttons ignoring the mouse in your own scene?** The usual suspects
 > are a duplicate EventSystem (keep exactly one) or an EventSystem
@@ -6289,7 +6741,12 @@ namespace PatternBreak {
   /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
      px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
   [Serializable] class PBTrack { public float x; public float w; }
-  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; }
+  /* the pass dials (owner round, field notes #3): wipeDur/edgeDur =
+     seconds one PASS takes (freq only sets the rest between passes),
+     wipeWidth = the band as % of the face, trigger "hover" arms the
+     motion to fire under the pointer. 0/"" = dial untouched — the
+     runtime defaults stand, so old manifests behave exactly as before. */
+  [Serializable] class PBIdle { public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; }
   [Serializable] class PBIdleFork { public string family; public int wipe; public int edge; }
   /* ink = the digits' type recipe (a PBStyle subset: fill, outline, glow,
      shadow — the app's content-text treatment, not the label material's);
@@ -6316,7 +6773,16 @@ namespace PatternBreak {
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
   [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  /* the piece's kit icon beside its words (round 26 — the chip's star):
+     center offset from the shell center in design px, rendered size, the
+     shipped white glyph, and the app's ink. s 0 / file "" on older
+     manifests (JsonUtility defaults) — readers gate on both. Round 27 —
+     the icon's TYPE OUTLINE: strokeFile/strokeInk/strokeS carry the
+     outline pass (its own white glyph on a padded canvas, its ink, its
+     rendered box side); strokeS 0 / strokeFile "" = no outline pass and
+     the seat wears the single flat image exactly as before. */
+  [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -6360,7 +6826,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -6445,41 +6911,88 @@ namespace PatternBreak {
        clicked object — or the scene's first Canvas — centered and
        undo-able. With several kits in one project the first manifest
        found wins, the same rule Kit Status lives by. */
-    static void PlaceKitPrefab(string fam, MenuCommand cmd) {
+    /* Entries name EXACT PREFAB FILES — the scene builder's own names.
+       The first cut resolved through NiceName(family), which is right for
+       the plain families but wrong for every rig with its own file name:
+       "Toggle" hunted Toggle.prefab (the rig is Switch.prefab) and
+       "Progress Bar" hunted Progress.prefab (ProgressBar.prefab) — both
+       menu entries could only ever show the not-imported-yet dialog.
+       MULTI-KIT (round 24): with several kits imported, a GenericMenu at
+       the mouse lists every kit-manifest by its kit name and places from
+       the chosen kit's folder — first-found stops silently deciding. */
+    static void PlaceKitPrefab(string pfName, MenuCommand cmd) { PlaceKitPrefab(pfName, null, cmd); }
+    static void PlaceKitPrefab(string pfName, string altName, MenuCommand cmd) {
       var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
       if (manifests.Length == 0) {
         EditorUtility.DisplayDialog("UI Kit Maker", "No kit in this project yet — drop the UIKitMaker folder from the export zip into Assets/ first.", "OK");
         return;
       }
-      var root = Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/");
-      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+      var ctxGo = cmd != null ? cmd.context as GameObject : null;
+      if (manifests.Length == 1) {
+        PlaceFromRoot(Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(manifests[0])).Replace("\\\\", "/"), pfName, altName, ctxGo);
+        return;
+      }
+      var pick = new GenericMenu();
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        string kitLabel = Path.GetFileName(root);
+        try {
+          var mm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath));
+          if (mm != null && !string.IsNullOrEmpty(mm.kit)) kitLabel = mm.kit;
+        } catch (Exception) { }
+        var rootHeld = root;
+        pick.AddItem(new GUIContent(kitLabel), false, () => PlaceFromRoot(rootHeld, pfName, altName, ctxGo));
+      }
+      pick.ShowAsContext();
+    }
+    static void PlaceFromRoot(string root, string pfName, string altName, GameObject ctxGo) {
+      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+      // graceful fallback (e.g. CheckboxToggle -> Checkbox on older zips)
+      if (pf == null && !string.IsNullOrEmpty(altName)) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + altName + ".prefab");
       if (pf == null) {
-        EditorUtility.DisplayDialog("UI Kit Maker", NiceName(fam) + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
+        EditorUtility.DisplayDialog("UI Kit Maker", pfName + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
         return;
       }
       var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
       Transform parent = null;
-      var ctxGo = cmd != null ? cmd.context as GameObject : null;
       if (ctxGo != null) parent = ctxGo.transform;
       if (parent == null) { var cv = UnityEngine.Object.FindFirstObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
       if (parent != null) go.transform.SetParent(parent, false);
       var prt = go.transform as RectTransform;
       if (prt != null) prt.anchoredPosition = Vector2.zero;
-      Undo.RegisterCreatedObjectUndo(go, "Place " + NiceName(fam));
+      Undo.RegisterCreatedObjectUndo(go, "Place " + pf.name);
       Selection.activeGameObject = go;
     }
-    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("button-primary", c); }
-    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("button-secondary", c); }
-    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("button-small", c); }
-    [MenuItem("GameObject/UI Kit Maker/Chip", false, 13)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("chip", c); }
-    [MenuItem("GameObject/UI Kit Maker/Tab", false, 14)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("tab", c); }
-    [MenuItem("GameObject/UI Kit Maker/Slider", false, 15)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("slider", c); }
-    [MenuItem("GameObject/UI Kit Maker/Toggle", false, 16)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("toggle", c); }
-    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 17)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("checkbox", c); }
-    [MenuItem("GameObject/UI Kit Maker/Radio", false, 18)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("radio", c); }
-    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 19)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("progress", c); }
-    [MenuItem("GameObject/UI Kit Maker/Panel", false, 20)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("panel", c); }
-    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 21)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("input", c); }
+    // buttons & chips (priority gaps >= 11 draw the separators)
+    [MenuItem("GameObject/UI Kit Maker/Button (Primary)", false, 10)] static void PBGoBtnP(MenuCommand c) { PlaceKitPrefab("ButtonPrimary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Secondary)", false, 11)] static void PBGoBtnS(MenuCommand c) { PlaceKitPrefab("ButtonSecondary", c); }
+    [MenuItem("GameObject/UI Kit Maker/Button (Small)", false, 12)] static void PBGoBtnSm(MenuCommand c) { PlaceKitPrefab("ButtonSmall", c); }
+    [MenuItem("GameObject/UI Kit Maker/Icon Button", false, 13)] static void PBGoIconB(MenuCommand c) { PlaceKitPrefab("Iconbtn", c); }
+    [MenuItem("GameObject/UI Kit Maker/Chip", false, 14)] static void PBGoChip(MenuCommand c) { PlaceKitPrefab("Chip", c); }
+    [MenuItem("GameObject/UI Kit Maker/Tab", false, 15)] static void PBGoTab(MenuCommand c) { PlaceKitPrefab("Tab", c); }
+    [MenuItem("GameObject/UI Kit Maker/Back Tab", false, 16)] static void PBGoTabB(MenuCommand c) { PlaceKitPrefab("TabBack", c); }
+    [MenuItem("GameObject/UI Kit Maker/Badge", false, 17)] static void PBGoBadge(MenuCommand c) { PlaceKitPrefab("Badge", c); }
+    // controls
+    [MenuItem("GameObject/UI Kit Maker/Slider", false, 30)] static void PBGoSlider(MenuCommand c) { PlaceKitPrefab("Slider", c); }
+    [MenuItem("GameObject/UI Kit Maker/Switch (Toggle)", false, 31)] static void PBGoToggle(MenuCommand c) { PlaceKitPrefab("Switch", c); }
+    [MenuItem("GameObject/UI Kit Maker/Checkbox", false, 32)] static void PBGoCheck(MenuCommand c) { PlaceKitPrefab("CheckboxToggle", "Checkbox", c); }
+    [MenuItem("GameObject/UI Kit Maker/Radio", false, 33)] static void PBGoRadio(MenuCommand c) { PlaceKitPrefab("RadioToggle", "Radio", c); }
+    [MenuItem("GameObject/UI Kit Maker/Progress Bar", false, 34)] static void PBGoProg(MenuCommand c) { PlaceKitPrefab("ProgressBar", c); }
+    [MenuItem("GameObject/UI Kit Maker/Input Field", false, 35)] static void PBGoInput(MenuCommand c) { PlaceKitPrefab("Input", c); }
+    [MenuItem("GameObject/UI Kit Maker/Dropdown", false, 36)] static void PBGoDrop(MenuCommand c) { PlaceKitPrefab("Dropdown", c); }
+    [MenuItem("GameObject/UI Kit Maker/Joystick", false, 37)] static void PBGoStick(MenuCommand c) { PlaceKitPrefab("Joystick", c); }
+    // panels & frames
+    [MenuItem("GameObject/UI Kit Maker/Panel", false, 50)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("Panel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Header Banner", false, 51)] static void PBGoHeader(MenuCommand c) { PlaceKitPrefab("HeaderBanner", c); }
+    [MenuItem("GameObject/UI Kit Maker/List Row", false, 52)] static void PBGoRow(MenuCommand c) { PlaceKitPrefab("ListRow", c); }
+    [MenuItem("GameObject/UI Kit Maker/Item Slot", false, 53)] static void PBGoSlot(MenuCommand c) { PlaceKitPrefab("ItemSlot", c); }
+    [MenuItem("GameObject/UI Kit Maker/Scroll View", false, 54)] static void PBGoScroll(MenuCommand c) { PlaceKitPrefab("ScrollView", c); }
+    // showpieces
+    [MenuItem("GameObject/UI Kit Maker/Hero Label (Title)", false, 70)] static void PBGoHero(MenuCommand c) { PlaceKitPrefab("HeroLabel", c); }
+    [MenuItem("GameObject/UI Kit Maker/Timer", false, 71)] static void PBGoTimer(MenuCommand c) { PlaceKitPrefab("Timer", c); }
+    [MenuItem("GameObject/UI Kit Maker/Season Track", false, 72)] static void PBGoSeason(MenuCommand c) { PlaceKitPrefab("SeasonTrack", c); }
+    [MenuItem("GameObject/UI Kit Maker/Health Globe", false, 73)] static void PBGoGlobe(MenuCommand c) { PlaceKitPrefab("HealthGlobe", c); }
 
     [MenuItem("Tools/PatternBreak/Kit Status")]
     public static void KitStatus() {
@@ -6612,17 +7125,34 @@ namespace PatternBreak {
       } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
       var dirty = iset as UnityEngine.Object;
       if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
+      SyncRouteMenuCheck(); // the checkmark follows the toggle — stamped OUTSIDE any menu-layout pass
       Debug.Log(routed
         ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
         : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
     }
     [MenuItem(RouteInputMenu, true)]
     static bool RouteEditorInputCheck() {
-      var iset = InputSettingsLive();
-      var prop = EditorBehaviorProp(iset);
-      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(iset, prop));
-      return prop != null;
+      /* VALIDATE ONLY — zero side effects (round 26, owner Console).
+         Menu.SetChecked used to live here, but a validator runs while
+         the editor is MID-MENU-LAYOUT (an IMGUI pass), and poking the
+         menu tree from inside it is exactly the re-entrancy IMGUI
+         forbids — the owner's Console filled with anonymous
+         "EndLayoutGroup: BeginLayoutGroup must be called first" errors.
+         The checkmark is stamped OUTSIDE GUI instead: once per domain
+         reload (ArmRouteMenuCheck) and on every toggle. If the setting
+         is flipped on the Project Settings page directly, the checkmark
+         catches up on the next reload — a stale tick is cosmetic; the
+         layout spam was not. */
+      return EditorBehaviorProp(InputSettingsLive()) != null;
     }
+    /* the ONE place the menu checkmark is written — never from a
+       validator, never from any OnGUI-adjacent context */
+    static void SyncRouteMenuCheck() {
+      var isetC = InputSettingsLive();
+      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(isetC, EditorBehaviorProp(isetC)));
+    }
+    [InitializeOnLoadMethod]
+    static void ArmRouteMenuCheck() { EditorApplication.delayCall += SyncRouteMenuCheck; }
     /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
        the runtime keeps only StateFx.editorPointerSeen. One Console line,
        once per Play, only when the gate actually bites: kit pieces
@@ -6903,7 +7433,7 @@ namespace PatternBreak {
           if (bR.items == null) continue;
           foreach (var itR in bR.items) {
             if (itR == null) continue;
-            foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled })
+            foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled, itR.shadow })
               if (!string.IsNullOrEmpty(fR)) stampsInUse.Add(fR);
             /* a USED big glyph keeps BOTH its files: this copy's sprite
                (stamp already carries it, belt-and-braces here) and the
@@ -7011,7 +7541,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); HealScrollView(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -7407,6 +7937,15 @@ namespace PatternBreak {
     static void HealBoardWords(string root, PBManifest m) {
 #if UNITY_2023_2_OR_NEWER
       if (m == null || m.boards == null) return;
+      /* every cast-shadow bake the CURRENT export still owns — a kept
+         scene's "<Piece> Shadow (art)" sibling pointing at a bake this
+         set disowns is stale art (round 26: the pure-type timer's bogus
+         glyph-ink "shadow", cut app-side) and is culled below. */
+      var shadowsInUse = new HashSet<string>();
+      foreach (var bdSh in m.boards) {
+        if (bdSh == null || bdSh.items == null) continue;
+        foreach (var itSh in bdSh.items) if (itSh != null && !string.IsNullOrEmpty(itSh.shadow)) shadowsInUse.Add(itSh.shadow);
+      }
       foreach (var bd in m.boards) {
         var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
         if (!File.Exists(scenePath) || bd.items == null || bd.items.Length == 0) continue;
@@ -7421,6 +7960,7 @@ namespace PatternBreak {
         int healedW = 0, artFixed = 0;
         try {
           var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
+          var staleShadows = new List<GameObject>(); // round 26 — culled after the walk
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
              key that survives any file rename. A piece the maker moved in
@@ -7431,6 +7971,19 @@ namespace PatternBreak {
             foreach (Transform ch in canvasC.transform) {
               var crt = ch as RectTransform;
               if (crt == null) continue;
+              /* ── STALE SHADOW CULL (round 26 — the second "0:56"): a
+                 shadow sibling sits OFFSET from its piece's seat, so it
+                 never matches an item below. Ours beyond doubt — builder
+                 name, boardstamps sprite — and the manifest no longer
+                 shipping that bake means it must go. Deferred: destroying
+                 mid-walk mutates the child list (the ghost-swap rule). */
+              if (ch.name.EndsWith(" Shadow (art)")) {
+                var shImgC = ch.GetComponent<Image>();
+                var shPathC = shImgC != null && shImgC.sprite != null ? AssetDatabase.GetAssetPath(shImgC.sprite).Replace("\\\\", "/") : null;
+                if (shPathC != null && shPathC.StartsWith(root + "/boardstamps/") && !shadowsInUse.Contains(shPathC.Substring(root.Length + 1)))
+                  staleShadows.Add(ch.gameObject);
+                continue;
+              }
               PBBoardItem it2 = null;
               foreach (var it in bd.items) {
                 if (it == null) continue;
@@ -7464,6 +8017,7 @@ namespace PatternBreak {
                 if (bigImgH != null && wantBig != null && bigImgH.sprite != wantBig) {
                   bigImgH.sprite = wantBig;
                   crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  ArtRaycastPad(bigImgH, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
                 continue;
@@ -7482,12 +8036,13 @@ namespace PatternBreak {
                 if (img2 != null && wantSp != null && img2.sprite != wantSp) {
                   img2.sprite = wantSp;
                   crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  ArtRaycastPad(img2, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
                 // the stamp's wipe follows the kit dial and its CORE mask
                 var wsH = ch.GetComponent<WipeShine>();
                 if (m.idle != null && m.idle.wipe == 1) {
-                  if (wsH == null) { wsH = ch.gameObject.AddComponent<WipeShine>(); if (m.idle.freq > 0.5f) wsH.period = m.idle.freq; artFixed++; }
+                  if (wsH == null) { wsH = ch.gameObject.AddComponent<WipeShine>(); TuneWipe(wsH, m); artFixed++; }
                   if (!string.IsNullOrEmpty(it2.stampMask)) {
                     var mk = S(root + "/" + it2.stampMask);
                     if (mk != null && wsH.maskSprite != mk) { wsH.maskSprite = mk; artFixed++; }
@@ -7501,6 +8056,24 @@ namespace PatternBreak {
               // its swap skins re-point to the copy's current bakes
               var artT = ch.Find("Posed art");
               if (artT != null && !string.IsNullOrEmpty(it2.posed)) {
+                /* ── DOUBLED-STAR HEAL (round 27 — owner: "a misplaced
+                   star with stroke"): the posed pixels bake the styled
+                   icon, and a scene built before round 27 left OUR live
+                   Icon child active beside it — the double. Ours beyond
+                   doubt by sprite (the shipped glyph, flat or the layered
+                   seat's Fill); a swapped glyph is the dev's and stays.
+                   Disabled, not destroyed — reversible. */
+                var icHl = ch.Find("Icon");
+                if (icHl != null && icHl.gameObject.activeSelf) {
+                  var rowIcH = LabelRow(m, it2.component);
+                  string icWantH = rowIcH != null && rowIcH.icon != null && !string.IsNullOrEmpty(rowIcH.icon.file) ? root + "/" + rowIcH.icon.file : null;
+                  var icHImg = icHl.GetComponent<Image>();
+                  var icHFill = icHImg == null ? icHl.Find("Fill") : null;
+                  var icHFImg = icHFill != null ? icHFill.GetComponent<Image>() : null;
+                  var icHProbe = icHImg != null ? icHImg : icHFImg;
+                  var icHPath = icHProbe != null && icHProbe.sprite != null ? AssetDatabase.GetAssetPath(icHProbe.sprite).Replace("\\\\", "/") : null;
+                  if (icWantH != null && icHPath == icWantH) { icHl.gameObject.SetActive(false); artFixed++; }
+                }
                 var aImg = artT.GetComponent<Image>();
                 var wantP = S(root + "/" + it2.posed);
                 if (aImg != null && wantP != null && aImg.sprite != wantP) {
@@ -7587,13 +8160,19 @@ namespace PatternBreak {
             UnityEngine.Object.DestroyImmediate(oldT.gameObject);
             ghostFixed++;
           }
-          if (healedW > 0 || artFixed > 0 || ghostFixed > 0) {
+          /* the deferred stale-shadow cull (round 26): builder-named,
+             boardstamps-sprited, manifest-disowned — see the walk above */
+          int shadowCut = 0;
+          foreach (var stSh in staleShadows) { UnityEngine.Object.DestroyImmediate(stSh); shadowCut++; }
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
               + (healedW > 0 ? healedW + " pinned word(s) restored" : "")
               + ((artFixed > 0 || healedW > 0) && ghostFixed > 0 ? ", " : "")
-              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "");
+              + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "")
+              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0) && shadowCut > 0 ? ", " : "")
+              + (shadowCut > 0 ? shadowCut + " stale shadow bake(s) removed (this export no longer ships them)" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
                 Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
@@ -7731,6 +8310,8 @@ namespace PatternBreak {
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
             rt.localScale = Vector3.one;
+            // an fx copy's rect is the PADDED bake — hits stop at the art box
+            ArtRaycastPad(inst.GetComponent<Image>(), it);
           } else if (!string.IsNullOrEmpty(it.stamp)) {
 #if UNITY_2023_2_OR_NEWER
             /* NUMERIC type stamps go LIVE (owner: "750 should be animating
@@ -7771,6 +8352,9 @@ namespace PatternBreak {
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(it.w, it.h);
+            // the bake pads past the art (shadow/glow) — the inset is
+            // ready the moment anyone turns this raycast on
+            ArtRaycastPad(simg, it);
             /* the kit's idle wipe rides baked pieces too — the band clips
                to the baked pixels' own alpha (WipeShine's stencil twin),
                so on a type stamp the shine travels the LETTERFORMS, the
@@ -7779,7 +8363,7 @@ namespace PatternBreak {
                Wipe off = a resting stamp, exactly like the app. */
             if (m.idle != null && m.idle.wipe == 1) {
               var wsSt = inst.AddComponent<WipeShine>();
-              if (m.idle.freq > 0.5f) wsSt.period = m.idle.freq;
+              TuneWipe(wsSt, m);
               // the CORE-ALPHA companion, when the export shipped one —
               // the band hugs the letterforms, not the glow/shadow halo
               if (!string.IsNullOrEmpty(it.stampMask)) wsSt.maskSprite = S(root + "/" + it.stampMask);
@@ -7955,6 +8539,16 @@ namespace PatternBreak {
                    prefab's overlay child would draw a second one on top */
                 var spT = inst.transform.Find("Specular");
                 if (spT != null) spT.gameObject.SetActive(false);
+                /* the posed pixels carry the kit's own STYLED ICON too
+                   (round 27 — the owner's doubled star): only the label
+                   strips from a posed bake, so the chip's star rides the
+                   art with its full app dress. The prefab's live Icon
+                   child would draw a SECOND star beside it — seated by
+                   sprite fractions this shell-box rect no longer matches
+                   (the owner's "misplaced star"). It stands down exactly
+                   like Body and Specular above. */
+                var icPos = inst.transform.Find("Icon");
+                if (icPos != null) icPos.gameObject.SetActive(false);
                 /* WipeShine masks its band with OUR image — a null-sprite,
                    alpha-0 root makes that stencil pass NOTHING and the whole
                    child stack vanishes the moment play starts (owner: "when
@@ -7966,6 +8560,9 @@ namespace PatternBreak {
                   ws0.enabled = false;
                   var ws1 = artGo.AddComponent<WipeShine>();
                   ws1.period = ws0.period; ws1.sweep = ws0.sweep; ws1.strength = ws0.strength; ws1.tilt = ws0.tilt;
+                  // the round-25 dials ride the transplant too — the arm
+                  // still hears the ROOT's StateFx (GetComponentInParent)
+                  ws1.width = ws0.width; ws1.hoverArmed = ws0.hoverArmed;
                 }
               } // psp is non-null here by construction — the missing case
                 // took the live-sizing fallthrough above (round 20)
@@ -8073,6 +8670,43 @@ namespace PatternBreak {
             ShellRaycastPad(inst, it.component, m);
           }
           if (Mathf.Abs(it.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
+          /* ── the copy's CAST SHADOW (round 24, dev field report: "Banner
+             is also missing its shadow"): prefab sprites strip the cast
+             shadow by design and posed bakes calm it — the export now
+             ships it as its own baked sprite, and the scene grounds the
+             piece with it: an art sibling right BEHIND the piece in draw
+             order, never a child, so hover lifts and press sinks move the
+             piece while the shadow stays grounded — exactly the app's
+             layering. Missing pixels (first-drop import race) arm the
+             incomplete-scene rebuild like every other bake. ── */
+          if (string.IsNullOrEmpty(it.stamp) && !string.IsNullOrEmpty(it.shadow)) {
+            var shSp = S(root + "/" + it.shadow);
+            if (shSp == null) {
+              Debug.LogWarning("UI Kit Maker: '" + bd.name + "' — the cast-shadow sprite for " + NiceName(it.component) + " isn't imported yet; the piece places unshadowed and the scene rebuilds itself once it lands.");
+              missing++;
+            } else if (it.shadowW > 1f && it.shadowH > 1f) {
+              var shGo = new GameObject(NiceName(it.component) + " Shadow (art)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              shGo.transform.SetParent(canvasGo.transform, false);
+              var shRt = shGo.GetComponent<RectTransform>();
+              shRt.anchorMin = new Vector2(it.ax, it.ay); shRt.anchorMax = new Vector2(it.ax, it.ay);
+              shRt.pivot = new Vector2(0.5f, 0.5f);
+              float shOx = it.shadowDx, shOy = -it.shadowDy; // board y runs down
+              if (Mathf.Abs(it.rot) > 0.01f) {
+                // the bake lives in the piece's frame — rotate its offset with the piece
+                float caR = Mathf.Cos(-it.rot * Mathf.Deg2Rad), saR = Mathf.Sin(-it.rot * Mathf.Deg2Rad);
+                float rxR = shOx * caR - shOy * saR, ryR = shOx * saR + shOy * caR;
+                shOx = rxR; shOy = ryR;
+                shRt.localRotation = Quaternion.Euler(0f, 0f, -it.rot);
+              }
+              shRt.anchoredPosition = new Vector2(it.cx - axBoard + shOx, -(it.cy - ayBoard) + shOy);
+              shRt.sizeDelta = new Vector2(it.shadowW, it.shadowH);
+              var shImg = shGo.GetComponent<Image>();
+              shImg.sprite = shSp;
+              shImg.raycastTarget = false;
+              // slot in right before the piece: behind it, still its neighbor
+              shGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
+            }
+          }
           /* per-copy words (the maker typed them on this copy in the app) —
              the override must speak to the stack's OWNER: setting the TMP
              text alone left HeroLabel's own words in charge, and it
@@ -9169,6 +9803,10 @@ namespace PatternBreak {
         if (fork.state == "hover") { ink.hoverShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.hoverOn = true; ink.hoverTop = top; ink.hoverBottom = bot; ink.hoverGradient = grad; } }
         else if (fork.state == "pressed") { ink.pressedShift = fork.dy; if (hasInk) { ink.inkOn = true; ink.pressedOn = true; ink.pressedTop = top; ink.pressedBottom = bot; ink.pressedGradient = grad; } }
       }
+      /* the authored size (round 24): the press travel is app px at the
+         bake's own height — a later rect resize scales it (SizeK). */
+      var inkRt = go.transform as RectTransform;
+      if (inkRt != null && inkRt.sizeDelta.y > 1f) ink.authoredHeight = inkRt.sizeDelta.y;
       return true;
     }
     static void AddTmpLabel(GameObject parent, string text, TMP_FontAsset face, PBStyle s, float ls) {
@@ -9318,6 +9956,93 @@ namespace PatternBreak {
       if (inks.Count == 0) inks.Add(Color.white);
       cb.inks = inks.ToArray();
     }
+    /* The kit's idle-motion dials, applied whenever a shine component is
+       BORN (round 25): pass duration per option, wipe band width, and
+       the On-hover arm — plus the Frequency that always traveled. Absent
+       manifest fields read 0/"" (JsonUtility) and leave the runtime
+       defaults, so an old manifest ships today's motion untouched. An
+       EXISTING component's dials are the maker's and are never re-tuned
+       (the redress rule: converge the COMPONENT only). */
+    static void TuneWipe(WipeShine ws, PBManifest m) {
+      if (ws == null || m == null || m.idle == null) return;
+      if (m.idle.freq > 0.5f) ws.period = m.idle.freq;
+      if (m.idle.wipeDur > 0.05f) ws.sweep = m.idle.wipeDur;
+      if (m.idle.wipeWidth > 0.5f) ws.width = Mathf.Clamp(m.idle.wipeWidth, 10f, 60f) / 100f;
+      ws.hoverArmed = m.idle.trigger == "hover";
+    }
+    static void TuneEdge(EdgeShine es, PBManifest m) {
+      if (es == null || m == null || m.idle == null) return;
+      if (m.idle.freq > 0.5f) es.period = m.idle.freq;
+      if (m.idle.edgeDur > 0.05f) es.run = m.idle.edgeDur;
+      es.hoverArmed = m.idle.trigger == "hover";
+    }
+    /* one ink layer of the icon seat (round 27): a centered child with
+       its own white sprite and its own tint — Stroke (echo) under Fill,
+       the label's own echo grammar, so the hierarchy reads the same. */
+    static void IconInkLayer(Transform seat, string name, Sprite sp, string ink, float side) {
+      var lg = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      lg.transform.SetParent(seat, false);
+      var li = lg.GetComponent<Image>();
+      li.sprite = sp;
+      li.preserveAspect = true;
+      li.raycastTarget = false;
+      Color lc;
+      if (!string.IsNullOrEmpty(ink) && ColorUtility.TryParseHtmlString(ink, out lc)) li.color = lc;
+      var lr = lg.GetComponent<RectTransform>();
+      lr.anchorMin = lr.anchorMax = new Vector2(0.5f, 0.5f);
+      lr.pivot = new Vector2(0.5f, 0.5f);
+      lr.anchoredPosition = Vector2.zero;
+      lr.sizeDelta = new Vector2(side, side);
+    }
+    /* the piece's kit icon (round 26 — the chip's star): the base row
+       ships the seat (center offset from the shell center, design px —
+       the labelDx discipline, frame-invariant) and its white glyph; the
+       prefab wears a swappable tinted Icon child exactly where the app
+       drew it. Idempotent: an existing Icon child — ours or the dev's —
+       is never touched. Older manifests ship no seat and change nothing.
+       Round 27 — the app's type outline dresses the icon too (owner:
+       "missing its styling (green stroke)"): when the row ships the
+       stroke echo, the seat carries two ink layers — Stroke (echo)
+       behind, Fill in front, each tinted its own ink. No stroke on the
+       row, or its sprite missing, and the seat wears the single flat
+       image exactly as before. */
+    static void WireIconSeat(GameObject go, string root, PBManifest m, string fam) {
+      var rowIc = LabelRow(m, fam);
+      if (rowIc == null || rowIc.icon == null || rowIc.icon.s < 2f || string.IsNullOrEmpty(rowIc.icon.file)) return;
+      if (go.transform.Find("Icon") != null) return;
+      var icSp = S(root + "/" + rowIc.icon.file);
+      if (icSp == null) return;
+      var bodyIc = BodyImage(go);
+      var bsIc = bodyIc != null ? bodyIc.sprite : null;
+      if (bsIc == null || rowIc.shell == null || rowIc.shell.w < 4f || bsIc.rect.width < 2f || bsIc.rect.height < 2f) return;
+      var strokeSp = rowIc.icon.strokeS > 2f && !string.IsNullOrEmpty(rowIc.icon.strokeFile) ? S(root + "/" + rowIc.icon.strokeFile) : null;
+      GameObject icGo;
+      if (strokeSp != null) {
+        icGo = new GameObject("Icon", typeof(RectTransform));
+        icGo.transform.SetParent(go.transform, false);
+        IconInkLayer(icGo.transform, "Stroke (echo)", strokeSp, rowIc.icon.strokeInk, rowIc.icon.strokeS);
+        IconInkLayer(icGo.transform, "Fill", icSp, rowIc.icon.ink, rowIc.icon.s);
+      } else {
+        icGo = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        icGo.transform.SetParent(go.transform, false);
+        var ici = icGo.GetComponent<Image>();
+        ici.sprite = icSp;
+        ici.preserveAspect = true;
+        ici.raycastTarget = false;
+        Color icInk;
+        if (!string.IsNullOrEmpty(rowIc.icon.ink) && ColorUtility.TryParseHtmlString(rowIc.icon.ink, out icInk)) ici.color = icInk;
+      }
+      float psIc = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+      var icRt = icGo.GetComponent<RectTransform>();
+      // anchor on the seat's fraction of the sprite — offsets from the
+      // shell center are frame-invariant (the label-seat discipline)
+      float fxI = (rowIc.shell.x + rowIc.shell.w / 2f + rowIc.icon.dx * psIc) / bsIc.rect.width;
+      float fyI = 1f - (rowIc.shell.y + rowIc.shell.h / 2f + rowIc.icon.dy * psIc) / bsIc.rect.height;
+      icRt.anchorMin = icRt.anchorMax = new Vector2(fxI, fyI);
+      icRt.pivot = new Vector2(0.5f, 0.5f);
+      icRt.anchoredPosition = Vector2.zero;
+      icRt.sizeDelta = new Vector2(rowIc.icon.s, rowIc.icon.s);
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -9378,14 +10103,14 @@ namespace PatternBreak {
         foreach (var fk in m.idleForks) if (fk.family == baseAsset.component) { if (fk.wipe >= 0) shineW = fk.wipe; if (fk.edge >= 0) shineE = fk.edge; }
       if (shineW == 1 && go.GetComponent<WipeShine>() == null) {
         var ws = go.AddComponent<WipeShine>();
-        if (m.idle != null && m.idle.freq > 0.5f) ws.period = m.idle.freq;
+        TuneWipe(ws, m);
       }
       if (shineE == 1 && baseAsset.outline != null && baseAsset.outline.Length >= 8 && baseAsset.nineSlice == null && go.GetComponent<EdgeShine>() == null) {
         var es = go.AddComponent<EdgeShine>();
         es.outline = baseAsset.outline;
-        // Frequency travels; Blend stays app-side for now — UGUI needs
-        // a dedicated shader for a true screen mix
-        if (m.idle != null && m.idle.freq > 0.5f) es.period = m.idle.freq;
+        // the dials travel (TuneEdge); Blend stays app-side for now —
+        // UGUI needs a dedicated shader for a true screen mix
+        TuneEdge(es, m);
       }
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
@@ -9433,6 +10158,11 @@ namespace PatternBreak {
          it, or drop your own art in its place. Once the badge carries its
          live COUNT (labelText-era manifests), the count is the content —
          the app's own default — and the star stands down. */
+      /* the piece's KIT ICON travels (round 26 — owner: the chip's
+         "NEW ☆" arrived as bare NEW): the base row ships the icon's
+         shell-relative seat and its own white glyph; the prefab wears it
+         as a swappable tinted child exactly where the app drew it. */
+      WireIconSeat(go, root, m, baseAsset.component);
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -9645,6 +10375,21 @@ namespace PatternBreak {
           padR / rw * rt.sizeDelta.x, padT / rh * rt.sizeDelta.y);
       }
     }
+    /* BAKED board art takes the same discipline: fx bakes (type stamps,
+       big-glyph shadow/glow copies) pad their raster symmetrically for
+       the halo's reach, so the placed rect is bigger than the visible
+       art — an enabled raycast on it eats the neighbours' clicks (the
+       field's "middle card selected"). The manifest ships the art box
+       (artW/artH, board px = this rect's units); the inset is written
+       even while raycastTarget is false, so flipping the target on — or
+       adding your own Button — already hits art-true. Older manifests
+       read artW 0 and change nothing. */
+    static void ArtRaycastPad(Image img, PBBoardItem it) {
+      if (img == null || it == null || it.artW < 2f || it.artH < 2f) return;
+      float padX = Mathf.Max(0f, (it.w - it.artW) * 0.5f);
+      float padY = Mathf.Max(0f, (it.h - it.artH) * 0.5f);
+      img.raycastPadding = new Vector4(padX, padY, padX, padY);
+    }
     static void AddSpecular(GameObject go, string root, string fam, PBManifest m) {
       if (m == null || m.assets == null) return;
       var sp = S(root + "/assets/" + fam + "/" + fam + "-specular.png");
@@ -9741,6 +10486,13 @@ namespace PatternBreak {
          sinks; dial-only kits ship dy 0 and nothing changes. */
       fx.hoverSink = -ExpectedShift(m, family, "hover");
       fx.pressedSink = -ExpectedShift(m, family, "pressed");
+      /* the authored size (round 24): the height the pad/lifts/sinks were
+         measured against — a later RECT resize then scales them (SizeK).
+         The prefab rect is final by this point (FamilyPrefab sizes it
+         before wiring); the sprite's own UI size is the fallback. */
+      var fxRt = go.transform as RectTransform;
+      if (fxRt != null && fxRt.sizeDelta.y > 1f) fx.authoredHeight = fxRt.sizeDelta.y;
+      else if (baseSp != null && pngScale > 0) fx.authoredHeight = baseSp.rect.height / pngScale;
     }
     static bool HasStateFx(PBManifest m, string family) {
       if (m == null || m.stateFx == null) return false;
@@ -11776,21 +12528,50 @@ namespace PatternBreak {
        "prefabs for some of the more involved objects would be an awesome
        quality of life thing") — panel frame, RectMask2D viewport, empty
        Content ready for children, kit-dressed vertical scrollbar. */
-    static bool ScrollViewPrefab(string dir, string root, int pngScale) {
+    /* Round 26 — dev/owner field: "the placement/design/layout of the
+       scrollbar seems off". Two lies fixed. (1) SEAT: the panel sprite is
+       glow/shadow-PADDED, and the bar hung off the padded RECT's right
+       edge — inside the halo air, overlapping the drawn frame. The bar
+       (and the viewport) now inset from the panel's SHELL box, manifest-
+       measured, so both sit inside the visible plate. (2) WIDTH: the
+       kit's track bakes 44 design px wide with ~20px caps each side —
+       squeezing it to 22 collapsed the nine-slice into the reported
+       sliver. The bar now wears the track sprite's own natural width and
+       the handle keeps the bake's 4px lane. Jimi asked for real scroll
+       components — this prefab is the answer, so it reads deliberate. */
+    static bool ScrollViewPrefab(string dir, string root, int pngScale, PBManifest m) {
       var frame = S(root + "/assets/panel/panel-base.9.png");
       var track = S(root + "/assets/scrollview/scrollview-track.9.png");
       var handle = S(root + "/assets/scrollview/scrollview-handle.9.png");
       if (frame == null || track == null || handle == null) return false;
+      float ps = pngScale > 0 ? pngScale : 2f;
       var go = ImageObject("ScrollView", frame, pngScale);
       go.GetComponent<Image>().type = Image.Type.Sliced;
       var rt = go.GetComponent<RectTransform>();
       rt.sizeDelta = new Vector2(Mathf.Max(380f, rt.sizeDelta.x * 0.75f), 460f);
+      // clicks (and the wheel) stop at the drawn plate, not the halo air
+      ShellRaycastPad(go, "panel", m);
+      /* the panel's shell pads, design units — zero on manifests without
+         the row (everything then measures from the rect, the old truth) */
+      float padL = 0f, padR = 0f, padT = 0f, padB = 0f, shellDy = 0f;
+      PBAsset panRow = null;
+      if (m != null && m.assets != null) foreach (var aP in m.assets) if (aP != null && aP.component == "panel" && aP.part == "base" && aP.shell != null && aP.shell.w > 4f) { panRow = aP; break; }
+      if (panRow != null && frame.rect.width > 2f && frame.rect.height > 2f) {
+        float rw = frame.rect.width, rh = frame.rect.height;
+        float sx = rt.sizeDelta.x / (rw / ps), sy = rt.sizeDelta.y / (rh / ps); // the rect is resized — pads scale with it
+        padL = panRow.shell.x / ps * sx; padR = (rw - panRow.shell.x - panRow.shell.w) / ps * sx;
+        padT = panRow.shell.y / ps * sy; padB = (rh - panRow.shell.y - panRow.shell.h) / ps * sy;
+        shellDy = (rh / 2f - (panRow.shell.y + panRow.shell.h / 2f)) / ps * sy; // shell center above rect center = positive (Unity y up)
+      }
+      float barW = Mathf.Clamp(track.rect.width / ps, 16f, 56f); // the track's own bake width — honest caps
       var sr = go.AddComponent<ScrollRect>();
       var vp = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
       vp.transform.SetParent(go.transform, false);
       var vrt = vp.GetComponent<RectTransform>();
       vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-      vrt.offsetMin = new Vector2(18f, 18f); vrt.offsetMax = new Vector2(-46f, -18f); // the right lane belongs to the scrollbar
+      // content lives inside the VISIBLE plate; the right lane belongs to the bar
+      vrt.offsetMin = new Vector2(padL + 18f, padB + 18f);
+      vrt.offsetMax = new Vector2(-(padR + 12f + barW + 10f), -(padT + 18f));
       vrt.pivot = new Vector2(0f, 1f);
       var content = new GameObject("Content", typeof(RectTransform));
       content.transform.SetParent(vp.transform, false);
@@ -11804,14 +12585,15 @@ namespace PatternBreak {
       var sbrt = sb.GetComponent<RectTransform>();
       sbrt.anchorMin = new Vector2(1f, 0f); sbrt.anchorMax = new Vector2(1f, 1f);
       sbrt.pivot = new Vector2(1f, 0.5f);
-      sbrt.sizeDelta = new Vector2(22f, -36f);
-      sbrt.anchoredPosition = new Vector2(-10f, 0f);
+      sbrt.sizeDelta = new Vector2(barW, -(padT + padB + 28f)); // 14 in from the shell, top and bottom
+      sbrt.anchoredPosition = new Vector2(-(padR + 12f), shellDy);
       var bar = sb.AddComponent<Scrollbar>();
       var slide = new GameObject("Sliding Area", typeof(RectTransform));
       slide.transform.SetParent(sb.transform, false);
       var srt = slide.GetComponent<RectTransform>();
       srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
-      srt.offsetMin = new Vector2(3f, 7f); srt.offsetMax = new Vector2(-3f, -7f);
+      // the bake's own lane: handle 36 inside track 44 = 4 a side; 10 caps
+      srt.offsetMin = new Vector2(4f, 10f); srt.offsetMax = new Vector2(-4f, -10f);
       var hd = ImageObject("Handle", handle, pngScale);
       hd.transform.SetParent(slide.transform, false);
       var hi = hd.GetComponent<Image>();
@@ -11829,6 +12611,24 @@ namespace PatternBreak {
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    /* round 26: a ScrollView born with the SLIVER bar re-seats in place on
+       the next import — but only when it still wears OUR generation
+       constants beyond doubt (bar width 22, x -10) and its Content is
+       empty. A bar the dev moved or a view they filled is theirs; the
+       Regenerate menu remains their explicit upgrade road. */
+    static void HealScrollView(string root, PBManifest m) {
+      var path = root + "/Prefabs/ScrollView.prefab";
+      var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+      if (asset == null) return;
+      var sbT = asset.transform.Find("Scrollbar") as RectTransform;
+      var vpT = asset.transform.Find("Viewport") as RectTransform;
+      var contentT = vpT != null ? vpT.Find("Content") : null;
+      if (sbT == null || contentT == null) return;
+      bool oldSeat = Mathf.Abs(sbT.sizeDelta.x - 22f) < 0.5f && Mathf.Abs(sbT.anchoredPosition.x + 10f) < 0.5f;
+      if (!oldSeat || contentT.childCount != 0) return;
+      if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+        Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
     }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
@@ -11942,13 +12742,13 @@ namespace PatternBreak {
     }
     static bool BigGlyphPrefabs(string dir, string root, PBManifest m) {
       if (m == null || m.boards == null) return false;
-      var wanted = new Dictionary<string, PBBig>();
+      var wanted = new Dictionary<string, PBBoardItem>();
       foreach (var bd in m.boards) {
         if (bd == null || bd.items == null) continue;
         foreach (var it in bd.items) {
           if (it == null || it.big == null || string.IsNullOrEmpty(it.big.id)) continue;
           // prefer a clean row's file as the stand-in seed (fx rows are padded)
-          if (!wanted.ContainsKey(it.big.id) || (wanted[it.big.id].fx && !it.big.fx)) wanted[it.big.id] = it.big;
+          if (!wanted.ContainsKey(it.big.id) || (wanted[it.big.id].big.fx && !it.big.fx)) wanted[it.big.id] = it;
         }
       }
       if (wanted.Count == 0) return false;
@@ -11956,9 +12756,11 @@ namespace PatternBreak {
       bool hadSub = AssetDatabase.IsValidFolder(sub);
       if (!hadSub) AssetDatabase.CreateFolder(dir, "BigGlyphs");
       bool any = false;
-      foreach (var bg in wanted.Values) {
+      foreach (var itW in wanted.Values) {
+        var bg = itW.big;
         var sp = S(root + "/bigglyphs/" + bg.id + ".png");
-        if (sp == null && !string.IsNullOrEmpty(bg.sprite)) sp = S(root + "/" + bg.sprite); // fx-only asset: the bake stands in
+        bool fxSeed = false;
+        if (sp == null && !string.IsNullOrEmpty(bg.sprite)) { sp = S(root + "/" + bg.sprite); fxSeed = bg.fx; } // fx-only asset: the bake stands in
         if (sp == null) continue;
         var goName = BigGlyphPrefabName(bg);
         var go = new GameObject(goName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -11970,7 +12772,17 @@ namespace PatternBreak {
         /* the app places big-glyph art at HALF its natural raster (the
            ~800px set lands ~400 board px on a 1920 stage) — the drag-in
            rect matches, so a fresh drop sits at the app's design size */
-        go.GetComponent<RectTransform>().sizeDelta = new Vector2(sp.rect.width * 0.5f, sp.rect.height * 0.5f);
+        var bRt = go.GetComponent<RectTransform>();
+        bRt.sizeDelta = new Vector2(sp.rect.width * 0.5f, sp.rect.height * 0.5f);
+        /* an fx-ONLY asset seeds from its padded bake — carry the seed
+           copy's art-box inset onto the prefab (as a fraction of its own
+           rect), so a raycast anyone enables stops at the art, not the
+           halo. Clean seeds pad zero by construction. */
+        if (fxSeed && itW.artW > 2f && itW.artH > 2f && itW.w > 2f && itW.h > 2f) {
+          float fxPW = Mathf.Max(0f, (itW.w - itW.artW) * 0.5f / itW.w) * bRt.sizeDelta.x;
+          float fxPH = Mathf.Max(0f, (itW.h - itW.artH) * 0.5f / itW.h) * bRt.sizeDelta.y;
+          bImg.raycastPadding = new Vector4(fxPW, fxPH, fxPW, fxPH);
+        }
         PrefabUtility.SaveAsPrefabAsset(go, sub + "/" + goName + ".prefab");
         UnityEngine.Object.DestroyImmediate(go);
         any = true;
@@ -11996,7 +12808,7 @@ namespace PatternBreak {
       if (SliderPrefab(dir, root, pngScale, m)) any = true;
       if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
-      if (ScrollViewPrefab(dir, root, pngScale)) any = true;
+      if (ScrollViewPrefab(dir, root, pngScale, m)) any = true;
       /* the BONES set: board-placeable display pieces from the skip set,
          shipped as simple prefabs (owner: "the bones to customize") —
          each carries a README note naming what a dev swaps */
@@ -12586,6 +13398,35 @@ namespace PatternBreak {
           var pS0 = AssetDatabase.GetAssetPath(imS0.sprite).Replace("\\\\", "/");
           if (pS0.StartsWith(root + "/assets/")) { wantShape = true; break; }
         }
+        /* KIT ICON convergence (round 26 — the chip's star): prefabs born
+           before the icon seat shipped gain the swappable Icon child in
+           place; an existing Icon — ours or the dev's — stays untouched
+           (WireIconSeat is idempotent on the name). */
+        bool wantIconAdd = false, wantIconStroke = false;
+        {
+          var rowIc0 = LabelRow(m, famName);
+          bool seatIc0 = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
+            && !string.IsNullOrEmpty(rowIc0.icon.file);
+          var icT0 = seatIc0 ? asset.transform.Find("Icon") : null;
+          wantIconAdd = seatIc0 && icT0 == null;
+          /* STROKE upgrade (round 27 — owner: the star arrived "missing
+             its styling (green stroke)"): a fill-only Icon WE built
+             earlier gains the app's outline layers — only when it is
+             provably ours and untouched: childless, a single Image still
+             wearing the shipped glyph at the shipped tint. A swapped
+             sprite, a retint, added children or a missing Image is the
+             dev's icon now and stays theirs. */
+          if (icT0 != null && icT0.childCount == 0 && rowIc0.icon.strokeS > 2f && !string.IsNullOrEmpty(rowIc0.icon.strokeFile)) {
+            var icIm0 = icT0.GetComponent<Image>();
+            if (icIm0 != null && icIm0.sprite != null
+                && AssetDatabase.GetAssetPath(icIm0.sprite).Replace("\\\\", "/") == root + "/" + rowIc0.icon.file) {
+              Color inkC0;
+              wantIconStroke = !string.IsNullOrEmpty(rowIc0.icon.ink) && ColorUtility.TryParseHtmlString(rowIc0.icon.ink, out inkC0)
+                ? Mathf.Abs(icIm0.color.r - inkC0.r) + Mathf.Abs(icIm0.color.g - inkC0.g) + Mathf.Abs(icIm0.color.b - inkC0.b) + Mathf.Abs(icIm0.color.a - inkC0.a) < 0.02f
+                : icIm0.color == Color.white;
+            }
+          }
+        }
         /* IDLE SHINE convergence: the wipe/edge components only ever
            arrived at prefab GENERATION — a kit whose shimmer was turned
            on (or off) after the prefabs were born never reached them,
@@ -12821,7 +13662,7 @@ namespace PatternBreak {
         }
 #endif
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -12923,9 +13764,24 @@ namespace PatternBreak {
 #endif
             if (FindOurLabelRoot(contents) != null) { worded++; changed = true; }
           }
+          if (wantIconAdd && contents.transform.Find("Icon") == null) {
+            WireIconSeat(contents, root, m, famName);
+            if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
+          }
+          /* round 27: the pristine fill-only Icon steps down and the
+             layered seat (Stroke (echo) + Fill) takes its place — the
+             ownership check above already cleared this prefab. */
+          if (wantIconStroke) {
+            var icTU = contents.transform.Find("Icon");
+            if (icTU != null && icTU.childCount == 0) {
+              UnityEngine.Object.DestroyImmediate(icTU.gameObject, true);
+              WireIconSeat(contents, root, m, famName);
+              if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
+            }
+          }
           if (wantWipeAdd && contents.GetComponent<WipeShine>() == null) {
             var wsA = contents.AddComponent<WipeShine>();
-            if (m.idle != null && m.idle.freq > 0.5f) wsA.period = m.idle.freq;
+            TuneWipe(wsA, m);
             idled++; changed = true;
           }
           if (wantWipeCut) {
@@ -12937,7 +13793,7 @@ namespace PatternBreak {
             if (rowE != null && rowE.outline != null && rowE.outline.Length >= 8) {
               var esA = contents.AddComponent<EdgeShine>();
               esA.outline = rowE.outline;
-              if (m.idle != null && m.idle.freq > 0.5f) esA.period = m.idle.freq;
+              TuneEdge(esA, m);
               idled++; changed = true;
             }
           }

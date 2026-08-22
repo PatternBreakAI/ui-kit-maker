@@ -7,13 +7,13 @@ import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } fro
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
-import { GLYPH_LIBRARY } from "@/generator/glyphLibrary";
+import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
 import { tightenSvg } from "@/marketing/engine";
 import { openGate } from "@/shell/gateModal";
-import { LiveArt, shellHit, stillSmil, stripSmil } from "./LiveArt";
+import { LiveArt, shellHit, imgShellHit, stillSmil, stripSmil } from "./LiveArt";
 
 /* An SVG rasterized through an <img> — or downloaded and opened outside the
    app — is a SEALED document: it cannot see the page's loaded fonts, so any
@@ -83,8 +83,9 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Card battler", ids: ["cardback", "pack"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
-     staged, then per-glyph as releases land */
-  { name: "Semantic glyphs", ids: GLYPH_LIBRARY.map((g) => `glyph${g.id}`) },
+     staged, then per-glyph as releases land. LIVE only — a retired glyph
+     leaves the tray while its legacy placements keep rendering. */
+  { name: "Semantic glyphs", ids: LIVE_GLYPHS.map((g) => `glyph${g.id}`) },
 ];
 
 /* Search vocabulary: teams reach for genre words the component names don't
@@ -132,7 +133,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
 };
 // glyph pieces answer to "icon", their semantic name and their category
 // ("currencies", "boosters"…) — registry-derived like the tray group
-for (const g of GLYPH_LIBRARY) {
+for (const g of LIVE_GLYPHS) {
   SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
 }
 
@@ -473,7 +474,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    addBoardItems, setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
+    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
@@ -491,6 +492,82 @@ export function BoardView({ playing }: { playing: boolean }) {
   const guardAddBoard = (run: () => void) => {
     if (tier === "guest" && useGen.getState().boards.length >= 1) { openGate("board"); return; }
     run();
+  };
+  /* ── starter landing (owner design, field notes #3: "would be nice if it
+     asked me") ── picking a starter on a board that already has pieces no
+     longer piles on silently: a small modal offers Fresh board / Replace
+     this board's pieces / Add on top. Replace KEEPS the board's own
+     backdrop — that was the owner's whole concern; a board with no
+     backdrop borrows the starter's. */
+  const [starterAsk, setStarterAsk] = useState<string | null>(null);
+  /* ── mobile retune (owner, field notes #3: the older starters were
+     16:9-fixed) ── a 16:9-composed starter dealt onto a MOBILE frame
+     reflows to the 390×844 stage the way the Match-3 template was
+     hand-composed for it: positions map into the portrait frame, piece
+     scale steps down to phone proportion, and a settle pass measures
+     the real dealt art and pulls anything oversized or out-of-frame
+     back inside (shrink to fit, 12px margins). */
+  const MOBILE_DEAL_K = 0.62;
+  const dealStarterItems = (t: Tpl, bdId: string) => {
+    const st = useGen.getState();
+    const bd = st.boards.find((b) => b.id === bdId);
+    const retune = bd?.aspect === "mobile" && t.aspect !== "mobile";
+    const [SW, SH] = STAGE["169"], [TW, TH] = STAGE.mobile;
+    const items = retune
+      ? t.items.map((it) => ({
+          ...it,
+          x: Math.round((it.x / SW) * TW),
+          y: Math.round((it.y / SH) * TH),
+          scale: +(((it.scale ?? 1) * MOBILE_DEAL_K).toFixed(2)),
+        }))
+      : t.items;
+    const before = bd?.items.length ?? 0;
+    st.addBoardItems(items);
+    if (retune) window.setTimeout(() => fitMobileDeal(bdId, before), 550);
+  };
+  const fitMobileDeal = (bdId: string, fromIndex: number) => {
+    const st = useGen.getState();
+    const bd = st.boards.find((b) => b.id === bdId);
+    if (!bd) return;
+    const [TW, TH] = STAGE[bd.aspect];
+    const M = 12;
+    const patches: { id: string; scale: number; x: number; y: number }[] = [];
+    for (const it of bd.items.slice(fromIndex)) {
+      const r = artRectOf(bdId, it);
+      if (!r || !r.w || !r.h) continue;
+      const s = it.scale ?? 1;
+      const f = Math.min(1, (TW - M * 2) / r.w, (TH - M * 2) / r.h);
+      // art scales about the item origin — predict the shrunk shell, then
+      // clamp it into the frame
+      const l2 = it.x + (r.l - it.x) * f, t2 = it.y + (r.t - it.y) * f;
+      const w2 = r.w * f, h2 = r.h * f;
+      let dx = 0, dy = 0;
+      if (l2 < M) dx = M - l2; else if (l2 + w2 > TW - M) dx = TW - M - (l2 + w2);
+      if (t2 < M) dy = M - t2; else if (t2 + h2 > TH - M) dy = TH - M - (t2 + h2);
+      if (f < 1 || dx || dy) patches.push({ id: it.id, scale: +(s * f).toFixed(3), x: Math.round(it.x + dx), y: Math.round(it.y + dy) });
+    }
+    if (patches.length) st.transformBoardItems("mobiledeal", patches);
+  };
+  const applyStarter = (tname: string, mode: "fresh" | "replace" | "stack") => {
+    const t = BOARD_TEMPLATES[tname];
+    if (!t) return;
+    const st = useGen.getState();
+    if (mode === "fresh") {
+      // a new board takes the starter whole at its NATIVE aspect —
+      // backdrop included
+      st.addBoardAfter(st.activeBoard, { aspect: t.aspect ?? "169" });
+      dealStarterItems(t, useGen.getState().activeBoard);
+      if (t.bg) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
+      return;
+    }
+    const bd = st.boards.find((b) => b.id === st.activeBoard);
+    if (mode === "replace" && bd) st.removeBoardItems(bd.items.map((i) => i.id));
+    // a MOBILE-specific template still retunes the board first (the
+    // Match-3 grid is composed for the 390×844 portrait); a 16:9-composed
+    // starter dealt onto a mobile board reflows instead of flipping it
+    if (t.aspect && bd?.aspect !== t.aspect) st.setBoardAspect(t.aspect);
+    dealStarterItems(t, st.activeBoard);
+    if (t.bg && (mode === "stack" || !(bd?.bgImage || bd?.bgVideo))) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
   };
   const [q, setQ] = useState("");
   /* ── active-board-first mounting (owner, after the raster-tier round:
@@ -614,7 +691,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ list: { id: string; ox: number; oy: number }[]; dx: number; dy: number; fit: number } | null>(null);
+  const dragRef = useRef<{ list: { id: string; ox: number; oy: number; cox: number; coy: number }[]; dx: number; dy: number; fit: number } | null>(null);
   const [frameW, setFrameW] = useState(900);
 
   /* multi-select (owner): shift-click extends within ONE board. boardSel
@@ -886,14 +963,21 @@ export function BoardView({ playing }: { playing: boolean }) {
   };
 
   /* composite one artboard to a PNG at native resolution */
-  const exportPng = async (bd: BoardDef) => {
+  /* alpha: the no-background cut (owner-approved, field notes #3) — the
+     pieces composite onto a fully transparent canvas: no base fill, no
+     backdrop, no noise/overlay dressing. The piece-level PNG has shipped
+     alpha from day one; this is the whole-board twin. */
+  const exportPng = async (bd: BoardDef, opts?: { alpha?: boolean }) => {
+    const alpha = !!opts?.alpha;
     const [W, H] = STAGE[bd.aspect];
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d")!;
-    ctx.fillStyle = "#0D0F16";
-    ctx.fillRect(0, 0, W, H);
-    if (bd.bgVideo && (bd.bgShow ?? true)) {
+    if (!alpha) {
+      ctx.fillStyle = "#0D0F16";
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (!alpha && bd.bgVideo && (bd.bgShow ?? true)) {
       // a video backdrop exports its first frame — the still the mock rests on
       await new Promise<void>((res) => {
         const v = document.createElement("video");
@@ -917,7 +1001,7 @@ export function BoardView({ playing }: { playing: boolean }) {
         v.src = bd.bgVideo!;
       });
     }
-    if (bd.bgImage && (bd.bgShow ?? true)) {
+    if (!alpha && bd.bgImage && (bd.bgShow ?? true)) {
       await new Promise<void>((res) => {
         const img = new Image();
         img.onload = () => {
@@ -947,11 +1031,13 @@ export function BoardView({ playing }: { playing: boolean }) {
         img.src = bd.bgImage!;
       });
     }
-    // background film grain — independent of the overlay (owner: "noise")
-    drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
-    // the overlay stack (tint + its grain + center scrim) — one shared
-    // recipe with the Unity background bake, so the two can't drift
-    drawBoardOverlays(ctx, W, H, bd);
+    if (!alpha) {
+      // background film grain — independent of the overlay (owner: "noise")
+      drawBoardNoise(ctx, W, H, bd.bgNoise ?? 0);
+      // the overlay stack (tint + its grain + center scrim) — one shared
+      // recipe with the Unity background bake, so the two can't drift
+      drawBoardOverlays(ctx, W, H, bd);
+    }
     for (const b of bd.items) {
       if (b.big) {
         /* big glyph: the PNG itself, the instance's shadow/glow filter on
@@ -1014,10 +1100,55 @@ export function BoardView({ playing }: { playing: boolean }) {
       });
     }
     const slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "board";
-    cv.toBlob((bl) => { if (bl) download(`${slug}-${W}x${H}.png`, bl); }, "image/png");
+    cv.toBlob((bl) => { if (bl) download(`${slug}-${W}x${H}${alpha ? "-transparent" : ""}.png`, bl); }, "image/png");
   };
 
-  const snapV = (v: number) => (boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
+  /* ── CENTER-based position (owner, field notes #3: "let's snap from
+     center") ── the piece's stored x/y stays its box corner (no data
+     migration), but every control speaks CENTERS: the Selected panel's
+     X/Y reads and writes the visible art's center, and grid snap lands
+     centers on the grid — typing the board midpoint centers a crosshair
+     exactly. The center OFFSET (art center − stored x) is measured from
+     the live DOM: data-shell mapped through the svg (the geometry the
+     selection box hugs), the raster shell for warped stamps/big glyphs,
+     the host box as the last resort. The offset is translation-invariant,
+     so a one-frame DOM lag never skews it. */
+  const artRectOf = (bdId: string, it: BoardItem): { l: number; t: number; w: number; h: number } | null => {
+    const bd = boards.find((b) => b.id === bdId);
+    const canvas = document.querySelector(`[data-board="${bdId}"] .bd-canvas`);
+    const host = canvas?.querySelector(`[data-bid="${it.id}"]`) as HTMLElement | null;
+    if (!bd || !canvas || !host) return null;
+    const f = fitOf(bd);
+    const cr = canvas.getBoundingClientRect();
+    let r = host.getBoundingClientRect();
+    const svg = host.querySelector("svg");
+    const img = svg ? null : host.querySelector("img");
+    if (svg) {
+      const stamp = svg.getAttribute("data-shell")?.split(" ").map(Number);
+      const vb = svg.viewBox?.baseVal;
+      const sr = svg.getBoundingClientRect();
+      if (stamp?.length === 4 && stamp.every(Number.isFinite) && vb?.width && sr.width) {
+        const k = sr.width / vb.width;
+        r = new DOMRect(sr.left + (stamp[0] - vb.x) * k, sr.top + (stamp[1] - vb.y) * k, stamp[2] * k, stamp[3] * k);
+      }
+    } else if (img) {
+      const stamp = img.getAttribute("data-shell")?.split(" ").map(Number);
+      const iw = parseFloat(img.getAttribute("width") ?? "0");
+      const ir = img.getBoundingClientRect();
+      if (stamp?.length === 4 && stamp.every(Number.isFinite) && iw && ir.width) {
+        const k = ir.width / iw;
+        r = new DOMRect(ir.left + stamp[0] * k, ir.top + stamp[1] * k, stamp[2] * k, stamp[3] * k);
+      }
+    }
+    return { l: (r.left - cr.left) / f, t: (r.top - cr.top) / f, w: r.width / f, h: r.height / f };
+  };
+  const artCenterOffsetOf = (bdId: string, it: BoardItem): { cx: number; cy: number } => {
+    const r = artRectOf(bdId, it);
+    return r ? { cx: r.l + r.w / 2 - it.x, cy: r.t + r.h / 2 - it.y } : { cx: 0, cy: 0 };
+  };
+  /* snap a piece's position so its CENTER (corner + off) lands on the
+     grid; without snap, plain pixel rounding as before */
+  const snapPos = (v: number, off: number) => (boardSnap ? Math.round((v + off) / 16) * 16 - off : Math.round(v));
 
   /* drag-to-place (ported from the homepage board): press an asset, drag a
      ghost across the page, release over any board — the piece lands under
@@ -1051,7 +1182,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       const f = r.width / STAGE[bd.aspect][0];
       const sv = (v: number) => (st.boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
       st.setActiveBoard(bid);
-      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: sv(Math.max(0, (e.clientX - r.left) / f - 110)), y: sv(Math.max(0, (e.clientY - r.top) / f - 55)) }]);
+      /* the drop point is the piece's intended CENTER-ish — snap THAT to
+         the grid, then back off the half-size estimate (center snap) */
+      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: Math.max(0, sv((e.clientX - r.left) / f) - 110), y: Math.max(0, sv((e.clientY - r.top) / f) - 55) }]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1156,7 +1289,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             if (!items.length) return null;
             return (
               <div>
-                <div className="bd-cat">Big glyphs</div>
+                <div className="bd-cat">Big glyphs <span className="bd-cat-note">AI-generated</span></div>
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
@@ -1218,13 +1351,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             <LayoutTemplate size={13} strokeWidth={2} />
             <select value="" aria-label="Add a starter screen"
               onChange={(e) => {
-                const t = BOARD_TEMPLATES[e.target.value];
-                if (!t) return;
-                // a stage-specific template retunes the board first — the
-                // Match-3 grid is composed for the 390×844 portrait
-                if (t.aspect && act?.aspect !== t.aspect) useGen.getState().setBoardAspect(t.aspect);
-                addBoardItems(t.items);
-                if (t.bg) setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
+                if (!BOARD_TEMPLATES[e.target.value]) return;
+                /* a board with pieces gets ASKED where the starter lands
+                   (owner design, field notes #3) — a bare board just deals */
+                if (act && act.items.length > 0) setStarterAsk(e.target.value);
+                else applyStarter(e.target.value, "stack");
               }}>
               <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES)
@@ -1239,6 +1370,10 @@ export function BoardView({ playing }: { playing: boolean }) {
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
           <button className="bd-export" onClick={() => guardExport(() => { if (act) void exportPng(act); })}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
+          <button className="bd-export" title="Every piece on a transparent PNG — no backdrop, no base fill; drops straight into an engine or a mockup"
+            onClick={() => guardExport(() => { if (act) void exportPng(act, { alpha: true }); })}>
+            <Download size={14} strokeWidth={2.2} /> PNG · no background
+          </button>
           <button className="bd-export bd-exportall"
             title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
             onClick={() => guardExport(() => {
@@ -1379,7 +1514,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                           const group = selIdsAll.includes(b.id) && selIdsAll.length > 1
                             ? bd.items.filter((it) => selIdsAll.includes(it.id))
                             : [b];
-                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y })), dx: e.clientX, dy: e.clientY, fit };
+                          // center offsets captured at grab time — grid snap
+                          // lands each piece's visible CENTER on the grid
+                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y, ...(() => { const c = artCenterOffsetOf(bd.id, it); return { cox: c.cx, coy: c.cy }; })() })), dx: e.clientX, dy: e.clientY, fit };
                         }}
                         onDragMove={(e) => {
                           const d = dragRef.current;
@@ -1388,7 +1525,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                           if (!(e.buttons & 1)) { dragRef.current = null; return; }
                           const mdx = (e.clientX - d.dx) / d.fit, mdy = (e.clientY - d.dy) / d.fit;
                           applyBoardItemPatches(`grpmove:${d.list.map((g) => g.id).join(",")}`,
-                            d.list.map((g) => ({ id: g.id, x: snapV(g.ox + mdx), y: snapV(g.oy + mdy) })));
+                            d.list.map((g) => ({ id: g.id, x: snapPos(g.ox + mdx, g.cox), y: snapPos(g.oy + mdy, g.coy) })));
                         }}
                         onDragEnd={() => { dragRef.current = null; }} />
                     ))}
@@ -1565,10 +1702,18 @@ export function BoardView({ playing }: { playing: boolean }) {
           <>
             <div className="bd-h" style={{ marginTop: 16 }}>Selected</div>
             <div className="bd-selname">{nameOf(sel)}{selBoard ? <em> · {selBoard.name}</em> : null}</div>
-            <div className="bd-row2">
-              <label>X <input type="number" value={Math.round(sel.x)} onChange={(e) => moveBoardItem(sel.id, +e.target.value, sel.y)} /></label>
-              <label>Y <input type="number" value={Math.round(sel.y)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value)} /></label>
-            </div>
+            {/* X/Y speak the piece's visible CENTER (owner: "snap from
+                center") — typing the board midpoint centers a crosshair
+                exactly. Stored coords stay corner-based; the offset maps. */}
+            {(() => {
+              const co = selBoard ? artCenterOffsetOf(selBoard.id, sel) : { cx: 0, cy: 0 };
+              return (
+                <div className="bd-row2">
+                  <label>X <input type="number" value={Math.round(sel.x + co.cx)} onChange={(e) => moveBoardItem(sel.id, +e.target.value - co.cx, sel.y)} /></label>
+                  <label>Y <input type="number" value={Math.round(sel.y + co.cy)} onChange={(e) => moveBoardItem(sel.id, sel.x, +e.target.value - co.cy)} /></label>
+                </div>
+              );
+            })()}
             {/* big glyphs dive to 5% (match-3 tiles on a mobile board need
                 ~12%); everything else keeps the 30% legibility floor. The
                 typed entry exists because one slider pixel jumps several
@@ -1950,6 +2095,32 @@ export function BoardView({ playing }: { playing: boolean }) {
           </>
         ) : null}
       </aside>
+
+      {/* the starter landing modal — GateModal's chrome, three honest
+          choices; the backdrop click or × walks away with nothing dealt */}
+      {starterAsk && (
+        <div className="lootback" role="dialog" aria-modal="true" aria-label="Where should this starter land?"
+          onClick={() => setStarterAsk(null)}>
+          <div className="lootmodal gatemodal" onClick={(e) => e.stopPropagation()}>
+            <span className="lootgrid" aria-hidden="true" />
+            <button className="lootclose" aria-label="Close" onClick={() => setStarterAsk(null)}><X size={16} strokeWidth={2.2} /></button>
+            <div className="lootkicker"><LayoutTemplate size={14} strokeWidth={2.2} /> STARTER SCREEN</div>
+            <h2>THIS BOARD HAS <span className="lootgrad">PIECES</span></h2>
+            <p className="lootsub">
+              <b>{starterAsk}</b> is ready to deal. Where should it land?
+            </p>
+            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); guardAddBoard(() => applyStarter(t, "fresh")); }}>
+              <Plus size={15} strokeWidth={2.4} /> A FRESH BOARD
+            </button>
+            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "replace"); }}>
+              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES — BACKDROP STAYS
+            </button>
+            <button className="gatequiet" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "stack"); }}>
+              Add on top of what's here
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2314,7 +2485,15 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`} data-bid={b.id}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
-        width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined }}
+        width: dim ? dim.w * sc : undefined, height: dim ? dim.h * sc : undefined,
+        /* play-mode pointer honesty (field notes #3: a card's invisible
+           canvas blocked the button beneath it): the item box goes
+           pointer-transparent and LiveArt's injected hit rect re-enables
+           exactly the shell — clicks and hovers outside any shell fall
+           through the stack to the piece that really owns them. Stamps
+           and big glyphs are decorative while playing, so they pass
+           through whole. onSelect still fires via bubbling from the rect. */
+        ...(playing ? { pointerEvents: "none" as const } : {}) }}
       {...(!playing ? {
         onPointerDown: (e: React.PointerEvent) => {
           /* pointer honesty on the stage (owner: "you can click outside
@@ -2324,8 +2503,15 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              the click that used to steal a neighbour now reaches it.
              The relay may only DESCEND the hit stack (an overlapping
              pair would otherwise ping-pong the event forever). */
-          const svgHit = (e.currentTarget as HTMLElement).querySelector("svg");
-          if (svgHit && !shellHit(svgHit, e.clientX, e.clientY)) {
+          const hostEl = e.currentTarget as HTMLElement;
+          const svgHit = hostEl.querySelector("svg");
+          /* raster pieces (warped stamps, big glyphs) carry their shell on
+             the <img> — without this they answered whole-box and their
+             padded frames stole clicks from pieces beneath (field notes #3) */
+          const imgHit = svgHit ? null : hostEl.querySelector("img");
+          const missed = svgHit ? !shellHit(svgHit, e.clientX, e.clientY)
+            : imgHit ? !imgShellHit(imgHit, e.clientX, e.clientY) : false;
+          if (missed) {
             const self = e.currentTarget as Element;
             const stack = document.elementsFromPoint(e.clientX, e.clientY);
             let iSelf = -1;

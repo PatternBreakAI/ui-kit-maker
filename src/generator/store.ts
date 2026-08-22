@@ -886,7 +886,7 @@ export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): s
      edges (owner: "it is showing its edges"). Plain stamps stay flat by
      contract; rasters never see the band (it parks off-canvas until the
      page's CSS animates it). */
-  return !st.plain && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, blend: cfg.idle.blend, clip: "text" }) : out;
+  return !st.plain && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, sweep: cfg.idle.wipeDur, width: cfg.idle.wipeWidth, armed: cfg.idle.trigger === "hover", blend: cfg.idle.blend, clip: "text" }) : out;
 }
 
 /** One filter string for a stamp's adjust dials — the stage, the board PNG

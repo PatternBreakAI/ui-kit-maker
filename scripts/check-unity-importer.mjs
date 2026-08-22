@@ -306,8 +306,8 @@ if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+
 /* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
    and the segment meter lights its cells. */
 if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
-    || !/addPng\("emblembar\/socket\.png", shell\("emblembar", \{ overlay: "dock"/.test(src))
-  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21)");
+    || !/addPng\("emblembar\/socket\.png", padSvg\(shell\("emblembar", \{ overlay: "dock"/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket rides padSvg since round 27)");
 if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
   errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
 if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
@@ -492,6 +492,393 @@ if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
   errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
 if (!/Prefabs\/BigGlyphs\/\*\*/.test(src))
   errors.push("the README's Prefabs/BigGlyphs pointer is missing (round 23)");
+
+/* round-24: the CAST SHADOW crosses the seam (dev field notes #3: the
+   mobile board's "Banner is also missing its shadow"). App half: live and
+   posed board copies bake their grounded cast shadow alone — transparency
+   zeros + DOM-hidden extrusion/outer-glow, extrusion DEPTH kept so the
+   drop offset stays true — into boardstamps/<slug>-sh<sid>.png with
+   shell-relative geometry. Importer half: PBBoardItem carries the shadow
+   row, the scene grounds the piece with an art SIBLING placed right
+   behind it (never a child — hover lifts move the piece, not its
+   shadow), races arm the incomplete-scene rebuild, and the orphan sweep
+   keeps in-use shadow bakes unslandered. */
+if (!/public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy;/.test(cs))
+  errors.push("PBBoardItem must carry the shadow row (shadow + shadowW/H/Dx/Dy) — JsonUtility drops the cast-shadow bake without it (round 24)");
+if (!/itR\.posedDisabled, itR\.shadow \}/.test(cs))
+  errors.push("the orphan sweep must keep in-use cast-shadow bakes (itR.shadow) unslandered (round 24)");
+if (!/Shadow \(art\)", typeof\(RectTransform\), typeof\(CanvasRenderer\), typeof\(Image\)/.test(cs))
+  errors.push("the scene builder's grounded shadow sibling ('<Name> Shadow (art)') is missing (round 24)");
+if (!/shGo\.transform\.SetSiblingIndex\(inst\.transform\.GetSiblingIndex\(\)\);/.test(cs))
+  errors.push("the shadow sibling must slot in right BEFORE the piece (SetSiblingIndex) so it draws behind it (round 24)");
+if (!/the cast-shadow sprite for/.test(cs) || !/isn't imported yet; the piece places unshadowed and the scene rebuilds itself/.test(cs))
+  errors.push("a missing shadow sprite must warn AND count the scene incomplete (missing++) so it self-heals (round 24)");
+if (!/boardstamps\/\$\{slug\}-sh\$\{sidFor\(\)\}\.png/.test(src))
+  errors.push("the app-side shadow bake emission (boardstamps/<slug>-sh<sid>.png) is missing (round 24)");
+if (!/cSh\.transparency = \{ frame: 0, interior: 0, content: 0 \};/.test(src)
+    || !/data-part="extrusion"\], \[data-part="outer-glow"\]/.test(src))
+  errors.push("the shadow bake must hide shell/face/content via transparency AND DOM-hide extrusion/outer-glow — anything else leaks art into the shadow sprite (round 24)");
+if (!/const sidFor = \(\) => \(bakeSid \?\?= sidOf\(b\)\);/.test(src) || !/const poseSid = sidFor\(\);/.test(src))
+  errors.push("pose and shadow bakes must share ONE per-copy sid (stable bake names) — separate sidOf calls would rename files on every export (round 24)");
+
+/* round-24: state bakes stay LABELESS through designed forks (dev field
+   notes #3, the claim button: retyping the label updated rest but hover
+   flashed the old baked word). A designed state is a pickDesign snapshot
+   whose transparency copy outranks the master in designFor — the ghost
+   must write content:0 into the master AND every fork, in the sliced
+   family state bakes and in the posed pipeline's calms alike. */
+if (!/const ghostStates = \(c: GenConfig\) => \{\s*\n\s*c\.transparency\.content = 0;\s*\n\s*for \(const fG of Object\.values\(c\.stateDesigns\)\) if \(fG\?\.transparency\) fG\.transparency = \{ \.\.\.fG\.transparency, content: 0 \};/.test(src))
+  errors.push("ghostStates (master + fork content ghosting for sliced state bakes) is missing — a forked hover bakes the stock word again (round 24)");
+if (!/stateShell\(n\.id, stName, wordOpts, undefined, true, word !== undefined \? ghostStates : undefined\)/.test(src))
+  errors.push("the NINE state bakes must ghost through ghostStates, not a master-only content:0 (round 24)");
+if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(src)
+    || !/if \(f2\.candy\?\.contact\) f2\.candy = \{ \.\.\.f2\.candy, contact: \{ \.\.\.f2\.candy\.contact, opacity: 0 \} \};/.test(src))
+  errors.push("the posed pipeline's shellCfg must calm fork shadow/contact too — a designed state would bake its shadow into the posed skin (round 24)");
+
+/* round-24: resize honesty — the state visuals derive from the CURRENT
+   rect, not baked dimensions (dev field report: "reducing the primary
+   button in size throws off the wipe and specular"). StateFx scales its
+   aura pad, lifts and baked sinks by rect/authoredHeight; LabelStateInk
+   scales the press travel the same way; both keep k=1 when
+   authoredHeight is unset so re-imported old projects never move. The
+   probe-detected lift channel expressions stay intact as substrings
+   (parity-probe reads them from the shipped C#). */
+{
+  /* StateFx / LabelStateInk ship from their OWN runtime template
+     literals, so these read the whole source (src), not the importer
+     literal (cs). */
+  const fxBlock = src.match(/public class StateFx[\s\S]*?LateUpdate/);
+  const inkBlock = src.match(/public class LabelStateInk[\s\S]*?ApplyCurrent\(\) \{[\s\S]*?\n    \}/);
+  if (!fxBlock || !/public float authoredHeight;/.test(fxBlock[0]) || !/float SizeK\(\)/.test(src))
+    errors.push("StateFx must carry authoredHeight + SizeK — fixed-px pads/sinks read wrong on a resized rect (round 24)");
+  if (!/var pad = glowPad \* SizeK\(\);/.test(src) || !/tgt\.sizeDelta \+ pad \* 2f/.test(src) || !/var pad2 = pad \* 2f;/.test(src))
+    errors.push("the halo pad must scale by SizeK in BOTH MirrorHost branches (round 24)");
+  if (!/\(pressedLift \+ \(baked \? pressedSink : 0f\)\) \* kSz/.test(src) || !/\(hoverLift \+ \(baked \? hoverSink : 0f\)\) \* kSz/.test(src))
+    errors.push("the lift/sink channels must scale by SizeK while keeping the probe-detected inner expressions verbatim (round 24)");
+  if (!inkBlock || !/public float authoredHeight;/.test(inkBlock[0]) || !/\* SizeK\(\);/.test(inkBlock[0]))
+    errors.push("LabelStateInk must scale its press travel by rect/authoredHeight (round 24)");
+  if (!/fx\.authoredHeight = fxRt\.sizeDelta\.y;/.test(cs) || !/ink\.authoredHeight = inkRt\.sizeDelta\.y;/.test(cs))
+    errors.push("WireStateFx/WireLabelStates must arm authoredHeight from the finished prefab rect (round 24)");
+}
+
+/* round-24: layout groups never meet kit decor (dev field notes: glow +
+   HORIZONTAL layout groups — the sibling-glow zips that produced the
+   report are gone since round 13, and the halo's atomic LayoutElement
+   already covers both axes; this pins that fix and extends the same
+   atomic exemption to EVERY runtime-spawned decor child: the wipe
+   stencil, the edge spark, the hero-label echoes and the claim burst.
+   A group on the piece, above it, horizontal, vertical or grid must
+   never measure decor as a cell — not even for the one queued rebuild
+   between parenting and a late exemption. */
+{
+  const atomicSpawns = [
+    ['name + " Glow", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the state halo"],
+    ['name + " Wipe Mask", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image), typeof(Mask)', "the wipe stencil"],
+    ['name + " Edge Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the edge spark"],
+    ['"Glint stars (echo)", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement)', "the stars echo"],
+    ['echoName, typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement)', "the label echoes"],
+    ['"Claim flash", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the claim flash"],
+    ['"Spark", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image)', "the claim sparks"],
+  ];
+  for (const [needle, what] of atomicSpawns)
+    if (!src.includes(needle))
+      errors.push(`${what} must create its LayoutElement ATOMICALLY in the GameObject constructor (round 24 — layout groups vs decor)`);
+  const ignores = (src.match(/GetComponent<LayoutElement>\(\)\.ignoreLayout = true/g) ?? []).length
+    + (src.match(/le[SE]\.ignoreLayout = true/g) ?? []).length;
+  if (ignores < 7)
+    errors.push(`expected >=7 ignoreLayout arms across the runtime decor spawns, found ${ignores} (round 24)`);
+  if (!/using UnityEngine\.UI;\s*\n#if UNITY_2023_2_OR_NEWER\s*\nusing TMPro;/.test(src))
+    errors.push("HERO_LABEL_RUNTIME must import UnityEngine.UI (LayoutElement would be CS0246 without it) (round 24)");
+}
+
+/* round-24: the GameObject right-click menu resolves EXACT prefab file
+   names (the scene builder's own) and picks a kit when several are
+   imported. The NiceName road shipped two dead entries — Toggle hunted
+   Toggle.prefab (the rig is Switch.prefab), Progress Bar hunted
+   Progress.prefab (ProgressBar.prefab). Every MenuItem handler must pass
+   a name that some SaveAsPrefabAsset call actually writes. */
+{
+  if (!/static void PlaceFromRoot\(string root, string pfName, string altName, GameObject ctxGo\)/.test(cs))
+    errors.push("PlaceFromRoot (exact-name, multi-kit-aware placement) is missing (round 24)");
+  if (!/var pick = new GenericMenu\(\);/.test(cs) || !/pick\.ShowAsContext\(\);/.test(cs))
+    errors.push("the multi-kit GenericMenu picker is missing — first-found would silently decide again (round 24)");
+  if (/PlaceKitPrefab\("[a-z][a-z-]*",/.test(cs))
+    errors.push("a MenuItem still passes a lowercase FAMILY name to PlaceKitPrefab — entries must name exact prefab files (round 24: Toggle/Progress Bar shipped dead)");
+  const menuNames = [...cs.matchAll(/PlaceKitPrefab\("([A-Za-z]+)"(?:, "([A-Za-z]+)")?, c\)/g)].flatMap((x) => [x[1], x[2]]).filter(Boolean);
+  const savedNames = new Set([
+    ...[...cs.matchAll(/SaveAsPrefabAsset\((?:go|inst|contents\w*), dir \+ "\/([A-Za-z]+)\.prefab"\)/g)].map((x) => x[1]),
+    // families saved via goName = NiceName(component) — the catalog sections list them
+    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|ListRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+  ]);
+  for (const n of menuNames)
+    if (!savedNames.has(n))
+      errors.push(`menu entry names ${n}.prefab but no importer path is known to write it (round 24)`);
+}
+
+/* round-24: the README says which board pieces arrive LIVE vs BAKED
+   (dev field notes #3: "Some way of communicating what elements will be
+   fully functional prefabs vs what come as parts alone might be a good
+   way to manage expectations") and the Hierarchy suffixes it cites must
+   actually exist in the scene builder. */
+if (!/### What arrives LIVE and what arrives as baked art/.test(src))
+  errors.push("the README's live-vs-baked section is missing (round 24 — expectation management, tester ask)");
+for (const [needle, what] of [
+  ['NiceName(it.component) + " (baked)"', 'the "(baked)" suffix'],
+  ['"Stamp (live) — "', 'the live-stamp name'],
+  ['inst.name = bigNm + (it.big.fx ? " (fx)" : "");', 'the big-glyph "(fx)" suffix'],
+  ['NiceName(it.component) + " Shadow (art)"', 'the shadow "(art)" suffix'],
+])
+  if (!cs.includes(needle))
+    errors.push(`${what} the README documents is gone from the scene builder (round 24)`);
+
+/* round-25: raycasts stop at the VISIBLE art on the baked road too (the
+   in-engine twin of the app's pointer-blocking fix; field-confirmed:
+   invisible oversized rects eat clicks — "middle card selected"). Live
+   prefabs already inset via ShellRaycastPad (manifest shell rows; sliced
+   pieces absolute px, simple pieces rect fractions) — those branches are
+   pinned here so they can never quietly regress. NEW: fx bakes (type
+   stamps, big-glyph shadow/glow copies) pad their raster symmetrically,
+   so the item row now ships the ART BOX (artW/artH, pad per side =
+   (w-artW)/2) and the importer writes the inset wherever those bakes
+   place — dormant while raycastTarget is false, correct the moment a
+   dev arms a click. */
+if (!/static void ShellRaycastPad\(GameObject host, string fam, PBManifest m\)/.test(cs)
+    || !/rootImg\.raycastPadding = new Vector4\(padL \/ ps, padB \/ ps, padR \/ ps, padT \/ ps\);/.test(cs)
+    || !/padL \/ rw \* rt\.sizeDelta\.x, padB \/ rh \* rt\.sizeDelta\.y,/.test(cs))
+  errors.push("ShellRaycastPad (live prefabs: sliced absolute px / simple rect-fraction insets) lost a branch (round 25 pins the acb0722 fix)");
+if (!/public float artW; public float artH; public float rot;/.test(cs))
+  errors.push("PBBoardItem must carry the art box (artW/artH) — JsonUtility drops the fx-pad geometry without it (round 25)");
+if (!/artW: Math\.round\(\(\(rw \/ 2\) \* k\) \* 10\) \/ 10, artH: Math\.round\(\(\(rh \/ 2\) \* k\) \* 10\) \/ 10/.test(src))
+  errors.push("type-stamp items must ship their pre-filter art box (artW/artH) — the raycast inset has no truth without it (round 25)");
+if (!/artW: Math\.round\(gl\.w \* kB \* 10\) \/ 10, artH: Math\.round\(gl\.h \* kB \* 10\) \/ 10/.test(src))
+  errors.push("big-glyph items must ship the glyph's own art box (artW/artH) — fx pads are (w-artW)/2 per side (round 25)");
+if (!/static void ArtRaycastPad\(Image img, PBBoardItem it\)/.test(cs)
+    || !/float padX = Mathf\.Max\(0f, \(it\.w - it\.artW\) \* 0\.5f\);/.test(cs))
+  errors.push("ArtRaycastPad (the baked-art inset, symmetric from the manifest art box) is missing (round 25)");
+if (!/ArtRaycastPad\(inst\.GetComponent<Image>\(\), it\);/.test(cs) || !/ArtRaycastPad\(simg, it\);/.test(cs))
+  errors.push("scene placement must inset BOTH baked roads — big-glyph instances and type stamps (round 25)");
+if (!/ArtRaycastPad\(bigImgH, it2\);/.test(cs) || !/ArtRaycastPad\(img2, it2\);/.test(cs))
+  errors.push("the kept-scene heal must re-inset re-adopted bakes — a new export's pad can differ (round 25)");
+if (!/bool fxSeed = false;/.test(cs) || !/if \(fxSeed && itW\.artW > 2f && itW\.artH > 2f && itW\.w > 2f && itW\.h > 2f\)/.test(cs))
+  errors.push("an fx-only big-glyph prefab (padded seed) must carry its fractional art-box inset (round 25)");
+
+/* round-25: the IDLE DIALS travel (app commits 4cb4f9f + 29e6ac8 — pass
+   duration per option, wipe band width, the On-hover arm, decoupled
+   tempo). Manifest: PBIdle grows wipeDur/edgeDur/wipeWidth/trigger,
+   0/"" = untouched so old zips ship today's motion. Runtime: the pass
+   keeps its OWN clock (period only sets the rest), width drives the
+   band geometry, and the arm borrows State FX's hover flag — ONE
+   pointer listener per piece, no input polling ever. Importer: every
+   shine BIRTH tunes through TuneWipe/TuneEdge; existing components'
+   dials are the maker's (the redress rule). */
+const idleOpen = src.indexOf("const IDLE_SHINE_RUNTIME = `");
+let idle = "";
+if (idleOpen < 0) errors.push("IDLE_SHINE_RUNTIME not found — the shine runtime template is missing");
+else {
+  const idleStart = idleOpen + "const IDLE_SHINE_RUNTIME = `".length;
+  let idleEnd = -1;
+  for (let i = idleStart; i < src.length; i++) {
+    if (src[i] === "\\") { i++; continue; }
+    if (src[i] === "`") { idleEnd = i; break; }
+  }
+  idle = idleEnd > 0 ? new Function("return `" + src.slice(idleStart, idleEnd) + "`;")() : "";
+}
+if (!/public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; \}/.test(cs))
+  errors.push("PBIdle must carry the pass dials (wipeDur/edgeDur/wipeWidth/trigger) — JsonUtility drops them without fields (round 25)");
+if (!/wipeDur: st\.cfg\.idle\?\.wipeDur \?\? 0, edgeDur: st\.cfg\.idle\?\.edgeDur \?\? 0,/.test(src)
+    || !/wipeWidth: st\.cfg\.idle\?\.wipeWidth \?\? 0, trigger: st\.cfg\.idle\?\.trigger \?\? ""/.test(src))
+  errors.push("the manifest's idle block must emit the pass dials with 0/'' untouched-defaults (round 25)");
+if (!/\[Range\(0\.1f, 0\.6f\)\] public float width = 0\.3f;/.test(idle))
+  errors.push("WipeShine's width dial (default 0.3 — the classic band) is missing (round 25)");
+if ((idle.match(/public bool hoverArmed;/g) ?? []).length !== 2)
+  errors.push("both shine halves must carry the hover arm (public bool hoverArmed on WipeShine AND EdgeShine) (round 25)");
+if ((idle.match(/armFx != null && armFx\.PointerOver/g) ?? []).length !== 2
+    || (idle.match(/armFx = GetComponentInParent<StateFx>\(\);/g) ?? []).length !== 2)
+  errors.push("the hover arm must borrow State FX's pointer flag via GetComponentInParent — one listener per piece (round 25)");
+if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(idle))
+  errors.push("the idle shines must never poll input — the arm rides State FX's EventSystem hover alone (round 25; the round-18 contract extended)");
+if (!/public bool PointerOver \{ get \{ return over; \} \}/.test(fx))
+  errors.push("StateFx.PointerOver (the read-only hover word the shines borrow) is missing (round 25)");
+if (!/float sw = Mathf\.Max\(0\.05f, Mathf\.Min\(sweep, period \* 0\.9f\)\);/.test(idle)
+    || !/float rn = Mathf\.Max\(0\.05f, Mathf\.Min\(run, period \* 0\.9f\)\);/.test(idle))
+  errors.push("the pass must keep its OWN clock capped at 90% of the cycle (decoupled tempo, the app's clamp) (round 25)");
+if (!/bandRt\.sizeDelta = new Vector2\(w \* bw, h \* 2\.4f\);/.test(idle) || !/float travel = w \* \(0\.6f \+ bw \* 0\.5f\);/.test(idle))
+  errors.push("the wipe band must draw at the width dial with travel that clears both edges (0.3 -> the classic 0.75) (round 25)");
+if (!/if \(hoverArmed && !armOver\) armParked = true;/.test(idle))
+  errors.push("an armed pass must COMPLETE before parking (exit mid-pass never freezes a visible band) (round 25)");
+if (!/static void TuneWipe\(WipeShine ws, PBManifest m\)/.test(cs) || !/static void TuneEdge\(EdgeShine es, PBManifest m\)/.test(cs))
+  errors.push("TuneWipe/TuneEdge (one seam for the idle dials at every shine birth) are missing (round 25)");
+if ((cs.match(/TuneWipe\(ws[A-Za-z0-9]*, m\);/g) ?? []).length < 4)
+  errors.push("every WipeShine birth must tune through TuneWipe — prefab build, stamp placement, stamp heal, redress add (round 25)");
+if ((cs.match(/TuneEdge\(es[A-Za-z0-9]*, m\);/g) ?? []).length < 2)
+  errors.push("every EdgeShine birth must tune through TuneEdge — prefab build and redress add (round 25)");
+if ((cs.match(/\.period = m\.idle\.freq;/g) ?? []).length !== 2)
+  errors.push("period-from-freq must live ONLY inside TuneWipe/TuneEdge (exactly 2 sites) — an inline site drifts past the dials (round 25)");
+if (!/if \(m\.idle\.wipeDur > 0\.05f\) ws\.sweep = m\.idle\.wipeDur;/.test(cs) || !/if \(m\.idle\.edgeDur > 0\.05f\) es\.run = m\.idle\.edgeDur;/.test(cs))
+  errors.push("absent dials must leave the runtime defaults (the 0-gate) — old manifests ship today's motion (round 25)");
+if (!/ws1\.width = ws0\.width; ws1\.hoverArmed = ws0\.hoverArmed;/.test(cs))
+  errors.push("the posed-copy wipe transplant must carry the round-25 dials (width + arm) to the art child (round 25)");
+
+/* round-26 P1: MenuItem VALIDATORS are side-effect free. The RouteInput
+   validator called Menu.SetChecked — a validator runs while the editor
+   is mid-menu-layout (an IMGUI pass), and poking the menu tree from
+   inside it is the re-entrancy IMGUI forbids: the owner's Console
+   filled with anonymous "EndLayoutGroup: BeginLayoutGroup must be
+   called first" errors. The checkmark now writes in exactly ONE place
+   (SyncRouteMenuCheck), stamped after domain reload and on toggle. */
+{
+  const setChecked = (cs.match(/Menu\.SetChecked\(/g) ?? []).length;
+  if (setChecked !== 1 || !/static void SyncRouteMenuCheck\(\) \{[\s\S]{0,400}?Menu\.SetChecked\(/.test(cs))
+    errors.push(`Menu.SetChecked must be written in exactly ONE place (SyncRouteMenuCheck), found ${setChecked} (round 26 — the EndLayoutGroup Console spam)`);
+  const validator = cs.match(/\[MenuItem\(RouteInputMenu, true\)\]\s*\n\s*static bool RouteEditorInputCheck\(\) \{[\s\S]*?\n    \}/);
+  if (!validator) errors.push("the RouteInput menu validator is missing (round 26)");
+  else if (/SetChecked\(|DisplayDialog\(|CreateAsset\(|SaveAsset|SetDirty\(|Debug\.Log\(/.test(validator[0]))
+    errors.push("the RouteInput menu validator must stay side-effect FREE — no SetChecked/dialogs/asset writes/logs inside it (round 26)");
+  if (!/\[InitializeOnLoadMethod\]\s*\n\s*static void ArmRouteMenuCheck\(\) \{ EditorApplication\.delayCall \+= SyncRouteMenuCheck; \}/.test(cs))
+    errors.push("the reload-time checkmark stamp (ArmRouteMenuCheck via delayCall) is missing (round 26)");
+  if (!/SyncRouteMenuCheck\(\); \/\/ the checkmark follows the toggle/.test(cs))
+    errors.push("the toggle handler must re-stamp the menu checkmark after flipping the setting (round 26)");
+}
+
+/* round-26 item 1: the double "0:56". The round-24 cast-shadow bake fired
+   for the PURE-TYPE timer — the transparency dials govern shell pieces,
+   so the "shadow" shipped as a complete second readout in system glyphs
+   (probe-proven: bright saturated glyph ink, meanLum 172 / meanSat 124).
+   App half: pure type never bakes a shadow (the round-14 pose-skip
+   discipline extended). Importer half: kept scenes CULL a builder-named,
+   boardstamps-sprited shadow sibling the current manifest disowns. */
+if (!/if \(!pureType && \(cfgP\.shadow\?\.opacity \?\? 0\) > 0\.5 && shm2 && vbm2\) \{/.test(src))
+  errors.push("the pure-type shadow-bake skip is missing — the timer ships a second full-ink readout as its 'shadow' again (round 26)");
+if (!/var shadowsInUse = new HashSet<string>\(\);/.test(cs)
+    || !/if \(ch\.name\.EndsWith\(" Shadow \(art\)"\)\)/.test(cs)
+    || !/staleShadows\.Add\(ch\.gameObject\);/.test(cs))
+  errors.push("the kept-scene stale-shadow cull (name + boardstamps path + manifest-disowned) is missing (round 26)");
+if (!/stale shadow bake\(s\) removed/.test(cs))
+  errors.push("the stale-shadow cull must speak in the heal receipt (round 26)");
+
+/* round-26 item 2: the chip's star travels (owner: the app's "NEW ☆"
+   arrived in Unity as bare NEW). App half: the chip bake carries the
+   resolved icon NODE (ghosted, true geometry — the plate widens by
+   star + gap), the seat parses off iconGroup's own transform against
+   the shell0 center (the labelDx discipline), and the glyph ships white
+   and tintable as chip/icon.png ("none" ships nothing). Importer half:
+   WireIconSeat seats a swappable tinted Icon child on generation AND
+   converges older prefabs in place; an existing Icon child is never
+   touched. */
+if (!/const iconOpt = n\.id === "chip" \? \{ icon: resolveKitIcon\(chipIconOv, undefined\) \} : \{\};/.test(src))
+  errors.push("the chip bake must carry the resolved kit icon (every other family stays iconless/byte-stable) (round 26)");
+if (!/chipIconOv === "none" \? null : \(chipIconOv \?\? STOCK_ICONS\.star\)/.test(src))
+  errors.push("the chip's effective icon must honor 'none' and per-kit overrides with the stock star as default (round 26)");
+if (!/addPng\("chip\/icon\.png"/.test(src) || !/file: "assets\/chip\/chip-icon\.png"/.test(src))
+  errors.push("the chip's glyph must ship white+tintable (famPath: chip/chip-icon.png) with its seat on the base row (round 26)");
+if (!/class PBIconSeat \{ public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; \}/.test(cs)
+    || !/public string labelText; public PBIconSeat icon;/.test(cs))
+  errors.push("PBAsset must carry the icon seat (PBIconSeat, round-27 shape: + strokeFile/strokeInk/strokeS) — JsonUtility drops it without the field (round 26/27)");
+if (!/static void WireIconSeat\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
+    || !/WireIconSeat\(go, root, m, baseAsset\.component\);/.test(cs))
+  errors.push("FamilyPrefab must seat the kit icon through WireIconSeat (round 26)");
+if (!/wantIconAdd/.test(cs) || !/WireIconSeat\(contents, root, m, famName\);/.test(cs))
+  errors.push("the maintenance pass must converge older prefabs onto the icon seat (wantIconAdd) (round 26)");
+if (!/if \(go\.transform\.Find\("Icon"\) != null\) return;/.test(cs))
+  errors.push("WireIconSeat must step aside for an existing Icon child — ours or the dev's (round 26)");
+
+/* round-26 item 3: the emblem socket's halo completes (owner screenshot:
+   the clock's glow cut square at a rect boundary). Chromium clips the
+   intermediate of a MULTI-function CSS drop-shadow chain on SVG groups
+   rasterized through an <img> — probe bisect: single filters clean, the
+   chain squares, the chain SPLIT into nested singles (identical math)
+   clean. Every bake road routes through splitFilterChains: the shell and
+   state bakes and both posed-pipeline renders. */
+if (!/const splitFilterChains = \(svg: string\): string => \{/.test(src))
+  errors.push("splitFilterChains (the raster road's chain splitter) is missing (round 26 — the square halo)");
+if ((src.match(/return splitFilterChains\(renderKit\(/g) ?? []).length !== 2)
+  errors.push("shell() AND stateShell() must route their renders through splitFilterChains (round 26)");
+if (!/ps2 = splitFilterChains\(ps2\);/.test(src) || !/ssv = splitFilterChains\(ssv\)/.test(src))
+  errors.push("the posed pipeline (pose + state skins) must route through splitFilterChains (round 26)");
+if (!/const pure = prims\.length >= 2 && prims\.join\(" "\)/.test(src))
+  errors.push("splitFilterChains must split ONLY pure drop-shadow chains of 2+ — anything else passes through (round 26)");
+if (!/let open = `<g style="filter:\$\{prims\[0\]\}"\$\{extras\}>`;/.test(src) || /\[\.\.\.prims\]\.reverse\(\)/.test(src))
+  errors.push("split order is probe-convicted: f1 OUTERMOST, big blur innermost on raw content — reversing re-clips the square (round 26)");
+
+/* round-26 item 4: the ScrollView reads deliberate. The bar hung off the
+   panel's PADDED rect edge (halo air) at half its track's baked width —
+   the reported sliver. It now seats inside the manifest-measured SHELL
+   at the track sprite's own width; the viewport insets from the shell
+   too; existing untouched prefabs re-seat in place (our constants,
+   empty Content, said out loud). */
+if (!/static bool ScrollViewPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs))
+  errors.push("ScrollViewPrefab must take the manifest — the seat has no shell truth without it (round 26)");
+if (!/float barW = Mathf\.Clamp\(track\.rect\.width \/ ps, 16f, 56f\);/.test(cs))
+  errors.push("the scrollbar must wear the track sprite's own baked width — 22f was the sliver (round 26)");
+if (!/vrt\.offsetMin = new Vector2\(padL \+ 18f, padB \+ 18f\);/.test(cs)
+    || !/sbrt\.anchoredPosition = new Vector2\(-\(padR \+ 12f\), shellDy\);/.test(cs))
+  errors.push("viewport and scrollbar must inset from the panel's SHELL box, not the padded rect (round 26)");
+if (!/ShellRaycastPad\(go, "panel", m\);/.test(cs))
+  errors.push("the ScrollView's clicks must stop at the drawn plate (ShellRaycastPad on the panel row) (round 26)");
+if (!/static void HealScrollView\(string root, PBManifest m\)/.test(cs) || !/HealScrollView\(root, manifest\);/.test(cs))
+  errors.push("the sliver-bar heal (our constants + empty Content only) is missing or never runs (round 26)");
+
+/* round-27 item 1: the chip's star wears its FULL app dress (owner field
+   test: "it is missing its styling (green stroke)"). App half: an
+   inheriting icon is two iconGroup passes — outline pen under fill pen —
+   and when the bake carries both (two color= attrs, stroke-mode def),
+   the outline pass ships as its own white glyph on a PADDED canvas
+   (half the pen hangs outside the path) plus its ink and box side on
+   the icon seat. Importer half: the seat layers Stroke (echo) under
+   Fill — the label's own echo naming — each tinted its own ink; rows
+   without the stroke keep the single flat image bit-for-bit. */
+if (!/chipIconDef\.mode === "stroke" && inks\.length >= 2/.test(src))
+  errors.push("the stroke echo must gate on app truth — a stroke-mode def with BOTH passes in the bake (round 27)");
+if (!/addPng\("chip\/icon-stroke\.png"/.test(src) || !/strokeFile: "assets\/chip\/chip-icon-stroke\.png"/.test(src))
+  errors.push("the outline pass must ship as its own white glyph (famPath: chip/chip-icon-stroke.png) on the icon seat (round 27)");
+if (!/const padIc = penIc \/ 2 \+ vbSideIc \/ 48;/.test(src))
+  errors.push("the stroke glyph's canvas must pad by half the pen — an unpadded canvas clips the widened stroke (round 27)");
+if (!/static void IconInkLayer\(Transform seat, string name, Sprite sp, string ink, float side\)/.test(cs))
+  errors.push("IconInkLayer (one tinted ink layer of the icon seat) is missing (round 27)");
+{
+  const iSt = cs.indexOf('IconInkLayer(icGo.transform, "Stroke (echo)", strokeSp, rowIc.icon.strokeInk, rowIc.icon.strokeS);');
+  const iFi = cs.indexOf('IconInkLayer(icGo.transform, "Fill", icSp, rowIc.icon.ink, rowIc.icon.s);');
+  if (iSt < 0 || iFi < 0 || iFi < iSt)
+    errors.push("WireIconSeat must layer Stroke (echo) UNDER Fill (sibling order is draw order) (round 27)");
+}
+if (!/rowIc\.icon\.strokeS > 2f && !string\.IsNullOrEmpty\(rowIc\.icon\.strokeFile\)/.test(cs))
+  errors.push("the layered seat must gate on strokeS + strokeFile — older manifests keep the single flat image (round 27)");
+
+/* round-27 item 2: the DOUBLED STAR (owner scene screenshot: "a
+   misplaced star with stroke"). Only the label strips from a posed
+   bake — the chip's styled star rides the posed pixels — so the
+   prefab's live Icon child beside it was a second, mis-seated star.
+   The build stands it down like Body/Specular; kept scenes heal the
+   same way (ours by sprite, disabled not destroyed); and the pose
+   divergence baseline wears the chip's star so stock-proportioned
+   chips stop falsely posing at all. */
+if (!/var icPos = inst\.transform\.Find\("Icon"\);\s*\n\s*if \(icPos != null\) icPos\.gameObject\.SetActive\(false\);/.test(cs))
+  errors.push("posed placement must stand the live Icon child down — the posed pixels already carry the styled star (round 27)");
+if (!/if \(icWantH != null && icHPath == icWantH\) \{ icHl\.gameObject\.SetActive\(false\); artFixed\+\+; \}/.test(cs))
+  errors.push("the kept-scene doubled-star heal (ours by sprite, disable in place) is missing (round 27)");
+if (!/icon: idBase === "chip" \? resolveKitIcon\(st\.kitIcons\?\.\[idBase\], undefined\) : null/.test(src))
+  errors.push("the pose divergence baseline must wear the chip's own star — an iconless baseline falsely poses every stock chip copy (round 27)");
+
+/* round-27 item 4: the socket's halo COMPLETES (owner, twice: "I'm
+   still able to see the edges of the glow"). The emblem socket is the
+   one family bake with a VISIBLE icon, and shell() zeroing the state
+   glows gave its canvas a 0px pad (glowPadOf keys on state glow) — the
+   icon-fx chain then rendered into the canvas edge. The bake now pads
+   its canvas for the chain's full reach and hands the tight crop a
+   wider margin so the falloff hits true zero inside the file. */
+if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: undefined \}, slim\), 64\)/.test(src))
+  errors.push("the emblem socket bake must pad its canvas (padSvg 64) — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27)");
+if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/Drop your own art in its well\." \}, 24\);/.test(src))
+  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27)");
+
+/* round-27 item 3: v1 fill-only Icons converge to the layered seat —
+   ONLY when provably ours and untouched (childless, our sprite, our
+   tint); anything the dev swapped, retinted or grew stays theirs. */
+if (!/wantIconStroke/.test(cs)
+    || !/AssetDatabase\.GetAssetPath\(icIm0\.sprite\)\.Replace\("\\\\", "\/"\) == root \+ "\/" \+ rowIc0\.icon\.file/.test(cs))
+  errors.push("the stroke-upgrade convergence must prove the Icon is ours by sprite path before touching it (round 27)");
+if (!/if \(icTU != null && icTU\.childCount == 0\) \{\s*\n\s*UnityEngine\.Object\.DestroyImmediate\(icTU\.gameObject, true\);\s*\n\s*WireIconSeat\(contents, root, m, famName\);/.test(cs))
+  errors.push("the stroke upgrade must rebuild through WireIconSeat and only ever remove a childless Icon (round 27)");
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

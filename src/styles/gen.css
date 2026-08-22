@@ -541,7 +541,16 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   --ink: #ecedf1; --ink2: #a6adba; --ink3: #6f7683;
   --soft: #23252b; --card: #1b1c21;
   --accent: #818cf8; /* a step brighter so it carries on dark panels */
+  /* the browser must know the page is dark, or every NATIVE surface it
+     draws — the open <select> list above all — stays a light panel while
+     the options inherit our light ink: pale-on-white, unreadable (field
+     notes #3, the starter-screen dropdown). */
+  color-scheme: dark;
 }
+/* belt and braces for engines that paint option rows from CSS (Firefox):
+   every dropdown list row reads as panel ink on panel card, not just the
+   .fieldbox ones */
+[data-theme="dark"] select option { background: var(--card); color: var(--ink); }
 [data-theme="dark"] body { background: #131418; color: var(--ink); }
 [data-theme="dark"] .top, [data-theme="dark"] .menu-pop, [data-theme="dark"] .zoolbar,
 [data-theme="dark"] .gridpop, [data-theme="dark"] .fontpick-pop,
@@ -1129,7 +1138,7 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    quick sweep; the hero keeps its ambient loop — one element, the page's
    crown. The editor canvas is untouched (no .kitpage ancestor). The
    infinite motion demos and attention pulses rest the same way. */
-.kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused; }
+.kitpage .kit-shine, .kitpage .kit-edgeshine { animation-play-state: paused !important; } /* design surfaces rest — hover-armed shines never override the gallery's stillness */
 /* The Board rests the same way in DESIGN mode (owner, 2026-08-16: "the
    idle animation should only play when play is pressed") — a screen full
    of perpetually-sweeping pieces kept the compositor repainting while the
@@ -1137,7 +1146,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    visible chug. Press Play and the shines run; paused at 0% both shines
    are invisible by construction (the wipe band starts off-face, the edge
    spark parks at dasharray 0 / opacity 0). */
-.board2:not(.playing) .kit-shine, .board2:not(.playing) .kit-edgeshine { animation-play-state: paused; }
+.board2:not(.playing) .kit-shine, .board2:not(.playing) .kit-edgeshine { animation-play-state: paused !important; }
+/* hover-armed idle motion (owner-approved): the pass waits until the pointer
+   is ON the piece — :hover reaches the svg from its hit rect even while the
+   canvas itself is pointer-transparent (the pointer-honesty pass) */
+.kit-shine--armed, .kit-edgeshine--armed { animation-play-state: paused; }
+svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-state: running; }
 /* No rollover one-shots for the idle shines here — a gallery where every
    piece flashes as the pointer crosses it read as chaos, not craft
    (owner: "the idle animations are happening on rollover in the kit...
@@ -1734,6 +1748,9 @@ button.kp-fact { cursor: pointer; }
 .bd-search input { flex: 1; border: 0; outline: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink); min-width: 0; }
 .bd-scroll { flex: 1; overflow-y: auto; margin-top: 4px; padding-right: 2px; }
 .bd-cat { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); margin: 14px 0 6px; }
+/* provenance note beside a category title (owner: "leave a note next to
+   Big Glyphs (ai generated)") — quiet, lowercase against the caps title */
+.bd-cat-note { font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: none; opacity: .65; margin-left: 2px; }
 .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .bd-asset { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg, #fff); cursor: pointer; min-width: 0; }
 .bd-asset:hover { border-color: var(--ink); }
@@ -1745,7 +1762,14 @@ button.kp-fact { cursor: pointer; }
 .bd-asset i { font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink2); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bd-hint { margin: 16px 2px 6px; font-size: 11px; line-height: 1.55; color: var(--ink2); }
 .bd-main { display: flex; flex-direction: column; min-width: 0; }
-.bd-top { display: flex; align-items: center; gap: 18px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
+/* the header WRAPS at smaller windows instead of crushing its controls —
+   the aspect pill used to shrink to a sliver and the Mobile option
+   disappeared entirely (field notes #3: "mobile view option clipped");
+   every control keeps its natural size and flows to the next row */
+.bd-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
+.bd-title { min-width: 0; }
+.bd-aspect, .bd-tpl, .bd-snap, .bd-top .bd-export { flex: none; }
+.bd-snap { white-space: nowrap; }
 .bd-title h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .bd-title span { font-size: 12px; color: var(--ink2); }
 .bd-aspect { margin-left: auto; display: inline-flex; border: 1px solid var(--line2); border-radius: 999px; overflow: hidden; }
