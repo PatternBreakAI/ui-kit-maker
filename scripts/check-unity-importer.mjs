@@ -1010,6 +1010,40 @@ if ((cs.match(/CheckEdge\(safeT, "Safe Edge /g) ?? []).length !== 4)
 if (!/### Safe areas & scaling/.test(src))
   errors.push("the README's safe-area & scaling section is missing (round 29)");
 
+/* round-29 slice B: ANCHOR INFERENCE v1 — one conservative, manifest-
+   decidable rule (18% edge band -> edge/corner; middle -> center; baked
+   unrotated art spanning 80%+ of a dimension -> stretch, text and glyph
+   art exempt, live prefabs never). The builder RE-ANCHORS after placement
+   with the reference-res seat held exact; the shadow sibling rides the
+   same anchor; the heals match BOTH builder vintages through one seat
+   helper and write stretch-aware sizes. Predictability is the contract —
+   these pins keep the rule from quietly getting clever. */
+if (!/static void InferAnchor\(PBBoardItem it, PBBoard bd, out Vector2 aMin, out Vector2 aMax\)/.test(cs))
+  errors.push("InferAnchor (the one-seat anchor rule) is missing (round 29B)");
+if (!/float band = 0\.18f, span = 0\.80f;/.test(cs))
+  errors.push("the rule's dials moved — 18% edge band / 80% span are the DOCUMENTED v1 numbers (round 29B)");
+if (!/bool baked = !string\.IsNullOrEmpty\(it\.stamp\) && it\.component != "typestamp" && it\.component != "bigglyph";/.test(cs))
+  errors.push("stretch must stay off text stamps, glyph art and every LIVE prefab — distorted letterforms / scale-broken anchors (round 29B)");
+if (!/baked && Mathf\.Abs\(it\.rot\) <= 0\.01f/.test(cs))
+  errors.push("a rotated copy must never stretch (stretch + rotation is shear) (round 29B)");
+if (!/static int ApplyInferredAnchor\(RectTransform rt, PBBoardItem it, PBBoard bd\)/.test(cs)
+    || !/rt\.anchoredPosition \+= new Vector2\(\(it\.ax - fAx\) \* bd\.w, \(it\.ay - fAy\) \* bd\.h\);/.test(cs))
+  errors.push("the re-anchor must pay the anchor-reference shift back into anchoredPosition — the reference-res seat is held EXACT (round 29B)");
+if (!/if \(aMax\.x - aMin\.x > 0\.5f\) \{ sd\.x -= bd\.w; stretched = true; \}/.test(cs))
+  errors.push("a stretched axis must pay the parent span out of sizeDelta (margins, not absolute size) (round 29B)");
+if (!/int anchorKind = ApplyInferredAnchor\(rt, it, bd\);/.test(cs)
+    || !/if \(shadowRt != null\) ApplyInferredAnchor\(shadowRt, it, bd\);/.test(cs))
+  errors.push("placement must re-anchor the piece AND its shadow sibling with the same rule — split anchors drift the pair apart (round 29B)");
+if (!/static bool MatchesSeat\(RectTransform crt, PBBoardItem it, PBBoard bd\)/.test(cs)
+    || !/if \(MatchesSeat\(crt, it, bd\)\) \{ it2 = it; break; \}/.test(cs))
+  errors.push("the heals must match seats through MatchesSeat (both builder vintages) — an inline matcher goes blind on responsive scenes (round 29B)");
+if ((cs.match(/SeatSizeDelta\(crt, it2, bd\);/g) ?? []).length !== 2)
+  errors.push("both bake re-adoption sites must size through SeatSizeDelta — a raw (w, h) write balloons a stretch-anchored stamp (round 29B)");
+if (!/responsive anchors — /.test(cs))
+  errors.push("the per-scene responsive-anchor receipt line is missing (round 29B)");
+if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(src))
+  errors.push("the README must document the v1 anchor rule with its real numbers (round 29B)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

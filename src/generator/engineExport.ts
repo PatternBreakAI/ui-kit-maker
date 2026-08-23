@@ -6215,6 +6215,24 @@ Every board scene ships phone-ready, three deliberate layers deep:
   width while heights swing wildly (19.5:9 down to 16:9), so
   width-match keeps buttons finger-true and lets the extra height
   breathe.
+- **Anchor inference v1 — one predictable rule.** Each board piece gets
+  its RectTransform anchor from where it sits on the frame:
+  - center inside the **outer 18%** of the frame (either axis) →
+    anchored to that **edge**; both axes in the band → that **corner**.
+    HUD corners stay HUD corners on every aspect ratio.
+  - **baked art** (a flattened stamp) spanning **80%+ of a dimension**,
+    unrotated → **stretches** across that dimension, margins held.
+    Type stamps and big-glyph art are exempt — letterforms never
+    distort — and live prefabs always keep point anchors (their sizing
+    runs through scale, which stretch anchors would break).
+  - everything else → anchored to the **center** (the safe default —
+    every ambiguity resolves here, never a guess).
+  At the board's own resolution nothing moves — the rule only decides
+  what happens on OTHER aspects. The import Console prints a per-scene
+  receipt ("responsive anchors — N edge/corner, M centered, K
+  stretched") so you can audit every decision, and re-anchoring a piece
+  by hand in Unity is always respected — the kit's heals key on OUR
+  seats and never touch a piece you moved.
 - **The Responsive Check scene.** **Scenes/Responsive Check.unity** is
   a thirty-second sanity check: a bright green outline drawn by the
   live safe area, a backdrop that deliberately bleeds under cutouts,
@@ -8222,6 +8240,81 @@ namespace PatternBreak {
        heals: a word that is neither the pin nor the stock word is the
        maker's own retype and is never touched. Runs on every import;
        idempotent (a right word is a no-op). ── */
+    /* ── ANCHOR INFERENCE v1 (round 29 slice B) — deliberately
+       conservative, documented in the README deck. The rule:
+       EDGE BAND — a piece whose center sits in the outer 18% of the
+       frame anchors to that edge (both bands: that corner).
+       MIDDLE — anywhere else anchors to the frame center.
+       SPAN — a BAKED piece (a stamp Image at scale 1) covering 80%+ of
+       a dimension stretches with it, margins held — EXCEPT type stamps
+       and big-glyph art, whose letterforms/artwork must never distort,
+       and EXCEPT rotated copies (stretch + rotation is shear). Live
+       prefabs never stretch: their sizing runs through localScale,
+       which stretch anchors break by construction.
+       Every ambiguity resolves to CENTER (the old behavior) — never a
+       wild guess. Manifest-decidable on purpose: the builder placing
+       and the healers matching derive the SAME answer from the same
+       rows, so a healed scene can never disagree with a built one. */
+    static void InferAnchor(PBBoardItem it, PBBoard bd, out Vector2 aMin, out Vector2 aMax) {
+      float band = 0.18f, span = 0.80f;
+      float nx = it.cx / bd.w;        // 0..1 from the left
+      float ny = 1f - it.cy / bd.h;   // 0..1 from the BOTTOM (Unity anchor space; board y runs down)
+      float ax = nx <= band ? 0f : nx >= 1f - band ? 1f : 0.5f;
+      float ay = ny <= band ? 0f : ny >= 1f - band ? 1f : 0.5f;
+      bool baked = !string.IsNullOrEmpty(it.stamp) && it.component != "typestamp" && it.component != "bigglyph";
+      bool sx = baked && Mathf.Abs(it.rot) <= 0.01f && it.w / bd.w >= span;
+      bool sy = baked && Mathf.Abs(it.rot) <= 0.01f && it.h / bd.h >= span;
+      aMin = new Vector2(sx ? 0f : ax, sy ? 0f : ay);
+      aMax = new Vector2(sx ? 1f : ax, sy ? 1f : ay);
+    }
+    /* re-anchors a JUST-PLACED rect (point-anchored at the item's legacy
+       zone, pivot 0.5) to its inferred anchor WITHOUT moving it at the
+       reference resolution: the anchor-reference shift is paid back into
+       anchoredPosition, and a stretched axis pays the parent span out of
+       sizeDelta. Returns the receipt code: 0 centered, 1 edge/corner,
+       2 stretched. */
+    static int ApplyInferredAnchor(RectTransform rt, PBBoardItem it, PBBoard bd) {
+      if (rt == null || bd.w <= 1 || bd.h <= 1) return 0;
+      Vector2 aMin, aMax;
+      InferAnchor(it, bd, out aMin, out aMax);
+      float fAx = (aMin.x + aMax.x) * 0.5f, fAy = (aMin.y + aMax.y) * 0.5f;
+      rt.anchoredPosition += new Vector2((it.ax - fAx) * bd.w, (it.ay - fAy) * bd.h);
+      var sd = rt.sizeDelta;
+      bool stretched = false;
+      if (aMax.x - aMin.x > 0.5f) { sd.x -= bd.w; stretched = true; }
+      if (aMax.y - aMin.y > 0.5f) { sd.y -= bd.h; stretched = true; }
+      if (stretched) rt.sizeDelta = sd;
+      rt.anchorMin = aMin; rt.anchorMax = aMax;
+      if (stretched) return 2;
+      return (aMin.x != 0.5f || aMin.y != 0.5f) ? 1 : 0;
+    }
+    /* the builder's seat, BOTH vintages: true when this rect sits where
+       the pre-29 builder (legacy zone point anchor) or the round-29+
+       builder (inferred responsive anchor) placed this item. The heals
+       key on it — a piece the maker moved matches neither and stays
+       theirs, exactly as before. */
+    static bool MatchesSeat(RectTransform crt, PBBoardItem it, PBBoard bd) {
+      var want = new Vector2(it.cx - it.ax * bd.w, -(it.cy - (1f - it.ay) * bd.h));
+      if ((crt.anchoredPosition - want).sqrMagnitude < 0.25f
+          && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) return true;
+      if (bd.w <= 1 || bd.h <= 1) return false;
+      Vector2 aMin, aMax;
+      InferAnchor(it, bd, out aMin, out aMax);
+      float fAx = (aMin.x + aMax.x) * 0.5f, fAy = (aMin.y + aMax.y) * 0.5f;
+      var wantR = want + new Vector2((it.ax - fAx) * bd.w, (it.ay - fAy) * bd.h);
+      return (crt.anchoredPosition - wantR).sqrMagnitude < 0.25f
+          && (crt.anchorMin - aMin).sqrMagnitude < 2e-6f && (crt.anchorMax - aMax).sqrMagnitude < 2e-6f;
+    }
+    /* the size a healed bake should wear IN ITS OWN anchor frame: a
+       stretch-anchored axis carries the parent span, so the item box
+       must come back as margins (w - frame), not as absolute size — a
+       raw (w, h) write would balloon a stretched stamp. */
+    static void SeatSizeDelta(RectTransform crt, PBBoardItem it, PBBoard bd) {
+      var sd = new Vector2(it.w, it.h);
+      if (crt.anchorMax.x - crt.anchorMin.x > 0.5f) sd.x -= bd.w;
+      if (crt.anchorMax.y - crt.anchorMin.y > 0.5f) sd.y -= bd.h;
+      crt.sizeDelta = sd;
+    }
     /* ── ADOPT THE SAFE-AREA ROOT (round 29) — heal-out-loud. Kept board
        scenes predate the responsive contract: their content hangs
        straight off the Canvas, so a notch can sit on a button. The graft
@@ -8343,9 +8436,8 @@ namespace PatternBreak {
               PBBoardItem it2 = null;
               foreach (var it in bd.items) {
                 if (it == null) continue;
-                var want = new Vector2(it.cx - it.ax * bd.w, -(it.cy - (1f - it.ay) * bd.h));
-                if ((crt.anchoredPosition - want).sqrMagnitude < 0.25f
-                    && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) { it2 = it; break; }
+                // both builder vintages match (legacy zone / round-29 inferred)
+                if (MatchesSeat(crt, it, bd)) { it2 = it; break; }
               }
               if (it2 == null) continue;
               /* ── ROUND-20 GHOST-STICK HEAL (owner: "it's grabbing the
@@ -8372,7 +8464,7 @@ namespace PatternBreak {
                 var wantBig = string.IsNullOrEmpty(it2.big.sprite) ? null : S(root + "/" + it2.big.sprite);
                 if (bigImgH != null && wantBig != null && bigImgH.sprite != wantBig) {
                   bigImgH.sprite = wantBig;
-                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  SeatSizeDelta(crt, it2, bd); // stretch-aware: a spanned axis wears margins, not absolute size
                   ArtRaycastPad(bigImgH, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
@@ -8391,7 +8483,7 @@ namespace PatternBreak {
                 var wantSp = S(root + "/" + it2.stamp);
                 if (img2 != null && wantSp != null && img2.sprite != wantSp) {
                   img2.sprite = wantSp;
-                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  SeatSizeDelta(crt, it2, bd); // stretch-aware: a spanned axis wears margins, not absolute size
                   ArtRaycastPad(img2, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
@@ -8633,6 +8725,8 @@ namespace PatternBreak {
         safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
         var safeT = safeGo.transform;
         int placed = 0, missing = 0;
+        // the responsive-anchor receipt (round 29 slice B) — one line per scene
+        int anchorsEdge = 0, anchorsCentered = 0, anchorsStretched = 0;
         /* the ordering self-test (round 12): every pinned word on this
            board is accounted for out loud — variant placed, minted right
            here, or base fallback (named). The field reads one line. */
@@ -8640,7 +8734,7 @@ namespace PatternBreak {
         var pinnedFallbacks = new List<string>();
         var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
         if (bd.items != null) foreach (var it in bd.items) {
-          GameObject inst = null; RectTransform rt = null;
+          GameObject inst = null; RectTransform rt = null; RectTransform shadowRt = null;
           /* ── a BIG GLYPH (the owner's board-art drop): every instance
              converges on its asset's OWN prefab (owner mandate: "if used
              then they should export with boards as their own prefabs").
@@ -9074,8 +9168,20 @@ namespace PatternBreak {
               shImg.raycastTarget = false;
               // slot in right before the piece: behind it, still its neighbor
               shGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
+              shadowRt = shRt;
             }
           }
+          /* ── RESPONSIVE RE-ANCHOR (round 29 slice B): the piece placed
+             at its legacy zone point above with the reference-resolution
+             seat exact; now it adopts its INFERRED anchor (the band/span
+             rule — InferAnchor) without moving a pixel at reference res.
+             The shadow sibling adopts the same anchor, so the pair never
+             drifts apart on other aspects. ── */
+          int anchorKind = ApplyInferredAnchor(rt, it, bd);
+          if (shadowRt != null) ApplyInferredAnchor(shadowRt, it, bd);
+          if (anchorKind == 2) anchorsStretched++;
+          else if (anchorKind == 1) anchorsEdge++;
+          else anchorsCentered++;
           /* per-copy words (the maker typed them on this copy in the app) —
              the override must speak to the stack's OWNER: setting the TMP
              text alone left HeroLabel's own words in charge, and it
@@ -9222,6 +9328,10 @@ namespace PatternBreak {
              words — the one-glance field check is "0 base fallback(s)" */
           if (pinned > 0)
             Debug.Log("UI Kit Maker: board '" + bd.name + "' — " + pinned + " pinned cop(ies): " + pinnedVariant + " variant instance(s), " + pinnedMinted + " minted at placement, " + pinnedFallbacks.Count + " base fallback(s)" + (pinnedFallbacks.Count > 0 ? " (" + string.Join(", ", pinnedFallbacks.ToArray()) + " — wearing base dress until the scene self-heals)" : "") + ".");
+          /* the responsive-anchor receipt: which anchor each rule case
+             got, one glance (the probe boards read this line) */
+          if (placed > 0)
+            Debug.Log("UI Kit Maker: '" + bd.name + "' responsive anchors — " + anchorsEdge + " edge/corner, " + anchorsCentered + " centered, " + anchorsStretched + " stretched (center in the outer 18% band anchors to that edge/corner; baked art spanning 80%+ of a dimension stretches; everything else centers — the README's safe-area slide has the rule).");
           Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " incomplete (a prefab or pinned word isn't ready yet — the scene rebuilds itself once it is, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
         }
         else
