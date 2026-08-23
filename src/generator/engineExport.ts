@@ -6566,6 +6566,22 @@ handle follows — and it keeps the kit's pixels in every state. Row
 spacing and padding are the layout group's dials on Content; delete
 the layout group if you'd rather place content freely.
 
+**Input**: a WORKING TMP_InputField, not a picture of one — click it in
+Play mode and type. The kit surface is the field; the placeholder is a
+live TMP child in the kit's own face (retype or delete it — it hides
+the moment a character lands); your typed text rides a masked Text
+Area seated on the well exactly where the app draws the affordance.
+The caret wears the kit's Glow ink and the selection its translucent
+wash, both from kit-manifest.json > palette. Body copy needs a robust
+text font, so the typed value wears the kit's own face (undressed —
+no outline/glow material) only when its TTF proves full keyboard
+coverage at import, with TMP's LiberationSans wired as fallback for
+anything beyond it; a display TTF with gaps hands the value line to
+the neutral grotesk and keeps the kit face on the placeholder. Bind
+*On Value Changed* / *On End Edit* in the Inspector like any
+TMP_InputField. (Pre-2023.2 editors keep the flat surface +
+placeholder — TMP ships inside uGUI from 2023.2.)
+
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
 stretch — instrument well, grid and axis rails baked in — with titles,
 legends, rows and axis numbers all live text in the Words group (the
@@ -9886,6 +9902,154 @@ namespace PatternBreak {
       rt.offsetMin = new Vector2(ph.left, rt.offsetMin.y);
       rt.offsetMax = new Vector2(-ph.left, rt.offsetMax.y);
     }
+#if UNITY_2023_2_OR_NEWER
+    /* ── round 28: the Input is a WORKING TMP_InputField, not a picture
+       of one (external Unity tester + outside consultant — the top
+       production-truth gap before the store run). The structure is TMP's
+       own field template seated on the KIT's numbers: a RectMask2D
+       "Text Area" strip on the manifest's placeholder line (the well's
+       measured midline — NOT the sprite rect's center, the extrusion
+       hangs below), the placeholder as live kit-faced type in exactly
+       AddPlaceholder's seat and dress, and the typed value on its own
+       TMP child. Caret and selection wear the kit's inks. ── */
+    /* body copy needs a ROBUST text font. The kit face is a display
+       voice — styled material, and its TTF may cover only what labels
+       use. The value line wears the kit's own face (PLAIN material) only
+       when the shipped TTF proves every printable-ASCII glyph at import;
+       otherwise TMP's LiberationSans — the shipped neutral grotesk —
+       takes the line and the kit face stays on the placeholder. Either
+       way the grotesk rides the kit face's fallback table, so a typed
+       glyph beyond the TTF renders instead of boxing. */
+    static bool FontCoversPrintableAscii(Font f) {
+      if (f == null) return false;
+      for (int ch = 32; ch < 127; ch++) if (!f.HasCharacter((char)ch)) return false;
+      return true;
+    }
+    static TMP_FontAsset InputBodyFace(string root, PBManifest m, Font kitTtf, out bool kitVoiced) {
+      kitVoiced = false;
+      var grotesk = GaugeUnitFace();
+      var kitFace = EnsureTmpFace(root, m, kitTtf);
+      if (kitFace != null && grotesk != null) {
+        if (kitFace.fallbackFontAssetTable == null) kitFace.fallbackFontAssetTable = new List<TMP_FontAsset>();
+        if (kitFace.fallbackFontAssetTable.Count == 0) {
+          kitFace.fallbackFontAssetTable.Add(grotesk);
+          EditorUtility.SetDirty(kitFace);
+        }
+      }
+      if (kitFace != null && FontCoversPrintableAscii(kitTtf)) { kitVoiced = true; return kitFace; }
+      return grotesk; // null only on a moved TMP install — TMP then assigns its own default
+    }
+    /* the value ink answers the WELL it sits on (manifest palette, no new
+       rows): a light well takes the kit's shadow ink when that ink is
+       actually dark (else near-black), a dark well takes white. */
+    static Color InputValueInk(PBManifest m) {
+      Color well;
+      if (m == null || m.palette == null || string.IsNullOrEmpty(m.palette.well) || !ColorUtility.TryParseHtmlString(m.palette.well, out well)) return Color.white;
+      float luma = 0.2126f * well.r + 0.7152f * well.g + 0.0722f * well.b;
+      if (luma <= 0.6f) return Color.white;
+      Color dark;
+      if (!string.IsNullOrEmpty(m.palette.shadow) && ColorUtility.TryParseHtmlString(m.palette.shadow, out dark)
+          && (0.2126f * dark.r + 0.7152f * dark.g + 0.0722f * dark.b) < 0.35f) { dark.a = 1f; return dark; }
+      return new Color(0.09f, 0.1f, 0.13f, 1f);
+    }
+    static void WireInputField(GameObject go, string root, PBManifest m, Font kitFont) {
+      var ph = m != null ? m.placeholder : null;
+      var prt = go.GetComponent<RectTransform>();
+      float mid = prt != null ? prt.rect.height * 0.5f : 0f;
+      float left = ph != null && ph.left > 0.5f ? ph.left : 24f;
+      float fs = ph != null && ph.size > 1f ? ph.size : 30f;
+      float lineY = ph != null ? mid - ph.centerFromTop : 0f;
+      /* the masked strip on the well's midline — the caret and a long
+         value clip at the drawn field instead of spilling over the bevel */
+      var area = new GameObject("Text Area", typeof(RectTransform), typeof(RectMask2D));
+      area.transform.SetParent(go.transform, false);
+      var art = area.GetComponent<RectTransform>();
+      art.anchorMin = new Vector2(0f, 0.5f); art.anchorMax = new Vector2(1f, 0.5f);
+      art.pivot = new Vector2(0.5f, 0.5f);
+      art.sizeDelta = new Vector2(-left * 2f, Mathf.Max(fs * 1.9f, 40f));
+      art.anchoredPosition = new Vector2(0f, lineY);
+      /* the placeholder keeps AddPlaceholder's exact seat and dress — the
+         kit face at 55% opacity, italic when the kit says so — now BOUND
+         to the field's placeholder slot: it hides itself the moment a
+         character lands, returns when the field empties */
+      TextMeshProUGUI phT = null;
+      if (ph != null && !string.IsNullOrEmpty(ph.text)) {
+        var phGo = new GameObject("Placeholder", typeof(RectTransform), typeof(CanvasRenderer));
+        phGo.transform.SetParent(area.transform, false);
+        var phRt = phGo.GetComponent<RectTransform>();
+        phRt.anchorMin = Vector2.zero; phRt.anchorMax = Vector2.one;
+        phRt.offsetMin = Vector2.zero; phRt.offsetMax = Vector2.zero;
+        phT = phGo.AddComponent<TextMeshProUGUI>();
+        phT.text = ph.text;
+        var phFace = EnsureTmpFace(root, m, kitFont);
+        if (phFace != null) phT.font = phFace;
+        phT.enableAutoSizing = false;
+        phT.fontSize = fs;
+        phT.alignment = TextAlignmentOptions.Left; // midline-left, the app's seat
+        Color phC;
+        if (string.IsNullOrEmpty(ph.color) || !ColorUtility.TryParseHtmlString(ph.color, out phC)) phC = Color.white;
+        phC.a = Mathf.Clamp01(ph.opacity / 100f);
+        phT.color = phC;
+        if (ph.italic) phT.fontStyle = FontStyles.Italic;
+        phT.raycastTarget = false;
+      }
+      // the typed value: the robust body voice on a plain material
+      var txGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer));
+      txGo.transform.SetParent(area.transform, false);
+      var txRt = txGo.GetComponent<RectTransform>();
+      txRt.anchorMin = Vector2.zero; txRt.anchorMax = Vector2.one;
+      txRt.offsetMin = Vector2.zero; txRt.offsetMax = Vector2.zero;
+      var tx = txGo.AddComponent<TextMeshProUGUI>();
+      tx.text = "";
+      bool kitVoiced;
+      var bodyFace = InputBodyFace(root, m, kitFont, out kitVoiced);
+      if (bodyFace != null) {
+        tx.font = bodyFace; // assigning the font resets the material —
+        if (kitVoiced) {
+          var plainB = EnsureGaugeUnitMaterial(root, bodyFace);
+          if (plainB != null) tx.fontSharedMaterial = plainB; // — the undressed preset lands after
+        }
+      }
+      tx.enableAutoSizing = false;
+      tx.fontSize = fs;
+      tx.alignment = TextAlignmentOptions.Left;
+      tx.color = InputValueInk(m);
+      tx.raycastTarget = false; // the field's root Image carries the click (shell-true pad)
+      var input = go.AddComponent<TMP_InputField>();
+      input.targetGraphic = BodyImage(go);
+      /* the input family bakes no designed states — the surface holds its
+         designed face in every state (the caret IS the focus signal) and
+         only disabled fades, honestly */
+      input.transition = Selectable.Transition.ColorTint;
+      var ib = input.colors;
+      ib.normalColor = Color.white;
+      ib.highlightedColor = Color.white;
+      ib.pressedColor = Color.white;
+      ib.selectedColor = Color.white;
+      ib.disabledColor = new Color(1f, 1f, 1f, 0.55f);
+      ib.colorMultiplier = 1f;
+      input.colors = ib;
+      input.textViewport = art;
+      input.textComponent = tx;
+      if (phT != null) input.placeholder = phT;
+      /* NEVER input.fontAsset / input.pointSize here: those global
+         setters restamp the PLACEHOLDER's font too, and its kit face is
+         the point. The components above already carry the right faces. */
+      /* caret + selection from the KIT's inks (manifest palette): the
+         caret wears the Glow accent, the selection its translucent wash —
+         glow-less manifests fall back to the value ink. */
+      Color caretInk = tx.color;
+      Color glowI;
+      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out glowI)) { glowI.a = 1f; caretInk = glowI; }
+      input.customCaretColor = true;
+      input.caretColor = caretInk;
+      var selWash = caretInk;
+      selWash.a = 0.35f;
+      input.selectionColor = selWash;
+      input.caretWidth = Mathf.Clamp(Mathf.RoundToInt(fs / 15f), 2, 6);
+      input.caretBlinkRate = 0.85f;
+    }
+#endif
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
       var lrowA = LabelRow(m, family);
       float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
@@ -10136,7 +10300,18 @@ namespace PatternBreak {
          "I didn't realize the text would be burned into the image"). One
          child named so its job is obvious — retype it, bind it to your
          field's placeholder slot, or select it and press Delete. */
-      if (baseAsset.component == "input") AddPlaceholder(go, root, m, kitFont);
+      /* round 28 (external tester + consultant: the second half of the
+         production-truth gap): on TMP editors the input is a WORKING
+         TMP_InputField — click and type in Play mode. Pre-2023.2 editors
+         keep the bare surface + placeholder they always had (TMP ships
+         inside uGUI only from 2023.2). */
+      if (baseAsset.component == "input") {
+#if UNITY_2023_2_OR_NEWER
+        WireInputField(go, root, m, kitFont);
+#else
+        AddPlaceholder(go, root, m, kitFont);
+#endif
+      }
       /* the end-turn countdown ring, LIVE: Filled/Radial360 over the bare
          shell, tinted to the kit Glow, staged at 0.7 — drive fillAmount
          and it animates (owner: "the countdown numerics should be
@@ -13334,6 +13509,45 @@ namespace PatternBreak {
             continue;
           }
         }
+#if UNITY_2023_2_OR_NEWER
+        /* the input's FIELD era (round 28): an Input.prefab from the
+           bare-surface generation becomes a working TMP_InputField —
+           but only when provably ours and unwired: our own placeholder
+           child still present (the bare surface's one movable part), NO
+           Selectable anywhere (a Button or field the dev added is their
+           wiring), and no Text Area (already grafted). A dev who deleted
+           the placeholder bound their own field — theirs, untouched. The
+           one thing they may have retyped, the placeholder's word,
+           survives the graft. */
+        if (spritePath.EndsWith("/input-base.9.png")
+            && asset.GetComponentInChildren<TMP_InputField>(true) == null
+            && asset.GetComponentInChildren<Selectable>(true) == null
+            && asset.transform.Find("Text Area") == null
+            && asset.transform.Find("Placeholder (delete or bind)") != null) {
+          var contentsIF = PrefabUtility.LoadPrefabContents(path);
+          try {
+            var oldPhC = contentsIF.transform.Find("Placeholder (delete or bind)");
+            string devWord = null;
+            if (oldPhC != null) {
+              var oT = oldPhC.GetComponent<TMP_Text>();
+              var oU = oldPhC.GetComponent<Text>();
+              devWord = oT != null ? oT.text : (oU != null ? oU.text : null);
+              UnityEngine.Object.DestroyImmediate(oldPhC.gameObject);
+            }
+            WireInputField(contentsIF, root, m, mkFont);
+            var wantWord = m != null && m.placeholder != null ? m.placeholder.text : null;
+            if (!string.IsNullOrEmpty(devWord) && devWord != wantWord) {
+              var areaIF = contentsIF.transform.Find("Text Area");
+              var nPh = areaIF != null ? areaIF.Find("Placeholder") : null;
+              var nT = nPh != null ? nPh.GetComponent<TMP_Text>() : null;
+              if (nT != null) nT.text = devWord; // a retyped word is the dev's
+            }
+            PrefabUtility.SaveAsPrefabAsset(contentsIF, path);
+            Debug.Log("UI Kit Maker: Input.prefab is now a working TMP_InputField — click it in Play mode and type. The placeholder became the field's live slot (your word kept), the typed value takes the robust body voice, and the caret and selection wear the kit's inks. Placed instances update with the prefab.");
+          } finally { PrefabUtility.UnloadPrefabContents(contentsIF); }
+          continue;
+        }
+#endif
         /* the mini-map's lost MAP (round 14): the ONE import where the map
            layer first arrives (extras-minimap-map.png absent from the last
            receipt), an existing Minimap prefab grafts the app's well

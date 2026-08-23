@@ -906,6 +906,46 @@ if (!/ScrollView\.prefab is now a working list/.test(cs))
 if (!/\*\*ScrollView\*\*: a WORKING list/.test(src))
   errors.push("the README's ScrollView bones entry (the working-list contract) is missing (round 28)");
 
+/* round-28 slice B: the Input is a WORKING TMP_InputField (the gap's
+   second half). The wiring: a RectMask2D Text Area strip seated on the
+   manifest's placeholder line (the well's measured midline), the
+   placeholder live in the kit face at AddPlaceholder's exact dress, the
+   typed value on the ROBUST body voice — the kit's own face (plain
+   material) only when its TTF proves printable ASCII at import, else
+   TMP's LiberationSans, with the grotesk on the kit face's fallback
+   table either way. Caret + selection wear the kit's Glow; the value
+   ink answers the well's luma. Pre-TMP editors keep the bare surface +
+   placeholder. Existing bare Input prefabs graft the field in place
+   only when provably ours and unwired, keeping a retyped placeholder
+   word, out loud. */
+if (!/static void WireInputField\(GameObject go, string root, PBManifest m, Font kitFont\)/.test(cs))
+  errors.push("WireInputField is missing (round 28)");
+if (!/WireInputField\(go, root, m, kitFont\);/.test(cs) || !/AddPlaceholder\(go, root, m, kitFont\);/.test(cs))
+  errors.push("FamilyPrefab must wire the input as a FIELD on TMP editors and keep the placeholder surface on pre-TMP editors (round 28)");
+if (!/new GameObject\("Text Area", typeof\(RectTransform\), typeof\(RectMask2D\)\);/.test(cs))
+  errors.push("the input's masked Text Area strip is missing — typed text would spill over the bevel (round 28)");
+if (!/static bool FontCoversPrintableAscii\(Font f\)/.test(cs) || !/for \(int ch = 32; ch < 127; ch\+\+\)/.test(cs))
+  errors.push("the body-voice coverage proof (printable ASCII over the shipped TTF) is missing (round 28)");
+if (!/kitFace\.fallbackFontAssetTable\.Add\(grotesk\);/.test(cs))
+  errors.push("LiberationSans must ride the kit face's fallback table — typed glyphs beyond the TTF box without it (round 28)");
+if (!/0\.2126f \* well\.r \+ 0\.7152f \* well\.g \+ 0\.0722f \* well\.b/.test(cs))
+  errors.push("the value ink must answer the WELL's luma (light well takes a dark ink) (round 28)");
+if (!/input\.customCaretColor = true;/.test(cs) || !/selWash\.a = 0\.35f;/.test(cs))
+  errors.push("caret/selection must wear the kit's Glow ink and its translucent wash (round 28)");
+if (!/tx\.raycastTarget = false; \/\/ the field's root Image carries the click/.test(cs))
+  errors.push("the value text must never be a raycast target — the shell-true root Image is the click carrier (round 28)");
+if (!/NEVER input\.fontAsset \/ input\.pointSize here/.test(cs))
+  errors.push("the global-setter hazard note must stand — input.fontAsset/pointSize restamp the placeholder's kit face (round 28)");
+if (!/GetComponentInChildren<TMP_InputField>\(true\) == null/.test(cs) || !/GetComponentInChildren<Selectable>\(true\) == null/.test(cs)
+    || !/asset\.transform\.Find\("Text Area"\) == null/.test(cs))
+  errors.push("the input graft must prove the prefab ours and unwired (no field, no Selectable, no Text Area) before touching it (round 28)");
+if (!/nT\.text = devWord; \/\/ a retyped word is the dev's/.test(cs))
+  errors.push("the input graft must keep a retyped placeholder word (round 28)");
+if (!/Input\.prefab is now a working TMP_InputField/.test(cs))
+  errors.push("the input graft must speak (the heal receipt line) (round 28)");
+if (!/\*\*Input\*\*: a WORKING TMP_InputField/.test(src))
+  errors.push("the README's Input bones entry (the working-field contract) is missing (round 28)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
