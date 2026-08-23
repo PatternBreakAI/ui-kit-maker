@@ -1044,6 +1044,120 @@ if (!/responsive anchors — /.test(cs))
 if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(src))
   errors.push("the README must document the v1 anchor rule with its real numbers (round 29B)");
 
+/* ── P0 CLASS INVARIANT (verification sweep): the TMP GUARD DISCIPLINE.
+   `using TMPro;` is compiled OUT below 2023.2, so an UNQUALIFIED TMP
+   symbol outside a UNITY_2023_2_OR_NEWER block is CS0246 on every 2022.3
+   editor — WITH or WITHOUT TMP installed — and the whole Editor assembly
+   dies: nothing imports. 2022.3 LTS is the Asset Store minimum. The five
+   TMP_FontAsset signatures that shipped this way also dragged guard-only
+   helpers (ApplyStyleRecipe, LabelSize, ExpectedShift, FindOurLabelRoot,
+   LabelText) and guard-only members (HeroLabel.SetText/authoredHeight,
+   LabelStateInk's shifts) into pre-2023.2 code — a dozen CS0103/CS1061
+   behind the CS0246s. THE STANDARD, pinned here over EVERY emitted
+   template, preprocessed exactly as a pre-2023.2 editor sees it:
+   (1) unqualified TMP symbols live ONLY inside UNITY_2023_2_OR_NEWER;
+   (2) outside the guards the importer uses TMPro.-QUALIFIED references —
+       legal because both asmdefs declare Unity.TextMeshPro and 2022.3
+       ships TMP in every project template (a DELIBERATE hard dependency);
+       runtime templates keep TMP fully guarded (no qualified refs either —
+       the round-19 spirit: runtime files stay maximally version-proof);
+   (3) an importer static method defined only under the guard is never
+       called from pre-2023.2-visible code;
+   (4) guard-only runtime members are guarded at every importer call site —
+       checked through the load-bearing `hl*` local convention for
+       HeroLabel (rename any unrelated hl* local) and the LabelStateInk
+       shift names. ── */
+{
+  // preprocess a template as a pre-2023.2 editor sees it; strip strings +
+  // comments per line so quoted/documented names never count
+  const preView = (text) => {
+    const outPre = [];
+    const stack = [];
+    let inBlockC = false;
+    const rows = text.split("\n");
+    for (let ln = 0; ln < rows.length; ln++) {
+      const row = rows[ln];
+      const t = row.trim();
+      if (/^#if\b/.test(t)) { stack.push(/UNITY_2023_2_OR_NEWER/.test(t) ? "ex" : "o"); continue; }
+      if (/^#else\b/.test(t)) { const f = stack[stack.length - 1]; if (f === "ex") stack[stack.length - 1] = "in"; else if (f === "in") stack[stack.length - 1] = "ex"; continue; }
+      if (/^#elif\b/.test(t)) { if (stack[stack.length - 1] === "ex") stack[stack.length - 1] = "in"; continue; }
+      if (/^#endif\b/.test(t)) { stack.pop(); continue; }
+      let bare = "";
+      let i = 0;
+      while (i < row.length) {
+        if (inBlockC) { const c = row.indexOf("*/", i); if (c < 0) { i = row.length; break; } inBlockC = false; i = c + 2; continue; }
+        const ch = row[i];
+        if (ch === "/" && row[i + 1] === "/") break;
+        if (ch === "/" && row[i + 1] === "*") { inBlockC = true; i += 2; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = ch; let j = i + 1;
+          while (j < row.length) { if (row[j] === "\\") { j += 2; continue; } if (row[j] === q) break; j++; }
+          i = j + 1; bare += " "; continue;
+        }
+        bare += ch; i++;
+      }
+      outPre.push({ ln: ln + 1, bare, excluded: stack.includes("ex") });
+    }
+    if (stack.length !== 0) errors.push("unbalanced #if/#endif in an emitted template — the whole file miscompiles on one editor stream");
+    return outPre;
+  };
+  const TMP_SYMBOL = /\b(TMP_[A-Za-z_]+|TextMeshProUGUI|TextMeshPro(?!UGUI)|FontStyles|TextAlignmentOptions|TextOverflowModes|VertexGradient)\b/g;
+  const tplRe = /const ([A-Z_]+) = `/g;
+  let tpl;
+  while ((tpl = tplRe.exec(src))) {
+    const tplName = tpl[1];
+    if (tplName === "GLINT_INK_SHADER") continue; // shader text, not C#
+    const tStart = tpl.index + tpl[0].length;
+    let tEnd = -1;
+    for (let i = tStart; i < src.length; i++) { if (src[i] === "\\") { i++; continue; } if (src[i] === "`") { tEnd = i; break; } }
+    if (tEnd < 0) continue;
+    let tplCs;
+    try { tplCs = new Function("return `" + src.slice(tStart, tEnd) + "`;")(); } catch { continue; }
+    const view = preView(tplCs);
+    // (1)+(2): TMP symbols visible pre-2023.2
+    for (const L of view) {
+      if (L.excluded) continue;
+      let sm;
+      TMP_SYMBOL.lastIndex = 0;
+      while ((sm = TMP_SYMBOL.exec(L.bare))) {
+        const qualified = /TMPro\s*\.\s*$/.test(L.bare.slice(0, sm.index));
+        if (!qualified)
+          errors.push(`${tplName} line ${L.ln}: UNQUALIFIED TMP symbol '${sm[0]}' outside the UNITY_2023_2_OR_NEWER guard — CS0246 on every 2022.3 editor, the whole assembly dies (qualify as TMPro.${sm[0]} or move it inside the guard)`);
+        else if (tplName !== "UNITY_IMPORTER")
+          errors.push(`${tplName} line ${L.ln}: TMPro.-qualified reference outside the guard in a RUNTIME template — runtime files keep TMP fully guarded (round-19 spirit); guard it`);
+      }
+    }
+    if (tplName !== "UNITY_IMPORTER") continue;
+    // (3): guard-only importer statics never called from pre-visible code
+    const defRe = /^\s*(?:static|internal static|public static)\s+[\w<>,.[\] ]+?\b([A-Z]\w+)\s*\(/;
+    const defsIn = new Set(), defsOut = new Set();
+    for (const L of view) {
+      const dm = L.bare.match(defRe);
+      if (dm) (L.excluded ? defsIn : defsOut).add(dm[1]);
+    }
+    const guardOnly = [...defsIn].filter((n) => !defsOut.has(n));
+    for (const L of view) {
+      if (L.excluded) continue;
+      for (const n of guardOnly)
+        if (new RegExp(`\\b${n}\\s*\\(`).test(L.bare))
+          errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code calls '${n}', which is defined only inside the UNITY_2023_2_OR_NEWER guard — CS0103 on 2022.3 (guard the call site or move the helper out)`);
+    }
+    // (4): guard-only runtime members through the hl*/shift conventions
+    for (const L of view) {
+      if (L.excluded) continue;
+      if (/\bhl\w*\s*\.\s*(text|fontSize|SetText|authoredHeight|lineSpacing|spacing|wordSpacing|nudge|margins|shadowInk|strokeInk|glintsInk)\b/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code touches a HeroLabel member (guard-only — the class is EMPTY below 2023.2): CS1061. Guard the call site; if this is not a HeroLabel local, rename it off the hl* convention`);
+      if (/\.\s*(pressedShift|hoverShift)\b/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code touches LabelStateInk's shift fields (guard-only): CS1061 — guard the call site`);
+      if (/\.\s*SetText\s*\(/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible .SetText( — HeroLabel's SetText is guard-only, and pre-2023.2 TMP writes use .text = (the standard): guard or rewrite`);
+    }
+  }
+  // (2)'s legal basis: BOTH asmdefs must keep declaring Unity.TextMeshPro
+  if (!/references: \["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"\]/.test(src))
+    errors.push("the Editor asmdef must declare Unity.TextMeshPro (and its documented companions) — the TMPro.-qualified standard outside the guards rides on that declaration");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

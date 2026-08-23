@@ -6859,6 +6859,19 @@ using UnityEngine.UI;
 // this whole assembly).
 using TMPro;
 #endif
+// THE GUARD STANDARD (P0, verification sweep). Pre-2023.2 the using above
+// is compiled OUT, so an UNQUALIFIED TMP symbol outside a
+// UNITY_2023_2_OR_NEWER block is CS0246 on every 2022.3 editor — with or
+// without TMP installed — and this whole Editor assembly dies: nothing
+// imports. The standard, enforced by check-unity-importer.mjs:
+//   1. unqualified TMP symbols ONLY inside UNITY_2023_2_OR_NEWER blocks;
+//   2. outside them, TMP references are fully qualified (TMPro.TMP_Text) —
+//      legal because the asmdefs declare Unity.TextMeshPro and 2022.3, the
+//      Asset Store floor, ships TMP in every project template (a DELIBERATE
+//      hard dependency, decided at this fix — not an accident to re-guard);
+//   3. a helper or runtime-class member that exists only inside a guard
+//      (HeroLabel.SetText, LabelStateInk's shifts) is guarded at every
+//      call site — pre-2023.2 code paths fall through to the legacy rungs.
 
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
@@ -8215,6 +8228,10 @@ namespace PatternBreak {
        healer place a posed copy's live label EXACTLY the same way — the
        shell-height v-scale and the copy's own label offset */
     static void SeatPosedLabel(GameObject inst, PBBoardItem it, PBManifest m) {
+#if UNITY_2023_2_OR_NEWER
+      /* the guard wraps the BODY: posed copies only carry HeroLabel stacks
+         (a 2023.2+ build product), and authoredHeight exists only inside
+         HeroLabel's own guard — pre-2023.2 this is an honest no-op */
       var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
       if (hl2 == null) return;
       PBAsset baseA3 = null;
@@ -8227,6 +8244,7 @@ namespace PatternBreak {
         hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
         hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
       }
+#endif
     }
     /* ── HEAL ORPHANED BOARD WORDS (owner, after the shield still: "ok,
        no BOOST word"). A PAST import's label redress rebuilt prefab label
@@ -10116,6 +10134,10 @@ namespace PatternBreak {
       if (HasInkColorFork(m, family)) return null;
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
     }
+#endif
+    /* ── manifest math, deliberately OUTSIDE the TMP guard: the legacy
+       pre-2023.2 label rung (AddLabel's Text branch) and the StateFx
+       wiring size and sink from these too ── */
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
     /* the app-true label size for BOARD SCENES — the 0.74-fitted size is
@@ -10141,6 +10163,7 @@ namespace PatternBreak {
         foreach (var e in m.typography.stateStyles) if (e.state == state) return e.dy;
       return 0f;
     }
+#if UNITY_2023_2_OR_NEWER
     // kit-sized, and auto-shrinking so a long word never spills the rect
     static void SizeLabel(TextMeshProUGUI t, float ls) {
       t.fontSize = ls;
@@ -10220,19 +10243,28 @@ namespace PatternBreak {
       t.font = solo;
       t.color = Color.white; // baked glyphs are pre-painted
     }
+#endif
     /* the label WE generated is the child GameObject named "Label" — a
-       single dynamic text OR a layered baked stack root */
+       single dynamic text OR a layered baked stack root. OUTSIDE the TMP
+       guard: the word heals and the timer walk need it on every editor */
     static GameObject FindOurLabelRoot(GameObject go) {
       foreach (var rt in go.GetComponentsInChildren<RectTransform>(true))
         if (rt.gameObject.name == "Label" && rt.gameObject != go) return rt.gameObject;
       return null;
     }
     static string LabelText(GameObject labelRoot, string fallback) {
+#if UNITY_2023_2_OR_NEWER
       var hl = labelRoot.GetComponent<HeroLabel>();
       if (hl != null && !string.IsNullOrEmpty(hl.text)) return hl.text;
       var tmp = labelRoot.GetComponentInChildren<TextMeshProUGUI>(true);
       return tmp != null && !string.IsNullOrEmpty(tmp.text) ? tmp.text : fallback;
+#else
+      // pre-2023.2 our labels are legacy Text (AddLabel's fallback rung)
+      var ut = labelRoot.GetComponentInChildren<Text>(true);
+      return ut != null && !string.IsNullOrEmpty(ut.text) ? ut.text : fallback;
+#endif
     }
+#if UNITY_2023_2_OR_NEWER
     static bool WireLabelStates(GameObject go, GameObject labelRoot, PBManifest m, string family) {
       if (m == null || m.typography == null || labelRoot == null) return false;
       // the whole label moves; only a single dynamic text re-inks
@@ -11447,8 +11479,12 @@ namespace PatternBreak {
         var fxT = go.GetComponent<StateFx>();
         if (fxT == null) fxT = go.AddComponent<StateFx>();
         if (Mathf.Approximately(fxT.pressedLift, 0f)) fxT.pressedLift = -sinkT;
+#if UNITY_2023_2_OR_NEWER
+        // LabelStateInk's shift fields exist only inside its own guard;
+        // pre-2023.2 WireLabelStates never ran, so there is nothing to zero
         var inkT = go.GetComponent<LabelStateInk>();
         if (inkT != null) { inkT.pressedShift = 0f; inkT.hoverShift = 0f; }
+#endif
       }
       // last child = drawn last: the streak crosses the label, like the app
       AddSpecular(go, root, fam, m);
@@ -11630,6 +11666,13 @@ namespace PatternBreak {
        kit-manifest.json > gauge > ink / unitInk. */
     static string GaugeMatPath(string root, string fam) { return root + "/fonts/KitFace Gauge " + NiceName(fam) + ".mat"; }
     static bool GaugeInkShips(PBGauge g) { return g != null && g.ink != null && !string.IsNullOrEmpty(g.ink.fillMode); }
+#if UNITY_2023_2_OR_NEWER
+    /* ONE guard over the whole ink-preset/gauge-face block (P0 sweep fix:
+       EnsureInkPresetMaterial, EnsureGaugeMaterial, GaugeUnitFace and
+       EnsureGaugeUnitMaterial sat OUTSIDE it with unqualified TMP symbols —
+       CS0246 on every pre-2023.2 editor, the whole assembly dead). Every
+       caller lives inside the guard; nothing here is needed on the legacy
+       rungs. */
     /* the digits' own material preset: the SDF face's atlas wearing ONLY
        the digit recipe — outline/glow/underlay when the app's gauge
        numbers actually carry them, never emboss (content text doesn't) */
@@ -11663,7 +11706,6 @@ namespace PatternBreak {
     static TMP_FontAsset GaugeUnitFace() {
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
     }
-#if UNITY_2023_2_OR_NEWER
     /* the INSTRUMENT face — the real heavy Inter cut the zip ships for the
        HUD/readout voices (typography.instrumentFile). TMP's synthetic bold
        on the grotesk reads visibly thinner than the app's Inter 800 (owner
@@ -11711,13 +11753,11 @@ namespace PatternBreak {
       ink.outline.width = seat.strokeEmPct * 0.52f; // em% → the app's dial units (px at fs 52)
       return EnsureInkPresetMaterial(face, ink, path);
     }
-#endif
     static Material EnsureGaugeUnitMaterial(string root, TMP_FontAsset kitFace) {
       // an empty recipe strips outline, glow, underlay and bevel — the
       // PLAIN kit-face material (gauge units, undressed kit-voice seats)
       return EnsureInkPresetMaterial(kitFace, new PBStyle(), root + "/fonts/KitFace Gauge Unit.mat");
     }
-#if UNITY_2023_2_OR_NEWER
     /* number dress, applied AND probed by the same hand (apply=false only
        answers "is it current?") — dresser and probe disagreeing is an
        infinite re-dress every import. The font itself is never converged
@@ -12188,8 +12228,12 @@ namespace PatternBreak {
     /* write a word into OUR label root — HeroLabel stacks and plain TMP
        both; shared by the word-seed convergence and the label variants */
     static bool SetLabelWord(GameObject labelRoot, string word) {
+#if UNITY_2023_2_OR_NEWER
+      // SetText exists only inside HeroLabel's own guard; pre-2023.2 no
+      // stack was ever built, so the TMP/Text rungs below carry the word
       var hl = labelRoot.GetComponent<HeroLabel>();
       if (hl != null) { hl.SetText(word); return true; }
+#endif
       var tmp = labelRoot.GetComponentInChildren<TMPro.TMP_Text>(true);
       if (tmp != null) { tmp.text = word; return true; }
       var ut = labelRoot.GetComponentInChildren<Text>(true);
@@ -12719,12 +12763,18 @@ namespace PatternBreak {
       var lr = FindOurLabelRoot(go);
       if (lr == null) { UnityEngine.Object.DestroyImmediate(go); return false; }
       // the app's own rendered size, exactly — never the fitted fallback
+#if UNITY_2023_2_OR_NEWER
       var hlT = lr.GetComponent<HeroLabel>();
       if (hlT != null) { hlT.fontSize = m.timer.fs; hlT.SetText(word); }
       else {
         var tmpT = lr.GetComponentInChildren<TMPro.TMP_Text>(true);
         if (tmpT != null) { tmpT.enableAutoSizing = false; tmpT.fontSize = m.timer.fs; }
       }
+#else
+      // pre-2023.2 the label is legacy Text — same exact app size on it
+      var utT = lr.GetComponentInChildren<Text>(true);
+      if (utT != null) utT.fontSize = Mathf.RoundToInt(m.timer.fs);
+#endif
       var kt = go.AddComponent<KitTimer>();
       kt.seconds = m.timer.seconds;
       kt.running = true;
