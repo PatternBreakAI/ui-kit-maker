@@ -55,8 +55,9 @@ export const LANDING_HTML = `</head>
       <div class="shell hero2">
         <div class="hero2-copy">
           <div class="eyebrow reveal-in e1">BROWSER-BASED GAME UI TOOL</div>
-          <h1 class="h1b reveal-in e2">Design a <br>UI kit in <br><span class="seconds-grad">seconds!</span></h1>
-          <p class="hero2-sub reveal-in e3">Tweak a real button right here — color, shape, shine — then push it into a whole production-ready kit. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship, sell, and own.</p>
+          <h1 class="h1b reveal-in e2">Design one <br>button. <br><span class="seconds-grad">Ship the whole <br>game UI.</span></h1>
+          <p class="hero2-lede reveal-in e3">Custom game-UI kits, already working in Unity.</p>
+          <p class="hero2-sub reveal-in e3">Tweak a real button right here, then push it into 115+ coordinated components — four real states, editable text and live prefabs, all in your art direction. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship in any game or product you sell.*</p>
           <div class="hero2-actions reveal-in e4">
             <a class="cta primary" href="#generator" data-cta="open-generator">Open the generator →</a>
             <button class="cta" type="button" data-cta="sign-in">Sign in</button>
@@ -237,7 +238,7 @@ export const LANDING_HTML = `</head>
     <section class="stats-band" aria-label="What you get">
       <div class="shell">
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span><b id="sb1t">1 MASTER COMPONENT</b><i id="sb1s">Infinite variations.</i></span></div>
-        <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 2 9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span><b id="sb2t">46 COMPONENTS</b><i id="sb2s">Every essential.</i></span></div>
+        <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 2 9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span><b id="sb2t">115+ COMPONENTS</b><i id="sb2s">Every essential.</i></span></div>
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span><b id="sb3t">4 STATES</b><i id="sb3s">Always in sync.</i></span></div>
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V5M8 8l4-4 4 4M4 21h16"/></svg><span><b id="sb4t">EXPORT ANYWHERE</b><i id="sb4s">Engines, web, PNG, SVG.</i></span></div>
       </div>
@@ -440,6 +441,7 @@ export const LANDING_HTML = `</head>
             <li id="ownR1">Every kit ships with its own recipe — every colour, token, and type setting written out, plus a settings file that loads straight back into the app.</li>
             <li id="ownR2">Every typeface the kit uses is named, linked, and free for commercial use.</li>
           </ul>
+          <p class="own-tech" id="ownTech">Powered by a deterministic parametric design engine with true app-to-Unity parity.</p>
           <p class="own-lic" id="ownLic"></p>
         </div>
         <div class="ownership-seal reveal" aria-hidden="true">
