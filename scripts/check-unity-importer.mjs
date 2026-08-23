@@ -880,6 +880,32 @@ if (!/wantIconStroke/.test(cs)
 if (!/if \(icTU != null && icTU\.childCount == 0\) \{\s*\n\s*UnityEngine\.Object\.DestroyImmediate\(icTU\.gameObject, true\);\s*\n\s*WireIconSeat\(contents, root, m, famName\);/.test(cs))
   errors.push("the stroke upgrade must rebuild through WireIconSeat and only ever remove a childless Icon (round 27)");
 
+/* round-28 slice A: the ScrollView is production-USABLE (external Unity
+   tester + outside consultant: the top production-truth gap before the
+   store run). Content is a ready list column — stacking group + height
+   fitter, widths controlled to the column, heights the children's own —
+   the wheel moves at desktop speed (Unity's scrollSensitivity 1 is one
+   pixel per notch), and the handle keeps the kit's pixels in every
+   state, Selected included, so a released handle never parks in
+   rollover. Existing EMPTY, unrigged views graft the same wiring in
+   place (a filled or dev-rigged Content is theirs), out loud. */
+if (!/vlg\.childControlWidth = true; vlg\.childControlHeight = false;/.test(cs)
+    || !/csf\.verticalFit = ContentSizeFitter\.FitMode\.PreferredSize;/.test(cs))
+  errors.push("the ScrollView Content list rig (vertical group + height fitter) is missing or mis-dialed (round 28)");
+if (!/sr\.scrollSensitivity = 35f;/.test(cs))
+  errors.push("the ScrollView wheel step (scrollSensitivity 35 — Unity's 1 reads dead) is missing (round 28)");
+if (!/hb\.selectedColor = Color\.white;/.test(cs) || !/hb\.pressedColor = new Color\(0\.86f, 0\.86f, 0\.86f, 1f\);/.test(cs))
+  errors.push("the scrollbar handle's state manners (kit pixels every state; Selected = resting) are missing (round 28)");
+if (!/contentT\.GetComponent<VerticalLayoutGroup>\(\) != null \|\| contentT\.GetComponent<ContentSizeFitter>\(\) != null\) return;/.test(cs)
+    || !/if \(contentT\.childCount != 0\) return;/.test(cs))
+  errors.push("HealScrollView's round-28 graft must step aside for a filled or already-rigged Content (the dev's) (round 28)");
+if (!/barH\.colors\.Equals\(ColorBlock\.defaultColorBlock\)/.test(cs) || !/Mathf\.Approximately\(srH\.scrollSensitivity, 1f\)/.test(cs))
+  errors.push("the graft's feel/handle writes must gate on still-at-Unity-default (the redress rule) (round 28)");
+if (!/ScrollView\.prefab is now a working list/.test(cs))
+  errors.push("the ScrollView graft must speak (the heal receipt line) (round 28)");
+if (!/\*\*ScrollView\*\*: a WORKING list/.test(src))
+  errors.push("the README's ScrollView bones entry (the working-list contract) is missing (round 28)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

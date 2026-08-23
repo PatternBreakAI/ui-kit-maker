@@ -6555,6 +6555,17 @@ translucent glass rings built to sit ON TOP of live gameplay. Drag it
 over your scene, read the same Value; its inks follow the kit's Ghost
 color slot, so a re-export re-tints it with the rest of the kit.
 
+**ScrollView**: a WORKING list, not a picture of one. The kit panel is
+the frame, the Viewport masks, and **Viewport > Content** is a ready
+list column — a vertical layout group + size fitter are pre-rigged, so
+drop your rows in (kit prefabs, your own objects, twenty of them) and
+they stack, the column grows, and it scrolls. Wheel, drag and flick
+are all live at sane speeds; the kit-dressed scrollbar is two-way
+wired — drag the handle and the list follows, scroll the list and the
+handle follows — and it keeps the kit's pixels in every state. Row
+spacing and padding are the layout group's dials on Content; delete
+the layout group if you'd rather place content freely.
+
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
 stretch — instrument well, grid and axis rails baked in — with titles,
 legends, rows and axis numbers all live text in the Words group (the
@@ -12578,7 +12589,23 @@ namespace PatternBreak {
       var crt = content.GetComponent<RectTransform>();
       crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f);
       crt.pivot = new Vector2(0.5f, 1f);
-      crt.sizeDelta = new Vector2(0f, 640f); // taller than the frame so it scrolls out of the box
+      /* round 28 (external tester + consultant, the top production-truth
+         gap): Content is a ready LIST COLUMN, not bare air — drop rows in
+         and they stack, the column grows, and it scrolls. The fitter owns
+         the height (empty starts at 0, every child extends it past the
+         viewport exactly when there is something to scroll); the group
+         stretches children to the column's width and keeps their own
+         heights — kit prefabs arrive pre-sized. */
+      crt.sizeDelta = new Vector2(0f, 0f);
+      var vlg = content.AddComponent<VerticalLayoutGroup>();
+      vlg.padding = new RectOffset(0, 0, 0, 0);
+      vlg.spacing = 12f;
+      vlg.childAlignment = TextAnchor.UpperCenter;
+      vlg.childControlWidth = true; vlg.childControlHeight = false;
+      vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+      var csf = content.AddComponent<ContentSizeFitter>();
+      csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+      csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
       var sb = ImageObject("Scrollbar", track, pngScale);
       sb.transform.SetParent(go.transform, false);
       sb.GetComponent<Image>().type = Image.Type.Sliced;
@@ -12608,6 +12635,30 @@ namespace PatternBreak {
       sr.verticalScrollbar = bar;
       sr.horizontal = false;
       sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+      /* the FEEL dials (round 28): Unity's scrollSensitivity default of 1
+         moves ONE pixel per wheel notch — a wired view that reads dead.
+         35 is the familiar desktop step. Elasticity and inertia are
+         Unity's tuned defaults, written explicitly so the Inspector
+         shows a deliberate rig, not an untouched one. */
+      sr.movementType = ScrollRect.MovementType.Elastic;
+      sr.elasticity = 0.1f;
+      sr.inertia = true;
+      sr.decelerationRate = 0.135f;
+      sr.scrollSensitivity = 35f;
+      bar.value = 1f; // parked at the top, where the content starts
+      /* the handle honors the kit's pixels in EVERY state: no rollover
+         tint (the bevel candy is already lit), a gentle press dim, and
+         Selected stays the resting face — a released handle must never
+         park in rollover (the Button lesson). Disabled fades honestly. */
+      bar.transition = Selectable.Transition.ColorTint;
+      var hb = bar.colors;
+      hb.normalColor = Color.white;
+      hb.highlightedColor = Color.white;
+      hb.selectedColor = Color.white;
+      hb.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+      hb.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+      hb.colorMultiplier = 1f;
+      bar.colors = hb;
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -12626,9 +12677,59 @@ namespace PatternBreak {
       var contentT = vpT != null ? vpT.Find("Content") : null;
       if (sbT == null || contentT == null) return;
       bool oldSeat = Mathf.Abs(sbT.sizeDelta.x - 22f) < 0.5f && Mathf.Abs(sbT.anchoredPosition.x + 10f) < 0.5f;
-      if (!oldSeat || contentT.childCount != 0) return;
-      if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
-        Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
+      if (oldSeat && contentT.childCount == 0) {
+        if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+          Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
+        return;
+      }
+      /* round 28: a ScrollView from before the LIST RIG. An EMPTY Content
+         carrying no layout machinery is our own bare column beyond doubt —
+         a filled view, or one the dev rigged themselves, is theirs and is
+         never touched. The graft adds exactly what generation now adds
+         (the stacking group + height fitter, the wheel step, the handle's
+         state manners) IN PLACE, so rect edits the dev DID make — a moved
+         bar, a resized frame — survive. Feel dials and handle colors are
+         each gated on still-at-Unity-default, the redress rule. */
+      if (contentT.childCount != 0) return;
+      if (contentT.GetComponent<VerticalLayoutGroup>() != null || contentT.GetComponent<ContentSizeFitter>() != null) return;
+      var contentsSV = PrefabUtility.LoadPrefabContents(path);
+      try {
+        var vpH = contentsSV.transform.Find("Viewport");
+        var cH = vpH != null ? vpH.Find("Content") as RectTransform : null;
+        var srH = contentsSV.GetComponent<ScrollRect>();
+        if (cH == null || srH == null) return;
+        cH.sizeDelta = new Vector2(cH.sizeDelta.x, 0f); // the fitter owns the height now
+        var vlgH = cH.gameObject.AddComponent<VerticalLayoutGroup>();
+        vlgH.padding = new RectOffset(0, 0, 0, 0);
+        vlgH.spacing = 12f;
+        vlgH.childAlignment = TextAnchor.UpperCenter;
+        vlgH.childControlWidth = true; vlgH.childControlHeight = false;
+        vlgH.childForceExpandWidth = true; vlgH.childForceExpandHeight = false;
+        var csfH = cH.gameObject.AddComponent<ContentSizeFitter>();
+        csfH.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csfH.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        if (Mathf.Approximately(srH.scrollSensitivity, 1f)) { // Unity's default = untouched
+          srH.movementType = ScrollRect.MovementType.Elastic;
+          srH.elasticity = 0.1f;
+          srH.inertia = true;
+          srH.decelerationRate = 0.135f;
+          srH.scrollSensitivity = 35f;
+        }
+        var sbH = contentsSV.transform.Find("Scrollbar");
+        var barH = sbH != null ? sbH.GetComponent<Scrollbar>() : null;
+        if (barH != null && barH.transition == Selectable.Transition.ColorTint && barH.colors.Equals(ColorBlock.defaultColorBlock)) {
+          var hbH = barH.colors;
+          hbH.normalColor = Color.white;
+          hbH.highlightedColor = Color.white;
+          hbH.selectedColor = Color.white;
+          hbH.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+          hbH.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+          hbH.colorMultiplier = 1f;
+          barH.colors = hbH;
+        }
+        PrefabUtility.SaveAsPrefabAsset(contentsSV, path);
+        Debug.Log("UI Kit Maker: ScrollView.prefab is now a working list — Content grew the vertical stacking group + height fitter (drop rows into Viewport > Content and they stack, size the column and scroll), the wheel moves at desktop speed, and the handle keeps the kit's pixels in every state. Grafted in place: your rect edits survive, placed instances update with the prefab.");
+      } finally { PrefabUtility.UnloadPrefabContents(contentsSV); }
     }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
