@@ -946,6 +946,70 @@ if (!/Input\.prefab is now a working TMP_InputField/.test(cs))
 if (!/\*\*Input\*\*: a WORKING TMP_InputField/.test(src))
   errors.push("the README's Input bones entry (the working-field contract) is missing (round 28)");
 
+/* round-29 slice A: the RESPONSIVE CONTRACT — safe area + scaler policy
+   (the Asset Store long pole). Every board scene puts a "Safe Area" root
+   (full-stretch + the KitSafeArea runtime) between the Canvas and the
+   content; Background/Overlay stay full-bleed on the Canvas. The scaler
+   match policy lives in ONE seat (ScalerMatchFor: portrait matches
+   width, landscape 0.5). Kept scenes adopt the root heal-out-loud; the
+   word-heal walk follows the root; a Responsive Check scene ships the
+   whole story visibly. The runtime is CORE-ONLY (Screen.safeArea) — the
+   round-19 P0 rule extends to it verbatim. */
+const safeOpen = src.indexOf("const SAFE_AREA_RUNTIME = `");
+let safe = "";
+if (safeOpen < 0) errors.push("SAFE_AREA_RUNTIME not found — the safe-area runtime template is missing (round 29)");
+else {
+  const safeStart = safeOpen + "const SAFE_AREA_RUNTIME = `".length;
+  let safeEnd = -1;
+  for (let i = safeStart; i < src.length; i++) {
+    if (src[i] === "\\") { i++; continue; }
+    if (src[i] === "`") { safeEnd = i; break; }
+  }
+  safe = safeEnd > 0 ? new Function("return `" + src.slice(safeStart, safeEnd) + "`;")() : "";
+}
+if (!/public class KitSafeArea : MonoBehaviour/.test(safe) || !/Screen\.safeArea/.test(safe))
+  errors.push("KitSafeArea (the Screen.safeArea anchor tracker) is missing from the runtime template (round 29)");
+if (!/if \(w < 1f \|\| h < 1f\) return;/.test(safe))
+  errors.push("KitSafeArea must refuse a zero-size screen frame — a headless/startup frame would write garbage anchors (round 29)");
+if (!/if \(max\.x - min\.x < 0\.2f \|\| max\.y - min\.y < 0\.2f\) \{ min = Vector2\.zero; max = Vector2\.one; \}/.test(safe))
+  errors.push("KitSafeArea's degenerate-report guard is missing — a bad safe rect must never collapse the UI (round 29)");
+if (/UnityEditor|UnityEngine\.InputSystem|using TMPro/.test(safe) || (safe.match(/^using /gm) ?? []).length !== 1)
+  errors.push("KitSafeArea must stay CORE-ONLY (one using: UnityEngine) — package references in Runtime files are the round-19 P0 class break");
+if (!/path: "Runtime\/PatternBreakSafeArea\.cs", data: SAFE_AREA_RUNTIME/.test(src) || !/"Runtime\/PatternBreakSafeArea\.cs",/.test(src))
+  errors.push("PatternBreakSafeArea.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
+{
+  const roots = (cs.match(/new GameObject\("Safe Area", typeof\(RectTransform\), typeof\(KitSafeArea\)\)/g) ?? []).length;
+  if (roots < 3)
+    errors.push(`the "Safe Area" root must be built in the board builder, the Responsive Check scene AND the kept-scene graft — found ${roots} of 3 (round 29)`);
+  const reparents = (cs.match(/SetParent\(safeT, false\)/g) ?? []).length;
+  if (reparents < 6)
+    errors.push(`board content must parent under the Safe Area root (safeT) — found ${reparents} SetParent(safeT, false) sites, expected >=6 (round 29)`);
+}
+if (!/bgGo\.transform\.SetParent\(canvasGo\.transform, false\);/.test(cs))
+  errors.push("the Background must stay on the CANVAS (full-bleed, outside the safe root) — backdrops fill the screen, UI respects cutouts (round 29)");
+if (!/static float ScalerMatchFor\(float refW, float refH\)/.test(cs) || !/return refH > refW \? 0f : 0\.5f;/.test(cs))
+  errors.push("ScalerMatchFor (the ONE-seat match policy: portrait width-match, landscape 0.5) is missing (round 29)");
+if ((cs.match(/scaler\.matchWidthOrHeight = ScalerMatchFor\(/g) ?? []).length !== 2)
+  errors.push("both responsive scene builders (board + check) must dial the scaler through ScalerMatchFor — an inline match value forks the policy (round 29)");
+if (!/static void HealSafeAreaRoots\(string root, PBManifest m\)/.test(cs) || !/HealSafeAreaRoots\(root, manifest\);/.test(cs))
+  errors.push("the kept-scene safe-area graft (HealSafeAreaRoots) is missing or never runs (round 29)");
+if (!/canvasC\.transform\.Find\("Safe Area"\) != null\) continue;/.test(cs))
+  errors.push("the graft must step aside for a scene that already carries the root (round 29)");
+if (!/chS\.name == "Background" \|\| chS\.name == "Overlay"\) continue;/.test(cs))
+  errors.push("the graft must leave Background/Overlay full-bleed on the Canvas (round 29)");
+if (!/adopted the responsive Safe Area root/.test(cs))
+  errors.push("the safe-area graft must speak (heal-out-loud receipt line) (round 29)");
+if (!/var safeWalk = canvasC\.transform\.Find\("Safe Area"\);/.test(cs))
+  errors.push("HealBoardWords' walk must follow the Safe Area root when present — the word heal would go blind on responsive scenes (round 29)");
+if (!/static void BuildResponsiveCheck\(string root, PBManifest m\)/.test(cs) || !/BuildResponsiveCheck\(root, manifest\);/.test(cs))
+  errors.push("the Responsive Check scene builder is missing or never runs (round 29)");
+if (!/Responsive Check\.unity/.test(cs) || !/Rebuild Responsive Check Scene/.test(cs))
+  errors.push("the Responsive Check scene path or its Rebuild menu is missing (round 29)");
+if ((cs.match(/CheckEdge\(safeT, "Safe Edge /g) ?? []).length !== 4)
+  errors.push("the Responsive Check must outline all four safe-area edges (round 29)");
+if (!/### Safe areas & scaling/.test(src))
+  errors.push("the README's safe-area & scaling section is missing (round 29)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

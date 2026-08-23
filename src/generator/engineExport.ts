@@ -3512,6 +3512,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
@@ -3551,6 +3552,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakKitTrace.cs",
+    "Runtime/PatternBreakSafeArea.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
        PatternBreak.Runtime assembly, and the shared Editor importer could
@@ -4864,6 +4866,49 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script: the SAFE-AREA root (round 29 — the responsive
+   contract). Every board scene puts ONE of these between the Canvas and
+   the kit's content: its anchors track Screen.safeArea, so the UI
+   respects notches, the Dynamic Island, foldable hinges and rounded
+   corners while the full-bleed backdrop stays OUTSIDE it, directly on
+   the Canvas. Core APIs only — Screen.safeArea is version-stable and
+   this file must compile on every Unity the kit reaches (the round-19
+   P0 rule). No polling beyond a cheap per-frame compare; no editor
+   surface at all. */
+const SAFE_AREA_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Safe area — parent your UI under this rect and it stays out of the
+     device cutouts; leave backgrounds beside it (directly on the Canvas)
+     so they keep bleeding to the physical edges. Re-applies whenever the
+     safe rect or the screen changes (rotation, fold, split-screen). */
+  [AddComponentMenu("UI Kit Maker/Kit Safe Area")]
+  [DisallowMultipleComponent]
+  [RequireComponent(typeof(RectTransform))]
+  public class KitSafeArea : MonoBehaviour {
+    Rect applied = new Rect(0f, 0f, -1f, -1f);
+    int sw = -1, sh = -1;
+    void OnEnable() { Apply(); }
+    void Update() {
+      if (Screen.safeArea != applied || Screen.width != sw || Screen.height != sh) Apply();
+    }
+    void Apply() {
+      float w = Screen.width, h = Screen.height;
+      if (w < 1f || h < 1f) return; // a headless/startup frame never writes garbage
+      var sa = Screen.safeArea;
+      var min = new Vector2(Mathf.Clamp01(sa.xMin / w), Mathf.Clamp01(sa.yMin / h));
+      var max = new Vector2(Mathf.Clamp01(sa.xMax / w), Mathf.Clamp01(sa.yMax / h));
+      // a degenerate report (some editors mid-layout) must never collapse the UI
+      if (max.x - min.x < 0.2f || max.y - min.y < 0.2f) { min = Vector2.zero; max = Vector2.one; }
+      var rt = (RectTransform)transform;
+      rt.anchorMin = min; rt.anchorMax = max;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      applied = sa; sw = Screen.width; sh = Screen.height;
+    }
+  }
+}
+`;
+
 /* Runtime script #3: the touch stick. The joystick ships as base + thumb
    sprites and this component makes them a WORKING control — the "your
    kit, driving a character, thirty seconds after the drop" demo. */
@@ -6147,6 +6192,42 @@ Open one, press Play; buttons respond. Like the Playground, a board
 scene builds once and is then yours — **Tools > PatternBreak > Rebuild
 Kit Board Scenes** regenerates them from the manifest when you want a
 fresh copy.
+
+### Safe areas & scaling — how board scenes stay responsive
+
+Every board scene ships phone-ready, three deliberate layers deep:
+
+- **The Safe Area root.** Between the Canvas and the content sits one
+  **Safe Area** rect carrying the tiny \`KitSafeArea\` runtime: its
+  anchors track \`Screen.safeArea\` live (rotation, notches, the Dynamic
+  Island, foldable hinges), so every kit piece clears the cutouts.
+  The **Background/Overlay stay OUTSIDE it**, directly on the Canvas —
+  backdrops are supposed to bleed to the physical edges. Parent your
+  own UI under Safe Area; parent your own backdrops beside it. In the
+  editor the safe rect is the whole screen, so nothing looks different
+  until a device (or the Device Simulator) reports a cutout.
+- **The Canvas Scaler policy.** Scale With Screen Size, reference
+  resolution = the board's own frame. Landscape boards match **0.5**
+  (halfway between width and height): pure width-match balloons HUD art
+  on 21:9 monitors, pure height-match shrinks it on 16:10/4:3 —
+  splitting the difference drifts least across the desktop spread.
+  Portrait boards match **width (0)**: phone UI is designed against the
+  width while heights swing wildly (19.5:9 down to 16:9), so
+  width-match keeps buttons finger-true and lets the extra height
+  breathe.
+- **The Responsive Check scene.** **Scenes/Responsive Check.unity** is
+  a thirty-second sanity check: a bright green outline drawn by the
+  live safe area, a backdrop that deliberately bleeds under cutouts,
+  corner tags that hug their corners, and a couple of live kit pieces.
+  Open it, press Play, switch Game-view aspect ratios or the Device
+  Simulator, and watch the outline move while the UI stays inside it.
+  Built once, then yours — **Tools > PatternBreak > Rebuild Responsive
+  Check Scene** refreshes it.
+
+Re-importing a newer export over an older project grafts the Safe Area
+root into KEPT board scenes too (the Console says so per scene) —
+layout-identical in the editor, cutout-safe on device. Scenes never
+re-imported are never touched.
 ${st.boards?.some((b) => b.items.some((i) => i.big)) ? `
 Big-glyph board art rides along: each glyph you used gets its own
 prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
@@ -7612,6 +7693,11 @@ namespace PatternBreak {
         try { LabelVariantPrefabs(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
         BuildBoardScenes(root, manifest);
+        /* the Responsive Check scene rides the same beat (round 29) —
+           built once, then yours; Tools > PatternBreak > Rebuild
+           Responsive Check Scene refreshes it */
+        try { BuildResponsiveCheck(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: the Responsive Check scene failed — " + e.Message); }
         /* a kit UPDATE leaves existing scenes wearing their FIRST build's
            sizing and words — new sprites on old decisions (field: the
            flame button back at its default proportions and label). A
@@ -7646,6 +7732,11 @@ namespace PatternBreak {
               + (liveGain > 0 ? " This update also turned " + liveGain + " baked board piece(s) into LIVE prefab instances — Rebuild swaps their flattened stand-ins for the real thing." : ""));
           }
         }
+        /* KEPT scenes adopt the responsive Safe Area root — heal-out-loud
+           (round 29), BEFORE the word heal so its walk sees the final
+           tree; rebuilt scenes already carry the root and skip. */
+        try { HealSafeAreaRoots(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: safe-area adoption skipped — " + e.Message); }
         /* either way, KEPT scenes get their orphaned pinned words back —
            rebuilt scenes are already right and heal as a no-op */
         try { HealBoardWords(root, manifest); }
@@ -7780,6 +7871,176 @@ namespace PatternBreak {
         UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
         untitled ? UnityEditor.SceneManagement.NewSceneMode.Single : UnityEditor.SceneManagement.NewSceneMode.Additive);
       return true;
+    }
+    /* ── the CanvasScaler MATCH POLICY (round 29, documented in the README
+       deck). LANDSCAPE frames balance both axes (0.5): HUD art must not
+       blow up on a 21:9 monitor (pure width-match would) nor shrink on
+       16:10/4:3 (pure height-match would) — splitting the difference
+       drifts least across the desktop/console spread. PORTRAIT frames
+       match WIDTH (0): phone UI is designed against the width while
+       heights swing wildly (19.5:9 down to 16:9), so width-match keeps
+       buttons finger-true and lets the extra height breathe; 0.5 there
+       would shrink a tall phone's UI for no reason. One seat, every
+       scene builder — the policy can never fork. ── */
+    static float ScalerMatchFor(float refW, float refH) {
+      return refH > refW ? 0f : 0.5f;
+    }
+    /* one bright edge of the Responsive Check's safe-area outline */
+    static void CheckEdge(Transform parent, string edgeName, Vector2 aMin, Vector2 aMax, Vector2 size, Vector2 pivot) {
+      var go = new GameObject(edgeName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.transform.SetParent(parent, false);
+      var img = go.GetComponent<Image>();
+      img.color = new Color(0.30f, 0.95f, 0.55f, 0.9f); // loud spring green — diagnostics, not kit dress
+      img.raycastTarget = false;
+      var rt = (RectTransform)go.transform;
+      rt.anchorMin = aMin; rt.anchorMax = aMax; rt.pivot = pivot;
+      rt.sizeDelta = size; rt.anchoredPosition = Vector2.zero;
+    }
+    /* one anchored word tag of the Responsive Check (TMP editors only —
+       the outline carries the scene on older editors). side: -1 = the
+       words grow rightward from the seat, 1 = leftward, 0 = centered. */
+    static void CheckTag(Transform parent, string word, float fs, Vector2 a, Vector2 pivot, Vector2 pos, int side) {
+#if UNITY_2023_2_OR_NEWER
+      var go = new GameObject("Tag — " + word, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      go.transform.SetParent(parent, false);
+      var t = go.GetComponent<TextMeshProUGUI>();
+      t.text = word; t.fontSize = fs; t.fontStyle = FontStyles.Bold;
+      t.color = new Color(0.92f, 0.96f, 1f, 0.95f);
+      t.alignment = side < 0 ? TextAlignmentOptions.MidlineLeft : side > 0 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.Midline;
+      t.raycastTarget = false;
+#pragma warning disable 0618
+      t.enableWordWrapping = false;
+#pragma warning restore 0618
+      t.overflowMode = TMPro.TextOverflowModes.Overflow;
+      var rt = (RectTransform)go.transform;
+      rt.anchorMin = a; rt.anchorMax = a; rt.pivot = pivot;
+      rt.sizeDelta = new Vector2(420f, fs * 1.4f);
+      rt.anchoredPosition = pos;
+#endif
+    }
+    /* ── the RESPONSIVE CHECK scene (round 29): one screen a dev opens to
+       SEE the safe-area behavior before shipping. The green outline IS
+       the live Screen.safeArea; the backdrop deliberately bleeds under
+       cutouts; corner tags hug their corners at every aspect; a couple
+       of live kit pieces sit center/bottom so the kit itself is in the
+       frame. Switch Game-view aspect ratios — or the Device Simulator —
+       and watch. Cheap on purpose, built once, then yours. ── */
+    static void BuildResponsiveCheck(string root, PBManifest m) {
+      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) return; // prefabs not in yet — the next pass retries
+      var dir = root + "/Scenes";
+      if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
+      var scenePath = dir + "/Responsive Check.unity";
+      if (File.Exists(scenePath)) return; // yours after first generation
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "the Responsive Check scene")) return;
+      try {
+        var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
+        var camGo = new GameObject("Camera", typeof(Camera));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
+        var cam = camGo.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.09f, 0.10f, 0.15f);
+        camGo.tag = "MainCamera";
+        var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(canvasGo, scene);
+        canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        // reference frame: the kit's first board (the aspect the maker
+        // actually designed at), else landscape HD
+        float rw = 1920f, rh = 1080f;
+        if (m != null && m.boards != null && m.boards.Length > 0 && m.boards[0] != null && m.boards[0].w > 0) { rw = m.boards[0].w; rh = m.boards[0].h; }
+        var scaler = canvasGo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(rw, rh);
+        scaler.matchWidthOrHeight = ScalerMatchFor(rw, rh);
+        var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
+#if ENABLE_LEGACY_INPUT_MANAGER
+        esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#elif ENABLE_INPUT_SYSTEM
+        esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#endif
+        /* the backdrop bleeds FULL-SCREEN, outside the safe root, exactly
+           like a board scene's Background — on a notched device it slides
+           under the cutout while everything else stays clear of it */
+        var bgGo = new GameObject("Backdrop (full-bleed)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bgGo.transform.SetParent(canvasGo.transform, false);
+        var brt = (RectTransform)bgGo.transform;
+        brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+        brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
+        var bimg = bgGo.GetComponent<Image>();
+        bimg.color = new Color(0.11f, 0.13f, 0.20f, 1f);
+        bimg.raycastTarget = false;
+        var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        var safeRt = (RectTransform)safeGo.transform;
+        safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
+        safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
+        var safeT = safeGo.transform;
+        // the outline: four thin bars hugging the safe rect's edges
+        CheckEdge(safeT, "Safe Edge Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 6f), new Vector2(0.5f, 1f));
+        CheckEdge(safeT, "Safe Edge Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 6f), new Vector2(0.5f, 0f));
+        CheckEdge(safeT, "Safe Edge Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(6f, 0f), new Vector2(0f, 0.5f));
+        CheckEdge(safeT, "Safe Edge Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(6f, 0f), new Vector2(1f, 0.5f));
+        // corner tags — each hugs ITS corner on every aspect
+        CheckTag(safeT, "TOP LEFT", 30f, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), -1);
+        CheckTag(safeT, "TOP RIGHT", 30f, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), 1);
+        CheckTag(safeT, "BOTTOM LEFT", 30f, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), -1);
+        CheckTag(safeT, "BOTTOM RIGHT", 30f, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), 1);
+        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f), 0);
+        // a couple of live kit pieces so the check shows the real kit
+        int livePlaced = 0;
+        var pfBtn = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ButtonPrimary.prefab");
+        if (pfBtn != null) {
+          var iB = (GameObject)PrefabUtility.InstantiatePrefab(pfBtn, scene);
+          iB.transform.SetParent(safeT, false);
+          var rtB = iB.GetComponent<RectTransform>();
+          if (rtB != null) {
+            rtB.anchorMin = new Vector2(0.5f, 0.5f); rtB.anchorMax = new Vector2(0.5f, 0.5f);
+            rtB.anchoredPosition = Vector2.zero;
+            livePlaced++;
+          }
+        }
+        var pfBar = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ProgressBar.prefab");
+        if (pfBar != null) {
+          var iP = (GameObject)PrefabUtility.InstantiatePrefab(pfBar, scene);
+          iP.transform.SetParent(safeT, false);
+          var rtP = iP.GetComponent<RectTransform>();
+          if (rtP != null) {
+            rtP.anchorMin = new Vector2(0.5f, 1f); rtP.anchorMax = new Vector2(0.5f, 1f);
+            rtP.anchoredPosition = new Vector2(0f, -90f);
+            livePlaced++;
+          }
+        }
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
+          Debug.Log("UI Kit Maker: Responsive Check ready — open " + scenePath + ", press Play, and switch Game-view aspect ratios (or the Device Simulator): the green outline is the live safe area, the backdrop bleeds under cutouts, and the corner tags hold their corners (" + livePlaced + " live kit piece(s) placed).");
+        else
+          Debug.LogWarning("UI Kit Maker: couldn't save the Responsive Check scene at " + scenePath + " — run Tools > PatternBreak > Rebuild Responsive Check Scene.");
+      } finally {
+        if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
+          UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+      }
+    }
+    [MenuItem("Tools/PatternBreak/Rebuild Responsive Check Scene")]
+    public static void RebuildResponsiveCheck() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
+        return;
+      }
+      if (!EditorUtility.DisplayDialog("UI Kit Maker — rebuild the Responsive Check scene",
+        "Replaces each kit's Scenes/Responsive Check.unity with a fresh one. Changes you made inside it are lost; every other scene is untouched.",
+        "Rebuild", "Cancel")) return;
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { continue; }
+        var scenePath = root + "/Scenes/Responsive Check.unity";
+        if (File.Exists(scenePath)) AssetDatabase.DeleteAsset(scenePath);
+        BuildResponsiveCheck(root, m);
+      }
     }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
@@ -7961,6 +8222,69 @@ namespace PatternBreak {
        heals: a word that is neither the pin nor the stock word is the
        maker's own retype and is never touched. Runs on every import;
        idempotent (a right word is a no-op). ── */
+    /* ── ADOPT THE SAFE-AREA ROOT (round 29) — heal-out-loud. Kept board
+       scenes predate the responsive contract: their content hangs
+       straight off the Canvas, so a notch can sit on a button. The graft
+       slides one "Safe Area" rect (full-stretch + KitSafeArea) between
+       the Canvas and the content and moves everything except the
+       full-bleed Background/Overlay under it, in draw order. Layout-
+       IDENTICAL in the editor — the safe rect IS the whole screen there
+       and every child keeps its anchors and offsets against an identical
+       rect — so nothing the maker placed moves; on device the UI now
+       clears the cutouts. A scene that already carries the root (built
+       or healed) is untouched; a kit that never re-exports never runs
+       this. ── */
+    static void HealSafeAreaRoots(string root, PBManifest m) {
+      if (m == null || m.boards == null) return;
+      foreach (var bd in m.boards) {
+        var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
+        if (!File.Exists(scenePath)) continue;
+        var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        bool wasLoaded = scene.IsValid() && scene.isLoaded;
+        bool wasDirty = wasLoaded && scene.isDirty;
+        if (!wasLoaded) {
+          try { scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive); }
+          catch (Exception) { continue; }
+          if (!scene.IsValid()) continue;
+        }
+        try {
+          bool grafted = false; int moved = 0;
+          foreach (var rootGo in scene.GetRootGameObjects()) {
+            var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
+            if (canvasC == null) continue;
+            if (canvasC.transform.Find("Safe Area") != null) continue; // already responsive
+            var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+            safeGo.transform.SetParent(canvasC.transform, false);
+            var srt = (RectTransform)safeGo.transform;
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
+            srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+            grafted = true;
+            /* collect first (SetParent mid-walk mutates the child list —
+               the ghost-swap rule), then move in draw order. Backdrops
+               stay full-bleed on the Canvas, exactly like fresh builds. */
+            var movers = new List<Transform>();
+            foreach (Transform chS in canvasC.transform) {
+              if (chS == safeGo.transform) continue;
+              if (chS.name == "Background" || chS.name == "Overlay") continue;
+              movers.Add(chS);
+            }
+            foreach (var mv in movers) mv.SetParent(safeGo.transform, false);
+            moved += movers.Count;
+          }
+          if (grafted) {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+            string story = "'" + bd.name + "' adopted the responsive Safe Area root — " + moved + " piece(s) now sit under it and clear device cutouts at runtime (backgrounds stay full-bleed; nothing moved in the editor).";
+            if (!wasDirty) {
+              if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
+                Debug.Log("UI Kit Maker: " + story);
+            } else
+              Debug.Log("UI Kit Maker: OPEN scene " + story + " It carries your unsaved edits, so save it yourself to keep the graft.");
+          }
+        } finally {
+          if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+        }
+      }
+    }
     static void HealBoardWords(string root, PBManifest m) {
 #if UNITY_2023_2_OR_NEWER
       if (m == null || m.boards == null) return;
@@ -7995,7 +8319,12 @@ namespace PatternBreak {
           foreach (var rootGo in scene.GetRootGameObjects()) {
             var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
             if (canvasC == null) continue;
-            foreach (Transform ch in canvasC.transform) {
+            /* content lives under the Safe Area root since round 29 —
+               older kept scenes (no root yet) still hold it on the
+               Canvas itself, so the walk follows whichever is there */
+            var safeWalk = canvasC.transform.Find("Safe Area");
+            var walkT = safeWalk != null ? safeWalk : canvasC.transform;
+            foreach (Transform ch in walkT) {
               var crt = ch as RectTransform;
               if (crt == null) continue;
               /* ── STALE SHADOW CULL (round 26 — the second "0:56"): a
@@ -8250,7 +8579,7 @@ namespace PatternBreak {
         var scaler = canvasGo.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2((float)bd.w, (float)bd.h);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = ScalerMatchFor((float)bd.w, (float)bd.h);
         var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
         UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
 #if ENABLE_LEGACY_INPUT_MANAGER
@@ -8290,6 +8619,19 @@ namespace PatternBreak {
             }
           }
         }
+        /* ── the SAFE-AREA ROOT (round 29): every piece parents HERE, not
+           on the Canvas. KitSafeArea re-anchors this rect to
+           Screen.safeArea at runtime (notches, Dynamic Island, foldable
+           hinges), while Background/Overlay stay full-bleed on the Canvas
+           itself — backdrops fill the screen, UI respects the cutouts.
+           In the editor the safe rect IS the whole screen, so the scene
+           lays out exactly as the board drew it. */
+        var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        var safeRt = (RectTransform)safeGo.transform;
+        safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
+        safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
+        var safeT = safeGo.transform;
         int placed = 0, missing = 0;
         /* the ordering self-test (round 12): every pinned word on this
            board is accounted for out loud — variant placed, minted right
@@ -8314,7 +8656,7 @@ namespace PatternBreak {
             if (bigPf != null) {
               inst = (GameObject)PrefabUtility.InstantiatePrefab(bigPf, scene);
               inst.name = bigNm + (it.big.fx ? " (fx)" : "");
-              inst.transform.SetParent(canvasGo.transform, false);
+              inst.transform.SetParent(safeT, false);
               if (it.big.fx) {
                 var bigImg = inst.GetComponent<Image>();
                 if (bigSp != null && bigImg != null) bigImg.sprite = bigSp; // this copy's bake; the prefab stays clean
@@ -8329,7 +8671,7 @@ namespace PatternBreak {
                  incomplete-scene rebuild, the posed-pipeline precedent */
               if (bigSp == null) { missing++; continue; }
               inst = new GameObject(bigNm + " (baked)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              inst.transform.SetParent(canvasGo.transform, false);
+              inst.transform.SetParent(safeT, false);
               var bigImg2 = inst.GetComponent<Image>();
               bigImg2.sprite = bigSp; bigImg2.raycastTarget = false; bigImg2.preserveAspect = true;
               missing++;
@@ -8354,7 +8696,7 @@ namespace PatternBreak {
               if (hlPf != null) {
                 inst = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
                 inst.name = "Stamp (live) — " + it.label.Trim();
-                inst.transform.SetParent(canvasGo.transform, false);
+                inst.transform.SetParent(safeT, false);
                 rt = inst.GetComponent<RectTransform>();
                 rt.sizeDelta = new Vector2(it.w * 1.2f, it.h * 1.25f);
                 var hlN = inst.GetComponent<HeroLabel>();
@@ -8374,7 +8716,7 @@ namespace PatternBreak {
               ? "Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label)
               : NiceName(it.component) + " (baked)";
             inst = new GameObject(bakedName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            inst.transform.SetParent(canvasGo.transform, false);
+            inst.transform.SetParent(safeT, false);
             var simg = inst.GetComponent<Image>();
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
@@ -8471,7 +8813,7 @@ namespace PatternBreak {
             }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
-            inst.transform.SetParent(canvasGo.transform, false);
+            inst.transform.SetParent(safeT, false);
             rt = inst.GetComponent<RectTransform>();
             if (rt == null) continue;
           }
@@ -8713,7 +9055,7 @@ namespace PatternBreak {
               missing++;
             } else if (it.shadowW > 1f && it.shadowH > 1f) {
               var shGo = new GameObject(NiceName(it.component) + " Shadow (art)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              shGo.transform.SetParent(canvasGo.transform, false);
+              shGo.transform.SetParent(safeT, false);
               var shRt = shGo.GetComponent<RectTransform>();
               shRt.anchorMin = new Vector2(it.ax, it.ay); shRt.anchorMax = new Vector2(it.ax, it.ay);
               shRt.pivot = new Vector2(0.5f, 0.5f);
