@@ -111,6 +111,17 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** The Leading dial, resolved per row (base = the resting design;
+   *  base-<state> rows = that state's fork-first per-key read — bevel's
+   *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
+   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today)
+   *  and ONLY when non-factory (≠ 100), so a factory kit's manifest stays
+   *  byte-identical. The importer maps it onto the live label as
+   *  TMP lineSpacing = 0.73 * (leading − 100): the app's gap is
+   *  fs·0.73em·leading/100, so the DELTA from factory is 0.73em per 100%
+   *  — riding TMP's em*100 spacing units on top of the face's natural
+   *  line height, which IS today's look at factory (absent/100 ⇒ 0). */
+  leading?: number;
   /** The gauge READOUT seat, parsed from the face render's geo stamp
    *  (data-gauge) in file px at pngScale: number center x/y + font size,
    *  then the unit line's y + size. The importer's live TMP numbers sit
@@ -2554,15 +2565,34 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the labeled props' words: the maker's own (kitLabels) with the
        importer's stock as fallback — mirror of DefaultLabel */
     const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99" };
+    /* STACKED multi-line label props: the Leading dial travels (owner:
+       "Leading did not work on the End Turn button" — fixed app-side; the
+       export must carry the resolved value or Unity's LIVE label
+       re-typesets at TMP's default line height forever). Emission is the
+       raw dial percentage, per row, fork-first per key — bevel's endturn
+       read verbatim — and only when ≠ 100 so factory kits stay
+       byte-identical. Future stacked labels join this set and inherit
+       the whole plumb (manifest row → PBAsset.leading → the importer's
+       LeadingLineSpacing seam). */
+    const STACKED_LABEL_PROPS = new Set<KitComponentId>(["endturn"]);
+    const leadingOf = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") => {
+      const c = pieceCfg(id);
+      /* fork-first PER KEY: a fork snapshot that never carried `leading`
+         (factory designs, pre-dial saves) falls through to the dial —
+         the wholesale read masked it at 100% (the app's own lesson) */
+      return (stName ? c.stateDesigns?.[stName]?.type?.leading : undefined) ?? c.type.leading ?? 100;
+    };
+    const leadingRow = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") =>
+      STACKED_LABEL_PROPS.has(id) && leadingOf(id, stName) !== 100 ? { leading: leadingOf(id, stName) } : {};
     for (const p of PROPS) {
       if (!shipProp(p.id)) continue;
       const propWord = PROP_WORD[p.id] !== undefined ? (st.kitLabels?.[p.id] ?? PROP_WORD[p.id]) : undefined;
       await addPng(`${p.id}/base.png`, shell(p.id, {}, undefined, p.value),
-        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}) }, true, p.id);
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...leadingRow(p.id) }, true, p.id);
       for (const stName of p.states)
         await addPng(`${p.id}/base-${stName}.png`, stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` }, true, p.id);
+            usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.`, ...leadingRow(p.id, stName) }, true, p.id);
       if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
         await addPng(`trophyicon/${fin}.png`, shell("trophyicon", { overlay: fin }),
           { component: "trophyicon", part: fin, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -6921,7 +6951,7 @@ namespace PatternBreak {
      rendered box side); strokeS 0 / strokeFile "" = no outline pass and
      the seat wears the single flat image exactly as before. */
   [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -10227,9 +10257,17 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
+      // the Leading dial (stacked multi-line labels — endturn): 0 = factory
+      float lsp = LeadingLineSpacing(lrow);
       if (layersFa != null && strokeInk != null) {
         var prt = parent.GetComponent<RectTransform>();
         BuildHeroStack(go, text, root, ls, prt != null ? prt.rect.height : 0f, layersFa, strokeInk);
+        if (lsp != 0f) {
+          // set AFTER the stack settles, then re-Apply through SetText —
+          // BuildHeroStack's own construction order rule
+          var hlLead = go.GetComponent<HeroLabel>();
+          if (hlLead != null) { hlLead.lineSpacing = lsp; hlLead.SetText(text); }
+        }
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -10242,6 +10280,7 @@ namespace PatternBreak {
       t.raycastTarget = false;
       t.font = solo;
       t.color = Color.white; // baked glyphs are pre-painted
+      if (lsp != 0f) t.lineSpacing = lsp;
     }
 #endif
     /* the label WE generated is the child GameObject named "Label" — a
@@ -10558,6 +10597,10 @@ namespace PatternBreak {
         // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
         if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
+        // the Leading dial rides this rung too (one seam, one number)
+        float lspT = LeadingLineSpacing(lrowA);
+        var tLead = lr0 != null ? lr0.GetComponent<TextMeshProUGUI>() : null;
+        if (tLead != null && lspT != 0f) tLead.lineSpacing = lspT;
         return;
       }
 #endif
@@ -10577,6 +10620,11 @@ namespace PatternBreak {
       // Truncate, which is exactly the field's "ATTAC" (round 9)
       t.horizontalOverflow = HorizontalWrapMode.Overflow;
       t.verticalOverflow = VerticalWrapMode.Overflow;
+      /* the Leading dial on the legacy rung: UI Text's lineSpacing is a
+         MULTIPLIER of the font's own line height (1 = factory), the
+         closest honest carrier of the dial on this approximate rung —
+         absent rows (0-gate) leave the default untouched */
+      if (lrowA != null && lrowA.leading > 0f) t.lineSpacing = lrowA.leading / 100f;
       // the kit's own face ships in fonts/ (license beside it) and wires
       // here automatically; the built-in face only covers a fetch-less
       // zip. For styled DYNAMIC text, build a TMP material preset from
@@ -10915,6 +10963,19 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return null;
       foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") return a;
       return null;
+    }
+    /* the LEADING dial's TMP form — ONE seam for every label birth and the
+       maintenance convergence, so they can never disagree. The app stacks
+       a multi-line label (endturn) at fs · 0.73em · leading/100; the
+       manifest ships the resolved percentage on the base row only when it
+       isn't factory. TMP lineSpacing is em*100 relative to the font size,
+       so the app's DELTA from factory maps exactly:
+         lineSpacing = 0.73 * (leading − 100)
+       (220% ⇒ +87.6 = +0.876em — the app's own 0.73em · 1.2). Factory and
+       absent rows (JsonUtility zero — the old-zip 0-gate) map to 0: TMP's
+       natural line height, today's look, untouched. */
+    static float LeadingLineSpacing(PBAsset row) {
+      return row != null && row.leading > 0f ? 0.73f * (row.leading - 100f) : 0f;
     }
     /* the label's anchor-shift off the shell box, in sprite-rect fractions —
        shared by the seat below and the redress probe, so they can never
@@ -14451,6 +14512,22 @@ namespace PatternBreak {
               var hlProbe = probeRoot.GetComponent<HeroLabel>();
               if (hlProbe != null && hlProbe.authoredHeight < 0.5f) wantDress = true;
             }
+            /* LEADING convergence (the Leading-travels round): a label
+               still at TMP's natural line height (lineSpacing 0 — the old
+               default, indistinguishable from never-touched) adopts a
+               freshly dialed Leading; a hand-tuned nonzero value is the
+               maker's and is never re-lost — and a dial turned BACK to
+               factory leaves a nonzero value standing for the same reason.
+               The redress restore mirrors this gate exactly (probe and
+               dresser disagreeing is an infinite re-dress). */
+            if (!wantDress) {
+              float wantLsp = LeadingLineSpacing(probeRow);
+              if (wantLsp != 0f) {
+                var hlLd = probeRoot.GetComponent<HeroLabel>();
+                var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+                if ((hlLd != null && hlLd.lineSpacing == 0f) || (tmLd != null && tmLd.lineSpacing == 0f)) wantDress = true;
+              }
+            }
             /* SHELL-ANCHOR convergence: a label root still stretched over
                the sprite RECT (older importer) sits low — extrusion pulls
                the rect's center off the face (owner: "the stacking is
@@ -14677,7 +14754,12 @@ namespace PatternBreak {
                 if (newHl != null) {
                   if (keepAuthored >= 0.5f) newHl.authoredHeight = keepAuthored;
                   newHl.nudge = keepNudge; newHl.margins = keepMargins;
-                  newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing; newHl.lineSpacing = keepLineSpacing;
+                  /* lineSpacing: a hand-tuned value survives verbatim; a
+                     still-at-default 0 adopts the manifest's Leading (the
+                     birth just applied it — restoring the same want is
+                     idempotent). The probe's gate, mirrored. */
+                  newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing;
+                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName));
                   newHl.SetText(newHl.text);
                 }
               }

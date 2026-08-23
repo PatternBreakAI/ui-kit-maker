@@ -1158,6 +1158,44 @@ if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(
     errors.push("the Editor asmdef must declare Unity.TextMeshPro (and its documented companions) — the TMPro.-qualified standard outside the guards rides on that declaration");
 }
 
+/* ── LEADING TRAVELS (the End Turn line-gap round): the app stacks the
+   endturn's two lines at fs · 0.73em · leading/100 (bevel, fork-first
+   per key — a fork snapshot without the key falls through to the dial),
+   and the export must carry the resolved dial or Unity's LIVE label
+   re-typesets at TMP's default line height forever (owner: "Leading did
+   not work on the End Turn button"). The plumb: manifest rows (base +
+   per-state, ≠100 only so factory kits stay byte-identical) →
+   PBAsset.leading → ONE importer seam, LeadingLineSpacing =
+   0.73 * (leading − 100) — TMP lineSpacing is em*100 of font size, so
+   the app's delta-from-factory maps exactly and absent/100 (the old-zip
+   0-gate) keeps today's look untouched. Convergence rides the redress
+   with a still-at-0 gate, mirrored probe and dresser. ── */
+if (!/const lead = fsW \* 0\.73 \* \(\(leadT\.leading \?\? cfg\.type\.leading \?\? 100\) \/ 100\);/.test(bevelSrc))
+  errors.push("the app's endturn leading rule (fs * 0.73em * leading/100, fork-first per key) moved — the importer's 0.73 mapping is derived from it, re-derive BOTH together");
+if (!/const STACKED_LABEL_PROPS = new Set<KitComponentId>\(\["endturn"\]\);/.test(src))
+  errors.push("STACKED_LABEL_PROPS (the stacked multi-line label set the Leading emission rides) is missing — future stacked labels inherit the plumb through it");
+if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\) \?\? c\.type\.leading \?\? 100/.test(src))
+  errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
+if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
+  errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
+if (!/public float labelFs; public float leading; public string labelText;/.test(cs))
+  errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
+if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
+    || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
+  errors.push("LeadingLineSpacing (the ONE seam: 0.73 * (leading − 100), 0-gated so absent/factory rows leave TMP's natural line height — today's look) is missing or its formula drifted");
+if (!/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
+  errors.push("the hero-stack birth must apply the Leading (set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
+if (!/if \(lsp != 0f\) t\.lineSpacing = lsp;/.test(cs))
+  errors.push("the solo baked-label birth must apply the Leading (0-gated)");
+if (!/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
+  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number)");
+if (!/if \(lrowA != null && lrowA\.leading > 0f\) t\.lineSpacing = lrowA\.leading \/ 100f;/.test(cs))
+  errors.push("the legacy Text rung must carry the dial as its line-height multiplier (0-gated; factory 100 ⇒ 1.0 = Unity's default)");
+if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
+  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading (and ONLY then — hand-tuned values are the maker's)");
+if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
+  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
