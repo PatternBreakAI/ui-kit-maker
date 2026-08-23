@@ -2536,7 +2536,10 @@ export function Panel() {
             (owner: "leading controls for the type, at least here"). Shown
             exactly where it acts; widen the list as more stacks adopt it. */}
         {!!focus && baseOf(focus) === "endturn" && (
-          <Slider label="Leading" value={T2.leading ?? 100} min={60} max={220} unit="%" onChange={(v) => update((c) => { c.type.leading = v; })} />
+          /* value mirrors the render's per-key fallthrough (bevel's endturn):
+             a state fork without its own leading shows — and keeps showing —
+             the piece dial, not a phantom 100% */
+          <Slider label="Leading" value={T2.leading ?? cfg.type.leading ?? 100} min={60} max={220} unit="%" onChange={(v) => update((c) => { c.type.leading = v; })} />
         )}
         {focus ? (
           <>

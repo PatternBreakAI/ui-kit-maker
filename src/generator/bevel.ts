@@ -7862,10 +7862,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the old fixed 32k gap crowded big display type (owner). 0.73em
          reproduces the factory look exactly at the default type size. */
       const fsW = 30 * k * typeK;
-      // fork-first like the list font: a Leading edit made while a state is
-      // selected lands on the fork, and the raw master never sees it
+      /* fork-first PER KEY, like the list font (T4.listFont ?? cfg.type
+         .listFont): a Leading edit made while a state is selected lands on
+         the fork and wins there — but `leading` is an OPTIONAL key, and a
+         fork snapshot that never carried it (the factory hover/pressed
+         designs, every pre-dial save) must fall through to the dial instead
+         of masking it at 100%. The old wholesale read did exactly that:
+         the gap snapped back to factory the moment the button was hovered
+         or pressed (owner: "Leading did not work on the End Turn button"). */
       const leadT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
-      const lead = fsW * 0.73 * ((leadT.leading ?? 100) / 100);
+      const lead = fsW * 0.73 * ((leadT.leading ?? cfg.type.leading ?? 100) / 100);
       const text = words.length > 1
         ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
           contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
