@@ -18,7 +18,7 @@ import { startCheckout } from "@/generator/billing";
 
    PRIVACY: the ID image is written to a private bucket, read only by the
    reviewer, and DELETED the moment a decision is made. We keep the
-   decision, the school address and the date — never the document. That
+   decision, the school address and the date, never the document. That
    promise is made on this page because it is a promise we keep in code
    (see the approve step in api/student-review). */
 
@@ -77,7 +77,7 @@ export function StudentPage() {
         <span className="fd-pricing__ico fd-pricing__ico--edu"><GraduationCap size={17} strokeWidth={2.1} /></span>
         <h1>Student &amp; educator access</h1>
         <p className="fd-pricing__sub">
-          $15.99 a year for the whole tool — nothing is held back from what you
+          $15.99 a year for the whole tool. Nothing is held back from what you
           can make. Full component kit, every preset, unlimited zoom, 4× PNG and
           every export including the engine kit and the game kit. What the
           education price covers is coursework, your portfolio, and
@@ -93,7 +93,7 @@ export function StudentPage() {
             <p>
               Your rate is ready. Checkout below bills $15.99 a year on the same
               account you're already signed in to, and your plan switches over the
-              moment it clears — the complete tool, every export included. Each
+              moment it clears: the complete tool, every export included. Each
               download carries an education licence naming your account: coursework,
               portfolio and non-commercial release. Start selling what you build and
               you can upgrade to Pro any time and re-export.
@@ -101,12 +101,12 @@ export function StudentPage() {
             <button className="fd-pricing__cta fd-pricing__cta--edu" disabled={busy} onClick={() => void buy()}>
               {busy
                 ? (<><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Opening checkout…</>)
-                : (<>Subscribe — $15.99/year <ChevronRight size={15} strokeWidth={2.4} /></>)}
+                : (<>Subscribe · $15.99/year <ChevronRight size={15} strokeWidth={2.4} /></>)}
             </button>
             <p className="fd-pricing__renew">
               You'll be charged $15.99 today, plus applicable tax. Renews automatically
               every 12 months at the then-current student price unless you cancel.
-              Cancel anytime from your account — cancelling stops the next charge and
+              Cancel anytime from your account. Cancelling stops the next charge and
               your access runs to the end of the term. We may ask you to re-verify
               enrolment or teaching status before a renewal.
             </p>
@@ -118,7 +118,7 @@ export function StudentPage() {
               <Clock size={18} strokeWidth={2.2} /> Under review
             </p>
             <p>
-              We've got your application and we're looking at it — usually a day or
+              We've got your application and we're looking at it, usually a day or
               two. We'll email you, and this page will show a checkout button the
               moment you're approved.
             </p>
@@ -132,7 +132,7 @@ export function StudentPage() {
               <CheckCircle2 size={18} strokeWidth={2.2} /> Application received
             </p>
             <p>
-              We'll review it and email you — usually within a day or two. Once you're
+              We'll review it and email you, usually within a day or two. Once you're
               approved, the student rate appears on the pricing page and you can
               subscribe from there.
             </p>
@@ -144,7 +144,7 @@ export function StudentPage() {
           <section className="fd-studentcard">
             {!signedIn && (
               <p className="fd-studentcard__warn">
-                You'll need an account first — that's what we attach the discount to.{" "}
+                You'll need an account first; that's what we attach the discount to.{" "}
                 <button className="fd-linkbtn" onClick={() => openAuth("signin")}>Sign in or create one</button>.
               </p>
             )}
@@ -155,7 +155,7 @@ export function StudentPage() {
                 onChange={(e) => setSchool(e.target.value)}
                 placeholder="you@university.edu" autoComplete="email" />
               <small>
-                Any educational address — <code>.edu</code>, <code>.ac.uk</code>,
+                Any educational address: <code>.edu</code>, <code>.ac.uk</code>,
                 <code>.edu.au</code> or your institution's own domain. It doesn't have
                 to match the address on your account.
               </small>
@@ -173,7 +173,7 @@ export function StudentPage() {
                 It needs to show your name and a date that hasn't passed. A faculty or
                 staff card works too. Photos of a physical card are fine.
               </small>
-              {tooBig && <small className="fd-field__err">That file is over {MAX_MB} MB — try a photo instead of a scan.</small>}
+              {tooBig && <small className="fd-field__err">That file is over {MAX_MB} MB. Try a photo instead of a scan.</small>}
             </label>
 
             <label className="fd-check">
@@ -187,7 +187,7 @@ export function StudentPage() {
               <span>
                 <b>We delete your ID as soon as we've looked at it.</b> A person reviews
                 it, records the decision, and the file is removed. We keep the school
-                address and the date — never the document.
+                address and the date, never the document.
               </span>
             </p>
 

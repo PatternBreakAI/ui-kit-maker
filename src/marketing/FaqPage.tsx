@@ -26,7 +26,7 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What is UI Kit Maker?",
-        a: "A game-UI kit builder that runs entirely in your browser. You shape one material — colors, silhouette, structure, lighting, type — and every component in the kit (115+ of them: buttons, gauges, bars, slots, dialogs, HUD pieces) is drawn live from that one recipe. Change the recipe, the whole kit follows. What you export is real vector art and engine-ready files, not screenshots.",
+        a: "A game-UI kit builder that runs entirely in your browser. You shape one material (colors, silhouette, structure, lighting, type) and every component in the kit (115+ of them: buttons, gauges, bars, slots, dialogs, HUD pieces) is drawn live from that one recipe. Change the recipe, the whole kit follows. What you export is real vector art and engine-ready files, not screenshots.",
       },
       {
         q: "Do I need to know how to code or design?",
@@ -34,19 +34,19 @@ const FAQ: FaqCat[] = [
       },
       {
         q: "What's the difference between a preset and a kit?",
-        a: "A **preset** is a style recipe — the full set of choices that make a look (colors, shape, gloss, type, everything). A **kit** is that recipe applied across every component, plus your own edits: labels, icons, per-piece overrides, sizes. You start from a preset, make it yours, and the result is your kit.",
+        a: "A **preset** is a style recipe: the full set of choices that make a look (colors, shape, gloss, type, everything). A **kit** is that recipe applied across every component, plus your own edits: labels, icons, per-piece overrides, sizes. You start from a preset, make it yours, and the result is your kit.",
       },
       {
         q: "Does it work on my phone?",
-        a: "The editor is desktop-only for now — game UI work wants a big canvas and a pointer. The rest of the site (community, pricing, your account) works everywhere, and shared kit links open on mobile as viewers.",
+        a: "The editor is desktop-only for now. Game UI work wants a big canvas and a pointer. The rest of the site (community, pricing, your account) works everywhere, and shared kit links open on mobile as viewers.",
       },
       {
         q: "Which browsers are supported?",
-        a: "Current Chrome, Edge, Firefox and Safari. The renderer leans on real SVG filters, and we test the look across all four — if something renders oddly in your browser, tell us; that's a bug, not your fault.",
+        a: "Current Chrome, Edge, Firefox and Safari. The renderer leans on real SVG filters, and we test the look across all four. If something renders oddly in your browser, tell us; that's a bug, not your fault.",
       },
       {
         q: "The site speaks my language on the homepage. Does the editor?",
-        a: "The language you pick on the homepage follows you into the app — the top bar and core actions are translated in seven languages today (English, 中文, Français, Español, Italiano, Deutsch, 日本語), and more of the editor's surfaces are being translated in waves. Long-form content like the design lessons is English-first for now.",
+        a: "The language you pick on the homepage follows you into the app. The top bar and core actions are translated in seven languages today (English, 中文, Français, Español, Italiano, Deutsch, 日本語), and more of the editor's surfaces are being translated in waves. Long-form content like the design lessons is English-first for now.",
       },
     ],
   },
@@ -55,72 +55,72 @@ const FAQ: FaqCat[] = [
     name: "The controls, section by section",
     items: [
       {
-        q: "Global — states and their dials",
-        a: "The four chips at the top (Default, Hover, Pressed, Disabled) choose which **state** you're editing; the artwork and every control below follow the selection. Per state:\n\n· **Brightness** — lightens or darkens the whole piece for that state.\n· **Saturation** — drains or enriches the color; negative reads as \"disabled grey\".\n· **Glow** — the outer aura strength. Hover's glow also drives the dropdown menu's row highlight.\n· **Lift** — vertical travel in pixels; negative raises (hover), positive presses down.\n· **Opacity** — overall transparency, mostly for Disabled.\n\nEdits you make with a non-default state selected fork that state's design, so Hover can be a different color or shape entirely — that's how pressed-state re-skins work.",
+        q: "Global: states and their dials",
+        a: "The four chips at the top (Default, Hover, Pressed, Disabled) choose which **state** you're editing; the artwork and every control below follow the selection. Per state:\n\n· **Brightness**: lightens or darkens the whole piece for that state.\n· **Saturation**: drains or enriches the color; negative reads as \"disabled grey\".\n· **Glow**: the outer aura strength. Hover's glow also drives the dropdown menu's row highlight.\n· **Lift**: vertical travel in pixels; negative raises (hover), positive presses down.\n· **Opacity**: overall transparency, mostly for Disabled.\n\nEdits you make with a non-default state selected fork that state's design, so Hover can be a different color or shape entirely. That's how pressed-state re-skins work.",
       },
       {
-        q: "Presets — starter styles and packs",
-        a: "One click applies a complete style recipe to the whole kit. Starter presets ship with the product; **preset packs** are curated drops that appear here for Pro members. Applying a preset replaces the style but never your content — labels, icons and per-piece text stay yours. Your canvas color is also left alone; the stage belongs to you.",
+        q: "Presets: starter styles and packs",
+        a: "One click applies a complete style recipe to the whole kit. Starter presets ship with the product; **preset packs** are curated drops that appear here for Pro members. Applying a preset replaces the style but never your content: labels, icons and per-piece text stay yours. Your canvas color is also left alone; the stage belongs to you.",
       },
       {
-        q: "Silhouette — the shape of things",
-        a: "Chooses the outline family the material is poured into — pill, slab, chamfer, blade and friends. The silhouette drives how corners, caps and nine-slice stretch zones behave in exports. Components keep their own functional geometry (a gauge stays round); the silhouette shapes the shell-based pieces.",
+        q: "Silhouette: the shape of things",
+        a: "Chooses the outline family the material is poured into: pill, slab, chamfer, blade and friends. The silhouette drives how corners, caps and nine-slice stretch zones behave in exports. Components keep their own functional geometry (a gauge stays round); the silhouette shapes the shell-based pieces.",
       },
       {
-        q: "Bringing your own silhouette — the import spec",
-        a: "You can import your own outline (**Silhouette → Import silhouette (SVG)**) and the whole material system pours into it — walls, rim, gloss, glow, states, exports, all of it. The engine derives every inner layer from that one outline, so the cleaner the path, the better everything downstream looks.\n\n**The file**\n\n· **One closed, filled path.** No strokes, groups, transforms, or images — a stroke has no interior to fill, and a transform moves the geometry away from where the parser reads it.\n· **Boolean-union overlapping shapes before export.** Counter-holes are fine; overlapping siblings are not.\n· Plain SVG out of any vector tool. Nothing else in the file matters.\n\n**The geometry**\n\n· **Draw around a wide landscape box, about 200 × 100**, with the outline touching all four edges. The generator normalizes from those bounds, so a shape floating inside its canvas arrives smaller than you drew it.\n· **Stay near that 2:1 proportion.** Every component stretches the shape to its own size — a tall or square outline distorts hardest when it lands on a wide button.\n· **Keep decorative caps inside the outer 30% of the width.** That band is what nine-slice protects; detail in the middle smears when a piece stretches long.\n· **Prefer bezier curves over arc segments.** Arcs distort under non-uniform stretch in ways beziers don't.\n\nIf a shape imports but its inner wall looks faceted rather than smooth, that's the offset stage, not your file — organic outlines with deep concave curves are the hard case and are being improved.",
+        q: "Bringing your own silhouette: the import spec",
+        a: "You can import your own outline (**Silhouette → Import silhouette (SVG)**) and the whole material system pours into it: walls, rim, gloss, glow, states, exports, all of it. The engine derives every inner layer from that one outline, so the cleaner the path, the better everything downstream looks.\n\n**The file**\n\n· **One closed, filled path.** No strokes, groups, transforms, or images. A stroke has no interior to fill, and a transform moves the geometry away from where the parser reads it.\n· **Boolean-union overlapping shapes before export.** Counter-holes are fine; overlapping siblings are not.\n· Plain SVG out of any vector tool. Nothing else in the file matters.\n\n**The geometry**\n\n· **Draw around a wide landscape box, about 200 × 100**, with the outline touching all four edges. The generator normalizes from those bounds, so a shape floating inside its canvas arrives smaller than you drew it.\n· **Stay near that 2:1 proportion.** Every component stretches the shape to its own size. A tall or square outline distorts hardest when it lands on a wide button.\n· **Keep decorative caps inside the outer 30% of the width.** That band is what nine-slice protects; detail in the middle smears when a piece stretches long.\n· **Prefer bezier curves over arc segments.** Arcs distort under non-uniform stretch in ways beziers don't.\n\nIf a shape imports but its inner wall looks faceted rather than smooth, that's the offset stage, not your file. Organic outlines with deep concave curves are the hard case and are being improved.",
       },
       {
-        q: "Color — the five roles",
-        a: "The kit's palette is five **roles**, not fifty swatches:\n\n· **Bevel** — the shell and wall; the structural color everything else derives from.\n· **Glow** — auras, lit segments, active accents.\n· **Highlight** — gloss and specular events.\n· **Shadow** — grounding and depth.\n· **Inner Fill** — the candy face inside the wall.\n\nChange a role and every component using it updates. The **component-only** picker under the roles recolors just the focused piece — never the shell system. Leave a role empty and it derives itself from Bevel, which is why one color can drive a whole kit.",
+        q: "Color: the five roles",
+        a: "The kit's palette is five **roles**, not fifty swatches:\n\n· **Bevel**: the shell and wall; the structural color everything else derives from.\n· **Glow**: auras, lit segments, active accents.\n· **Highlight**: gloss and specular events.\n· **Shadow**: grounding and depth.\n· **Inner Fill**: the candy face inside the wall.\n\nChange a role and every component using it updates. The **component-only** picker under the roles recolors just the focused piece, never the shell system. Leave a role empty and it derives itself from Bevel, which is why one color can drive a whole kit.",
       },
       {
-        q: "Structure — walls, rims, and depth",
-        a: "The physical construction of the shell:\n\n· **Wall width** — how thick the frame is around the face.\n· **No wall** — the face fills the whole silhouette; good for soft, flat-candy looks.\n· **Rim width / Rim brightness** — the thin lit edge where the wall meets the world.\n· **Inner edge** — the crease between wall and face.\n· **Edge width** — the outer contour line's weight.\n· **Extrusion depth** — how far the solid body drops below the face; 0 is flat, higher reads as thick plastic.",
+        q: "Structure: walls, rims, and depth",
+        a: "The physical construction of the shell:\n\n· **Wall width**: how thick the frame is around the face.\n· **No wall**: the face fills the whole silhouette; good for soft, flat-candy looks.\n· **Rim width / Rim brightness**: the thin lit edge where the wall meets the world.\n· **Inner edge**: the crease between wall and face.\n· **Edge width**: the outer contour line's weight.\n· **Extrusion depth**: how far the solid body drops below the face; 0 is flat, higher reads as thick plastic.",
       },
       {
-        q: "Surface — the face itself",
-        a: "· **Light / Dark** mode — whether the face is brighter or darker than the shell.\n· **Face contrast** — how strongly the face's gradient moves from top to bottom.\n· **Gradient mid** — where the gradient's center sits; low = heavy bottom, high = lit top.\n· **Pattern** — a face texture (stripes, checks, dots and more) with **Scale**, **Angle** and **Opacity**; tone-on-tone from the shell color so it never fights your palette.\n· **Micro texture / Grain** — fine noise that keeps big flat areas from banding.",
+        q: "Surface: the face itself",
+        a: "· **Light / Dark** mode: whether the face is brighter or darker than the shell.\n· **Face contrast**: how strongly the face's gradient moves from top to bottom.\n· **Gradient mid**: where the gradient's center sits; low = heavy bottom, high = lit top.\n· **Pattern**: a face texture (stripes, checks, dots and more) with **Scale**, **Angle** and **Opacity**; tone-on-tone from the shell color so it never fights your palette.\n· **Micro texture / Grain**: fine noise that keeps big flat areas from banding.",
       },
       {
-        q: "Bars & fills — the liquid inside meters",
-        a: "Styling for the fill material inside progress bars, XP bars, health and mana:\n\n· **Second gradient** — a two-stop blend along the fill.\n· **Fill glow** — makes the liquid emit.\n· **Inner shadow** — seats the fill into its track.\n\nThese layer on top of the role colors, so a red health bar and a blue mana bar can share one material.",
+        q: "Bars & fills: the liquid inside meters",
+        a: "Styling for the fill material inside progress bars, XP bars, health and mana:\n\n· **Second gradient**: a two-stop blend along the fill.\n· **Fill glow**: makes the liquid emit.\n· **Inner shadow**: seats the fill into its track.\n\nThese layer on top of the role colors, so a red health bar and a blue mana bar can share one material.",
       },
       {
-        q: "Lighting — one sun for the whole kit",
-        a: "· **Angle** — where the light comes from; gloss, specular, emboss and the icon effects all follow it, which is why the kit feels physically consistent.\n· **Highlight / Lowlight** — the strength of the lit and shaded ends.\n· **Tint** — an optional color cast on the light itself (warm sunset, cold lab).",
+        q: "Lighting: one sun for the whole kit",
+        a: "· **Angle**: where the light comes from; gloss, specular, emboss and the icon effects all follow it, which is why the kit feels physically consistent.\n· **Highlight / Lowlight**: the strength of the lit and shaded ends.\n· **Tint**: an optional color cast on the light itself (warm sunset, cold lab).",
       },
       {
-        q: "Gloss & Reflections — the shine",
-        a: "· **Gloss height / bottom / Curvature** — the broad curved sheen across the face: how tall it is, where it ends, how much it bows.\n· **Gloss opacity** — its strength.\n· **Specular** — the crisp reflective event riding the silhouette's edge; several modes from a subtle line to a hard studio flash.\n· **Bloom** — bounce light pooling low on the face, like light caught inside candy.\n\nThe shine sweep you see on the canvas is a preview toggle (the star in the top bar), not baked into exports.",
+        q: "Gloss & Reflections: the shine",
+        a: "· **Gloss height / bottom / Curvature**: the broad curved sheen across the face: how tall it is, where it ends, how much it bows.\n· **Gloss opacity**: its strength.\n· **Specular**: the crisp reflective event riding the silhouette's edge; several modes from a subtle line to a hard studio flash.\n· **Bloom**: bounce light pooling low on the face, like light caught inside candy.\n\nThe shine sweep you see on the canvas is a preview toggle (the star in the top bar), not baked into exports.",
       },
       {
-        q: "Glow — lit from within",
-        a: "The inner glow is a soft wash rising from the unlit side of the face — the \"backlit plastic\" effect. One opacity dial; its color comes from the Glow role.",
+        q: "Glow: lit from within",
+        a: "The inner glow is a soft wash rising from the unlit side of the face, the \"backlit plastic\" effect. One opacity dial; its color comes from the Glow role.",
       },
       {
-        q: "Depth & Shadow — how it sits on the ground",
-        a: "· **Distance / Blur / Opacity** — the cast shadow dropping from the piece.\n· **Contact** — the tight dark pool right where the body meets the ground; this is what makes a piece feel placed rather than pasted.\n\nEngine exports strip these (your game's lighting owns shadows there); image exports keep them.",
+        q: "Depth & Shadow: how it sits on the ground",
+        a: "· **Distance / Blur / Opacity**: the cast shadow dropping from the piece.\n· **Contact**: the tight dark pool right where the body meets the ground; this is what makes a piece feel placed rather than pasted.\n\nEngine exports strip these (your game's lighting owns shadows there); image exports keep them.",
       },
       {
-        q: "Typography — the type system",
-        a: "· **Font** — curated game-friendly faces, plus **custom font upload** (your own licensed files).\n· **Size, Weight, Italic, Tracking, Case** — the basics; Case forces upper/lower/as-typed.\n· **Fill** — solid or gradient, with opacity.\n· **Outline** — a stroke around the letterforms, one or two colors.\n· **Shadow** — offset, blur, opacity.\n· **Emboss / Deboss** — carved relief that follows the master Lighting angle; positive raises, negative sinks.\n· **Glow** — a luminous halo around the glyphs.\n· **Pattern fill** — any face pattern inside the letters.\n· **Highlight glints** — crisp vector sparkles riding the letterforms.\n\nEvery text-bearing component follows this one treatment; per-piece text color overrides live in Component content.",
+        q: "Typography: the type system",
+        a: "· **Font**: curated game-friendly faces, plus **custom font upload** (your own licensed files).\n· **Size, Weight, Italic, Tracking, Case**: the basics; Case forces upper/lower/as-typed.\n· **Fill**: solid or gradient, with opacity.\n· **Outline**: a stroke around the letterforms, one or two colors.\n· **Shadow**: offset, blur, opacity.\n· **Emboss / Deboss**: carved relief that follows the master Lighting angle; positive raises, negative sinks.\n· **Glow**: a luminous halo around the glyphs.\n· **Pattern fill**: any face pattern inside the letters.\n· **Highlight glints**: crisp vector sparkles riding the letterforms.\n\nEvery text-bearing component follows this one treatment; per-piece text color overrides live in Component content.",
       },
       {
-        q: "Icons — one treatment for every glyph",
-        a: "At the bottom of Typography: **Size**, **Weight** (stroke), **Opacity**, **Rotation**, and color that inherits the type until you set your own. The **Shadow / Glow / Emboss** chips apply the icon's own effects, independent of the text's. Swapping which icon a specific component shows happens in **Component content** on the Kit page — the treatment here stays kit-wide.",
+        q: "Icons: one treatment for every glyph",
+        a: "At the bottom of Typography: **Size**, **Weight** (stroke), **Opacity**, **Rotation**, and color that inherits the type until you set your own. The **Shadow / Glow / Emboss** chips apply the icon's own effects, independent of the text's. Swapping which icon a specific component shows happens in **Component content** on the Kit page; the treatment here stays kit-wide.",
       },
       {
-        q: "Component content — labels, slots and per-piece edits",
-        a: "Focus any component (or tap its ✎) and this section shows what that piece can say:\n\n· **Free text slots** — labels, values, option rows; type and the art updates live.\n· **Choice slots** — curated swaps like the speedometer's MPH ↔ KPH. Dynamic readouts (the big 108) stay engine-driven on purpose — the ⓘ card explains each one.\n· **Icon swap** — give one piece its own glyph, or remove it.\n\nIf something isn't editable, clicking it tells you why and points at the nearest thing that is — no dead clicks.",
+        q: "Component content: labels, slots and per-piece edits",
+        a: "Focus any component (or tap its ✎) and this section shows what that piece can say:\n\n· **Free text slots**: labels, values, option rows; type and the art updates live.\n· **Choice slots**: curated swaps like the speedometer's MPH ↔ KPH. Dynamic readouts (the big 108) stay engine-driven on purpose; the ⓘ card explains each one.\n· **Icon swap**: give one piece its own glyph, or remove it.\n\nIf something isn't editable, clicking it tells you why and points at the nearest thing that is. No dead clicks.",
       },
       {
         q: "What are the ⓘ buttons and Dissect mode?",
-        a: "**ⓘ** on a focused component opens its card: what the piece is, what's editable, and a short design lesson — real history with dates, named games, and links out to sources. **Dissect** (the microscope in the canvas toolbar) turns your cursor into an inspector: click any part of the art and the panel scrolls to the exact control that edits it, lit up so you can't miss it.",
+        a: "**ⓘ** on a focused component opens its card: what the piece is, what's editable, and a short design lesson: real history with dates, named games, and links out to sources. **Dissect** (the microscope in the canvas toolbar) turns your cursor into an inspector: click any part of the art and the panel scrolls to the exact control that edits it, lit up so you can't miss it.",
       },
       {
-        q: "Boards — staging on real screens",
-        a: "The Board view stages components over background art — upload a screenshot or concept, arrange pieces on it, and judge the kit where it will actually live. Each artboard keeps its own background with opacity, blur and an overlay tint layer to make components pop against busy art.",
+        q: "Boards: staging on real screens",
+        a: "The Board view stages components over background art. Upload a screenshot or concept, arrange pieces on it, and judge the kit where it will actually live. Each artboard keeps its own background with opacity, blur and an overlay tint layer to make components pop against busy art.",
       },
     ],
   },
@@ -130,15 +130,15 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "Where does my work save?",
-        a: "Everything you touch saves to your browser automatically as you edit — no save button needed for the work-in-progress. Sign in (free) and the same work syncs to your account and follows you across devices. The cloud icon in the top bar tells you which of those is true right now.",
+        a: "Everything you touch saves to your browser automatically as you edit, no save button needed for the work-in-progress. Sign in (free) and the same work syncs to your account and follows you across devices. The cloud icon in the top bar tells you which of those is true right now.",
       },
       {
         q: "What happens if I clear my browser data?",
-        a: "Signed out: browser-only work is erased with it — that's why the top bar shows an amber \"this browser only\" chip until you sign in. Signed in: your account copy is safe; a fresh browser pulls it back down.",
+        a: "Signed out: browser-only work is erased with it; that's why the top bar shows an amber \"this browser only\" chip until you sign in. Signed in: your account copy is safe; a fresh browser pulls it back down.",
       },
       {
         q: "How do I save a kit as a project?",
-        a: "**Save kit** in the editor's top bar. Name it, save, done — the kit joins your library, openable from any device. Free and Student kits save public and may be curated into the Community Gallery; Pro kits save private with an eye toggle per kit (and a \"share by default\" switch if you want it).",
+        a: "**Save kit** in the editor's top bar. Name it, save, done. The kit joins your library, openable from any device. Free and Student kits save public and may be curated into the Community Gallery; Pro kits save private with an eye toggle per kit (and a \"share by default\" switch if you want it).",
       },
       {
         q: "What do the eye icons on my projects mean?",
@@ -146,37 +146,37 @@ const FAQ: FaqCat[] = [
       },
       {
         q: "Can I share a kit without publishing it to the community?",
-        a: "A public kit's link is view-only and doesn't put it on the gallery by itself — the gallery is curated by hand, so nothing appears there without being picked. If even a link is too public, the **Export settings** file (a small JSON) can be sent directly and imported by anyone.",
+        a: "A public kit's link is view-only and doesn't put it on the gallery by itself; the gallery is curated by hand, so nothing appears there without being picked. If even a link is too public, the **Export settings** file (a small JSON) can be sent directly and imported by anyone.",
       },
       {
         q: "Do my backgrounds travel with my kit?",
-        a: "Yes. An uploaded canvas background is stored with your work, rides your projects and share links, and stages your community card. It's downscaled to travel light. One honest note: the instant \"Share kit\" link carries everything inside the link itself, so with a photo it gets very long — project and community links stay short.",
+        a: "Yes. An uploaded canvas background is stored with your work, rides your projects and share links, and stages your community card. It's downscaled to travel light. One honest note: the instant \"Share kit\" link carries everything inside the link itself, so with a photo it gets very long; project and community links stay short.",
       },
     ],
   },
   {
     id: "exports",
-    name: "Exports — what you get today",
+    name: "Exports: what you get today",
     items: [
       {
         q: "What can I export right now?",
-        a: "Every export of **your own design** ships with the paid plans (Pro and Student — same formats):\n\n· **PNG** — transparent, up to 4×.\n· **Layered SVG** — real vectors with named groups (shell, face, content, gloss…).\n· **HTML/CSS** — a self-contained live component page.\n· **Game kit** — the components as production files.\n· **Engine ZIP** — atomic transparent PNGs with nine-slice metadata, a manifest, Unity import tooling and Unreal UMG recipes.\n· **Sprite sheet** — the visual catalog.\n\nFree accounts keep two downloads, deliberately: the **settings JSON** (your full recipe, importable back into the app — your work is never locked in) and the free **Unity test kit** (below). Guests export nothing — signing up is where downloads begin.",
+        a: "Every export of **your own design** ships with the paid plans (Pro and Student, same formats):\n\n· **PNG**: transparent, up to 4×.\n· **Layered SVG**: real vectors with named groups (shell, face, content, gloss…).\n· **HTML/CSS**: a self-contained live component page.\n· **Game kit**: the components as production files.\n· **Engine ZIP**: atomic transparent PNGs with nine-slice metadata, a manifest, Unity import tooling and Unreal UMG recipes.\n· **Sprite sheet**: the visual catalog.\n\nFree accounts keep two downloads, deliberately: the **settings JSON** (your full recipe, importable back into the app; your work is never locked in) and the free **Unity test kit** (below). Guests export nothing. Signing up is where downloads begin.",
       },
       {
         q: "What is the free Unity test kit?",
-        a: "A **stock evaluation kit** every registered account can download — one canned, pre-built Unity ZIP (currently the **Hot Rod** kit), the same fixed artifact for everyone. It is **not your design**: it exists so you can prove the whole import pipeline (prefabs, scenes, gauges, live text) in your engine before paying anything. Sign in, open your kit page, and it's in the export menu. When you upgrade, the same flow delivers your own kit instead.",
+        a: "A **stock evaluation kit** every registered account can download: one canned, pre-built Unity ZIP (currently the **Hot Rod** kit), the same fixed artifact for everyone. It is **not your design**: it exists so you can prove the whole import pipeline (prefabs, scenes, gauges, live text) in your engine before paying anything. Sign in, open your kit page, and it's in the export menu. When you upgrade, the same flow delivers your own kit instead.",
       },
       {
         q: "Will my SVGs look identical in Figma or Illustrator?",
-        a: "The geometry, gradients, layer names and live text arrive intact everywhere — that's the point of layered SVG. The soft effects (glows, blurs, grain) are SVG **filters**, and design tools support those only partially: Figma drops them on import, Illustrator keeps most. So: restyle from the layers in your tool, or use the PNG export when you want the rendered look pixel-exact. This is a design-tool limitation, not a broken file.",
+        a: "The geometry, gradients, layer names and live text arrive intact everywhere. That's the point of layered SVG. The soft effects (glows, blurs, grain) are SVG **filters**, and design tools support those only partially: Figma drops them on import, Illustrator keeps most. So: restyle from the layers in your tool, or use the PNG export when you want the rendered look pixel-exact. This is a design-tool limitation, not a broken file.",
       },
       {
         q: "Do the engine files work in Unity / Unreal?",
-        a: "The files are engine-standard on purpose: transparent PNGs, nine-slice margins in a plain manifest, pivots, tint flags. Any engine that can show a sprite can use them — that's not a claim about our cleverness, it's what PNG means. The included Unity importer and Unreal UMG recipes are conveniences on top; if your pipeline is unusual, the raw files still import by hand like any asset pack.",
+        a: "The files are engine-standard on purpose: transparent PNGs, nine-slice margins in a plain manifest, pivots, tint flags. Any engine that can show a sprite can use them. That's not a claim about our cleverness, it's what PNG means. The included Unity importer and Unreal UMG recipes are conveniences on top; if your pipeline is unusual, the raw files still import by hand like any asset pack.",
       },
       {
         q: "What licence do my exports carry?",
-        a: "Every paid export embeds a licence file naming your account. **Pro** carries the commercial licence: ship in any product, any number of projects, no attribution, no seat limit. **Student** carries the education licence: coursework, portfolio, personal and non-commercial releases — selling what you build needs Pro. Upgrading later re-exports under the new licence.",
+        a: "Every paid export embeds a licence file naming your account. **Pro** carries the commercial licence: ship in any product, any number of projects, no attribution, no seat limit. **Student** carries the education licence: coursework, portfolio, personal and non-commercial releases. Selling what you build needs Pro. Upgrading later re-exports under the new licence.",
       },
       {
         q: "Is there an export limit?",
@@ -194,15 +194,15 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What's free, and what does Pro add?",
-        a: "Free is the real editor — full kit, cloud saves, unlimited boards, your settings file, your kits join the community, and the stock **Unity test kit** to prove the import pipeline. Exporting your own designs is the paid unlock: **Pro** ($29.99/year) adds every export format — PNG up to 4×, layered SVG, HTML, game kit, engine ZIP — plus every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
+        a: "Free is the real editor: full kit, cloud saves, unlimited boards, your settings file, your kits join the community, and the stock **Unity test kit** to prove the import pipeline. Exporting your own designs is the paid unlock: **Pro** ($29.99/year) adds every export format (PNG up to 4×, layered SVG, HTML, game kit, engine ZIP), plus every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
       },
       {
         q: "How does the student rate work?",
-        a: "You apply with your school email and a student ID; a human reviews it — no domain regex deciding your fate. Your ID document is deleted the moment the decision is made; we keep the decision, not the document. Approval unlocks the student price on your account's checkout.",
+        a: "You apply with your school email and a student ID; a human reviews it. No domain regex deciding your fate. Your ID document is deleted the moment the decision is made; we keep the decision, not the document. Approval unlocks the student price on your account's checkout.",
       },
       {
         q: "How do I cancel or manage billing?",
-        a: "Account → Manage subscription opens the Stripe billing portal — cancel anytime, access runs to the end of the term. No email required, no retention maze.",
+        a: "Account → Manage subscription opens the Stripe billing portal. Cancel anytime, access runs to the end of the term. No email required, no retention maze.",
       },
     ],
   },
@@ -212,45 +212,45 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What is the Community Gallery?",
-        a: "A curated wall of kits made by users, at [uikitmaker.com/#/community](#/community) — no account needed to browse. Every card is drawn live in your browser from the kit's actual settings by the same engine that made it. **Use this kit** opens any of them to view and remix.",
+        a: "A curated wall of kits made by users, at [uikitmaker.com/#/community](#/community). No account needed to browse. Every card is drawn live in your browser from the kit's actual settings by the same engine that made it. **Use this kit** opens any of them to view and remix.",
       },
       {
         q: "How do I get my kit into the gallery?",
-        a: "Save it public (free and student kits already are; Pro flips the eye or sets share-by-default), and it enters the curation queue. A human picks what's featured — nothing reaches the front page unreviewed. Getting picked is about a look with a point of view, not follower counts.",
+        a: "Save it public (free and student kits already are; Pro flips the eye or sets share-by-default), and it enters the curation queue. A human picks what's featured; nothing reaches the front page unreviewed. Getting picked is about a look with a point of view, not follower counts.",
       },
       {
         q: "What are profiles and the studio?",
-        a: "Your **studio** ([#/studio](#/studio)) is your own room: picture, display name, handle, links to billing and settings, and all your kits — sortable, openable, deletable. Claiming a handle gives you a **public page** at uikitmaker.com/#/u/yourhandle showing your curated kits and their hearts. Likes exist; comments don't — that's deliberate.",
+        a: "Your **studio** ([#/studio](#/studio)) is your own room: picture, display name, handle, links to billing and settings, and all your kits: sortable, openable, deletable. Claiming a handle gives you a **public page** at uikitmaker.com/#/u/yourhandle showing your curated kits and their hearts. Likes exist; comments don't. That's deliberate.",
       },
       {
         q: "Who can see my work?",
-        a: "Private kits: only you, always. Public kits: anyone with the link, and possibly the gallery if curated. Free and Student plans save public — that's part of the deal, said plainly at the save moment. Pro keeps kits private by default. Nothing unreviewed ever appears on a public page of this site.",
+        a: "Private kits: only you, always. Public kits: anyone with the link, and possibly the gallery if curated. Free and Student plans save public; that's part of the deal, said plainly at the save moment. Pro keeps kits private by default. Nothing unreviewed ever appears on a public page of this site.",
       },
     ],
   },
   {
     id: "roadmap",
-    name: "The roadmap — honestly",
+    name: "The roadmap, honestly",
     items: [
       {
         q: "What new presets are coming?",
-        a: "Preset packs are made and banked — plural, finished, waiting — and the release machinery (scheduled drops that unlock on their day) is already built and tested. They'll release on a cadence rather than all at once. We're deliberately not announcing themes or dates: when a pack is buyable or included, you'll see it in the product, not in a promise.",
+        a: "Preset packs are made and banked (plural, finished, waiting), and the release machinery (scheduled drops that unlock on their day) is already built and tested. They'll release on a cadence rather than all at once. We're deliberately not announcing themes or dates: when a pack is buyable or included, you'll see it in the product, not in a promise.",
       },
       {
         q: "Will there be other kits beyond the hard-candy look?",
-        a: "Yes — the material system was built to pour more than candy. Other material families are on the bench, and the honest answer on when is: after the current kit's polish bar is met. Same rule as the packs: we show finished things.",
+        a: "Yes. The material system was built to pour more than candy. Other material families are on the bench, and the honest answer on when is: after the current kit's polish bar is met. Same rule as the packs: we show finished things.",
       },
       {
         q: "What's next for editing?",
-        a: "The near-term arc: text editing directly on the canvas (type on the art, the art responds — a value change can even drive a gauge's needle), ⓘ design lessons for every component with real history and sources, and deeper translations. The slot system that powers per-piece text is live now and growing component by component.",
+        a: "The near-term arc: text editing directly on the canvas (type on the art, the art responds; a value change can even drive a gauge's needle), ⓘ design lessons for every component with real history and sources, and deeper translations. The slot system that powers per-piece text is live now and growing component by component.",
       },
       {
         q: "What about more export targets?",
-        a: "The engine ZIP is deliberately engine-agnostic (standard PNGs + metadata), so most requests are already covered by hand-import. Deeper conveniences for specific engines are on the radar and will be added as demand shows — not promised until they exist. If you have a pipeline that needs something specific, tell us; real requests set the order.",
+        a: "The engine ZIP is deliberately engine-agnostic (standard PNGs + metadata), so most requests are already covered by hand-import. Deeper conveniences for specific engines are on the radar and will be added as demand shows, not promised until they exist. If you have a pipeline that needs something specific, tell us; real requests set the order.",
       },
       {
         q: "Something's missing from this FAQ.",
-        a: "Probably true — the product moves fast. The footer's newsletter is the quiet channel for what's new, and every shipped feature shows up in the product itself before we talk about it anywhere.",
+        a: "Probably true. The product moves fast. The footer's newsletter is the quiet channel for what's new, and every shipped feature shows up in the product itself before we talk about it anywhere.",
       },
     ],
   },
@@ -346,7 +346,7 @@ export function FaqPage() {
         </div>
 
         {needle && (
-          <p className="faq-count">{total === 0 ? "Nothing matches — try a shorter word." : total === 1 ? "1 answer" : `${total} answers`}</p>
+          <p className="faq-count">{total === 0 ? "Nothing matches. Try a shorter word." : total === 1 ? "1 answer" : `${total} answers`}</p>
         )}
 
         {cats.map((c) => (

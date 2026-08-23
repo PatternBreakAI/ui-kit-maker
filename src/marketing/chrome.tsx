@@ -11,7 +11,7 @@ import "@/styles/landing.css";
 
 const DICT: Record<string, Record<string, string>> = {
   "en": {
-    "fpTag": "Game-ready UI kits from one master component — drawn by a deterministic engine, never scraped.",
+    "fpTag": "Game-ready UI kits from one master component, drawn by a deterministic engine, never scraped.",
     "fpCopy": "© 2026 PatternBreak. All rights reserved.",
     "fpProdH": "PRODUCT",
     "fpOpen": "Open the generator",
@@ -24,16 +24,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "Terms of Use",
     "fpPrivacy": "Privacy Policy",
     "fpNewsH": "STAY IN THE LOOP",
-    "fpNewsP": "New components, presets, and features — a short email now and then. No spam, unsubscribe anytime.",
+    "fpNewsP": "New components, presets, and features. A short email now and then. No spam, unsubscribe anytime.",
     "fpPh": "you@studio.com",
     "fpGo": "SIGN ME UP",
-    "fpOk": "You're on the list — welcome aboard.",
+    "fpOk": "You're on the list. Welcome aboard.",
     "fpErr": "Hmm, that didn't go through. Mind trying again in a bit?",
     "fpBad": "That email doesn't look quite right.",
-    "licN": "* Licensing, in one line: ship your kits inside any game or product — commercial included. The kit and its asset files may not be resold or redistributed as assets, templates, or asset packs. See the Terms of Use."
+    "licN": "* Licensing, in one line: ship your kits inside any game or product, commercial included. The kit and its asset files may not be resold or redistributed as assets, templates, or asset packs. See the Terms of Use."
   },
   "zh": {
-    "fpTag": "从一个母版组件生成游戏级 UI 套件——由确定性引擎绘制,绝不抓取他人作品。",
+    "fpTag": "从一个母版组件生成游戏级 UI 套件，由确定性引擎绘制,绝不抓取他人作品。",
     "fpCopy": "© 2026 PatternBreak。保留所有权利。",
     "fpProdH": "产品",
     "fpOpen": "打开生成器",
@@ -46,16 +46,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "使用条款",
     "fpPrivacy": "隐私政策",
     "fpNewsH": "保持联系",
-    "fpNewsP": "新组件、新预设、新功能——偶尔一封简短邮件。不发垃圾邮件,随时退订。",
+    "fpNewsP": "新组件、新预设、新功能。偶尔一封简短邮件。不发垃圾邮件,随时退订。",
     "fpPh": "you@studio.com",
     "fpGo": "订阅",
-    "fpOk": "已加入列表——欢迎!",
+    "fpOk": "已加入列表。欢迎!",
     "fpErr": "好像没发送成功,稍后再试一次?",
     "fpBad": "这个邮箱看起来不太对。",
-    "licN": "* 许可证一句话:可将组件用于任何产品(包括商业产品)——但不得将组件或素材本身作为素材、模板或素材包转售或再分发。详见《使用条款》。"
+    "licN": "* 许可证一句话:可将组件用于任何产品(包括商业产品)，但不得将组件或素材本身作为素材、模板或素材包转售或再分发。详见《使用条款》。"
   },
   "fr": {
-    "fpTag": "Des kits UI prêts pour le jeu à partir d'un seul composant maître — dessinés par un moteur déterministe, jamais scrapés.",
+    "fpTag": "Des kits UI prêts pour le jeu à partir d'un seul composant maître, dessinés par un moteur déterministe, jamais scrapés.",
     "fpCopy": "© 2026 PatternBreak. Tous droits réservés.",
     "fpProdH": "PRODUIT",
     "fpOpen": "Ouvrir le générateur",
@@ -68,16 +68,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "Conditions d'utilisation",
     "fpPrivacy": "Politique de confidentialité",
     "fpNewsH": "RESTONS EN CONTACT",
-    "fpNewsP": "Nouveaux composants, presets et fonctionnalités — un court e-mail de temps en temps. Pas de spam, désinscription à tout moment.",
+    "fpNewsP": "Nouveaux composants, presets et fonctionnalités. Un court e-mail de temps en temps. Pas de spam, désinscription à tout moment.",
     "fpPh": "vous@studio.com",
     "fpGo": "JE M'INSCRIS",
-    "fpOk": "Vous êtes sur la liste — bienvenue à bord.",
+    "fpOk": "Vous êtes sur la liste. Bienvenue à bord.",
     "fpErr": "Hmm, ça n'est pas passé. On réessaie dans un instant ?",
     "fpBad": "Cet e-mail ne semble pas valide.",
-    "licN": "* La licence en une ligne : intégrez vos kits à tout produit, commercial compris — mais le kit et ses assets ne peuvent pas être revendus ni redistribués comme assets, templates ou packs. Voir les Conditions d'utilisation."
+    "licN": "* La licence en une ligne : intégrez vos kits à tout produit, commercial compris. Mais le kit et ses assets ne peuvent pas être revendus ni redistribués comme assets, templates ou packs. Voir les Conditions d'utilisation."
   },
   "es": {
-    "fpTag": "Kits de UI listos para juego desde un componente maestro — dibujados por un motor determinista, nunca raspados.",
+    "fpTag": "Kits de UI listos para juego desde un componente maestro, dibujados por un motor determinista, nunca raspados.",
     "fpCopy": "© 2026 PatternBreak. Todos los derechos reservados.",
     "fpProdH": "PRODUCTO",
     "fpOpen": "Abrir el generador",
@@ -90,16 +90,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "Términos de uso",
     "fpPrivacy": "Política de privacidad",
     "fpNewsH": "SIGAMOS EN CONTACTO",
-    "fpNewsP": "Nuevos componentes, presets y funciones — un correo breve de vez en cuando. Sin spam, date de baja cuando quieras.",
+    "fpNewsP": "Nuevos componentes, presets y funciones. Un correo breve de vez en cuando. Sin spam, date de baja cuando quieras.",
     "fpPh": "tu@estudio.com",
     "fpGo": "APÚNTAME",
-    "fpOk": "Ya estás en la lista — ¡bienvenido a bordo!",
+    "fpOk": "Ya estás en la lista. ¡Bienvenido a bordo!",
     "fpErr": "Hmm, no se envió. ¿Lo intentas de nuevo en un momento?",
     "fpBad": "Ese correo no parece válido.",
-    "licN": "* La licencia en una línea: usa tus kits en cualquier producto, comercial incluido — pero el kit y sus assets no pueden revenderse ni redistribuirse como assets, plantillas o packs. Consulta los Términos de Uso."
+    "licN": "* La licencia en una línea: usa tus kits en cualquier producto, comercial incluido. Pero el kit y sus assets no pueden revenderse ni redistribuirse como assets, plantillas o packs. Consulta los Términos de Uso."
   },
   "it": {
-    "fpTag": "Kit UI pronti per il gioco da un solo componente master — disegnati da un engine deterministico, mai raschiati.",
+    "fpTag": "Kit UI pronti per il gioco da un solo componente master, disegnati da un engine deterministico, mai raschiati.",
     "fpCopy": "© 2026 PatternBreak. Tutti i diritti riservati.",
     "fpProdH": "PRODOTTO",
     "fpOpen": "Apri il generatore",
@@ -112,16 +112,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "Termini d'uso",
     "fpPrivacy": "Informativa privacy",
     "fpNewsH": "RESTIAMO IN CONTATTO",
-    "fpNewsP": "Nuovi componenti, preset e funzioni — una breve email ogni tanto. Niente spam, disiscrizione quando vuoi.",
+    "fpNewsP": "Nuovi componenti, preset e funzioni. Una breve email ogni tanto. Niente spam, disiscrizione quando vuoi.",
     "fpPh": "tu@studio.com",
     "fpGo": "ISCRIVIMI",
-    "fpOk": "Sei in lista — benvenuto a bordo!",
+    "fpOk": "Sei in lista. Benvenuto a bordo!",
     "fpErr": "Hmm, non è andata. Riprovi tra un attimo?",
     "fpBad": "Questa email non sembra valida.",
-    "licN": "* La licenza in una riga: usa i tuoi kit in qualsiasi prodotto, anche commerciale — ma il kit e i suoi asset non possono essere rivenduti né ridistribuiti come asset, template o pacchetti. Vedi i Termini d'Uso."
+    "licN": "* La licenza in una riga: usa i tuoi kit in qualsiasi prodotto, anche commerciale. Ma il kit e i suoi asset non possono essere rivenduti né ridistribuiti come asset, template o pacchetti. Vedi i Termini d'Uso."
   },
   "de": {
-    "fpTag": "Game-ready UI-Kits aus einer einzigen Master-Komponente — gezeichnet von einer deterministischen Engine, nie gescraped.",
+    "fpTag": "Game-ready UI-Kits aus einer einzigen Master-Komponente, gezeichnet von einer deterministischen Engine, nie gescraped.",
     "fpCopy": "© 2026 PatternBreak. Alle Rechte vorbehalten.",
     "fpProdH": "PRODUKT",
     "fpOpen": "Generator öffnen",
@@ -134,16 +134,16 @@ const DICT: Record<string, Record<string, string>> = {
     "fpTerms": "Nutzungsbedingungen",
     "fpPrivacy": "Datenschutzerklärung",
     "fpNewsH": "BLEIB AUF DEM LAUFENDEN",
-    "fpNewsP": "Neue Komponenten, Presets und Features — ab und zu eine kurze Mail. Kein Spam, jederzeit abbestellbar.",
+    "fpNewsP": "Neue Komponenten, Presets und Features. Ab und zu eine kurze Mail. Kein Spam, jederzeit abbestellbar.",
     "fpPh": "du@studio.com",
     "fpGo": "EINTRAGEN",
-    "fpOk": "Du stehst auf der Liste — willkommen an Bord!",
+    "fpOk": "Du stehst auf der Liste. Willkommen an Bord!",
     "fpErr": "Hmm, das ging nicht durch. Magst du es gleich noch einmal versuchen?",
     "fpBad": "Diese E-Mail sieht nicht richtig aus.",
-    "licN": "* Die Lizenz in einem Satz: Nutze deine Kits in jedem Produkt, auch kommerziell — aber das Kit und seine Assets dürfen nicht als Assets, Templates oder Packs weiterverkauft oder weiterverbreitet werden. Siehe Nutzungsbedingungen."
+    "licN": "* Die Lizenz in einem Satz: Nutze deine Kits in jedem Produkt, auch kommerziell. Aber das Kit und seine Assets dürfen nicht als Assets, Templates oder Packs weiterverkauft oder weiterverbreitet werden. Siehe Nutzungsbedingungen."
   },
   "ja": {
-    "fpTag": "ひとつのマスターコンポーネントからゲーム対応の UI キットを — 決定論的エンジンが描画。スクレイピングは一切なし。",
+    "fpTag": "ひとつのマスターコンポーネントからゲーム対応の UI キットを生成。決定論的エンジンが描画。スクレイピングは一切なし。",
     "fpCopy": "© 2026 PatternBreak. All rights reserved.",
     "fpProdH": "プロダクト",
     "fpOpen": "ジェネレーターを開く",
@@ -159,10 +159,10 @@ const DICT: Record<string, Record<string, string>> = {
     "fpNewsP": "新コンポーネント・プリセット・機能のお知らせを、ときどき短いメールで。スパムなし、いつでも解除できます。",
     "fpPh": "you@studio.com",
     "fpGo": "登録する",
-    "fpOk": "リストに追加しました — ようこそ!",
+    "fpOk": "リストに追加しました。ようこそ!",
     "fpErr": "送信できなかったようです。少し後にもう一度お試しください。",
     "fpBad": "メールアドレスの形式が正しくないようです。",
-    "licN": "* ライセンスを一行で:キットはどんな製品にも(商用含め)使えます——ただしキットや素材そのものを素材・テンプレート・素材パックとして転売・再配布することはできません。詳細は利用規約へ。"
+    "licN": "* ライセンスを一行で:キットはどんな製品にも(商用含め)使えます。ただしキットや素材そのものを素材・テンプレート・素材パックとして転売・再配布することはできません。詳細は利用規約へ。"
   }
 };
 
