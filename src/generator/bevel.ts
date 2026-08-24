@@ -4585,6 +4585,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     return fs3 * Math.min(1, avail / Math.max(1, run3));
   };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
+  /* pale-ground guard (owner round, Brightside: "overall contrast/
+     legibility pass"): a handful of self-drawn inks are hardcoded white
+     or lightened on the assumption of dark grounds — on a genuinely pale
+     ground they vanish. grayOf is the same perceptual weighted sum
+     isDarkBg trusts; >= 186 = pale, far above every stock dark palette
+     (hard-candy bevel 129, inner fill 168), so dark kits hold byte-still.
+     Non-hex input reads as dark = the unchanged branch. */
+  const grayOf = (c: string): number => {
+    const m6 = /^#([0-9a-fA-F]{6})$/.exec(c);
+    if (!m6) return 0;
+    const p6 = parseInt(m6[1], 16);
+    return 0.2126 * ((p6 >> 16) & 255) + 0.7152 * ((p6 >> 8) & 255) + 0.0722 * (p6 & 255);
+  };
+  const paleG = (c: string) => grayOf(c) >= 186;
+  /* the FACE a piece's ghost furniture sits on: light mode faces wear the
+     Inner Fill role; dark mode always lays dark faces, never pale */
+  const paleFace = cfg.face.mode !== "dark" && paleG(effect(cfg.effects, "Inner Fill"));
+  /* ghost furniture cut from the kit's Shadow role — the pale-face
+     counterpart of the white ghosts dark faces wear */
+  const ghostBase = darken(effect(cfg.effects, "Shadow"), 0.15);
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
      no outline: the color group's darkest role (Shadow) on light faces,
@@ -5522,8 +5542,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           inner0 += candyKnob(cxS, cyS, sR * (hotS ? 1.08 : 1), knobC) + (state !== "disabled" ? `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${(sR * (hotS ? 1.38 : 1.28)).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotS ? 0.9 : 0.6)}" stroke-width="${hotS ? 3 : 2.4}" style="filter: drop-shadow(0 0 ${hotS ? 8 : 5}px ${hexRgba(glow, 0.65)})"/>` : "");
           inner0 += contentText(String(i + 1), cxS, cyS + 1, sR * 0.95, { anchor: "middle", keepCase: true, autoInk: darken(bevel, 0.55) });
         } else {
+          /* upcoming pips live in dark wells; a solid theme ink that is
+             itself dark (Brightside navy) drowns there — those kits fall
+             back to the ghost ink the auto voice always used */
+          const upInk9 = cfg.type.fillMode === "solid" && grayOf(cfg.type.fill) < 96 ? "rgba(255,255,255,0.45)" : undefined;
           inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>` +
-            contentText(String(i + 1), cxS, cyS + 1, sR * 0.9, { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", opacity: 0.8 });
+            contentText(String(i + 1), cxS, cyS + 1, sR * 0.9, { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", ink: upInk9, opacity: 0.8 });
         }
       }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS.toFixed(0)}" height="${HS.toFixed(0)}" viewBox="0 0 ${WS.toFixed(0)} ${HS.toFixed(0)}" role="img" aria-label="step ${cur + 1} of ${nS}"><g opacity="${state === "disabled" ? 0.45 : 1}">${inner0}</g></svg>`;
@@ -6319,7 +6343,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const icDef = pickI === "Empty" ? null
           : (pickI && STOCK_ICONS[pickI.toLowerCase()]) || (items[i] ? STOCK_ICONS[items[i] as string] : null);
         if (icDef) inner += themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
-        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
+        // the count chip wears the kit Bevel; white numerals sink into a
+        // pale chip (Brightside beige), so pale chips flip to a bevel-cut
+        // dark ink — dark chips keep the white they always wore
+        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
           // data-invring lets the engine export bake the panel RINGLESS and
@@ -7578,8 +7605,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `<text x="${wcx.toFixed(1)}" y="${(sy + sh * 0.38).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(46 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.5)" text-anchor="middle" dominant-baseline="central">?</text>`
         : (icR ? wellGlyph(icR, wcx, sy + sh * 0.38, sw * 0.38, lighten(tier.c, 0.2)) : "");
       const nameR = contentText(mystery ? "???" : (opts.label ?? "SUN SHARD").slice(0, 14), wcx, sy + sh - inset - 52 * k, 20 * k * typeK, { anchor: "middle" });
+      /* the qty pill lays the tier tint at 25% over the card FACE — on a
+         pale face the lightened tier ink dissolves into it (Brightside:
+         pale mint on cream), so pale grounds flip the ink dark while
+         keeping the tier hue; the dim voice keeps its dimness */
+      const qtyPale = cfg.face.mode !== "dark" && paleG(hexMix(effect(cfg.effects, "Inner Fill"), tier.c, 0.25));
+      const qtyInk = dimR
+        ? (qtyPale ? hexRgba(darken(tier.c, 0.55), 0.6) : "rgba(255,255,255,0.4)")
+        : (qtyPale ? darken(tier.c, 0.52) : lighten(tier.c, 0.35));
       const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
-        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${dimR ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
+        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${qtyInk}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
       return injectUnder(inject(shell.replace("<svg ", '<svg data-rewardcard="1" '), well + face + nameR + qty), aura);
     }
     case "qtybadge": {
@@ -7653,9 +7688,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const pw = 108 * k, ph = 40 * k, px9 = sx + sw - inset - pw - 6 * k, py9 = rowY + cell / 2 - ph / 2;
       const gidT9 = "rt" + UID++;
       const all = shown >= 4 && !dimT;
+      /* the dim (not-yet-claimable) capsule wears white ghosts — invisible
+         on a pale plate (Brightside cream): the same ghosts cut from the
+         kit's Shadow role instead, still clearly OFF, now findable */
+      const gFill9 = paleFace ? hexRgba(ghostBase, 0.1) : "rgba(255,255,255,0.1)";
+      const gLine9 = paleFace ? hexRgba(ghostBase, 0.4) : "rgba(255,255,255,0.2)";
+      const gInk9 = paleFace ? hexRgba(ghostBase, 0.85) : "rgba(255,255,255,0.45)";
       cells += `<defs><linearGradient id="${gidT9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${darken(glow, 0.22)}"/></linearGradient></defs>` +
-        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : "rgba(255,255,255,0.1)"}" stroke="${all ? darken(glow, 0.35) : "rgba(255,255,255,0.2)"}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
-        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : "rgba(255,255,255,0.45)"}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
+        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : gFill9}" stroke="${all ? darken(glow, 0.35) : gLine9}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
+        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : gInk9}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
       return inject(shell.replace("<svg ", '<svg data-rewardtray="1" '), title + cells);
     }
     case "chestpanel": {
