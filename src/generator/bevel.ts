@@ -3181,8 +3181,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      auto-width surfaces honored it, fixed frames spilled instead). When
      content + margins outgrow the frame, the type FITS DOWN, uniformly:
      every derived metric scales with fs, so placement math stays coherent.
-     Anything that already fits renders byte-identically. */
-  if (opts.fixedW && showText && contentW > 0) {
+     Anything that already fits renders byte-identically.
+     The same rule covers an AUTO-WIDTH shell that has hit its width cap
+     (owner: "fit down" — a 32-char primary poured past the 980 shell):
+     below the cap the shell grew for the content, so contentW ≤ availW and
+     this is a no-op; at the cap the frame is as fixed as any fixedW frame
+     and the label shrinks to honestly fit it. The 0.45 floor stands — at
+     the floor, overflow beats unreadable type. */
+  if (showText && contentW > 0) {
     const availW = Math.max(24, w - padL - padR);
     if (contentW > availW) {
       const fitK = Math.max(0.45, availW / contentW);
@@ -4547,11 +4553,37 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
-     overhangs when too big): shrink a run's font size so its estimated
-     width fits the given span. Identity when it already fits — existing
-     renders hold byte-still. */
-  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62) =>
-    fs3 * Math.min(1, avail / Math.max(1, txt.length * fs3 * perChar));
+     overhangs when too big): shrink a run's font size so its width fits
+     the given span. Identity when it already fits — existing renders hold
+     byte-still.
+     MEASURE-TRUE (owner: "fit down"): the char-count estimate under-read
+     wide faces ~11% at the dialogue box's 48-char cap and the words poured
+     past the frame. Width now comes from the same baked-metrics/canvas
+     measurement build() trusts for auto-width, mirroring what contentText
+     actually renders: the state-forked type, the list face for reading
+     voices, the case treatment, the 700 weight floor and per-glyph
+     tracking. Faces measurement can't cover keep the old estimate. */
+  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62, o3: { list?: boolean; keepCase?: boolean } = {}) => {
+    const T3 = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+    const font3 = (o3.list && (T3.listFont ?? cfg.type.listFont)) || T3.font;
+    const cased3 = o3.keepCase ? txt
+      : T3.case === "upper" ? txt.toUpperCase()
+      : T3.case === "lower" ? txt.toLowerCase()
+      : T3.case === "title" ? txt.replace(/\b\w/g, (m3) => m3.toUpperCase())
+      : txt;
+    const wt3 = Math.max(700, T3.weight);
+    const m3 = measureLabel(cased3, font3, wt3, !!T3.italic);
+    /* NO safety pad here, unlike auto-width: the advance sum plus BETWEEN-
+       glyph tracking lands within ~1% of the rendered ink (calibrated
+       against getBBox), deliberately erring a whisper UNDER — a pad that
+       overshoots real ink would nudge borderline labels that genuinely fit
+       today, and holding those byte-still outranks the last invisible
+       percent on an already-shrunk overflow. */
+    const run3 = m3 !== null
+      ? (m3 + (cased3.length - 1) * T3.spacing / 100) * fs3 * (1 + Math.max(0, wt3 - 700) * 0.0004)
+      : txt.length * fs3 * perChar;
+    return fs3 * Math.min(1, avail / Math.max(1, run3));
+  };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
@@ -6190,7 +6222,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotQ = active && (state === "hover" || state === "pressed");
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
-        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
+        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47, { list: true, keepCase: true }), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
@@ -6226,8 +6258,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bodyAvail = w - inset * 2 - 36 * k;
       const l1t = opts.label ?? "The old road is sealed since the tremor.";
       const l2t = (opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60);
-      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, list: true, ink: bodyInk });
-      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
+      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47, { list: true, keepCase: true }), { keepCase: true, list: true, ink: bodyInk });
+      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47, { list: true, keepCase: true }), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"
