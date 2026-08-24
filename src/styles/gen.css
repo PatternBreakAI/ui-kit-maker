@@ -874,10 +874,11 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 .kp-foot { margin-top: 44px; text-align: center; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--kp-ink3); }
 
-/* the open dropdown's menu hangs below its svg — pad the piece so the
-   caption and the next tray stay clear of it */
-.kp-tall .kp-piece { padding-bottom: 86px; }
-.kp-tall .kp-cap { transform: translateY(84px); }
+/* .kp-tall retired (2026-08-24): its fixed 86px reservation for the open
+   dropdown's menu assumed the menu always overflowed the svg — with the
+   canvas's shadow reserve the menu usually sits INSIDE the frame (dead
+   space), and at size L a true overflow outgrew the fixed pad. The
+   Fields specimens now crop to their MEASURED art (LiveArt hug). */
 /* pattern screens sit tighter — the glow pad already gives each piece air */
 .gp-piece { margin: -12px 0; }
 .gp-row .gp-piece, .gp-col .gp-piece { margin: -10px 0; }
