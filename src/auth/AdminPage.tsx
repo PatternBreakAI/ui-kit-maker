@@ -44,35 +44,22 @@ type Stats = {
 
 const PLANS = ["pro", "student", "free"] as const;
 
-/* ── the evaluation paperwork the blessing stamps into the test kit ──
+/* ── the licence the blessing stamps into the stocked kit ──
    Replaces the personal licence the export pipeline wrote for the
-   owner's account. Kit-agnostic on purpose: bless Hot Rod today, bless
-   its successor tomorrow, and this text stays true. Mirrors the house
-   licence's shape (what you may / may not do) — see api/export.ts. */
-const EVAL_LICENCE = `UI Kit Maker — evaluation kit
-=============================
+   owner's account. The stocked artifact doubles as the FREE Unity Asset
+   Store package, so this is the store/free-kit licence — the body
+   sentences are the owner's approved wording VERBATIM (2026-08-25);
+   only the header and footer are house dressing. "Brightside" is
+   hardcoded by that approved wording (the shelf kit IS Brightside) —
+   a different kit on the shelf needs newly blessed words. */
+const FREE_KIT_LICENCE = `UI Kit Maker — free kit licence
+===============================
 
-Artifact      : engine kit (stock evaluation build)
-Licence       : Evaluation — free with a UI Kit Maker account
-
-WHAT THIS IS
-  A stock kit, the same for every account — not something you designed.
-  It exists to prove the whole import pipeline in your engine before
-  you pay for anything: prefabs, scenes, gauges, live text, the
-  in-place re-import, all of it.
-
-WHAT YOU MAY DO
-  Import it, wire it up, prototype against it, and judge the pipeline
-  by it — in any engine, any project, while you evaluate.
-
-WHAT YOU MAY NOT DO
-  Ship these assets in a product you release, or resell or
-  redistribute them — as a kit, an asset pack, a template, or any
-  other bundle whose value is these files.
-
-Designs you export yourself require a paid plan — and arrive under a
-licence that lets you ship them. Restyle everything at uikitmaker.com,
-re-export, and the same Unity folder updates in place.
+Brightside is a free kit from UI Kit Maker (uikitmaker.com),
+distributed on the Unity Asset Store under the Asset Store EULA.
+Use it in anything you ship, commercial projects included. Don't
+resell or redistribute the assets themselves as a pack or template.
+Anything you add from your own uploads remains entirely yours.
 
 uikitmaker.com
 `;
@@ -398,7 +385,7 @@ export function AdminPage() {
      Store), so a personal stamp must never ride along. Blessing OPENS
      the zip right here in the browser (our exports are stored-entry
      zips — readStoredZip is makeZip's reader half), swaps every
-     LICENCE.txt for the evaluation text below, banners the kit README,
+     LICENCE.txt for the free-kit licence above, banners the kit README,
      and re-packs before anything is uploaded. A zip with compressed
      entries isn't one of ours and is refused, not guessed at. */
   const [tkStatus, setTkStatus] = useState<{ stocked: boolean; size: number | null; updatedAt: string | null } | null>(null);
@@ -427,7 +414,7 @@ export function AdminPage() {
         if (isPersonalLicence(e.path)) {
           swapped++;
           licDir = e.path.slice(0, e.path.length - "LICENCE.txt".length);
-          return { path: e.path, data: EVAL_LICENCE };
+          return { path: e.path, data: FREE_KIT_LICENCE };
         }
         return e;
       });
@@ -460,7 +447,7 @@ export function AdminPage() {
         setTkNote(`The upload didn't land (${put.status}) — the shelf is empty until a retry succeeds, and registered users see "not stocked yet".`);
         return;
       }
-      setTkNote(`Blessed. The personal licence was swapped for the evaluation licence (${swapped} file${swapped === 1 ? "" : "s"}${readmeAt >= 0 ? ", README bannered" : ""}), and the new test kit is what every registered account downloads from this moment on.`);
+      setTkNote(`Blessed. The personal licence was swapped for the free-kit licence (${swapped} file${swapped === 1 ? "" : "s"}${readmeAt >= 0 ? ", README bannered" : ""}), and the new test kit is what every registered account downloads from this moment on.`);
       void loadTkStatus();
     } finally {
       setTkBusy(false);
@@ -1712,13 +1699,14 @@ export function AdminPage() {
         <section className="fd-card">
           <h2 className="fd-card__title"><Gamepad2 size={17} strokeWidth={2.1} /> Unity test kit shelf</h2>
           <p className="fd-fine">
-            The one download every <b>registered</b> account gets: a canned, stock evaluation
+            The one download every <b>registered</b> account gets: a canned, stock
             kit zip — the same fixed artifact for everyone, never their own design — so a
-            developer can prove the import pipeline before paying. It doubles as the Unity
-            Asset Store kit (the designated kit: <b>Hot Rod</b>). The flow: export the kit
+            developer can prove the import pipeline before paying. It doubles as the FREE
+            Unity Asset Store package (the shelf kit: <b>Brightside</b> — the licence names
+            it, so a different kit needs new blessed words). The flow: export the kit
             from the live site (the big Unity button on its kit page — boards, scenes and
             all), then upload that exact file here. Blessing opens the zip in this browser,
-            <b> swaps your personal licence for the evaluation licence</b>, banners the
+            <b> swaps your personal licence for the free-kit licence</b>, banners the
             README, re-packs, and ships it — live immediately, no deploy, no code.
           </p>
           <p className="fd-fine">
