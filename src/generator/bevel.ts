@@ -4156,7 +4156,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
   "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
-  "bottomnav",
+  "bottomnav", "boostercard",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -7617,6 +7617,47 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
         `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${qtyInk}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
       return injectUnder(inject(shell.replace("<svg ", '<svg data-rewardcard="1" '), well + face + nameR + qty), aura);
+    }
+    case "boostercard": {
+      /* Casual · booster card — the booster button's reading twin: a
+         vertical info card with the glyph in a dark well up top, the
+         booster's name, its effect in the quieter list voice, and the
+         quantity chip. EDITING CONTRACT: label = the name; icon = the
+         glyph (swappable — the reward-card seat); `effect` slot = the
+         second line (the dialogue box's sub-label split); value drives
+         the qty chip, 0..1 → ×1..×99 (the count-badge map; untouched
+         shows the ×3 specimen). A real button — hover/pressed native on
+         the card; disabled dims. */
+      const w = 200 * k, h = 268 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const dimBC = state === "disabled";
+      const insetBC = bw + 6 * k;
+      const wcx = sx + sw / 2;
+      const wcy = sy + sh * 0.32;
+      // the glyph well — the reward card's dark dish, same seat
+      const well = `<circle cx="${wcx.toFixed(1)}" cy="${wcy.toFixed(1)}" r="${(sw * 0.28).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+      // wellGlyph honors the WHOLE Icons panel — size, rotation, fx, colors
+      const icBC = opts.icon !== undefined ? opts.icon : STOCK_ICONS.hammer;
+      const face = icBC ? wellGlyph(icBC, wcx, wcy, sw * 0.36, hexMix(glow, "#FFFFFF", 0.3)) : "";
+      // name — the themed display voice on the card FACE
+      const nmBC = (opts.label ?? "HAMMER").slice(0, 14);
+      const availBC = sw - insetBC * 2 - 8 * k;
+      const name = contentText(nmBC, wcx, sy + sh * 0.60, fitFs(nmBC, 21 * k * typeK, availBC), { anchor: "middle" });
+      // effect line — the quieter reading voice (list face), dialogue-body rule
+      const effBC = (opts.slots?.effect ?? "+10% Damage").slice(0, 18);
+      const effect9 = contentText(effBC, wcx, sy + sh * 0.715, fitFs(effBC, 15 * k * typeK, availBC, 0.5, { list: true, keepCase: true }), { anchor: "middle", keepCase: true, opacity: 0.78, list: true });
+      // qty chip — the kit Bevel in miniature (invgrid's count chip), the
+      // pale-chip ink flip included; value drives the number
+      const qn = Math.max(1, Math.min(99, Math.round(clamp(value ?? 0.03, 0, 1) * 99)));
+      const qTxt = `×${qn}`;
+      const chW = (34 + qTxt.length * 12) * k, chH = 30 * k;
+      const chY = sy + sh - insetBC - chH - 8 * k;
+      const qty = `<rect x="${(wcx - chW / 2).toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimBC ? 0.5 : 1}"/>` +
+        `<text x="${wcx.toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimBC ? 0.6 : 1}">${esc(qTxt)}</text>`;
+      return inject(shell.replace("<svg ", '<svg data-boostercard="1" '), well + face + name + effect9 + qty);
     }
     case "qtybadge": {
       /* Rewards · quantity badge — the ×250 corner pill that rides any

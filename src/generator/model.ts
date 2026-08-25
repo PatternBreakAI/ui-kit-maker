@@ -1103,6 +1103,8 @@ export type KitComponentId =
   | "gifticon"
   // casual navigation (staged) — the tab bar every mobile game stands on
   | "bottomnav"
+  // booster info card (staged) — glyph well, name, effect line, qty chip
+  | "boostercard"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1232,6 +1234,14 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "A number here pins the red count dot to the cell's corner. Empty removes it." },
     { id: "active", name: "Active cell", kind: "value",
       note: "Driven by the value slider, in quarters — 0–24% lights cell 1, 25–49% cell 2, 50–74% cell 3, 75–100% cell 4." },
+  ],
+  boostercard: [
+    /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
+       line is the house sub-label pattern — the dialogue box's split */
+    { id: "effect", name: "Effect line", kind: "free", def: "+10% Damage", maxLen: 18,
+      note: "The quieter second line — what the booster does. Speaks the list voice, like the dialogue body. Empty keeps the specimen." },
+    { id: "qty", name: "Quantity", kind: "value",
+      note: "Driven by the value slider — 0 to 100% maps ×1 to ×99 (the count-badge map). Untouched shows the ×3 specimen." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
@@ -1663,6 +1673,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   /* the casual-game tab bar — four icon+label cells, one active. Staged:
      admin-only until released from the bay, per the standing rule. */
   { id: "bottomnav", name: "Bottom nav bar", staged: true },
+  /* the vertical booster info card — the booster button's reading twin:
+     glyph well, name, effect line, qty chip. Staged per the standing rule. */
+  { id: "boostercard", name: "Booster card", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1827,7 +1840,7 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
   "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
   "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
-  "rewardcard", "qtybadge", "claimbtn", "chestpanel",
+  "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
 ]);
 
 /* Pieces that may render TEXT-LESS (the kitNoText flag — a "No text"
@@ -2091,6 +2104,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   heartmeter: "pill",
   booster: "pill",
   bottomnav: "round",       // the tab bar is a wide low rounded slab
+  boostercard: "kenneyRect", // a reading card, like the reward card
   dailycell: "kenneyRect",
   movecounter: "round",
   starrating: "pill",       // results pill — stars live in a themed capsule
@@ -2187,4 +2201,6 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   gift: { lib: "lucide", name: "Gift", viewBox: "0 0 24 24", inner: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 4.8 0 0 1 12 8a4.8 4.8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>', mode: "stroke" },
   // navigation glyphs (bottom nav bar) — same canonical-Lucide embedding rules
   map: { lib: "lucide", name: "Map", viewBox: "0 0 24 24", inner: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>', mode: "stroke" },
+  // booster glyph (booster card) — same canonical-Lucide embedding rules
+  hammer: { lib: "lucide", name: "Hammer", viewBox: "0 0 24 24", inner: '<path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>', mode: "stroke" },
 };
