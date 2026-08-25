@@ -1282,6 +1282,27 @@ if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc
   }
 }
 
+/* ── round-31 (store packaging · slice 4): the warning-free import sweep.
+   The store requires packages to import without package-originated
+   warnings. Every kit image must ride an explicitly configured road: the
+   manifest road (assets/, always Uncompressed), the bake roads
+   (boardstamps/bigglyphs/stamps, Uncompressed), the baked-face atlas, the
+   round-31 human-facing road (docs/, atlas/, the face tile — lossless
+   Default, NPOT-safe), and backgrounds, which keep block compression ONLY
+   when both sides are multiples of 4 (otherwise Unity logs one Console
+   warning per import) — checked via the editor's own source-size read,
+   falling back to lossless if that read ever disappears. */
+if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
+  errors.push("the round-31 human-facing texture road (docs/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
+if (!/dti\.npotScale = TextureImporterNPOTScale\.None;/.test(cs) || !/dti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
+  errors.push("the human-facing road must import lossless Default with NPOT scaling off (round 31)");
+if (!/if \(path\.EndsWith\("\/fonts\/face-pattern\.png"\)\) dti\.wrapMode = TextureWrapMode\.Repeat;/.test(cs))
+  errors.push("the face tile must wrap Repeat — the Face Texture slot tiles it (round 31)");
+if (!/GetSourceTextureWidthAndHeight/.test(cs) || !/bgw % 4 != 0 \|\| bgh % 4 != 0\) gti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
+  errors.push("the backgrounds multiple-of-4 compression gate is missing — odd-sized backdrops log a Console warning on every clean import (round 31)");
+if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompression\.Uncompressed; \}/.test(cs))
+  errors.push("the backgrounds gate must fall back to lossless when the reflection read fails — a throw here would surface as an import error (round 31)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

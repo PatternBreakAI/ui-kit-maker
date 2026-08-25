@@ -15557,6 +15557,27 @@ namespace PatternBreak {
         bti.npotScale = TextureImporterNPOTScale.None;
         return;
       }
+      /* round 31 — the warning-free import sweep: kit images that ride NO
+         manifest row still get an explicit, warning-proof import. In a
+         2D-template project Unity's default is a compressed Sprite, and
+         block compression logs one Console warning per texture whose side
+         isn't a multiple of 4 — which is most README figures (docs/, drawn
+         to content), the visual catalog (atlas/), and the seamless face
+         tile (its cell is set by the pattern's rhythm, not by 4s). These
+         are human-facing or hand-use images: lossless Default textures,
+         never sprites, never compressed — and the face tile wraps Repeat
+         because the Face Texture slot tiles it. */
+      if (path.Contains("UIKitMaker/") && (path.Contains("/docs/") || path.Contains("/atlas/") || path.EndsWith("/fonts/face-pattern.png"))) {
+        var dti = (TextureImporter)assetImporter;
+        dti.textureType = TextureImporterType.Default;
+        dti.mipmapEnabled = false;
+        dti.alphaIsTransparency = true;
+        dti.textureCompression = TextureImporterCompression.Uncompressed;
+        dti.npotScale = TextureImporterNPOTScale.None;
+        dti.maxTextureSize = 4096;
+        if (path.EndsWith("/fonts/face-pattern.png")) dti.wrapMode = TextureWrapMode.Repeat;
+        return;
+      }
       /* Board backdrops — the maker's own art, possibly 4K originals —
          arrive as single sprites so the board scenes' Background Image can
          hold them. Full quality, no mips, big ceiling. Big glyphs (the
@@ -15579,6 +15600,26 @@ namespace PatternBreak {
            Backgrounds are the maker's own photos and keep Unity's default
            pipeline. */
         if (path.Contains("/bigglyphs/") || path.Contains("/boardstamps/")) gti.textureCompression = TextureImporterCompression.Uncompressed;
+        else {
+          /* round 31 — backgrounds keep block compression only when they
+             CAN carry it: a phone-frame backdrop (390x844 and friends) has
+             a side that isn't a multiple of 4, can't block-compress, and
+             logs that same Console warning on every clean import. The
+             source size is read the way the Sprite Editor reads it
+             (internal, hence reflection); if the editor ever hides it, or
+             a side isn't a multiple of 4, the backdrop imports lossless —
+             memory is a cheaper price than a package-originated warning. */
+          try {
+            int bgw = 0, bgh = 0;
+            var mDim = typeof(TextureImporter).GetMethod("GetSourceTextureWidthAndHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (mDim != null) {
+              object[] dimArgs = new object[] { 0, 0 };
+              mDim.Invoke(gti, dimArgs);
+              bgw = (int)dimArgs[0]; bgh = (int)dimArgs[1];
+            }
+            if (bgw <= 0 || bgh <= 0 || bgw % 4 != 0 || bgh % 4 != 0) gti.textureCompression = TextureImporterCompression.Uncompressed;
+          } catch (Exception) { gti.textureCompression = TextureImporterCompression.Uncompressed; }
+        }
         return;
       }
       /* Type Stamps — baked styled phrases exported at 4x — land under the
