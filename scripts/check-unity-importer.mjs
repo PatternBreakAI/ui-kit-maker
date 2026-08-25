@@ -1196,6 +1196,39 @@ if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.l
 if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
   errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
 
+/* ── round-31 (store packaging · slice 1): Third-Party Notices.txt.
+   The Asset Store requires third-party components to carry notices. The
+   engine zip's notices file consolidates: the shipped font licences (the
+   SAME text that ships beside the font — never a second fetch that could
+   disagree), the CC-BY semantic-glyph credits (glyphLibrary's
+   glyphAttribution — ONE source of truth shared with the web kit's
+   LICENCE.txt), the shipped icon-set provenance, and the honest
+   LiberationSans pointer (the importer's fallback wiring REFERENCES the
+   user's own TMP asset; nothing Liberation is redistributed). Emission
+   sites report into collectors as they push — the file never lists on
+   faith. */
+const glyphLibSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/glyphLibrary.ts"), "utf8");
+if (!/export function glyphAttribution\(/.test(glyphLibSrc))
+  errors.push("glyphLibrary.glyphAttribution is gone — the engine notices' CC-BY block and the web kit's LICENCE.txt both ride it (round 31)");
+if (!/import \{ glyphAttribution \} from "\.\/glyphLibrary";/.test(src))
+  errors.push("engineExport must take the CC-BY glyph credits from glyphLibrary.glyphAttribution — re-deriving them forks the source of truth (round 31)");
+if (!/files\.push\(\{ path: "Third-Party Notices\.txt", data: tpn \}\);/.test(src))
+  errors.push("the Third-Party Notices.txt emission is missing — store submission requires consolidated third-party notices (round 31)");
+if ((src.match(/tpnFonts\.push\(/g) ?? []).length < 2)
+  errors.push("both font roads (the kit faces loop AND the Inter instrument voice) must report into the notices collector — a shipped font without a notice is a store rejection (round 31)");
+if (!/licenceText: got\.licenceText/.test(src) || !/licenceText: inst\.licenceText/.test(src))
+  errors.push("the notices must carry the SAME licence text that ships beside the font (got/inst.licenceText) — a re-fetch could disagree with the bundled file (round 31)");
+if (!/const oflLicenceBody = `/.test(src) || !/SIL OPEN FONT LICENSE Version 1\.1 - 26 February 2007/.test(src))
+  errors.push("the embedded OFL 1.1 fallback body (canonical title line included) is missing — the pointer road must still carry the licence in full (round 31)");
+if (!src.slice(src.indexOf("function thirdPartyNotices")).split("\n}")[0].includes("oflLicenceBody"))
+  errors.push("thirdPartyNotices must use the embedded OFL body on the pointer road (font licence unfetchable) — a bare URL is not a notice (round 31)");
+if (!/it\.component\.startsWith\("glyph"\)/.test(src) || !/shp\.startsWith\("glyph:"\)/.test(src) || !/st\.cfg\.shape\.startsWith\("glyph:"\)/.test(src))
+  errors.push("all three CC-BY glyph roads must feed the notices: board-placed glyph pieces (boardstamps), kitShapes glyph dress, and the master glyph shape (round 31)");
+if (!/tpnIcon\(chipIconDef\);/.test(src) || !/tpnIcon\(def\);/.test(src))
+  errors.push("the baked-icon emission sites (chip glyph, STOCK_ICONS set) must report their provenance into the notices (round 31)");
+if (!/LiberationSans \(TextMesh Pro Essential Resources\) — NOT distributed/.test(src))
+  errors.push("the LiberationSans reference note is missing — the importer wires it as a fallback, so the notices must say it is referenced, not redistributed (round 31)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
