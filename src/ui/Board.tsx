@@ -1290,8 +1290,9 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   /* drag-to-place (ported from the homepage board): press an asset, drag a
      ghost across the page, release over any board — the piece lands under
-     the cursor. A plain click still adds to the active board. */
-  const ghostRef = useRef<{ kitId: KitComponentId; ov?: string; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
+     the cursor. A plain click still adds to the active board. Saved
+     components ride the same road via libId. */
+  const ghostRef = useRef<{ kitId?: KitComponentId; libId?: string; ov?: string; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [ghost, setGhost] = useState<{ svg: string; x: number; y: number } | null>(null);
   useEffect(() => {
@@ -1322,7 +1323,8 @@ export function BoardView({ playing }: { playing: boolean }) {
       st.setActiveBoard(bid);
       /* the drop point is the piece's intended CENTER-ish — snap THAT to
          the grid, then back off the half-size estimate (center snap) */
-      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: Math.max(0, sv((e.clientX - r.left) / f) - 110), y: Math.max(0, sv((e.clientY - r.top) / f) - 55) }]);
+      const x = Math.max(0, sv((e.clientX - r.left) / f) - 110), y = Math.max(0, sv((e.clientY - r.top) / f) - 55);
+      st.addBoardItems([g.libId ? { libId: g.libId, x, y } : { kitId: g.kitId!, ov: g.ov, x, y }]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1513,7 +1515,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                 {library.filter((l) => !q || l.name.toLowerCase().includes(q.toLowerCase())).map((l) => {
                   const art = tightenSvg(l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label !== undefined ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default"), 20);
                   return (
-                    <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"}`} onClick={() => addToBoard(l.id)}
+                    <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addToBoard(l.id); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { libId: l.id, svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: l.name, svg: art })}
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: art }} />

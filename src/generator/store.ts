@@ -7,7 +7,7 @@ import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
-import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
+import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
@@ -352,8 +352,9 @@ interface GenStore {
   /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
    *  and value — as a named library asset. The master is never touched. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
-  /** Append a pre-placed set of kit pieces (starter templates). */
-  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  /** Append a pre-placed set of pieces (starter templates, ghost drops) —
+   *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
+  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string }[]) => void;
   /** Drop a live kit component on the board — follows the master style.
    *  `ov` picks a render variant (the ghost joystick). */
   addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
@@ -1777,22 +1778,48 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ library });
   },
   addToBoard: (libId) => {
-    const act = get().boards.find((b) => b.id === get().activeBoard);
-    const n = act?.items.length ?? 0;
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId, x: 80 + (n % 3) * 340, y: 80 + Math.floor(n / 3) * 220 };
+    const st = get();
+    const item0 = st.library.find((l) => l.id === libId);
+    if (!item0) return;
+    /* land CENTERED on the ACTIVE board's stage — the type-stamp / big-
+       glyph landing contract. The old fixed grid (80 + column·340) was
+       tuned to the 16:9 stage and threw a saved component clean off a
+       390-wide mobile board (owner: "when I drop it into the canvas I
+       can't see it"). Measure the real piece, shrink it until it fits
+       the stage's width, then split the difference both ways. */
+    const act = st.boards.find((b) => b.id === st.activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const m = / width="([\d.]+)" height="([\d.]+)"/.exec(
+      item0.kit
+        ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
+        : renderBevel(item0.cfg, "default"));
+    const [w0, h0] = m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
+    // never seed below the frozen piece's legibility floor (scaleBoardItem's)
+    const scale = Math.max(boardScaleMin({}), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId,
+      x: Math.max(0, Math.round((W - w0 * scale) / 2)), y: Math.max(0, Math.round((H - h0 * scale) / 2)),
+      ...(scale !== 1 ? { scale } : {}),
+    };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     // arriving AT the board fits the view; adding while already standing
     // on it must not stomp the zoom the user chose (review catch)
     set({ phase: "board", boardSel: item.id, ...(get().phase !== "board" ? { zoom: 1 } : {}) });
   },
   addBoardItems: (items) => {
-    // starter templates: a full set of pieces, pre-sized and pre-placed —
-    // kit pieces or big-glyph tiles (the Match-3 template's grid)
+    // starter templates and ghost drops: kit pieces, big-glyph tiles
+    // (the Match-3 template's grid) or saved library assets
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      libId: "", ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.big ? { big: it.big } : {}),
-      x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
+      libId: it.libId ?? "", ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.big ? { big: it.big } : {}),
+      /* belt-and-braces: seat every programmatic landing inside the active
+         stage (paste's grabbable-sliver margins) — in-bounds placements
+         pass through untouched, and nothing can ever land invisible */
+      x: Math.min(W - 60, Math.max(0, it.x)), y: Math.min(H - 40, Math.max(0, it.y)),
+      ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });
