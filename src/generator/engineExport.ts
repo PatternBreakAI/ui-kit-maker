@@ -873,7 +873,14 @@ export async function collectExportBoards(st: {
           // the clone's fork, and the importer only knows base names
           component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
+          /* the maker's CONTENT rides the row as data, not only as pixels
+             (the HUD-counter round: the dialed amount must be readable in
+             the manifest). Same per-copy-first recipe as the prefab road.
+             Safe for the shipped importer: every label/value consumer in
+             the C# guards on string.IsNullOrEmpty(it.stamp), so a baked
+             row's fields are provenance only until a rig opts in. */
+          rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
+          value: b.v ?? st.kitVals[id] ?? null, ax, ay, anchor, stamp: file,
           ...(cells ? { cells, cellSel } : {}),
         });
         continue;

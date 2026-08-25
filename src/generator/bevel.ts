@@ -8339,9 +8339,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "resource": {
       /* HUD counter — icon medallion, numeric value, optional /max, optional
-         add button. Currency, lives, energy, tickets, materials. */
+         add button. Currency, lives, energy, tickets, materials.
+         EDITING CONTRACT: value drives the amount — the currency pill's
+         exact map, 0..1 → 0..9,999 with the locale comma. A typed label
+         (per-copy words / kit text) always wins, so exact figures stay
+         possible. Absent value keeps the familiar 1,250 specimen
+         byte-for-byte (0.125 × 9,999 rounds to 1,250) — existing boards
+         without a v render exactly as before (owner: "value slider here
+         should change the number amounts in the diamond and money
+         components"). */
       const h = 78 * k;
-      const val = opts.label ?? "1,250";
+      const val = opts.label ?? Math.round(clamp(value ?? 0.125, 0, 1) * 9999).toLocaleString("en-US");
       const maxTxt = opts.max ? ` / ${opts.max}` : "";
       const fsV = 30 * k;
       /* Content margin reaches composite pieces too (owner: "content margin
