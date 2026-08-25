@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -350,7 +350,10 @@ interface GenStore {
   setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgFit" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
   addToBoard: (libId: string) => void;
   /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
-   *  and value — as a named library asset. The master is never touched. */
+   *  and value — as a named library asset. The master is never touched.
+   *  The piece itself REBINDS to an editable clone twin of the saved asset
+   *  (same position/scale/dials), so Edit component opens the saved item;
+   *  one board undo restores the pre-save binding. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of pieces (starter templates, ghost drops) —
    *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
@@ -705,7 +708,13 @@ export interface LibKit {
   label?: string; v?: number;
 }
 export interface UserPreset { id: string; name: string; cfg: GenConfig; thumb?: string }
-export interface LibItem { id: string; name: string; cfg: GenConfig; kit?: LibKit }
+export interface LibItem {
+  id: string; name: string; cfg: GenConfig; kit?: LibKit;
+  /** Saved-from-the-Board twin: the EDITABLE kit clone minted at save time.
+   *  While it lives, the drawer tile thumbs/places/edits IT (live); once
+   *  deleted, the frozen cfg snapshot is the tombstone fallback. */
+  cloneId?: string;
+}
 export interface StyleItem {
   id: string; name: string;
   style: Pick<GenConfig, "effects" | "face" | "bevel" | "candy" | "lighting" | "shadow" | "transparency" | "type" | "states" | "stateDesigns">;
@@ -1772,10 +1781,41 @@ export const useGen = create<GenStore>((set, get) => ({
       ...(lbl !== undefined ? { label: lbl } : {}),
       ...(b.v !== undefined ? { v: b.v } : {}),
     };
-    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
-    const library = [...st.library, item];
+    /* ── the owner's rebind (2026-08-25: "the moment I save it as an asset
+       it should change the item on the board canvas to match, so when I
+       click to go edit, I'm automatically editing the new saved item" /
+       "I wanna be able to edit my new GO banner component").
+       The cfg snapshot above is FROZEN by design — the EDITABLE saved
+       asset is a kit clone (the duplicate-piece road), minted with the
+       saved name and pinned to this instance's words and value pose. The
+       LibItem records it as cloneId, so the drawer tile thumbs, places
+       and edits the LIVE twin while it exists (the frozen snapshot is
+       the tombstone fallback once it's deleted). The board copy rebinds
+       to it in place: same position, scale and dials, identity switched,
+       so Edit component opens the saved asset. The rebind is its own
+       board-history step — one ⌘Z restores the pre-save binding (the
+       drawer asset stays saved). Deleting the drawer asset later never
+       touches this copy: it lives on the clone, not the libId road.
+       datarow/panel sit out (CLONE_INELIGIBLE) and save drawer-only. */
+    const cloneId = get().duplicateKitPiece(b.kitId, name, "Other");
+    if (cloneId) {
+      const pins: Record<string, unknown> = {};
+      if (b.label !== undefined) pins.kitLabels = { ...get().kitLabels, [cloneId]: b.label };
+      if (b.v !== undefined) pins.kitVals = { ...get().kitVals, [cloneId]: b.v };
+      if (Object.keys(pins).length) {
+        set(pins as Partial<GenStore>);
+        for (const k of Object.keys(pins)) saveJson(KIT_STORE_KEY[k], pins[k]);
+      }
+    }
+    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit, ...(cloneId ? { cloneId } : {}) };
+    const library = [...get().library, item];
     saveJson(LIB_KEY, library);
     set({ library });
+    if (!cloneId) return;
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+      bd.items.some((x) => x.id === id)
+        ? { ...bd, items: bd.items.map((x) => (x.id === id ? { ...x, kitId: cloneId as KitComponentId } : x)) }
+        : bd)));
   },
   addToBoard: (libId) => {
     const st = get();
@@ -1789,15 +1829,23 @@ export const useGen = create<GenStore>((set, get) => ({
        the stage's width, then split the difference both ways. */
     const act = st.boards.find((b) => b.id === st.activeBoard);
     const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    /* a LIVE save-twin places the CLONE (kitId road) so the copy follows
+       its edits; a frozen snapshot (old saves, deleted twin) places by
+       libId as ever. Both land by the same centered/fit contract. */
+    const cl = (item0.cloneId && st.kitClones[item0.cloneId] ? item0.cloneId : null) as KitComponentId | null;
+    const clSize = cl ? st.kitSizes[cl] ?? "l" : "l";
     const m = / width="([\d.]+)" height="([\d.]+)"/.exec(
-      item0.kit
-        ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
-        : renderBevel(item0.cfg, "default"));
+      cl
+        ? renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cl]), st.kitTextFill[cl]), baseOf(cl), clSize, "default", st.kitVals[cl], st.kitShapes[cl], { icon: resolveKitIcon(st.kitIcons[cl], undefined), label: st.kitNoText[cl] ? "" : st.kitLabels[cl], sub: st.kitSubs[cl], slots: st.kitSlotVals[cl], textOy: st.kitTextOy[`${cl}:${clSize}`], textOx: st.kitTextOx[`${cl}:${clSize}`] })
+        : item0.kit
+          ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
+          : renderBevel(item0.cfg, "default"));
     const [w0, h0] = m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
-    // never seed below the frozen piece's legibility floor (scaleBoardItem's)
-    const scale = Math.max(boardScaleMin({}), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
+    // never seed below the piece's own legibility floor (scaleBoardItem's)
+    const scale = Math.max(boardScaleMin(cl ? { kitId: cl } : {}), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
     const item: BoardItem = {
-      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId,
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      libId: cl ? "" : libId, ...(cl ? { kitId: cl } : {}),
       x: Math.max(0, Math.round((W - w0 * scale) / 2)), y: Math.max(0, Math.round((H - h0 * scale) / 2)),
       ...(scale !== 1 ? { scale } : {}),
     };

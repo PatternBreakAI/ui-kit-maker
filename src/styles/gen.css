@@ -1764,6 +1764,10 @@ button.kp-fact { cursor: pointer; }
 /* My-assets tiles: div-with-role (real buttons can't nest) + the tiny
    rename/delete row — the pages-tray control grammar */
 .bd-uasset { text-align: center; font: inherit; }
+/* saved-component tile as a div (nests its Edit control) — keeps the
+   button tile's centering and the full 74px art window */
+.bd-sasset { text-align: center; font: inherit; }
+.bd-sasset .bd-uactl button { font-size: 10px; font-weight: 600; gap: 3px; display: inline-flex; align-items: center; }
 .bd-uasset span:first-of-type { height: 58px; }
 .bd-uactl { display: inline-flex !important; gap: 2px; height: auto !important; }
 .bd-uactl button { border: 0; background: none; color: var(--ink3); padding: 3px; border-radius: 5px; cursor: pointer; display: grid; place-items: center; }

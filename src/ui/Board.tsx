@@ -1393,7 +1393,12 @@ export function BoardView({ playing }: { playing: boolean }) {
               clone id, so the stage keeps following its edits */}
           {cloneAssets.length > 0 && (() => {
             const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-            const items = cloneAssets.filter((it) => terms.every((t) => it.hay.includes(t)));
+            /* a clone minted by Save-to-my-assets already has its tile in
+               the Saved components drawer below (LibItem.cloneId) — one
+               entity, one tile. It resurfaces here if that drawer entry
+               is ever deleted while the clone lives on. */
+            const items = cloneAssets.filter((it) => !library.some((l) => l.cloneId === it.id))
+              .filter((it) => terms.every((t) => it.hay.includes(t)));
             if (!items.length) return null;
             return (
               <div>
@@ -1513,16 +1518,39 @@ export function BoardView({ playing }: { playing: boolean }) {
               <div className="bd-cat">Saved components</div>
               <div className="bd-grid">
                 {library.filter((l) => !q || l.name.toLowerCase().includes(q.toLowerCase())).map((l) => {
-                  const art = tightenSvg(l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label !== undefined ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default"), 20);
+                  /* a save-minted twin (LibItem.cloneId) makes the tile LIVE:
+                     it thumbs, places and EDITS the clone — one entity
+                     everywhere the owner meets it (owner: "I wanna be able
+                     to edit my new GO banner component"). A deleted twin
+                     drops the tile back to the frozen-snapshot road (the
+                     tombstone), so old saves behave exactly as before. */
+                  const live = l.cloneId ? cloneAssets.find((c) => c.id === l.cloneId) : undefined;
+                  const art = live?.svg ?? tightenSvg(l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label !== undefined ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default"), 20);
+                  // click: the store resolves live vs frozen and lands both
+                  // centered in the active board's frame
+                  const place = () => { if (suppressClick.current) { suppressClick.current = false; return; } addToBoard(l.id); };
                   return (
-                    <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
-                      onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addToBoard(l.id); }}
-                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { libId: l.id, svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
+                    /* div-with-role, the My-assets tile pattern — real
+                       <button>s can't nest, and a live tile carries its
+                       own Edit control */
+                    <div key={l.id} className="bd-asset bd-sasset" role="button" tabIndex={0}
+                      title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      onClick={place}
+                      onKeyDown={(e) => { if (e.key === "Enter") place(); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { ...(live ? { kitId: live.kitId } : { libId: l.id }), svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: l.name, svg: art })}
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: art }} />
                       <i>{l.name}</i>
-                    </button>
+                      {live && (
+                        <span className="bd-uactl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                          <button title={`Edit ${l.name} — every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
+                            onClick={() => { useGen.getState().setFocus(live.kitId); useGen.getState().setPhase("master"); }}>
+                            <SquarePen size={11} strokeWidth={2.4} /> Edit
+                          </button>
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -2215,7 +2243,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                    The owner's FORWARD-button worry: a piece reworked on the
                    Board (words, value, the component's current look) freezes
                    into a named asset — the master keeps its own life. */
-                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset. The master component stays untouched."
+                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
                   onClick={() => {
                     const def = sel.label ?? kitClones[sel.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name ?? "My asset";
                     const name = window.prompt("Save this piece to your assets as:", def);
