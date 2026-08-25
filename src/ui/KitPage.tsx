@@ -2871,7 +2871,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray kp-axis kp-race">
         </div>
-        <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — the traces here are specimens</span></div>
+        <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — on the lap chart, Value plays the session forward (first lap set → all eight in, delta going live); telemetry's traces are specimens</span></div>
       </Sec>
 
       <Sec n="09" title="System Chrome" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material. Key prompts stretch like real keycaps; pad buttons carry console color rings.">

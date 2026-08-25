@@ -9599,7 +9599,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.
-         Every value is live engine data in real games. */
+         Every value is live engine data in real games.
+         EDITING CONTRACT: value = session progress — how far the 8-lap
+         session has run. v=0 → lap 1 just set (one point per driver);
+         v=1 → all 8 laps in. Both traces fill left→right along the fixed
+         LAP 1..LAP 8 axis, the highlight dot rides YOUR latest lap, and
+         the delta readout becomes the live gap to the rival on that lap,
+         in the chart's own visual language — the YOU trace riding ABOVE
+         the rival's = ahead = − green, below = behind = + alarm (18 chart
+         units span the axis's 2.0 s; the demo itself ends green with YOU
+         on top). ABSENT value keeps the finished demo session
+         byte-for-byte — the fence below guards it. */
       const w = 350 * k, h = 240 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10;
@@ -9610,10 +9620,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const px0 = x0 + 38 * k; // room for the time axis
       const you = [72, 68, 65, 66, 62, 63, 60, 58];
       const rival = [70, 69, 66, 67, 64.5, 65, 63, 62];
+      const lapsN = you.length;
+      /* the absent-value fence: no dial = the full demo session */
+      const lapsDone = value === undefined ? lapsN : 1 + Math.round(clamp(value, 0, 1) * (lapsN - 1));
+      const youS = you.slice(0, lapsDone), rivalS = rival.slice(0, lapsDone);
       const lo = 56, hi = 74;
-      const pt = (v: number, i: number, arr: number[]) =>
-        [px0 + ((x1 - px0) * i) / (arr.length - 1), y0 + ((v - lo) / (hi - lo)) * (y1 - y0)] as const;
-      const line = (arr: number[]) => arr.map((v, i) => pt(v, i, arr).map((n) => n.toFixed(1)).join(",")).join(" ");
+      // x always spreads over the FULL session — partial traces fill toward LAP 8
+      const pt = (v: number, i: number) =>
+        [px0 + ((x1 - px0) * i) / (lapsN - 1), y0 + ((v - lo) / (hi - lo)) * (y1 - y0)] as const;
+      const line = (arr: number[]) => arr.map((v, i) => pt(v, i).map((n) => n.toFixed(1)).join(",")).join(" ");
       const yLabs = ["1:22.5", "1:22.0", "1:21.5", "1:21.0", "1:20.5"];
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
       /* grid split art/text (round 16): the dashed lines bake into the
@@ -9632,11 +9647,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (opts.part === "base")
         return inject(track, `<g opacity="${dim}">${wellD}${[0, 0.25, 0.5, 0.75, 1].map(lpHline).join("")}${lpVlines}</g>`)
           .replace("<svg ", `<svg data-chart="${px0.toFixed(1)} ${y0.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}" `);
-      const youLast = pt(you[you.length - 1], you.length - 1, you);
+      const youLast = pt(youS[youS.length - 1], youS.length - 1);
       const dots = (arr: number[], c: string, r9: number) => arr.map((v, i) => {
-        const [dx9, dy9] = pt(v, i, arr);
+        const [dx9, dy9] = pt(v, i);
         return `<circle cx="${dx9.toFixed(1)}" cy="${dy9.toFixed(1)}" r="${r9.toFixed(1)}" fill="${c}"/>`;
       }).join("");
+      /* the delta readout: dialed = the live gap to the rival on the latest
+         completed lap (18 units = 2.0 s off the time axis). Sign follows
+         the chart's visual language — YOU plotting above the rival (lower
+         chart units) = ahead = − green, matching the demo's own green
+         finish. Absent = the demo's dressing figure, untouched. */
+      const gapU = rivalS[rivalS.length - 1] - youS[youS.length - 1];
+      const deltaTxt = value === undefined ? "−0.271" : `${gapU >= 0 ? "−" : "+"}${(Math.abs(gapU) * (2 / 18)).toFixed(3)}`;
+      const deltaFill = value === undefined || gapU >= 0 ? "#4ADE80" : "#FF4D5A";
       const legY = 30 + inset + 16 * k;
       const parts = wellD +
         `<defs><filter id="${gid12}g" x="-60%" y="-60%" width="220%" height="220%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.7)}</filter></defs>` +
@@ -9645,12 +9668,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<text x="${(x1 - 85 * k).toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.85)">YOU</text>` +
         `<line x1="${(x1 - 56 * k).toFixed(1)}" y1="${(legY - 3.5 * k).toFixed(1)}" x2="${(x1 - 42 * k).toFixed(1)}" y2="${(legY - 3.5 * k).toFixed(1)}" stroke="rgba(255,255,255,0.55)" stroke-width="${(3 * k).toFixed(1)}" stroke-dasharray="3 4" stroke-linecap="round"/>` +
         `<text x="${(x1 - 37 * k).toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.6)">RIVAL</text>` +
-        `<text x="${x1.toFixed(1)}" y="${(legY + 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" fill="#4ADE80" text-anchor="end">−0.271</text>` +
+        `<text x="${x1.toFixed(1)}" y="${(legY + 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" fill="${deltaFill}" text-anchor="end">${deltaTxt}</text>` +
         grid +
-        `<polyline points="${line(rival)}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="${(2 * k).toFixed(1)}" stroke-dasharray="5 5" stroke-linejoin="round"/>` +
-        dots(rival, "rgba(255,255,255,0.6)", 2.6 * k) +
-        `<polyline points="${line(you)}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
-        dots(you, glow, 3 * k) +
+        `<polyline points="${line(rivalS)}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="${(2 * k).toFixed(1)}" stroke-dasharray="5 5" stroke-linejoin="round"/>` +
+        dots(rivalS, "rgba(255,255,255,0.6)", 2.6 * k) +
+        `<polyline points="${line(youS)}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
+        dots(youS, glow, 3 * k) +
         `<circle cx="${youLast[0].toFixed(1)}" cy="${youLast[1].toFixed(1)}" r="${(4.5 * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" filter="url(#${gid12}g)"/>` +
         hudText("LAP 1", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
         hudText("LAP 8", x1, y1 + 20 * k, 9.5 * k, "end", 700);
