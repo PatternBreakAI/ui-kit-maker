@@ -138,7 +138,7 @@ export function isGrant(g: ExportGrant | GrantRefusal): g is ExportGrant {
 
 /* ── the Unity test kit (Gate Round, 2026-08-17) ───────────────────
    The registered tier's one download: a canned, admin-blessed stock
-   evaluation zip — the same fixed artifact for everyone, never the
+   free-kit zip — the same fixed artifact for everyone, never the
    caller's design. /api/test-kit verifies the session server-side and
    answers with a short-lived signed URL; this helper just follows it.
    Returns null on success, or the message to show. */

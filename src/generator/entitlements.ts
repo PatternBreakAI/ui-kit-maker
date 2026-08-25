@@ -54,7 +54,7 @@ export type TierCaps = {
     starter, Unity bridge round) to empty — what a free account keeps is
     the project/settings JSON (workflow, not a deliverable), community
     publishing, and the stock Unity TEST KIT: one canned, admin-blessed
-    evaluation zip served by /api/test-kit, the same fixed artifact for
+    free-kit zip served by /api/test-kit, the same fixed artifact for
     everyone, never their own design. Proving the import pipeline is
     free; exporting YOUR kit is the paid unlock. */
 export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
@@ -78,13 +78,16 @@ export const TIER_CAPS: Record<Tier, TierCaps> = {
 export const LICENCE_GRANT: Record<"free" | "student" | "pro", string> = {
   /* Gate Round: /api/export never grants the free plan any more, so no
      licence is stamped for it — this line now describes the one thing a
-     free account can download (the stock evaluation kit, whose terms
-     ship inside the blessed zip itself). The STUDENT line staying
+     free account can download (the stock free kit, whose terms ship
+     inside the blessed zip itself: ship anything, commercial included,
+     don't resell the assets as a pack). The STUDENT line staying
      non-commercial is not a contradiction — education pricing buys the
-     WHOLE tool for coursework; the test kit is a demo of a stock look. */
+     WHOLE tool for their OWN designs; the test kit is one stock look,
+     free for everyone. */
   free:
-    "Evaluation only: the stock Unity test kit exists to prove the import " +
-    "pipeline in your engine. Shipping assets in a product is the paid unlock.",
+    "The stock Unity test kit is a free kit: use it in anything you ship, " +
+    "commercial projects included (its licence rides inside the ZIP). " +
+    "Exporting your own designs is the paid unlock.",
   student:
     "Coursework, portfolio, personal projects and non-commercial releases. " +
     "Selling a product built with these assets, or shipping them in anything " +

@@ -266,9 +266,9 @@ export function PricingPage() {
         <p className="fd-pricing__fine">
           Signing up is free, and it's a real step up from Explorer: the full kit, unlimited
           boards, cloud saves, your settings file, community publishing — and the free{" "}
-          <b>Unity test kit</b>, a stock evaluation ZIP (the same for everyone) that proves
-          the whole import pipeline in your engine before you pay. Exporting your own
-          designs is what Pro and Student add.
+          <b>Unity test kit</b>, a stock kit ZIP (the same for everyone, and yours to ship —
+          commercial projects included) that proves the whole import pipeline in your
+          engine before you pay. Exporting your own designs is what Pro and Student add.
         </p>
 
         {/* The annual-renewal disclosure of record. It must appear before

@@ -19,7 +19,7 @@
      { action: "designate", projectId, placement, presetName, publishAt?, dealNote? }
      { action: "designations" }                        → the release slate
      { action: "undesignate", designationId }
-     { action: "testKitStatus" }                       → is the blessed evaluation zip stocked?
+     { action: "testKitStatus" }                       → is the blessed free-kit zip stocked?
      { action: "testKitUpload", size }                 → signed upload URL to swap the blessed zip
 
    The release desk (find → preview → designate) exists for the pack

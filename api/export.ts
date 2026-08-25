@@ -37,7 +37,7 @@ const ALLOWED: Record<string, Set<string>> = {
   /* Gate Round (owner mandate, 2026-08-17): every generated export is paid.
      The free tier keeps the project/settings JSON (client-side, workflow not
      deliverable), community publishing, and the stock Unity TEST KIT served
-     by /api/test-kit — a fixed evaluation artifact, never their own design.
+     by /api/test-kit — a fixed free-kit artifact, never their own design.
      The old three-piece starter grant (Unity bridge round) is retired. */
   free: new Set<string>(),
   student: new Set(["engine", "gamekit", "html", "svg", "sheet"]),

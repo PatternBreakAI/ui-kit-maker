@@ -80,7 +80,7 @@ export function downloadZip(name: string, files: { path: string; data: string | 
 /** The reader half of makeZip — parses a zip whose entries are STORED
     (method 0), which is exactly what makeZip writes. Exists for the
     admin desk's test-kit blessing (Gate Round): the owner's own engine
-    export is opened, its LICENCE.txt swapped for the evaluation text,
+    export is opened, its LICENCE.txt swapped for the free-kit licence,
     and the whole thing re-packed with makeZip. Returns null for any zip
     with compressed entries — an honest refusal beats a silent
     corruption, and every zip this app writes parses clean. */

@@ -1852,15 +1852,15 @@ const kitTier = useGen((s) => s.tier);
       desc: "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
       busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     /* the free tier's one download (Gate Round): a canned, admin-blessed
-       STOCK kit — the same evaluation zip for everyone, never this design.
+       STOCK kit — the same free-kit zip for everyone, never this design.
        Guests see it as a register incentive; paid tiers have the real
        thing above, so the row steps aside for them. */
     ...(!paidTier ? [{
       id: "testkit",
       name: "Unity test kit (ZIP) — free",
       desc: kitTier === "guest"
-        ? "The stock Hot Rod evaluation kit — sign up free and prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine before paying."
-        : "The stock Hot Rod evaluation kit — the same fixed ZIP for everyone, not your design — to prove the whole import pipeline (prefabs, scenes, gauges, words) before you pay.",
+        ? "The stock Brightside kit, free with an account — prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine, and ship it if you like: it's yours, commercial projects included."
+        : "The stock Brightside kit — the same fixed ZIP for everyone, not your design — yours to ship, commercial projects included, and it proves the whole import pipeline (prefabs, scenes, gauges, words) in your engine.",
       busy: testKitBusy, run: () => void runTestKit(),
     }] : []),
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },

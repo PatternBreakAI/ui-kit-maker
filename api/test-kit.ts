@@ -1,13 +1,14 @@
 /* POST /api/test-kit — the registered tier's one download: the stock
-   Unity evaluation kit.
+   Unity free kit.
 
    WHY THIS EXISTS (Gate Round, owner mandate 2026-08-17). Generated
    exports are paid. What a free account gets instead is ONE canned,
    pre-built stock Unity kit zip — the same fixed artifact for everyone,
-   never the caller's own design — so a developer can prove the whole
-   import pipeline (prefabs, scenes, gauges, words) in their engine
-   before paying. It doubles as the kit published on the Unity Asset
-   Store, so the artifact is admin-blessed, not generated here.
+   never the caller's own design — a free kit that's theirs to ship
+   (commercial projects included; the licence rides inside the zip),
+   and that proves the whole import pipeline (prefabs, scenes, gauges,
+   words) in their engine. It doubles as the kit published on the Unity
+   Asset Store, so the artifact is admin-blessed, not generated here.
 
    THE MECHANISM, kit-agnostic by design: the blessed zip lives in the
    private `test-kit` storage bucket at a fixed object path. The admin
@@ -19,9 +20,9 @@
    directly; the bucket has no read policy, so this grant is the only
    door.
 
-   No licence is stamped here — the artifact is fixed, and its
-   evaluation-kit framing ships INSIDE the blessed zip (the admin
-   exports it with the evaluation README before blessing it). */
+   No licence is stamped here — the artifact is fixed, and its free-kit
+   licence and README banner ship INSIDE the blessed zip (the admin
+   desk stamps both at blessing time — AdminPage's swapTk). */
 
 const BUCKET = "test-kit";
 const OBJECT = "unity-test-kit.zip";

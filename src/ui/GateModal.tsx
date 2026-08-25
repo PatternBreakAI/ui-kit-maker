@@ -94,10 +94,11 @@ export function GateModal() {
             <div className="gateoffer">
               <b><Gamepad2 size={14} strokeWidth={2.2} /> Prove the pipeline first — free</b>
               <p>
-                The <b>Unity test kit</b> is a stock evaluation kit — the same
+                The <b>Unity test kit</b> is a stock free kit — the same
                 ZIP for everyone, not your design — with prefabs, scenes,
                 gauges and words. Feel the whole import in your engine before
-                you pay a cent.
+                you pay a cent, and ship what's inside if you like: it's
+                yours, commercial projects included.
               </p>
               <button className="gatesecondary" disabled={tkBusy} onClick={() => void getKit()}>
                 {tkBusy ? <Loader2 size={14} strokeWidth={2.2} className="fd-spin" /> : <Gamepad2 size={14} strokeWidth={2.2} />}

@@ -64,10 +64,14 @@ Anything you add from your own uploads remains entirely yours.
 uikitmaker.com
 `;
 
-const EVAL_README_BANNER = `> **Evaluation kit.** This is UI Kit Maker's stock test kit — the same
-> artifact for every account, here so you can prove the import pipeline
-> before paying. It is not a personal export; see LICENCE.txt. Your own
-> kits export from uikitmaker.com in this exact folder layout.
+/* the stocked README's opening words — free-kit framing that matches the
+   licence above (ship anything), never the old "evaluation … before
+   paying" contradiction */
+const FREE_KIT_README_BANNER = `> **Brightside — a free kit from UI Kit Maker.** Everything in this
+> folder is yours to ship, commercial projects included (see
+> LICENCE.txt). Designed at uikitmaker.com — remix it there: restyle
+> every piece, retype every word, re-export, and the new download heals
+> this folder in place.
 
 `;
 
@@ -373,7 +377,7 @@ export function AdminPage() {
   const [adoptNote, setAdoptNote] = useState<string | null>(null);
 
   /* ── the Unity test kit shelf (Gate Round, 2026-08-17) — status +
-     swap. The blessed evaluation zip lives at test-kit/unity-test-kit.zip;
+     swap. The blessed free-kit zip lives at test-kit/unity-test-kit.zip;
      the swap is clear-then-sign, so the file chosen here goes straight
      browser→storage against a one-time token and is live for every
      registered account the moment the PUT lands. No code, no redeploy.
@@ -422,12 +426,12 @@ export function AdminPage() {
         setTkNote("No LICENCE.txt in that zip — it doesn't look like an engine export. Export the kit from the live site (the big Unity button on the kit page) and upload that file. Nothing was uploaded.");
         return;
       }
-      // the kit README sits beside the licence — banner it as an evaluation artifact
+      // the kit README sits beside the licence — open it with the free-kit words
       const readmeAt = rewritten.findIndex((e) => e.path === `${licDir}README.md`);
       if (readmeAt >= 0) {
         const dec = new TextDecoder();
         const old = typeof rewritten[readmeAt].data === "string" ? rewritten[readmeAt].data as string : dec.decode(rewritten[readmeAt].data as Uint8Array);
-        rewritten[readmeAt] = { path: rewritten[readmeAt].path, data: EVAL_README_BANNER + old };
+        rewritten[readmeAt] = { path: rewritten[readmeAt].path, data: FREE_KIT_README_BANNER + old };
       }
       const blob = makeZip(rewritten);
 
@@ -1700,8 +1704,9 @@ export function AdminPage() {
           <h2 className="fd-card__title"><Gamepad2 size={17} strokeWidth={2.1} /> Unity test kit shelf</h2>
           <p className="fd-fine">
             The one download every <b>registered</b> account gets: a canned, stock
-            kit zip — the same fixed artifact for everyone, never their own design — so a
-            developer can prove the import pipeline before paying. It doubles as the FREE
+            kit zip — the same fixed artifact for everyone, never their own design — a free
+            kit that's theirs to ship, commercial projects included (the licence inside
+            says so), and that proves the import pipeline. It doubles as the FREE
             Unity Asset Store package (the shelf kit: <b>Brightside</b> — the licence names
             it, so a different kit needs new blessed words). The flow: export the kit
             from the live site (the big Unity button on its kit page — boards, scenes and

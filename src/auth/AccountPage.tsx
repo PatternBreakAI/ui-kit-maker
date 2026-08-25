@@ -292,8 +292,8 @@ export function AccountPage() {
                     <span className="fd-plan__chip">FREE PLAYER</span>
                     <span className="fd-plan__desc">
                       The full kit in the browser, cloud saves, your settings file — and the
-                      free Unity test kit, a stock evaluation ZIP that proves the import
-                      pipeline in your engine.
+                      free Unity test kit, a stock kit ZIP that proves the import pipeline
+                      in your engine and is yours to ship, commercial projects included.
                     </span>
                   </div>
                   <p className="fd-fine">

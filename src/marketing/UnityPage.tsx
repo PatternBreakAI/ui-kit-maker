@@ -98,8 +98,8 @@ export function UnityPage() {
           <p>
             Build a kit, open its kit page, and the Unity ZIP is the big export button — every component,
             on the paid plans. Want to feel the import before you commit? A free account includes the{" "}
-            <b>Unity test kit</b>: a stock evaluation ZIP, the same for everyone, that proves the whole
-            pipeline — prefabs, scenes, gauges, live text — in your project first.
+            <b>Unity test kit</b>: a stock kit ZIP, the same for everyone and yours to ship, that
+            proves the whole pipeline — prefabs, scenes, gauges, live text — in your project first.
           </p>
           <div className="unitybtns">
             <button className="fd-primary" onClick={() => navigate("#/app")}>Open the generator</button>
