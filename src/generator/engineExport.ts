@@ -18,6 +18,7 @@ import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
+import { glyphAttribution } from "./glyphLibrary";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
@@ -1463,6 +1464,239 @@ const FONT_LICENCE_HOME = (family: string) =>
   `https://fonts.google.com/specimen/${encodeURIComponent(family).replace(/%20/g, "+")}/license`;
 const licencePointer = (family: string) =>
   `The "${family}" typeface travels with this kit under its open licence (SIL Open Font License 1.1 for most Google Fonts collections; Apache 2.0 / UFL for the rest).\n\nThe full licence text could not be bundled at export time — it lives at:\n  ${FONT_LICENCE_HOME(family)}\n  https://openfontlicense.org\n\nRe-exporting the kit when github.com is reachable bundles the full text in place of this pointer.`;
+
+/* ── Third-Party Notices — the Unity store's convention: ONE consolidated
+   file at the kit root naming every third-party component the package
+   actually redistributes, each with its licence text in full or an honest
+   pointer (store guideline: third-party components need notices, and a
+   package must not invent entries either way). Assembled from what LANDED
+   in this zip: the font loop, the icon pushes and the glyph roads report
+   in as they emit — nothing is listed on faith, nothing that didn't ship
+   is credited. The CC-BY glyph block IS glyphLibrary's glyphAttribution —
+   the same source of truth the web kit's LICENCE.txt rides; this file
+   never re-derives those credits. */
+/* the canonical OFL 1.1 body (fixed text, 26 Feb 2007) — the fallback for
+   the pointer road only: when the font's OWN licence file (the one that
+   carries its copyright line) couldn't be fetched, the notices still
+   carry the licence in full plus a named attribution, instead of only a
+   URL. When the fetch succeeded, the fetched per-font text is used and
+   this constant never appears. */
+const oflLicenceBody = `-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded, 
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.`;
+/** name a licence from its own text — never guessed from the filename alone */
+const licenceTitleOf = (name: string, text: string): string => {
+  if (/SIL OPEN FONT LICENSE Version 1\.1/.test(text)) return "SIL Open Font License 1.1";
+  if (/Apache License/.test(text) && /Version 2\.0/.test(text)) return "Apache License 2.0";
+  if (/UBUNTU FONT LICENCE/i.test(text)) return "Ubuntu Font Licence 1.0";
+  return name.replace(/\.txt$/i, "");
+};
+interface TpnFont { family: string; role: string; file: string; licenceName: string; licenceText: string }
+// the same 64-dash rule glyphAttribution draws, so the file reads as one document
+const TPN_RULE = "----------------------------------------------------------------";
+function thirdPartyNotices(fonts: TpnFont[], glyphPieceIds: string[], pickerIcons: { lib: string; name: string }[], lucideShipped: boolean): string | null {
+  const glyphBlock = glyphAttribution(glyphPieceIds);
+  if (!fonts.length && !glyphBlock && !pickerIcons.length && !lucideShipped) return null;
+  const L: string[] = [
+    "Third-Party Notices",
+    "===================",
+    "",
+    "This kit was generated with UI Kit Maker (uikitmaker.com). The maker's",
+    "own artwork and layout are governed by LICENCE.txt beside this file;",
+    "the third-party components below travel inside this package under",
+    "their own licences, consolidated here per Unity's convention.",
+  ];
+  for (const f of fonts) {
+    const pointer = f.licenceName === "LICENCE-POINTER.txt";
+    L.push("", TPN_RULE, "");
+    L.push(`Component: "${f.family}" typeface (${f.role})`);
+    L.push(`Ships as : fonts/${f.file} (TrueType). TextMesh Pro font assets are`);
+    L.push("           generated from this same file inside your project on");
+    L.push("           import; this notice covers the .ttf and every font asset");
+    L.push("           derived from it.");
+    if (!pointer) {
+      L.push(`Licence  : ${licenceTitleOf(f.licenceName, f.licenceText)} — the font's own licence file,`);
+      L.push("           copyright line included, in full below (it also ships");
+      L.push("           beside the font in fonts/).");
+      L.push("", f.licenceText.replace(/\r\n/g, "\n").trim());
+    } else {
+      L.push("Licence  : SIL Open Font License 1.1 for most Google Fonts");
+      L.push("           collections (Apache 2.0 / UFL for the rest). The font's own");
+      L.push("           licence file — the one carrying its copyright line — could");
+      L.push("           not be fetched during this export; re-exporting when");
+      L.push("           github.com is reachable bundles it. Until then:");
+      L.push("");
+      L.push(`Attribution: the "${f.family}" font family, distributed via Google`);
+      L.push(`           Fonts — ${FONT_LICENCE_HOME(f.family)}`);
+      L.push("");
+      L.push("The standard SIL Open Font License 1.1 text, for reference:");
+      L.push("", oflLicenceBody);
+    }
+  }
+  /* glyphAttribution ships its own rule + heading + per-glyph credits —
+     appended verbatim (one source of truth, shared with the web kit) */
+  if (glyphBlock) L.push(glyphBlock.replace(/\n$/, ""));
+  const gameIcons = pickerIcons.filter((p) => p.lib === "game");
+  const otherIcons = pickerIcons.filter((p) => p.lib !== "game");
+  if (gameIcons.length) {
+    L.push("", TPN_RULE, "");
+    L.push("Component: icon glyph(s) picked from the Game Icons library and");
+    L.push("           baked into this kit's sprites");
+    L.push("Licence  : CC BY 3.0 — https://creativecommons.org/licenses/by/3.0/");
+    L.push("");
+    L.push("Artwork from game-icons.net by Lorc, Delapouite and contributors:");
+    for (const g of gameIcons) L.push(`  - ${g.name} (game-icons.net via react-icons)`);
+  }
+  if (lucideShipped) {
+    L.push("", TPN_RULE, "");
+    L.push("Component: interface icon glyphs — the tintable icons/ set and stock");
+    L.push("           glyphs baked into pieces derive from Lucide (lucide.dev)");
+    L.push("Licence  : ISC License (portions derive from Feather, MIT)");
+    L.push("");
+    L.push("ISC License");
+    L.push("");
+    L.push("Copyright (c) Lucide Icons and Contributors");
+    L.push("");
+    L.push("Permission to use, copy, modify, and/or distribute this software for any");
+    L.push("purpose with or without fee is hereby granted, provided that the above");
+    L.push("copyright notice and this permission notice appear in all copies.");
+    L.push("");
+    L.push('THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES');
+    L.push("WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF");
+    L.push("MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR");
+    L.push("ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES");
+    L.push("WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN");
+    L.push("ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF");
+    L.push("OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.");
+    L.push("");
+    L.push("Portions of the Lucide icon set derive from the Feather project —");
+    L.push("The MIT License (MIT), Copyright (c) 2013-present Cole Bemis:");
+    L.push("");
+    L.push("Permission is hereby granted, free of charge, to any person obtaining a copy");
+    L.push('of this software and associated documentation files (the "Software"), to deal');
+    L.push("in the Software without restriction, including without limitation the rights");
+    L.push("to use, copy, modify, merge, publish, distribute, sublicense, and/or sell");
+    L.push("copies of the Software, and to permit persons to whom the Software is");
+    L.push("furnished to do so, subject to the following conditions:");
+    L.push("");
+    L.push("The above copyright notice and this permission notice shall be included in all");
+    L.push("copies or substantial portions of the Software.");
+    L.push("");
+    L.push('THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR');
+    L.push("IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,");
+    L.push("FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE");
+    L.push("AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER");
+    L.push("LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,");
+    L.push("OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE");
+    L.push("SOFTWARE.");
+  }
+  if (otherIcons.length) {
+    const LIB_NOTE: Record<string, string> = {
+      phosphor: "Phosphor Icons — MIT License — https://github.com/phosphor-icons/core/blob/main/LICENSE",
+      tabler: "Tabler Icons — MIT License — https://github.com/tabler/tabler-icons/blob/main/LICENSE",
+      hero: "Heroicons — MIT License — https://github.com/tailwindlabs/heroicons/blob/master/LICENSE",
+      iconoir: "Iconoir — MIT License — https://github.com/iconoir-icons/iconoir/blob/main/LICENSE",
+      remix: "Remix Icon — Apache License 2.0 — https://github.com/Remix-Design/RemixIcon/blob/master/License",
+    };
+    L.push("", TPN_RULE, "");
+    L.push("Component: further icon glyph(s) picked from open icon libraries and");
+    L.push("           baked into this kit's sprites — licence named per line,");
+    L.push("           canonical text at each pointer:");
+    for (const p of otherIcons) L.push(`  - ${p.name}: ${LIB_NOTE[p.lib] ?? p.lib + " icon library — see that library's licence"}`);
+  }
+  L.push("", TPN_RULE, "");
+  L.push("LiberationSans (TextMesh Pro Essential Resources) — NOT distributed");
+  L.push('in this package. The kit\'s importer references the "LiberationSans');
+  L.push('SDF" font asset that ships with Unity\'s TextMesh Pro package, as a');
+  L.push("last-resort text fallback only; that asset stays inside TextMesh");
+  L.push("Pro, governed by the licence file Unity distributes beside it.");
+  L.push("");
+  return L.join("\n");
+}
+
 /* the collection licence text, best-effort: raw CDN first, API second */
 async function fetchFontLicence(slug: string): Promise<{ name: string; text: string } | null> {
   for (const dir of ["ofl", "apache", "ufl"]) {
@@ -1749,6 +1983,17 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
 export async function downloadEngineExport(st: EngineExportState, catalog?: () => Promise<Uint8Array | null>, licence?: string, onProgress?: (done: number, total: number, label: string) => void, onWarn?: (msg: string) => void): Promise<void> {
   const files: { path: string; data: string | Uint8Array }[] = [];
   const manifest: AssetMeta[] = [];
+  /* Third-Party Notices collectors — the emission sites report in as they
+     actually push third-party-derived art or fonts; the paperwork block
+     assembles the notices file from these, never from assumptions. */
+  const tpnFonts: TpnFont[] = [];
+  let tpnLucide = false;
+  const tpnPicker = new Map<string, { lib: string; name: string }>();
+  const tpnIcon = (d: { lib?: string; name?: string } | null | undefined) => {
+    if (!d?.lib || !d.name) return;
+    if (d.lib === "lucide") tpnLucide = true;
+    else tpnPicker.set(`${d.lib}:${d.name}`, { lib: d.lib, name: d.name });
+  };
   setEmbedFont("", null); // never inherit a stale embed from a crashed export
 
   const pieceCfg = (id: KitComponentId) => applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[id]), st.kitTextFill[id]);
@@ -2595,6 +2840,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the glyph itself ships white and tintable beside the kit — custom
        library picks included, so the prefab never hunts a stock file */
     if (iconMeta && chipIconDef) {
+      tpnIcon(chipIconDef); // the baked chip glyph's provenance rides the notices
       const strokeIc = chipIconDef.mode === "stroke";
       const vbIc2 = chipIconDef.viewBox.split(/[\s,]+/).map(Number);
       const swIc = (((pieceCfg(n.id).icon?.strokeWidth ?? 24) / 10) * (Math.max(vbIc2[2] || 24, vbIc2[3] || 24) / 24)).toFixed(2);
@@ -3259,6 +3505,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 
   /* ── tintable white icon set (engine swaps freely) ────────────── */
   if (full) for (const [name, def] of Object.entries(STOCK_ICONS)) {
+    tpnIcon(def); // the white icon set's provenance (Lucide) rides the notices
     const stroke = def.mode === "stroke";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="${def.viewBox}">` +
       `<g fill="${stroke ? "none" : "#FFFFFF"}" stroke="${stroke ? "#FFFFFF" : "none"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${def.inner}</g></svg>`;
@@ -3281,6 +3528,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const famSlug = fam.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     files.push({ path: `fonts/${got.file}`, data: got.bytes });
     files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
+    tpnFonts.push({ family: fam, role: fam === st.cfg.type.font ? "the kit's own face" : "a kit voice", file: got.file, licenceName: got.licenceName, licenceText: got.licenceText });
     if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; }
   }
   setEmbedFont(st.cfg.type.font, primaryFontBytes);
@@ -3298,6 +3546,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       instrumentFile = `fonts/${inst.file}`;
       files.push({ path: instrumentFile, data: inst.bytes });
       files.push({ path: `fonts/inter-${inst.licenceName}`, data: inst.licenceText });
+      tpnFonts.push({ family: "Inter", role: "the instrument voice — HUD readouts", file: inst.file, licenceName: inst.licenceName, licenceText: inst.licenceText });
     }
   }
   /* a fontless zip must NEVER leave the browser silently again (round-9
@@ -3694,6 +3943,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   try { figs = await readmeFigures(base); } catch { figs = []; }
   for (const f of figs) files.push(f);
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
+  /* the Documentation/ front door — store reviewers and buyers look for
+     the folder by name; the deck stays the long-form walkthrough */
+  files.push({ path: "Documentation/QuickStart.md", data: quickStartDoc(st) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   /* assembly definitions — the kit's scripts compile into their OWN
      assemblies. Without these, a second copy of the kit anywhere in the
@@ -3780,6 +4032,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) + "\n" + fontNotesMarkdown(kitFontFamilies(st.cfg)) });
   files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
   if (licence) files.push({ path: "LICENCE.txt", data: licence });
+  /* Third-Party Notices, Unity's convention — one file at the kit root.
+     Font sections carry the SAME licence text that shipped beside the
+     font; the CC-BY glyph block is glyphLibrary's glyphAttribution
+     verbatim. The glyph roads that bake CC-BY silhouettes into THIS zip:
+     the master shape worn kit-wide, a glyph silhouette re-dressing a
+     shipped piece (kitShapes), and a glyph piece placed on a board
+     (boardstamps — prefab-less pieces travel as baked sprites). */
+  {
+    const tpnGlyphIds = new Set<string>();
+    // the starter's shipped trio — glyph dress on anything else never leaves the browser
+    const freeShips = new Set<string>(["primary", "chip", "progress"]);
+    const shipsHere = (pid: string) => full || freeShips.has(baseOf(pid as KitComponentId));
+    if (typeof st.cfg.shape === "string" && st.cfg.shape.startsWith("glyph:")) tpnGlyphIds.add(`glyph${st.cfg.shape.slice(6)}`);
+    for (const [pid, shp] of Object.entries(st.kitShapes ?? {}))
+      if (typeof shp === "string" && shp.startsWith("glyph:") && shipsHere(pid)) tpnGlyphIds.add(`glyph${shp.slice(6)}`);
+    if (full) for (const bd of st.boards ?? []) for (const it of bd.items) if (it.component.startsWith("glyph")) tpnGlyphIds.add(it.component);
+    /* picker icons baked into pieces: the master icon rig + per-piece
+       forks + per-piece overrides (when the caller passes them) */
+    if (full && st.cfg.icon?.show) tpnIcon(st.cfg.icon.def);
+    for (const [pid, kd] of Object.entries(st.kitDesigns ?? {})) if (kd?.icon?.def && shipsHere(pid)) tpnIcon(kd.icon.def);
+    for (const [pid, ov] of Object.entries(st.kitIcons ?? {})) if (ov && ov !== "none" && shipsHere(pid)) tpnIcon(ov);
+    const tpn = thirdPartyNotices(tpnFonts, [...tpnGlyphIds], [...tpnPicker.values()], tpnLucide);
+    if (tpn) files.push({ path: "Third-Party Notices.txt", data: tpn });
+  }
 
   /* ── I1: everything lives under UIKitMaker/<slug>/ INSIDE the zip, so
      "extract into Assets/" is the whole install — and extracting a later
@@ -6360,6 +6636,66 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
   return out;
 }
 
+/* The five-minute front door — Documentation/QuickStart.md. The store's
+   reviewers (and store buyers) expect an obvious Documentation folder;
+   the deck (UNITY-README.md) stays the long-form walkthrough and this
+   page cross-references it. Every claim here mirrors what the importer
+   actually does — the honesty bar is the deck's. */
+function quickStartDoc(st: EngineExportState): string {
+  const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
+  const hasBoards = st.scope === "full" && !!st.boards?.length;
+  return `# ${st.kitName} — Quick Start
+
+Five minutes from zip to a working scene. The full slide-by-slide
+walkthrough is **UNITY-README.md**, one folder up — this page is the
+short front door.
+
+**1 · Drag the folder in.** Unzip the download and drag the whole
+**UIKitMaker** folder into your project's **Assets/**. Unity imports
+everything by itself: sprites arrive nine-sliced with the right pivots,
+and wired example prefabs are built inside your project — the Console
+prints a one-line receipt and the Project window highlights
+**${root}/Prefabs** when they land.
+
+**2 · Open the Playground and press Play.** **${root}/Playground.unity**
+is generated on that first import with every example placed. Mouse over
+the pieces — hover glow, press lift and disabled states are already
+wired.
+
+**3 · Drop pieces into your own scene.** Right-click in the Hierarchy and
+pick **GameObject > UI Kit Maker >** — the piece lands under your Canvas
+fully wired. Dragging a prefab out of **${root}/Prefabs** does the same
+thing.
+
+**4 · Retype the words, restyle the pieces.** Every label is live text:
+select a piece's **Label** object and type — the styled stack follows.
+The kit's components explain themselves in the Inspector (headers and
+per-field tooltips), and sprites, colors and spacing are ordinary Unity
+properties — nothing you'd want to edit is baked into pixels.
+
+**5 · Where to go next.**
+${hasBoards ? `
+- **Board scenes** — the screens composed on the app's Boards arrived as
+  ready scenes in **${root}/Scenes/**, backgrounds placed and every
+  piece zone-anchored with your words on live labels. Open one and press
+  Play; the buttons respond.
+` : ""}
+- **Responsive Check** — **${root}/Scenes/Responsive Check.unity** is a
+  thirty-second sanity pass: press Play and switch Game-view aspect
+  ratios (or the Device Simulator) to watch the safe-area outline move
+  while the UI stays inside it. Backdrops bleed under cutouts on
+  purpose; your UI never does.
+
+- **Re-exporting heals in place** — change the kit on uikitmaker.com,
+  download again and extract over the same spot. Everything you placed
+  restyles where it stands, and words you typed in Unity are kept.
+
+---
+
+**Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
+`;
+}
+
 /* The walkthrough deck, tuned per scope — ease of use is the product.
    Owner mandate: reads like a presentation aimed at the Unity dev, one
    idea per slide, boring-but-vital detail in callouts, walking the
@@ -6376,7 +6712,8 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
 stamp on every import (\`[export build ${stamp}]\`); if a fix you expected
 isn't in the Console line's build, this zip predates it — re-export.
 
-Three steps, then a slide-by-slide tour of the whole export.
+Three steps, then a slide-by-slide tour of the whole export. (In a
+hurry? **Documentation/QuickStart.md** is the five-minute version.)
 
 1. Unzip this download.
 2. Drag the **UIKitMaker** folder into your Unity project's **Assets/**
@@ -6388,6 +6725,8 @@ Three steps, then a slide-by-slide tour of the whole export.
 The slides run in the order you'll actually meet things: what imported,
 your first scene, states, hero labels, tuning type, stretching wide,
 re-exporting. Skim the titles; stop where your question lives.
+
+**Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
 ${figures ? `
 ![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
 
@@ -15218,6 +15557,27 @@ namespace PatternBreak {
         bti.npotScale = TextureImporterNPOTScale.None;
         return;
       }
+      /* round 31 — the warning-free import sweep: kit images that ride NO
+         manifest row still get an explicit, warning-proof import. In a
+         2D-template project Unity's default is a compressed Sprite, and
+         block compression logs one Console warning per texture whose side
+         isn't a multiple of 4 — which is most README figures (docs/, drawn
+         to content), the visual catalog (atlas/), and the seamless face
+         tile (its cell is set by the pattern's rhythm, not by 4s). These
+         are human-facing or hand-use images: lossless Default textures,
+         never sprites, never compressed — and the face tile wraps Repeat
+         because the Face Texture slot tiles it. */
+      if (path.Contains("UIKitMaker/") && (path.Contains("/docs/") || path.Contains("/atlas/") || path.EndsWith("/fonts/face-pattern.png"))) {
+        var dti = (TextureImporter)assetImporter;
+        dti.textureType = TextureImporterType.Default;
+        dti.mipmapEnabled = false;
+        dti.alphaIsTransparency = true;
+        dti.textureCompression = TextureImporterCompression.Uncompressed;
+        dti.npotScale = TextureImporterNPOTScale.None;
+        dti.maxTextureSize = 4096;
+        if (path.EndsWith("/fonts/face-pattern.png")) dti.wrapMode = TextureWrapMode.Repeat;
+        return;
+      }
       /* Board backdrops — the maker's own art, possibly 4K originals —
          arrive as single sprites so the board scenes' Background Image can
          hold them. Full quality, no mips, big ceiling. Big glyphs (the
@@ -15240,6 +15600,26 @@ namespace PatternBreak {
            Backgrounds are the maker's own photos and keep Unity's default
            pipeline. */
         if (path.Contains("/bigglyphs/") || path.Contains("/boardstamps/")) gti.textureCompression = TextureImporterCompression.Uncompressed;
+        else {
+          /* round 31 — backgrounds keep block compression only when they
+             CAN carry it: a phone-frame backdrop (390x844 and friends) has
+             a side that isn't a multiple of 4, can't block-compress, and
+             logs that same Console warning on every clean import. The
+             source size is read the way the Sprite Editor reads it
+             (internal, hence reflection); if the editor ever hides it, or
+             a side isn't a multiple of 4, the backdrop imports lossless —
+             memory is a cheaper price than a package-originated warning. */
+          try {
+            int bgw = 0, bgh = 0;
+            var mDim = typeof(TextureImporter).GetMethod("GetSourceTextureWidthAndHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (mDim != null) {
+              object[] dimArgs = new object[] { 0, 0 };
+              mDim.Invoke(gti, dimArgs);
+              bgw = (int)dimArgs[0]; bgh = (int)dimArgs[1];
+            }
+            if (bgw <= 0 || bgh <= 0 || bgw % 4 != 0 || bgh % 4 != 0) gti.textureCompression = TextureImporterCompression.Uncompressed;
+          } catch (Exception) { gti.textureCompression = TextureImporterCompression.Uncompressed; }
+        }
         return;
       }
       /* Type Stamps — baked styled phrases exported at 4x — land under the

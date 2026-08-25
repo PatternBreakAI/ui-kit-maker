@@ -1196,6 +1196,113 @@ if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.l
 if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
   errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
 
+/* ── round-31 (store packaging · slice 1): Third-Party Notices.txt.
+   The Asset Store requires third-party components to carry notices. The
+   engine zip's notices file consolidates: the shipped font licences (the
+   SAME text that ships beside the font — never a second fetch that could
+   disagree), the CC-BY semantic-glyph credits (glyphLibrary's
+   glyphAttribution — ONE source of truth shared with the web kit's
+   LICENCE.txt), the shipped icon-set provenance, and the honest
+   LiberationSans pointer (the importer's fallback wiring REFERENCES the
+   user's own TMP asset; nothing Liberation is redistributed). Emission
+   sites report into collectors as they push — the file never lists on
+   faith. */
+const glyphLibSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/glyphLibrary.ts"), "utf8");
+if (!/export function glyphAttribution\(/.test(glyphLibSrc))
+  errors.push("glyphLibrary.glyphAttribution is gone — the engine notices' CC-BY block and the web kit's LICENCE.txt both ride it (round 31)");
+if (!/import \{ glyphAttribution \} from "\.\/glyphLibrary";/.test(src))
+  errors.push("engineExport must take the CC-BY glyph credits from glyphLibrary.glyphAttribution — re-deriving them forks the source of truth (round 31)");
+if (!/files\.push\(\{ path: "Third-Party Notices\.txt", data: tpn \}\);/.test(src))
+  errors.push("the Third-Party Notices.txt emission is missing — store submission requires consolidated third-party notices (round 31)");
+if ((src.match(/tpnFonts\.push\(/g) ?? []).length < 2)
+  errors.push("both font roads (the kit faces loop AND the Inter instrument voice) must report into the notices collector — a shipped font without a notice is a store rejection (round 31)");
+if (!/licenceText: got\.licenceText/.test(src) || !/licenceText: inst\.licenceText/.test(src))
+  errors.push("the notices must carry the SAME licence text that ships beside the font (got/inst.licenceText) — a re-fetch could disagree with the bundled file (round 31)");
+if (!/const oflLicenceBody = `/.test(src) || !/SIL OPEN FONT LICENSE Version 1\.1 - 26 February 2007/.test(src))
+  errors.push("the embedded OFL 1.1 fallback body (canonical title line included) is missing — the pointer road must still carry the licence in full (round 31)");
+if (!src.slice(src.indexOf("function thirdPartyNotices")).split("\n}")[0].includes("oflLicenceBody"))
+  errors.push("thirdPartyNotices must use the embedded OFL body on the pointer road (font licence unfetchable) — a bare URL is not a notice (round 31)");
+if (!/it\.component\.startsWith\("glyph"\)/.test(src) || !/shp\.startsWith\("glyph:"\)/.test(src) || !/st\.cfg\.shape\.startsWith\("glyph:"\)/.test(src))
+  errors.push("all three CC-BY glyph roads must feed the notices: board-placed glyph pieces (boardstamps), kitShapes glyph dress, and the master glyph shape (round 31)");
+if (!/tpnIcon\(chipIconDef\);/.test(src) || !/tpnIcon\(def\);/.test(src))
+  errors.push("the baked-icon emission sites (chip glyph, STOCK_ICONS set) must report their provenance into the notices (round 31)");
+if (!/LiberationSans \(TextMesh Pro Essential Resources\) — NOT distributed/.test(src))
+  errors.push("the LiberationSans reference note is missing — the importer wires it as a fallback, so the notices must say it is referenced, not redistributed (round 31)");
+
+/* ── round-31 (store packaging · slice 2): the Documentation front door.
+   Store reviewers and buyers look for a Documentation folder by name;
+   Documentation/QuickStart.md is the five-minute version of the deck
+   (UNITY-README.md stays the long-form walkthrough and each references
+   the other). Its five beats mirror what the importer actually does —
+   the claims are pinned here so a doc edit can't drift from the truth. */
+if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc\(st\) \}\);/.test(src))
+  errors.push("Documentation/QuickStart.md emission is missing — the store's Documentation front door (round 31)");
+{
+  const qsAt = src.indexOf("function quickStartDoc(");
+  const qs = qsAt >= 0 ? src.slice(qsAt, src.indexOf("\n}\n", qsAt)) : "";
+  if (!qs) errors.push("quickStartDoc is missing (round 31)");
+  else {
+    if (!/Drag the folder in/.test(qs) || !/Playground\.unity/.test(qs))
+      errors.push("QuickStart lost beat 1/2 (drag the folder in; open the Playground and press Play) — round 31");
+    if (!/GameObject > UI Kit Maker >/.test(qs))
+      errors.push("QuickStart beat 3 must name the real menu path (GameObject > UI Kit Maker >) — round 31");
+    if (!/Inspector/.test(qs) || !/live text/.test(qs))
+      errors.push("QuickStart beat 4 (retype live-text labels; restyle via the components' Inspector notes) is missing — round 31");
+    if (!/Responsive Check\.unity/.test(qs) || !/extract over the same spot/.test(qs))
+      errors.push("QuickStart beat 5 must keep the Responsive Check scene and the re-export-heals-in-place promise — round 31");
+    if (!/UNITY-README\.md/.test(qs))
+      errors.push("QuickStart must cross-reference the deck (UNITY-README.md) — round 31");
+  }
+  if (!/Documentation\/QuickStart\.md\*\* is the five-minute version/.test(src))
+    errors.push("the deck must cross-reference Documentation/QuickStart.md (round 31)");
+}
+
+/* ── round-31 (store packaging · slice 3): the remix seam. The deck and
+   the QuickStart each carry exactly ONE clearly-labeled remix line with
+   the campaign-attributed URL — plain markdown a human clicks. House
+   rule, pinned mechanically: the campaign link must NEVER appear inside
+   any emitted C#/shader template — no editor windows, no popups, no
+   startup nags, nothing that reads as a marketing-only editor feature. */
+{
+  const remixHits = (src.match(/uikitmaker\.com\/\?src=unity-asset-store/g) ?? []).length;
+  if (remixHits !== 2)
+    errors.push(`the remix link must appear exactly twice (deck + QuickStart, one clearly-labeled line each); found ${remixHits} (round 31)`);
+  if ((src.match(/\*\*Remix this kit:\*\*/g) ?? []).length !== 2)
+    errors.push("the remix line must keep its clear label (**Remix this kit:**) in both docs (round 31)");
+  const tplScanRe = /const ([A-Z_]+) = `/g;
+  let tplScan;
+  while ((tplScan = tplScanRe.exec(src))) {
+    const tStart2 = tplScan.index + tplScan[0].length;
+    let tEnd2 = -1;
+    for (let i = tStart2; i < src.length; i++) { if (src[i] === "\\") { i++; continue; } if (src[i] === "`") { tEnd2 = i; break; } }
+    if (tEnd2 < 0) continue;
+    const body = src.slice(tStart2, tEnd2);
+    if (/[?&]src=|[?&]utm_/.test(body))
+      errors.push(`${tplScan[1]}: a campaign-attributed URL is inside an emitted C#/shader template — the remix link lives in the docs only, never in editor code (round 31)`);
+  }
+}
+
+/* ── round-31 (store packaging · slice 4): the warning-free import sweep.
+   The store requires packages to import without package-originated
+   warnings. Every kit image must ride an explicitly configured road: the
+   manifest road (assets/, always Uncompressed), the bake roads
+   (boardstamps/bigglyphs/stamps, Uncompressed), the baked-face atlas, the
+   round-31 human-facing road (docs/, atlas/, the face tile — lossless
+   Default, NPOT-safe), and backgrounds, which keep block compression ONLY
+   when both sides are multiples of 4 (otherwise Unity logs one Console
+   warning per import) — checked via the editor's own source-size read,
+   falling back to lossless if that read ever disappears. */
+if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
+  errors.push("the round-31 human-facing texture road (docs/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
+if (!/dti\.npotScale = TextureImporterNPOTScale\.None;/.test(cs) || !/dti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
+  errors.push("the human-facing road must import lossless Default with NPOT scaling off (round 31)");
+if (!/if \(path\.EndsWith\("\/fonts\/face-pattern\.png"\)\) dti\.wrapMode = TextureWrapMode\.Repeat;/.test(cs))
+  errors.push("the face tile must wrap Repeat — the Face Texture slot tiles it (round 31)");
+if (!/GetSourceTextureWidthAndHeight/.test(cs) || !/bgw % 4 != 0 \|\| bgh % 4 != 0\) gti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
+  errors.push("the backgrounds multiple-of-4 compression gate is missing — odd-sized backdrops log a Console warning on every clean import (round 31)");
+if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompression\.Uncompressed; \}/.test(cs))
+  errors.push("the backgrounds gate must fall back to lossless when the reflection read fails — a throw here would surface as an import error (round 31)");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
