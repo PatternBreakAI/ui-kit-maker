@@ -471,6 +471,54 @@ function idleOnce(fn: () => void): () => void {
   return () => { dead = true; if (w.cancelIdleCallback) w.cancelIdleCallback(h as number); else window.clearTimeout(h as number); };
 }
 
+/* ── the backdrop never gates the pieces (owner's empty-frame round,
+   2026-08-25) ── a hydrating board mounts its ITEMS immediately — kit SVGs
+   render synchronously and glyph thumbs are ~3KB, usually cached — while
+   the backdrop scene (often the heaviest bytes on the board) streams in
+   and FADES up when its pixels are ready instead of popping in whenever
+   the bytes land. Pieces on the navy stage beat an empty frame. A URL
+   that has loaded once is remembered for the page's life, so re-renders,
+   board switches and darkroom dial drags never re-fade (the no-flicker
+   contract); the dial opacity stays inline on the layers themselves —
+   the fade lives on a wrapper, so dragging Opacity is never eased. */
+const bgArrived = new Set<string>();
+function useBgArrival(url: string | null | undefined): boolean {
+  const [ready, setReady] = useState(() => !url || bgArrived.has(url));
+  useEffect(() => {
+    if (!url || bgArrived.has(url)) { setReady(true); return; }
+    setReady(false);
+    let dead = false;
+    const done = () => { bgArrived.add(url); if (!dead) setReady(true); };
+    const im = new Image();
+    im.onload = done;
+    im.onerror = done; // a broken scene must not hold the stage dark
+    im.src = url;
+    return () => { dead = true; };
+  }, [url]);
+  return ready;
+}
+function BoardBackdrop({ bd }: { bd: BoardDef }) {
+  const ready = useBgArrival(bd.bgImage);
+  if (!bd.bgImage || !(bd.bgShow ?? true)) return null;
+  const op = (bd.bgOpacity ?? 100) / 100;
+  const filter = boardBgFilter(bd);
+  return (
+    <div className={`bd-bgin${ready ? " ready" : ""}`}>
+      {bd.bgFit === "fit" ? (
+        /* Fit: the WHOLE scene, over a blurred fill of itself — for scenes
+           whose aspect isn't the board's (owner: portrait 9:16 art read
+           "too big" on the 9:19.5 mobile stage under cover's zoom-and-crop) */
+        <>
+          <div className="bd-bg bd-bgblur" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: op, filter: [filter, "blur(26px) brightness(0.72)"].filter(Boolean).join(" ") }} />
+          <div className="bd-bg bd-bgfit" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: op, filter }} />
+        </>
+      ) : (
+        <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: op, filter }} />
+      )}
+    </div>
+  );
+}
+
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
@@ -588,16 +636,63 @@ export function BoardView({ playing }: { playing: boolean }) {
      instant. Exports never wait on this — exportPng composes from
      state, not the mounted DOM. */
   const [hydrated, setHydrated] = useState<Set<string>>(() => new Set());
+  /* on-screen boards hydrate FIRST (owner bug, 2026-08-25: with several
+     boards in view — mobiles sit three to a row — the nearest-to-active
+     order could spend its early slices on boards past the fold while
+     boards the owner was LOOKING at sat as empty frames "for awhile").
+     An IntersectionObserver on the board sections keeps a live set of
+     viewport-intersecting ids (seeded synchronously so the first idle
+     slice already knows the fold); the sweep drains that set top-down
+     before the rest. Everything else holds: active board first, one
+     board per idle slice, hydrated-forever. */
+  const visRef = useRef<Set<string>>(new Set());
+  const [visTick, setVisTick] = useState(0);
+  const boardIdsKey = boards.map((b) => b.id).join("|");
+  useEffect(() => {
+    const root = frameRef.current;
+    if (!root) return;
+    const sections = () => [...root.querySelectorAll<HTMLElement>("section[data-board]")];
+    /* zero margin, on purpose: even a sliver of a board peeking at the
+       fold showed EMPTY in the owner's screenshot, so any true
+       intersection counts — but no lookahead, or a whole second row
+       ties as "visible" and the tie-break re-creates the old order */
+    const seed = new Set<string>();
+    const rr = root.getBoundingClientRect();
+    for (const el of sections()) {
+      const r = el.getBoundingClientRect();
+      if (el.dataset.board && r.bottom > rr.top && r.top < rr.bottom) seed.add(el.dataset.board);
+    }
+    visRef.current = seed;
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      let changed = false;
+      for (const en of entries) {
+        const id = (en.target as HTMLElement).dataset.board;
+        if (!id || en.isIntersecting === visRef.current.has(id)) continue;
+        changed = true;
+        if (en.isIntersecting) visRef.current.add(id); else visRef.current.delete(id);
+      }
+      if (changed) setVisTick((t) => t + 1);
+    }, { root });
+    for (const el of sections()) io.observe(el);
+    return () => io.disconnect();
+  }, [boardIdsKey]);
   useEffect(() => {
     const ids = boards.map((b) => b.id);
     const ai = Math.max(0, ids.indexOf(activeBoard));
+    const vis = visRef.current;
     const pending = ids
       .filter((id) => id !== activeBoard && !hydrated.has(id))
-      .sort((a, b) => Math.abs(ids.indexOf(a) - ai) - Math.abs(ids.indexOf(b) - ai));
+      .sort((a, b) => {
+        const va = vis.has(a), vb = vis.has(b);
+        if (va !== vb) return va ? -1 : 1;           // on-screen beats off-screen
+        if (va) return ids.indexOf(a) - ids.indexOf(b); // on-screen fills top-down
+        return Math.abs(ids.indexOf(a) - ai) - Math.abs(ids.indexOf(b) - ai);
+      });
     if (!pending.length) return;
     // one board per idle slice — the effect re-runs and schedules the next
     return idleOnce(() => setHydrated((s) => new Set(s).add(pending[0])));
-  }, [boards, activeBoard, hydrated]);
+  }, [boards, activeBoard, hydrated, visTick]);
   /* one paint BEAT before any board art commits (the kit curtain's
      chapters-behind-the-curtain pattern): the desk chrome and the dimmed
      stage frames paint instantly, the boards curtain gets its slot, and
@@ -1559,23 +1654,26 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
                   onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
                   {!live ? (
-                    /* sleeping board — a dimmed empty frame at exact stage
-                       size; art, backdrop and pieces mount at its idle turn
-                       (or the moment it's activated) */
-                    <div className="bd-sleep" aria-hidden="true" />
+                    /* sleeping board — an exact-stage-size frame that SAYS
+                       it's loading (owner bug, 2026-08-25: the old bare dim
+                       frame "sat empty for awhile" and read as broken).
+                       Pure-CSS skeleton: quiet screen-shaped shimmer blocks,
+                       the curtain's pill bar as an indeterminate sweep, and
+                       a "Loading board…" line. Art, backdrop and pieces
+                       still mount at its idle turn (or the moment it's
+                       activated); everything here is absolute inside the
+                       fixed-size stage, so the swap shifts nothing. */
+                    <div className="bd-sleep" aria-hidden="true">
+                      <i className="bd-sleepblock bd-sleepblock--bar" />
+                      <i className="bd-sleepblock bd-sleepblock--hero" />
+                      <i className="bd-sleepblock bd-sleepblock--foot" />
+                      <div className="bd-sleepnote">
+                        <span className="bd-sleepbar"><i /></span>
+                        <span>Loading board…</span>
+                      </div>
+                    </div>
                   ) : (<>
-                  {bd.bgImage && (bd.bgShow ?? true) && (bd.bgFit === "fit" ? (
-                    /* Fit: the WHOLE scene, over a blurred fill of itself —
-                       for scenes whose aspect isn't the board's (owner:
-                       portrait 9:16 art read "too big" on the 9:19.5 mobile
-                       stage under cover's zoom-and-crop) */
-                    <>
-                      <div className="bd-bg bd-bgblur" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: [boardBgFilter(bd), "blur(26px) brightness(0.72)"].filter(Boolean).join(" ") }} />
-                      <div className="bd-bg bd-bgfit" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
-                    </>
-                  ) : (
-                    <div className="bd-bg" style={{ backgroundImage: `url(${bd.bgImage})`, opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
-                  ))}
+                  <BoardBackdrop bd={bd} />
                   {bd.bgVideo && (bd.bgShow ?? true) && (
                     <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
                       style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
