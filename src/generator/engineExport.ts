@@ -3943,6 +3943,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   try { figs = await readmeFigures(base); } catch { figs = []; }
   for (const f of figs) files.push(f);
   files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
+  /* the Documentation/ front door — store reviewers and buyers look for
+     the folder by name; the deck stays the long-form walkthrough */
+  files.push({ path: "Documentation/QuickStart.md", data: quickStartDoc(st) });
   files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
   /* assembly definitions — the kit's scripts compile into their OWN
      assemblies. Without these, a second copy of the kit anywhere in the
@@ -6633,6 +6636,62 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
   return out;
 }
 
+/* The five-minute front door — Documentation/QuickStart.md. The store's
+   reviewers (and store buyers) expect an obvious Documentation folder;
+   the deck (UNITY-README.md) stays the long-form walkthrough and this
+   page cross-references it. Every claim here mirrors what the importer
+   actually does — the honesty bar is the deck's. */
+function quickStartDoc(st: EngineExportState): string {
+  const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
+  const hasBoards = st.scope === "full" && !!st.boards?.length;
+  return `# ${st.kitName} — Quick Start
+
+Five minutes from zip to a working scene. The full slide-by-slide
+walkthrough is **UNITY-README.md**, one folder up — this page is the
+short front door.
+
+**1 · Drag the folder in.** Unzip the download and drag the whole
+**UIKitMaker** folder into your project's **Assets/**. Unity imports
+everything by itself: sprites arrive nine-sliced with the right pivots,
+and wired example prefabs are built inside your project — the Console
+prints a one-line receipt and the Project window highlights
+**${root}/Prefabs** when they land.
+
+**2 · Open the Playground and press Play.** **${root}/Playground.unity**
+is generated on that first import with every example placed. Mouse over
+the pieces — hover glow, press lift and disabled states are already
+wired.
+
+**3 · Drop pieces into your own scene.** Right-click in the Hierarchy and
+pick **GameObject > UI Kit Maker >** — the piece lands under your Canvas
+fully wired. Dragging a prefab out of **${root}/Prefabs** does the same
+thing.
+
+**4 · Retype the words, restyle the pieces.** Every label is live text:
+select a piece's **Label** object and type — the styled stack follows.
+The kit's components explain themselves in the Inspector (headers and
+per-field tooltips), and sprites, colors and spacing are ordinary Unity
+properties — nothing you'd want to edit is baked into pixels.
+
+**5 · Where to go next.**
+${hasBoards ? `
+- **Board scenes** — the screens composed on the app's Boards arrived as
+  ready scenes in **${root}/Scenes/**, backgrounds placed and every
+  piece zone-anchored with your words on live labels. Open one and press
+  Play; the buttons respond.
+` : ""}
+- **Responsive Check** — **${root}/Scenes/Responsive Check.unity** is a
+  thirty-second sanity pass: press Play and switch Game-view aspect
+  ratios (or the Device Simulator) to watch the safe-area outline move
+  while the UI stays inside it. Backdrops bleed under cutouts on
+  purpose; your UI never does.
+
+- **Re-exporting heals in place** — change the kit on uikitmaker.com,
+  download again and extract over the same spot. Everything you placed
+  restyles where it stands, and words you typed in Unity are kept.
+`;
+}
+
 /* The walkthrough deck, tuned per scope — ease of use is the product.
    Owner mandate: reads like a presentation aimed at the Unity dev, one
    idea per slide, boring-but-vital detail in callouts, walking the
@@ -6649,7 +6708,8 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
 stamp on every import (\`[export build ${stamp}]\`); if a fix you expected
 isn't in the Console line's build, this zip predates it — re-export.
 
-Three steps, then a slide-by-slide tour of the whole export.
+Three steps, then a slide-by-slide tour of the whole export. (In a
+hurry? **Documentation/QuickStart.md** is the five-minute version.)
 
 1. Unzip this download.
 2. Drag the **UIKitMaker** folder into your Unity project's **Assets/**

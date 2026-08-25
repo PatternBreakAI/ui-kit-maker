@@ -1229,6 +1229,34 @@ if (!/tpnIcon\(chipIconDef\);/.test(src) || !/tpnIcon\(def\);/.test(src))
 if (!/LiberationSans \(TextMesh Pro Essential Resources\) — NOT distributed/.test(src))
   errors.push("the LiberationSans reference note is missing — the importer wires it as a fallback, so the notices must say it is referenced, not redistributed (round 31)");
 
+/* ── round-31 (store packaging · slice 2): the Documentation front door.
+   Store reviewers and buyers look for a Documentation folder by name;
+   Documentation/QuickStart.md is the five-minute version of the deck
+   (UNITY-README.md stays the long-form walkthrough and each references
+   the other). Its five beats mirror what the importer actually does —
+   the claims are pinned here so a doc edit can't drift from the truth. */
+if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc\(st\) \}\);/.test(src))
+  errors.push("Documentation/QuickStart.md emission is missing — the store's Documentation front door (round 31)");
+{
+  const qsAt = src.indexOf("function quickStartDoc(");
+  const qs = qsAt >= 0 ? src.slice(qsAt, src.indexOf("\n}\n", qsAt)) : "";
+  if (!qs) errors.push("quickStartDoc is missing (round 31)");
+  else {
+    if (!/Drag the folder in/.test(qs) || !/Playground\.unity/.test(qs))
+      errors.push("QuickStart lost beat 1/2 (drag the folder in; open the Playground and press Play) — round 31");
+    if (!/GameObject > UI Kit Maker >/.test(qs))
+      errors.push("QuickStart beat 3 must name the real menu path (GameObject > UI Kit Maker >) — round 31");
+    if (!/Inspector/.test(qs) || !/live text/.test(qs))
+      errors.push("QuickStart beat 4 (retype live-text labels; restyle via the components' Inspector notes) is missing — round 31");
+    if (!/Responsive Check\.unity/.test(qs) || !/extract over the same spot/.test(qs))
+      errors.push("QuickStart beat 5 must keep the Responsive Check scene and the re-export-heals-in-place promise — round 31");
+    if (!/UNITY-README\.md/.test(qs))
+      errors.push("QuickStart must cross-reference the deck (UNITY-README.md) — round 31");
+  }
+  if (!/Documentation\/QuickStart\.md\*\* is the five-minute version/.test(src))
+    errors.push("the deck must cross-reference Documentation/QuickStart.md (round 31)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
