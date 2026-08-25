@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
@@ -911,7 +911,14 @@ export async function collectExportBoards(st: {
       /* the Board stage's own recipe, WHOLE (Board.tsx svgOf): icon
          override, variant overlay (~gold), 9-slice stretch — dims and
          baked pixels must match what the maker saw */
-      const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      const cfgP0 = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      /* a dialed instance shadow REPLACES the kit's cast for this copy
+         (the stage's suppressCastShadow rule verbatim) — every render
+         below stays shadow-calm and the dialed shadow travels as its own
+         bake: the grounded sibling on prefab pieces, baked pixels on the
+         prefab-less road. The kit-shadow bake's opacity gate goes false
+         on the calmed config by construction, so replace can never stack. */
+      const cfgP = b.shadow?.s ? suppressCastShadow(cfgP0) : cfgP0;
       const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         // kitNoText → deliberate "" (wordless render), never heal-to-stock
@@ -963,13 +970,57 @@ export async function collectExportBoards(st: {
         const fdK = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
         const { bytes: pk } = await svgToPngBytes(svgK, 2);
+        /* a dialed copy shadow on a BAKED piece rides IN the pixels (the
+           importer's shadow sibling only fires on stamp-less rows): the
+           raster re-draws through the shared kitShadowFilter on a
+           symmetrically padded canvas — the typestamp fx contract — and
+           the row's w/h grow to the padded raster while artW/artH keep
+           the true art box for raycasts. cfgP is already cast-calm for
+           this copy, so kit + dial can never stack here either. */
+        let bytesK = pk;
+        let padK = 0;
+        if (b.shadow?.s) {
+          try {
+            const bmpK = await createImageBitmap(new Blob([pk.slice().buffer as ArrayBuffer]));
+            padK = kitShadowPad(b.shadow);
+            const cvK = document.createElement("canvas");
+            cvK.width = bmpK.width + padK * 2 * 2; cvK.height = bmpK.height + padK * 2 * 2;
+            const cxK = cvK.getContext("2d")!;
+            const kfK = kitShadowFilter(b.shadow, 2);
+            if (kfK) cxK.filter = kfK;
+            cxK.drawImage(bmpK, padK * 2, padK * 2);
+            bmpK.close();
+            const blobK = await new Promise<Blob | null>((r) => cvK.toBlob(r, "image/png"));
+            if (blobK) bytesK = new Uint8Array(await blobK.arrayBuffer()); else padK = 0;
+          } catch { padK = 0; /* the copy still ships, shadow-less */ }
+        }
+        /* invgrid wells were measured against the UNPADDED raster — remap
+           the fractions onto the padded rect so the live tiles stay true */
+        if (cells && padK) {
+          const vbK = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(still);
+          if (vbK) {
+            const vwK = +vbK[3], vhK = +vbK[4];
+            const remap: number[] = [];
+            for (let i = 0; i < cells.length; i += 4) {
+              remap.push(
+                Math.round(((cells[i] * vwK + padK) / (vwK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 1] * vhK + padK) / (vhK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 2] * vwK) / (vwK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 3] * vhK) / (vhK + padK * 2)) * 10000) / 10000);
+            }
+            cells = remap;
+          } else cells = null;
+        }
         const file = `boardstamps/${slug}-k${sidOf(b)}.png`;
-        stampFiles.push({ file, bytes: pk });
+        stampFiles.push({ file, bytes: bytesK });
         exItems.push({
           // base id even for a clone — the baked pixels above already wear
           // the clone's fork, and the importer only knows base names
           component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
-          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
+          // a dialed-shadow bake grew symmetrically — the row's rect is the
+          // padded raster, artW/artH the true art (the typestamp contract)
+          w: Math.round((w + padK * 2 * k) * 10) / 10, h: Math.round((h + padK * 2 * k) * 10) / 10,
+          ...(padK ? { artW: Math.round(w * 10) / 10, artH: Math.round(h * 10) / 10 } : {}),
           /* the maker's CONTENT rides the row as data, not only as pixels
              (the HUD-counter round: the dialed amount must be readable in
              the manifest). Same per-copy-first recipe as the prefab road.
@@ -1262,6 +1313,74 @@ export async function collectExportBoards(st: {
           }
         }
       } catch { /* a piece without its shadow still places — grounding is decor */ }
+      /* ── the DIALED per-copy shadow (owner: "unity transferable drop
+         shadows to ui components in boards… built into the states") —
+         bake ONLY the shadow ink of this copy's rendered alpha: raster
+         the calm art (cast/contact already suppressed on cfgP, state
+         glows and idle quieted here), drop-shadow it through the SAME
+         kitShadowFilter recipe the stage shows, then destination-out
+         the art so the sprite carries shadow ink alone. It ships through
+         the EXACT row fields the kit-shadow sibling already rides
+         (shadow/shadowW/H/Dx/Dy), so the current importer grounds it —
+         planted while the piece lifts and presses — with ZERO C#
+         changes. Pure-type pieces MAY dial one (an explicit ask beats
+         the round-26 auto-skip): the kit face inlines first so the
+         shadow keeps the real letterforms, and the ghosted bake can
+         never resurrect the double-readout — the art ink is erased. */
+      if (b.shadow?.s) {
+        try {
+          const cSh2 = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
+          cSh2.stateDesigns = {}; // the bake renders "default"
+          for (const s4 of Object.values(cSh2.states)) s4.glow = 0;
+          if (cSh2.idle) cSh2.idle = { ...cSh2.idle, wipe: false, edge: false };
+          let artSvg = renderKit(cSh2, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          artSvg = artSvg
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          if (/<text/.test(artSvg)) {
+            const fdSh2 = fontByName(cfgP.type.font);
+            artSvg = await inlineKitFace(artSvg, cfgP.type.font, fdSh2.name === cfgP.type.font ? fdSh2.css ?? null : null);
+          }
+          artSvg = splitFilterChains(artSvg);
+          const shellSh2 = (/data-shell="([-\d. ]+)"/.exec(artSvg) ?? /data-shell0="([-\d. ]+)"/.exec(artSvg))?.[1].split(" ").map(Number);
+          const vbSh3 = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(artSvg);
+          if (shellSh2 && shellSh2.length === 4 && shellSh2[2] > 4 && shellSh2[3] > 4 && vbSh3) {
+            const { bytes: artPng } = await svgToPngBytes(artSvg, 2);
+            const bmpSh = await createImageBitmap(new Blob([artPng.slice().buffer as ArrayBuffer]));
+            const padR = kitShadowPad(b.shadow) * 2; // raster is 2× design px
+            const cvSh = document.createElement("canvas");
+            cvSh.width = bmpSh.width + padR * 2; cvSh.height = bmpSh.height + padR * 2;
+            const cxSh2 = cvSh.getContext("2d")!;
+            const kfSh = kitShadowFilter(b.shadow, 2);
+            if (kfSh) cxSh2.filter = kfSh;
+            cxSh2.drawImage(bmpSh, padR, padR);
+            // ghost the art — shadow ink alone remains for the sibling
+            cxSh2.filter = "none";
+            cxSh2.globalCompositeOperation = "destination-out";
+            cxSh2.drawImage(bmpSh, padR, padR);
+            bmpSh.close();
+            const blobSh = await new Promise<Blob | null>((r) => cvSh.toBlob(r, "image/png"));
+            if (blobSh) {
+              const fileSh2 = `boardstamps/${slug}-sh${sidFor()}.png`;
+              stampFiles.push({ file: fileSh2, bytes: new Uint8Array(await blobSh.arrayBuffer()) });
+              const kxD = pw / shellSh2[2], kyD = ph / shellSh2[3];
+              const padD = padR / 2; // back to design px
+              const cW2 = +vbSh3[3] + padD * 2, cH2 = +vbSh3[4] + padD * 2;
+              const cCx2 = +vbSh3[1] + (+vbSh3[3]) / 2, cCy2 = +vbSh3[2] + (+vbSh3[4]) / 2;
+              shadowMeta = {
+                file: fileSh2,
+                w: Math.round(cW2 * kxD * 10) / 10, h: Math.round(cH2 * kyD * 10) / 10,
+                dx: Math.round((cCx2 - (shellSh2[0] + shellSh2[2] / 2)) * kxD * 10) / 10,
+                dy: Math.round((cCy2 - (shellSh2[1] + shellSh2[3] / 2)) * kyD * 10) / 10,
+              };
+            }
+          }
+        } catch { /* a copy without its dialed shadow still places */ }
+      }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,

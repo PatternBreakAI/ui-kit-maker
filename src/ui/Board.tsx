@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
@@ -479,7 +479,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
-    userAssets, addUserAssetToBoard,
+    userAssets, addUserAssetToBoard, boardShadowLast,
   } = useGen();
   /* ── the Gate Round's two board rules (owner mandate, 2026-08-17) ──
      · exports (board PNG, piece SVG/PNG) are paid — these composites
@@ -943,7 +943,11 @@ export function BoardView({ playing }: { playing: boolean }) {
       // ids) while every per-piece read stays keyed by the item's own id
       const bBase = baseOf(b.kitId);
       const kb = bBase === "progress" || bBase === "segbar" ? kitBar[b.kitId] : undefined;
-      const pc = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
+      const pc0 = applyKitTextFill(applyKitDesign(cfg, kitDesigns[b.kitId]), kitTextFill[b.kitId]);
+      /* a dialed instance shadow REPLACES the kit's cast for this copy —
+         the render calms the kit's own shadow/contact and the compositor
+         (or the stage wrapper) paints the dialed one instead */
+      const pc = b.shadow?.s ? suppressCastShadow(pc0) : pc0;
       // the editor's per-size text nudges, slot choices and sub-labels ride
       // along — without them the board (and its PNGs) trailed the editor
       // (owner: "changing the speedo component in edit did not update it
@@ -1121,6 +1125,9 @@ export function BoardView({ playing }: { playing: boolean }) {
           // the instance's opacity ships exactly as the stage shows it
           if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
           if (b.stamp) { const sf = stampFilter(cfg, b.stamp); if (sf) ctx.filter = sf; }
+          /* a kit copy's dialed shadow — flat board space, so the recipe
+             scales by the instance (the bigGlyphFilter pxScale lesson) */
+          else if (b.kitId && b.shadow?.s) { const kf = kitShadowFilter(b.shadow, s); if (kf) ctx.filter = kf; }
           ctx.translate(cx, cy);
           if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
           if (b.stamp?.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount) {
@@ -1871,6 +1878,47 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
             )}
+            {sel.kitId && (() => {
+              /* per-copy drop shadow (owner: "you can't always tell if you
+                 need a drop shadow at the editing level") — while on, it
+                 REPLACES this copy's kit cast shadow; 0 or double-click
+                 returns the kit's own. Dials open on the LAST recipe used
+                 (sticky by owner mandate), so shadowing a whole screen is
+                 dial-once, click-through. */
+              const sh = sel.shadow;
+              const patch = (p: Partial<NonNullable<typeof sh>> | null) => useGen.getState().setBoardItemShadow(sel.id, p);
+              return (<>
+                <label className="bd-slider" title="Drop shadow — this copy only. While on it replaces the kit's own cast shadow here; double-click (or 0) follows the kit again. Exports and Unity scenes carry it.">
+                  Drop shadow — this copy · {sh?.s ?? 0}%
+                  <input type="range" min={0} max={100} value={sh?.s ?? 0}
+                    onChange={(e) => patch({ s: +e.target.value })}
+                    onDoubleClick={() => patch(null)} />
+                </label>
+                {!sh?.s && boardShadowLast && (
+                  <div className="bd-actions one">
+                    <button title="Apply the last shadow you dialed — strength and pose together"
+                      onClick={() => patch({ ...boardShadowLast })}>
+                      Use my last shadow · {boardShadowLast.s}%
+                    </button>
+                  </div>
+                )}
+                {(sh?.s ?? 0) > 0 && (<>
+                  <label className="bd-slider">Shadow X · {Math.round(sh!.x ?? 0)}px
+                    <input type="range" min={-40} max={40} value={Math.round(sh!.x ?? 0)} onChange={(e) => patch({ x: +e.target.value })}
+                      onDoubleClick={() => patch({ x: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow Y · {Math.round(sh!.y ?? 2 + (sh!.s ?? 0) * 0.1)}px
+                    <input type="range" min={-40} max={40} value={Math.round(sh!.y ?? 2 + (sh!.s ?? 0) * 0.1)} onChange={(e) => patch({ y: +e.target.value })}
+                      onDoubleClick={() => patch({ y: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow blur · {Math.round(sh!.blur ?? 2 + (sh!.s ?? 0) * 0.22)}px
+                    <input type="range" min={0} max={60} value={Math.round(sh!.blur ?? 2 + (sh!.s ?? 0) * 0.22)} onChange={(e) => patch({ blur: +e.target.value })}
+                      onDoubleClick={() => patch({ blur: undefined })} />
+                  </label>
+                  <div className="bd-note">Replaces the kit's cast shadow on THIS copy; in Unity it travels as the grounded shadow sibling — planted while the piece lifts and presses.</div>
+                </>)}
+              </>);
+            })()}
             {sel.stamp && (() => {
               /* the stamp's own dials — instance-only, the kit's typography
                  never moves (owner: "basic controls… hue / saturation,
@@ -2566,9 +2614,14 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
      A stable fork object breaks the cycle at its source. */
   const kd = b.kitId ? kitDesigns[b.kitId] : undefined;
   const ktf = b.kitId ? kitTextFill[b.kitId] : undefined;
+  /* a dialed instance shadow calms the kit's own cast/contact for THIS
+     copy (the replace rule) — the dialed silhouette shadow paints as a
+     CSS filter on the scaled wrapper below, so it hugs the rendered
+     alpha exactly (kitShadowFilter, the one shared recipe) */
+  const shOn = !!(b.kitId && b.shadow?.s);
   const forkCfg = useMemo(
-    () => (b.kitId ? applyKitTextFill(applyKitDesign(cfg, kd), ktf) : cfg),
-    [cfg, b.kitId, kd, ktf],
+    () => (b.kitId ? ((c) => (shOn ? suppressCastShadow(c) : c))(applyKitTextFill(applyKitDesign(cfg, kd), ktf)) : cfg),
+    [cfg, b.kitId, kd, ktf, shOn],
   );
   const artRef = useRef<HTMLDivElement>(null);
   // corner-handle resize: screen-px delta → scale, against the piece's
@@ -2724,7 +2777,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
           sc=0.36. display:flow-root makes this wrapper a block
           formatting context, which keeps the child margin INSIDE the
           scaled box. The overlay math was measured correct all along. */}
-      <div ref={artRef} style={{ display: "flow-root", transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined }}>
+      <div ref={artRef} style={{ display: "flow-root", transform: `scale(${sc})`, transformOrigin: "top left", opacity: b.opacity !== undefined ? b.opacity / 100 : undefined,
+        /* the dialed copy shadow — INSIDE the scale wrapper, so the recipe's
+           px ride the instance scale for free (the big-glyph contract) */
+        filter: shOn ? kitShadowFilter(b.shadow) : undefined }}>
         {b.big ? (() => {
           /* a big glyph is finished raster art at its stage footprint, the
              instance's shadow/glow dials as a CSS filter — bigGlyphFilter

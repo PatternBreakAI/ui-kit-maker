@@ -387,6 +387,15 @@ interface GenStore {
   setBoardItemVal: (id: string, v: number | null) => void;
   /** THIS instance's opacity (0..100); null returns it to fully opaque. */
   setBoardItemOpacity: (id: string, v: number | null) => void;
+  /** THIS kit copy's drop shadow. null = follow the kit again; a patch
+   *  merges (a fresh dial seeds pose fields from boardShadowLast — the
+   *  owner's sticky ask: "whatever it was set to last, to make it easy
+   *  to give everything the same drop shadow"). Every set with s>0
+   *  refreshes that memory. */
+  setBoardItemShadow: (id: string, patch: Partial<KitShadowFx> | null) => void;
+  /** The last shadow recipe the user dialed — the sticky default new
+   *  dials open from. Persisted with the workspace (cloud-synced). */
+  boardShadowLast: KitShadowFx | null;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
   /** Drop a type stamp on the active board. */
@@ -729,6 +738,13 @@ export interface BoardItem {
    *  follow the kit. Design changes still flow through live — only the
    *  words are pinned. */
   label?: string;
+  /** THIS kit copy's drop shadow (owner: shadows are a BOARD decision —
+   *  "you can't always tell if you need a drop shadow at the editing
+   *  level"). While set (s > 0) it REPLACES the kit's cast shadow for
+   *  this copy — the render calms the kit's own cast + contact and the
+   *  dialed silhouette shadow paints instead (kitShadowFilter, one
+   *  recipe across stage / PNG / Unity). Absent = follow the kit. */
+  shadow?: KitShadowFx;
   /** A TYPE STAMP — the kit's full lettering treatment with no shell
    *  (owner: "temp game logos or just areas where I might need text…
    *  type the word and the ability to size it", then: "basic controls…
@@ -961,6 +977,50 @@ export function stampFilterPad(st: NonNullable<BoardItem["stamp"]>): number {
   if (st.glow) pad = Math.max(pad, (6 + st.glow * 0.5) * 3);
   return Math.ceil(pad);
 }
+
+/* ── per-copy KIT-piece drop shadow (owner: "unity transferable drop
+   shadows to ui components in boards… you can't always tell if you need
+   a drop shadow at the editing level") ───────────────────────────────
+   One recipe string for the stage, the board PNG compositor and the
+   Unity bake — the bigGlyphFilter/stampFilter contract, same house
+   curve (dy 2+s·0.1, blur 2+s·0.22, ink black at s·0.6 alpha), so a
+   dialed piece, a dialed glyph and a dialed stamp all speak one
+   shadow language. Strength 0 / absent = the copy follows the kit. */
+export interface KitShadowFx {
+  /** strength 0..100 — the whole dial; 0 clears the override */
+  s: number;
+  /** pose overrides (px at art scale); absent = the house curve */
+  x?: number; y?: number; blur?: number;
+}
+export function kitShadowFilter(sh: KitShadowFx | undefined, pxScale = 1): string | undefined {
+  if (!sh || !sh.s) return undefined;
+  const dx = (sh.x ?? 0) * pxScale;
+  const dy = (sh.y ?? 2 + sh.s * 0.1) * pxScale;
+  const bl = (sh.blur ?? 2 + sh.s * 0.22) * pxScale;
+  return `drop-shadow(${dx.toFixed(1)}px ${dy.toFixed(1)}px ${bl.toFixed(1)}px rgba(0,0,0,${(sh.s / 100 * 0.6).toFixed(2)}))`;
+}
+/** The dialed shadow's paint reach past the art (px at 1:1) — bakes pad
+ *  their canvas by this so the falloff never clips. */
+export function kitShadowPad(sh: KitShadowFx): number {
+  if (!sh.s) return 0;
+  return Math.ceil(Math.abs(sh.x ?? 0) + Math.abs(sh.y ?? 2 + sh.s * 0.1) + (sh.blur ?? 2 + sh.s * 0.22) * 2);
+}
+/** The replace rule: a dialed copy renders with the KIT's own cast
+ *  shadow (and contact pool) calmed, so the dial IS the shadow — never
+ *  a second one stacked under the kit's. Fork shadows are calmed too
+ *  (the round-24 lesson: stateDesigns carry their own copies that
+ *  outrank the master field by field). */
+export function suppressCastShadow(cfg: GenConfig): GenConfig {
+  const c = (typeof structuredClone === "function" ? structuredClone(cfg) : JSON.parse(JSON.stringify(cfg))) as GenConfig;
+  c.shadow = { ...c.shadow, opacity: 0 };
+  if (c.candy?.contact) c.candy = { ...c.candy, contact: { ...c.candy.contact, opacity: 0 } };
+  for (const f of Object.values(c.stateDesigns ?? {})) {
+    if (!f) continue;
+    if (f.shadow) f.shadow = { ...f.shadow, opacity: 0 };
+    if (f.candy?.contact) f.candy = { ...f.candy, contact: { ...f.candy.contact, opacity: 0 } };
+  }
+  return c;
+}
 /** One artboard — a named, fixed-resolution stage with its own pieces and
  *  background. Backgrounds are object URLs, so the image itself is
  *  session-only; everything else persists. */
@@ -1036,6 +1096,7 @@ export function defaultRow(): RowCfg {
 const LIB_KEY = "ui-generator-library";
 const BOARD_KEY = "ui-generator-board";
 const USERASSETS_KEY = "ui-generator-userassets";
+const SHADOWLAST_KEY = "ui-generator-boardshadowlast";
 /* ── SAFE BOOT (support hatch) ────────────────────────────────────────
    `?safe` (or #safe) anywhere in the URL boots the app FACTORY-FRESH
    without touching the user's stored document: every persisted read
@@ -1782,6 +1843,25 @@ export const useGen = create<GenStore>((set, get) => ({
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
     return next;
   }),
+  boardShadowLast: loadJson<KitShadowFx | null>(SHADOWLAST_KEY, null),
+  setBoardItemShadow: (id, patch) => {
+    if (patch === null) {
+      mutateItem(get, set, `shadow:${id}`, id, (b) => { const n = { ...b }; delete n.shadow; return n; });
+      return;
+    }
+    let mem: KitShadowFx | null = null;
+    mutateItem(get, set, `shadow:${id}`, id, (b) => {
+      /* a FRESH dial opens on the remembered recipe (sticky, the owner's
+         explicit ask) with only the touched field patched over it */
+      const last = get().boardShadowLast;
+      const base: KitShadowFx = b.shadow ?? (last ? { ...last, s: 0 } : { s: 0 });
+      const next: KitShadowFx = { ...base, ...patch, s: Math.max(0, Math.min(100, patch.s ?? base.s)) };
+      if (!next.s) { const n = { ...b }; delete n.shadow; return n; }
+      mem = next;
+      return { ...b, shadow: next };
+    });
+    if (mem) { saveJson(SHADOWLAST_KEY, mem); set({ boardShadowLast: mem }); }
+  },
   setBoardItemLabel: (id, label) => mutateItem(get, set, `label:${id}`, id, (b) => {
     const next = { ...b };
     if (label === null || label === "") delete next.label; else next.label = label;
