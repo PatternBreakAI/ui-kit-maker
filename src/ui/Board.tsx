@@ -1921,9 +1921,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                 </div>
               );
             })()}
-            {/* big glyphs dive to 5% (match-3 tiles on a mobile board need
-                ~12%); everything else keeps the 30% legibility floor. The
-                typed entry exists because one slider pixel jumps several
+            {/* big glyphs, user logos and semantic glyph pieces (clones
+                included — boardScaleMin resolves through baseOf) dive to 5%
+                (match-3 tiles on a mobile board need ~12%; owner from the
+                Pause board: "i need to be able to shrink these glyphs
+                smaller"); everything else keeps the 30% legibility floor.
+                The typed entry exists because one slider pixel jumps several
                 percent at the small end — the owner types 12 and gets 12. */}
             <label className="bd-slider"><span className="bd-sliderhead">Scale ·
               <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.round(boardScaleMin(sel) * 100)} />%</span>

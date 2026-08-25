@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -812,9 +812,14 @@ export interface UserAsset {
  *  match-3 tile size (owner, from a mobile board: "I need to be able to
  *  shrink the glyphs smaller than this") — 5% of the ~437px design
  *  footprint is a ~22px tile, comfortably under the ~52px a 7-column
- *  390px board needs (~12%). Everything else keeps the 30% legibility
- *  floor; the 200% ceiling is shared. */
-export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo"> | null | undefined): number => (b?.big || b?.logo ? 0.05 : 0.3);
+ *  390px board needs (~12%). Semantic glyph kit pieces (glyph*) share
+ *  that 5% floor (owner, from the Pause board's music-note clone: "i
+ *  need to be able to shrink these glyphs smaller") — they render as
+ *  live SVG, so tiny stays crisp; a clone resolves through baseOf so
+ *  copies of a glyph shrink like the glyph itself. Every other kit
+ *  piece keeps the 30% legibility floor; the 200% ceiling is shared. */
+export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | null | undefined): number =>
+  (b?.big || b?.logo || (b?.kitId != null && isGlyphPiece(baseOf(b.kitId))) ? 0.05 : 0.3);
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
