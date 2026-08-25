@@ -4156,6 +4156,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
   "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
+  "bottomnav",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -8264,6 +8265,70 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         cells += infoText(String(i + 1), cx0 + 7 * k, yh + 17 * k, 13 * k, "start", 700, cfg.type.fill);
       }
       return inject(track.replace("<svg ", '<svg data-hotbar="1" '), cells);
+    }
+    case "bottomnav": {
+      /* Casual · bottom nav bar — the tab bar every mobile game stands on:
+         four icon+label destination cells in the kit material, the active
+         one on a brighter well with the kit glow ring, red count dots on
+         badged cells. EDITING CONTRACT: value picks the ACTIVE cell in
+         quarters (0–24% cell 1 … 75–100% cell 4); l1–l4 recaption the
+         cells; g1–g4 swap glyphs from the curated nav rack (house icon
+         system — Factory keeps the stock loadout); b1–b4 badge counts
+         (factory shows 3 on cell 2; 0 or empty clears). hover/pressed
+         live on the bar as a whole (native build states) and strengthen
+         the active cell's ring; disabled dims. */
+      const n = 4, cellW = 128 * k, cellH = 96 * k, gap = 10 * k;
+      const w = n * cellW + (n - 1) * gap + 44 * k, h = cellH + 28 * k;
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 124 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      // quarters, not a scrub — each quarter of the travel owns one cell
+      const selN = clamp(Math.floor(clamp(value ?? 0, 0, 1) * n), 0, n - 1);
+      const x0 = 39 + (w - (n * cellW + (n - 1) * gap)) / 2;
+      const y0 = 30 + (h - cellH) / 2;
+      // cell corners RIDE the Smoothness slider — the hotbar contract: on a
+      // pill shell the silhouette can't round further, so the cells are
+      // where the control must visibly live
+      const cellR = Math.min(cellH / 2, (3 + cfg.bevel.softness * 0.42) * k);
+      const dimN = state === "disabled";
+      const cellsDef: { l: string; ic: string }[] = [
+        { l: "MAP", ic: "map" }, { l: "QUESTS", ic: "scroll" },
+        { l: "HEROES", ic: "user" }, { l: "STORE", ic: "cart" },
+      ];
+      // notification red is a convention, not a theme role — the count
+      // badge recipe, leaning a whisper toward the kit's glow (countbadge)
+      const badgeC = dimN ? "#9AA0AB" : hexMix("#FF3B4A", glow, 0.12);
+      let cells = "";
+      for (let i = 0; i < n; i++) {
+        const cx0 = x0 + i * (cellW + gap);
+        const on = i === selN;
+        const hotN = on && (state === "hover" || state === "pressed");
+        cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${wellFill}" opacity="${on ? 0.98 : 0.78}"${on ? ` stroke="${glow}" stroke-width="${((hotN ? 3.6 : 3) * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${((hotN ? 8 : 6) * k).toFixed(1)}px ${hexRgba(glow, hotN ? 0.9 : 0.7)})"` : ""}` : ` stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2"`} data-cell="${i}"/>`;
+        // the active well BRIGHTENS: a glow wash inside the well, deepening
+        // through hover/pressed like the dialogue choices do
+        if (on) cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${hexRgba(glow, state === "pressed" ? 0.3 : state === "hover" ? 0.24 : 0.16)}"/>`;
+        // per-cell glyph slots — Factory keeps the stock loadout (the
+        // wheels' honesty rule); names resolve by lowercasing
+        const pickN = opts.slots?.[`g${i + 1}`];
+        const icN = (pickN && pickN !== "Factory" && STOCK_ICONS[pickN.toLowerCase()]) || STOCK_ICONS[cellsDef[i].ic];
+        const icx = cx0 + cellW / 2;
+        if (icN) cells += themedIcon(icN, icx - 20 * k, y0 + 12 * k, 40 * k, on ? hexMix(glow, "#FFFFFF", 0.35) : "rgba(255,255,255,0.72)", 2.2);
+        /* captions sit on the DARK cell wells — the HUD voice (white with
+           the tight understroke) holds legible on every kit, pale-faced
+           Brightside included; the active caption alone takes the glow
+           tint so "brighter" reads in the words too */
+        const capN = (opts.slots?.[`l${i + 1}`] ?? cellsDef[i].l).slice(0, 8);
+        // Inter voice, so the plain char-count fit guards the widest words
+        const capFs = Math.min(15.5 * k, (cellW - 14 * k) / Math.max(1, capN.length * 0.78));
+        cells += `<text x="${icx.toFixed(1)}" y="${(y0 + cellH - 17 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${capFs.toFixed(1)}" font-weight="${on ? 900 : 700}" letter-spacing="0.04em" fill="${on && !dimN ? hexMix(glow, "#FFFFFF", 0.55) : `rgba(255,255,255,${on ? 0.95 : 0.68})`}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${Math.max(2, capFs * 0.16).toFixed(1)}px; stroke-linejoin: round">${esc(capN)}</text>`;
+        // badge dot — factory badges cell 2 with the specimen's 3 unread
+        // quests; a typed 0 (or emptying a typed count) clears it
+        const bRaw = (opts.slots?.[`b${i + 1}`] ?? (i === 1 ? "3" : "")).trim().slice(0, 3);
+        if (bRaw && bRaw !== "0") {
+          const bcx = cx0 + cellW - 8 * k, bcy = y0 + 8 * k, brN = 15 * k;
+          cells += `<g data-badge="${i}"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${brN.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,${dimN ? 0.55 : 0.92})" stroke-width="${(2.2 * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${(3.5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.6)})"` : ""}/>` +
+            `<text x="${bcx.toFixed(1)}" y="${(bcy + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${((bRaw.length > 1 ? 14 : 17) * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(bRaw)}</text></g>`;
+        }
+      }
+      return inject(track.replace("<svg ", '<svg data-bottomnav="1" '), cells);
     }
     case "cardback": {
       /* Card battler · the set's card back. The theme fills the portrait
