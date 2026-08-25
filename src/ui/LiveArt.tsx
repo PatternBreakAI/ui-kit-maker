@@ -122,7 +122,7 @@ export function shellRectHit(svgEl: SVGSVGElement | null | undefined, stamp: num
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
  *  interaction the component implies, all through the same pure renderer. */
-export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops, onArt }: {
+export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, snug, hug, ambient, shine, className, style, title, onDesignClick, stablePad, stillLoops, onArt }: {
   cfg: GenConfig;
   kit?: LiveKit;
   playing: boolean;
@@ -142,6 +142,21 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       below the shell is empty on a flat render and the static insets
       left rows floating apart */
   snug?: boolean;
+  /** Measured hug, both axes — reference specimens (the kit page's Fields
+   *  section): the canvas reserves the SLIDERS' full travel below the
+   *  shell (extrusion cap + four-sigma shadow room), so a specimen box
+   *  can run hundreds of px past its painted art and captions float away
+   *  ("dead space", owner). Hug MEASURES the rendered art (getBBox — the
+   *  type-specimen crop discipline: measure, re-measure when fonts land)
+   *  and reclaims the difference with margins. The crop PINS per content
+   *  key so state re-renders never resize the box (the hitbox-jitter
+   *  precedent), and art drawn PAST the canvas (the open dropdown's menu
+   *  on a shadow-free kit) GROWS the box instead of colliding with
+   *  captions — the old fixed 86px reservation under-measured that menu
+   *  at size L and over-measured it whenever the shadow reserve already
+   *  contained it. Glows are allowed past the crop: overflow stays
+   *  visible and light overlaps like it would on a real screen. */
+  hug?: boolean;
   /** Screen-composition mode: reclaim the invisible canvas around the shell
    *  (glow pad + fixed insets) with computed negative margins, so pieces
    *  stack at believable interface rhythm at any display scale. The glow
@@ -310,6 +325,71 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       marginLeft: -Math.round((pad + ins.x) * s),
     };
   }, [trim, scale, pad, shellFree, tight, snug, svg]);
+
+  /* measured hug — see the prop note. The margins come from the RESTING
+     render (the first render for a content key IS the resting pose) and
+     pin there: a hover lift or a click-toggled menu must never resize the
+     layout box mid-interaction. Fonts can settle after the first measure
+     (the Art crop precedent), so loadingdone forces one honest re-run. */
+  const [hugStyle, setHugStyle] = useState<React.CSSProperties | undefined>(undefined);
+  const hugKey = useRef<string | null>(null);
+  const hugSvg = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!hug || trim || scale === undefined) return;
+    const key = `${kitKey}|${scale}`;
+    const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
+    if (!el) return;
+    const measure = (force = false) => {
+      if (!force && hugKey.current === key) return;
+      /* a FORCED re-run (fonts landing) is honest only for the pose the
+         pin was computed from — re-pinning off a transient pose (the open
+         dropdown clicked closed mid-session) left a stale crop when the
+         resting pose returned, and the menu ate the caption below */
+      if (force && hugKey.current === key && hugSvg.current !== svg) return;
+      try {
+        const vb = el.viewBox.baseVal;
+        if (!vb?.width || !vb.height) return;
+        // measure the ART alone — the injected hit/focus helpers pad past
+        // the shell and would loosen the crop (and unevenly: inert pieces
+        // carry no hitpad)
+        const helpers = [...el.querySelectorAll(":scope > rect[data-hitpad], :scope > g[data-focusring]")];
+        for (const n of helpers) n.remove();
+        const bb = el.getBBox();
+        for (const n of helpers) el.appendChild(n);
+        if (!bb.height) return;
+        /* breathing room in viewBox units: the shadow's blur tail below,
+           a whisper on the other sides. getBBox reads geometry, not
+           filter spread, so the bottom allowance covers the cast
+           shadow's blur reach. Each side is measured on its own — art
+           drawn PAST the canvas (an open menu, a wide overhang) turns
+           that side's reclaim into growth, so captions and neighbours
+           always clear the real render. */
+        const aT = 12, aB = 20, aX = 12;
+        const m = (v: number) => -Math.round(v * scale);
+        setHugStyle({
+          marginTop: m(bb.y - vb.y - aT),
+          marginBottom: m(vb.y + vb.height - (bb.y + bb.height) - aB),
+          marginLeft: m(bb.x - vb.x - aX),
+          marginRight: m(vb.x + vb.width - (bb.x + bb.width) - aX),
+          /* the horizontal reclaim narrows the FLEX CELL, and the class
+             max-width:100% would then re-resolve against that narrower
+             cell and shrink the art itself — a feedback loop that scaled
+             pieces down instead of cropping air. Hug crops AIR only: the
+             art keeps its true size and its glow margin overlaps
+             neighbours, exactly like the trim modes. */
+          maxWidth: "none",
+        });
+        hugKey.current = key;
+        hugSvg.current = svg;
+      } catch { /* not laid out yet */ }
+    };
+    measure();
+    const fonts = document.fonts;
+    const onDone = () => measure(true);
+    fonts?.addEventListener?.("loadingdone", onDone);
+    const late = window.setTimeout(() => measure(true), 800);
+    return () => { fonts?.removeEventListener?.("loadingdone", onDone); window.clearTimeout(late); };
+  }, [hug, trim, scale, kitKey, svg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Map a pointer to the control's track using the exact geometry the renderer
      stamped on the svg (viewBox units) — precise at any scale or glow pad. */
@@ -756,7 +836,70 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     svgEl.appendChild(rect);
     svgEl.style.pointerEvents = "none";
   }, [svg, playing, passThrough, live]);
-  const anchorStyle = trimStyle ?? (anchorContent && pad > 0 ? { marginLeft: -pad, marginTop: -pad } : undefined);
+
+  /* Focus honesty (owner: the HOVER/FOCUS input specimen grew "a hard
+     rectangular outline running through the cell"): the focusable pieces
+     (input, toggle, progress) take the UA focus-visible ring on the
+     WRAPPER — the canvas box, whose invisible full-travel reserves run far
+     past the painted art, so the ring reads as a broken frame crossing
+     neighbouring cells. The ring must hug the ART: when the render
+     carries a shell stamp, the UA outline is suppressed and a rounded
+     double-stroke ring (dark halo under a light line — legible on any
+     face or stage) is injected at the shell union, the same stable
+     geometry the hitpad trusts. Pieces without a stamp keep the UA ring:
+     a wrong box beats no indicator. */
+  const [focusV, setFocusV] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => {
+      let v = false;
+      try { v = el.matches(":focus-visible"); } catch { v = document.activeElement === el; }
+      setFocusV(v);
+    };
+    const off = () => setFocusV(false);
+    el.addEventListener("focusin", read);
+    el.addEventListener("focusout", off);
+    return () => { el.removeEventListener("focusin", read); el.removeEventListener("focusout", off); };
+  }, []);
+  const shellStamped = /data-shell="/.test(svg);
+  useLayoutEffect(() => {
+    const svgEl = ref.current?.querySelector("svg");
+    if (!svgEl) return;
+    svgEl.querySelector(":scope > g[data-focusring]")?.remove();
+    if (!focusV || !shellStamped) return;
+    const stamp = svgEl.getAttribute("data-shell")?.split(" ").map(Number);
+    if (!stamp || stamp.length !== 4 || !stamp.every(Number.isFinite)) return;
+    // union with the remembered default shell — the ring never hops when a
+    // state's lift moves the drawn shell (the hitbox-jitter precedent)
+    const d = defShell.current;
+    const x0 = d ? Math.min(stamp[0], d[0]) : stamp[0];
+    const y0 = d ? Math.min(stamp[1], d[1]) : stamp[1];
+    const x1 = d ? Math.max(stamp[0] + stamp[2], d[0] + d[2]) : stamp[0] + stamp[2];
+    const y1 = d ? Math.max(stamp[1] + stamp[3], d[1] + d[3]) : stamp[1] + stamp[3];
+    const vb = svgEl.viewBox?.baseVal;
+    const r = svgEl.getBoundingClientRect();
+    const uz = vb?.width && r.width ? vb.width / r.width : 1; // px → viewBox units
+    const padU = 8 * uz;
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("data-focusring", "1");
+    g.setAttribute("pointer-events", "none");
+    for (const [stroke, w2, op] of [["#10121C", 4 * uz, "0.55"], ["#FFFFFF", 2 * uz, "0.95"]] as const) {
+      const rc = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rc.setAttribute("x", (x0 - padU).toFixed(1));
+      rc.setAttribute("y", (y0 - padU).toFixed(1));
+      rc.setAttribute("width", (x1 - x0 + padU * 2).toFixed(1));
+      rc.setAttribute("height", (y1 - y0 + padU * 2).toFixed(1));
+      rc.setAttribute("rx", (12 * uz + padU).toFixed(1));
+      rc.setAttribute("fill", "none");
+      rc.setAttribute("stroke", stroke);
+      rc.setAttribute("stroke-width", w2.toFixed(1));
+      rc.setAttribute("opacity", op);
+      g.appendChild(rc);
+    }
+    svgEl.appendChild(g);
+  }, [svg, focusV, shellStamped]);
+  const anchorStyle = trimStyle ?? hugStyle ?? (anchorContent && pad > 0 ? { marginLeft: -pad, marginTop: -pad } : undefined);
   // choice controls render pinned to their resting pose — the hover answer
   // is a light-up on the wrapper (brightness), never a re-render that grows
   const choice = id === "checkbox" || id === "radio" || id === "toggle" || id === "orb";
@@ -771,7 +914,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         /* explicit both ways: "none" hands the canvas to the hit rect,
            "auto" reclaims the box even under a pointer-transparent host
            (the Board's play stage) */
-        ...(playing && !inert ? { pointerEvents: passThrough ? ("none" as const) : ("auto" as const) } : {}) }}
+        ...(playing && !inert ? { pointerEvents: passThrough ? ("none" as const) : ("auto" as const) } : {}),
+        // the injected shell ring replaces the UA box ring (see above)
+        ...(focusV && shellStamped ? { outline: "none" } : {}) }}
       {...(playing ? playHandlers
         : onDesignClick ? {
             onClick: onDesignClick, role: "button", tabIndex: 0,

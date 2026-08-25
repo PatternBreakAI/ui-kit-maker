@@ -90,6 +90,10 @@ WHAT YOU MAY NOT DO
   Resell or redistribute the assets themselves — as a kit, an asset pack,
   a template, or any other bundle whose value is these files.
 
+  Images you uploaded to your account (your logo, for instance) remain
+  entirely yours; nothing in this licence limits your rights to your
+  own content.
+
 This export was issued to the account above. Please don't share the file
 itself; share the link and let people make their own.
 

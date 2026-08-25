@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
@@ -111,6 +111,17 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** The Leading dial, resolved per row (base = the resting design;
+   *  base-<state> rows = that state's fork-first per-key read — bevel's
+   *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
+   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today)
+   *  and ONLY when non-factory (≠ 100), so a factory kit's manifest stays
+   *  byte-identical. The importer maps it onto the live label as
+   *  TMP lineSpacing = 0.73 * (leading − 100): the app's gap is
+   *  fs·0.73em·leading/100, so the DELTA from factory is 0.73em per 100%
+   *  — riding TMP's em*100 spacing units on top of the face's natural
+   *  line height, which IS today's look at factory (absent/100 ⇒ 0). */
+  leading?: number;
   /** The gauge READOUT seat, parsed from the face render's geo stamp
    *  (data-gauge) in file px at pngScale: number center x/y + font size,
    *  then the unit line's y + size. The importer's live TMP numbers sit
@@ -453,6 +464,10 @@ export async function collectExportBoards(st: {
   /** The saved-asset library — board pieces frozen from a reworked copy
    *  (the BACK-button story). Needed so those pieces travel to Unity. */
   library?: LibItem[];
+  /** The My-assets registry (user logos) — placed copies resolve their
+   *  pixels through it and travel the big-glyph road (optional: older
+   *  callers ship no logos). */
+  userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
 }): Promise<ExportBoardData[]> {
   const { captureVideoPoster } = await import("./bgvault");
   /* exports are SELF-CONTAINED: refs resolve to real pixels here — vault
@@ -462,8 +477,32 @@ export async function collectExportBoards(st: {
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
+  /* user-logo prefab names must stay UNIQUE per export: the importer
+     converges Prefabs/BigGlyphs/<FileSafeWord(name)>.prefab by NAME, so
+     a logo called "Star" would overwrite the owner's Star glyph prefab.
+     Compare on the importer's own truncation (24 chars, case-folded). */
+  const prefabKey = (n: string) => n.trim().slice(0, 24).trim().toLowerCase();
+  const logoNames = new Map<string, string>(); // aid → shipped unique name
+  const takenNames = new Set<string>();
+  for (const bd0 of st.boards) for (const b0 of bd0.items) {
+    if (b0.big) { const g0 = bigGlyphById(b0.big.gid); if (g0) takenNames.add(prefabKey(g0.name)); }
+  }
+  const logoShipName = (aid: string, name: string): string => {
+    const hit = logoNames.get(aid);
+    if (hit) return hit;
+    let want = name.trim() || "My logo";
+    if (takenNames.has(prefabKey(want))) {
+      for (let n = 2; ; n++) {
+        const cand = `${want.slice(0, 24 - String(n).length - 1).trim()} ${n}`;
+        if (!takenNames.has(prefabKey(cand))) { want = cand; break; }
+      }
+    }
+    takenNames.add(prefabKey(want));
+    logoNames.set(aid, want);
+    return want;
+  };
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big || b.logo);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -756,6 +795,75 @@ export async function collectExportBoards(st: {
         });
         continue;
       }
+      if (b.logo) {
+        /* a USER LOGO travels the EXACT big-glyph road (owner: "these
+           assets should live in my assets drawer and follow my account"):
+           `component: "bigglyph"` rows with big.id "user-<aid>" and the
+           sprite at bigglyphs/<big.id>.png — the shipped importer's
+           BigGlyphPrefabs walk converges every copy onto
+           Prefabs/BigGlyphs/<Name>.prefab with ZERO C# changes. Pixels
+           resolve vault-first, then the account's cloud copy (the
+           backdrop contract), and always re-encode to PNG so the .png
+           path speaks the truth whatever the upload container was. A
+           dialed copy bakes its shadow/glow into an instance-suffixed
+           sprite, the big-glyph fx precedent verbatim. */
+        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
+        const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
+        if (!ua || !aidSafe) continue;
+        const uid2 = `user-${aidSafe}`;
+        const hasFx = !!(b.logo.shadow || b.logo.glow);
+        let file: string;
+        let wNat = ua.w, hNat = ua.h;
+        try {
+          const rec = await resolveBgAsset(ua.ref);
+          if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
+          const bmp = await createImageBitmap(rec.blob);
+          wNat = bmp.width; hNat = bmp.height;
+          const draw = (pad: number, filter?: string): Promise<Blob | null> => {
+            const cv = document.createElement("canvas");
+            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
+            const cx2 = cv.getContext("2d")!;
+            if (filter) cx2.filter = filter;
+            cx2.drawImage(bmp, pad, pad);
+            return new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+          };
+          if (!hasFx) {
+            file = `bigglyphs/${uid2}.png`;
+            if (!bigClean.has(uid2)) {
+              const blob = await draw(0);
+              if (!blob) { bmp.close(); continue; }
+              stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+              bigClean.add(uid2);
+            }
+          } else {
+            const fxB = { gid: "", ...b.logo };
+            const blob = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
+            if (!blob) { bmp.close(); continue; }
+            file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
+            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
+          bmp.close();
+        } catch { continue; }
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        // fx sprites pad symmetrically — same footprint contract as glyphs
+        const padB = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
+        const wB = (wNat + padB * 2) * kB, hB = (hNat + padB * 2) * kB;
+        const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
+        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
+        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
+          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          artW: Math.round(wNat * kB * 10) / 10, artH: Math.round(hNat * kB * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
+          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
+          stamp: file,
+          // the user's own name keys the prefab — uniquified against the
+          // glyph set so it can never overwrite a stock prefab
+          big: { id: uid2, name: logoShipName(ua.id, ua.name), sprite: file, fx: hasFx },
+        });
+        continue;
+      }
       if (!b.kitId && b.libId) {
         /* a SAVED ASSET — its look and words are a frozen snapshot by
            design (the master is never touched), so it travels as a BAKED
@@ -803,7 +911,14 @@ export async function collectExportBoards(st: {
       /* the Board stage's own recipe, WHOLE (Board.tsx svgOf): icon
          override, variant overlay (~gold), 9-slice stretch — dims and
          baked pixels must match what the maker saw */
-      const cfgP = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      const cfgP0 = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns?.[id]), st.kitTextFill[id]);
+      /* a dialed instance shadow REPLACES the kit's cast for this copy
+         (the stage's suppressCastShadow rule verbatim) — every render
+         below stays shadow-calm and the dialed shadow travels as its own
+         bake: the grounded sibling on prefab pieces, baked pixels on the
+         prefab-less road. The kit-shadow bake's opacity gate goes false
+         on the calmed config by construction, so replace can never stack. */
+      const cfgP = b.shadow?.s ? suppressCastShadow(cfgP0) : cfgP0;
       const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         // kitNoText → deliberate "" (wordless render), never heal-to-stock
@@ -855,14 +970,65 @@ export async function collectExportBoards(st: {
         const fdK = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
         const { bytes: pk } = await svgToPngBytes(svgK, 2);
+        /* a dialed copy shadow on a BAKED piece rides IN the pixels (the
+           importer's shadow sibling only fires on stamp-less rows): the
+           raster re-draws through the shared kitShadowFilter on a
+           symmetrically padded canvas — the typestamp fx contract — and
+           the row's w/h grow to the padded raster while artW/artH keep
+           the true art box for raycasts. cfgP is already cast-calm for
+           this copy, so kit + dial can never stack here either. */
+        let bytesK = pk;
+        let padK = 0;
+        if (b.shadow?.s) {
+          try {
+            const bmpK = await createImageBitmap(new Blob([pk.slice().buffer as ArrayBuffer]));
+            padK = kitShadowPad(b.shadow);
+            const cvK = document.createElement("canvas");
+            cvK.width = bmpK.width + padK * 2 * 2; cvK.height = bmpK.height + padK * 2 * 2;
+            const cxK = cvK.getContext("2d")!;
+            const kfK = kitShadowFilter(b.shadow, 2);
+            if (kfK) cxK.filter = kfK;
+            cxK.drawImage(bmpK, padK * 2, padK * 2);
+            bmpK.close();
+            const blobK = await new Promise<Blob | null>((r) => cvK.toBlob(r, "image/png"));
+            if (blobK) bytesK = new Uint8Array(await blobK.arrayBuffer()); else padK = 0;
+          } catch { padK = 0; /* the copy still ships, shadow-less */ }
+        }
+        /* invgrid wells were measured against the UNPADDED raster — remap
+           the fractions onto the padded rect so the live tiles stay true */
+        if (cells && padK) {
+          const vbK = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(still);
+          if (vbK) {
+            const vwK = +vbK[3], vhK = +vbK[4];
+            const remap: number[] = [];
+            for (let i = 0; i < cells.length; i += 4) {
+              remap.push(
+                Math.round(((cells[i] * vwK + padK) / (vwK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 1] * vhK + padK) / (vhK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 2] * vwK) / (vwK + padK * 2)) * 10000) / 10000,
+                Math.round(((cells[i + 3] * vhK) / (vhK + padK * 2)) * 10000) / 10000);
+            }
+            cells = remap;
+          } else cells = null;
+        }
         const file = `boardstamps/${slug}-k${sidOf(b)}.png`;
-        stampFiles.push({ file, bytes: pk });
+        stampFiles.push({ file, bytes: bytesK });
         exItems.push({
           // base id even for a clone — the baked pixels above already wear
           // the clone's fork, and the importer only knows base names
           component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
-          w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax, ay, anchor, stamp: file,
+          // a dialed-shadow bake grew symmetrically — the row's rect is the
+          // padded raster, artW/artH the true art (the typestamp contract)
+          w: Math.round((w + padK * 2 * k) * 10) / 10, h: Math.round((h + padK * 2 * k) * 10) / 10,
+          ...(padK ? { artW: Math.round(w * 10) / 10, artH: Math.round(h * 10) / 10 } : {}),
+          /* the maker's CONTENT rides the row as data, not only as pixels
+             (the HUD-counter round: the dialed amount must be readable in
+             the manifest). Same per-copy-first recipe as the prefab road.
+             Safe for the shipped importer: every label/value consumer in
+             the C# guards on string.IsNullOrEmpty(it.stamp), so a baked
+             row's fields are provenance only until a rig opts in. */
+          rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
+          value: b.v ?? st.kitVals[id] ?? null, ax, ay, anchor, stamp: file,
           ...(cells ? { cells, cellSel } : {}),
         });
         continue;
@@ -1147,6 +1313,74 @@ export async function collectExportBoards(st: {
           }
         }
       } catch { /* a piece without its shadow still places — grounding is decor */ }
+      /* ── the DIALED per-copy shadow (owner: "unity transferable drop
+         shadows to ui components in boards… built into the states") —
+         bake ONLY the shadow ink of this copy's rendered alpha: raster
+         the calm art (cast/contact already suppressed on cfgP, state
+         glows and idle quieted here), drop-shadow it through the SAME
+         kitShadowFilter recipe the stage shows, then destination-out
+         the art so the sprite carries shadow ink alone. It ships through
+         the EXACT row fields the kit-shadow sibling already rides
+         (shadow/shadowW/H/Dx/Dy), so the current importer grounds it —
+         planted while the piece lifts and presses — with ZERO C#
+         changes. Pure-type pieces MAY dial one (an explicit ask beats
+         the round-26 auto-skip): the kit face inlines first so the
+         shadow keeps the real letterforms, and the ghosted bake can
+         never resurrect the double-readout — the art ink is erased. */
+      if (b.shadow?.s) {
+        try {
+          const cSh2 = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
+          cSh2.stateDesigns = {}; // the bake renders "default"
+          for (const s4 of Object.values(cSh2.states)) s4.glow = 0;
+          if (cSh2.idle) cSh2.idle = { ...cSh2.idle, wipe: false, edge: false };
+          let artSvg = renderKit(cSh2, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+            icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+          });
+          artSvg = artSvg
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+            .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+          if (/<text/.test(artSvg)) {
+            const fdSh2 = fontByName(cfgP.type.font);
+            artSvg = await inlineKitFace(artSvg, cfgP.type.font, fdSh2.name === cfgP.type.font ? fdSh2.css ?? null : null);
+          }
+          artSvg = splitFilterChains(artSvg);
+          const shellSh2 = (/data-shell="([-\d. ]+)"/.exec(artSvg) ?? /data-shell0="([-\d. ]+)"/.exec(artSvg))?.[1].split(" ").map(Number);
+          const vbSh3 = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(artSvg);
+          if (shellSh2 && shellSh2.length === 4 && shellSh2[2] > 4 && shellSh2[3] > 4 && vbSh3) {
+            const { bytes: artPng } = await svgToPngBytes(artSvg, 2);
+            const bmpSh = await createImageBitmap(new Blob([artPng.slice().buffer as ArrayBuffer]));
+            const padR = kitShadowPad(b.shadow) * 2; // raster is 2× design px
+            const cvSh = document.createElement("canvas");
+            cvSh.width = bmpSh.width + padR * 2; cvSh.height = bmpSh.height + padR * 2;
+            const cxSh2 = cvSh.getContext("2d")!;
+            const kfSh = kitShadowFilter(b.shadow, 2);
+            if (kfSh) cxSh2.filter = kfSh;
+            cxSh2.drawImage(bmpSh, padR, padR);
+            // ghost the art — shadow ink alone remains for the sibling
+            cxSh2.filter = "none";
+            cxSh2.globalCompositeOperation = "destination-out";
+            cxSh2.drawImage(bmpSh, padR, padR);
+            bmpSh.close();
+            const blobSh = await new Promise<Blob | null>((r) => cvSh.toBlob(r, "image/png"));
+            if (blobSh) {
+              const fileSh2 = `boardstamps/${slug}-sh${sidFor()}.png`;
+              stampFiles.push({ file: fileSh2, bytes: new Uint8Array(await blobSh.arrayBuffer()) });
+              const kxD = pw / shellSh2[2], kyD = ph / shellSh2[3];
+              const padD = padR / 2; // back to design px
+              const cW2 = +vbSh3[3] + padD * 2, cH2 = +vbSh3[4] + padD * 2;
+              const cCx2 = +vbSh3[1] + (+vbSh3[3]) / 2, cCy2 = +vbSh3[2] + (+vbSh3[4]) / 2;
+              shadowMeta = {
+                file: fileSh2,
+                w: Math.round(cW2 * kxD * 10) / 10, h: Math.round(cH2 * kyD * 10) / 10,
+                dx: Math.round((cCx2 - (shellSh2[0] + shellSh2[2] / 2)) * kxD * 10) / 10,
+                dy: Math.round((cCy2 - (shellSh2[1] + shellSh2[3] / 2)) * kyD * 10) / 10,
+              };
+            }
+          }
+        } catch { /* a copy without its dialed shadow still places */ }
+      }
       exItems.push({
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
@@ -2554,15 +2788,34 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the labeled props' words: the maker's own (kitLabels) with the
        importer's stock as fallback — mirror of DefaultLabel */
     const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99" };
+    /* STACKED multi-line label props: the Leading dial travels (owner:
+       "Leading did not work on the End Turn button" — fixed app-side; the
+       export must carry the resolved value or Unity's LIVE label
+       re-typesets at TMP's default line height forever). Emission is the
+       raw dial percentage, per row, fork-first per key — bevel's endturn
+       read verbatim — and only when ≠ 100 so factory kits stay
+       byte-identical. Future stacked labels join this set and inherit
+       the whole plumb (manifest row → PBAsset.leading → the importer's
+       LeadingLineSpacing seam). */
+    const STACKED_LABEL_PROPS = new Set<KitComponentId>(["endturn"]);
+    const leadingOf = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") => {
+      const c = pieceCfg(id);
+      /* fork-first PER KEY: a fork snapshot that never carried `leading`
+         (factory designs, pre-dial saves) falls through to the dial —
+         the wholesale read masked it at 100% (the app's own lesson) */
+      return (stName ? c.stateDesigns?.[stName]?.type?.leading : undefined) ?? c.type.leading ?? 100;
+    };
+    const leadingRow = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") =>
+      STACKED_LABEL_PROPS.has(id) && leadingOf(id, stName) !== 100 ? { leading: leadingOf(id, stName) } : {};
     for (const p of PROPS) {
       if (!shipProp(p.id)) continue;
       const propWord = PROP_WORD[p.id] !== undefined ? (st.kitLabels?.[p.id] ?? PROP_WORD[p.id]) : undefined;
       await addPng(`${p.id}/base.png`, shell(p.id, {}, undefined, p.value),
-        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}) }, true, p.id);
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...leadingRow(p.id) }, true, p.id);
       for (const stName of p.states)
         await addPng(`${p.id}/base-${stName}.png`, stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` }, true, p.id);
+            usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.`, ...leadingRow(p.id, stName) }, true, p.id);
       if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
         await addPng(`trophyicon/${fin}.png`, shell("trophyicon", { overlay: fin }),
           { component: "trophyicon", part: fin, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -3512,6 +3765,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
@@ -3551,6 +3805,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakKitTrace.cs",
+    "Runtime/PatternBreakSafeArea.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
        PatternBreak.Runtime assembly, and the shared Editor importer could
@@ -4864,6 +5119,49 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script: the SAFE-AREA root (round 29 — the responsive
+   contract). Every board scene puts ONE of these between the Canvas and
+   the kit's content: its anchors track Screen.safeArea, so the UI
+   respects notches, the Dynamic Island, foldable hinges and rounded
+   corners while the full-bleed backdrop stays OUTSIDE it, directly on
+   the Canvas. Core APIs only — Screen.safeArea is version-stable and
+   this file must compile on every Unity the kit reaches (the round-19
+   P0 rule). No polling beyond a cheap per-frame compare; no editor
+   surface at all. */
+const SAFE_AREA_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Safe area — parent your UI under this rect and it stays out of the
+     device cutouts; leave backgrounds beside it (directly on the Canvas)
+     so they keep bleeding to the physical edges. Re-applies whenever the
+     safe rect or the screen changes (rotation, fold, split-screen). */
+  [AddComponentMenu("UI Kit Maker/Kit Safe Area")]
+  [DisallowMultipleComponent]
+  [RequireComponent(typeof(RectTransform))]
+  public class KitSafeArea : MonoBehaviour {
+    Rect applied = new Rect(0f, 0f, -1f, -1f);
+    int sw = -1, sh = -1;
+    void OnEnable() { Apply(); }
+    void Update() {
+      if (Screen.safeArea != applied || Screen.width != sw || Screen.height != sh) Apply();
+    }
+    void Apply() {
+      float w = Screen.width, h = Screen.height;
+      if (w < 1f || h < 1f) return; // a headless/startup frame never writes garbage
+      var sa = Screen.safeArea;
+      var min = new Vector2(Mathf.Clamp01(sa.xMin / w), Mathf.Clamp01(sa.yMin / h));
+      var max = new Vector2(Mathf.Clamp01(sa.xMax / w), Mathf.Clamp01(sa.yMax / h));
+      // a degenerate report (some editors mid-layout) must never collapse the UI
+      if (max.x - min.x < 0.2f || max.y - min.y < 0.2f) { min = Vector2.zero; max = Vector2.one; }
+      var rt = (RectTransform)transform;
+      rt.anchorMin = min; rt.anchorMax = max;
+      rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+      applied = sa; sw = Screen.width; sh = Screen.height;
+    }
+  }
+}
+`;
+
 /* Runtime script #3: the touch stick. The joystick ships as base + thumb
    sprites and this component makes them a WORKING control — the "your
    kit, driving a character, thirty seconds after the drop" demo. */
@@ -6147,6 +6445,60 @@ Open one, press Play; buttons respond. Like the Playground, a board
 scene builds once and is then yours — **Tools > PatternBreak > Rebuild
 Kit Board Scenes** regenerates them from the manifest when you want a
 fresh copy.
+
+### Safe areas & scaling — how board scenes stay responsive
+
+Every board scene ships phone-ready, three deliberate layers deep:
+
+- **The Safe Area root.** Between the Canvas and the content sits one
+  **Safe Area** rect carrying the tiny \`KitSafeArea\` runtime: its
+  anchors track \`Screen.safeArea\` live (rotation, notches, the Dynamic
+  Island, foldable hinges), so every kit piece clears the cutouts.
+  The **Background/Overlay stay OUTSIDE it**, directly on the Canvas —
+  backdrops are supposed to bleed to the physical edges. Parent your
+  own UI under Safe Area; parent your own backdrops beside it. In the
+  editor the safe rect is the whole screen, so nothing looks different
+  until a device (or the Device Simulator) reports a cutout.
+- **The Canvas Scaler policy.** Scale With Screen Size, reference
+  resolution = the board's own frame. Landscape boards match **0.5**
+  (halfway between width and height): pure width-match balloons HUD art
+  on 21:9 monitors, pure height-match shrinks it on 16:10/4:3 —
+  splitting the difference drifts least across the desktop spread.
+  Portrait boards match **width (0)**: phone UI is designed against the
+  width while heights swing wildly (19.5:9 down to 16:9), so
+  width-match keeps buttons finger-true and lets the extra height
+  breathe.
+- **Anchor inference v1 — one predictable rule.** Each board piece gets
+  its RectTransform anchor from where it sits on the frame:
+  - center inside the **outer 18%** of the frame (either axis) →
+    anchored to that **edge**; both axes in the band → that **corner**.
+    HUD corners stay HUD corners on every aspect ratio.
+  - **baked art** (a flattened stamp) spanning **80%+ of a dimension**,
+    unrotated → **stretches** across that dimension, margins held.
+    Type stamps and big-glyph art are exempt — letterforms never
+    distort — and live prefabs always keep point anchors (their sizing
+    runs through scale, which stretch anchors would break).
+  - everything else → anchored to the **center** (the safe default —
+    every ambiguity resolves here, never a guess).
+  At the board's own resolution nothing moves — the rule only decides
+  what happens on OTHER aspects. The import Console prints a per-scene
+  receipt ("responsive anchors — N edge/corner, M centered, K
+  stretched") so you can audit every decision, and re-anchoring a piece
+  by hand in Unity is always respected — the kit's heals key on OUR
+  seats and never touch a piece you moved.
+- **The Responsive Check scene.** **Scenes/Responsive Check.unity** is
+  a thirty-second sanity check: a bright green outline drawn by the
+  live safe area, a backdrop that deliberately bleeds under cutouts,
+  corner tags that hug their corners, and a couple of live kit pieces.
+  Open it, press Play, switch Game-view aspect ratios or the Device
+  Simulator, and watch the outline move while the UI stays inside it.
+  Built once, then yours — **Tools > PatternBreak > Rebuild Responsive
+  Check Scene** refreshes it.
+
+Re-importing a newer export over an older project grafts the Safe Area
+root into KEPT board scenes too (the Console says so per scene) —
+layout-identical in the editor, cutout-safe on device. Scenes never
+re-imported are never touched.
 ${st.boards?.some((b) => b.items.some((i) => i.big)) ? `
 Big-glyph board art rides along: each glyph you used gets its own
 prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
@@ -6555,6 +6907,33 @@ translucent glass rings built to sit ON TOP of live gameplay. Drag it
 over your scene, read the same Value; its inks follow the kit's Ghost
 color slot, so a re-export re-tints it with the rest of the kit.
 
+**ScrollView**: a WORKING list, not a picture of one. The kit panel is
+the frame, the Viewport masks, and **Viewport > Content** is a ready
+list column — a vertical layout group + size fitter are pre-rigged, so
+drop your rows in (kit prefabs, your own objects, twenty of them) and
+they stack, the column grows, and it scrolls. Wheel, drag and flick
+are all live at sane speeds; the kit-dressed scrollbar is two-way
+wired — drag the handle and the list follows, scroll the list and the
+handle follows — and it keeps the kit's pixels in every state. Row
+spacing and padding are the layout group's dials on Content; delete
+the layout group if you'd rather place content freely.
+
+**Input**: a WORKING TMP_InputField, not a picture of one — click it in
+Play mode and type. The kit surface is the field; the placeholder is a
+live TMP child in the kit's own face (retype or delete it — it hides
+the moment a character lands); your typed text rides a masked Text
+Area seated on the well exactly where the app draws the affordance.
+The caret wears the kit's Glow ink and the selection its translucent
+wash, both from kit-manifest.json > palette. Body copy needs a robust
+text font, so the typed value wears the kit's own face (undressed —
+no outline/glow material) only when its TTF proves full keyboard
+coverage at import, with TMP's LiberationSans wired as fallback for
+anything beyond it; a display TTF with gaps hands the value line to
+the neutral grotesk and keeps the kit face on the placeholder. Bind
+*On Value Changed* / *On End Edit* in the Inspector like any
+TMP_InputField. (Pre-2023.2 editors keep the flat surface +
+placeholder — TMP ships inside uGUI from 2023.2.)
+
 **LapTimes / Leaderboard / Telemetry**: the plates sliced so they
 stretch — instrument well, grid and axis rails baked in — with titles,
 legends, rows and axis numbers all live text in the Words group (the
@@ -6733,6 +7112,19 @@ using UnityEngine.UI;
 // this whole assembly).
 using TMPro;
 #endif
+// THE GUARD STANDARD (P0, verification sweep). Pre-2023.2 the using above
+// is compiled OUT, so an UNQUALIFIED TMP symbol outside a
+// UNITY_2023_2_OR_NEWER block is CS0246 on every 2022.3 editor — with or
+// without TMP installed — and this whole Editor assembly dies: nothing
+// imports. The standard, enforced by check-unity-importer.mjs:
+//   1. unqualified TMP symbols ONLY inside UNITY_2023_2_OR_NEWER blocks;
+//   2. outside them, TMP references are fully qualified (TMPro.TMP_Text) —
+//      legal because the asmdefs declare Unity.TextMeshPro and 2022.3, the
+//      Asset Store floor, ships TMP in every project template (a DELIBERATE
+//      hard dependency, decided at this fix — not an accident to re-guard);
+//   3. a helper or runtime-class member that exists only inside a guard
+//      (HeroLabel.SetText, LabelStateInk's shifts) is guarded at every
+//      call site — pre-2023.2 code paths fall through to the legacy rungs.
 
 namespace PatternBreak {
   [Serializable] class PBSlice { public int left, right, top, bottom; }
@@ -6782,7 +7174,7 @@ namespace PatternBreak {
      rendered box side); strokeS 0 / strokeFile "" = no outline pass and
      the seat wears the single flat image exactly as before. */
   [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -7585,6 +7977,11 @@ namespace PatternBreak {
         try { LabelVariantPrefabs(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
         BuildBoardScenes(root, manifest);
+        /* the Responsive Check scene rides the same beat (round 29) —
+           built once, then yours; Tools > PatternBreak > Rebuild
+           Responsive Check Scene refreshes it */
+        try { BuildResponsiveCheck(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: the Responsive Check scene failed — " + e.Message); }
         /* a kit UPDATE leaves existing scenes wearing their FIRST build's
            sizing and words — new sprites on old decisions (field: the
            flame button back at its default proportions and label). A
@@ -7619,6 +8016,11 @@ namespace PatternBreak {
               + (liveGain > 0 ? " This update also turned " + liveGain + " baked board piece(s) into LIVE prefab instances — Rebuild swaps their flattened stand-ins for the real thing." : ""));
           }
         }
+        /* KEPT scenes adopt the responsive Safe Area root — heal-out-loud
+           (round 29), BEFORE the word heal so its walk sees the final
+           tree; rebuilt scenes already carry the root and skip. */
+        try { HealSafeAreaRoots(root, manifest); }
+        catch (Exception e) { Debug.LogWarning("UI Kit Maker: safe-area adoption skipped — " + e.Message); }
         /* either way, KEPT scenes get their orphaned pinned words back —
            rebuilt scenes are already right and heal as a no-op */
         try { HealBoardWords(root, manifest); }
@@ -7753,6 +8155,176 @@ namespace PatternBreak {
         UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
         untitled ? UnityEditor.SceneManagement.NewSceneMode.Single : UnityEditor.SceneManagement.NewSceneMode.Additive);
       return true;
+    }
+    /* ── the CanvasScaler MATCH POLICY (round 29, documented in the README
+       deck). LANDSCAPE frames balance both axes (0.5): HUD art must not
+       blow up on a 21:9 monitor (pure width-match would) nor shrink on
+       16:10/4:3 (pure height-match would) — splitting the difference
+       drifts least across the desktop/console spread. PORTRAIT frames
+       match WIDTH (0): phone UI is designed against the width while
+       heights swing wildly (19.5:9 down to 16:9), so width-match keeps
+       buttons finger-true and lets the extra height breathe; 0.5 there
+       would shrink a tall phone's UI for no reason. One seat, every
+       scene builder — the policy can never fork. ── */
+    static float ScalerMatchFor(float refW, float refH) {
+      return refH > refW ? 0f : 0.5f;
+    }
+    /* one bright edge of the Responsive Check's safe-area outline */
+    static void CheckEdge(Transform parent, string edgeName, Vector2 aMin, Vector2 aMax, Vector2 size, Vector2 pivot) {
+      var go = new GameObject(edgeName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.transform.SetParent(parent, false);
+      var img = go.GetComponent<Image>();
+      img.color = new Color(0.30f, 0.95f, 0.55f, 0.9f); // loud spring green — diagnostics, not kit dress
+      img.raycastTarget = false;
+      var rt = (RectTransform)go.transform;
+      rt.anchorMin = aMin; rt.anchorMax = aMax; rt.pivot = pivot;
+      rt.sizeDelta = size; rt.anchoredPosition = Vector2.zero;
+    }
+    /* one anchored word tag of the Responsive Check (TMP editors only —
+       the outline carries the scene on older editors). side: -1 = the
+       words grow rightward from the seat, 1 = leftward, 0 = centered. */
+    static void CheckTag(Transform parent, string word, float fs, Vector2 a, Vector2 pivot, Vector2 pos, int side) {
+#if UNITY_2023_2_OR_NEWER
+      var go = new GameObject("Tag — " + word, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      go.transform.SetParent(parent, false);
+      var t = go.GetComponent<TextMeshProUGUI>();
+      t.text = word; t.fontSize = fs; t.fontStyle = FontStyles.Bold;
+      t.color = new Color(0.92f, 0.96f, 1f, 0.95f);
+      t.alignment = side < 0 ? TextAlignmentOptions.MidlineLeft : side > 0 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.Midline;
+      t.raycastTarget = false;
+#pragma warning disable 0618
+      t.enableWordWrapping = false;
+#pragma warning restore 0618
+      t.overflowMode = TMPro.TextOverflowModes.Overflow;
+      var rt = (RectTransform)go.transform;
+      rt.anchorMin = a; rt.anchorMax = a; rt.pivot = pivot;
+      rt.sizeDelta = new Vector2(420f, fs * 1.4f);
+      rt.anchoredPosition = pos;
+#endif
+    }
+    /* ── the RESPONSIVE CHECK scene (round 29): one screen a dev opens to
+       SEE the safe-area behavior before shipping. The green outline IS
+       the live Screen.safeArea; the backdrop deliberately bleeds under
+       cutouts; corner tags hug their corners at every aspect; a couple
+       of live kit pieces sit center/bottom so the kit itself is in the
+       frame. Switch Game-view aspect ratios — or the Device Simulator —
+       and watch. Cheap on purpose, built once, then yours. ── */
+    static void BuildResponsiveCheck(string root, PBManifest m) {
+      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) return; // prefabs not in yet — the next pass retries
+      var dir = root + "/Scenes";
+      if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
+      var scenePath = dir + "/Responsive Check.unity";
+      if (File.Exists(scenePath)) return; // yours after first generation
+      UnityEngine.SceneManagement.Scene scene;
+      if (!TryNewKitScene(out scene, "the Responsive Check scene")) return;
+      try {
+        var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
+        var camGo = new GameObject("Camera", typeof(Camera));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
+        var cam = camGo.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.09f, 0.10f, 0.15f);
+        camGo.tag = "MainCamera";
+        var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(canvasGo, scene);
+        canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        // reference frame: the kit's first board (the aspect the maker
+        // actually designed at), else landscape HD
+        float rw = 1920f, rh = 1080f;
+        if (m != null && m.boards != null && m.boards.Length > 0 && m.boards[0] != null && m.boards[0].w > 0) { rw = m.boards[0].w; rh = m.boards[0].h; }
+        var scaler = canvasGo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(rw, rh);
+        scaler.matchWidthOrHeight = ScalerMatchFor(rw, rh);
+        var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
+#if ENABLE_LEGACY_INPUT_MANAGER
+        esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#elif ENABLE_INPUT_SYSTEM
+        esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#endif
+        /* the backdrop bleeds FULL-SCREEN, outside the safe root, exactly
+           like a board scene's Background — on a notched device it slides
+           under the cutout while everything else stays clear of it */
+        var bgGo = new GameObject("Backdrop (full-bleed)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bgGo.transform.SetParent(canvasGo.transform, false);
+        var brt = (RectTransform)bgGo.transform;
+        brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+        brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
+        var bimg = bgGo.GetComponent<Image>();
+        bimg.color = new Color(0.11f, 0.13f, 0.20f, 1f);
+        bimg.raycastTarget = false;
+        var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        var safeRt = (RectTransform)safeGo.transform;
+        safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
+        safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
+        var safeT = safeGo.transform;
+        // the outline: four thin bars hugging the safe rect's edges
+        CheckEdge(safeT, "Safe Edge Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 6f), new Vector2(0.5f, 1f));
+        CheckEdge(safeT, "Safe Edge Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 6f), new Vector2(0.5f, 0f));
+        CheckEdge(safeT, "Safe Edge Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(6f, 0f), new Vector2(0f, 0.5f));
+        CheckEdge(safeT, "Safe Edge Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(6f, 0f), new Vector2(1f, 0.5f));
+        // corner tags — each hugs ITS corner on every aspect
+        CheckTag(safeT, "TOP LEFT", 30f, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), -1);
+        CheckTag(safeT, "TOP RIGHT", 30f, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), 1);
+        CheckTag(safeT, "BOTTOM LEFT", 30f, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), -1);
+        CheckTag(safeT, "BOTTOM RIGHT", 30f, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), 1);
+        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f), 0);
+        // a couple of live kit pieces so the check shows the real kit
+        int livePlaced = 0;
+        var pfBtn = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ButtonPrimary.prefab");
+        if (pfBtn != null) {
+          var iB = (GameObject)PrefabUtility.InstantiatePrefab(pfBtn, scene);
+          iB.transform.SetParent(safeT, false);
+          var rtB = iB.GetComponent<RectTransform>();
+          if (rtB != null) {
+            rtB.anchorMin = new Vector2(0.5f, 0.5f); rtB.anchorMax = new Vector2(0.5f, 0.5f);
+            rtB.anchoredPosition = Vector2.zero;
+            livePlaced++;
+          }
+        }
+        var pfBar = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ProgressBar.prefab");
+        if (pfBar != null) {
+          var iP = (GameObject)PrefabUtility.InstantiatePrefab(pfBar, scene);
+          iP.transform.SetParent(safeT, false);
+          var rtP = iP.GetComponent<RectTransform>();
+          if (rtP != null) {
+            rtP.anchorMin = new Vector2(0.5f, 1f); rtP.anchorMax = new Vector2(0.5f, 1f);
+            rtP.anchoredPosition = new Vector2(0f, -90f);
+            livePlaced++;
+          }
+        }
+        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
+          Debug.Log("UI Kit Maker: Responsive Check ready — open " + scenePath + ", press Play, and switch Game-view aspect ratios (or the Device Simulator): the green outline is the live safe area, the backdrop bleeds under cutouts, and the corner tags hold their corners (" + livePlaced + " live kit piece(s) placed).");
+        else
+          Debug.LogWarning("UI Kit Maker: couldn't save the Responsive Check scene at " + scenePath + " — run Tools > PatternBreak > Rebuild Responsive Check Scene.");
+      } finally {
+        if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
+          UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+      }
+    }
+    [MenuItem("Tools/PatternBreak/Rebuild Responsive Check Scene")]
+    public static void RebuildResponsiveCheck() {
+      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+      if (manifests.Length == 0) {
+        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
+        return;
+      }
+      if (!EditorUtility.DisplayDialog("UI Kit Maker — rebuild the Responsive Check scene",
+        "Replaces each kit's Scenes/Responsive Check.unity with a fresh one. Changes you made inside it are lost; every other scene is untouched.",
+        "Rebuild", "Cancel")) return;
+      foreach (var guid in manifests) {
+        var mPath = AssetDatabase.GUIDToAssetPath(guid);
+        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+        PBManifest m = null;
+        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { continue; }
+        var scenePath = root + "/Scenes/Responsive Check.unity";
+        if (File.Exists(scenePath)) AssetDatabase.DeleteAsset(scenePath);
+        BuildResponsiveCheck(root, m);
+      }
     }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
@@ -7909,6 +8481,10 @@ namespace PatternBreak {
        healer place a posed copy's live label EXACTLY the same way — the
        shell-height v-scale and the copy's own label offset */
     static void SeatPosedLabel(GameObject inst, PBBoardItem it, PBManifest m) {
+#if UNITY_2023_2_OR_NEWER
+      /* the guard wraps the BODY: posed copies only carry HeroLabel stacks
+         (a 2023.2+ build product), and authoredHeight exists only inside
+         HeroLabel's own guard — pre-2023.2 this is an honest no-op */
       var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
       if (hl2 == null) return;
       PBAsset baseA3 = null;
@@ -7921,6 +8497,7 @@ namespace PatternBreak {
         hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
         hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
       }
+#endif
     }
     /* ── HEAL ORPHANED BOARD WORDS (owner, after the shield still: "ok,
        no BOOST word"). A PAST import's label redress rebuilt prefab label
@@ -7934,6 +8511,144 @@ namespace PatternBreak {
        heals: a word that is neither the pin nor the stock word is the
        maker's own retype and is never touched. Runs on every import;
        idempotent (a right word is a no-op). ── */
+    /* ── ANCHOR INFERENCE v1 (round 29 slice B) — deliberately
+       conservative, documented in the README deck. The rule:
+       EDGE BAND — a piece whose center sits in the outer 18% of the
+       frame anchors to that edge (both bands: that corner).
+       MIDDLE — anywhere else anchors to the frame center.
+       SPAN — a BAKED piece (a stamp Image at scale 1) covering 80%+ of
+       a dimension stretches with it, margins held — EXCEPT type stamps
+       and big-glyph art, whose letterforms/artwork must never distort,
+       and EXCEPT rotated copies (stretch + rotation is shear). Live
+       prefabs never stretch: their sizing runs through localScale,
+       which stretch anchors break by construction.
+       Every ambiguity resolves to CENTER (the old behavior) — never a
+       wild guess. Manifest-decidable on purpose: the builder placing
+       and the healers matching derive the SAME answer from the same
+       rows, so a healed scene can never disagree with a built one. */
+    static void InferAnchor(PBBoardItem it, PBBoard bd, out Vector2 aMin, out Vector2 aMax) {
+      float band = 0.18f, span = 0.80f;
+      float nx = it.cx / bd.w;        // 0..1 from the left
+      float ny = 1f - it.cy / bd.h;   // 0..1 from the BOTTOM (Unity anchor space; board y runs down)
+      float ax = nx <= band ? 0f : nx >= 1f - band ? 1f : 0.5f;
+      float ay = ny <= band ? 0f : ny >= 1f - band ? 1f : 0.5f;
+      bool baked = !string.IsNullOrEmpty(it.stamp) && it.component != "typestamp" && it.component != "bigglyph";
+      bool sx = baked && Mathf.Abs(it.rot) <= 0.01f && it.w / bd.w >= span;
+      bool sy = baked && Mathf.Abs(it.rot) <= 0.01f && it.h / bd.h >= span;
+      aMin = new Vector2(sx ? 0f : ax, sy ? 0f : ay);
+      aMax = new Vector2(sx ? 1f : ax, sy ? 1f : ay);
+    }
+    /* re-anchors a JUST-PLACED rect (point-anchored at the item's legacy
+       zone, pivot 0.5) to its inferred anchor WITHOUT moving it at the
+       reference resolution: the anchor-reference shift is paid back into
+       anchoredPosition, and a stretched axis pays the parent span out of
+       sizeDelta. Returns the receipt code: 0 centered, 1 edge/corner,
+       2 stretched. */
+    static int ApplyInferredAnchor(RectTransform rt, PBBoardItem it, PBBoard bd) {
+      if (rt == null || bd.w <= 1 || bd.h <= 1) return 0;
+      Vector2 aMin, aMax;
+      InferAnchor(it, bd, out aMin, out aMax);
+      float fAx = (aMin.x + aMax.x) * 0.5f, fAy = (aMin.y + aMax.y) * 0.5f;
+      rt.anchoredPosition += new Vector2((it.ax - fAx) * bd.w, (it.ay - fAy) * bd.h);
+      var sd = rt.sizeDelta;
+      bool stretched = false;
+      if (aMax.x - aMin.x > 0.5f) { sd.x -= bd.w; stretched = true; }
+      if (aMax.y - aMin.y > 0.5f) { sd.y -= bd.h; stretched = true; }
+      if (stretched) rt.sizeDelta = sd;
+      rt.anchorMin = aMin; rt.anchorMax = aMax;
+      if (stretched) return 2;
+      return (aMin.x != 0.5f || aMin.y != 0.5f) ? 1 : 0;
+    }
+    /* the builder's seat, BOTH vintages: true when this rect sits where
+       the pre-29 builder (legacy zone point anchor) or the round-29+
+       builder (inferred responsive anchor) placed this item. The heals
+       key on it — a piece the maker moved matches neither and stays
+       theirs, exactly as before. */
+    static bool MatchesSeat(RectTransform crt, PBBoardItem it, PBBoard bd) {
+      var want = new Vector2(it.cx - it.ax * bd.w, -(it.cy - (1f - it.ay) * bd.h));
+      if ((crt.anchoredPosition - want).sqrMagnitude < 0.25f
+          && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) return true;
+      if (bd.w <= 1 || bd.h <= 1) return false;
+      Vector2 aMin, aMax;
+      InferAnchor(it, bd, out aMin, out aMax);
+      float fAx = (aMin.x + aMax.x) * 0.5f, fAy = (aMin.y + aMax.y) * 0.5f;
+      var wantR = want + new Vector2((it.ax - fAx) * bd.w, (it.ay - fAy) * bd.h);
+      return (crt.anchoredPosition - wantR).sqrMagnitude < 0.25f
+          && (crt.anchorMin - aMin).sqrMagnitude < 2e-6f && (crt.anchorMax - aMax).sqrMagnitude < 2e-6f;
+    }
+    /* the size a healed bake should wear IN ITS OWN anchor frame: a
+       stretch-anchored axis carries the parent span, so the item box
+       must come back as margins (w - frame), not as absolute size — a
+       raw (w, h) write would balloon a stretched stamp. */
+    static void SeatSizeDelta(RectTransform crt, PBBoardItem it, PBBoard bd) {
+      var sd = new Vector2(it.w, it.h);
+      if (crt.anchorMax.x - crt.anchorMin.x > 0.5f) sd.x -= bd.w;
+      if (crt.anchorMax.y - crt.anchorMin.y > 0.5f) sd.y -= bd.h;
+      crt.sizeDelta = sd;
+    }
+    /* ── ADOPT THE SAFE-AREA ROOT (round 29) — heal-out-loud. Kept board
+       scenes predate the responsive contract: their content hangs
+       straight off the Canvas, so a notch can sit on a button. The graft
+       slides one "Safe Area" rect (full-stretch + KitSafeArea) between
+       the Canvas and the content and moves everything except the
+       full-bleed Background/Overlay under it, in draw order. Layout-
+       IDENTICAL in the editor — the safe rect IS the whole screen there
+       and every child keeps its anchors and offsets against an identical
+       rect — so nothing the maker placed moves; on device the UI now
+       clears the cutouts. A scene that already carries the root (built
+       or healed) is untouched; a kit that never re-exports never runs
+       this. ── */
+    static void HealSafeAreaRoots(string root, PBManifest m) {
+      if (m == null || m.boards == null) return;
+      foreach (var bd in m.boards) {
+        var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
+        if (!File.Exists(scenePath)) continue;
+        var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+        bool wasLoaded = scene.IsValid() && scene.isLoaded;
+        bool wasDirty = wasLoaded && scene.isDirty;
+        if (!wasLoaded) {
+          try { scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive); }
+          catch (Exception) { continue; }
+          if (!scene.IsValid()) continue;
+        }
+        try {
+          bool grafted = false; int moved = 0;
+          foreach (var rootGo in scene.GetRootGameObjects()) {
+            var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
+            if (canvasC == null) continue;
+            if (canvasC.transform.Find("Safe Area") != null) continue; // already responsive
+            var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+            safeGo.transform.SetParent(canvasC.transform, false);
+            var srt = (RectTransform)safeGo.transform;
+            srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
+            srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+            grafted = true;
+            /* collect first (SetParent mid-walk mutates the child list —
+               the ghost-swap rule), then move in draw order. Backdrops
+               stay full-bleed on the Canvas, exactly like fresh builds. */
+            var movers = new List<Transform>();
+            foreach (Transform chS in canvasC.transform) {
+              if (chS == safeGo.transform) continue;
+              if (chS.name == "Background" || chS.name == "Overlay") continue;
+              movers.Add(chS);
+            }
+            foreach (var mv in movers) mv.SetParent(safeGo.transform, false);
+            moved += movers.Count;
+          }
+          if (grafted) {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+            string story = "'" + bd.name + "' adopted the responsive Safe Area root — " + moved + " piece(s) now sit under it and clear device cutouts at runtime (backgrounds stay full-bleed; nothing moved in the editor).";
+            if (!wasDirty) {
+              if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
+                Debug.Log("UI Kit Maker: " + story);
+            } else
+              Debug.Log("UI Kit Maker: OPEN scene " + story + " It carries your unsaved edits, so save it yourself to keep the graft.");
+          }
+        } finally {
+          if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+        }
+      }
+    }
     static void HealBoardWords(string root, PBManifest m) {
 #if UNITY_2023_2_OR_NEWER
       if (m == null || m.boards == null) return;
@@ -7968,7 +8683,12 @@ namespace PatternBreak {
           foreach (var rootGo in scene.GetRootGameObjects()) {
             var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
             if (canvasC == null) continue;
-            foreach (Transform ch in canvasC.transform) {
+            /* content lives under the Safe Area root since round 29 —
+               older kept scenes (no root yet) still hold it on the
+               Canvas itself, so the walk follows whichever is there */
+            var safeWalk = canvasC.transform.Find("Safe Area");
+            var walkT = safeWalk != null ? safeWalk : canvasC.transform;
+            foreach (Transform ch in walkT) {
               var crt = ch as RectTransform;
               if (crt == null) continue;
               /* ── STALE SHADOW CULL (round 26 — the second "0:56"): a
@@ -7987,9 +8707,8 @@ namespace PatternBreak {
               PBBoardItem it2 = null;
               foreach (var it in bd.items) {
                 if (it == null) continue;
-                var want = new Vector2(it.cx - it.ax * bd.w, -(it.cy - (1f - it.ay) * bd.h));
-                if ((crt.anchoredPosition - want).sqrMagnitude < 0.25f
-                    && Mathf.Abs(crt.anchorMin.x - it.ax) < 0.001f && Mathf.Abs(crt.anchorMin.y - it.ay) < 0.001f) { it2 = it; break; }
+                // both builder vintages match (legacy zone / round-29 inferred)
+                if (MatchesSeat(crt, it, bd)) { it2 = it; break; }
               }
               if (it2 == null) continue;
               /* ── ROUND-20 GHOST-STICK HEAL (owner: "it's grabbing the
@@ -8016,7 +8735,7 @@ namespace PatternBreak {
                 var wantBig = string.IsNullOrEmpty(it2.big.sprite) ? null : S(root + "/" + it2.big.sprite);
                 if (bigImgH != null && wantBig != null && bigImgH.sprite != wantBig) {
                   bigImgH.sprite = wantBig;
-                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  SeatSizeDelta(crt, it2, bd); // stretch-aware: a spanned axis wears margins, not absolute size
                   ArtRaycastPad(bigImgH, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
@@ -8035,7 +8754,7 @@ namespace PatternBreak {
                 var wantSp = S(root + "/" + it2.stamp);
                 if (img2 != null && wantSp != null && img2.sprite != wantSp) {
                   img2.sprite = wantSp;
-                  crt.sizeDelta = new Vector2(it2.w, it2.h);
+                  SeatSizeDelta(crt, it2, bd); // stretch-aware: a spanned axis wears margins, not absolute size
                   ArtRaycastPad(img2, it2); // the re-adopted bake's pad may differ
                   artFixed++;
                 }
@@ -8223,7 +8942,7 @@ namespace PatternBreak {
         var scaler = canvasGo.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2((float)bd.w, (float)bd.h);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = ScalerMatchFor((float)bd.w, (float)bd.h);
         var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
         UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
 #if ENABLE_LEGACY_INPUT_MANAGER
@@ -8263,7 +8982,22 @@ namespace PatternBreak {
             }
           }
         }
+        /* ── the SAFE-AREA ROOT (round 29): every piece parents HERE, not
+           on the Canvas. KitSafeArea re-anchors this rect to
+           Screen.safeArea at runtime (notches, Dynamic Island, foldable
+           hinges), while Background/Overlay stay full-bleed on the Canvas
+           itself — backdrops fill the screen, UI respects the cutouts.
+           In the editor the safe rect IS the whole screen, so the scene
+           lays out exactly as the board drew it. */
+        var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        var safeRt = (RectTransform)safeGo.transform;
+        safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
+        safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
+        var safeT = safeGo.transform;
         int placed = 0, missing = 0;
+        // the responsive-anchor receipt (round 29 slice B) — one line per scene
+        int anchorsEdge = 0, anchorsCentered = 0, anchorsStretched = 0;
         /* the ordering self-test (round 12): every pinned word on this
            board is accounted for out loud — variant placed, minted right
            here, or base fallback (named). The field reads one line. */
@@ -8271,7 +9005,7 @@ namespace PatternBreak {
         var pinnedFallbacks = new List<string>();
         var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
         if (bd.items != null) foreach (var it in bd.items) {
-          GameObject inst = null; RectTransform rt = null;
+          GameObject inst = null; RectTransform rt = null; RectTransform shadowRt = null;
           /* ── a BIG GLYPH (the owner's board-art drop): every instance
              converges on its asset's OWN prefab (owner mandate: "if used
              then they should export with boards as their own prefabs").
@@ -8287,7 +9021,7 @@ namespace PatternBreak {
             if (bigPf != null) {
               inst = (GameObject)PrefabUtility.InstantiatePrefab(bigPf, scene);
               inst.name = bigNm + (it.big.fx ? " (fx)" : "");
-              inst.transform.SetParent(canvasGo.transform, false);
+              inst.transform.SetParent(safeT, false);
               if (it.big.fx) {
                 var bigImg = inst.GetComponent<Image>();
                 if (bigSp != null && bigImg != null) bigImg.sprite = bigSp; // this copy's bake; the prefab stays clean
@@ -8302,7 +9036,7 @@ namespace PatternBreak {
                  incomplete-scene rebuild, the posed-pipeline precedent */
               if (bigSp == null) { missing++; continue; }
               inst = new GameObject(bigNm + " (baked)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              inst.transform.SetParent(canvasGo.transform, false);
+              inst.transform.SetParent(safeT, false);
               var bigImg2 = inst.GetComponent<Image>();
               bigImg2.sprite = bigSp; bigImg2.raycastTarget = false; bigImg2.preserveAspect = true;
               missing++;
@@ -8327,7 +9061,7 @@ namespace PatternBreak {
               if (hlPf != null) {
                 inst = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
                 inst.name = "Stamp (live) — " + it.label.Trim();
-                inst.transform.SetParent(canvasGo.transform, false);
+                inst.transform.SetParent(safeT, false);
                 rt = inst.GetComponent<RectTransform>();
                 rt.sizeDelta = new Vector2(it.w * 1.2f, it.h * 1.25f);
                 var hlN = inst.GetComponent<HeroLabel>();
@@ -8347,7 +9081,7 @@ namespace PatternBreak {
               ? "Stamp — " + (string.IsNullOrEmpty(it.label) ? "text" : it.label)
               : NiceName(it.component) + " (baked)";
             inst = new GameObject(bakedName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            inst.transform.SetParent(canvasGo.transform, false);
+            inst.transform.SetParent(safeT, false);
             var simg = inst.GetComponent<Image>();
             simg.sprite = ssp; simg.raycastTarget = false;
             rt = inst.GetComponent<RectTransform>();
@@ -8444,7 +9178,7 @@ namespace PatternBreak {
             }
             if (pf == null) { missing++; continue; }
             inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
-            inst.transform.SetParent(canvasGo.transform, false);
+            inst.transform.SetParent(safeT, false);
             rt = inst.GetComponent<RectTransform>();
             if (rt == null) continue;
           }
@@ -8686,7 +9420,7 @@ namespace PatternBreak {
               missing++;
             } else if (it.shadowW > 1f && it.shadowH > 1f) {
               var shGo = new GameObject(NiceName(it.component) + " Shadow (art)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              shGo.transform.SetParent(canvasGo.transform, false);
+              shGo.transform.SetParent(safeT, false);
               var shRt = shGo.GetComponent<RectTransform>();
               shRt.anchorMin = new Vector2(it.ax, it.ay); shRt.anchorMax = new Vector2(it.ax, it.ay);
               shRt.pivot = new Vector2(0.5f, 0.5f);
@@ -8705,8 +9439,20 @@ namespace PatternBreak {
               shImg.raycastTarget = false;
               // slot in right before the piece: behind it, still its neighbor
               shGo.transform.SetSiblingIndex(inst.transform.GetSiblingIndex());
+              shadowRt = shRt;
             }
           }
+          /* ── RESPONSIVE RE-ANCHOR (round 29 slice B): the piece placed
+             at its legacy zone point above with the reference-resolution
+             seat exact; now it adopts its INFERRED anchor (the band/span
+             rule — InferAnchor) without moving a pixel at reference res.
+             The shadow sibling adopts the same anchor, so the pair never
+             drifts apart on other aspects. ── */
+          int anchorKind = ApplyInferredAnchor(rt, it, bd);
+          if (shadowRt != null) ApplyInferredAnchor(shadowRt, it, bd);
+          if (anchorKind == 2) anchorsStretched++;
+          else if (anchorKind == 1) anchorsEdge++;
+          else anchorsCentered++;
           /* per-copy words (the maker typed them on this copy in the app) —
              the override must speak to the stack's OWNER: setting the TMP
              text alone left HeroLabel's own words in charge, and it
@@ -8853,6 +9599,10 @@ namespace PatternBreak {
              words — the one-glance field check is "0 base fallback(s)" */
           if (pinned > 0)
             Debug.Log("UI Kit Maker: board '" + bd.name + "' — " + pinned + " pinned cop(ies): " + pinnedVariant + " variant instance(s), " + pinnedMinted + " minted at placement, " + pinnedFallbacks.Count + " base fallback(s)" + (pinnedFallbacks.Count > 0 ? " (" + string.Join(", ", pinnedFallbacks.ToArray()) + " — wearing base dress until the scene self-heals)" : "") + ".");
+          /* the responsive-anchor receipt: which anchor each rule case
+             got, one glance (the probe boards read this line) */
+          if (placed > 0)
+            Debug.Log("UI Kit Maker: '" + bd.name + "' responsive anchors — " + anchorsEdge + " edge/corner, " + anchorsCentered + " centered, " + anchorsStretched + " stretched (center in the outer 18% band anchors to that edge/corner; baked art spanning 80%+ of a dimension stretches; everything else centers — the README's safe-area slide has the rule).");
           Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " incomplete (a prefab or pinned word isn't ready yet — the scene rebuilds itself once it is, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
         }
         else
@@ -9637,6 +10387,10 @@ namespace PatternBreak {
       if (HasInkColorFork(m, family)) return null;
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked.asset");
     }
+#endif
+    /* ── manifest math, deliberately OUTSIDE the TMP guard: the legacy
+       pre-2023.2 label rung (AddLabel's Text branch) and the StateFx
+       wiring size and sink from these too ── */
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
     /* the app-true label size for BOARD SCENES — the 0.74-fitted size is
@@ -9662,6 +10416,7 @@ namespace PatternBreak {
         foreach (var e in m.typography.stateStyles) if (e.state == state) return e.dy;
       return 0f;
     }
+#if UNITY_2023_2_OR_NEWER
     // kit-sized, and auto-shrinking so a long word never spills the rect
     static void SizeLabel(TextMeshProUGUI t, float ls) {
       t.fontSize = ls;
@@ -9725,9 +10480,17 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
+      // the Leading dial (stacked multi-line labels — endturn): 0 = factory
+      float lsp = LeadingLineSpacing(lrow);
       if (layersFa != null && strokeInk != null) {
         var prt = parent.GetComponent<RectTransform>();
         BuildHeroStack(go, text, root, ls, prt != null ? prt.rect.height : 0f, layersFa, strokeInk);
+        if (lsp != 0f) {
+          // set AFTER the stack settles, then re-Apply through SetText —
+          // BuildHeroStack's own construction order rule
+          var hlLead = go.GetComponent<HeroLabel>();
+          if (hlLead != null) { hlLead.lineSpacing = lsp; hlLead.SetText(text); }
+        }
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -9740,20 +10503,30 @@ namespace PatternBreak {
       t.raycastTarget = false;
       t.font = solo;
       t.color = Color.white; // baked glyphs are pre-painted
+      if (lsp != 0f) t.lineSpacing = lsp;
     }
+#endif
     /* the label WE generated is the child GameObject named "Label" — a
-       single dynamic text OR a layered baked stack root */
+       single dynamic text OR a layered baked stack root. OUTSIDE the TMP
+       guard: the word heals and the timer walk need it on every editor */
     static GameObject FindOurLabelRoot(GameObject go) {
       foreach (var rt in go.GetComponentsInChildren<RectTransform>(true))
         if (rt.gameObject.name == "Label" && rt.gameObject != go) return rt.gameObject;
       return null;
     }
     static string LabelText(GameObject labelRoot, string fallback) {
+#if UNITY_2023_2_OR_NEWER
       var hl = labelRoot.GetComponent<HeroLabel>();
       if (hl != null && !string.IsNullOrEmpty(hl.text)) return hl.text;
       var tmp = labelRoot.GetComponentInChildren<TextMeshProUGUI>(true);
       return tmp != null && !string.IsNullOrEmpty(tmp.text) ? tmp.text : fallback;
+#else
+      // pre-2023.2 our labels are legacy Text (AddLabel's fallback rung)
+      var ut = labelRoot.GetComponentInChildren<Text>(true);
+      return ut != null && !string.IsNullOrEmpty(ut.text) ? ut.text : fallback;
+#endif
     }
+#if UNITY_2023_2_OR_NEWER
     static bool WireLabelStates(GameObject go, GameObject labelRoot, PBManifest m, string family) {
       if (m == null || m.typography == null || labelRoot == null) return false;
       // the whole label moves; only a single dynamic text re-inks
@@ -9875,6 +10648,154 @@ namespace PatternBreak {
       rt.offsetMin = new Vector2(ph.left, rt.offsetMin.y);
       rt.offsetMax = new Vector2(-ph.left, rt.offsetMax.y);
     }
+#if UNITY_2023_2_OR_NEWER
+    /* ── round 28: the Input is a WORKING TMP_InputField, not a picture
+       of one (external Unity tester + outside consultant — the top
+       production-truth gap before the store run). The structure is TMP's
+       own field template seated on the KIT's numbers: a RectMask2D
+       "Text Area" strip on the manifest's placeholder line (the well's
+       measured midline — NOT the sprite rect's center, the extrusion
+       hangs below), the placeholder as live kit-faced type in exactly
+       AddPlaceholder's seat and dress, and the typed value on its own
+       TMP child. Caret and selection wear the kit's inks. ── */
+    /* body copy needs a ROBUST text font. The kit face is a display
+       voice — styled material, and its TTF may cover only what labels
+       use. The value line wears the kit's own face (PLAIN material) only
+       when the shipped TTF proves every printable-ASCII glyph at import;
+       otherwise TMP's LiberationSans — the shipped neutral grotesk —
+       takes the line and the kit face stays on the placeholder. Either
+       way the grotesk rides the kit face's fallback table, so a typed
+       glyph beyond the TTF renders instead of boxing. */
+    static bool FontCoversPrintableAscii(Font f) {
+      if (f == null) return false;
+      for (int ch = 32; ch < 127; ch++) if (!f.HasCharacter((char)ch)) return false;
+      return true;
+    }
+    static TMP_FontAsset InputBodyFace(string root, PBManifest m, Font kitTtf, out bool kitVoiced) {
+      kitVoiced = false;
+      var grotesk = GaugeUnitFace();
+      var kitFace = EnsureTmpFace(root, m, kitTtf);
+      if (kitFace != null && grotesk != null) {
+        if (kitFace.fallbackFontAssetTable == null) kitFace.fallbackFontAssetTable = new List<TMP_FontAsset>();
+        if (kitFace.fallbackFontAssetTable.Count == 0) {
+          kitFace.fallbackFontAssetTable.Add(grotesk);
+          EditorUtility.SetDirty(kitFace);
+        }
+      }
+      if (kitFace != null && FontCoversPrintableAscii(kitTtf)) { kitVoiced = true; return kitFace; }
+      return grotesk; // null only on a moved TMP install — TMP then assigns its own default
+    }
+    /* the value ink answers the WELL it sits on (manifest palette, no new
+       rows): a light well takes the kit's shadow ink when that ink is
+       actually dark (else near-black), a dark well takes white. */
+    static Color InputValueInk(PBManifest m) {
+      Color well;
+      if (m == null || m.palette == null || string.IsNullOrEmpty(m.palette.well) || !ColorUtility.TryParseHtmlString(m.palette.well, out well)) return Color.white;
+      float luma = 0.2126f * well.r + 0.7152f * well.g + 0.0722f * well.b;
+      if (luma <= 0.6f) return Color.white;
+      Color dark;
+      if (!string.IsNullOrEmpty(m.palette.shadow) && ColorUtility.TryParseHtmlString(m.palette.shadow, out dark)
+          && (0.2126f * dark.r + 0.7152f * dark.g + 0.0722f * dark.b) < 0.35f) { dark.a = 1f; return dark; }
+      return new Color(0.09f, 0.1f, 0.13f, 1f);
+    }
+    static void WireInputField(GameObject go, string root, PBManifest m, Font kitFont) {
+      var ph = m != null ? m.placeholder : null;
+      var prt = go.GetComponent<RectTransform>();
+      float mid = prt != null ? prt.rect.height * 0.5f : 0f;
+      float left = ph != null && ph.left > 0.5f ? ph.left : 24f;
+      float fs = ph != null && ph.size > 1f ? ph.size : 30f;
+      float lineY = ph != null ? mid - ph.centerFromTop : 0f;
+      /* the masked strip on the well's midline — the caret and a long
+         value clip at the drawn field instead of spilling over the bevel */
+      var area = new GameObject("Text Area", typeof(RectTransform), typeof(RectMask2D));
+      area.transform.SetParent(go.transform, false);
+      var art = area.GetComponent<RectTransform>();
+      art.anchorMin = new Vector2(0f, 0.5f); art.anchorMax = new Vector2(1f, 0.5f);
+      art.pivot = new Vector2(0.5f, 0.5f);
+      art.sizeDelta = new Vector2(-left * 2f, Mathf.Max(fs * 1.9f, 40f));
+      art.anchoredPosition = new Vector2(0f, lineY);
+      /* the placeholder keeps AddPlaceholder's exact seat and dress — the
+         kit face at 55% opacity, italic when the kit says so — now BOUND
+         to the field's placeholder slot: it hides itself the moment a
+         character lands, returns when the field empties */
+      TextMeshProUGUI phT = null;
+      if (ph != null && !string.IsNullOrEmpty(ph.text)) {
+        var phGo = new GameObject("Placeholder", typeof(RectTransform), typeof(CanvasRenderer));
+        phGo.transform.SetParent(area.transform, false);
+        var phRt = phGo.GetComponent<RectTransform>();
+        phRt.anchorMin = Vector2.zero; phRt.anchorMax = Vector2.one;
+        phRt.offsetMin = Vector2.zero; phRt.offsetMax = Vector2.zero;
+        phT = phGo.AddComponent<TextMeshProUGUI>();
+        phT.text = ph.text;
+        var phFace = EnsureTmpFace(root, m, kitFont);
+        if (phFace != null) phT.font = phFace;
+        phT.enableAutoSizing = false;
+        phT.fontSize = fs;
+        phT.alignment = TextAlignmentOptions.Left; // midline-left, the app's seat
+        Color phC;
+        if (string.IsNullOrEmpty(ph.color) || !ColorUtility.TryParseHtmlString(ph.color, out phC)) phC = Color.white;
+        phC.a = Mathf.Clamp01(ph.opacity / 100f);
+        phT.color = phC;
+        if (ph.italic) phT.fontStyle = FontStyles.Italic;
+        phT.raycastTarget = false;
+      }
+      // the typed value: the robust body voice on a plain material
+      var txGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer));
+      txGo.transform.SetParent(area.transform, false);
+      var txRt = txGo.GetComponent<RectTransform>();
+      txRt.anchorMin = Vector2.zero; txRt.anchorMax = Vector2.one;
+      txRt.offsetMin = Vector2.zero; txRt.offsetMax = Vector2.zero;
+      var tx = txGo.AddComponent<TextMeshProUGUI>();
+      tx.text = "";
+      bool kitVoiced;
+      var bodyFace = InputBodyFace(root, m, kitFont, out kitVoiced);
+      if (bodyFace != null) {
+        tx.font = bodyFace; // assigning the font resets the material —
+        if (kitVoiced) {
+          var plainB = EnsureGaugeUnitMaterial(root, bodyFace);
+          if (plainB != null) tx.fontSharedMaterial = plainB; // — the undressed preset lands after
+        }
+      }
+      tx.enableAutoSizing = false;
+      tx.fontSize = fs;
+      tx.alignment = TextAlignmentOptions.Left;
+      tx.color = InputValueInk(m);
+      tx.raycastTarget = false; // the field's root Image carries the click (shell-true pad)
+      var input = go.AddComponent<TMP_InputField>();
+      input.targetGraphic = BodyImage(go);
+      /* the input family bakes no designed states — the surface holds its
+         designed face in every state (the caret IS the focus signal) and
+         only disabled fades, honestly */
+      input.transition = Selectable.Transition.ColorTint;
+      var ib = input.colors;
+      ib.normalColor = Color.white;
+      ib.highlightedColor = Color.white;
+      ib.pressedColor = Color.white;
+      ib.selectedColor = Color.white;
+      ib.disabledColor = new Color(1f, 1f, 1f, 0.55f);
+      ib.colorMultiplier = 1f;
+      input.colors = ib;
+      input.textViewport = art;
+      input.textComponent = tx;
+      if (phT != null) input.placeholder = phT;
+      /* NEVER input.fontAsset / input.pointSize here: those global
+         setters restamp the PLACEHOLDER's font too, and its kit face is
+         the point. The components above already carry the right faces. */
+      /* caret + selection from the KIT's inks (manifest palette): the
+         caret wears the Glow accent, the selection its translucent wash —
+         glow-less manifests fall back to the value ink. */
+      Color caretInk = tx.color;
+      Color glowI;
+      if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out glowI)) { glowI.a = 1f; caretInk = glowI; }
+      input.customCaretColor = true;
+      input.caretColor = caretInk;
+      var selWash = caretInk;
+      selWash.a = 0.35f;
+      input.selectionColor = selWash;
+      input.caretWidth = Mathf.Clamp(Mathf.RoundToInt(fs / 15f), 2, 6);
+      input.caretBlinkRate = 0.85f;
+    }
+#endif
     static void AddLabel(GameObject parent, string text, Font kitFont, string root, PBManifest m, string family) {
       var lrowA = LabelRow(m, family);
       float lsA = lrowA != null && lrowA.labelFs > 1f ? lrowA.labelFs : LabelSize(m, family);
@@ -9899,6 +10820,10 @@ namespace PatternBreak {
         // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
         if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
+        // the Leading dial rides this rung too (one seam, one number)
+        float lspT = LeadingLineSpacing(lrowA);
+        var tLead = lr0 != null ? lr0.GetComponent<TextMeshProUGUI>() : null;
+        if (tLead != null && lspT != 0f) tLead.lineSpacing = lspT;
         return;
       }
 #endif
@@ -9918,6 +10843,11 @@ namespace PatternBreak {
       // Truncate, which is exactly the field's "ATTAC" (round 9)
       t.horizontalOverflow = HorizontalWrapMode.Overflow;
       t.verticalOverflow = VerticalWrapMode.Overflow;
+      /* the Leading dial on the legacy rung: UI Text's lineSpacing is a
+         MULTIPLIER of the font's own line height (1 = factory), the
+         closest honest carrier of the dial on this approximate rung —
+         absent rows (0-gate) leave the default untouched */
+      if (lrowA != null && lrowA.leading > 0f) t.lineSpacing = lrowA.leading / 100f;
       // the kit's own face ships in fonts/ (license beside it) and wires
       // here automatically; the built-in face only covers a fetch-less
       // zip. For styled DYNAMIC text, build a TMP material preset from
@@ -10125,7 +11055,18 @@ namespace PatternBreak {
          "I didn't realize the text would be burned into the image"). One
          child named so its job is obvious — retype it, bind it to your
          field's placeholder slot, or select it and press Delete. */
-      if (baseAsset.component == "input") AddPlaceholder(go, root, m, kitFont);
+      /* round 28 (external tester + consultant: the second half of the
+         production-truth gap): on TMP editors the input is a WORKING
+         TMP_InputField — click and type in Play mode. Pre-2023.2 editors
+         keep the bare surface + placeholder they always had (TMP ships
+         inside uGUI only from 2023.2). */
+      if (baseAsset.component == "input") {
+#if UNITY_2023_2_OR_NEWER
+        WireInputField(go, root, m, kitFont);
+#else
+        AddPlaceholder(go, root, m, kitFont);
+#endif
+      }
       /* the end-turn countdown ring, LIVE: Filled/Radial360 over the bare
          shell, tinted to the kit Glow, staged at 0.7 — drive fillAmount
          and it animates (owner: "the countdown numerics should be
@@ -10245,6 +11186,19 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return null;
       foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") return a;
       return null;
+    }
+    /* the LEADING dial's TMP form — ONE seam for every label birth and the
+       maintenance convergence, so they can never disagree. The app stacks
+       a multi-line label (endturn) at fs · 0.73em · leading/100; the
+       manifest ships the resolved percentage on the base row only when it
+       isn't factory. TMP lineSpacing is em*100 relative to the font size,
+       so the app's DELTA from factory maps exactly:
+         lineSpacing = 0.73 * (leading − 100)
+       (220% ⇒ +87.6 = +0.876em — the app's own 0.73em · 1.2). Factory and
+       absent rows (JsonUtility zero — the old-zip 0-gate) map to 0: TMP's
+       natural line height, today's look, untouched. */
+    static float LeadingLineSpacing(PBAsset row) {
+      return row != null && row.leading > 0f ? 0.73f * (row.leading - 100f) : 0f;
     }
     /* the label's anchor-shift off the shell box, in sprite-rect fractions —
        shared by the seat below and the redress probe, so they can never
@@ -10809,8 +11763,12 @@ namespace PatternBreak {
         var fxT = go.GetComponent<StateFx>();
         if (fxT == null) fxT = go.AddComponent<StateFx>();
         if (Mathf.Approximately(fxT.pressedLift, 0f)) fxT.pressedLift = -sinkT;
+#if UNITY_2023_2_OR_NEWER
+        // LabelStateInk's shift fields exist only inside its own guard;
+        // pre-2023.2 WireLabelStates never ran, so there is nothing to zero
         var inkT = go.GetComponent<LabelStateInk>();
         if (inkT != null) { inkT.pressedShift = 0f; inkT.hoverShift = 0f; }
+#endif
       }
       // last child = drawn last: the streak crosses the label, like the app
       AddSpecular(go, root, fam, m);
@@ -10992,6 +11950,13 @@ namespace PatternBreak {
        kit-manifest.json > gauge > ink / unitInk. */
     static string GaugeMatPath(string root, string fam) { return root + "/fonts/KitFace Gauge " + NiceName(fam) + ".mat"; }
     static bool GaugeInkShips(PBGauge g) { return g != null && g.ink != null && !string.IsNullOrEmpty(g.ink.fillMode); }
+#if UNITY_2023_2_OR_NEWER
+    /* ONE guard over the whole ink-preset/gauge-face block (P0 sweep fix:
+       EnsureInkPresetMaterial, EnsureGaugeMaterial, GaugeUnitFace and
+       EnsureGaugeUnitMaterial sat OUTSIDE it with unqualified TMP symbols —
+       CS0246 on every pre-2023.2 editor, the whole assembly dead). Every
+       caller lives inside the guard; nothing here is needed on the legacy
+       rungs. */
     /* the digits' own material preset: the SDF face's atlas wearing ONLY
        the digit recipe — outline/glow/underlay when the app's gauge
        numbers actually carry them, never emboss (content text doesn't) */
@@ -11025,7 +11990,6 @@ namespace PatternBreak {
     static TMP_FontAsset GaugeUnitFace() {
       return AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
     }
-#if UNITY_2023_2_OR_NEWER
     /* the INSTRUMENT face — the real heavy Inter cut the zip ships for the
        HUD/readout voices (typography.instrumentFile). TMP's synthetic bold
        on the grotesk reads visibly thinner than the app's Inter 800 (owner
@@ -11073,13 +12037,11 @@ namespace PatternBreak {
       ink.outline.width = seat.strokeEmPct * 0.52f; // em% → the app's dial units (px at fs 52)
       return EnsureInkPresetMaterial(face, ink, path);
     }
-#endif
     static Material EnsureGaugeUnitMaterial(string root, TMP_FontAsset kitFace) {
       // an empty recipe strips outline, glow, underlay and bevel — the
       // PLAIN kit-face material (gauge units, undressed kit-voice seats)
       return EnsureInkPresetMaterial(kitFace, new PBStyle(), root + "/fonts/KitFace Gauge Unit.mat");
     }
-#if UNITY_2023_2_OR_NEWER
     /* number dress, applied AND probed by the same hand (apply=false only
        answers "is it current?") — dresser and probe disagreeing is an
        infinite re-dress every import. The font itself is never converged
@@ -11550,8 +12512,12 @@ namespace PatternBreak {
     /* write a word into OUR label root — HeroLabel stacks and plain TMP
        both; shared by the word-seed convergence and the label variants */
     static bool SetLabelWord(GameObject labelRoot, string word) {
+#if UNITY_2023_2_OR_NEWER
+      // SetText exists only inside HeroLabel's own guard; pre-2023.2 no
+      // stack was ever built, so the TMP/Text rungs below carry the word
       var hl = labelRoot.GetComponent<HeroLabel>();
       if (hl != null) { hl.SetText(word); return true; }
+#endif
       var tmp = labelRoot.GetComponentInChildren<TMPro.TMP_Text>(true);
       if (tmp != null) { tmp.text = word; return true; }
       var ut = labelRoot.GetComponentInChildren<Text>(true);
@@ -12081,12 +13047,18 @@ namespace PatternBreak {
       var lr = FindOurLabelRoot(go);
       if (lr == null) { UnityEngine.Object.DestroyImmediate(go); return false; }
       // the app's own rendered size, exactly — never the fitted fallback
+#if UNITY_2023_2_OR_NEWER
       var hlT = lr.GetComponent<HeroLabel>();
       if (hlT != null) { hlT.fontSize = m.timer.fs; hlT.SetText(word); }
       else {
         var tmpT = lr.GetComponentInChildren<TMPro.TMP_Text>(true);
         if (tmpT != null) { tmpT.enableAutoSizing = false; tmpT.fontSize = m.timer.fs; }
       }
+#else
+      // pre-2023.2 the label is legacy Text — same exact app size on it
+      var utT = lr.GetComponentInChildren<Text>(true);
+      if (utT != null) utT.fontSize = Mathf.RoundToInt(m.timer.fs);
+#endif
       var kt = go.AddComponent<KitTimer>();
       kt.seconds = m.timer.seconds;
       kt.running = true;
@@ -12578,7 +13550,23 @@ namespace PatternBreak {
       var crt = content.GetComponent<RectTransform>();
       crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f);
       crt.pivot = new Vector2(0.5f, 1f);
-      crt.sizeDelta = new Vector2(0f, 640f); // taller than the frame so it scrolls out of the box
+      /* round 28 (external tester + consultant, the top production-truth
+         gap): Content is a ready LIST COLUMN, not bare air — drop rows in
+         and they stack, the column grows, and it scrolls. The fitter owns
+         the height (empty starts at 0, every child extends it past the
+         viewport exactly when there is something to scroll); the group
+         stretches children to the column's width and keeps their own
+         heights — kit prefabs arrive pre-sized. */
+      crt.sizeDelta = new Vector2(0f, 0f);
+      var vlg = content.AddComponent<VerticalLayoutGroup>();
+      vlg.padding = new RectOffset(0, 0, 0, 0);
+      vlg.spacing = 12f;
+      vlg.childAlignment = TextAnchor.UpperCenter;
+      vlg.childControlWidth = true; vlg.childControlHeight = false;
+      vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+      var csf = content.AddComponent<ContentSizeFitter>();
+      csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+      csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
       var sb = ImageObject("Scrollbar", track, pngScale);
       sb.transform.SetParent(go.transform, false);
       sb.GetComponent<Image>().type = Image.Type.Sliced;
@@ -12608,6 +13596,30 @@ namespace PatternBreak {
       sr.verticalScrollbar = bar;
       sr.horizontal = false;
       sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+      /* the FEEL dials (round 28): Unity's scrollSensitivity default of 1
+         moves ONE pixel per wheel notch — a wired view that reads dead.
+         35 is the familiar desktop step. Elasticity and inertia are
+         Unity's tuned defaults, written explicitly so the Inspector
+         shows a deliberate rig, not an untouched one. */
+      sr.movementType = ScrollRect.MovementType.Elastic;
+      sr.elasticity = 0.1f;
+      sr.inertia = true;
+      sr.decelerationRate = 0.135f;
+      sr.scrollSensitivity = 35f;
+      bar.value = 1f; // parked at the top, where the content starts
+      /* the handle honors the kit's pixels in EVERY state: no rollover
+         tint (the bevel candy is already lit), a gentle press dim, and
+         Selected stays the resting face — a released handle must never
+         park in rollover (the Button lesson). Disabled fades honestly. */
+      bar.transition = Selectable.Transition.ColorTint;
+      var hb = bar.colors;
+      hb.normalColor = Color.white;
+      hb.highlightedColor = Color.white;
+      hb.selectedColor = Color.white;
+      hb.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+      hb.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+      hb.colorMultiplier = 1f;
+      bar.colors = hb;
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ScrollView.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -12626,9 +13638,59 @@ namespace PatternBreak {
       var contentT = vpT != null ? vpT.Find("Content") : null;
       if (sbT == null || contentT == null) return;
       bool oldSeat = Mathf.Abs(sbT.sizeDelta.x - 22f) < 0.5f && Mathf.Abs(sbT.anchoredPosition.x + 10f) < 0.5f;
-      if (!oldSeat || contentT.childCount != 0) return;
-      if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
-        Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
+      if (oldSeat && contentT.childCount == 0) {
+        if (ScrollViewPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+          Debug.Log("UI Kit Maker: ScrollView.prefab re-seated — the scrollbar now sits inside the panel's drawn plate at the kit track's own width (it was the thin sliver on the padded edge). Placed instances update with the prefab.");
+        return;
+      }
+      /* round 28: a ScrollView from before the LIST RIG. An EMPTY Content
+         carrying no layout machinery is our own bare column beyond doubt —
+         a filled view, or one the dev rigged themselves, is theirs and is
+         never touched. The graft adds exactly what generation now adds
+         (the stacking group + height fitter, the wheel step, the handle's
+         state manners) IN PLACE, so rect edits the dev DID make — a moved
+         bar, a resized frame — survive. Feel dials and handle colors are
+         each gated on still-at-Unity-default, the redress rule. */
+      if (contentT.childCount != 0) return;
+      if (contentT.GetComponent<VerticalLayoutGroup>() != null || contentT.GetComponent<ContentSizeFitter>() != null) return;
+      var contentsSV = PrefabUtility.LoadPrefabContents(path);
+      try {
+        var vpH = contentsSV.transform.Find("Viewport");
+        var cH = vpH != null ? vpH.Find("Content") as RectTransform : null;
+        var srH = contentsSV.GetComponent<ScrollRect>();
+        if (cH == null || srH == null) return;
+        cH.sizeDelta = new Vector2(cH.sizeDelta.x, 0f); // the fitter owns the height now
+        var vlgH = cH.gameObject.AddComponent<VerticalLayoutGroup>();
+        vlgH.padding = new RectOffset(0, 0, 0, 0);
+        vlgH.spacing = 12f;
+        vlgH.childAlignment = TextAnchor.UpperCenter;
+        vlgH.childControlWidth = true; vlgH.childControlHeight = false;
+        vlgH.childForceExpandWidth = true; vlgH.childForceExpandHeight = false;
+        var csfH = cH.gameObject.AddComponent<ContentSizeFitter>();
+        csfH.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csfH.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        if (Mathf.Approximately(srH.scrollSensitivity, 1f)) { // Unity's default = untouched
+          srH.movementType = ScrollRect.MovementType.Elastic;
+          srH.elasticity = 0.1f;
+          srH.inertia = true;
+          srH.decelerationRate = 0.135f;
+          srH.scrollSensitivity = 35f;
+        }
+        var sbH = contentsSV.transform.Find("Scrollbar");
+        var barH = sbH != null ? sbH.GetComponent<Scrollbar>() : null;
+        if (barH != null && barH.transition == Selectable.Transition.ColorTint && barH.colors.Equals(ColorBlock.defaultColorBlock)) {
+          var hbH = barH.colors;
+          hbH.normalColor = Color.white;
+          hbH.highlightedColor = Color.white;
+          hbH.selectedColor = Color.white;
+          hbH.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+          hbH.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+          hbH.colorMultiplier = 1f;
+          barH.colors = hbH;
+        }
+        PrefabUtility.SaveAsPrefabAsset(contentsSV, path);
+        Debug.Log("UI Kit Maker: ScrollView.prefab is now a working list — Content grew the vertical stacking group + height fitter (drop rows into Viewport > Content and they stack, size the column and scroll), the wheel moves at desktop speed, and the handle keeps the kit's pixels in every state. Grafted in place: your rect edits survive, placed instances update with the prefab.");
+      } finally { PrefabUtility.UnloadPrefabContents(contentsSV); }
     }
     /* the health globe, ALIVE: glass masks a Filled(Vertical) liquid —
        Image.fillAmount IS the health; the rim draws above. */
@@ -13233,6 +14295,45 @@ namespace PatternBreak {
             continue;
           }
         }
+#if UNITY_2023_2_OR_NEWER
+        /* the input's FIELD era (round 28): an Input.prefab from the
+           bare-surface generation becomes a working TMP_InputField —
+           but only when provably ours and unwired: our own placeholder
+           child still present (the bare surface's one movable part), NO
+           Selectable anywhere (a Button or field the dev added is their
+           wiring), and no Text Area (already grafted). A dev who deleted
+           the placeholder bound their own field — theirs, untouched. The
+           one thing they may have retyped, the placeholder's word,
+           survives the graft. */
+        if (spritePath.EndsWith("/input-base.9.png")
+            && asset.GetComponentInChildren<TMP_InputField>(true) == null
+            && asset.GetComponentInChildren<Selectable>(true) == null
+            && asset.transform.Find("Text Area") == null
+            && asset.transform.Find("Placeholder (delete or bind)") != null) {
+          var contentsIF = PrefabUtility.LoadPrefabContents(path);
+          try {
+            var oldPhC = contentsIF.transform.Find("Placeholder (delete or bind)");
+            string devWord = null;
+            if (oldPhC != null) {
+              var oT = oldPhC.GetComponent<TMP_Text>();
+              var oU = oldPhC.GetComponent<Text>();
+              devWord = oT != null ? oT.text : (oU != null ? oU.text : null);
+              UnityEngine.Object.DestroyImmediate(oldPhC.gameObject);
+            }
+            WireInputField(contentsIF, root, m, mkFont);
+            var wantWord = m != null && m.placeholder != null ? m.placeholder.text : null;
+            if (!string.IsNullOrEmpty(devWord) && devWord != wantWord) {
+              var areaIF = contentsIF.transform.Find("Text Area");
+              var nPh = areaIF != null ? areaIF.Find("Placeholder") : null;
+              var nT = nPh != null ? nPh.GetComponent<TMP_Text>() : null;
+              if (nT != null) nT.text = devWord; // a retyped word is the dev's
+            }
+            PrefabUtility.SaveAsPrefabAsset(contentsIF, path);
+            Debug.Log("UI Kit Maker: Input.prefab is now a working TMP_InputField — click it in Play mode and type. The placeholder became the field's live slot (your word kept), the typed value takes the robust body voice, and the caret and selection wear the kit's inks. Placed instances update with the prefab.");
+          } finally { PrefabUtility.UnloadPrefabContents(contentsIF); }
+          continue;
+        }
+#endif
         /* the mini-map's lost MAP (round 14): the ONE import where the map
            layer first arrives (extras-minimap-map.png absent from the last
            receipt), an existing Minimap prefab grafts the app's well
@@ -13634,6 +14735,22 @@ namespace PatternBreak {
               var hlProbe = probeRoot.GetComponent<HeroLabel>();
               if (hlProbe != null && hlProbe.authoredHeight < 0.5f) wantDress = true;
             }
+            /* LEADING convergence (the Leading-travels round): a label
+               still at TMP's natural line height (lineSpacing 0 — the old
+               default, indistinguishable from never-touched) adopts a
+               freshly dialed Leading; a hand-tuned nonzero value is the
+               maker's and is never re-lost — and a dial turned BACK to
+               factory leaves a nonzero value standing for the same reason.
+               The redress restore mirrors this gate exactly (probe and
+               dresser disagreeing is an infinite re-dress). */
+            if (!wantDress) {
+              float wantLsp = LeadingLineSpacing(probeRow);
+              if (wantLsp != 0f) {
+                var hlLd = probeRoot.GetComponent<HeroLabel>();
+                var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+                if ((hlLd != null && hlLd.lineSpacing == 0f) || (tmLd != null && tmLd.lineSpacing == 0f)) wantDress = true;
+              }
+            }
             /* SHELL-ANCHOR convergence: a label root still stretched over
                the sprite RECT (older importer) sits low — extrusion pulls
                the rect's center off the face (owner: "the stacking is
@@ -13860,7 +14977,12 @@ namespace PatternBreak {
                 if (newHl != null) {
                   if (keepAuthored >= 0.5f) newHl.authoredHeight = keepAuthored;
                   newHl.nudge = keepNudge; newHl.margins = keepMargins;
-                  newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing; newHl.lineSpacing = keepLineSpacing;
+                  /* lineSpacing: a hand-tuned value survives verbatim; a
+                     still-at-default 0 adopts the manifest's Leading (the
+                     birth just applied it — restoring the same want is
+                     idempotent). The probe's gate, mirrored. */
+                  newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing;
+                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName));
                   newHl.SetText(newHl.text);
                 }
               }

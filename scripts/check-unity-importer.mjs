@@ -880,6 +880,322 @@ if (!/wantIconStroke/.test(cs)
 if (!/if \(icTU != null && icTU\.childCount == 0\) \{\s*\n\s*UnityEngine\.Object\.DestroyImmediate\(icTU\.gameObject, true\);\s*\n\s*WireIconSeat\(contents, root, m, famName\);/.test(cs))
   errors.push("the stroke upgrade must rebuild through WireIconSeat and only ever remove a childless Icon (round 27)");
 
+/* round-28 slice A: the ScrollView is production-USABLE (external Unity
+   tester + outside consultant: the top production-truth gap before the
+   store run). Content is a ready list column — stacking group + height
+   fitter, widths controlled to the column, heights the children's own —
+   the wheel moves at desktop speed (Unity's scrollSensitivity 1 is one
+   pixel per notch), and the handle keeps the kit's pixels in every
+   state, Selected included, so a released handle never parks in
+   rollover. Existing EMPTY, unrigged views graft the same wiring in
+   place (a filled or dev-rigged Content is theirs), out loud. */
+if (!/vlg\.childControlWidth = true; vlg\.childControlHeight = false;/.test(cs)
+    || !/csf\.verticalFit = ContentSizeFitter\.FitMode\.PreferredSize;/.test(cs))
+  errors.push("the ScrollView Content list rig (vertical group + height fitter) is missing or mis-dialed (round 28)");
+if (!/sr\.scrollSensitivity = 35f;/.test(cs))
+  errors.push("the ScrollView wheel step (scrollSensitivity 35 — Unity's 1 reads dead) is missing (round 28)");
+if (!/hb\.selectedColor = Color\.white;/.test(cs) || !/hb\.pressedColor = new Color\(0\.86f, 0\.86f, 0\.86f, 1f\);/.test(cs))
+  errors.push("the scrollbar handle's state manners (kit pixels every state; Selected = resting) are missing (round 28)");
+if (!/contentT\.GetComponent<VerticalLayoutGroup>\(\) != null \|\| contentT\.GetComponent<ContentSizeFitter>\(\) != null\) return;/.test(cs)
+    || !/if \(contentT\.childCount != 0\) return;/.test(cs))
+  errors.push("HealScrollView's round-28 graft must step aside for a filled or already-rigged Content (the dev's) (round 28)");
+if (!/barH\.colors\.Equals\(ColorBlock\.defaultColorBlock\)/.test(cs) || !/Mathf\.Approximately\(srH\.scrollSensitivity, 1f\)/.test(cs))
+  errors.push("the graft's feel/handle writes must gate on still-at-Unity-default (the redress rule) (round 28)");
+if (!/ScrollView\.prefab is now a working list/.test(cs))
+  errors.push("the ScrollView graft must speak (the heal receipt line) (round 28)");
+if (!/\*\*ScrollView\*\*: a WORKING list/.test(src))
+  errors.push("the README's ScrollView bones entry (the working-list contract) is missing (round 28)");
+
+/* round-28 slice B: the Input is a WORKING TMP_InputField (the gap's
+   second half). The wiring: a RectMask2D Text Area strip seated on the
+   manifest's placeholder line (the well's measured midline), the
+   placeholder live in the kit face at AddPlaceholder's exact dress, the
+   typed value on the ROBUST body voice — the kit's own face (plain
+   material) only when its TTF proves printable ASCII at import, else
+   TMP's LiberationSans, with the grotesk on the kit face's fallback
+   table either way. Caret + selection wear the kit's Glow; the value
+   ink answers the well's luma. Pre-TMP editors keep the bare surface +
+   placeholder. Existing bare Input prefabs graft the field in place
+   only when provably ours and unwired, keeping a retyped placeholder
+   word, out loud. */
+if (!/static void WireInputField\(GameObject go, string root, PBManifest m, Font kitFont\)/.test(cs))
+  errors.push("WireInputField is missing (round 28)");
+if (!/WireInputField\(go, root, m, kitFont\);/.test(cs) || !/AddPlaceholder\(go, root, m, kitFont\);/.test(cs))
+  errors.push("FamilyPrefab must wire the input as a FIELD on TMP editors and keep the placeholder surface on pre-TMP editors (round 28)");
+if (!/new GameObject\("Text Area", typeof\(RectTransform\), typeof\(RectMask2D\)\);/.test(cs))
+  errors.push("the input's masked Text Area strip is missing — typed text would spill over the bevel (round 28)");
+if (!/static bool FontCoversPrintableAscii\(Font f\)/.test(cs) || !/for \(int ch = 32; ch < 127; ch\+\+\)/.test(cs))
+  errors.push("the body-voice coverage proof (printable ASCII over the shipped TTF) is missing (round 28)");
+if (!/kitFace\.fallbackFontAssetTable\.Add\(grotesk\);/.test(cs))
+  errors.push("LiberationSans must ride the kit face's fallback table — typed glyphs beyond the TTF box without it (round 28)");
+if (!/0\.2126f \* well\.r \+ 0\.7152f \* well\.g \+ 0\.0722f \* well\.b/.test(cs))
+  errors.push("the value ink must answer the WELL's luma (light well takes a dark ink) (round 28)");
+if (!/input\.customCaretColor = true;/.test(cs) || !/selWash\.a = 0\.35f;/.test(cs))
+  errors.push("caret/selection must wear the kit's Glow ink and its translucent wash (round 28)");
+if (!/tx\.raycastTarget = false; \/\/ the field's root Image carries the click/.test(cs))
+  errors.push("the value text must never be a raycast target — the shell-true root Image is the click carrier (round 28)");
+if (!/NEVER input\.fontAsset \/ input\.pointSize here/.test(cs))
+  errors.push("the global-setter hazard note must stand — input.fontAsset/pointSize restamp the placeholder's kit face (round 28)");
+if (!/GetComponentInChildren<TMP_InputField>\(true\) == null/.test(cs) || !/GetComponentInChildren<Selectable>\(true\) == null/.test(cs)
+    || !/asset\.transform\.Find\("Text Area"\) == null/.test(cs))
+  errors.push("the input graft must prove the prefab ours and unwired (no field, no Selectable, no Text Area) before touching it (round 28)");
+if (!/nT\.text = devWord; \/\/ a retyped word is the dev's/.test(cs))
+  errors.push("the input graft must keep a retyped placeholder word (round 28)");
+if (!/Input\.prefab is now a working TMP_InputField/.test(cs))
+  errors.push("the input graft must speak (the heal receipt line) (round 28)");
+if (!/\*\*Input\*\*: a WORKING TMP_InputField/.test(src))
+  errors.push("the README's Input bones entry (the working-field contract) is missing (round 28)");
+
+/* round-29 slice A: the RESPONSIVE CONTRACT — safe area + scaler policy
+   (the Asset Store long pole). Every board scene puts a "Safe Area" root
+   (full-stretch + the KitSafeArea runtime) between the Canvas and the
+   content; Background/Overlay stay full-bleed on the Canvas. The scaler
+   match policy lives in ONE seat (ScalerMatchFor: portrait matches
+   width, landscape 0.5). Kept scenes adopt the root heal-out-loud; the
+   word-heal walk follows the root; a Responsive Check scene ships the
+   whole story visibly. The runtime is CORE-ONLY (Screen.safeArea) — the
+   round-19 P0 rule extends to it verbatim. */
+const safeOpen = src.indexOf("const SAFE_AREA_RUNTIME = `");
+let safe = "";
+if (safeOpen < 0) errors.push("SAFE_AREA_RUNTIME not found — the safe-area runtime template is missing (round 29)");
+else {
+  const safeStart = safeOpen + "const SAFE_AREA_RUNTIME = `".length;
+  let safeEnd = -1;
+  for (let i = safeStart; i < src.length; i++) {
+    if (src[i] === "\\") { i++; continue; }
+    if (src[i] === "`") { safeEnd = i; break; }
+  }
+  safe = safeEnd > 0 ? new Function("return `" + src.slice(safeStart, safeEnd) + "`;")() : "";
+}
+if (!/public class KitSafeArea : MonoBehaviour/.test(safe) || !/Screen\.safeArea/.test(safe))
+  errors.push("KitSafeArea (the Screen.safeArea anchor tracker) is missing from the runtime template (round 29)");
+if (!/if \(w < 1f \|\| h < 1f\) return;/.test(safe))
+  errors.push("KitSafeArea must refuse a zero-size screen frame — a headless/startup frame would write garbage anchors (round 29)");
+if (!/if \(max\.x - min\.x < 0\.2f \|\| max\.y - min\.y < 0\.2f\) \{ min = Vector2\.zero; max = Vector2\.one; \}/.test(safe))
+  errors.push("KitSafeArea's degenerate-report guard is missing — a bad safe rect must never collapse the UI (round 29)");
+if (/UnityEditor|UnityEngine\.InputSystem|using TMPro/.test(safe) || (safe.match(/^using /gm) ?? []).length !== 1)
+  errors.push("KitSafeArea must stay CORE-ONLY (one using: UnityEngine) — package references in Runtime files are the round-19 P0 class break");
+if (!/path: "Runtime\/PatternBreakSafeArea\.cs", data: SAFE_AREA_RUNTIME/.test(src) || !/"Runtime\/PatternBreakSafeArea\.cs",/.test(src))
+  errors.push("PatternBreakSafeArea.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
+{
+  const roots = (cs.match(/new GameObject\("Safe Area", typeof\(RectTransform\), typeof\(KitSafeArea\)\)/g) ?? []).length;
+  if (roots < 3)
+    errors.push(`the "Safe Area" root must be built in the board builder, the Responsive Check scene AND the kept-scene graft — found ${roots} of 3 (round 29)`);
+  const reparents = (cs.match(/SetParent\(safeT, false\)/g) ?? []).length;
+  if (reparents < 6)
+    errors.push(`board content must parent under the Safe Area root (safeT) — found ${reparents} SetParent(safeT, false) sites, expected >=6 (round 29)`);
+}
+if (!/bgGo\.transform\.SetParent\(canvasGo\.transform, false\);/.test(cs))
+  errors.push("the Background must stay on the CANVAS (full-bleed, outside the safe root) — backdrops fill the screen, UI respects cutouts (round 29)");
+if (!/static float ScalerMatchFor\(float refW, float refH\)/.test(cs) || !/return refH > refW \? 0f : 0\.5f;/.test(cs))
+  errors.push("ScalerMatchFor (the ONE-seat match policy: portrait width-match, landscape 0.5) is missing (round 29)");
+if ((cs.match(/scaler\.matchWidthOrHeight = ScalerMatchFor\(/g) ?? []).length !== 2)
+  errors.push("both responsive scene builders (board + check) must dial the scaler through ScalerMatchFor — an inline match value forks the policy (round 29)");
+if (!/static void HealSafeAreaRoots\(string root, PBManifest m\)/.test(cs) || !/HealSafeAreaRoots\(root, manifest\);/.test(cs))
+  errors.push("the kept-scene safe-area graft (HealSafeAreaRoots) is missing or never runs (round 29)");
+if (!/canvasC\.transform\.Find\("Safe Area"\) != null\) continue;/.test(cs))
+  errors.push("the graft must step aside for a scene that already carries the root (round 29)");
+if (!/chS\.name == "Background" \|\| chS\.name == "Overlay"\) continue;/.test(cs))
+  errors.push("the graft must leave Background/Overlay full-bleed on the Canvas (round 29)");
+if (!/adopted the responsive Safe Area root/.test(cs))
+  errors.push("the safe-area graft must speak (heal-out-loud receipt line) (round 29)");
+if (!/var safeWalk = canvasC\.transform\.Find\("Safe Area"\);/.test(cs))
+  errors.push("HealBoardWords' walk must follow the Safe Area root when present — the word heal would go blind on responsive scenes (round 29)");
+if (!/static void BuildResponsiveCheck\(string root, PBManifest m\)/.test(cs) || !/BuildResponsiveCheck\(root, manifest\);/.test(cs))
+  errors.push("the Responsive Check scene builder is missing or never runs (round 29)");
+if (!/Responsive Check\.unity/.test(cs) || !/Rebuild Responsive Check Scene/.test(cs))
+  errors.push("the Responsive Check scene path or its Rebuild menu is missing (round 29)");
+if ((cs.match(/CheckEdge\(safeT, "Safe Edge /g) ?? []).length !== 4)
+  errors.push("the Responsive Check must outline all four safe-area edges (round 29)");
+if (!/### Safe areas & scaling/.test(src))
+  errors.push("the README's safe-area & scaling section is missing (round 29)");
+
+/* round-29 slice B: ANCHOR INFERENCE v1 — one conservative, manifest-
+   decidable rule (18% edge band -> edge/corner; middle -> center; baked
+   unrotated art spanning 80%+ of a dimension -> stretch, text and glyph
+   art exempt, live prefabs never). The builder RE-ANCHORS after placement
+   with the reference-res seat held exact; the shadow sibling rides the
+   same anchor; the heals match BOTH builder vintages through one seat
+   helper and write stretch-aware sizes. Predictability is the contract —
+   these pins keep the rule from quietly getting clever. */
+if (!/static void InferAnchor\(PBBoardItem it, PBBoard bd, out Vector2 aMin, out Vector2 aMax\)/.test(cs))
+  errors.push("InferAnchor (the one-seat anchor rule) is missing (round 29B)");
+if (!/float band = 0\.18f, span = 0\.80f;/.test(cs))
+  errors.push("the rule's dials moved — 18% edge band / 80% span are the DOCUMENTED v1 numbers (round 29B)");
+if (!/bool baked = !string\.IsNullOrEmpty\(it\.stamp\) && it\.component != "typestamp" && it\.component != "bigglyph";/.test(cs))
+  errors.push("stretch must stay off text stamps, glyph art and every LIVE prefab — distorted letterforms / scale-broken anchors (round 29B)");
+if (!/baked && Mathf\.Abs\(it\.rot\) <= 0\.01f/.test(cs))
+  errors.push("a rotated copy must never stretch (stretch + rotation is shear) (round 29B)");
+if (!/static int ApplyInferredAnchor\(RectTransform rt, PBBoardItem it, PBBoard bd\)/.test(cs)
+    || !/rt\.anchoredPosition \+= new Vector2\(\(it\.ax - fAx\) \* bd\.w, \(it\.ay - fAy\) \* bd\.h\);/.test(cs))
+  errors.push("the re-anchor must pay the anchor-reference shift back into anchoredPosition — the reference-res seat is held EXACT (round 29B)");
+if (!/if \(aMax\.x - aMin\.x > 0\.5f\) \{ sd\.x -= bd\.w; stretched = true; \}/.test(cs))
+  errors.push("a stretched axis must pay the parent span out of sizeDelta (margins, not absolute size) (round 29B)");
+if (!/int anchorKind = ApplyInferredAnchor\(rt, it, bd\);/.test(cs)
+    || !/if \(shadowRt != null\) ApplyInferredAnchor\(shadowRt, it, bd\);/.test(cs))
+  errors.push("placement must re-anchor the piece AND its shadow sibling with the same rule — split anchors drift the pair apart (round 29B)");
+if (!/static bool MatchesSeat\(RectTransform crt, PBBoardItem it, PBBoard bd\)/.test(cs)
+    || !/if \(MatchesSeat\(crt, it, bd\)\) \{ it2 = it; break; \}/.test(cs))
+  errors.push("the heals must match seats through MatchesSeat (both builder vintages) — an inline matcher goes blind on responsive scenes (round 29B)");
+if ((cs.match(/SeatSizeDelta\(crt, it2, bd\);/g) ?? []).length !== 2)
+  errors.push("both bake re-adoption sites must size through SeatSizeDelta — a raw (w, h) write balloons a stretch-anchored stamp (round 29B)");
+if (!/responsive anchors — /.test(cs))
+  errors.push("the per-scene responsive-anchor receipt line is missing (round 29B)");
+if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(src))
+  errors.push("the README must document the v1 anchor rule with its real numbers (round 29B)");
+
+/* ── P0 CLASS INVARIANT (verification sweep): the TMP GUARD DISCIPLINE.
+   `using TMPro;` is compiled OUT below 2023.2, so an UNQUALIFIED TMP
+   symbol outside a UNITY_2023_2_OR_NEWER block is CS0246 on every 2022.3
+   editor — WITH or WITHOUT TMP installed — and the whole Editor assembly
+   dies: nothing imports. 2022.3 LTS is the Asset Store minimum. The five
+   TMP_FontAsset signatures that shipped this way also dragged guard-only
+   helpers (ApplyStyleRecipe, LabelSize, ExpectedShift, FindOurLabelRoot,
+   LabelText) and guard-only members (HeroLabel.SetText/authoredHeight,
+   LabelStateInk's shifts) into pre-2023.2 code — a dozen CS0103/CS1061
+   behind the CS0246s. THE STANDARD, pinned here over EVERY emitted
+   template, preprocessed exactly as a pre-2023.2 editor sees it:
+   (1) unqualified TMP symbols live ONLY inside UNITY_2023_2_OR_NEWER;
+   (2) outside the guards the importer uses TMPro.-QUALIFIED references —
+       legal because both asmdefs declare Unity.TextMeshPro and 2022.3
+       ships TMP in every project template (a DELIBERATE hard dependency);
+       runtime templates keep TMP fully guarded (no qualified refs either —
+       the round-19 spirit: runtime files stay maximally version-proof);
+   (3) an importer static method defined only under the guard is never
+       called from pre-2023.2-visible code;
+   (4) guard-only runtime members are guarded at every importer call site —
+       checked through the load-bearing `hl*` local convention for
+       HeroLabel (rename any unrelated hl* local) and the LabelStateInk
+       shift names. ── */
+{
+  // preprocess a template as a pre-2023.2 editor sees it; strip strings +
+  // comments per line so quoted/documented names never count
+  const preView = (text) => {
+    const outPre = [];
+    const stack = [];
+    let inBlockC = false;
+    const rows = text.split("\n");
+    for (let ln = 0; ln < rows.length; ln++) {
+      const row = rows[ln];
+      const t = row.trim();
+      if (/^#if\b/.test(t)) { stack.push(/UNITY_2023_2_OR_NEWER/.test(t) ? "ex" : "o"); continue; }
+      if (/^#else\b/.test(t)) { const f = stack[stack.length - 1]; if (f === "ex") stack[stack.length - 1] = "in"; else if (f === "in") stack[stack.length - 1] = "ex"; continue; }
+      if (/^#elif\b/.test(t)) { if (stack[stack.length - 1] === "ex") stack[stack.length - 1] = "in"; continue; }
+      if (/^#endif\b/.test(t)) { stack.pop(); continue; }
+      let bare = "";
+      let i = 0;
+      while (i < row.length) {
+        if (inBlockC) { const c = row.indexOf("*/", i); if (c < 0) { i = row.length; break; } inBlockC = false; i = c + 2; continue; }
+        const ch = row[i];
+        if (ch === "/" && row[i + 1] === "/") break;
+        if (ch === "/" && row[i + 1] === "*") { inBlockC = true; i += 2; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = ch; let j = i + 1;
+          while (j < row.length) { if (row[j] === "\\") { j += 2; continue; } if (row[j] === q) break; j++; }
+          i = j + 1; bare += " "; continue;
+        }
+        bare += ch; i++;
+      }
+      outPre.push({ ln: ln + 1, bare, excluded: stack.includes("ex") });
+    }
+    if (stack.length !== 0) errors.push("unbalanced #if/#endif in an emitted template — the whole file miscompiles on one editor stream");
+    return outPre;
+  };
+  const TMP_SYMBOL = /\b(TMP_[A-Za-z_]+|TextMeshProUGUI|TextMeshPro(?!UGUI)|FontStyles|TextAlignmentOptions|TextOverflowModes|VertexGradient)\b/g;
+  const tplRe = /const ([A-Z_]+) = `/g;
+  let tpl;
+  while ((tpl = tplRe.exec(src))) {
+    const tplName = tpl[1];
+    if (tplName === "GLINT_INK_SHADER") continue; // shader text, not C#
+    const tStart = tpl.index + tpl[0].length;
+    let tEnd = -1;
+    for (let i = tStart; i < src.length; i++) { if (src[i] === "\\") { i++; continue; } if (src[i] === "`") { tEnd = i; break; } }
+    if (tEnd < 0) continue;
+    let tplCs;
+    try { tplCs = new Function("return `" + src.slice(tStart, tEnd) + "`;")(); } catch { continue; }
+    const view = preView(tplCs);
+    // (1)+(2): TMP symbols visible pre-2023.2
+    for (const L of view) {
+      if (L.excluded) continue;
+      let sm;
+      TMP_SYMBOL.lastIndex = 0;
+      while ((sm = TMP_SYMBOL.exec(L.bare))) {
+        const qualified = /TMPro\s*\.\s*$/.test(L.bare.slice(0, sm.index));
+        if (!qualified)
+          errors.push(`${tplName} line ${L.ln}: UNQUALIFIED TMP symbol '${sm[0]}' outside the UNITY_2023_2_OR_NEWER guard — CS0246 on every 2022.3 editor, the whole assembly dies (qualify as TMPro.${sm[0]} or move it inside the guard)`);
+        else if (tplName !== "UNITY_IMPORTER")
+          errors.push(`${tplName} line ${L.ln}: TMPro.-qualified reference outside the guard in a RUNTIME template — runtime files keep TMP fully guarded (round-19 spirit); guard it`);
+      }
+    }
+    if (tplName !== "UNITY_IMPORTER") continue;
+    // (3): guard-only importer statics never called from pre-visible code
+    const defRe = /^\s*(?:static|internal static|public static)\s+[\w<>,.[\] ]+?\b([A-Z]\w+)\s*\(/;
+    const defsIn = new Set(), defsOut = new Set();
+    for (const L of view) {
+      const dm = L.bare.match(defRe);
+      if (dm) (L.excluded ? defsIn : defsOut).add(dm[1]);
+    }
+    const guardOnly = [...defsIn].filter((n) => !defsOut.has(n));
+    for (const L of view) {
+      if (L.excluded) continue;
+      for (const n of guardOnly)
+        if (new RegExp(`\\b${n}\\s*\\(`).test(L.bare))
+          errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code calls '${n}', which is defined only inside the UNITY_2023_2_OR_NEWER guard — CS0103 on 2022.3 (guard the call site or move the helper out)`);
+    }
+    // (4): guard-only runtime members through the hl*/shift conventions
+    for (const L of view) {
+      if (L.excluded) continue;
+      if (/\bhl\w*\s*\.\s*(text|fontSize|SetText|authoredHeight|lineSpacing|spacing|wordSpacing|nudge|margins|shadowInk|strokeInk|glintsInk)\b/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code touches a HeroLabel member (guard-only — the class is EMPTY below 2023.2): CS1061. Guard the call site; if this is not a HeroLabel local, rename it off the hl* convention`);
+      if (/\.\s*(pressedShift|hoverShift)\b/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible code touches LabelStateInk's shift fields (guard-only): CS1061 — guard the call site`);
+      if (/\.\s*SetText\s*\(/.test(L.bare))
+        errors.push(`UNITY_IMPORTER line ${L.ln}: pre-2023.2-visible .SetText( — HeroLabel's SetText is guard-only, and pre-2023.2 TMP writes use .text = (the standard): guard or rewrite`);
+    }
+  }
+  // (2)'s legal basis: BOTH asmdefs must keep declaring Unity.TextMeshPro
+  if (!/references: \["PatternBreak.Runtime", "Unity.TextMeshPro", "UnityEngine.UI", "Unity.InputSystem"\]/.test(src))
+    errors.push("the Editor asmdef must declare Unity.TextMeshPro (and its documented companions) — the TMPro.-qualified standard outside the guards rides on that declaration");
+}
+
+/* ── LEADING TRAVELS (the End Turn line-gap round): the app stacks the
+   endturn's two lines at fs · 0.73em · leading/100 (bevel, fork-first
+   per key — a fork snapshot without the key falls through to the dial),
+   and the export must carry the resolved dial or Unity's LIVE label
+   re-typesets at TMP's default line height forever (owner: "Leading did
+   not work on the End Turn button"). The plumb: manifest rows (base +
+   per-state, ≠100 only so factory kits stay byte-identical) →
+   PBAsset.leading → ONE importer seam, LeadingLineSpacing =
+   0.73 * (leading − 100) — TMP lineSpacing is em*100 of font size, so
+   the app's delta-from-factory maps exactly and absent/100 (the old-zip
+   0-gate) keeps today's look untouched. Convergence rides the redress
+   with a still-at-0 gate, mirrored probe and dresser. ── */
+if (!/const lead = fsW \* 0\.73 \* \(\(leadT\.leading \?\? cfg\.type\.leading \?\? 100\) \/ 100\);/.test(bevelSrc))
+  errors.push("the app's endturn leading rule (fs * 0.73em * leading/100, fork-first per key) moved — the importer's 0.73 mapping is derived from it, re-derive BOTH together");
+if (!/const STACKED_LABEL_PROPS = new Set<KitComponentId>\(\["endturn"\]\);/.test(src))
+  errors.push("STACKED_LABEL_PROPS (the stacked multi-line label set the Leading emission rides) is missing — future stacked labels inherit the plumb through it");
+if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\) \?\? c\.type\.leading \?\? 100/.test(src))
+  errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
+if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
+  errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
+if (!/public float labelFs; public float leading; public string labelText;/.test(cs))
+  errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
+if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
+    || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
+  errors.push("LeadingLineSpacing (the ONE seam: 0.73 * (leading − 100), 0-gated so absent/factory rows leave TMP's natural line height — today's look) is missing or its formula drifted");
+if (!/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
+  errors.push("the hero-stack birth must apply the Leading (set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
+if (!/if \(lsp != 0f\) t\.lineSpacing = lsp;/.test(cs))
+  errors.push("the solo baked-label birth must apply the Leading (0-gated)");
+if (!/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
+  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number)");
+if (!/if \(lrowA != null && lrowA\.leading > 0f\) t\.lineSpacing = lrowA\.leading \/ 100f;/.test(cs))
+  errors.push("the legacy Text rung must carry the dial as its line-height multiplier (0-gated; factory 100 ⇒ 1.0 = Unity's default)");
+if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
+  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading (and ONLY then — hand-tuned values are the maker's)");
+if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
+  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

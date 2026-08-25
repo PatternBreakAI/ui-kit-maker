@@ -303,6 +303,10 @@ interface PieceOpts {
   bayHome?: boolean;
   icon?: IconDef | null; value?: number; baseState?: GenStateName; scale?: number;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string; iconScale?: number; trim?: boolean; tight?: boolean;
+  /** Measured crop to the rendered art (LiveArt hug) — the Fields
+   *  specimens: their canvases' full-travel reserves ran far past the art
+   *  and the section read as dead space + cut-off pieces (owner). */
+  hug?: boolean;
   /** render this instance FLAT — no extrusion, contact or cast shadow.
       Screen patterns that butt tiles edge-to-edge (the match-3 board)
       zero the depth story so cells sit flush like a real board. */
@@ -597,7 +601,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   return (
     <figure className="kp-piece" style={shineVars} data-kp={p.id}>
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
-        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} />
+        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug} />
       <figcaption className="kp-cap">
         {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
         {!locked && pinned && <Pin className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Pinned to its own look" />}
@@ -643,7 +647,7 @@ function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
   const shineVars = useShineVars(!!p.shine);
   return (
     <LiveArt cfg={cfg} playing scale={p.scale ?? PATTERN_SCALE} className="gp-piece" style={shineVars}
-      kit={kit} title={name} ambient={p.ambient} trim={p.trim} tight={p.tight} snug={p.flat} shine={p.shine} />
+      kit={kit} title={name} ambient={p.ambient} trim={p.trim} tight={p.tight} snug={p.flat} hug={p.hug} shine={p.shine} />
   );
 }
 
@@ -1258,15 +1262,18 @@ function assess(cfg: GenConfig): { level: "Strong" | "Fair" | "Risky"; notes: st
   return { level, notes };
 }
 
-/** A live piece row shown at several states, tiny captions underneath. */
-function StateStrip({ variants }: {
+/** A live piece row shown at several states, tiny captions underneath.
+ *  `hug` crops each cell to its measured art so the specimens sit with
+ *  their captions instead of floating high over reserve canvas. */
+function StateStrip({ variants, hug }: {
   variants: { cap: string; piece: PieceOpts }[];
+  hug?: boolean;
 }) {
   return (
     <div className="kp-states">
       {variants.map((v) => (
         <figure className="kp-state" key={v.cap}>
-          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} />
+          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} hug={hug} />
           <figcaption>{v.cap}</figcaption>
         </figure>
       ))}
@@ -2604,13 +2611,19 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 05 · fields ── */}
       <Sec n="03" title="Fields" note="Input wells sunk into the same material. The dropdown opens in place.">
+        {/* hug: measured crops. The canvases here reserve full slider
+            travel below the shell, and the open dropdown's menu draws
+            past its own frame — a fixed caption reservation (the old
+            .kp-tall 86px) over-measured whenever the shadow reserve
+            already held the menu and under-measured it at size L. The
+            measured crop hugs whatever actually rendered ("this section
+            looks cut-off", owner, 2026-08-24). */}
         <div className="kp-tray">
-          <Piece id="input" caption="Input · click and type" scale={0.78} />
-          <Piece id="dropdown" caption="Dropdown" />
-          {/* the open menu overflows its svg — give the caption room below */}
-          <div className="kp-tall"><Piece id="dropdown" caption="Dropdown · Open" baseState="pressed" /></div>
+          <Piece id="input" caption="Input · click and type" scale={0.78} hug />
+          <Piece id="dropdown" caption="Dropdown" hug />
+          <Piece id="dropdown" caption="Dropdown · Open" baseState="pressed" hug />
         </div>
-        <StateStrip variants={[
+        <StateStrip hug variants={[
           { cap: "Empty", piece: { id: "input", scale: 0.46 } },
           { cap: "Filled", piece: { id: "input", label: "player_one", scale: 0.46 } },
           { cap: "Hover / Focus", piece: { id: "input", baseState: "hover", scale: 0.46 } },
@@ -2858,7 +2871,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray kp-axis kp-race">
         </div>
-        <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — the traces here are specimens</span></div>
+        <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — on the lap chart, Value plays the session forward (first lap set → all eight in, delta going live); telemetry's traces are specimens</span></div>
       </Sec>
 
       <Sec n="09" title="System Chrome" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material. Key prompts stretch like real keycaps; pad buttons carry console color rings.">

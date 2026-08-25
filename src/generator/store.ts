@@ -387,6 +387,15 @@ interface GenStore {
   setBoardItemVal: (id: string, v: number | null) => void;
   /** THIS instance's opacity (0..100); null returns it to fully opaque. */
   setBoardItemOpacity: (id: string, v: number | null) => void;
+  /** THIS kit copy's drop shadow. null = follow the kit again; a patch
+   *  merges (a fresh dial seeds pose fields from boardShadowLast — the
+   *  owner's sticky ask: "whatever it was set to last, to make it easy
+   *  to give everything the same drop shadow"). Every set with s>0
+   *  refreshes that memory. */
+  setBoardItemShadow: (id: string, patch: Partial<KitShadowFx> | null) => void;
+  /** The last shadow recipe the user dialed — the sticky default new
+   *  dials open from. Persisted with the workspace (cloud-synced). */
+  boardShadowLast: KitShadowFx | null;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
   /** Drop a type stamp on the active board. */
@@ -398,6 +407,21 @@ interface GenStore {
   addBigGlyphToBoard: (gid: string) => void;
   /** THIS instance's shadow/glow dials — the stamp-dial contract. */
   setBoardItemBig: (id: string, patch: Partial<BigGlyphFx>) => void;
+  /* ── My assets: the user's own uploaded images (logos) ───────────── */
+  userAssets: UserAsset[];
+  /** Register an imported upload (importUserAssetFile did the vaulting). */
+  addUserAsset: (a: UserAsset) => void;
+  renameUserAsset: (id: string, name: string) => void;
+  /** Drop the registry entry AND every board copy of it. Guest-vault
+   *  bytes retire with it (single-owner, the backdrop rule); `asset://`
+   *  bytes stay — content-addressed, possibly shared, cloud GC is the
+   *  assets road's phase 2. */
+  removeUserAsset: (id: string) => void;
+  /** Place an uploaded asset on the active board — the big-glyph landing
+   *  contract (centered, shrunk to fit the stage). */
+  addUserAssetToBoard: (aid: string) => void;
+  /** THIS logo copy's shadow/glow dials — the big-glyph dial contract. */
+  setBoardItemLogo: (id: string, patch: Partial<UserLogoFx>) => void;
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
@@ -714,6 +738,13 @@ export interface BoardItem {
    *  follow the kit. Design changes still flow through live — only the
    *  words are pinned. */
   label?: string;
+  /** THIS kit copy's drop shadow (owner: shadows are a BOARD decision —
+   *  "you can't always tell if you need a drop shadow at the editing
+   *  level"). While set (s > 0) it REPLACES the kit's cast shadow for
+   *  this copy — the render calms the kit's own cast + contact and the
+   *  dialed silhouette shadow paints instead (kitShadowFilter, one
+   *  recipe across stage / PNG / Unity). Absent = follow the kit. */
+  shadow?: KitShadowFx;
   /** A TYPE STAMP — the kit's full lettering treatment with no shell
    *  (owner: "temp game logos or just areas where I might need text…
    *  type the word and the ability to size it", then: "basic controls…
@@ -743,6 +774,38 @@ export interface BoardItem {
    *  options"); carries the instance's own Drop shadow + Glow dials, the
    *  stamp grain. Scale/rotation/opacity ride the shared item fields. */
   big?: BigGlyphFx;
+  /** A USER LOGO — the maker's own uploaded art (owner: "upload a
+   *  transparent png to use as a logo… these assets should live in my
+   *  assets drawer and follow my account"). `aid` names a userAssets
+   *  registry entry; the dial fields are the big glyph's exact grain, so
+   *  bigGlyphFilter renders all three surfaces (stage / board PNG /
+   *  Unity bake) from one recipe. Scale/rotation/opacity ride the
+   *  shared item fields, the big-glyph 5% scale floor included. */
+  logo?: UserLogoFx;
+}
+
+/** A user logo instance's own dials — structurally a BigGlyphFx (gid
+ *  unused) so the shared filter road needs no changes. */
+export interface UserLogoFx {
+  /** userAssets registry id */
+  aid: string;
+  shadow?: number;
+  shadowX?: number; shadowY?: number; shadowBlur?: number;
+  glow?: number;
+  glowInk?: string;
+}
+
+/** One uploaded image in the My-assets drawer. The registry is small
+ *  JSON under a ui-generator-* key, so it rides the cloud workspace doc
+ *  exactly like userShapes/presets — that is the account-follow. The
+ *  PIXELS never enter the doc (the fat-pixel rule): `ref` points at the
+ *  bg vault (guest uploads, this browser only) or an `asset://<hash>`
+ *  in the account's durable bucket (signed in — any browser resolves
+ *  it through resolveBgAsset, the backdrop road verbatim). */
+export interface UserAsset {
+  id: string; name: string; ref: string;
+  /** natural ship-copy raster px — placement footprint derives from these */
+  w: number; h: number;
 }
 
 /** Instance Scale bounds per board item. Big glyphs may shrink to real
@@ -751,7 +814,7 @@ export interface BoardItem {
  *  footprint is a ~22px tile, comfortably under the ~52px a 7-column
  *  390px board needs (~12%). Everything else keeps the 30% legibility
  *  floor; the 200% ceiling is shared. */
-export const boardScaleMin = (b: Pick<BoardItem, "big"> | null | undefined): number => (b?.big ? 0.05 : 0.3);
+export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo"> | null | undefined): number => (b?.big || b?.logo ? 0.05 : 0.3);
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
@@ -914,6 +977,50 @@ export function stampFilterPad(st: NonNullable<BoardItem["stamp"]>): number {
   if (st.glow) pad = Math.max(pad, (6 + st.glow * 0.5) * 3);
   return Math.ceil(pad);
 }
+
+/* ── per-copy KIT-piece drop shadow (owner: "unity transferable drop
+   shadows to ui components in boards… you can't always tell if you need
+   a drop shadow at the editing level") ───────────────────────────────
+   One recipe string for the stage, the board PNG compositor and the
+   Unity bake — the bigGlyphFilter/stampFilter contract, same house
+   curve (dy 2+s·0.1, blur 2+s·0.22, ink black at s·0.6 alpha), so a
+   dialed piece, a dialed glyph and a dialed stamp all speak one
+   shadow language. Strength 0 / absent = the copy follows the kit. */
+export interface KitShadowFx {
+  /** strength 0..100 — the whole dial; 0 clears the override */
+  s: number;
+  /** pose overrides (px at art scale); absent = the house curve */
+  x?: number; y?: number; blur?: number;
+}
+export function kitShadowFilter(sh: KitShadowFx | undefined, pxScale = 1): string | undefined {
+  if (!sh || !sh.s) return undefined;
+  const dx = (sh.x ?? 0) * pxScale;
+  const dy = (sh.y ?? 2 + sh.s * 0.1) * pxScale;
+  const bl = (sh.blur ?? 2 + sh.s * 0.22) * pxScale;
+  return `drop-shadow(${dx.toFixed(1)}px ${dy.toFixed(1)}px ${bl.toFixed(1)}px rgba(0,0,0,${(sh.s / 100 * 0.6).toFixed(2)}))`;
+}
+/** The dialed shadow's paint reach past the art (px at 1:1) — bakes pad
+ *  their canvas by this so the falloff never clips. */
+export function kitShadowPad(sh: KitShadowFx): number {
+  if (!sh.s) return 0;
+  return Math.ceil(Math.abs(sh.x ?? 0) + Math.abs(sh.y ?? 2 + sh.s * 0.1) + (sh.blur ?? 2 + sh.s * 0.22) * 2);
+}
+/** The replace rule: a dialed copy renders with the KIT's own cast
+ *  shadow (and contact pool) calmed, so the dial IS the shadow — never
+ *  a second one stacked under the kit's. Fork shadows are calmed too
+ *  (the round-24 lesson: stateDesigns carry their own copies that
+ *  outrank the master field by field). */
+export function suppressCastShadow(cfg: GenConfig): GenConfig {
+  const c = (typeof structuredClone === "function" ? structuredClone(cfg) : JSON.parse(JSON.stringify(cfg))) as GenConfig;
+  c.shadow = { ...c.shadow, opacity: 0 };
+  if (c.candy?.contact) c.candy = { ...c.candy, contact: { ...c.candy.contact, opacity: 0 } };
+  for (const f of Object.values(c.stateDesigns ?? {})) {
+    if (!f) continue;
+    if (f.shadow) f.shadow = { ...f.shadow, opacity: 0 };
+    if (f.candy?.contact) f.candy = { ...f.candy, contact: { ...f.candy.contact, opacity: 0 } };
+  }
+  return c;
+}
 /** One artboard — a named, fixed-resolution stage with its own pieces and
  *  background. Backgrounds are object URLs, so the image itself is
  *  session-only; everything else persists. */
@@ -988,6 +1095,8 @@ export function defaultRow(): RowCfg {
 }
 const LIB_KEY = "ui-generator-library";
 const BOARD_KEY = "ui-generator-board";
+const USERASSETS_KEY = "ui-generator-userassets";
+const SHADOWLAST_KEY = "ui-generator-boardshadowlast";
 /* ── SAFE BOOT (support hatch) ────────────────────────────────────────
    `?safe` (or #safe) anywhere in the URL boots the app FACTORY-FRESH
    without touching the user's stored document: every persisted read
@@ -1151,6 +1260,43 @@ export async function importBoards(raw: unknown): Promise<boolean> {
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
   return true;
+}
+
+/* ── My-assets import door (user logos) ──────────────────────────────
+   One road for every upload: normalize like the backdrop uploader
+   (>1920 long side downscales, PNG stays lossless PNG so alpha
+   survives), cap the ship copy at 2 MB with a friendly refusal, then
+   vault + (signed in) send the bytes up through the durable-assets
+   broker — importBgAsset, the backdrop road verbatim. Guests keep a
+   browser-local copy and the drawer's keep-safe line says so quietly;
+   no hard gate, exactly like backdrop uploads. */
+export const USER_ASSET_CAP = 2 * 1024 * 1024;
+export async function importUserAssetFile(file: File): Promise<{ ok: true; asset: UserAsset } | { ok: false; message: string }> {
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+    return { ok: false, message: "That file isn't an image this drawer takes — PNG (transparent PNGs shine here), JPG or WebP." };
+  }
+  const { normalizeShipCopy } = await import("./bgvault");
+  const { importBgAsset } = await import("./assets");
+  const ship = await normalizeShipCopy(file);
+  if (ship.size > USER_ASSET_CAP) {
+    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import — logo uploads cap at 2 MB. Try a tighter export of it.` };
+  }
+  let w = 0, h = 0;
+  try {
+    const bmp = await createImageBitmap(ship);
+    w = bmp.width; h = bmp.height;
+    bmp.close();
+  } catch { /* fall through to the refusal below */ }
+  if (!w || !h) return { ok: false, message: "Couldn't read that image — is the file damaged?" };
+  const ref = await importBgAsset(ship, file.name);
+  if (!ref) return { ok: false, message: "Couldn't store the image in this browser (private window?) — try again outside private mode." };
+  const name = (file.name || "My logo").replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 40) || "My logo";
+  const asset: UserAsset = {
+    id: "ua" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name, ref, w, h,
+  };
+  useGen.getState().addUserAsset(asset);
+  return { ok: true, asset };
 }
 
 /* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
@@ -1697,6 +1843,25 @@ export const useGen = create<GenStore>((set, get) => ({
     if (v === null) delete next.v; else next.v = Math.max(0, Math.min(1, v));
     return next;
   }),
+  boardShadowLast: loadJson<KitShadowFx | null>(SHADOWLAST_KEY, null),
+  setBoardItemShadow: (id, patch) => {
+    if (patch === null) {
+      mutateItem(get, set, `shadow:${id}`, id, (b) => { const n = { ...b }; delete n.shadow; return n; });
+      return;
+    }
+    let mem: KitShadowFx | null = null;
+    mutateItem(get, set, `shadow:${id}`, id, (b) => {
+      /* a FRESH dial opens on the remembered recipe (sticky, the owner's
+         explicit ask) with only the touched field patched over it */
+      const last = get().boardShadowLast;
+      const base: KitShadowFx = b.shadow ?? (last ? { ...last, s: 0 } : { s: 0 });
+      const next: KitShadowFx = { ...base, ...patch, s: Math.max(0, Math.min(100, patch.s ?? base.s)) };
+      if (!next.s) { const n = { ...b }; delete n.shadow; return n; }
+      mem = next;
+      return { ...b, shadow: next };
+    });
+    if (mem) { saveJson(SHADOWLAST_KEY, mem); set({ boardShadowLast: mem }); }
+  },
   setBoardItemLabel: (id, label) => mutateItem(get, set, `label:${id}`, id, (b) => {
     const next = { ...b };
     if (label === null || label === "") delete next.label; else next.label = label;
@@ -1760,6 +1925,61 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setBoardItemBig: (id, patch) => mutateItem(get, set, `big:${id}`, id, (b) => (
     b.big ? { ...b, big: { ...b.big, ...patch } } : b
+  )),
+  /* ── My assets (user logos) — registry + placement ─────────────────
+     The registry syncs with the account through the workspace doc (a
+     ui-generator-* key, the userShapes road); the pixels ride the
+     durable-assets bucket for account holders and the local vault for
+     guests — see importUserAssetFile below. */
+  userAssets: loadJson<UserAsset[]>(USERASSETS_KEY, []),
+  addUserAsset: (a) => {
+    const userAssets = [...get().userAssets.filter((x) => x.id !== a.id), a];
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+  },
+  renameUserAsset: (id, name) => {
+    const clean = name.trim().slice(0, 40);
+    if (!clean) return;
+    const userAssets = get().userAssets.map((a) => (a.id === id ? { ...a, name: clean } : a));
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+  },
+  removeUserAsset: (id) => {
+    const dead = get().userAssets.find((a) => a.id === id);
+    const userAssets = get().userAssets.filter((a) => a.id !== id);
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+    // board copies of a deleted asset can never paint again — remove them
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+      bd.items.some((b) => b.logo?.aid === id)
+        ? { ...bd, items: bd.items.filter((b) => b.logo?.aid !== id) }
+        : bd)));
+    /* guest-vault bytes are single-owner like a legacy backdrop record —
+       retire them unless another registry entry aliases the same ref;
+       `asset://` bytes stay (shared by content, cloud GC is phase 2) */
+    if (dead && !isAssetRef(dead.ref) && !userAssets.some((a) => a.ref === dead.ref)) void delBgOriginal(dead.ref);
+  },
+  addUserAssetToBoard: (aid) => {
+    const ua = get().userAssets.find((a) => a.id === aid);
+    if (!ua) return;
+    // the big glyph's landing contract: centered, shrunk to fit the stage
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    let k = BIG_GLYPH_BASE;
+    while (ua.w * k > W * 0.86 && k > 0.05) k *= 0.8;
+    const scale = Math.max(0.05, Math.min(2, Math.round((k / BIG_GLYPH_BASE) * 100) / 100));
+    const w = ua.w * BIG_GLYPH_BASE * scale, h = ua.h * BIG_GLYPH_BASE * scale;
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "",
+      x: Math.max(0, Math.round((W - w) / 2)), y: Math.max(0, Math.round((H - h) / 2)),
+      ...(scale !== 1 ? { scale } : {}),
+      logo: { aid },
+    };
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
+    set({ phase: "board", boardSel: item.id });
+  },
+  setBoardItemLogo: (id, patch) => mutateItem(get, set, `logo:${id}`, id, (b) => (
+    b.logo ? { ...b, logo: { ...b.logo, ...patch } } : b
   )),
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));

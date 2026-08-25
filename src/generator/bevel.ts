@@ -3181,8 +3181,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
      auto-width surfaces honored it, fixed frames spilled instead). When
      content + margins outgrow the frame, the type FITS DOWN, uniformly:
      every derived metric scales with fs, so placement math stays coherent.
-     Anything that already fits renders byte-identically. */
-  if (opts.fixedW && showText && contentW > 0) {
+     Anything that already fits renders byte-identically.
+     The same rule covers an AUTO-WIDTH shell that has hit its width cap
+     (owner: "fit down" — a 32-char primary poured past the 980 shell):
+     below the cap the shell grew for the content, so contentW ≤ availW and
+     this is a no-op; at the cap the frame is as fixed as any fixedW frame
+     and the label shrinks to honestly fit it. The 0.45 floor stands — at
+     the floor, overflow beats unreadable type. */
+  if (showText && contentW > 0) {
     const availW = Math.max(24, w - padL - padR);
     if (contentW > availW) {
       const fitK = Math.max(0.45, availW / contentW);
@@ -4150,6 +4156,7 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "seasontrack", "hotbar", "resource", "datarow", "orb", "lives", "ring", "flipclock", "stopwatch",
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
   "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
+  "bottomnav", "boostercard",
 ]);
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
@@ -4547,12 +4554,58 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
-     overhangs when too big): shrink a run's font size so its estimated
-     width fits the given span. Identity when it already fits — existing
-     renders hold byte-still. */
-  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62) =>
-    fs3 * Math.min(1, avail / Math.max(1, txt.length * fs3 * perChar));
+     overhangs when too big): shrink a run's font size so its width fits
+     the given span. Identity when it already fits — existing renders hold
+     byte-still.
+     MEASURE-TRUE (owner: "fit down"): the char-count estimate under-read
+     wide faces ~11% at the dialogue box's 48-char cap and the words poured
+     past the frame. Width now comes from the same baked-metrics/canvas
+     measurement build() trusts for auto-width, mirroring what contentText
+     actually renders: the state-forked type, the list face for reading
+     voices, the case treatment, the 700 weight floor and per-glyph
+     tracking. Faces measurement can't cover keep the old estimate. */
+  const fitFs = (txt: string, fs3: number, avail: number, perChar = 0.62, o3: { list?: boolean; keepCase?: boolean } = {}) => {
+    const T3 = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+    const font3 = (o3.list && (T3.listFont ?? cfg.type.listFont)) || T3.font;
+    const cased3 = o3.keepCase ? txt
+      : T3.case === "upper" ? txt.toUpperCase()
+      : T3.case === "lower" ? txt.toLowerCase()
+      : T3.case === "title" ? txt.replace(/\b\w/g, (m3) => m3.toUpperCase())
+      : txt;
+    const wt3 = Math.max(700, T3.weight);
+    const m3 = measureLabel(cased3, font3, wt3, !!T3.italic);
+    /* NO safety pad here, unlike auto-width: the advance sum plus BETWEEN-
+       glyph tracking lands within ~1% of the rendered ink (calibrated
+       against getBBox), deliberately erring a whisper UNDER — a pad that
+       overshoots real ink would nudge borderline labels that genuinely fit
+       today, and holding those byte-still outranks the last invisible
+       percent on an already-shrunk overflow. */
+    const run3 = m3 !== null
+      ? (m3 + (cased3.length - 1) * T3.spacing / 100) * fs3 * (1 + Math.max(0, wt3 - 700) * 0.0004)
+      : txt.length * fs3 * perChar;
+    return fs3 * Math.min(1, avail / Math.max(1, run3));
+  };
   const wellFill = darken(effect(cfg.effects, "Inner Fill"), 0.72);
+  /* pale-ground guard (owner round, Brightside: "overall contrast/
+     legibility pass"): a handful of self-drawn inks are hardcoded white
+     or lightened on the assumption of dark grounds — on a genuinely pale
+     ground they vanish. grayOf is the same perceptual weighted sum
+     isDarkBg trusts; >= 186 = pale, far above every stock dark palette
+     (hard-candy bevel 129, inner fill 168), so dark kits hold byte-still.
+     Non-hex input reads as dark = the unchanged branch. */
+  const grayOf = (c: string): number => {
+    const m6 = /^#([0-9a-fA-F]{6})$/.exec(c);
+    if (!m6) return 0;
+    const p6 = parseInt(m6[1], 16);
+    return 0.2126 * ((p6 >> 16) & 255) + 0.7152 * ((p6 >> 8) & 255) + 0.0722 * (p6 & 255);
+  };
+  const paleG = (c: string) => grayOf(c) >= 186;
+  /* the FACE a piece's ghost furniture sits on: light mode faces wear the
+     Inner Fill role; dark mode always lays dark faces, never pale */
+  const paleFace = cfg.face.mode !== "dark" && paleG(effect(cfg.effects, "Inner Fill"));
+  /* ghost furniture cut from the kit's Shadow role — the pale-face
+     counterpart of the white ghosts dark faces wear */
+  const ghostBase = darken(effect(cfg.effects, "Shadow"), 0.15);
   const font = cfg.type.font;
   /* info readouts (percentages, x/y counters) ON THE FACE — ADAPTIVE ink,
      no outline: the color group's darkest role (Shadow) on light faces,
@@ -5490,8 +5543,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           inner0 += candyKnob(cxS, cyS, sR * (hotS ? 1.08 : 1), knobC) + (state !== "disabled" ? `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${(sR * (hotS ? 1.38 : 1.28)).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotS ? 0.9 : 0.6)}" stroke-width="${hotS ? 3 : 2.4}" style="filter: drop-shadow(0 0 ${hotS ? 8 : 5}px ${hexRgba(glow, 0.65)})"/>` : "");
           inner0 += contentText(String(i + 1), cxS, cyS + 1, sR * 0.95, { anchor: "middle", keepCase: true, autoInk: darken(bevel, 0.55) });
         } else {
+          /* upcoming pips live in dark wells; a solid theme ink that is
+             itself dark (Brightside navy) drowns there — those kits fall
+             back to the ghost ink the auto voice always used */
+          const upInk9 = cfg.type.fillMode === "solid" && grayOf(cfg.type.fill) < 96 ? "rgba(255,255,255,0.45)" : undefined;
           inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>` +
-            contentText(String(i + 1), cxS, cyS + 1, sR * 0.9, { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", opacity: 0.8 });
+            contentText(String(i + 1), cxS, cyS + 1, sR * 0.9, { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", ink: upInk9, opacity: 0.8 });
         }
       }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS.toFixed(0)}" height="${HS.toFixed(0)}" viewBox="0 0 ${WS.toFixed(0)} ${HS.toFixed(0)}" role="img" aria-label="step ${cur + 1} of ${nS}"><g opacity="${state === "disabled" ? 0.45 : 1}">${inner0}</g></svg>`;
@@ -6190,7 +6247,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotQ = active && (state === "hover" || state === "pressed");
           inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
         }
-        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
+        inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47, { list: true, keepCase: true }), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
       });
       const fy = 33 + h - inset - 30 * k, fH = 12 * k;
@@ -6226,8 +6283,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bodyAvail = w - inset * 2 - 36 * k;
       const l1t = opts.label ?? "The old road is sealed since the tremor.";
       const l2t = (opts.slots?.line2 ?? "Take the ember pass at first light.").slice(0, 60);
-      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, list: true, ink: bodyInk });
-      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
+      const line1 = contentText(l1t, 42 + inset + 18 * k, 33 + inset + 46 * k, fitFs(l1t, 23 * k * typeK, bodyAvail, 0.47, { list: true, keepCase: true }), { keepCase: true, list: true, ink: bodyInk });
+      const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47, { list: true, keepCase: true }), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
       const arrow = state !== "disabled"
@@ -6287,7 +6344,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const icDef = pickI === "Empty" ? null
           : (pickI && STOCK_ICONS[pickI.toLowerCase()]) || (items[i] ? STOCK_ICONS[items[i] as string] : null);
         if (icDef) inner += themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
-        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
+        // the count chip wears the kit Bevel; white numerals sink into a
+        // pale chip (Brightside beige), so pale chips flip to a bevel-cut
+        // dark ink — dark chips keep the white they always wore
+        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
           // data-invring lets the engine export bake the panel RINGLESS and
@@ -7546,9 +7606,58 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `<text x="${wcx.toFixed(1)}" y="${(sy + sh * 0.38).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(46 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.5)" text-anchor="middle" dominant-baseline="central">?</text>`
         : (icR ? wellGlyph(icR, wcx, sy + sh * 0.38, sw * 0.38, lighten(tier.c, 0.2)) : "");
       const nameR = contentText(mystery ? "???" : (opts.label ?? "SUN SHARD").slice(0, 14), wcx, sy + sh - inset - 52 * k, 20 * k * typeK, { anchor: "middle" });
+      /* the qty pill lays the tier tint at 25% over the card FACE — on a
+         pale face the lightened tier ink dissolves into it (Brightside:
+         pale mint on cream), so pale grounds flip the ink dark while
+         keeping the tier hue; the dim voice keeps its dimness */
+      const qtyPale = cfg.face.mode !== "dark" && paleG(hexMix(effect(cfg.effects, "Inner Fill"), tier.c, 0.25));
+      const qtyInk = dimR
+        ? (qtyPale ? hexRgba(darken(tier.c, 0.55), 0.6) : "rgba(255,255,255,0.4)")
+        : (qtyPale ? darken(tier.c, 0.52) : lighten(tier.c, 0.35));
       const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
-        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${dimR ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
+        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${qtyInk}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
       return injectUnder(inject(shell.replace("<svg ", '<svg data-rewardcard="1" '), well + face + nameR + qty), aura);
+    }
+    case "boostercard": {
+      /* Casual · booster card — the booster button's reading twin: a
+         vertical info card with the glyph in a dark well up top, the
+         booster's name, its effect in the quieter list voice, and the
+         quantity chip. EDITING CONTRACT: label = the name; icon = the
+         glyph (swappable — the reward-card seat); `effect` slot = the
+         second line (the dialogue box's sub-label split); value drives
+         the qty chip, 0..1 → ×1..×99 (the count-badge map; untouched
+         shows the ×3 specimen). A real button — hover/pressed native on
+         the card; disabled dims. */
+      const w = 200 * k, h = 268 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const dimBC = state === "disabled";
+      const insetBC = bw + 6 * k;
+      const wcx = sx + sw / 2;
+      const wcy = sy + sh * 0.32;
+      // the glyph well — the reward card's dark dish, same seat
+      const well = `<circle cx="${wcx.toFixed(1)}" cy="${wcy.toFixed(1)}" r="${(sw * 0.28).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+      // wellGlyph honors the WHOLE Icons panel — size, rotation, fx, colors
+      const icBC = opts.icon !== undefined ? opts.icon : STOCK_ICONS.hammer;
+      const face = icBC ? wellGlyph(icBC, wcx, wcy, sw * 0.36, hexMix(glow, "#FFFFFF", 0.3)) : "";
+      // name — the themed display voice on the card FACE
+      const nmBC = (opts.label ?? "HAMMER").slice(0, 14);
+      const availBC = sw - insetBC * 2 - 8 * k;
+      const name = contentText(nmBC, wcx, sy + sh * 0.60, fitFs(nmBC, 21 * k * typeK, availBC), { anchor: "middle" });
+      // effect line — the quieter reading voice (list face), dialogue-body rule
+      const effBC = (opts.slots?.effect ?? "+10% Damage").slice(0, 18);
+      const effect9 = contentText(effBC, wcx, sy + sh * 0.715, fitFs(effBC, 15 * k * typeK, availBC, 0.5, { list: true, keepCase: true }), { anchor: "middle", keepCase: true, opacity: 0.78, list: true });
+      // qty chip — the kit Bevel in miniature (invgrid's count chip), the
+      // pale-chip ink flip included; value drives the number
+      const qn = Math.max(1, Math.min(99, Math.round(clamp(value ?? 0.03, 0, 1) * 99)));
+      const qTxt = `×${qn}`;
+      const chW = (34 + qTxt.length * 12) * k, chH = 30 * k;
+      const chY = sy + sh - insetBC - chH - 8 * k;
+      const qty = `<rect x="${(wcx - chW / 2).toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimBC ? 0.5 : 1}"/>` +
+        `<text x="${wcx.toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimBC ? 0.6 : 1}">${esc(qTxt)}</text>`;
+      return inject(shell.replace("<svg ", '<svg data-boostercard="1" '), well + face + name + effect9 + qty);
     }
     case "qtybadge": {
       /* Rewards · quantity badge — the ×250 corner pill that rides any
@@ -7621,9 +7730,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const pw = 108 * k, ph = 40 * k, px9 = sx + sw - inset - pw - 6 * k, py9 = rowY + cell / 2 - ph / 2;
       const gidT9 = "rt" + UID++;
       const all = shown >= 4 && !dimT;
+      /* the dim (not-yet-claimable) capsule wears white ghosts — invisible
+         on a pale plate (Brightside cream): the same ghosts cut from the
+         kit's Shadow role instead, still clearly OFF, now findable */
+      const gFill9 = paleFace ? hexRgba(ghostBase, 0.1) : "rgba(255,255,255,0.1)";
+      const gLine9 = paleFace ? hexRgba(ghostBase, 0.4) : "rgba(255,255,255,0.2)";
+      const gInk9 = paleFace ? hexRgba(ghostBase, 0.85) : "rgba(255,255,255,0.45)";
       cells += `<defs><linearGradient id="${gidT9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${darken(glow, 0.22)}"/></linearGradient></defs>` +
-        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : "rgba(255,255,255,0.1)"}" stroke="${all ? darken(glow, 0.35) : "rgba(255,255,255,0.2)"}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
-        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : "rgba(255,255,255,0.45)"}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
+        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : gFill9}" stroke="${all ? darken(glow, 0.35) : gLine9}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
+        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : gInk9}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
       return inject(shell.replace("<svg ", '<svg data-rewardtray="1" '), title + cells);
     }
     case "chestpanel": {
@@ -7862,10 +7977,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the old fixed 32k gap crowded big display type (owner). 0.73em
          reproduces the factory look exactly at the default type size. */
       const fsW = 30 * k * typeK;
-      // fork-first like the list font: a Leading edit made while a state is
-      // selected lands on the fork, and the raw master never sees it
+      /* fork-first PER KEY, like the list font (T4.listFont ?? cfg.type
+         .listFont): a Leading edit made while a state is selected lands on
+         the fork and wins there — but `leading` is an OPTIONAL key, and a
+         fork snapshot that never carried it (the factory hover/pressed
+         designs, every pre-dial save) must fall through to the dial instead
+         of masking it at 100%. The old wholesale read did exactly that:
+         the gap snapped back to factory the moment the button was hovered
+         or pressed (owner: "Leading did not work on the End Turn button"). */
       const leadT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
-      const lead = fsW * 0.73 * ((leadT.leading ?? 100) / 100);
+      const lead = fsW * 0.73 * ((leadT.leading ?? cfg.type.leading ?? 100) / 100);
       const text = words.length > 1
         ? contentText(words[0], ccx, ccy + 2 * k - lead / 2, fsW, { anchor: "middle" }) +
           contentText(words.slice(1).join(" "), ccx, ccy + 2 * k + lead / 2, fsW, { anchor: "middle" })
@@ -8186,6 +8307,70 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       return inject(track.replace("<svg ", '<svg data-hotbar="1" '), cells);
     }
+    case "bottomnav": {
+      /* Casual · bottom nav bar — the tab bar every mobile game stands on:
+         four icon+label destination cells in the kit material, the active
+         one on a brighter well with the kit glow ring, red count dots on
+         badged cells. EDITING CONTRACT: value picks the ACTIVE cell in
+         quarters (0–24% cell 1 … 75–100% cell 4); l1–l4 recaption the
+         cells; g1–g4 swap glyphs from the curated nav rack (house icon
+         system — Factory keeps the stock loadout); b1–b4 badge counts
+         (factory shows 3 on cell 2; 0 or empty clears). hover/pressed
+         live on the bar as a whole (native build states) and strengthen
+         the active cell's ring; disabled dims. */
+      const n = 4, cellW = 128 * k, cellH = 96 * k, gap = 10 * k;
+      const w = n * cellW + (n - 1) * gap + 44 * k, h = cellH + 28 * k;
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 124 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      // quarters, not a scrub — each quarter of the travel owns one cell
+      const selN = clamp(Math.floor(clamp(value ?? 0, 0, 1) * n), 0, n - 1);
+      const x0 = 39 + (w - (n * cellW + (n - 1) * gap)) / 2;
+      const y0 = 30 + (h - cellH) / 2;
+      // cell corners RIDE the Smoothness slider — the hotbar contract: on a
+      // pill shell the silhouette can't round further, so the cells are
+      // where the control must visibly live
+      const cellR = Math.min(cellH / 2, (3 + cfg.bevel.softness * 0.42) * k);
+      const dimN = state === "disabled";
+      const cellsDef: { l: string; ic: string }[] = [
+        { l: "MAP", ic: "map" }, { l: "QUESTS", ic: "scroll" },
+        { l: "HEROES", ic: "user" }, { l: "STORE", ic: "cart" },
+      ];
+      // notification red is a convention, not a theme role — the count
+      // badge recipe, leaning a whisper toward the kit's glow (countbadge)
+      const badgeC = dimN ? "#9AA0AB" : hexMix("#FF3B4A", glow, 0.12);
+      let cells = "";
+      for (let i = 0; i < n; i++) {
+        const cx0 = x0 + i * (cellW + gap);
+        const on = i === selN;
+        const hotN = on && (state === "hover" || state === "pressed");
+        cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${wellFill}" opacity="${on ? 0.98 : 0.78}"${on ? ` stroke="${glow}" stroke-width="${((hotN ? 3.6 : 3) * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${((hotN ? 8 : 6) * k).toFixed(1)}px ${hexRgba(glow, hotN ? 0.9 : 0.7)})"` : ""}` : ` stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2"`} data-cell="${i}"/>`;
+        // the active well BRIGHTENS: a glow wash inside the well, deepening
+        // through hover/pressed like the dialogue choices do
+        if (on) cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${hexRgba(glow, state === "pressed" ? 0.3 : state === "hover" ? 0.24 : 0.16)}"/>`;
+        // per-cell glyph slots — Factory keeps the stock loadout (the
+        // wheels' honesty rule); names resolve by lowercasing
+        const pickN = opts.slots?.[`g${i + 1}`];
+        const icN = (pickN && pickN !== "Factory" && STOCK_ICONS[pickN.toLowerCase()]) || STOCK_ICONS[cellsDef[i].ic];
+        const icx = cx0 + cellW / 2;
+        if (icN) cells += themedIcon(icN, icx - 20 * k, y0 + 12 * k, 40 * k, on ? hexMix(glow, "#FFFFFF", 0.35) : "rgba(255,255,255,0.72)", 2.2);
+        /* captions sit on the DARK cell wells — the HUD voice (white with
+           the tight understroke) holds legible on every kit, pale-faced
+           Brightside included; the active caption alone takes the glow
+           tint so "brighter" reads in the words too */
+        const capN = (opts.slots?.[`l${i + 1}`] ?? cellsDef[i].l).slice(0, 8);
+        // Inter voice, so the plain char-count fit guards the widest words
+        const capFs = Math.min(15.5 * k, (cellW - 14 * k) / Math.max(1, capN.length * 0.78));
+        cells += `<text x="${icx.toFixed(1)}" y="${(y0 + cellH - 17 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${capFs.toFixed(1)}" font-weight="${on ? 900 : 700}" letter-spacing="0.04em" fill="${on && !dimN ? hexMix(glow, "#FFFFFF", 0.55) : `rgba(255,255,255,${on ? 0.95 : 0.68})`}" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${Math.max(2, capFs * 0.16).toFixed(1)}px; stroke-linejoin: round">${esc(capN)}</text>`;
+        // badge dot — factory badges cell 2 with the specimen's 3 unread
+        // quests; a typed 0 (or emptying a typed count) clears it
+        const bRaw = (opts.slots?.[`b${i + 1}`] ?? (i === 1 ? "3" : "")).trim().slice(0, 3);
+        if (bRaw && bRaw !== "0") {
+          const bcx = cx0 + cellW - 8 * k, bcy = y0 + 8 * k, brN = 15 * k;
+          cells += `<g data-badge="${i}"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${brN.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,${dimN ? 0.55 : 0.92})" stroke-width="${(2.2 * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${(3.5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.6)})"` : ""}/>` +
+            `<text x="${bcx.toFixed(1)}" y="${(bcy + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${((bRaw.length > 1 ? 14 : 17) * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(bRaw)}</text></g>`;
+        }
+      }
+      return inject(track.replace("<svg ", '<svg data-bottomnav="1" '), cells);
+    }
     case "cardback": {
       /* Card battler · the set's card back. The theme fills the portrait
          shell, an inner frame line echoes the silhouette at a true offset,
@@ -8260,9 +8445,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "resource": {
       /* HUD counter — icon medallion, numeric value, optional /max, optional
-         add button. Currency, lives, energy, tickets, materials. */
+         add button. Currency, lives, energy, tickets, materials.
+         EDITING CONTRACT: value drives the amount — the currency pill's
+         exact map, 0..1 → 0..9,999 with the locale comma. A typed label
+         (per-copy words / kit text) always wins, so exact figures stay
+         possible. Absent value keeps the familiar 1,250 specimen
+         byte-for-byte (0.125 × 9,999 rounds to 1,250) — existing boards
+         without a v render exactly as before (owner: "value slider here
+         should change the number amounts in the diamond and money
+         components"). */
       const h = 78 * k;
-      const val = opts.label ?? "1,250";
+      const val = opts.label ?? Math.round(clamp(value ?? 0.125, 0, 1) * 9999).toLocaleString("en-US");
       const maxTxt = opts.max ? ` / ${opts.max}` : "";
       const fsV = 30 * k;
       /* Content margin reaches composite pieces too (owner: "content margin
@@ -9512,7 +9705,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "laptimes": {
       /* Lap comparison — instrument well, labeled axes, dotted traces.
-         Every value is live engine data in real games. */
+         Every value is live engine data in real games.
+         EDITING CONTRACT: value = session progress — how far the 8-lap
+         session has run. v=0 → lap 1 just set (one point per driver);
+         v=1 → all 8 laps in. Both traces fill left→right along the fixed
+         LAP 1..LAP 8 axis, the highlight dot rides YOUR latest lap, and
+         the delta readout becomes the live gap to the rival on that lap,
+         in the chart's own visual language — the YOU trace riding ABOVE
+         the rival's = ahead = − green, below = behind = + alarm (18 chart
+         units span the axis's 2.0 s; the demo itself ends green with YOU
+         on top). ABSENT value keeps the finished demo session
+         byte-for-byte — the fence below guards it. */
       const w = 350 * k, h = 240 * k;
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10;
@@ -9523,10 +9726,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const px0 = x0 + 38 * k; // room for the time axis
       const you = [72, 68, 65, 66, 62, 63, 60, 58];
       const rival = [70, 69, 66, 67, 64.5, 65, 63, 62];
+      const lapsN = you.length;
+      /* the absent-value fence: no dial = the full demo session */
+      const lapsDone = value === undefined ? lapsN : 1 + Math.round(clamp(value, 0, 1) * (lapsN - 1));
+      const youS = you.slice(0, lapsDone), rivalS = rival.slice(0, lapsDone);
       const lo = 56, hi = 74;
-      const pt = (v: number, i: number, arr: number[]) =>
-        [px0 + ((x1 - px0) * i) / (arr.length - 1), y0 + ((v - lo) / (hi - lo)) * (y1 - y0)] as const;
-      const line = (arr: number[]) => arr.map((v, i) => pt(v, i, arr).map((n) => n.toFixed(1)).join(",")).join(" ");
+      // x always spreads over the FULL session — partial traces fill toward LAP 8
+      const pt = (v: number, i: number) =>
+        [px0 + ((x1 - px0) * i) / (lapsN - 1), y0 + ((v - lo) / (hi - lo)) * (y1 - y0)] as const;
+      const line = (arr: number[]) => arr.map((v, i) => pt(v, i).map((n) => n.toFixed(1)).join(",")).join(" ");
       const yLabs = ["1:22.5", "1:22.0", "1:21.5", "1:21.0", "1:20.5"];
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
       /* grid split art/text (round 16): the dashed lines bake into the
@@ -9545,11 +9753,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       if (opts.part === "base")
         return inject(track, `<g opacity="${dim}">${wellD}${[0, 0.25, 0.5, 0.75, 1].map(lpHline).join("")}${lpVlines}</g>`)
           .replace("<svg ", `<svg data-chart="${px0.toFixed(1)} ${y0.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}" `);
-      const youLast = pt(you[you.length - 1], you.length - 1, you);
+      const youLast = pt(youS[youS.length - 1], youS.length - 1);
       const dots = (arr: number[], c: string, r9: number) => arr.map((v, i) => {
-        const [dx9, dy9] = pt(v, i, arr);
+        const [dx9, dy9] = pt(v, i);
         return `<circle cx="${dx9.toFixed(1)}" cy="${dy9.toFixed(1)}" r="${r9.toFixed(1)}" fill="${c}"/>`;
       }).join("");
+      /* the delta readout: dialed = the live gap to the rival on the latest
+         completed lap (18 units = 2.0 s off the time axis). Sign follows
+         the chart's visual language — YOU plotting above the rival (lower
+         chart units) = ahead = − green, matching the demo's own green
+         finish. Absent = the demo's dressing figure, untouched. */
+      const gapU = rivalS[rivalS.length - 1] - youS[youS.length - 1];
+      const deltaTxt = value === undefined ? "−0.271" : `${gapU >= 0 ? "−" : "+"}${(Math.abs(gapU) * (2 / 18)).toFixed(3)}`;
+      const deltaFill = value === undefined || gapU >= 0 ? "#4ADE80" : "#FF4D5A";
       const legY = 30 + inset + 16 * k;
       const parts = wellD +
         `<defs><filter id="${gid12}g" x="-60%" y="-60%" width="220%" height="220%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.7)}</filter></defs>` +
@@ -9558,12 +9774,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<text x="${(x1 - 85 * k).toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.85)">YOU</text>` +
         `<line x1="${(x1 - 56 * k).toFixed(1)}" y1="${(legY - 3.5 * k).toFixed(1)}" x2="${(x1 - 42 * k).toFixed(1)}" y2="${(legY - 3.5 * k).toFixed(1)}" stroke="rgba(255,255,255,0.55)" stroke-width="${(3 * k).toFixed(1)}" stroke-dasharray="3 4" stroke-linecap="round"/>` +
         `<text x="${(x1 - 37 * k).toFixed(1)}" y="${legY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(10 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.6)">RIVAL</text>` +
-        `<text x="${x1.toFixed(1)}" y="${(legY + 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" fill="#4ADE80" text-anchor="end">−0.271</text>` +
+        `<text x="${x1.toFixed(1)}" y="${(legY + 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" fill="${deltaFill}" text-anchor="end">${deltaTxt}</text>` +
         grid +
-        `<polyline points="${line(rival)}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="${(2 * k).toFixed(1)}" stroke-dasharray="5 5" stroke-linejoin="round"/>` +
-        dots(rival, "rgba(255,255,255,0.6)", 2.6 * k) +
-        `<polyline points="${line(you)}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
-        dots(you, glow, 3 * k) +
+        `<polyline points="${line(rivalS)}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="${(2 * k).toFixed(1)}" stroke-dasharray="5 5" stroke-linejoin="round"/>` +
+        dots(rivalS, "rgba(255,255,255,0.6)", 2.6 * k) +
+        `<polyline points="${line(youS)}" fill="none" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round" filter="url(#${gid12}g)"/>` +
+        dots(youS, glow, 3 * k) +
         `<circle cx="${youLast[0].toFixed(1)}" cy="${youLast[1].toFixed(1)}" r="${(4.5 * k).toFixed(1)}" fill="${lighten(glow, 0.4)}" filter="url(#${gid12}g)"/>` +
         hudText("LAP 1", px0, y1 + 20 * k, 9.5 * k, "start", 700) +
         hudText("LAP 8", x1, y1 + 20 * k, 9.5 * k, "end", 700);
