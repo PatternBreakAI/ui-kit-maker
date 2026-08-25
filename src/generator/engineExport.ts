@@ -464,6 +464,10 @@ export async function collectExportBoards(st: {
   /** The saved-asset library — board pieces frozen from a reworked copy
    *  (the BACK-button story). Needed so those pieces travel to Unity. */
   library?: LibItem[];
+  /** The My-assets registry (user logos) — placed copies resolve their
+   *  pixels through it and travel the big-glyph road (optional: older
+   *  callers ship no logos). */
+  userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
 }): Promise<ExportBoardData[]> {
   const { captureVideoPoster } = await import("./bgvault");
   /* exports are SELF-CONTAINED: refs resolve to real pixels here — vault
@@ -473,8 +477,32 @@ export async function collectExportBoards(st: {
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
+  /* user-logo prefab names must stay UNIQUE per export: the importer
+     converges Prefabs/BigGlyphs/<FileSafeWord(name)>.prefab by NAME, so
+     a logo called "Star" would overwrite the owner's Star glyph prefab.
+     Compare on the importer's own truncation (24 chars, case-folded). */
+  const prefabKey = (n: string) => n.trim().slice(0, 24).trim().toLowerCase();
+  const logoNames = new Map<string, string>(); // aid → shipped unique name
+  const takenNames = new Set<string>();
+  for (const bd0 of st.boards) for (const b0 of bd0.items) {
+    if (b0.big) { const g0 = bigGlyphById(b0.big.gid); if (g0) takenNames.add(prefabKey(g0.name)); }
+  }
+  const logoShipName = (aid: string, name: string): string => {
+    const hit = logoNames.get(aid);
+    if (hit) return hit;
+    let want = name.trim() || "My logo";
+    if (takenNames.has(prefabKey(want))) {
+      for (let n = 2; ; n++) {
+        const cand = `${want.slice(0, 24 - String(n).length - 1).trim()} ${n}`;
+        if (!takenNames.has(prefabKey(cand))) { want = cand; break; }
+      }
+    }
+    takenNames.add(prefabKey(want));
+    logoNames.set(aid, want);
+    return want;
+  };
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big);
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big || b.logo);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -764,6 +792,75 @@ export async function collectExportBoards(st: {
           anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
           stamp: file,
           big: { id: gl.id, name: gl.name, sprite: file, fx: hasFx },
+        });
+        continue;
+      }
+      if (b.logo) {
+        /* a USER LOGO travels the EXACT big-glyph road (owner: "these
+           assets should live in my assets drawer and follow my account"):
+           `component: "bigglyph"` rows with big.id "user-<aid>" and the
+           sprite at bigglyphs/<big.id>.png — the shipped importer's
+           BigGlyphPrefabs walk converges every copy onto
+           Prefabs/BigGlyphs/<Name>.prefab with ZERO C# changes. Pixels
+           resolve vault-first, then the account's cloud copy (the
+           backdrop contract), and always re-encode to PNG so the .png
+           path speaks the truth whatever the upload container was. A
+           dialed copy bakes its shadow/glow into an instance-suffixed
+           sprite, the big-glyph fx precedent verbatim. */
+        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
+        const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
+        if (!ua || !aidSafe) continue;
+        const uid2 = `user-${aidSafe}`;
+        const hasFx = !!(b.logo.shadow || b.logo.glow);
+        let file: string;
+        let wNat = ua.w, hNat = ua.h;
+        try {
+          const rec = await resolveBgAsset(ua.ref);
+          if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
+          const bmp = await createImageBitmap(rec.blob);
+          wNat = bmp.width; hNat = bmp.height;
+          const draw = (pad: number, filter?: string): Promise<Blob | null> => {
+            const cv = document.createElement("canvas");
+            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
+            const cx2 = cv.getContext("2d")!;
+            if (filter) cx2.filter = filter;
+            cx2.drawImage(bmp, pad, pad);
+            return new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+          };
+          if (!hasFx) {
+            file = `bigglyphs/${uid2}.png`;
+            if (!bigClean.has(uid2)) {
+              const blob = await draw(0);
+              if (!blob) { bmp.close(); continue; }
+              stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+              bigClean.add(uid2);
+            }
+          } else {
+            const fxB = { gid: "", ...b.logo };
+            const blob = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
+            if (!blob) { bmp.close(); continue; }
+            file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
+            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+          }
+          bmp.close();
+        } catch { continue; }
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        // fx sprites pad symmetrically — same footprint contract as glyphs
+        const padB = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
+        const wB = (wNat + padB * 2) * kB, hB = (hNat + padB * 2) * kB;
+        const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
+        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
+        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
+          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          artW: Math.round(wNat * kB * 10) / 10, artH: Math.round(hNat * kB * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
+          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
+          stamp: file,
+          // the user's own name keys the prefab — uniquified against the
+          // glyph set so it can never overwrite a stock prefab
+          big: { id: uid2, name: logoShipName(ua.id, ua.name), sprite: file, fx: hasFx },
         });
         continue;
       }

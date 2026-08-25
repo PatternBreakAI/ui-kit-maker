@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile } from "@/generator/store";
+import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
-import { importBgAsset, bgAssetStatusLine, onAssetActivity } from "@/generator/assets";
+import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
@@ -478,6 +479,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
+    userAssets, addUserAssetToBoard,
   } = useGen();
   /* ── the Gate Round's two board rules (owner mandate, 2026-08-17) ──
      · exports (board PNG, piece SVG/PNG) are paid — these composites
@@ -691,6 +693,10 @@ export function BoardView({ playing }: { playing: boolean }) {
   const act = boards.find((b) => b.id === activeBoard) ?? boards[0];
   const frameRef = useRef<HTMLDivElement>(null);
   const bgInput = useRef<HTMLInputElement>(null);
+  /* My assets (user logos): the drawer's upload door + its last refusal */
+  const uaInput = useRef<HTMLInputElement>(null);
+  const [uaErr, setUaErr] = useState<string | null>(null);
+  const [uaBusy, setUaBusy] = useState(false);
   const dragRef = useRef<{ list: { id: string; ox: number; oy: number; cox: number; coy: number }[]; dx: number; dy: number; fit: number } | null>(null);
   const [frameW, setFrameW] = useState(900);
 
@@ -946,8 +952,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
-    // big glyphs are raster art — the PNG compositor draws them directly
-    if (b.big) return { svg: "", cfg };
+    // big glyphs and user logos are raster art — the PNG compositor
+    // draws them directly
+    if (b.big || b.logo) return { svg: "", cfg };
     const item = library.find((l) => l.id === b.libId);
     if (!item) return { svg: "", cfg };
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label !== undefined ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
@@ -956,6 +963,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
     if (b.big) return bigGlyphById(b.big.gid)?.name ?? "Big glyph";
+    if (b.logo) return userAssets.find((a) => a.id === b.logo!.aid)?.name ?? "My asset";
     // clone-registry first — a copy-* id must never surface as a name
     const kid = b.kitId;
     if (kid) return kitClones[kid]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(kid))?.name ?? kid;
@@ -1065,6 +1073,34 @@ export function BoardView({ playing }: { playing: boolean }) {
           };
           img.onerror = () => res();
           img.src = bigGlyphUrl(gl.id);
+        });
+        continue;
+      }
+      if (b.logo) {
+        /* user logo: the vaulted/cloud ship copy, the instance's dials as
+           the SAME bigGlyphFilter recipe the stage shows — one filter
+           string across stage, this compositor and the Unity bake */
+        const ua = userAssets.find((a) => a.id === b.logo!.aid);
+        if (!ua) continue;
+        const url = await bgAssetDisplayUrl(ua.ref).catch(() => null);
+        if (!url) continue;
+        const s = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        await new Promise<void>((res) => {
+          const img = new Image();
+          img.onload = () => {
+            const w = img.width * s, h = img.height * s;
+            ctx.save();
+            if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
+            // flat board space — scale the filter recipe like the big glyphs
+            const bf = bigGlyphFilter(cfg, { gid: "", ...b.logo! }, b.scale ?? 1);
+            if (bf) ctx.filter = bf;
+            ctx.translate(b.x + w / 2, b.y + h / 2);
+            if (b.rot) ctx.rotate((b.rot * Math.PI) / 180);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            ctx.restore(); res();
+          };
+          img.onerror = () => res();
+          img.src = url;
         });
         continue;
       }
@@ -1270,6 +1306,72 @@ export function BoardView({ playing }: { playing: boolean }) {
                     </button>
                   ))}
                 </div>
+              </div>
+            );
+          })()}
+          {/* ── My assets — the user's own uploaded images (owner: "upload
+              a transparent png to use as a logo… these assets should live
+              in my assets drawer and follow my account"). The registry
+              rides the synced workspace doc; the pixels ride the durable-
+              assets bucket for account holders (any browser resolves
+              them) and the local vault for guests — the backdrop-upload
+              contract, gate-free, with the same quiet keep-safe line. ── */}
+          {(() => {
+            const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+            const items = userAssets.filter((a) => terms.every((t) => `${a.name} my assets logo upload image`.toLowerCase().includes(t)));
+            if (!items.length && q) return null;
+            return (
+              <div>
+                <div className="bd-cat">My assets</div>
+                {items.length > 0 && (
+                  <div className="bd-grid">
+                    {items.map((a) => (
+                      /* a div-with-role tile, the pages-tray pattern — real
+                         <button>s can't nest, and each tile carries its own
+                         rename/delete controls */
+                      <div key={a.id} className="bd-asset bd-uasset" role="button" tabIndex={0}
+                        title={`Add ${a.name} to ${act?.name ?? "the board"}`}
+                        onClick={() => addUserAssetToBoard(a.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter") addUserAssetToBoard(a.id); }}>
+                        <span><UserAssetThumbImg ua={a} /></span>
+                        <i>{a.name}</i>
+                        <span className="bd-uactl" onClick={(e) => e.stopPropagation()}>
+                          <button title={`Rename ${a.name}`} aria-label={`Rename ${a.name}`}
+                            onClick={() => {
+                              const name = window.prompt("Rename this asset:", a.name);
+                              if (name?.trim()) useGen.getState().renameUserAsset(a.id, name.trim());
+                            }}><SquarePen size={11} strokeWidth={2.4} /></button>
+                          <button className="danger" title={`Delete ${a.name} — board copies of it go too`} aria-label={`Delete ${a.name}`}
+                            onClick={() => {
+                              const placed = useGen.getState().boards.reduce((n, bd) => n + bd.items.filter((it) => it.logo?.aid === a.id).length, 0);
+                              if (window.confirm(placed ? `Delete ${a.name}? Its ${placed} placed cop${placed === 1 ? "y" : "ies"} leave the boards too.` : `Delete ${a.name}?`))
+                                useGen.getState().removeUserAsset(a.id);
+                            }}><X size={11} strokeWidth={2.4} /></button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="bd-stampbtn" disabled={uaBusy}
+                  title="Upload your own image — a transparent PNG makes the best logo; JPG and WebP work too. 2 MB cap; big images downscale on import."
+                  onClick={() => uaInput.current?.click()}>
+                  <ImagePlus size={13} strokeWidth={2.2} /> {uaBusy ? "Importing…" : "Upload a logo — transparent PNG shines"}
+                </button>
+                {uaErr && <div className="bd-note bd-vurl-err" role="alert">{uaErr}</div>}
+                <BgKeepsafeLine />
+                <input ref={uaInput} type="file" accept="image/png,image/jpeg,image/webp" hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    setUaErr(null); setUaBusy(true);
+                    void importUserAssetFile(f).then((r) => {
+                      setUaBusy(false);
+                      if (!r.ok) { setUaErr(r.message); return; }
+                      // land it on the active board right away — upload IS intent
+                      useGen.getState().addUserAssetToBoard(r.asset.id);
+                    });
+                  }} />
               </div>
             );
           })()}
@@ -1890,6 +1992,44 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">The dials touch only THIS copy. Glow follows the kit's Glow color until you pick your own; shadow pose dials reset on double-click.</div>
               </>);
             })()}
+            {sel.logo && (() => {
+              /* the user logo's own dials — the big glyph's exact grain,
+                 one shared filter recipe across stage / PNG / Unity */
+              const lg = sel.logo;
+              const patch = (p: Partial<typeof lg>) => useGen.getState().setBoardItemLogo(sel.id, p);
+              return (<>
+                <div className="bd-h" style={{ marginTop: 14 }}>{nameOf(sel)}</div>
+                <label className="bd-slider">Drop shadow · {lg.shadow ?? 0}%
+                  <input type="range" min={0} max={100} value={lg.shadow ?? 0} onChange={(e) => patch({ shadow: +e.target.value })} />
+                </label>
+                {(lg.shadow ?? 0) > 0 && (<>
+                  <label className="bd-slider">Shadow X · {Math.round(lg.shadowX ?? 0)}px
+                    <input type="range" min={-40} max={40} value={Math.round(lg.shadowX ?? 0)} onChange={(e) => patch({ shadowX: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowX: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow Y · {Math.round(lg.shadowY ?? 2 + (lg.shadow ?? 0) * 0.1)}px
+                    <input type="range" min={-40} max={40} value={Math.round(lg.shadowY ?? 2 + (lg.shadow ?? 0) * 0.1)} onChange={(e) => patch({ shadowY: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowY: undefined })} />
+                  </label>
+                  <label className="bd-slider">Shadow blur · {Math.round(lg.shadowBlur ?? 2 + (lg.shadow ?? 0) * 0.22)}px
+                    <input type="range" min={0} max={60} value={Math.round(lg.shadowBlur ?? 2 + (lg.shadow ?? 0) * 0.22)} onChange={(e) => patch({ shadowBlur: +e.target.value })}
+                      onDoubleClick={() => patch({ shadowBlur: undefined })} />
+                  </label>
+                </>)}
+                <label className="bd-slider">Glow · {lg.glow ?? 0}%
+                  <input type="range" min={0} max={100} value={lg.glow ?? 0} onChange={(e) => patch({ glow: +e.target.value })} />
+                </label>
+                {(lg.glow ?? 0) > 0 && (
+                  <label className="bd-slider bd-inkrow">Glow ink
+                    <input type="color" value={lg.glowInk ?? (cfg.effects.Glow ?? "#7DF9FF")} aria-label="Glow ink"
+                      onChange={(e) => patch({ glowInk: e.target.value })} />
+                    <label className="bd-inkchk"><input type="checkbox" checked={!lg.glowInk}
+                      onChange={(e) => patch({ glowInk: e.target.checked ? undefined : (cfg.effects.Glow ?? "#7DF9FF") })} /> Kit's glow ink</label>
+                  </label>
+                )}
+                <div className="bd-note">Your own art — the kit never restyles it. The dials touch only THIS copy; glow follows the kit's Glow color until you pick your own.</div>
+              </>);
+            })()}
             {/* stacking order — items render in array order, later = on top
                 (owner: "need some layering/stacking order controls") */}
             <div className="bd-h" style={{ marginTop: 14 }}>Layer</div>
@@ -2182,6 +2322,39 @@ function BigGlyphStageArt({ cfg, gl, fx }: { cfg: GenConfig; gl: BigGlyphDef; fx
     alt={gl.name} style={{ display: "block", filter: bigGlyphFilter(cfg, fx) }} />;
 }
 
+/* A user logo on the stage — the same footprint contract as a big glyph
+   (natural raster × BIG_GLYPH_BASE), the same instance-dial filter. The
+   pixels come from the display-url cache (vault-first, then the
+   account's cloud copy), so a synced browser paints the logo the moment
+   the bytes resolve; until then a correctly-sized blank keeps the
+   selection box and drags honest. */
+function UserLogoStageArt({ cfg, ua, fx }: { cfg: GenConfig; ua: UserAsset; fx: UserLogoFx }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    void bgAssetDisplayUrl(ua.ref).then((u) => { if (!dead) setSrc(u); }).catch(() => { /* stays blank */ });
+    return () => { dead = true; };
+  }, [ua.ref]);
+  const w = Math.round(ua.w * BIG_GLYPH_BASE), h = Math.round(ua.h * BIG_GLYPH_BASE);
+  if (!src) return <span data-shell={`0 0 ${w} ${h}`} aria-label={ua.name} style={{ display: "block", width: w, height: h }} />;
+  return <img src={src} width={w} height={h} data-shell={`0 0 ${w} ${h}`} draggable={false}
+    alt={ua.name} style={{ display: "block", filter: bigGlyphFilter(cfg, { gid: "", ...fx }) }} />;
+}
+
+/** The drawer tile's thumb — the display-url cache again (one object URL
+ *  per asset for the page's lifetime, the no-flicker contract). */
+function UserAssetThumbImg({ ua }: { ua: UserAsset }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    void bgAssetDisplayUrl(ua.ref).then((u) => { if (!dead) setSrc(u); }).catch(() => { /* tile stays blank */ });
+    return () => { dead = true; };
+  }, [ua.ref]);
+  return src
+    ? <img src={src} alt={ua.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: 64 }} />
+    : <span aria-hidden="true" style={{ display: "block", width: 40, height: 40, borderRadius: 8, background: "rgba(127,127,127,0.15)" }} />;
+}
+
 /* ── the boards curtain — the kit page's loading language, spoken on the
    desk (owner: "after we click boards, we need to see loading bars/
    feedback (or maybe we 'load' it like we do the the kit with a loading
@@ -2381,7 +2554,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
    *  the marquee are untouched — dblclick is two stationary clicks. */
   onTextEdit?: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs, userAssets } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -2480,8 +2653,8 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
     if (typeof document !== "undefined" && document.fonts?.ready) void document.fonts.ready.then(() => read());
     return () => { cancelAnimationFrame(pend); mo.disconnect(); };
   }, []);
-  const item = b.kitId || b.stamp || b.big ? null : library.find((l) => l.id === b.libId);
-  if (!b.kitId && !b.stamp && !b.big && !item) return null;
+  const item = b.kitId || b.stamp || b.big || b.logo ? null : library.find((l) => l.id === b.libId);
+  if (!b.kitId && !b.stamp && !b.big && !b.logo && !item) return null;
   return (
     <div className={`board-item${playing ? " playing" : ""}${selected ? " sel" : ""}`} data-bid={b.id}
       style={{ left: b.x, top: b.y, transform: b.rot ? `rotate(${b.rot}deg)` : undefined,
@@ -2562,6 +2735,12 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
           const gl = bigGlyphById(b.big!.gid);
           if (!gl) return null;
           return <BigGlyphStageArt cfg={cfg} gl={gl} fx={b.big!} />;
+        })() : b.logo ? (() => {
+          /* a user logo is the maker's own raster at the big-glyph stage
+             footprint, its dials as the same shared filter recipe */
+          const ua = userAssets.find((a) => a.id === b.logo!.aid);
+          if (!ua) return null;
+          return <UserLogoStageArt cfg={cfg} ua={ua} fx={b.logo!} />;
         })() : b.stamp ? (
           <StampArt cfg={cfg} stamp={b.stamp} />
         ) : b.kitId ? (

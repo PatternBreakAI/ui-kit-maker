@@ -398,6 +398,21 @@ interface GenStore {
   addBigGlyphToBoard: (gid: string) => void;
   /** THIS instance's shadow/glow dials — the stamp-dial contract. */
   setBoardItemBig: (id: string, patch: Partial<BigGlyphFx>) => void;
+  /* ── My assets: the user's own uploaded images (logos) ───────────── */
+  userAssets: UserAsset[];
+  /** Register an imported upload (importUserAssetFile did the vaulting). */
+  addUserAsset: (a: UserAsset) => void;
+  renameUserAsset: (id: string, name: string) => void;
+  /** Drop the registry entry AND every board copy of it. Guest-vault
+   *  bytes retire with it (single-owner, the backdrop rule); `asset://`
+   *  bytes stay — content-addressed, possibly shared, cloud GC is the
+   *  assets road's phase 2. */
+  removeUserAsset: (id: string) => void;
+  /** Place an uploaded asset on the active board — the big-glyph landing
+   *  contract (centered, shrunk to fit the stage). */
+  addUserAssetToBoard: (aid: string) => void;
+  /** THIS logo copy's shadow/glow dials — the big-glyph dial contract. */
+  setBoardItemLogo: (id: string, patch: Partial<UserLogoFx>) => void;
   /** Edit a stamp's words or size. */
   setBoardItemStamp: (id: string, patch: Partial<{ text: string; size: number }>) => void;
   removeBoardItem: (id: string) => void;
@@ -743,6 +758,38 @@ export interface BoardItem {
    *  options"); carries the instance's own Drop shadow + Glow dials, the
    *  stamp grain. Scale/rotation/opacity ride the shared item fields. */
   big?: BigGlyphFx;
+  /** A USER LOGO — the maker's own uploaded art (owner: "upload a
+   *  transparent png to use as a logo… these assets should live in my
+   *  assets drawer and follow my account"). `aid` names a userAssets
+   *  registry entry; the dial fields are the big glyph's exact grain, so
+   *  bigGlyphFilter renders all three surfaces (stage / board PNG /
+   *  Unity bake) from one recipe. Scale/rotation/opacity ride the
+   *  shared item fields, the big-glyph 5% scale floor included. */
+  logo?: UserLogoFx;
+}
+
+/** A user logo instance's own dials — structurally a BigGlyphFx (gid
+ *  unused) so the shared filter road needs no changes. */
+export interface UserLogoFx {
+  /** userAssets registry id */
+  aid: string;
+  shadow?: number;
+  shadowX?: number; shadowY?: number; shadowBlur?: number;
+  glow?: number;
+  glowInk?: string;
+}
+
+/** One uploaded image in the My-assets drawer. The registry is small
+ *  JSON under a ui-generator-* key, so it rides the cloud workspace doc
+ *  exactly like userShapes/presets — that is the account-follow. The
+ *  PIXELS never enter the doc (the fat-pixel rule): `ref` points at the
+ *  bg vault (guest uploads, this browser only) or an `asset://<hash>`
+ *  in the account's durable bucket (signed in — any browser resolves
+ *  it through resolveBgAsset, the backdrop road verbatim). */
+export interface UserAsset {
+  id: string; name: string; ref: string;
+  /** natural ship-copy raster px — placement footprint derives from these */
+  w: number; h: number;
 }
 
 /** Instance Scale bounds per board item. Big glyphs may shrink to real
@@ -751,7 +798,7 @@ export interface BoardItem {
  *  footprint is a ~22px tile, comfortably under the ~52px a 7-column
  *  390px board needs (~12%). Everything else keeps the 30% legibility
  *  floor; the 200% ceiling is shared. */
-export const boardScaleMin = (b: Pick<BoardItem, "big"> | null | undefined): number => (b?.big ? 0.05 : 0.3);
+export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo"> | null | undefined): number => (b?.big || b?.logo ? 0.05 : 0.3);
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
@@ -988,6 +1035,7 @@ export function defaultRow(): RowCfg {
 }
 const LIB_KEY = "ui-generator-library";
 const BOARD_KEY = "ui-generator-board";
+const USERASSETS_KEY = "ui-generator-userassets";
 /* ── SAFE BOOT (support hatch) ────────────────────────────────────────
    `?safe` (or #safe) anywhere in the URL boots the app FACTORY-FRESH
    without touching the user's stored document: every persisted read
@@ -1151,6 +1199,43 @@ export async function importBoards(raw: unknown): Promise<boolean> {
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
   return true;
+}
+
+/* ── My-assets import door (user logos) ──────────────────────────────
+   One road for every upload: normalize like the backdrop uploader
+   (>1920 long side downscales, PNG stays lossless PNG so alpha
+   survives), cap the ship copy at 2 MB with a friendly refusal, then
+   vault + (signed in) send the bytes up through the durable-assets
+   broker — importBgAsset, the backdrop road verbatim. Guests keep a
+   browser-local copy and the drawer's keep-safe line says so quietly;
+   no hard gate, exactly like backdrop uploads. */
+export const USER_ASSET_CAP = 2 * 1024 * 1024;
+export async function importUserAssetFile(file: File): Promise<{ ok: true; asset: UserAsset } | { ok: false; message: string }> {
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+    return { ok: false, message: "That file isn't an image this drawer takes — PNG (transparent PNGs shine here), JPG or WebP." };
+  }
+  const { normalizeShipCopy } = await import("./bgvault");
+  const { importBgAsset } = await import("./assets");
+  const ship = await normalizeShipCopy(file);
+  if (ship.size > USER_ASSET_CAP) {
+    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import — logo uploads cap at 2 MB. Try a tighter export of it.` };
+  }
+  let w = 0, h = 0;
+  try {
+    const bmp = await createImageBitmap(ship);
+    w = bmp.width; h = bmp.height;
+    bmp.close();
+  } catch { /* fall through to the refusal below */ }
+  if (!w || !h) return { ok: false, message: "Couldn't read that image — is the file damaged?" };
+  const ref = await importBgAsset(ship, file.name);
+  if (!ref) return { ok: false, message: "Couldn't store the image in this browser (private window?) — try again outside private mode." };
+  const name = (file.name || "My logo").replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 40) || "My logo";
+  const asset: UserAsset = {
+    id: "ua" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name, ref, w, h,
+  };
+  useGen.getState().addUserAsset(asset);
+  return { ok: true, asset };
 }
 
 /* ── the fat-pixel rule (field crash: "chrome keeps crashing… freezes
@@ -1760,6 +1845,61 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   setBoardItemBig: (id, patch) => mutateItem(get, set, `big:${id}`, id, (b) => (
     b.big ? { ...b, big: { ...b.big, ...patch } } : b
+  )),
+  /* ── My assets (user logos) — registry + placement ─────────────────
+     The registry syncs with the account through the workspace doc (a
+     ui-generator-* key, the userShapes road); the pixels ride the
+     durable-assets bucket for account holders and the local vault for
+     guests — see importUserAssetFile below. */
+  userAssets: loadJson<UserAsset[]>(USERASSETS_KEY, []),
+  addUserAsset: (a) => {
+    const userAssets = [...get().userAssets.filter((x) => x.id !== a.id), a];
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+  },
+  renameUserAsset: (id, name) => {
+    const clean = name.trim().slice(0, 40);
+    if (!clean) return;
+    const userAssets = get().userAssets.map((a) => (a.id === id ? { ...a, name: clean } : a));
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+  },
+  removeUserAsset: (id) => {
+    const dead = get().userAssets.find((a) => a.id === id);
+    const userAssets = get().userAssets.filter((a) => a.id !== id);
+    saveJson(USERASSETS_KEY, userAssets);
+    set({ userAssets });
+    // board copies of a deleted asset can never paint again — remove them
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+      bd.items.some((b) => b.logo?.aid === id)
+        ? { ...bd, items: bd.items.filter((b) => b.logo?.aid !== id) }
+        : bd)));
+    /* guest-vault bytes are single-owner like a legacy backdrop record —
+       retire them unless another registry entry aliases the same ref;
+       `asset://` bytes stay (shared by content, cloud GC is phase 2) */
+    if (dead && !isAssetRef(dead.ref) && !userAssets.some((a) => a.ref === dead.ref)) void delBgOriginal(dead.ref);
+  },
+  addUserAssetToBoard: (aid) => {
+    const ua = get().userAssets.find((a) => a.id === aid);
+    if (!ua) return;
+    // the big glyph's landing contract: centered, shrunk to fit the stage
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    let k = BIG_GLYPH_BASE;
+    while (ua.w * k > W * 0.86 && k > 0.05) k *= 0.8;
+    const scale = Math.max(0.05, Math.min(2, Math.round((k / BIG_GLYPH_BASE) * 100) / 100));
+    const w = ua.w * BIG_GLYPH_BASE * scale, h = ua.h * BIG_GLYPH_BASE * scale;
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "",
+      x: Math.max(0, Math.round((W - w) / 2)), y: Math.max(0, Math.round((H - h) / 2)),
+      ...(scale !== 1 ? { scale } : {}),
+      logo: { aid },
+    };
+    mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
+    set({ phase: "board", boardSel: item.id });
+  },
+  setBoardItemLogo: (id, patch) => mutateItem(get, set, `logo:${id}`, id, (b) => (
+    b.logo ? { ...b, logo: { ...b.logo, ...patch } } : b
   )),
   removeBoardItem: (id) => {
     mutateBoards(get, set, null, (bs) => bs.map((bd) => ({ ...bd, items: bd.items.filter((b) => b.id !== id) })));
