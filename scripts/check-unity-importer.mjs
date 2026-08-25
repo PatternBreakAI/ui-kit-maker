@@ -1257,6 +1257,31 @@ if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc
     errors.push("the deck must cross-reference Documentation/QuickStart.md (round 31)");
 }
 
+/* ── round-31 (store packaging · slice 3): the remix seam. The deck and
+   the QuickStart each carry exactly ONE clearly-labeled remix line with
+   the campaign-attributed URL — plain markdown a human clicks. House
+   rule, pinned mechanically: the campaign link must NEVER appear inside
+   any emitted C#/shader template — no editor windows, no popups, no
+   startup nags, nothing that reads as a marketing-only editor feature. */
+{
+  const remixHits = (src.match(/uikitmaker\.com\/\?src=unity-asset-store/g) ?? []).length;
+  if (remixHits !== 2)
+    errors.push(`the remix link must appear exactly twice (deck + QuickStart, one clearly-labeled line each); found ${remixHits} (round 31)`);
+  if ((src.match(/\*\*Remix this kit:\*\*/g) ?? []).length !== 2)
+    errors.push("the remix line must keep its clear label (**Remix this kit:**) in both docs (round 31)");
+  const tplScanRe = /const ([A-Z_]+) = `/g;
+  let tplScan;
+  while ((tplScan = tplScanRe.exec(src))) {
+    const tStart2 = tplScan.index + tplScan[0].length;
+    let tEnd2 = -1;
+    for (let i = tStart2; i < src.length; i++) { if (src[i] === "\\") { i++; continue; } if (src[i] === "`") { tEnd2 = i; break; } }
+    if (tEnd2 < 0) continue;
+    const body = src.slice(tStart2, tEnd2);
+    if (/[?&]src=|[?&]utm_/.test(body))
+      errors.push(`${tplScan[1]}: a campaign-attributed URL is inside an emitted C#/shader template — the remix link lives in the docs only, never in editor code (round 31)`);
+  }
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

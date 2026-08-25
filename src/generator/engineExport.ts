@@ -6689,6 +6689,10 @@ ${hasBoards ? `
 - **Re-exporting heals in place** — change the kit on uikitmaker.com,
   download again and extract over the same spot. Everything you placed
   restyles where it stands, and words you typed in Unity are kept.
+
+---
+
+**Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
 `;
 }
 
@@ -6721,6 +6725,8 @@ hurry? **Documentation/QuickStart.md** is the five-minute version.)
 The slides run in the order you'll actually meet things: what imported,
 your first scene, states, hero labels, tuning type, stretching wide,
 re-exporting. Skim the titles; stop where your question lives.
+
+**Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
 ${figures ? `
 ![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
 
