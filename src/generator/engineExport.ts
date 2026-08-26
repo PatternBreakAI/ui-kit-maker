@@ -112,6 +112,15 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** The family's RESOLVED resting label ink (P0 follow-up: header words
+   *  arrived WHITE): the app flips white type to the kit ink on pale
+   *  shells and per-family design forks pin their own — this is the
+   *  label <text>'s final fill, as drawn. A gradient ships its two stops
+   *  (labelInk top, labelInk2 bottom); solid ships labelInk alone. The
+   *  importer tints SOLO (bare-TMP) labels with it when the baked atlas
+   *  is tintable (near-white letterforms), and the styled-SDF rung takes
+   *  it always — HeroLabel stacks keep their painted layer pixels. */
+  labelInk?: string; labelInk2?: string;
   /** The Leading dial, resolved per row (base = the resting design;
    *  base-<state> rows = that state's fork-first per-key read — bevel's
    *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
@@ -2357,7 +2366,43 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      label seat off a render wearing the maker's own word — offsets from
      the shell center, frame-invariant (the labeled buttons' discipline) —
      and ship the word itself as labelText, verbatim */
-  const labelSeatOf = (id: KitComponentId, word: string, extra: KitOpts = {}, mutate?: (c: GenConfig) => void): Pick<AssetMeta, "labelDx" | "labelDy" | "labelFs" | "labelText"> => {
+  /* the RESOLVED resting ink of a rendered label (P0 follow-up: header
+     words arrived WHITE in Unity): the app flips white type to the kit
+     ink on pale shells (build's pale-ground guard) and per-family design
+     forks pin their own color — the label <text>'s fill attribute is the
+     one place that final answer lives. A gradient fill resolves to its
+     two stops (TMP carries them as a vertex gradient). Non-hex inks
+     (rgb()/rgba()) normalize to hex; anything else ships nothing and the
+     importer keeps today's white. */
+  const labelInkOf = (lg: string, svg2: string): { labelInk: string; labelInk2?: string } | null => {
+    const tag = /<text [^>]*/.exec(lg)?.[0] ?? "";
+    let fill = /fill="([^"]+)"/.exec(tag)?.[1] ?? null;
+    if (!fill || fill === "none") {
+      for (const fm of lg.slice(0, 1200).matchAll(/fill="([^"]+)"/g)) { if (fm[1] !== "none") { fill = fm[1]; break; } }
+    }
+    if (!fill || fill === "none") return null;
+    const hexOf = (c: string): string | null => {
+      const h6 = /^#([0-9a-fA-F]{6})\b/.exec(c);
+      if (h6) return `#${h6[1].toUpperCase()}`;
+      const h3 = /^#([0-9a-fA-F]{3})$/.exec(c);
+      if (h3) return `#${h3[1].split("").map((d) => d + d).join("").toUpperCase()}`;
+      const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(c);
+      if (rgb) return `#${[rgb[1], rgb[2], rgb[3]].map((v) => Math.round(+v).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+      return null;
+    };
+    const um = /^url\(#([^)]+)\)/.exec(fill);
+    if (um) {
+      const gm = new RegExp(`<(?:linear|radial)Gradient id="${um[1]}"[^>]*>([\\s\\S]*?)</(?:linear|radial)Gradient>`).exec(svg2);
+      if (!gm) return null;
+      const stops = [...gm[1].matchAll(/stop-color="([^"]+)"/g)].map((s2) => s2[1]);
+      const top = stops.length ? hexOf(stops[0]) : null;
+      const bot = stops.length > 1 ? hexOf(stops[stops.length - 1]) : null;
+      return top ? { labelInk: top, ...(bot && bot !== top ? { labelInk2: bot } : {}) } : null;
+    }
+    const solid = hexOf(fill);
+    return solid ? { labelInk: solid } : null;
+  };
+  const labelSeatOf = (id: KitComponentId, word: string, extra: KitOpts = {}, mutate?: (c: GenConfig) => void): Pick<AssetMeta, "labelDx" | "labelDy" | "labelFs" | "labelText" | "labelInk" | "labelInk2"> => {
     try {
       const c = clone(pieceCfg(id));
       c.stateDesigns = {};
@@ -2376,6 +2421,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
         labelFs: Math.round(+tm[3] * 10) / 10,
         labelText: word,
+        ...(labelInkOf(lg, svg2) ?? {}),
       };
     } catch { return { labelText: word }; }
   };
@@ -2804,7 +2850,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        its y pairs with data-shell0 (the node sits inside the rise/lift
        transforms), its font-size is the true rendered size. Offsets from
        the shell CENTER are frame-invariant, so ship those. */
-    let labelMeta: { labelDx: number; labelDy: number; labelFs: number } | null = null;
+    let labelMeta: { labelDx: number; labelDy: number; labelFs: number; labelInk?: string; labelInk2?: string } | null = null;
     if (word !== undefined) {
       const lg = fullSvg.slice(fullSvg.indexOf('data-part="label"'));
       const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
@@ -2815,6 +2861,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
           labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
           labelFs: Math.round(+tm[3] * 10) / 10,
+          // the ghosted bake dims the content GROUP, never the fill attr —
+          // the label <text> still names the family's resolved resting ink
+          ...(labelInkOf(lg, fullSvg) ?? {}),
         };
       }
     }
@@ -3653,7 +3702,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      TextMeshPro font asset from it, so Unity types hero text with the
      app's exact pixels. The SDF face stays the length-proof workhorse;
      this is the showpiece for display text. ── */
-  let bakedFace: { file: string; metrics: string; pointSize: number; layerFill: string | null; layerStroke: string | null; layerShadow: string | null; layerGlints: string | null } | null = null;
+  let bakedFace: { file: string; metrics: string; pointSize: number; layerFill: string | null; layerStroke: string | null; layerShadow: string | null; layerGlints: string | null; inkTintable: boolean } | null = null;
   try {
     /* Pro-only (owner call): the baked faces are the type showpiece — the
        starter keeps the SDF face + gradient preset and upsells the rest.
@@ -3674,7 +3723,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         return path;
       };
       bakedFace = { file: "fonts/kitface-baked.png", metrics: "fonts/kitface-baked.json", pointSize: baked.pointSize,
-        layerFill: lput("fill"), layerStroke: lput("stroke"), layerShadow: lput("shadow"), layerGlints: lput("glints") };
+        layerFill: lput("fill"), layerStroke: lput("stroke"), layerShadow: lput("shadow"), layerGlints: lput("glints"),
+        /* can a SOLO (bare-TMP) label take a vertex tint on this atlas?
+           Tinting multiplies, so only near-white, untreated letterforms
+           answer yes — a colored/gradient/striped/glinted atlas already
+           IS the look and keeps vertex white exactly as before
+           (conservative: when unsure, don't tint). The per-family
+           resolved ink rides the asset rows (labelInk); this flag says
+           the atlas can wear it. */
+        inkTintable: (() => {
+          const t9 = base.type;
+          const m9 = t9.fillMode === "solid" ? /^#([0-9a-fA-F]{6})$/.exec(t9.fill) : null;
+          if (!m9 || t9.stripes?.on || t9.glints?.on) return false;
+          const v9 = parseInt(m9[1], 16);
+          return ((v9 >> 16) & 255) >= 0xE8 && ((v9 >> 8) & 255) >= 0xE8 && (v9 & 255) >= 0xE8;
+        })() };
     }
   } catch (e) {
     console.warn("engine export: alphabet face bake failed — kit ships without it", e);
@@ -7688,14 +7751,14 @@ namespace PatternBreak {
      rendered box side); strokeS 0 / strokeFile "" = no outline pass and
      the seat wears the single flat image exactly as before. */
   [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
   [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; public string glintStyle; public float glintOpacity; public float glintOx; public float glintOy; public float glintLx; public float glintLy; }
-  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; }
+  [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; public bool inkTintable; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
   /* the maker's hand-tuned pairs, kept beside the faces so a re-import
@@ -11169,6 +11232,35 @@ namespace PatternBreak {
       hl.authoredHeight = authoredHeight;
       hl.SetText(text);
     }
+    /* the family's RESOLVED resting ink (P0 follow-up — the WHITE header
+       words): the app flips white type to the kit ink on pale shells and
+       per-family design forks pin their own, while the baked atlas keeps
+       the MASTER voice — so a solo TMP label must take the family ink as
+       a vertex tint or master-voiced words (header, chip, tab-back on
+       Brightside) lose their color. Tinting multiplies: it is exact on
+       the near-white atlas the export flags inkTintable and is SKIPPED
+       otherwise (a colored/patterned atlas already is the look — today's
+       behavior, unchanged). The styled-SDF rung passes
+       requireTintableAtlas false: SDF glyphs are monochrome by
+       construction, the family ink always applies there. A gradient ink
+       rides TMP's own VertexGradient, top stop to bottom stop. */
+    static void ApplyFamilyInk(TextMeshProUGUI t, PBManifest m, string family, bool requireTintableAtlas) {
+      if (t == null || m == null) return;
+      if (requireTintableAtlas && (m.typography == null || m.typography.bakedFace == null || !m.typography.bakedFace.inkTintable)) return;
+      var row9 = LabelRow(m, family);
+      if (row9 == null || string.IsNullOrEmpty(row9.labelInk)) return;
+      Color top9;
+      if (!ColorUtility.TryParseHtmlString(row9.labelInk, out top9)) return;
+      Color bot9;
+      if (!string.IsNullOrEmpty(row9.labelInk2) && ColorUtility.TryParseHtmlString(row9.labelInk2, out bot9)) {
+        t.color = Color.white;
+        t.enableVertexGradient = true;
+        t.colorGradient = new VertexGradient(top9, top9, bot9, bot9);
+      } else {
+        t.enableVertexGradient = false;
+        t.color = top9;
+      }
+    }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
       /* the APP-TRUE size beats the calibrated shrink when the manifest
@@ -11210,6 +11302,9 @@ namespace PatternBreak {
       t.raycastTarget = false;
       t.font = solo;
       t.color = Color.white; // baked glyphs are pre-painted
+      // …except master-voiced words on a tintable (near-white) atlas:
+      // the family's resolved ink rides as a vertex tint (the WHITE-header fix)
+      ApplyFamilyInk(t, m, family, true);
       if (lsp != 0f) t.lineSpacing = lsp;
     }
 #endif
@@ -11531,6 +11626,9 @@ namespace PatternBreak {
         float lspT = LeadingLineSpacing(lrowA);
         var tLead = lr0 != null ? lr0.GetComponent<TextMeshProUGUI>() : null;
         if (tLead != null && lspT != 0f) tLead.lineSpacing = lspT;
+        // the family's RESOLVED ink beats the master style on SDF glyphs
+        // (monochrome by construction — always tintable)
+        ApplyFamilyInk(tLead, m, family, false);
         return;
       }
 #endif

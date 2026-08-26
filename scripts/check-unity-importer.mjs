@@ -1215,7 +1215,7 @@ if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\)
   errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
 if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
   errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
-if (!/public float labelFs; public float leading; public string labelText;/.test(cs))
+if (!/public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText;/.test(cs))
   errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
 if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
     || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
@@ -1517,7 +1517,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   literalParity(/labelStates: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
   literalParity(/\n      palette: \{[\s\S]{0,1200}?\},\n/, ["bevel", "glow", "innerFill", "well", "highlight", "shadow", "markInk", "radioInk"], "PBPalette", "palette");
   literalParity(/timer: \(\(\) => \{[\s\S]{0,3000}?\}\)\(\),/, ["seconds", "word", "fs", "w", "h", "shellW", "shellH"], "PBTimerBlock", "timer");
-  literalParity(/bakedFace = \{[\s\S]{0,600}?\};/, ["file", "metrics", "pointSize", "layerFill", "layerStroke", "layerShadow", "layerGlints"], "PBBakedRef", "bakedFace");
+  literalParity(/bakedFace = \{[\s\S]{0,1400}?\};/, ["file", "metrics", "pointSize", "layerFill", "layerStroke", "layerShadow", "layerGlints", "inkTintable"], "PBBakedRef", "bakedFace");
   literalParity(/const metrics = JSON\.stringify\(\{[\s\S]{0,900}?\}\);/,
     ["pointSize", "ascent", "descent", "lineHeight", "atlasW", "atlasH", "kerning", "glyphs", "layersAtlasW", "layersAtlasH", "layerGlyphs"],
     "PBBakedFace", "baked-face metrics");
@@ -1559,6 +1559,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the word heal must scale a solo label by SoloLabelK — a healed word must size like a built one");
   if (!/var lr9 = FindOurLabelRoot\(inst\);/.test(cs) || !/t9\.fontSize = ls9 \* \(it\.h \/ \(baseA3\.shell\.h \/ ps3\)\);/.test(cs))
     errors.push("SeatPosedLabel must handle the solo road (re-seat + board-scale the bare TMP), not return on hl2 == null");
+}
+
+/* ── P0 follow-up (2026-08-26): the SOLO-LABEL INK invariant. The app
+   flips white type to the kit ink on pale shells and per-family forks pin
+   their own color, while the baked atlas keeps the MASTER voice — a solo
+   TMP left vertex-white shipped WHITE header words. The family's resolved
+   ink travels as labelInk/labelInk2 on the labeled base rows, gated by
+   the atlas tintability flag. */
+{
+  if (!/static void ApplyFamilyInk\(TextMeshProUGUI t, PBManifest m, string family, bool requireTintableAtlas\)/.test(cs))
+    errors.push("ApplyFamilyInk is missing — solo labels have no other carrier of the family's resolved resting ink");
+  if (!/ApplyFamilyInk\(t, m, family, true\);/.test(cs))
+    errors.push("AddBakedLabel's solo fallback must tint by the family ink on a tintable atlas (the WHITE-header bug)");
+  if (!/ApplyFamilyInk\(tLead, m, family, false\);/.test(cs))
+    errors.push("the styled-SDF label rung must take the family's resolved ink (SDF glyphs are always tintable)");
+  if (!/const labelInkOf = \(lg: string, svg2: string\)/.test(src))
+    errors.push("labelInkOf (the resolved label-fill parse, gradient stops included) is missing from the TS emission side");
+  if (!/\.\.\.\(labelInkOf\(lg, svg2\) \?\? \{\}\),/.test(src) || !/\.\.\.\(labelInkOf\(lg, fullSvg\) \?\? \{\}\),/.test(src))
+    errors.push("both label-metric parse sites (labelSeatOf and the labeled-geometry bake) must emit labelInk from the rendered fill");
+  if (!/inkTintable: \(\(\) => \{/.test(src))
+    errors.push("the bakedFace inkTintable decision (near-white untreated atlas only) is missing — an unconditional tint would double-paint colored atlases");
 }
 
 if (errors.length) {
