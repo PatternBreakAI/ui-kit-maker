@@ -8876,7 +8876,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const offFace = desaturate(hexMix(bevel, "#20242E", 0.72), 0.5);
       const total3 = d3 + pad3 * 2;
       const totH3 = total3 + 14; // extra floor below the sphere — captions need air
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${total3}" height="${totH3}" viewBox="0 0 ${total3} ${totH3}" data-shell="${pad3} ${pad3} ${d3.toFixed(1)} ${d3.toFixed(1)}" role="img" aria-label="glow orb" data-orb="${lit ? "1" : "0"}">
+      /* Canvas reserve for the halo (owner: the lit aura cut to a hard
+         square): the blurred halo circle (r = r4·1.06, σ = r4·0.42) stays
+         visible past r4 + pad3 at m/l, and an svg root's default overflow
+         guillotines it at the viewBox. Reserve the halo's full reach —
+         radius + 2.5σ (measured visible-zero ≈ 120 units from center at
+         l) — as a NEGATIVE viewBox origin: every drawn coordinate and the
+         data-shell stamp stay byte-identical, viewBox 0 keeps pinning the
+         stage (x,y), and every pad consumer reclaims the actual origin.
+         Sized per size only, never per state — lit ↔ off must not resize
+         the box (the padSvg stable-box discipline). */
+      const grow3 = Math.max(0, Math.ceil(r4 * 1.06 + 2.5 * (r4 * 0.42) - (r4 + pad3)));
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${total3 + grow3 * 2}" height="${totH3 + grow3 * 2}" viewBox="${-grow3} ${-grow3} ${total3 + grow3 * 2} ${totH3 + grow3 * 2}" data-shell="${pad3} ${pad3} ${d3.toFixed(1)} ${d3.toFixed(1)}" role="img" aria-label="glow orb" data-orb="${lit ? "1" : "0"}">
 <defs>
   <radialGradient id="${gid7}" cx="0.34" cy="0.28" r="0.95">
     <stop offset="0" stop-color="#FFFFFF"/>
@@ -9017,7 +9028,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         return iconGroup(STOCK_ICONS.heart, x0, hs * 0.08, hs, on ? glow : "rgba(140,146,168,0.35)",
           { strokeWidth: 2.4 * iconWK, filter: on ? `drop-shadow(0 0 6px ${hexRgba(glow, 0.6)})` : undefined });
       }).join("");
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W5}" height="${H5}" viewBox="0 0 ${W5} ${H5}" role="img" aria-label="lives: ${full} of ${n5}">${hearts}</svg>`;
+      /* Canvas reserve for the lit hearts' glow (owner: the aura filled
+         the tight box and cut to a hard rectangle): each lit heart wears
+         a CSS drop-shadow (6px blur) that rides the icon group's
+         scale(hs/24) — σ = hs/8 — and the hugging viewBox clipped it at
+         every edge. Reserve 4σ = hs/2 per side as a NEGATIVE origin, so
+         heart coordinates stay byte-identical and viewBox 0 keeps pinning
+         the stage (x,y). UNCONDITIONAL (per size, never per value): the
+         Value slider sweeps hearts live and the box must never resize.
+         data-shell pins the hit surface to the hearts row — the grown
+         canvas must not grow the live hit area (pointer honesty). */
+      const G5 = hs / 2;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W5 + G5 * 2}" height="${H5 + G5 * 2}" viewBox="${-G5} ${-G5} ${W5 + G5 * 2} ${H5 + G5 * 2}" data-shell="0 ${(hs * 0.08).toFixed(1)} ${W5.toFixed(1)} ${hs}" role="img" aria-label="lives: ${full} of ${n5}">${hearts}</svg>`;
     }
     case "bignum": {
       // celebratory numbers — pure display type, no container

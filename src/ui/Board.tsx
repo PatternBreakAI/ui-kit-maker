@@ -6,7 +6,7 @@ import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
-import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
+import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
@@ -1209,12 +1209,17 @@ export function BoardView({ playing }: { playing: boolean }) {
       // SMIL loops are stripped: rasterization must get the resting pose,
       // never whatever instant a fade-in loop's clock happened to be at
       const svg = stripSmil(await svgWithFaces(svg0, pc));
-      /* pad reclaim is for PADDED svgs only: kit pieces raster with the glow
-         pad's negative viewBox origin, so aligning viewBox-0 to (x,y) needs
-         the −pad·s shift — but type stamps render pad-less (viewBox starts
-         at 0), and shifting them dragged every stamp ~pad px up-left in the
-         downloaded PNG on any kit with glow armed */
-      const pad = b.stamp ? 0 : glowPadOf(pc);
+      /* pad reclaim reads the ACTUAL viewBox origin — the same rule the
+         stage (LiveArt's anchorContent) and the Unity exporter speak: a
+         negative origin is glow pad to pull back so viewBox 0 lands on
+         (x,y); a zero/positive origin (type stamps, most custom roots)
+         reclaims nothing. For build() shells −origin === glowPadOf, so
+         this is identity with the old constant; for custom roots (orb,
+         lives, emotewheel, ring…) it retires the 90·s drift where the
+         compositor subtracted glowPadOf on glow-armed kits while the
+         stage reclaimed their real origin of 0. */
+      const vbOr = /viewBox="(-?[\d.]+)/.exec(svg);
+      const pad = vbOr && +vbOr[1] < 0 ? -+vbOr[1] : 0;
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
         const img = new Image();
