@@ -15,7 +15,7 @@ import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecime
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
@@ -617,8 +617,10 @@ export async function collectExportBoards(st: {
           }
           bmp.close();
           const jpeg = ext === "jpg" && !ovBake;
-          const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
-          if (blob) { bytes = new Uint8Array(await blob.arrayBuffer()); if (!jpeg) ext = "png"; }
+          if (jpeg) {
+            const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/jpeg", 0.92));
+            if (blob) bytes = new Uint8Array(await blob.arrayBuffer());
+          } else { bytes = await canvasToPngBytesDilated(cv); ext = "png"; }
           if (ovBake) baked = true;
         } catch { /* undecodable — ship as-is */ }
       }
@@ -681,10 +683,8 @@ export async function collectExportBoards(st: {
         const sf = stampFilter(st.cfg, b.stamp);
         if (sf) cx2.filter = sf;
         cx2.drawImage(warped ?? bmp, padPx, padPx);
-        const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
-        if (!blob) { bmp.close(); continue; }
         const file = `boardstamps/${slug}-s${sidOf(b)}.png`;
-        stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
         /* CORE-ALPHA companion for the Unity wipe (owner: the shine "masks
            to the outer limits of the glow/shadow… it doesn't hug the core
            letterform"): the SAME stamp rendered with every halo OFF — the
@@ -717,11 +717,11 @@ export async function collectExportBoards(st: {
               mcv.width = cv.width; mcv.height = cv.height;
               mcv.getContext("2d")!.drawImage(warpedC ?? bmpC, padPx, padPx);
               bmpC.close();
-              const mblob = await new Promise<Blob | null>((r) => mcv.toBlob(r, "image/png"));
-              if (mblob) {
-                maskFile = file.replace(/\.png$/, "-mask.png");
-                maskFiles.push({ file: maskFile, bytes: new Uint8Array(await mblob.arrayBuffer()) });
-              }
+              // bytes FIRST — an encode failure must leave the row mask-less,
+              // never pointing at a file that didn't ship
+              const mBytes = await canvasToPngBytesDilated(mcv);
+              maskFile = file.replace(/\.png$/, "-mask.png");
+              maskFiles.push({ file: maskFile, bytes: mBytes });
             }
           } catch { /* a stamp without its mask still shines — clipped to its full art */ }
         }
@@ -777,10 +777,8 @@ export async function collectExportBoards(st: {
             const bf = bigGlyphFilter(st.cfg, b.big);
             if (bf) cx2.filter = bf;
             cx2.drawImage(img, padPx, padPx);
-            const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
-            if (!blob) continue;
             file = `bigglyphs/${gl.id}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+            stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
           }
         } catch { continue; }
         const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
@@ -829,28 +827,25 @@ export async function collectExportBoards(st: {
           if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
           const bmp = await createImageBitmap(rec.blob);
           wNat = bmp.width; hNat = bmp.height;
-          const draw = (pad: number, filter?: string): Promise<Blob | null> => {
+          const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
             const cv = document.createElement("canvas");
             cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
             const cx2 = cv.getContext("2d")!;
             if (filter) cx2.filter = filter;
             cx2.drawImage(bmp, pad, pad);
-            return new Promise<Blob | null>((r) => cv.toBlob(r, "image/png"));
+            return canvasToPngBytesDilated(cv);
           };
           if (!hasFx) {
             file = `bigglyphs/${uid2}.png`;
             if (!bigClean.has(uid2)) {
-              const blob = await draw(0);
-              if (!blob) { bmp.close(); continue; }
-              stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+              stampFiles.push({ file, bytes: await draw(0) });
               bigClean.add(uid2);
             }
           } else {
             const fxB = { gid: "", ...b.logo };
-            const blob = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
-            if (!blob) { bmp.close(); continue; }
+            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
             file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: new Uint8Array(await blob.arrayBuffer()) });
+            stampFiles.push({ file, bytes: bytesL });
           }
           bmp.close();
         } catch { continue; }
@@ -1043,8 +1038,7 @@ export async function collectExportBoards(st: {
             if (kfK) cxK.filter = kfK;
             cxK.drawImage(bmpK, padK * 2, padK * 2);
             bmpK.close();
-            const blobK = await new Promise<Blob | null>((r) => cvK.toBlob(r, "image/png"));
-            if (blobK) bytesK = new Uint8Array(await blobK.arrayBuffer()); else padK = 0;
+            bytesK = await canvasToPngBytesDilated(cvK);
           } catch { padK = 0; /* the copy still ships, shadow-less */ }
         }
         /* invgrid wells were measured against the UNPADDED raster — remap
@@ -1112,8 +1106,7 @@ export async function collectExportBoards(st: {
                 cvC.width = bmpC.width + padK * 2 * 2; cvC.height = bmpC.height + padK * 2 * 2;
                 cvC.getContext("2d")!.drawImage(bmpC, padK * 2, padK * 2);
                 bmpC.close();
-                const blobC = await new Promise<Blob | null>((r) => cvC.toBlob(r, "image/png"));
-                bytesC = blobC ? new Uint8Array(await blobC.arrayBuffer()) : null;
+                bytesC = await canvasToPngBytesDilated(cvC);
               }
               if (bytesC) {
                 maskFileK = file.replace(/\.png$/, "-mask.png");
@@ -1484,10 +1477,10 @@ export async function collectExportBoards(st: {
             cxSh2.globalCompositeOperation = "destination-out";
             cxSh2.drawImage(bmpSh, padR, padR);
             bmpSh.close();
-            const blobSh = await new Promise<Blob | null>((r) => cvSh.toBlob(r, "image/png"));
-            if (blobSh) {
+            const bytesSh = await canvasToPngBytesDilated(cvSh);
+            {
               const fileSh2 = `boardstamps/${slug}-sh${sidFor()}.png`;
-              stampFiles.push({ file: fileSh2, bytes: new Uint8Array(await blobSh.arrayBuffer()) });
+              stampFiles.push({ file: fileSh2, bytes: bytesSh });
               const kxD = pw / shellSh2[2], kyD = ph / shellSh2[3];
               const padD = padR / 2; // back to design px
               const cW2 = +vbSh3[3] + padD * 2, cH2 = +vbSh3[4] + padD * 2;
@@ -4575,12 +4568,9 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
       if (fc) ax.drawImage(fc, g.x!, g.y!);
       else ax.drawImage(g.cv!, g.sx!, g.sy!, g.w, g.h, g.x!, g.y!, g.w, g.h);
     }
-    return new Promise((resolve, reject) => {
-      atlas.toBlob(async (b) => {
-        if (!b) { reject(new Error("atlas raster failed")); return; }
-        resolve(new Uint8Array(await b.arrayBuffer()));
-      }, "image/png");
-    });
+    /* the baked face scales in-game like any sprite — its transparent
+       gutters carry the glyphs' edge color instead of premultiplied black */
+    return canvasToPngBytesDilated(atlas);
   };
 
   /* the letterform's own ink boxes, captured BEFORE the union pass rewrites
@@ -7877,7 +7867,15 @@ namespace PatternBreak {
       bool changed = false;
       if (ti.textureType != TextureImporterType.Sprite) { ti.textureType = TextureImporterType.Sprite; changed = true; }
       if (ti.spriteImportMode != SpriteImportMode.Single) { ti.spriteImportMode = SpriteImportMode.Single; changed = true; }
-      if (ti.mipmapEnabled) { ti.mipmapEnabled = false; changed = true; }
+      /* the white-fringe/aliasing round (owner field, Unity 6.5: the Shop
+         chips' edges sparkled white specks): kit art ships at 2x and board
+         copies scale it far below that — bilinear with NO mip chain
+         undersamples a bright rim into disconnected dots. Mips + trilinear
+         make minification a real filter; the sprites' transparent pixels
+         carry their edge color baked in (the app dilates at encode time),
+         so deep mip averages stay color-true instead of ringing dark. */
+      if (!ti.mipmapEnabled) { ti.mipmapEnabled = true; changed = true; }
+      if (ti.filterMode != FilterMode.Trilinear) { ti.filterMode = FilterMode.Trilinear; changed = true; }
       if (!ti.alphaIsTransparency) { ti.alphaIsTransparency = true; changed = true; }
       // these sprites ARE the app's pixels — Unity's default block compression
       // mottles the smooth gradients, so the kit imports lossless; re-compress
@@ -16109,7 +16107,14 @@ namespace PatternBreak {
         var gti = (TextureImporter)assetImporter;
         gti.textureType = TextureImporterType.Sprite;
         gti.spriteImportMode = SpriteImportMode.Single;
-        gti.mipmapEnabled = false;
+        /* board bakes are FULL-RES pixels placed at a fraction of their
+           size (a 1400px stamp on a ~210-unit rect) — bilinear alone
+           undersamples them into white edge specks and shimmer (owner
+           field round). Mips + trilinear filter the downscale; the bakes'
+           transparent pixels carry dilated edge color, so mip averages
+           can't ring dark or white. */
+        gti.mipmapEnabled = true;
+        gti.filterMode = FilterMode.Trilinear;
         gti.alphaIsTransparency = true;
         gti.maxTextureSize = 8192;
         /* instance bakes (round 14): scene-exact pixels at arbitrary
@@ -16151,7 +16156,9 @@ namespace PatternBreak {
         var sti = (TextureImporter)assetImporter;
         sti.textureType = TextureImporterType.Sprite;
         sti.spriteImportMode = SpriteImportMode.Single;
-        sti.mipmapEnabled = false;
+        // 4x art always renders minified — same mip cure as the board bakes
+        sti.mipmapEnabled = true;
+        sti.filterMode = FilterMode.Trilinear;
         sti.alphaIsTransparency = true;
         sti.textureCompression = TextureImporterCompression.Uncompressed; // hero text: never blocky
         sti.maxTextureSize = 4096;

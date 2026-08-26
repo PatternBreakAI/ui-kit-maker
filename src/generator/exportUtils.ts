@@ -134,6 +134,142 @@ export function setEmbedFont(family: string, bytes: Uint8Array | null) {
   embedFont = { family, b64: btoa(bin) };
 }
 
+/* ── the WHITE-FRINGE cure at the bake end (Unity field round, 2026-08-26:
+   the Shop scene's navy chips wore white specks on their edges). A canvas
+   keeps its backing store PREMULTIPLIED, so toBlob writes RGB(0,0,0) under
+   every alpha-0 pixel — and any engine that bilinear-samples or mip-averages
+   across the edge blends toward that black (or toward whatever its own
+   dilation guessed). The robust half of the cure is baked color truth:
+   every fully-transparent pixel inherits the RGB of its NEAREST inked pixel
+   (a two-pass chamfer nearest-feature transform — O(n), whole canvas), so
+   edge filtering at ANY mip depth blends into the art's own color. Alpha
+   never changes; pixels with any ink (alpha>0) never change — verified
+   byte-exact against Chrome's own encoder by the slice-1 probe. Because
+   toBlob would re-zero the dilated RGB, the PNG is encoded here, straight
+   RGBA (Paeth + CompressionStream zlib); no CompressionStream → fall back
+   to the browser encoder, undilated, and the export still ships. */
+/** Flood the RGB of every fully-transparent pixel with its nearest inked
+ *  pixel's RGB (chamfer 3-4 forward/backward passes). Alpha untouched;
+ *  inked pixels untouched. Returns false when the image has no ink at all
+ *  (nothing to inherit — left as-is). */
+export function dilateTransparentRGB(d: Uint8ClampedArray, w: number, h: number): boolean {
+  const n = w * h;
+  const INF = 0x3fffffff;
+  const dist = new Int32Array(n).fill(INF);
+  const src = new Int32Array(n).fill(-1);
+  let anyInk = false;
+  for (let i = 0; i < n; i++) if (d[i * 4 + 3] > 0) { dist[i] = 0; src[i] = i; anyInk = true; }
+  if (!anyInk) return false;
+  // forward: left, up-left, up, up-right
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      const i = row + x;
+      if (dist[i] === 0) continue;
+      let bd = dist[i], bs = src[i];
+      if (x > 0 && dist[i - 1] + 3 < bd) { bd = dist[i - 1] + 3; bs = src[i - 1]; }
+      if (y > 0) {
+        const up = i - w;
+        if (dist[up] + 3 < bd) { bd = dist[up] + 3; bs = src[up]; }
+        if (x > 0 && dist[up - 1] + 4 < bd) { bd = dist[up - 1] + 4; bs = src[up - 1]; }
+        if (x < w - 1 && dist[up + 1] + 4 < bd) { bd = dist[up + 1] + 4; bs = src[up + 1]; }
+      }
+      dist[i] = bd; src[i] = bs;
+    }
+  }
+  // backward: right, down-right, down, down-left
+  for (let y = h - 1; y >= 0; y--) {
+    const row = y * w;
+    for (let x = w - 1; x >= 0; x--) {
+      const i = row + x;
+      if (dist[i] === 0) continue;
+      let bd = dist[i], bs = src[i];
+      if (x < w - 1 && dist[i + 1] + 3 < bd) { bd = dist[i + 1] + 3; bs = src[i + 1]; }
+      if (y < h - 1) {
+        const dn = i + w;
+        if (dist[dn] + 3 < bd) { bd = dist[dn] + 3; bs = src[dn]; }
+        if (x < w - 1 && dist[dn + 1] + 4 < bd) { bd = dist[dn + 1] + 4; bs = src[dn + 1]; }
+        if (x > 0 && dist[dn - 1] + 4 < bd) { bd = dist[dn - 1] + 4; bs = src[dn - 1]; }
+      }
+      dist[i] = bd; src[i] = bs;
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] !== 0) continue; // only FULLY transparent pixels may change
+    const s = src[i];
+    if (s < 0 || s === i) continue;
+    d[i * 4] = d[s * 4]; d[i * 4 + 1] = d[s * 4 + 1]; d[i * 4 + 2] = d[s * 4 + 2];
+  }
+  return true;
+}
+
+const deflateZlib = async (bytes: Uint8Array): Promise<Uint8Array> => {
+  const stream = new Blob([bytes.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+};
+
+/** Encode straight (non-premultiplied) RGBA to PNG — the only road that
+ *  keeps RGB under alpha-0, which toBlob's premultiplied backing zeroes. */
+export async function encodePngStraight(d: Uint8ClampedArray, w: number, h: number): Promise<Uint8Array> {
+  const stride = w * 4;
+  const raw = new Uint8Array((stride + 1) * h);
+  for (let y = 0; y < h; y++) {
+    const ro = y * (stride + 1);
+    raw[ro] = 4; // Paeth — the general-purpose filter, one pass
+    const row = y * stride, prev = row - stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= 4 ? d[row + x - 4] : 0;
+      const b = y > 0 ? d[prev + x] : 0;
+      const c = y > 0 && x >= 4 ? d[prev + x - 4] : 0;
+      const p = a + b - c;
+      const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      raw[ro + 1 + x] = d[row + x] - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+    }
+  }
+  const idat = await deflateZlib(raw);
+  const be32 = (v: number) => new Uint8Array([(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff]);
+  const chunk = (tag: string, data: Uint8Array): Uint8Array[] => {
+    const td = new Uint8Array(4 + data.length);
+    for (let i = 0; i < 4; i++) td[i] = tag.charCodeAt(i);
+    td.set(data, 4);
+    // crc32 is makeZip's own table — PNG and ZIP share the polynomial
+    return [be32(data.length), td.subarray(0, 4), data, be32(crc32(td))];
+  };
+  const ihdr = new Uint8Array(13);
+  ihdr.set(be32(w), 0); ihdr.set(be32(h), 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8-bit RGBA; compression/filter/interlace 0
+  const parts = [
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ...chunk("IHDR", ihdr), ...chunk("IDAT", idat), ...chunk("IEND", new Uint8Array(0)),
+  ];
+  const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+
+/** A canvas' PNG bytes with the transparent-RGB dilation applied — the
+ *  encoder every zip-bound raster road ends in. */
+export async function canvasToPngBytesDilated(cv: HTMLCanvasElement): Promise<Uint8Array> {
+  try {
+    if (typeof CompressionStream === "undefined") throw new Error("no CompressionStream");
+    const ctx = cv.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    const id = ctx.getImageData(0, 0, cv.width, cv.height);
+    dilateTransparentRGB(id.data, cv.width, cv.height);
+    return await encodePngStraight(id.data, cv.width, cv.height);
+  } catch {
+    /* the fringe cure must never kill an export — the browser's own encoder
+       (undilated, today's exact bytes) is the fallback */
+    return await new Promise<Uint8Array>((resolve, reject) => {
+      cv.toBlob(async (b) => {
+        if (!b) { reject(new Error("raster failed")); return; }
+        resolve(new Uint8Array(await b.arrayBuffer()));
+      }, "image/png");
+    });
+  }
+}
+
 /** Rasterize an SVG string to transparent PNG bytes at the given scale. */
 export function svgToPngBytes(svg: string, scale = 2): Promise<{ bytes: Uint8Array; w: number; h: number }> {
   if (embedFont && svg.includes("<text"))
@@ -147,10 +283,9 @@ export function svgToPngBytes(svg: string, scale = 2): Promise<{ bytes: Uint8Arr
       const ctx = cv.getContext("2d")!;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, cv.width, cv.height);
-      cv.toBlob(async (b) => {
-        if (!b) { reject(new Error("raster failed")); return; }
-        resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cv.width, h: cv.height });
-      }, "image/png");
+      canvasToPngBytesDilated(cv)
+        .then((bytes) => resolve({ bytes, w: cv.width, h: cv.height }))
+        .catch(() => reject(new Error("raster failed")));
     };
     img.onerror = () => reject(new Error("svg load failed"));
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
@@ -193,12 +328,9 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
   const out = document.createElement("canvas");
   out.width = cw; out.height = ch;
   out.getContext("2d")!.drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);
-  return new Promise((resolve, reject) => {
-    out.toBlob(async (b) => {
-      if (!b) { reject(new Error("crop raster failed")); return; }
-      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch, box: { x0, y0, x1, y1 } });
-    }, "image/png");
-  });
+  // the crop re-drew through the premultiplied backing — re-dilate on encode
+  const bytes = await canvasToPngBytesDilated(out);
+  return { bytes, w: cw, h: ch, box: { x0, y0, x1, y1 } };
 }
 
 /** The alpha bounding box of an SVG's raster, in frame coordinates —
@@ -251,16 +383,13 @@ export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin
           if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
         }
   }
-  const encode = (cv: HTMLCanvasElement, sx: number, sy: number, cw: number, ch: number) =>
-    new Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }>((resolve, reject) => {
-      const out = document.createElement("canvas");
-      out.width = cw; out.height = ch;
-      out.getContext("2d")!.drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
-      out.toBlob(async (b) => {
-        if (!b) { reject(new Error("crop raster failed")); return; }
-        resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w: cw, h: ch, box: { x0: sx, y0: sy, x1: sx + cw - 1, y1: sy + ch - 1 } });
-      }, "image/png");
-    });
+  const encode = async (cv: HTMLCanvasElement, sx: number, sy: number, cw: number, ch: number): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }> => {
+    const out = document.createElement("canvas");
+    out.width = cw; out.height = ch;
+    out.getContext("2d")!.drawImage(cv, sx, sy, cw, ch, 0, 0, cw, ch);
+    const bytes = await canvasToPngBytesDilated(out);
+    return { bytes, w: cw, h: ch, box: { x0: sx, y0: sy, x1: sx + cw - 1, y1: sy + ch - 1 } };
+  };
   if (x1 < 0) return Promise.all(canvases.map((cv) => encode(cv, 0, 0, cv.width, cv.height)));
   x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin);
   // raster rounding can vary canvas sizes by a pixel — clamp per canvas
@@ -438,9 +567,8 @@ export async function buildSpriteSheetBytes(
     ctx.font = "600 19px Inter, sans-serif";
     ctx.fillText(pl.name.toUpperCase(), pl.x + pl.w / 2, pl.y + pl.h + 30, pl.w + PAD);
   }
-  return await new Promise<Uint8Array | null>((resolve) => cv.toBlob(async (blob) => {
-    resolve(blob ? new Uint8Array(await blob.arrayBuffer()) : null);
-  }, "image/png"));
+  // the catalog ships in the zip (atlas/catalog.png) — same dilated road
+  return await canvasToPngBytesDilated(cv).catch(() => null);
 }
 
 /** The packed sheet stays available as a VISUAL CATALOG download. */
@@ -898,10 +1026,8 @@ export async function glowFromPng(
   octx.filter = `blur(${s1}px)`;
   octx.drawImage(sil, 0, 0);
 
-  return new Promise((resolve, reject) => {
-    out.toBlob(async (b) => {
-      if (!b) { reject(new Error("glow raster failed")); return; }
-      resolve({ bytes: new Uint8Array(await b.arrayBuffer()), w, h, pad });
-    }, "image/png");
-  });
+  // the aura is WHITE ink over transparency — undilated black RGB under its
+  // soft edge is exactly the fringe this slice cures, so it encodes dilated
+  const glowBytes = await canvasToPngBytesDilated(out);
+  return { bytes: glowBytes, w, h, pad };
 }

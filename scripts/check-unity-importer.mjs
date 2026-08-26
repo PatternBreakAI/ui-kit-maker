@@ -1622,6 +1622,41 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("WipeShine's core-stencil priority (maskSprite over the host sprite mirror) is missing");
 }
 
+/* ── Unity-fidelity round, slice 1 (2026-08-26): the WHITE-FRINGE cure has
+   two halves and both must stay. App half: every zip-bound raster encodes
+   through canvasToPngBytesDilated — straight-RGBA PNG whose fully-
+   transparent pixels inherit their nearest inked pixel's RGB (toBlob's
+   premultiplied backing writes black there, and any edge filtering blends
+   it in). Only alpha-0 RGB may change — the fence line is load-bearing.
+   Unity half: scene-scaled sprites (assets/, boardstamps/, bigglyphs/,
+   backgrounds/, stamps/) import with mips + trilinear, or minification
+   undersamples bright rims into the owner's "white specks"; the exact-rect
+   baked-face atlas stays mip-less (glyph rects are sampled exactly). */
+{
+  const exSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/exportUtils.ts"), "utf8");
+  if (!/export function dilateTransparentRGB\(/.test(exSrc) || !/export async function encodePngStraight\(/.test(exSrc))
+    errors.push("the transparent-RGB dilation + straight-alpha PNG encoder are missing from exportUtils (slice 1 — the white-fringe cure's app half)");
+  if (!/if \(d\[i \* 4 \+ 3\] !== 0\) continue; \/\/ only FULLY transparent pixels may change/.test(exSrc))
+    errors.push("dilateTransparentRGB must change ONLY fully-transparent pixels' RGB — the visually-identical byte fence (slice 1)");
+  if (!/canvasToPngBytesDilated\(cv\)\s*\n\s*\.then\(\(bytes\) => resolve\(\{ bytes, w: cv\.width, h: cv\.height \}\)\)/.test(exSrc))
+    errors.push("svgToPngBytes must encode through canvasToPngBytesDilated — every svg raster road inherits the dilation from here (slice 1)");
+  const dilatedUses = (exSrc.match(/canvasToPngBytesDilated\(/g) ?? []).length;
+  if (dilatedUses < 5)
+    errors.push(`exportUtils rides canvasToPngBytesDilated only ${dilatedUses}x (need >=5: definition, svgToPngBytes, tight crop, union crop, glow/catalog) — a raster road fell back to premultiplied toBlob (slice 1)`);
+  const dilatedUsesEE = (src.match(/canvasToPngBytesDilated\(/g) ?? []).length;
+  if (dilatedUsesEE < 9)
+    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=9: backgrounds, stamp, stamp mask, bigglyph fx, logo, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
+  if (!/if \(!ti\.mipmapEnabled\) \{ ti\.mipmapEnabled = true; changed = true; \}/.test(cs)
+      || !/if \(ti\.filterMode != FilterMode\.Trilinear\) \{ ti\.filterMode = FilterMode\.Trilinear; changed = true; \}/.test(cs))
+    errors.push("Configure must import kit sprites with mips + trilinear — scaled board copies undersample into white specks without them (slice 1)");
+  if (!/gti\.mipmapEnabled = true;/.test(cs) || !/gti\.filterMode = FilterMode\.Trilinear;/.test(cs))
+    errors.push("boardstamps/bigglyphs/backgrounds must import with mips + trilinear — the owner's Shop-chip speckle road (slice 1)");
+  if (!/sti\.mipmapEnabled = true;/.test(cs) || !/sti\.filterMode = FilterMode\.Trilinear;/.test(cs))
+    errors.push("type stamps (4x art, always minified) must import with mips + trilinear (slice 1)");
+  if (!/bti\.mipmapEnabled = false;/.test(cs))
+    errors.push("the baked-face atlas must stay MIP-LESS — its glyph rects are sampled exactly, and mip bleed would corrupt the baked text (slice 1)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
