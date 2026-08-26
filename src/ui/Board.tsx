@@ -1209,7 +1209,12 @@ export function BoardView({ playing }: { playing: boolean }) {
       // SMIL loops are stripped: rasterization must get the resting pose,
       // never whatever instant a fade-in loop's clock happened to be at
       const svg = stripSmil(await svgWithFaces(svg0, pc));
-      const pad = glowPadOf(pc);
+      /* pad reclaim is for PADDED svgs only: kit pieces raster with the glow
+         pad's negative viewBox origin, so aligning viewBox-0 to (x,y) needs
+         the −pad·s shift — but type stamps render pad-less (viewBox starts
+         at 0), and shifting them dragged every stamp ~pad px up-left in the
+         downloaded PNG on any kit with glow armed */
+      const pad = b.stamp ? 0 : glowPadOf(pc);
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
         const img = new Image();
