@@ -4185,6 +4185,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPortraitStage.cs", data: PORTRAIT_STAGE_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
@@ -4250,6 +4251,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
+    "Runtime/PatternBreakKitPiece.cs",
     "Runtime/PatternBreakPortraitStage.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
@@ -5558,6 +5560,30 @@ namespace PatternBreak {
     void TestRelease() { down = false; over = false; ApplyCurrent(); Debug.Log("UI Kit Maker test release on '" + gameObject.name + "' — back to rest."); }
 #endif
   }
+}
+`;
+
+/* Kit piece selection root — one class per file (see BOARD_RIGS_RUNTIME).
+   The slice-2 field find (owner, moving pieces in the editor: "text is not
+   bound to the image face"): every label IS a child of its piece root, but
+   a POSED copy's visible face is an ADDED "Posed art" child — scene-view
+   clicks pick added objects directly (prefab-root-first only covers the
+   prefab's own children), so the owner grabbed the face and dragged it out
+   from under its word. [SelectionBase] makes any click inside the piece
+   select the ROOT — face, label and echoes now travel as one; a double
+   click still drills into children deliberately. Empty on purpose: zero
+   runtime cost, core attribute only (the round-19 P0 rule). */
+const KIT_PIECE_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* The piece's selection handle: clicking any part of this piece in the
+     Scene view selects this root, so moving it carries the face AND the
+     words. Double-click to select a child on purpose. Safe to remove —
+     it changes editor picking only. */
+  [AddComponentMenu("UI Kit Maker/Kit Piece (selection root)")]
+  [SelectionBase]
+  [DisallowMultipleComponent]
+  public class KitPiece : MonoBehaviour {}
 }
 `;
 
@@ -9419,7 +9445,7 @@ namespace PatternBreak {
           catch (Exception) { continue; }
           if (!scene.IsValid()) continue;
         }
-        int healedW = 0, artFixed = 0;
+        int healedW = 0, artFixed = 0, boundRoots = 0;
         try {
           var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
           var staleShadows = new List<GameObject>(); // round 26 — culled after the walk
@@ -9461,6 +9487,13 @@ namespace PatternBreak {
                 if (MatchesSeat(crt, it, bd)) { it2 = it; break; }
               }
               if (it2 == null) continue;
+              /* ── SELECTION-ROOT CONVERGENCE (slice 2): kept scenes built
+                 before KitPiece shipped let the editor pick a posed face
+                 apart from its word — a piece still on the builder's own
+                 seat is provably ours, and gains the same [SelectionBase]
+                 handle fresh builds get. A piece the maker moved stopped
+                 matching above and stays exactly as they left it. ── */
+              if (ch.GetComponent<KitPiece>() == null) { ch.gameObject.AddComponent<KitPiece>(); boundRoots++; }
               /* ── ROUND-20 GHOST-STICK HEAL (owner: "it's grabbing the
                  old joystick"): round 18 shipped JoystickGhost.prefab, but
                  placement kept mapping a ghost board copy (ov "ghost") to
@@ -9635,7 +9668,7 @@ namespace PatternBreak {
              boardstamps-sprited, manifest-disowned — see the walk above */
           int shadowCut = 0;
           foreach (var stSh in staleShadows) { UnityEngine.Object.DestroyImmediate(stSh); shadowCut++; }
-          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0) {
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0 || boundRoots > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
@@ -9643,7 +9676,9 @@ namespace PatternBreak {
               + ((artFixed > 0 || healedW > 0) && ghostFixed > 0 ? ", " : "")
               + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "")
               + ((artFixed > 0 || healedW > 0 || ghostFixed > 0) && shadowCut > 0 ? ", " : "")
-              + (shadowCut > 0 ? shadowCut + " stale shadow bake(s) removed (this export no longer ships them)" : "");
+              + (shadowCut > 0 ? shadowCut + " stale shadow bake(s) removed (this export no longer ships them)" : "")
+              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0 || shadowCut > 0) && boundRoots > 0 ? ", " : "")
+              + (boundRoots > 0 ? boundRoots + " piece(s) bound as one selection (clicking any part now grabs the whole piece, words included)" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
                 Debug.Log("UI Kit Maker: '" + bd.name + "' — " + what + ". Bakes are named per board copy now, so re-exports overwrite them in place and this scene always shows the current design. Pieces you moved or retyped in the scene are never touched.");
@@ -9978,6 +10013,15 @@ namespace PatternBreak {
             rt = inst.GetComponent<RectTransform>();
             if (rt == null) continue;
           }
+          /* the piece's selection handle (slice 2 — "text is not bound to
+             the image face"): a click anywhere inside the piece selects
+             THIS root, so a drag carries the face and its word together.
+             The posed road's added "Posed art" child was directly pickable
+             (prefab-root-first covers only the prefab's own children) and
+             moved out from under its label; [SelectionBase] on the root is
+             the binding. Every placed root gets it — prefab instance,
+             posed, baked, big glyph, live stamp alike. */
+          if (inst.GetComponent<KitPiece>() == null) inst.AddComponent<KitPiece>();
           /* zone anchoring: the board records each piece's nearest ninth
              (ax/ay) — offsets are FROM that anchor, so a corner HUD piece
              hugs its corner on every aspect the game runs at */
@@ -15027,7 +15071,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -15638,11 +15682,18 @@ namespace PatternBreak {
           }
         }
 #endif
+        /* slice 2 — the selection root converges onto family prefabs too:
+           a dev who UNPACKS a prefab (or one whose Body/label children get
+           clicked directly) keeps face and word as one grab. Additive and
+           editor-only; a prefab already carrying it (or a dev's own) is
+           untouched. */
+        bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
+          if (wantSelectRoot && contents.GetComponent<KitPiece>() == null) { contents.AddComponent<KitPiece>(); pieceBound++; changed = true; }
           // sweep dead script references (a delete-and-redrop mints new
           // script GUIDs; the ghosts block nothing but confuse everything)
           foreach (var tr in contents.GetComponentsInChildren<Transform>(true))
@@ -15880,6 +15931,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — prefabs generated by an older importer kept the sprite dimensions they were born with, and board scenes inherited the stale size.");
       if (rebodied > 0)
         Debug.Log("UI Kit Maker: moved the art of " + rebodied + " glow-family prefab(s) into a Body child — the hover halo now rides INSIDE each piece (a true first child, drawn behind the art), so it tracks every move with zero lag. Your own children, words and wiring are untouched.");
+      if (pieceBound > 0)
+        Debug.Log("UI Kit Maker: " + pieceBound + " prefab(s) gained the Kit Piece selection root — clicking any part of a piece in the Scene view now selects the piece itself, so a drag carries the face and its words together (double-click still reaches children).");
       if (speced > 0)
         Debug.Log("UI Kit Maker: converged the specular overlay on " + speced + " prefab(s) — the streak now rides as its own layer (scaling with the piece) instead of smearing through the nine-slice.");
       if (retracked > 0)

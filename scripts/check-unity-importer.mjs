@@ -1657,6 +1657,35 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the baked-face atlas must stay MIP-LESS — its glyph rects are sampled exactly, and mip bleed would corrupt the baked text (slice 1)");
 }
 
+/* ── Unity-fidelity round, slice 2 (2026-08-26): labels bound to their
+   piece. The audit found every label already a CHILD of its piece root —
+   the field failure ("text is not bound to the image face") was scene-view
+   PICKING: a posed copy's face is an added "Posed art" child, directly
+   pickable apart from its word. The cure is the KitPiece [SelectionBase]
+   root: clicking any part of a piece selects the piece, so face and word
+   travel as one. These pins keep (a) the label-parenting invariant, (b)
+   the KitPiece runtime shipping shared, (c) every placed root armed, and
+   (d) kept scenes + prefabs converging. */
+{
+  if (!/\[SelectionBase\]\s*\n\s*\[DisallowMultipleComponent\]\s*\n\s*public class KitPiece : MonoBehaviour \{\}/.test(src))
+    errors.push("the KitPiece [SelectionBase] runtime is missing — clicking a posed face would again drag it out from under its word (slice 2)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitPiece\.cs", data: KIT_PIECE_RUNTIME \}\);/.test(src)
+      || (src.match(/"Runtime\/PatternBreakKitPiece\.cs"/g) ?? []).length < 2)
+    errors.push("PatternBreakKitPiece.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson) (slice 2)");
+  if (!/if \(inst\.GetComponent<KitPiece>\(\) == null\) inst\.AddComponent<KitPiece>\(\);/.test(cs))
+    errors.push("the scene builder must arm EVERY placed piece root with KitPiece — the one selection handle that binds face and word (slice 2)");
+  if (!/if \(ch\.GetComponent<KitPiece>\(\) == null\) \{ ch\.gameObject\.AddComponent<KitPiece>\(\); boundRoots\+\+; \}/.test(cs))
+    errors.push("HealBoardWords must converge kept scenes onto the KitPiece selection root (seat-matched pieces only) (slice 2)");
+  if (!/wantSelectRoot && contents\.GetComponent<KitPiece>\(\) == null\) \{ contents\.AddComponent<KitPiece>\(\); pieceBound\+\+; changed = true; \}/.test(cs))
+    errors.push("the prefab maintenance pass must converge family prefabs onto KitPiece (slice 2)");
+  // the label-parenting invariant the audit verified: our label roots are
+  // built as CHILDREN of the piece they dress, never canvas-level siblings
+  if (!/var go = new GameObject\("Label", typeof\(RectTransform\)\);\s*\n\s*go\.transform\.SetParent\(parent\.transform, false\);/.test(cs))
+    errors.push("AddBakedLabel must parent its label root under the piece it dresses (the label-parenting invariant) (slice 2)");
+  if (!/SeatPosedLabel\(inst, it, m\);/.test(cs))
+    errors.push("posed placement must seat the label through SeatPosedLabel (shared with the word healer) — the label stays inside the piece root (slice 2)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
