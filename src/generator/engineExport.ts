@@ -4018,6 +4018,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPortraitStage.cs", data: PORTRAIT_STAGE_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
@@ -4082,6 +4083,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
+    "Runtime/PatternBreakPortraitStage.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
        PatternBreak.Runtime assembly, and the shared Editor importer could
@@ -5438,6 +5440,102 @@ namespace PatternBreak {
 }
 `;
 
+/* Runtime script: the PORTRAIT STAGE (the landscape-Game-view defense).
+   Unity's Game view defaults to landscape Full HD, and a portrait board
+   scene's width-match scaler reads Screen dimensions — 1920/390 ≈ 4.9×,
+   giant pieces, most of the screen out of frame (owner field report, and
+   the exact first impression an Asset Store reviewer would get). The
+   scene now defends itself: in a landscape viewport the stage letterboxes
+   the content to a centered phone-shaped frame over a neutral matte; in
+   any portrait viewport it is INERT — the identity values below are
+   byte-for-byte what the scene builder wrote, so the owner-approved
+   portrait rendering is untouched. Core APIs only (the round-19 P0 rule):
+   one using, no UI/TMP/package types, compiles 2022.3 LTS through
+   Unity 6 with or without TMP. ExecuteAlways on purpose — the chaos this
+   prevents is visible in EDIT mode, before Play is ever pressed. */
+const PORTRAIT_STAGE_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  /* Portrait stage — sits between the Canvas and the scene content of a
+     PORTRAIT board scene (and nowhere else). PARENTING: the stage is the
+     parent of the Safe Area root, never its child — while letterboxing
+     there is no device cutout to respect (a desktop editor's
+     Screen.safeArea IS the full screen), so KitSafeArea keeps writing
+     its own full-frame anchors inside our frame and the two never fight
+     over one rect. SCALER: the CanvasScaler is NEVER touched — the
+     compensation rides the frame's localScale alone, so the portrait
+     restore is exactly the builder's identity values and the scaler
+     policy stays the one seat it always was (ScalerMatchFor).
+     INVARIANT: letterboxed, the frame is the design rect (designW ×
+     designH) scaled by k = stageRect.height / designH; on screen that is
+     designH · k · scaleFactor = viewport height for ANY scaler factor —
+     the width-match blowup cancels exactly.
+     Worked numbers against reference 390×844 (width-match, factor =
+     screenW/390):
+       1920×1080 — factor 4.923, stage rect 390.0×219.4, k = 219.4/844
+         = 0.2599 → phone frame 499×1080 px, centered (x 710..1210).
+       2560×1440 — factor 6.564, stage rect 390.0×219.4 (same 16:9),
+         k = 0.2599 → phone frame 665×1440 px, centered.
+       1080×1920 — portrait viewport: identity restore (anchors 0..1,
+         offsets 0, scale 1, matte off) → the scene renders exactly as
+         it does today, stage rect 390.0×693.3, width-match untouched. */
+  [AddComponentMenu("UI Kit Maker/Kit Portrait Stage")]
+  [DisallowMultipleComponent]
+  [ExecuteAlways]
+  [RequireComponent(typeof(RectTransform))]
+  public class KitPortraitStage : MonoBehaviour {
+    [Tooltip("The board's design frame in reference-resolution px.")]
+    public float designW = 390f;
+    public float designH = 844f;
+    [Tooltip("The rect the stage letterboxes — the parent of the Safe Area root.")]
+    public RectTransform frame;
+    [Tooltip("Full-canvas neutral backdrop; enabled only while letterboxing.")]
+    public GameObject matte;
+    /* the stage itself stays full-stretch forever, so its rect tracks
+       every Game-view/canvas resize and this callback always fires; the
+       writes below touch only the CHILD frame, so they can never
+       re-enter this handler on the stage */
+    void OnEnable() { Apply(); }
+    void OnRectTransformDimensionsChange() { Apply(); }
+    void Apply() {
+      if (frame == null || designW < 1f || designH < 1f) return;
+      var rt = transform as RectTransform;
+      if (rt == null) return;
+      float w = rt.rect.width, h = rt.rect.height;
+      if (w < 1f || h < 1f) return; // a startup/headless frame never writes garbage
+      var mid = new Vector2(0.5f, 0.5f);
+      bool letterbox = designH > designW && w > h;
+      if (letterbox) {
+        /* the centered phone frame: the design rect, fit to the viewport
+           height. Every write is change-gated so a static view never
+           dirties the scene. */
+        float k = h / designH;
+        var size = new Vector2(designW, designH);
+        var scale = new Vector3(k, k, 1f);
+        if (frame.anchorMin != mid) frame.anchorMin = mid;
+        if (frame.anchorMax != mid) frame.anchorMax = mid;
+        if (frame.pivot != mid) frame.pivot = mid;
+        if (frame.anchoredPosition != Vector2.zero) frame.anchoredPosition = Vector2.zero;
+        if (frame.sizeDelta != size) frame.sizeDelta = size;
+        if (frame.localScale != scale) frame.localScale = scale;
+      } else {
+        /* portrait viewport — the identity restore, byte-for-byte the
+           values the scene builder wrote: full-stretch, no offsets, no
+           scale. The sacred fence: at portrait sizes this component
+           must be indistinguishable from not existing. */
+        if (frame.anchorMin != Vector2.zero) frame.anchorMin = Vector2.zero;
+        if (frame.anchorMax != Vector2.one) frame.anchorMax = Vector2.one;
+        if (frame.pivot != mid) frame.pivot = mid;
+        if (frame.anchoredPosition != Vector2.zero) frame.anchoredPosition = Vector2.zero;
+        if (frame.sizeDelta != Vector2.zero) frame.sizeDelta = Vector2.zero;
+        if (frame.localScale != Vector3.one) frame.localScale = Vector3.one;
+      }
+      if (matte != null && matte.activeSelf != letterbox) matte.SetActive(letterbox);
+    }
+  }
+}
+`;
+
 /* Runtime script #3: the touch stick. The joystick ships as base + thumb
    sprites and this component makes them a WORKING control — the "your
    kit, driving a character, thirty seconds after the drop" demo. */
@@ -6644,6 +6742,14 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
 function quickStartDoc(st: EngineExportState): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
   const hasBoards = st.scope === "full" && !!st.boards?.length;
+  /* the dominant portrait board frame — the same vote the importer's
+     Game-view preset takes, so doc and dropdown always name one size */
+  let pw = 0, ph = 0, pv = 0;
+  if (hasBoards) for (const b of st.boards!) {
+    if (b.h <= b.w) continue;
+    const votes = st.boards!.filter((q) => q.w === b.w && q.h === b.h).length;
+    if (votes > pv) { pv = votes; pw = b.w; ph = b.h; }
+  }
   return `# ${st.kitName} — Quick Start
 
 Five minutes from zip to a working scene. The full slide-by-slide
@@ -6656,7 +6762,15 @@ everything by itself: sprites arrive nine-sliced with the right pivots,
 and wired example prefabs are built inside your project — the Console
 prints a one-line receipt and the Project window highlights
 **${root}/Prefabs** when they land.
-
+${pw > 0 ? `
+> **The demo scenes are phone screens (${pw}×${ph} portrait).** Unity's
+> Game view defaults to landscape Full HD — the wrong window for a
+> portrait UI. Pick **UIKitMaker Phone (${pw}×${ph})** in the Game
+> view's size dropdown; the import registers it for you (if it isn't
+> listed, add it there as a Fixed Resolution, ${pw}×${ph}). In a
+> landscape Game view the board scenes show as a centered phone preview
+> on a dark matte instead.
+` : ""}
 **2 · Open the Playground and press Play.** **${root}/Playground.unity**
 is generated on that first import with every example placed. Mouse over
 the pieces — hover glow, press lift and disabled states are already
@@ -6806,7 +6920,14 @@ Every board scene ships phone-ready, three deliberate layers deep:
   Portrait boards match **width (0)**: phone UI is designed against the
   width while heights swing wildly (19.5:9 down to 16:9), so
   width-match keeps buttons finger-true and lets the extra height
-  breathe.
+  breathe. Portrait board scenes also carry a **Phone Stage** between
+  the Canvas and the Safe Area: in a landscape Game view (Unity's Full
+  HD default, where width-match would scale the UI ~5×) it shows the
+  scene as a centered phone preview on a neutral matte, and at any
+  portrait Game-view size it is inert — the scene renders exactly as
+  designed. The import also registers a **UIKitMaker Phone** Fixed
+  Resolution entry in the Game view's size dropdown; pick it to see the
+  scenes at design size.
 - **Anchor inference v1 — one predictable rule.** Each board piece gets
   its RectTransform anchor from where it sits on the frame:
   - center inside the **outer 18%** of the frame (either axis) →
@@ -8427,6 +8548,86 @@ namespace PatternBreak {
         Debug.Log(line);
       if (missing > 0)
         Debug.LogWarning("UI Kit Maker: " + missing + " sprites named in " + mPath + " were not found on disk — keep the export's assets folder next to kit-manifest.json, named exactly 'assets'.");
+      /* ── the PHONE HEADS-UP (the landscape-Game-view defense, importer
+         half): a portrait kit meets Unity's default Full HD Game view as
+         a ~5× width-match blowup. Register a matching Fixed Resolution
+         entry in the Game view's size dropdown (reflection-only, silent
+         on failure) and say ONE gentle line about it. The user's Game
+         view selection is NEVER forced — picking the size stays their
+         choice; the scenes letterbox themselves in the meantime. ── */
+      int phoneW = 0, phoneH = 0, phoneVotes = 0;
+      if (manifest.boards != null) foreach (var bdPh in manifest.boards) {
+        if (bdPh == null || bdPh.w <= 0 || bdPh.h <= bdPh.w) continue; // portrait boards only
+        int votesPh = 0;
+        foreach (var bdPh2 in manifest.boards) if (bdPh2 != null && bdPh2.w == bdPh.w && bdPh2.h == bdPh.h) votesPh++;
+        if (votesPh > phoneVotes) { phoneVotes = votesPh; phoneW = bdPh.w; phoneH = bdPh.h; }
+      }
+      if (phoneW > 0) {
+        string phoneLabel = "UIKitMaker Phone (" + phoneW + "×" + phoneH + ")";
+        bool phoneAdded = RegisterPhoneGameViewSize(phoneW, phoneH, phoneLabel);
+        Debug.Log("UI Kit Maker: the demo scenes are portrait phone screens — pick \\"" + phoneLabel + "\\" in the Game view's size dropdown"
+          + (phoneAdded ? " (added for you)" : " (add it there as a Fixed Resolution)")
+          + ". In a landscape Game view they show as a centered phone preview instead.");
+      }
+    }
+
+    /* ── the phone Game-view preset, by REFLECTION alone.
+       UnityEditor.GameViewSizes and friends are INTERNAL editor types —
+       a direct reference is a compile break waiting for a version bump
+       (the round-19 P0 class rule, applied before it bites this time).
+       Every step is null-checked and the whole road sits in one
+       try/catch: if Unity's internals moved, the import proceeds in
+       silence and the Console line still names the size to add by hand.
+       IDEMPOTENT — existing custom sizes are enumerated first (label,
+       then pixels) so re-imports never stack duplicates. Deliberately
+       NOT selecting the size on the user's Game view: selection-forcing
+       is the fragile half of this internal API and steals a choice
+       that's theirs. ── */
+    static bool RegisterPhoneGameViewSize(int w, int h, string label) {
+      try {
+        var sizesType = Type.GetType("UnityEditor.GameViewSizes,UnityEditor");
+        if (sizesType == null) return false;
+        var instProp = sizesType.GetProperty("instance", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        var sizesObj = instProp != null ? instProp.GetValue(null, null) : null;
+        if (sizesObj == null) return false;
+        var groupProp = sizesType.GetProperty("currentGroup", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var groupObj = groupProp != null ? groupProp.GetValue(sizesObj, null) : null;
+        if (groupObj == null) return false;
+        var groupType = groupObj.GetType();
+        var totalM = groupType.GetMethod("GetTotalCount", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var builtinM = groupType.GetMethod("GetBuiltinCount", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var getM = groupType.GetMethod("GetGameViewSize", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var addM = groupType.GetMethod("AddCustomSize", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (totalM == null || builtinM == null || getM == null || addM == null) return false;
+        int total = (int)totalM.Invoke(groupObj, null);
+        int builtin = (int)builtinM.Invoke(groupObj, null);
+        for (int i = builtin; i < total; i++) {
+          var row = getM.Invoke(groupObj, new object[] { i });
+          if (row == null) continue;
+          var rowType = row.GetType();
+          var textProp = rowType.GetProperty("baseText", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+          var wProp = rowType.GetProperty("width", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+          var hProp = rowType.GetProperty("height", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+          var txt = textProp != null ? textProp.GetValue(row, null) as string : null;
+          if (txt != null && txt == label) return true; // already registered
+          if (wProp != null && hProp != null
+              && wProp.GetValue(row, null) is int && hProp.GetValue(row, null) is int
+              && (int)wProp.GetValue(row, null) == w && (int)hProp.GetValue(row, null) == h) return true;
+        }
+        var typeEnum = Type.GetType("UnityEditor.GameViewSizeType,UnityEditor");
+        var entryType = Type.GetType("UnityEditor.GameViewSize,UnityEditor");
+        if (typeEnum == null || !typeEnum.IsEnum || entryType == null) return false;
+        var fixedRes = Enum.Parse(typeEnum, "FixedResolution");
+        var ctor = entryType.GetConstructor(new Type[] { typeEnum, typeof(int), typeof(int), typeof(string) });
+        if (ctor == null) return false;
+        var entry = ctor.Invoke(new object[] { fixedRes, w, h, label });
+        if (entry == null) return false;
+        addM.Invoke(groupObj, new object[] { entry });
+        // persistence is a courtesy — some versions save on their own
+        var saveM = sizesType.GetMethod("SaveToHDD", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (saveM != null) saveM.Invoke(sizesObj, null);
+        return true;
+      } catch (Exception) { return false; }
     }
 
     /* ── the I5 escape hatch, explicit and confirmed: rebuild the GENERATED
@@ -8959,6 +9160,8 @@ namespace PatternBreak {
             var canvasC = rootGo.GetComponentInChildren<Canvas>(true);
             if (canvasC == null) continue;
             if (canvasC.transform.Find("Safe Area") != null) continue; // already responsive
+            // a portrait scene built with the stage keeps its root one level deeper
+            if (canvasC.transform.Find("Phone Stage/Phone Frame/Safe Area") != null) continue;
             var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
             safeGo.transform.SetParent(canvasC.transform, false);
             var srt = (RectTransform)safeGo.transform;
@@ -9029,6 +9232,9 @@ namespace PatternBreak {
                older kept scenes (no root yet) still hold it on the
                Canvas itself, so the walk follows whichever is there */
             var safeWalk = canvasC.transform.Find("Safe Area");
+            // portrait scenes carry the root behind the Phone Stage (the
+            // landscape-Game-view defense) — the walk follows it there
+            if (safeWalk == null) safeWalk = canvasC.transform.Find("Phone Stage/Phone Frame/Safe Area");
             var walkT = safeWalk != null ? safeWalk : canvasC.transform;
             foreach (Transform ch in walkT) {
               var crt = ch as RectTransform;
@@ -9324,15 +9530,59 @@ namespace PatternBreak {
             }
           }
         }
+        /* ── the PORTRAIT STAGE (the landscape-Game-view defense): a
+           portrait board opened in Unity's default landscape Game view
+           (Full HD) used to blow up ~5× under the width-match scaler —
+           the owner's field repro, and the first thing an Asset Store
+           reviewer would see. PORTRAIT boards only: the stage sits
+           between the Canvas and the Safe Area root (parent of it, so
+           KitSafeArea keeps writing its own anchors inside our frame and
+           they never fight), letterboxes the content to a centered
+           phone frame over a neutral matte in landscape viewports, and
+           restores the builder's exact identity values in portrait ones
+           — KitPortraitStage documents the math. Landscape/desktop
+           boards ship NO stage: their 0.5-match policy already handles
+           the desktop spread. ── */
+        Transform contentHost = canvasGo.transform;
+        if (bd.h > bd.w) {
+          var stageGo = new GameObject("Phone Stage", typeof(RectTransform), typeof(KitPortraitStage));
+          stageGo.transform.SetParent(canvasGo.transform, false);
+          var stageRt = (RectTransform)stageGo.transform;
+          stageRt.anchorMin = Vector2.zero; stageRt.anchorMax = Vector2.one;
+          stageRt.offsetMin = Vector2.zero; stageRt.offsetMax = Vector2.zero;
+          // the matte: flat dark, deliberately NO kit dress — it reads as a
+          // device-preview surround, not part of the design (#14161B)
+          var matteGo = new GameObject("Stage Matte", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          matteGo.transform.SetParent(stageGo.transform, false);
+          var matteRt = (RectTransform)matteGo.transform;
+          matteRt.anchorMin = Vector2.zero; matteRt.anchorMax = Vector2.one;
+          matteRt.offsetMin = Vector2.zero; matteRt.offsetMax = Vector2.zero;
+          var matteImg = matteGo.GetComponent<Image>();
+          matteImg.color = new Color(0.078f, 0.086f, 0.106f, 1f);
+          matteImg.raycastTarget = false;
+          matteGo.SetActive(false); // the stage enables it only while letterboxing
+          var frameGo = new GameObject("Phone Frame", typeof(RectTransform));
+          frameGo.transform.SetParent(stageGo.transform, false);
+          var frameRt = (RectTransform)frameGo.transform;
+          frameRt.anchorMin = Vector2.zero; frameRt.anchorMax = Vector2.one;
+          frameRt.offsetMin = Vector2.zero; frameRt.offsetMax = Vector2.zero;
+          var stageC = stageGo.GetComponent<KitPortraitStage>();
+          stageC.designW = (float)bd.w; stageC.designH = (float)bd.h;
+          stageC.frame = frameRt;
+          stageC.matte = matteGo;
+          contentHost = frameGo.transform;
+        }
         /* ── the SAFE-AREA ROOT (round 29): every piece parents HERE, not
            on the Canvas. KitSafeArea re-anchors this rect to
            Screen.safeArea at runtime (notches, Dynamic Island, foldable
            hinges), while Background/Overlay stay full-bleed on the Canvas
            itself — backdrops fill the screen, UI respects the cutouts.
            In the editor the safe rect IS the whole screen, so the scene
-           lays out exactly as the board drew it. */
+           lays out exactly as the board drew it. (On a portrait board the
+           root lives inside the Phone Frame above — an identity rect at
+           portrait sizes, the letterboxed phone in landscape ones.) */
         var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
-        safeGo.transform.SetParent(canvasGo.transform, false);
+        safeGo.transform.SetParent(contentHost, false);
         var safeRt = (RectTransform)safeGo.transform;
         safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
         safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;

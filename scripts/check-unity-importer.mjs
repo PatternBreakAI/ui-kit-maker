@@ -1340,6 +1340,117 @@ if (!/GetSourceTextureWidthAndHeight/.test(cs) || !/bgw % 4 != 0 \|\| bgh % 4 !=
 if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompression\.Uncompressed; \}/.test(cs))
   errors.push("the backgrounds gate must fall back to lossless when the reflection read fails — a throw here would surface as an import error (round 31)");
 
+/* ── round-32: the LANDSCAPE-GAME-VIEW defense (owner field failure: the
+   Brightside portrait demo scenes met Unity's default Full HD Game view
+   and the width-match scaler blew the UI up ~4.9× — "everything messed
+   up"; an Asset Store reviewer would see the same). Three shields, all
+   pinned: (1) the KitPortraitStage runtime letterboxes portrait scenes
+   in landscape viewports and restores the builder's EXACT identity
+   values in portrait ones (the sacred fence — owner-approved portrait
+   rendering untouched), never touching the CanvasScaler; (2) the
+   importer registers a "UIKitMaker Phone (W×H)" Fixed Resolution
+   Game-view size by REFLECTION ONLY, fully try/catch-wrapped and
+   idempotent — a direct GameViewSizes reference is a compile break on
+   some editor versions and must never ship; (3) one gentle Console line
+   names the size to pick. Docs carry the same instruction. */
+{
+  // extract the portrait-stage runtime template
+  const stgOpen = src.indexOf("const PORTRAIT_STAGE_RUNTIME = `");
+  let stg = "";
+  if (stgOpen < 0) errors.push("PORTRAIT_STAGE_RUNTIME not found — the portrait-stage runtime template is missing (round 32)");
+  else {
+    const stgStart = stgOpen + "const PORTRAIT_STAGE_RUNTIME = `".length;
+    let stgEnd = -1;
+    for (let i = stgStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { stgEnd = i; break; }
+    }
+    stg = stgEnd > 0 ? new Function("return `" + src.slice(stgStart, stgEnd) + "`;")() : "";
+  }
+  if (!/public class KitPortraitStage : MonoBehaviour/.test(stg))
+    errors.push("KitPortraitStage (the portrait scene's letterbox stage) is missing from the runtime template (round 32)");
+  if (!/\[ExecuteAlways\]/.test(stg))
+    errors.push("KitPortraitStage must be ExecuteAlways — the blowup it prevents is visible in EDIT mode, before Play (round 32)");
+  if (/UnityEditor|UnityEngine\.InputSystem|TMPro|UnityEngine\.UI/.test(stg) || (stg.match(/^using /gm) ?? []).length !== 1)
+    errors.push("KitPortraitStage must stay CORE-ONLY (one using: UnityEngine; the matte is a GameObject, not an Image reference) — the round-19 P0 rule");
+  if (!/if \(w < 1f \|\| h < 1f\) return;/.test(stg))
+    errors.push("KitPortraitStage must refuse a zero-size frame — a startup/headless frame would write garbage (round 32)");
+  if (!/bool letterbox = designH > designW && w > h;/.test(stg))
+    errors.push("the letterbox gate (portrait design AND landscape viewport, nothing else) moved (round 32)");
+  if (!/float k = h \/ designH;/.test(stg))
+    errors.push("the letterbox compensation (k = stage rect height / designH — cancels ANY scaler factor exactly) moved (round 32)");
+  if (!/the CanvasScaler is NEVER touched/.test(stg))
+    errors.push("the scaler-restore invariant comment is gone — the design decision (localScale compensation, scaler untouched) must stay written down (round 32)");
+  if (!/if \(frame\.anchorMin != Vector2\.zero\) frame\.anchorMin = Vector2\.zero;/.test(stg)
+      || !/if \(frame\.anchorMax != Vector2\.one\) frame\.anchorMax = Vector2\.one;/.test(stg)
+      || !/if \(frame\.sizeDelta != Vector2\.zero\) frame\.sizeDelta = Vector2\.zero;/.test(stg)
+      || !/if \(frame\.localScale != Vector3\.one\) frame\.localScale = Vector3\.one;/.test(stg))
+    errors.push("the portrait identity restore (full-stretch, zero offsets, scale one — byte-for-byte the builder's values) lost a write (round 32, the sacred fence)");
+  if (/void Update\(\)/.test(stg))
+    errors.push("KitPortraitStage must ride OnRectTransformDimensionsChange, not per-frame Update (round 32)");
+  if (!/path: "Runtime\/PatternBreakPortraitStage\.cs", data: PORTRAIT_STAGE_RUNTIME/.test(src) || !/"Runtime\/PatternBreakPortraitStage\.cs",/.test(src))
+    errors.push("PatternBreakPortraitStage.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
+  // (1b) the scene builder wires the stage for PORTRAIT boards only
+  if (!/if \(bd\.h > bd\.w\) \{\s*\n\s*var stageGo = new GameObject\("Phone Stage", typeof\(RectTransform\), typeof\(KitPortraitStage\)\)/.test(cs))
+    errors.push("the Phone Stage must be built ONLY inside the portrait gate (bd.h > bd.w) — landscape/desktop boards keep their 0.5-match road stage-free (round 32)");
+  if (!/Transform contentHost = canvasGo\.transform;/.test(cs) || !/safeGo\.transform\.SetParent\(contentHost, false\);/.test(cs))
+    errors.push("the Safe Area root must parent through contentHost (Canvas on landscape boards, Phone Frame on portrait ones) — the stage sits OUTSIDE the safe-area root by design (round 32)");
+  if (!/matteImg\.color = new Color\(0\.078f, 0\.086f, 0\.106f, 1f\);/.test(cs) || !/matteGo\.SetActive\(false\);/.test(cs))
+    errors.push("the stage matte must be the flat #14161B device-preview surround, shipped disabled — no kit dress, no visible change at portrait sizes (round 32)");
+  if ((cs.match(/Find\("Phone Stage\/Phone Frame\/Safe Area"\)/g) ?? []).length !== 2)
+    errors.push("both kept-scene heals (HealSafeAreaRoots' already-responsive check and HealBoardWords' walk) must see the Safe Area behind the Phone Stage chain — a blind heal grafts a duplicate root (round 32)");
+  // (2) the Game-view preset: reflection-only, try/catch-whole, idempotent
+  if (!/static bool RegisterPhoneGameViewSize\(int w, int h, string label\) \{\s*\n\s*try \{/.test(cs))
+    errors.push("RegisterPhoneGameViewSize is missing, or its body is not wrapped in try from the first statement — Unity's internals moving must never break an import (round 32)");
+  if (!/RegisterPhoneGameViewSize\(int w, int h, string label\) \{[\s\S]*?\} catch \(Exception\) \{ return false; \}\s*\n\s*\}/.test(cs))
+    errors.push("RegisterPhoneGameViewSize must swallow ALL exceptions (catch (Exception) { return false; }) — silent, then the Console line still names the size to add by hand (round 32)");
+  if (!/Type\.GetType\("UnityEditor\.GameViewSizes,UnityEditor"\)/.test(cs)
+      || !/Type\.GetType\("UnityEditor\.GameViewSizeType,UnityEditor"\)/.test(cs)
+      || !/Type\.GetType\("UnityEditor\.GameViewSize,UnityEditor"\)/.test(cs))
+    errors.push("the preset road must reach GameViewSizes/GameViewSizeType/GameViewSize through Type.GetType name strings only (round 32)");
+  for (const name of ['"GetTotalCount"', '"GetBuiltinCount"', '"GetGameViewSize"', '"AddCustomSize"'])
+    if (!cs.includes(name))
+      errors.push(`the preset road lost its ${name} reflection lookup — idempotent enumeration before AddCustomSize is the contract (round 32)`);
+  if (!/if \(txt != null && txt == label\) return true;/.test(cs))
+    errors.push("the preset must return early on an existing custom size with this label — re-imports must never stack duplicates (round 32)");
+  /* DIRECT-REFERENCE BAN: strip strings + comments from the importer C#
+     and assert no GameViewSize token survives in bare code — internal
+     editor types referenced directly are a compile break on some
+     versions (the round-19 CS0117 class, pre-empted). */
+  {
+    let inB = false;
+    for (const [ln, row] of cs.split("\n").entries()) {
+      let bare = "", i = 0;
+      while (i < row.length) {
+        if (inB) { const c = row.indexOf("*/", i); if (c < 0) { i = row.length; break; } inB = false; i = c + 2; continue; }
+        const ch = row[i];
+        if (ch === "/" && row[i + 1] === "/") break;
+        if (ch === "/" && row[i + 1] === "*") { inB = true; i += 2; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = ch; let j = i + 1;
+          while (j < row.length) { if (row[j] === "\\") { j += 2; continue; } if (row[j] === q) break; j++; }
+          i = j + 1; bare += " "; continue;
+        }
+        bare += ch; i++;
+      }
+      if (/\bGameViewSize/.test(bare))
+        errors.push(`emitted C# line ${ln + 1}: direct GameViewSize* reference in bare code — these are INTERNAL editor types; reflection strings only (round 32)`);
+    }
+  }
+  // (3) the Console heads-up, portrait kits only, phrased true either way
+  if (!/if \(bdPh == null \|\| bdPh\.w <= 0 \|\| bdPh\.h <= bdPh\.w\) continue;/.test(cs) || !/if \(phoneW > 0\) \{/.test(cs))
+    errors.push("the phone heads-up must derive from PORTRAIT boards only and stay silent for kits without them (round 32)");
+  if (!/demo scenes are portrait phone screens/.test(cs) || !/"UIKitMaker Phone \(" \+ phoneW \+ "×" \+ phoneH \+ "\)"/.test(cs))
+    errors.push("the Console heads-up line (naming the UIKitMaker Phone size to pick) is missing (round 32)");
+  if (!/centered phone preview instead/.test(cs))
+    errors.push("the Console heads-up must mention the letterboxed phone preview — it is the scene's own defense while the dropdown stays unpicked (round 32)");
+  // (4) the docs carry the instruction
+  if (!src.includes("**The demo scenes are phone screens (${pw}"))
+    errors.push("the QuickStart's portrait heads-up (pick/add the phone Game-view size; landscape shows a centered preview) is missing (round 32)");
+  if (!/Portrait board scenes also carry a \*\*Phone Stage\*\*/.test(src) || !/\*\*UIKitMaker Phone\*\* Fixed/.test(src))
+    errors.push("the README deck's scaler-policy slide must document the Phone Stage and the registered Game-view size (round 32)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
