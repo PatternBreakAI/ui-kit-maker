@@ -2757,9 +2757,9 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 }
 
 /* ── the gate modal (Gate Round) — the loot chrome, resized for a pitch:
-   what a locked export or a guest's second board opens instead of a hard
-   navigation. Guest: the sign-up perks. Free: Pro, with the Unity test
-   kit as the free counter-offer. ── */
+   what a locked export opens instead of a hard navigation. Guest: the
+   sign-up-to-keep perks. Free: Pro, with the Unity test kit as the free
+   counter-offer. ── */
 .gatemodal { width: min(480px, 94vw); padding-bottom: 24px; }
 .gatemodal .lootsub { margin-bottom: 16px; }
 .gatemodal .lootclaim { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; height: 48px; font-size: 13.5px; }
