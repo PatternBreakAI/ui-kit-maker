@@ -1582,6 +1582,46 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the bakedFace inkTintable decision (near-white untreated atlas only) is missing — an unconditional tint would double-paint colored atlases");
 }
 
+/* ── P0 follow-up (2026-08-26): the WIPE-HALO invariant. The wipe's Mask
+   clips to its stencil sprite's ALPHA — and a baked kit piece's bake
+   carries its shadow/glow HALO, soft alpha the stencil holds from 0.4%
+   up (the Victory star trio: the band swept the shadow between the
+   points). The cure is the stamp road's own: a CORE-ALPHA companion —
+   the same render, shadow voices calm, pixel-registered on the same
+   canvas — shipped as the row's stampMask; the importer already pins it
+   to WipeShine.maskSprite on the baked branch. */
+{
+  // TS: the baked road's companion — calm re-render, registration gate,
+  // and the row spread
+  if (!/const calmK = JSON\.parse\(JSON\.stringify\(cfgP\)\) as GenConfig;/.test(src)
+      || !/calmK\.shadow\.opacity = 0;/.test(src) || !/calmK\.candy\.contact\.opacity = 0;/.test(src))
+    errors.push("the baked-piece core-alpha companion (calm re-render) is missing from the baked road — the wipe band sweeps the baked shadow halo without it");
+  if (!/if \(rwC === rwK && rhC === rhK\) \{/.test(src))
+    errors.push("the baked companion must gate on EXACT raster registration (rwC/rhC vs rwK/rhK) — an off-canvas mask clips the band to the wrong pixels");
+  if (!/\.\.\.\(maskFileK \? \{ stampMask: maskFileK \} : \{\}\),/.test(src))
+    errors.push("the baked row must ship its companion as stampMask — the importer's existing WipeShine wiring reads exactly that key");
+  // C#: the consumption stays wired, and the Mask construction stays honest
+  // (WipeShine lives in its own runtime literal — extract like STATE_FX)
+  if (!/if \(!string\.IsNullOrEmpty\(it\.stampMask\)\) wsSt\.maskSprite = S\(root \+ "\/" \+ it\.stampMask\);/.test(cs))
+    errors.push("the baked-branch WipeShine must pin the row's stampMask as its core stencil");
+  let shine = "";
+  const shOpen = src.indexOf("const IDLE_SHINE_RUNTIME = `");
+  if (shOpen < 0) errors.push("IDLE_SHINE_RUNTIME not found — the wipe/edge shine runtime template is missing");
+  else {
+    const shStart = shOpen + "const IDLE_SHINE_RUNTIME = `".length;
+    let shEnd = -1;
+    for (let i = shStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { shEnd = i; break; }
+    }
+    shine = shEnd > 0 ? new Function("return `" + src.slice(shStart, shEnd) + "`;")() : "";
+  }
+  if (!/mGo\.GetComponent<Mask>\(\)\.showMaskGraphic = false;/.test(shine) || !/maskImg\.raycastTarget = false;/.test(shine))
+    errors.push("WipeShine's stencil twin must stay hidden (showMaskGraphic false — the alpha-clip condition) and raycast-silent (hit honesty)");
+  if (!/if \(maskSprite != null\) \{/.test(shine))
+    errors.push("WipeShine's core-stencil priority (maskSprite over the host sprite mirror) is missing");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

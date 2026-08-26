@@ -1022,7 +1022,7 @@ export async function collectExportBoards(st: {
         }
         const fdK = fontByName(cfgP.type.font);
         const svgK = await inlineKitFace(still, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
-        const { bytes: pk } = await svgToPngBytes(svgK, 2);
+        const { bytes: pk, w: rwK, h: rhK } = await svgToPngBytes(svgK, 2);
         /* a dialed copy shadow on a BAKED piece rides IN the pixels (the
            importer's shadow sibling only fires on stamp-less rows): the
            raster re-draws through the shared kitShadowFilter on a
@@ -1066,6 +1066,62 @@ export async function collectExportBoards(st: {
         }
         const file = `boardstamps/${slug}-k${sidOf(b)}.png`;
         stampFiles.push({ file, bytes: bytesK });
+        /* CORE-ALPHA companion for the Unity wipe — the STAMP road's cure,
+           extended to baked kit pieces (P0 follow-up: the Victory star
+           trio's wipe band lit the baked SHADOW HALO — soft alpha the
+           Mask's stencil holds from 0.4% up, reading as a bar sweeping
+           the empty space around the star's points; convex buttons hid
+           the same spill under their ink). The SAME render with the
+           shadow voices calm — kit cast + contact, the default state's
+           glow, and any fork copies (the posed shellCfg lesson, minus
+           the hover/pressed glow zeroing: glowPadOf is state-MAX-driven,
+           so the canvas keeps its pad and stays pixel-registered). A
+           companion that doesn't land on the display bake's exact canvas
+           doesn't ship at all — the stamp road's own rule. Only when the
+           kit's idle wipe is on (the only consumer). */
+        let maskFileK: string | null = null;
+        if (st.cfg.idle?.wipe) {
+          try {
+            const calmK = JSON.parse(JSON.stringify(cfgP)) as GenConfig;
+            calmK.shadow.opacity = 0;
+            calmK.candy.contact.opacity = 0;
+            calmK.states.default.glow = 0;
+            for (const f2 of Object.values(calmK.stateDesigns)) {
+              if (!f2) continue;
+              if (f2.shadow) f2.shadow = { ...f2.shadow, opacity: 0 };
+              if (f2.candy?.contact) f2.candy = { ...f2.candy, contact: { ...f2.candy.contact, opacity: 0 } };
+            }
+            const svgC0 = renderKit(calmK, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
+              icon: resolveKitIcon(st.kitIcons?.[id], undefined),
+              label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+              themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+            });
+            let stillC = svgC0
+              .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+              .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+            if (idBase === "invgrid") stillC = stillC.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
+            const svgKC = await inlineKitFace(stillC, cfgP.type.font, fdK.name === cfgP.type.font ? fdK.css ?? null : null);
+            const { bytes: pkC, w: rwC, h: rhC } = await svgToPngBytes(svgKC, 2);
+            if (rwC === rwK && rhC === rhK) {
+              let bytesC: Uint8Array | null = pkC;
+              if (padK) {
+                // re-register on the dialed-shadow road's padded canvas:
+                // same offset, NO filter — the halo stays display-only
+                const bmpC = await createImageBitmap(new Blob([pkC.slice().buffer as ArrayBuffer]));
+                const cvC = document.createElement("canvas");
+                cvC.width = bmpC.width + padK * 2 * 2; cvC.height = bmpC.height + padK * 2 * 2;
+                cvC.getContext("2d")!.drawImage(bmpC, padK * 2, padK * 2);
+                bmpC.close();
+                const blobC = await new Promise<Blob | null>((r) => cvC.toBlob(r, "image/png"));
+                bytesC = blobC ? new Uint8Array(await blobC.arrayBuffer()) : null;
+              }
+              if (bytesC) {
+                maskFileK = file.replace(/\.png$/, "-mask.png");
+                maskFiles.push({ file: maskFileK, bytes: bytesC });
+              }
+            }
+          } catch { /* a piece without its companion still wipes — clipped to its full bake */ }
+        }
         exItems.push({
           // base id even for a clone — the baked pixels above already wear
           // the clone's fork, and the importer only knows base names
@@ -1082,6 +1138,7 @@ export async function collectExportBoards(st: {
              row's fields are provenance only until a rig opts in. */
           rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
           value: b.v ?? st.kitVals[id] ?? null, ax, ay, anchor, stamp: file,
+          ...(maskFileK ? { stampMask: maskFileK } : {}),
           ...(cells ? { cells, cellSel } : {}),
         });
         continue;
