@@ -13,7 +13,7 @@ import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/gener
 import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
-import { LiveArt, stillSmil } from "./LiveArt";
+import { detachBBoxNoise, LiveArt, stillSmil } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { openGate } from "@/shell/gateModal";
 import { downloadTestKit } from "@/generator/billing";
@@ -213,7 +213,12 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
         // the renderer's estimate the window GROWS to the glyphs instead of
         // cropping into them
         const t = [...el.querySelectorAll("text")].find((n) => !n.closest("defs")) ?? null;
-        const box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox();
+        // a shine/wipe band parks off-canvas under a clip getBBox ignores —
+        // detached for the measure (position-precise restore) or the no-text
+        // fallback would read the band instead of the art
+        const restore = detachBBoxNoise(el);
+        let box: DOMRect;
+        try { box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox(); } finally { restore(); }
         const vb = el.viewBox.baseVal;
         const padX = 24;
         const x0 = t ? box.x - padX : Math.max(vb.x, box.x - padX);
