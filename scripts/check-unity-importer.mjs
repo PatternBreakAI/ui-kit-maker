@@ -97,6 +97,43 @@ else {
     if (!declared.has(u)) errors.push(`s.${u} is used in the C# but PBStyle declares no '${u}' field (CS1061 in Unity)`);
 }
 
+/* the PBStyle lesson, generalized: JsonUtility silently drops manifest JSON
+   fields the C# class never declared, so a template access on an undeclared
+   field is a CS1061 the TS side can't see ('PBPalette' had no 'well'/'shadow'
+   — InputValueInk shipped broken to the field). One hop from the manifest is
+   where every such access lives, so check them all: for each object-typed
+   PBManifest field, any `.field.member` access must name a declared field of
+   that class; array-typed fields allow only `.Length` bare and check
+   `[i].member` against the element class. */
+{
+  const classFields = new Map(); // PBX -> Set(field names)
+  const classFieldTypes = new Map(); // PBX -> Map(field -> type)
+  for (const cm of cs.matchAll(/class (PB\w+)\s*\{([^}]*)\}/g)) {
+    const fields = new Set(), types = new Map();
+    for (const f of cm[2].matchAll(/public ([\w[\]]+) (\w+);/g)) { fields.add(f[2]); types.set(f[2], f[1]); }
+    classFields.set(cm[1], fields); classFieldTypes.set(cm[1], types);
+  }
+  const OBJ_METHODS = new Set(["ToString", "Equals", "GetHashCode"]);
+  const manifestTypes = classFieldTypes.get("PBManifest");
+  if (!manifestTypes) errors.push("PBManifest class declaration not found for the member-access check");
+  else for (const [field, type] of manifestTypes) {
+    const isArr = type.endsWith("[]");
+    const elem = isArr ? type.slice(0, -2) : type;
+    if (!classFields.has(elem)) continue; // string/int/etc. — nothing to check
+    if (isArr) {
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (u !== "Length") errors.push(`.${field}.${u} — ${field} is a plain ${type}; only .Length exists (CS1061 in Unity)`);
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\[[^\\]]*\\]\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (!classFields.get(elem).has(u) && !OBJ_METHODS.has(u))
+          errors.push(`.${field}[i].${u} is used in the C# but ${elem} declares no '${u}' field (CS1061 in Unity)`);
+    } else {
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (!classFields.get(elem).has(u) && !OBJ_METHODS.has(u))
+          errors.push(`.${field}.${u} is used in the C# but ${elem} declares no '${u}' field (CS1061 in Unity)`);
+    }
+  }
+}
+
 /* round-12 ordering invariants: pinned board words are placement-self-
    sufficient. The field lost its BOOST three times to import-order trust;
    these keep the contract honest at build time.

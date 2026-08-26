@@ -7530,7 +7530,10 @@ namespace PatternBreak {
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
-  [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string markInk; public string radioInk; }
+  /* mirror the FULL palette object the manifest emits — JsonUtility drops
+     undeclared fields silently, and a later template access on one is a
+     CS1061 Unity-side (how 'well'/'shadow' shipped broken) */
+  [Serializable] class PBPalette { public string glow; public string highlight; public string bevel; public string innerFill; public string well; public string shadow; public string markInk; public string radioInk; }
   /* the live TIMER block: staged time, the app's exact word, and the
      specimen's canvas + rendered font size (readers gate on fs > 1 —
      JsonUtility default-constructs the block on older manifests) */
