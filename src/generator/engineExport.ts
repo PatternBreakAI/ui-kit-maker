@@ -889,7 +889,21 @@ export async function collectExportBoards(st: {
         stampFiles.push({ file, bytes: pb });
         const kL = b.scale ?? 1;
         const wL = swL * kL, hL = shL * kL;
-        const cxL = b.x + wL / 2, cyL = b.y + hL / 2;
+        // saved assets ride LiveArt's anchorContent on the stage too — a
+        // negative-origin (glow-padded) canvas pins viewBox 0 at (x,y),
+        // so the canvas center sits pad·k up-left of the naive box middle
+        const vbmL = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(still);
+        const padLk = vbmL && +vbmL[1] < 0 ? -+vbmL[1] * kL : 0;
+        // rotated copies: the content center orbits the box middle (the
+        // kit-piece spin rule, same math)
+        const rotL = ((b.rot ?? 0) * Math.PI) / 180;
+        let cxL = b.x - padLk + wL / 2, cyL = b.y - padLk + hL / 2;
+        if (rotL && padLk) {
+          const hxL = b.x + wL / 2, hyL = b.y + hL / 2;
+          const dxL = cxL - hxL, dyL = cyL - hyL;
+          cxL = hxL + dxL * Math.cos(rotL) - dyL * Math.sin(rotL);
+          cyL = hyL + dxL * Math.sin(rotL) + dyL * Math.cos(rotL);
+        }
         const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
         const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
         exItems.push({
@@ -930,7 +944,36 @@ export async function collectExportBoards(st: {
       const sh = parseFloat(/height="([\d.]+)"/.exec(svg)?.[1] ?? "80");
       const k = b.scale ?? 1;
       const w = sw * k, h = sh * k;
-      const cx = b.x + w / 2, cy = b.y + h / 2;
+      /* ── THE STAGE'S OWN ANCHOR RULE (P0 field find, 2026-08-26: every
+         glowy piece sat 90·scale px right AND down of the app in Unity —
+         the pause button half off the frame). A build() canvas carries the
+         glow pad as a NEGATIVE viewBox origin, and the stage reclaims it:
+         LiveArt's anchorContent pulls the svg up-left by that pad, so the
+         stored (x,y) pins viewBox coordinate 0 — NOT the canvas corner.
+         (The board-PNG compositor speaks the same rule: `b.x - pad * s`.)
+         The exporter must subtract the same x-derived pad on BOTH axes —
+         exactly LiveArt's margins — or Unity re-adds it as drift. A
+         non-negative origin (custom-root chrome, stamps) reclaims nothing
+         and keeps the canvas corner at (x,y), also exactly like the stage. */
+      const vbm0 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(svg);
+      const padRk = vbm0 && +vbm0[1] < 0 ? -+vbm0[1] * k : 0;
+      /* rotation truth (the ±15° Victory stars, 14px off): the stage
+         rotates the whole canvas BOX about its own middle, so a padded
+         canvas' content center ORBITS that pivot. Unity rotates the piece
+         about the center we emit — same orientation either way — so the
+         emitted center must be the app's post-rotation one: the offset
+         from the box middle, spun by the copy's angle (CSS clockwise in
+         y-down coords). Unrotated copies: spin is identity. */
+      const rotR = ((b.rot ?? 0) * Math.PI) / 180;
+      const spin = (px: number, py: number) => {
+        if (!rotR) return { x: px, y: py };
+        const hx = b.x + w / 2, hy = b.y + h / 2;
+        const dx = px - hx, dy = py - hy;
+        const c9 = Math.cos(rotR), s9 = Math.sin(rotR);
+        return { x: hx + dx * c9 - dy * s9, y: hy + dx * s9 + dy * c9 };
+      };
+      const c0 = spin(b.x - padRk + w / 2, b.y - padRk + h / 2);
+      const cx = c0.x, cy = c0.y;
       const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
       // board y runs DOWN; Unity anchors run UP — top third = ay 1
       const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
@@ -1049,8 +1092,19 @@ export async function collectExportBoards(st: {
       if (shm2 && vbm2) {
         const [bx3, by3, bw4, bh4] = shm2[1].split(" ").map(Number);
         pw = bw4 * k; ph = bh4 * k;
-        pcx = b.x + ((bx3 - +vbm2[1]) + bw4 / 2) * k;
-        pcy = b.y + ((by3 - +vbm2[2]) + bh4 / 2) * k;
+        /* data-shell speaks viewBox coordinates. Where the stage anchors
+           (x,y) depends on the origin — the anchorContent rule above: a
+           negative-origin (glow-padded) canvas pins viewBox 0 at (x,y),
+           so the shell offset is bx3 itself; a non-negative origin sits
+           the canvas corner at (x,y), so the offset is bx3 - origin.
+           Subtracting the origin unconditionally re-added the glow pad —
+           the 90·scale rightward-downward drift of the P0 field round. */
+        const rx0 = +vbm2[1] < 0 ? 0 : +vbm2[1];
+        const ry0 = +vbm2[1] < 0 ? 0 : +vbm2[2]; // x-derived reclaim covers BOTH axes (LiveArt's margins)
+        // the shell center orbits the box middle on rotated copies too
+        const p0 = spin(b.x + ((bx3 - rx0) + bw4 / 2) * k, b.y + ((by3 - ry0) + bh4 / 2) * k);
+        pcx = p0.x;
+        pcy = p0.y;
       }
       const pax = pcx < W / 3 ? 0 : pcx > (2 * W) / 3 ? 1 : 0.5;
       const pay = pcy < H / 3 ? 1 : pcy > (2 * H) / 3 ? 0 : 0.5;
@@ -8741,7 +8795,7 @@ namespace PatternBreak {
       t.overflowMode = TMPro.TextOverflowModes.Overflow;
       var rt = (RectTransform)go.transform;
       rt.anchorMin = a; rt.anchorMax = a; rt.pivot = pivot;
-      rt.sizeDelta = new Vector2(420f, fs * 1.4f);
+      rt.sizeDelta = new Vector2(fs * 14f, fs * 1.4f);
       rt.anchoredPosition = pos;
 #endif
     }
@@ -8810,12 +8864,17 @@ namespace PatternBreak {
         CheckEdge(safeT, "Safe Edge Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 6f), new Vector2(0.5f, 0f));
         CheckEdge(safeT, "Safe Edge Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(6f, 0f), new Vector2(0f, 0.5f));
         CheckEdge(safeT, "Safe Edge Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(6f, 0f), new Vector2(1f, 0.5f));
-        // corner tags — each hugs ITS corner on every aspect
-        CheckTag(safeT, "TOP LEFT", 30f, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), -1);
-        CheckTag(safeT, "TOP RIGHT", 30f, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), 1);
-        CheckTag(safeT, "BOTTOM LEFT", 30f, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), -1);
-        CheckTag(safeT, "BOTTOM RIGHT", 30f, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), 1);
-        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f), 0);
+        /* corner tags — each hugs ITS corner on every aspect. The tag
+           sizes were authored against the 1920×1080 reference; a PHONE
+           reference frame (390 wide) keeps the same PROPORTION, or the
+           diagnostic words dwarf the screen and read as a text-scale bug
+           (P0 field round: "TOP LEFT"/"TOP RIGHT" nearly met mid-screen). */
+        float tagK = Mathf.Clamp(Mathf.Min(rw, rh) / 1080f, 0.36f, 1f);
+        CheckTag(safeT, "TOP LEFT", 30f * tagK, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f * tagK, -24f * tagK), -1);
+        CheckTag(safeT, "TOP RIGHT", 30f * tagK, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f * tagK, -24f * tagK), 1);
+        CheckTag(safeT, "BOTTOM LEFT", 30f * tagK, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f * tagK, 24f * tagK), -1);
+        CheckTag(safeT, "BOTTOM RIGHT", 30f * tagK, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f * tagK, 24f * tagK), 1);
+        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f * tagK), 0);
         // a couple of live kit pieces so the check shows the real kit
         int livePlaced = 0;
         var pfBtn = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ButtonPrimary.prefab");
@@ -9025,21 +9084,46 @@ namespace PatternBreak {
        shell-height v-scale and the copy's own label offset */
     static void SeatPosedLabel(GameObject inst, PBBoardItem it, PBManifest m) {
 #if UNITY_2023_2_OR_NEWER
-      /* the guard wraps the BODY: posed copies only carry HeroLabel stacks
-         (a 2023.2+ build product), and authoredHeight exists only inside
-         HeroLabel's own guard — pre-2023.2 this is an honest no-op */
+      /* the guard wraps the BODY: label stacks are a 2023.2+ build
+         product, and authoredHeight exists only inside HeroLabel's own
+         guard — pre-2023.2 this is an honest no-op */
       var hl2 = inst.GetComponentInChildren<HeroLabel>(true);
-      if (hl2 == null) return;
       PBAsset baseA3 = null;
       foreach (var a3 in m.assets) if (a3 != null && a3.component == it.component && a3.part == "base" && a3.shell != null) { baseA3 = a3; break; }
       float ps3 = m.pngScale > 0 ? m.pngScale : 2;
-      if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
-      var hlRt2 = hl2.GetComponent<RectTransform>();
-      if (hlRt2 != null) {
-        hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
-        hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
-        hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+      if (hl2 != null) {
+        if (baseA3 != null && baseA3.shell.h > 4f) hl2.authoredHeight = baseA3.shell.h / ps3;
+        var hlRt2 = hl2.GetComponent<RectTransform>();
+        if (hlRt2 != null) {
+          hlRt2.anchorMin = Vector2.zero; hlRt2.anchorMax = Vector2.one;
+          hlRt2.offsetMin = Vector2.zero; hlRt2.offsetMax = Vector2.zero;
+          hlRt2.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+        }
+        return;
       }
+      /* SOLO label (P0 field find, 2026-08-26 — Brightside): a kit whose
+         type style ships no stroke/shadow layer faces builds its prefab
+         labels as a bare TMP ("Label"), no HeroLabel — so there is no
+         SizeK to read the posed root's board-scaled rect, and the word
+         stayed at FAMILY size on a BOARD-size shell (~2× on every posed
+         Pause/Booster button). The board scale bakes into the font size
+         itself here, and the seat re-anchors exactly like the stack road. */
+      var lr9 = FindOurLabelRoot(inst);
+      if (lr9 == null) return;
+      var lrt9 = lr9.GetComponent<RectTransform>();
+      if (lrt9 != null) {
+        lrt9.anchorMin = Vector2.zero; lrt9.anchorMax = Vector2.one;
+        lrt9.offsetMin = Vector2.zero; lrt9.offsetMax = Vector2.zero;
+        lrt9.anchoredPosition = new Vector2(it.posedLabelDx, -it.posedLabelDy);
+      }
+      var t9 = lr9.GetComponentInChildren<TMPro.TMP_Text>(true);
+      if (t9 == null || baseA3 == null || baseA3.shell.h <= 4f || it.h <= 1f) return;
+      float ls9 = LabelSize(m, it.component);
+      var lrow9 = LabelRow(m, it.component);
+      if (lrow9 != null && lrow9.labelFs > 1f) ls9 = lrow9.labelFs;
+      else { float sc9 = LabelSizeScene(m, it.component); if (sc9 > 0f) ls9 = sc9; }
+      t9.enableAutoSizing = false;
+      t9.fontSize = ls9 * (it.h / (baseA3.shell.h / ps3));
 #endif
     }
     /* ── HEAL ORPHANED BOARD WORDS (owner, after the shield still: "ok,
@@ -9386,7 +9470,9 @@ namespace PatternBreak {
                 hl3.SetText(it2.label);
               } else if (tmp3 != null) {
                 tmp3.text = it2.label;
-                if (trueSize2 > 0f) { tmp3.enableAutoSizing = false; tmp3.fontSize = trueSize2; }
+                // solo label: bake the board scale in (the builder's own
+                // SoloLabelK) — a healed word must size like a built one
+                if (trueSize2 > 0f) { tmp3.enableAutoSizing = false; tmp3.fontSize = trueSize2 * SoloLabelK(it2, m, crt); }
               } else continue;
               foreach (var wt2 in inst2.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
 #pragma warning disable 0618
@@ -9905,10 +9991,17 @@ namespace PatternBreak {
               rt.localScale = Vector3.one;
 #if UNITY_2023_2_OR_NEWER
               var hlTm = inst.GetComponentInChildren<HeroLabel>(true);
-              if (hlTm != null && m.timer != null && m.timer.fs > 1f) {
-                hlTm.authoredHeight = 0f; // the size below is board-true already
+              if (m.timer != null && m.timer.fs > 1f) {
                 float kTm = m.timer.shellH > 4f ? it.h / m.timer.shellH : 1f;
-                hlTm.fontSize = m.timer.fs * kTm;
+                if (hlTm != null) {
+                  hlTm.authoredHeight = 0f; // the size below is board-true already
+                  hlTm.fontSize = m.timer.fs * kTm;
+                } else {
+                  // solo label (no layer faces): the bare TMP takes the
+                  // board-true size directly — nothing else carries kTm
+                  var tTm = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
+                  if (tTm != null) { tTm.enableAutoSizing = false; tTm.fontSize = m.timer.fs * kTm; }
+                }
               }
 #endif
             } else if (rt.sizeDelta.x > 1f) {
@@ -10067,7 +10160,11 @@ namespace PatternBreak {
               var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
               if (tmp != null) {
                 tmp.text = it.label;
-                if (trueSize > 0f) { tmp.enableAutoSizing = false; tmp.fontSize = trueSize; }
+                /* SOLO label: no HeroLabel SizeK to read the board scale —
+                   the raw family-scale size overflowed every posed shell
+                   (the Brightside ~2× words). SoloLabelK bakes it in;
+                   ~1 on the live road, whose root scale already carries it. */
+                if (trueSize > 0f) { tmp.enableAutoSizing = false; tmp.fontSize = trueSize * SoloLabelK(it, m, rt); }
               }
             }
             /* longer words than the prefab default WRAPPED inside the
@@ -10991,6 +11088,24 @@ namespace PatternBreak {
       if (m != null && m.labelSizes != null)
         foreach (var e in m.labelSizes) if (e.family == family && e.scene > 0f) return e.scene;
       return 0f;
+    }
+    /* the board scale a SOLO label must bake into its own font size (P0
+       field find, 2026-08-26): a HeroLabel stack reads the board scale
+       live (SizeK = root rect / authoredHeight), but a kit with no
+       stroke/shadow layer faces ships bare-TMP labels — nothing carries
+       the scale for them. it.h over the family's shell height IS the
+       copy's height scale; the root's own localScale already carries the
+       live road's share of it, so it divides out (posed roots are scale 1
+       and take the whole factor). Returns 1 when the manifest can't say. */
+    static float SoloLabelK(PBBoardItem it, PBManifest m, RectTransform rt) {
+      PBAsset b9 = null;
+      foreach (var a9 in m.assets) if (a9 != null && a9.component == it.component && a9.part == "base" && a9.shell != null) { b9 = a9; break; }
+      float ps9 = m.pngScale > 0 ? m.pngScale : 2f;
+      if (b9 == null || b9.shell.h <= 4f || it.h <= 1f) return 1f;
+      float k9 = it.h / (b9.shell.h / ps9);
+      float sc9 = rt != null ? Mathf.Abs(rt.localScale.y) : 1f;
+      if (sc9 > 0.0001f) k9 /= sc9;
+      return Mathf.Clamp(k9, 0.05f, 20f);
     }
     static float LabelSize(PBManifest m, string family) {
       // the app's own per-family size, shipped in the manifest; the single

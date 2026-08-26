@@ -1451,6 +1451,116 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the README deck's scaler-policy slide must document the Phone Stage and the registered Game-view size (round 32)");
 }
 
+/* ── P0 round (2026-08-26): the SILENT-ZERO fence, both directions.
+   JsonUtility drops any manifest key the C# spells differently and zeroes
+   any C# field the TS never emits — with NO error on either side (the
+   PBPalette CS1061 was the loud cousin; the quiet one ships wrong scenes).
+   The emitted-key contracts are compile-enforced TS interfaces
+   (ExportBoardItemData, AssetMeta) and a handful of inline literals; each
+   is held against its C# class field-for-field. */
+{
+  const classFieldsOf = (name) => {
+    const cm = cs.match(new RegExp(`class ${name}\\s*\\{([^}]*)\\}`));
+    if (!cm) { errors.push(`${name} class declaration not found for the key-parity check`); return null; }
+    return new Set([...cm[1].matchAll(/public [\w[\]]+ (\w+)(?: = [^;]+)?;/g)].map((x) => x[1]));
+  };
+  const interfaceKeysOf = (name) => {
+    const im = src.match(new RegExp(`(?:export )?interface ${name} \\{([\\s\\S]*?)\\n\\}`));
+    if (!im) { errors.push(`interface ${name} not found for the key-parity check`); return null; }
+    // strip comments, then take TOP-LEVEL `key:` / `key?:` declarations —
+    // a depth-aware walk, so nested object types don't leak their keys
+    const body = im[1].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const keys = new Set();
+    let depth = 0;
+    for (const stmt of body.split(";")) {
+      if (depth === 0) {
+        const km = /^\s*(\w+)\??:/.exec(stmt);
+        if (km) keys.add(km[1]);
+      }
+      for (const ch of stmt) { if (ch === "{" || ch === "(" || ch === "<") depth++; else if (ch === "}" || ch === ")" || ch === ">") depth--; }
+    }
+    return keys;
+  };
+  const parity = (tsKeys, csFields, tsName, csName, csOnlyOk = [], tsOnlyOk = []) => {
+    if (!tsKeys || !csFields) return;
+    /* a TS-only key is legal ONLY when it is documentation for humans —
+       the C# cannot read an undeclared field without the CS1061 the
+       member-access pass above catches, so nothing silent hides there */
+    for (const k of tsKeys)
+      if (!csFields.has(k) && !tsOnlyOk.includes(k)) errors.push(`${tsName} emits '${k}' but ${csName} declares no such field — JsonUtility drops it in SILENCE`);
+    /* a C#-only field is the SILENT-ZERO trap itself: JsonUtility leaves
+       it at default with no error, and placement math inherits the zero */
+    for (const f of csFields)
+      if (!tsKeys.has(f) && !csOnlyOk.includes(f)) errors.push(`${csName}.${f} is declared but ${tsName} never emits it — JsonUtility zeroes it in SILENCE (allowlist it here only for deliberate legacy fields)`);
+  };
+  parity(interfaceKeysOf("ExportBoardItemData"), classFieldsOf("PBBoardItem"), "ExportBoardItemData", "PBBoardItem");
+  parity(interfaceKeysOf("AssetMeta"), classFieldsOf("PBAsset"), "AssetMeta", "PBAsset",
+    // outline joins rows at push time (idleOutline spread), outside the interface
+    ["outline"],
+    // human-facing manifest documentation — the C# never reads these
+    ["nativeW", "nativeH", "tintable", "usage"]);
+  // inline literals: the expected key set is pinned HERE; the TS block must
+  // emit each key and the C# class must declare each — both by exact name
+  const literalParity = (blockRe, keys, csName, blockName) => {
+    const bm = src.match(blockRe);
+    if (!bm) { errors.push(`${blockName} emission block not found for the key-parity check`); return; }
+    const csFields = classFieldsOf(csName);
+    if (!csFields) return;
+    for (const k of keys) {
+      if (!new RegExp(`[{,(\\s]${k}\\s*:`).test(bm[0]) && !new RegExp(`[{,\\s]${k}\\s*[,}]`).test(bm[0]))
+        errors.push(`${blockName} emission lost its '${k}' key — the importer reads it (${csName})`);
+      if (!csFields.has(k)) errors.push(`${csName} declares no '${k}' — ${blockName} emits it into SILENCE`);
+    }
+  };
+  literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
+  literalParity(/stateFx: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
+  literalParity(/labelStates: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
+  literalParity(/\n      palette: \{[\s\S]{0,1200}?\},\n/, ["bevel", "glow", "innerFill", "well", "highlight", "shadow", "markInk", "radioInk"], "PBPalette", "palette");
+  literalParity(/timer: \(\(\) => \{[\s\S]{0,3000}?\}\)\(\),/, ["seconds", "word", "fs", "w", "h", "shellW", "shellH"], "PBTimerBlock", "timer");
+  literalParity(/bakedFace = \{[\s\S]{0,600}?\};/, ["file", "metrics", "pointSize", "layerFill", "layerStroke", "layerShadow", "layerGlints"], "PBBakedRef", "bakedFace");
+  literalParity(/const metrics = JSON\.stringify\(\{[\s\S]{0,900}?\}\);/,
+    ["pointSize", "ascent", "descent", "lineHeight", "atlasW", "atlasH", "kerning", "glyphs", "layersAtlasW", "layersAtlasH", "layerGlyphs"],
+    "PBBakedFace", "baked-face metrics");
+}
+
+/* ── P0 round (2026-08-26): the STAGE-ANCHOR invariant. The app's stage
+   pins a board item's stored (x,y) at viewBox coordinate 0 when the canvas
+   carries a glow pad (negative origin) — LiveArt's anchorContent margins,
+   the PNG compositor's `b.x - pad * s`, one rule. The exporter treated
+   (x,y) as the canvas corner unconditionally, and every glowy piece landed
+   90·scale px right AND down in Unity (the field's half-off pause button).
+   These pins keep all three emission roads on the stage's rule. */
+{
+  if (!/const padRk = vbm0 && \+vbm0\[1\] < 0 \? -\+vbm0\[1\] \* k : 0;/.test(src)
+      || !/const c0 = spin\(b\.x - padRk \+ w \/ 2, b\.y - padRk \+ h \/ 2\);/.test(src))
+    errors.push("the baked-road board-item center must reclaim the negative viewBox origin (b.x - padRk) — the stage's anchorContent rule");
+  if (!/const rx0 = \+vbm2\[1\] < 0 \? 0 : \+vbm2\[1\];/.test(src)
+      || !/const p0 = spin\(b\.x \+ \(\(bx3 - rx0\) \+ bw4 \/ 2\) \* k, b\.y \+ \(\(by3 - ry0\) \+ bh4 \/ 2\) \* k\);/.test(src))
+    errors.push("the prefab-road shell center must NOT subtract a negative viewBox origin (the glow pad) — that re-adds the pad the stage reclaims");
+  if (!/const padLk = vbmL && \+vbmL\[1\] < 0 \? -\+vbmL\[1\] \* kL : 0;/.test(src))
+    errors.push("the saved-asset (libasset) road must reclaim the negative viewBox origin like the stage does");
+  // rotation truth: a rotated copy's content center orbits the canvas-box
+  // middle (the stage's transform-origin) — the spin must wrap BOTH roads
+  if (!/const spin = \(px: number, py: number\)/.test(src))
+    errors.push("the board-item spin (rotation about the canvas-box middle) is missing — rotated padded copies land off their seat without it");
+}
+
+/* ── P0 round (2026-08-26): the SOLO-LABEL invariant. A kit with no
+   stroke/shadow layer faces ships bare-TMP labels (no HeroLabel), so no
+   SizeK reads the board scale — the word must bake it into its own font
+   size everywhere a board copy is sized, or family-size words overflow
+   board-size shells (the Brightside ~2× Pause words). */
+{
+  if (!/static float SoloLabelK\(PBBoardItem it, PBManifest m, RectTransform rt\)/.test(cs))
+    errors.push("SoloLabelK is missing — solo (bare-TMP) board labels have no other carrier of the board scale");
+  if (!/tmp\.fontSize = trueSize \* SoloLabelK\(it, m, rt\)/.test(cs))
+    errors.push("the board-scene label override must scale a solo label by SoloLabelK (a bare trueSize write is the family-size ~2× bug)");
+  if (!/tmp3\.fontSize = trueSize2 \* SoloLabelK\(it2, m, crt\)/.test(cs))
+    errors.push("the word heal must scale a solo label by SoloLabelK — a healed word must size like a built one");
+  if (!/var lr9 = FindOurLabelRoot\(inst\);/.test(cs) || !/t9\.fontSize = ls9 \* \(it\.h \/ \(baseA3\.shell\.h \/ ps3\)\);/.test(cs))
+    errors.push("SeatPosedLabel must handle the solo road (re-seat + board-scale the bare TMP), not return on hl2 == null");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
