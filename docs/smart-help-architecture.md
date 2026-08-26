@@ -68,8 +68,9 @@ Every mechanism Smart Help needs exists in some form:
   already force-opens `kiticon`), and `panelQuery` search that force-opens
   folds. A deep link is `{ component, section, control }` → set focus,
   open the section, `scrollIntoView`, add a `.sh-glow` class for ~1.2s.
-- **The part → control map.** The Build Parts chapter already documents
-  "each part opens the layer that produces it" — that mapping IS the
+- **The part → control map.** The Build Parts section (in Foundations, as
+  the kit's anatomy) already documents "each part opens the layer that
+  produces it" — that mapping IS the
   Smart Help routing table. We formalize it as data:
   `PART_ROUTES: Record<PartId, { section: string; controls: string[] }>`.
 
