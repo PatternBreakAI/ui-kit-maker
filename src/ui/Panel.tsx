@@ -1762,11 +1762,11 @@ export function Panel() {
           }} />
         </label>
         {/* the guided drawing canvas (owner: "an svg template for
-            silhouette creation that registered users can download
-            directly from the app") — a free account is the key */}
-        <button className="fileadd" title={tier === "guest" ? "A free account unlocks the template" : "A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"}
+            silhouette creation") — open to everyone since the free-play
+            round: it's a play tool, and guest work staying browser-local
+            is the same deal uploads already make */}
+        <button className="fileadd" title="A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"
           onClick={() => {
-            if (tier === "guest") { openAuth("signin"); return; }
             const blob = new Blob([SIL_TEMPLATE], { type: "image/svg+xml" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
