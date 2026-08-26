@@ -167,9 +167,18 @@ reason: the moment one drifts from what the code does, the page is lying.
 Every claim above this line predating 2026-08-17 reads through this table.
 The flip: **every generated export is paid**. No grandfathering.
 
+**Amended by the Free-Play Round (owner mandate, 2026-08-26):** every play
+tool is free while we hype it up — the ladder is **play free → sign up to
+save → pay to export**. What changed is the guest's PLAY surface only; the
+paid line did not move an inch: `EXPORT_KINDS`, `pngScaleMax`,
+`vectorExports` and the server's `ALLOWED` map are byte-identical, and the
+4× zoom stays paid (the zoom ceiling is the hi-res-screenshot deterrent
+that protects pay-to-export — guest merely equalized with free at 150%).
+
 | Claim | Status | Backed by |
 |---|---|---|
-| "Guests can play the editor and stage one board; nothing exports" | **APPROVED** | `EXPORT_KINDS.guest = []` + the Board's one-board guard (second add opens the sign-up pitch). Guests also can't take the settings file — sign-up is where downloads begin. |
+| "Everyone plays free — the full kit, all starter presets, unlimited boards, no account needed; sign up (free) to save; every generated export stays paid" | **APPROVED (Free-Play Round, owner mandate 2026-08-26)** | `TIER_CAPS.guest` (`presetLimit: Infinity`, full component render — the `GUEST_KIT` five-piece teaser road and the Board's one-board guard are deleted); `EXPORT_KINDS.guest = []` unchanged. Guests still can't take the settings file — sign-up is where downloads begin. |
+| "Guests can play the editor and stage one board; nothing exports" | **NEVER (retired 2026-08-26)** | The one-board guard is gone — "one board" now UNDERSELLS what guests get. Say the free-play claim above instead. Same for the old "five-component guest taste": guests render every released piece. |
 | "Free accounts export nothing they designed — no PNG, SVG, HTML, board, game kit or engine zip" | **APPROVED** | `EXPORT_KINDS.free = []` client-side; `ALLOWED.free` empty in `api/export.ts` server-side (a tampered client gets a 403, not a kit). PNG/board/sheet renders are browser-side, so their gates are client-side by nature — say "no exports on free", never "server-blocked" for those. |
 | "The settings/project JSON stays free for accounts" | **APPROVED** | Owner call: backup/portability is workflow, not a deliverable. TopBar export menu, free for signed-in tiers. |
 | "Registered users get the free **Unity test kit** — a stock free kit, the same fixed ZIP for everyone, never their own design, and **yours to ship, commercial projects included**" | **APPROVED (reworded 2026-08-25, owner-approved free-kit licence)** | `/api/test-kit` (signed-in check server-side) serving the admin-blessed zip from the private `test-kit` bucket; blessed via the #/admin desk, which **rewrites the personal licence to the free-kit licence** (owner approved the text 2026-08-25) and stamps the free-kit README banner before upload. Never imply it's their design; do say it's theirs to ship — the licence inside the ZIP grants exactly that. Don't resell/redistribute the assets as a pack — that's the licence's one carve-out. The designated kit is **Brightside** (owner call; formerly Hot Rod) — naming it in conversion copy is fine, but keep the mechanism copy kit-agnostic so a swap needs no rewrite. |
