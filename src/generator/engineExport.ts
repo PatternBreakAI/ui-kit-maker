@@ -10,7 +10,7 @@ import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./mod
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
@@ -312,6 +312,12 @@ export interface ExportBoardItemData {
   /** a TYPE STAMP item: the zip path of its baked sprite (adjust dials +
       shadow/glow already in the pixels); null for prefab-backed pieces */
   stamp: string | null;
+  /** BRANDED SILENT BAKE (the universal-road guard): a kit COMPONENT that
+      rasterized on the stamp road without being on the BAKE_OK allowlist —
+      i.e. no live family ships for it yet. The canonical-scene fence fails
+      on any such row; other kits still export (bake + loud warn), so the
+      gate can never silently regress to pictures. */
+  bakedFallback?: boolean;
   /** the stamp's CORE-ALPHA companion (same canvas, no shadow/glow
       filter) — the wipe shine's stencil, so the band hugs the letterforms
       instead of the halo. Ships only when the kit's idle wipe is on. */
@@ -440,7 +446,38 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   laptimes: "laptimes", leaderboard: "leaderboard", telemetry: "telemetry",
   // the timer too (owner 10.1: "the timer should be a prefab as well")
   timerdigits: "timerdigits",
+  /* THE UNIVERSAL ROAD (owner mandate 2026-08-27: "Everything should be a
+     prefab, nothing baked — what's the point?"): every remaining board
+     piece the Brightside census found baking places LIVE under its own
+     component name — whole-shell family bakes with the words suppressed,
+     live word/seat children on the prefab, per-copy content riding the
+     posed-skin road. The glyph rack joins below (dynamic — the roster is
+     the registry's). */
+  qtybadge: "qtybadge", levelnode: "levelnode", dailycell: "dailycell",
+  boostercard: "boostercard", resource: "resource", currency: "currency",
+  ghost: "ghost", movecounter: "movecounter", rewardcard: "rewardcard",
+  ring: "ring", avatarframe: "avatarframe", claimbtn: "claimbtn", bottomnav: "bottomnav",
 };
+// the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
+// tintable, never fake buttons (the mandate's non-interactive lane)
+for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id] = cGl.id;
+
+/* the universal road's family lists — one source for the emission loop,
+   the pose triggers and the importer-facing decisions (which families
+   press, which merely display). Interactive = the app's own anatomy:
+   buttons-group members and selectable cards/nodes; the display set is
+   pinned chrome and HUD readouts (PINNED_CHROME's movecounter included). */
+const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard"]);
+const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav"]);
+const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
+/* what may STILL rasterize on the kit-piece stamp road, by name (the
+   mandate's allowlist): the inventory grid's ringless panel bake (its
+   tiles go live over it by design). Type stamps, saved library assets,
+   backgrounds and dialed shadows travel their own deliberate roads and
+   never reach this gate. Any OTHER component landing here is branded
+   bakedFallback:true in its board row — the fence fails on any such row
+   in the canonical scenes, so nothing can bake silently again. */
+const BAKE_OK = new Set<KitComponentId>(["invgrid"]);
 
 /* The stock words each labeled family's prefab wears (mirror of the
    importer's DefaultLabel). The sliced family sprites BAKE at this labeled
@@ -453,6 +490,10 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
 const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
   primary: "PLAY", secondary: "PLAY", small: "PLAY",
   chip: "NEW", tab: "TAB", tabback: "BACK", header: "SETTINGS",
+  /* the universal road's BUILD-labeled trio — each entry mirrors its
+     renderer's own default word exactly, so the divergence test's natural
+     render and the family bake speak the same geometry */
+  ghost: "Ghost", qtybadge: "×250", levelnode: "12",
 };
 
 export async function collectExportBoards(st: {
@@ -1133,7 +1174,12 @@ export async function collectExportBoards(st: {
           value: b.v ?? st.kitVals[id] ?? null, ax, ay, anchor, stamp: file,
           ...(maskFileK ? { stampMask: maskFileK } : {}),
           ...(cells ? { cells, cellSel } : {}),
+          // the universal-road guard: only allowlisted components may
+          // rasterize here quietly — everything else is branded and loud
+          ...(BAKE_OK.has(idBase) ? {} : { bakedFallback: true }),
         });
+        if (!BAKE_OK.has(idBase))
+          console.warn(`engine export: "${idBase}" baked on the stamp road — no live family ships for it (universal-road gap; the scene shows the exact board pixels meanwhile)`);
         continue;
       }
       /* prefab pieces size SHELL-TO-SHELL: the svg box carries glow and
@@ -1247,7 +1293,15 @@ export async function collectExportBoards(st: {
            fill, a dead knob under the live one) and one lost import race
            left the stand-in uniform-scaled — the ballooned knob. */
         const BAR_RIGS = new Set(["slider", "progress", "segbar", "vsbar", "emblembar", "scrollbar"]);
-        if (!pureType && (isCloneId(id) || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
+        /* the UNIVERSAL road's CONTENT trigger: aspect alone cannot see a
+           same-size content divergence (the Shop's four daily cells share
+           one box while Day 4 wears the today art; a level node's stars
+           ride its VALUE) — so a universal-family copy carrying ANY typed
+           word, staged value or variant poses, and the posed skin is that
+           copy's exact app pixels. Content-less copies ride the family
+           bake — the honest optimization, not the default. */
+        const universalPose = UNIVERSAL_ROAD.has(idBase) && (b.label != null || b.v != null || b.ov != null);
+        if (!pureType && (isCloneId(id) || universalPose || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
@@ -1331,8 +1385,11 @@ export async function collectExportBoards(st: {
              left press moving only the label's own shift while the body
              sat still (owner: "only the text play animates down, the
              button stays static"). Same crop box as the default bake, so
-             the swap never jumps a pixel. */
-          if (cropBox) {
+             the swap never jumps a pixel. DISPLAY families and the glyph
+             rack skip: their prefabs carry no Button, so state skins would
+             be dead files (the round-14 blank-stamps lesson, applied
+             before the fact). */
+          if (cropBox && !UNIVERSAL_DISPLAY.has(idBase) && !isGlyphPiece(idBase)) {
             posedStates = {};
             for (const stN of ["hover", "pressed", "disabled"] as const) {
               let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
@@ -2547,7 +2604,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the props glow in their own silhouette too — without an aura sprite
        they fell to the generic radial blob (owner: "the glows are all
        very generic in shape and don't follow the silhouette") */
-    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge"]);
+    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge",
+    // the universal road's pressable families hover/press like buttons —
+    // their aura is their own silhouette, never the generic blob
+    ...UNIVERSAL_INTERACTIVE]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -3265,6 +3325,139 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       await addPng("countbadge/base-plain.png", shell("countbadge", { overlay: "plain" }, undefined, 0.03),
         { component: "countbadge", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: "Bare count circle — the number is LIVE text on the CountBadge prefab. Drive it and it animates." });
+
+    /* ── THE UNIVERSAL LIVE-PIECE ROAD (owner mandate, 2026-08-27:
+       "Everything should be a prefab, nothing baked — what's the point?").
+       Every family the Brightside census found baking ships a WHOLE-SHELL
+       bake with its WORDS SUPPRESSED: the render happens WITH the kit's
+       content (true geometry, icons and art kept — suppressing the content
+       group would erase the resource chip's coin along with its count),
+       then exactly the word ink leaves the pixels — build labels by their
+       data-part group (the posed road's own discipline) and seat texts by
+       parseTextSeats' own acceptance rule, so the strip and the live seats
+       can never disagree about which words re-render live. Icons stay IN
+       every universal bake (none of these families has a live icon-child
+       slot — the chip/iconbtn road is separate). Interactive families bake
+       hover/pressed/disabled beside base on ONE union crop (Sprite Swap
+       registration); display families and the glyph rack ship base alone —
+       placeable art, never fake buttons. ── */
+    {
+      const stripWordInk = (svgIn: string): { svg: string; labelStripped: boolean; seatsStripped: number } => {
+        try {
+          const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+          let labelStripped = false;
+          for (const n of Array.from(dom.querySelectorAll('[data-part="label"]'))) {
+            if ((n.textContent ?? "").trim()) labelStripped = true;
+            n.remove();
+          }
+          let seatsStripped = 0;
+          for (const t of Array.from(dom.querySelectorAll("text"))) {
+            const fs = parseFloat(t.getAttribute("font-size") ?? "0");
+            const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
+            if (!(fs > 1) || !str0) continue;
+            let warped = !!t.querySelector("textPath");
+            let ghosted = false;
+            for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
+              const tf = p.getAttribute("transform") ?? "";
+              if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
+              if (p.getAttribute("opacity") === "0") ghosted = true;
+            }
+            // exactly parseTextSeats' acceptance: words that can't be
+            // clean TMP seats (rotated ribbons, path riders) STAY BAKED
+            if (warped || ghosted) continue;
+            t.remove();
+            seatsStripped++;
+            if (seatsStripped >= 40) break; // the seat parser's own cap
+          }
+          return { svg: new XMLSerializer().serializeToString(dom.documentElement), labelStripped, seatsStripped };
+        } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
+      };
+      const UNIVERSAL_USAGE: Partial<Record<KitComponentId, string>> = {
+        qtybadge: "Quantity badge — the count is LIVE text on the prefab (per-copy counts ride posed skins). Display piece: no button wiring by design.",
+        levelnode: "Level-map node — a REAL button (Sprite Swap states); the level number is LIVE text. Star/lock poses ride per-copy posed skins.",
+        dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat. Claimed/today/locked poses ride per-copy posed skins.",
+        boostercard: "Booster card — a REAL button; name/effect words are LIVE seats (per-copy content rides posed skins).",
+        resource: "Resource chip — the count is a LIVE seat; the coin art stays in the bake (no live icon slot). Display piece.",
+        currency: "Currency chip — the count is a LIVE seat. Display piece.",
+        ghost: "Ghost button — the labeled button family, live word + Sprite Swap states, exactly like the primary.",
+        movecounter: "Move counter — caption and count are LIVE seats. Display piece (pinned chrome in the app: it never presses).",
+        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats (per-copy content rides posed skins).",
+        ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
+        avatarframe: "Avatar frame — the level chip's number is a LIVE seat. Drop your portrait in the well. Display piece.",
+        claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat and CLAIM copies celebrate (ClaimBurst).",
+        bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats. Wire your own per-item buttons over it (the bar itself is not one button).",
+      };
+      const universalIds: KitComponentId[] = [
+        ...UNIVERSAL_ROAD,
+        ...KIT_COMPONENTS.filter((c) => isGlyphPiece(c.id)).map((c) => c.id),
+      ];
+      for (const uid of universalIds) {
+        if (!stagedShips(uid)) continue;
+        const isArt = isGlyphPiece(uid);
+        const uVal = st.kitVals?.[uid];
+        const uOpts: Record<string, unknown> = isArt ? {} : {
+          label: st.kitNoText?.[uid] ? "" : st.kitLabels?.[uid],
+          sub: st.kitSubs?.[uid], slots: st.kitSlotVals?.[uid],
+          icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
+          themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
+        };
+        let fullU: string;
+        try { fullU = shell(uid, uOpts, undefined, uVal); } catch { continue; }
+        /* label metrics off the PRE-strip render — the NINE road's own
+           discipline (offsets from the shell0 center, frame-invariant);
+           the RENDERED word ships as labelText (levelnode's number ignores
+           the label chip — the render is the truth, never the dial) */
+        let uLabelMeta: { labelDx: number; labelDy: number; labelFs: number; labelInk?: string; labelInk2?: string } | null = null;
+        let uWord: string | undefined;
+        {
+          const li = fullU.indexOf('data-part="label"');
+          if (li >= 0) {
+            const lg = fullU.slice(li);
+            const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
+            const s0m = /data-shell0="([-\d. ]+)"/.exec(fullU) ?? /data-shell="([-\d. ]+)"/.exec(fullU);
+            const s0 = s0m?.[1].split(" ").map(Number);
+            if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
+              uLabelMeta = {
+                labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
+                labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
+                labelFs: Math.round(+tm[3] * 10) / 10,
+                ...(labelInkOf(lg, fullU) ?? {}),
+              };
+              try {
+                const lgN = new DOMParser().parseFromString(fullU, "image/svg+xml").querySelector('[data-part="label"]');
+                const w0 = (lgN?.textContent ?? "").replace(/\s+/g, " ").trim();
+                if (w0) uWord = w0;
+              } catch { /* the seat road still carries the piece */ }
+            }
+          }
+          if (st.kitNoText?.[uid]) uWord = "";
+        }
+        const strippedU = stripWordInk(fullU);
+        const seatsU = !isArt && strippedU.seatsStripped > 0
+          ? textSeatsOf(uid, strippedU.svg, { icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal)
+          : {};
+        const interactive = UNIVERSAL_INTERACTIVE.has(uid);
+        const famFlipU = isFlipShape(st.kitShapes[uid] ?? KIT_SHAPE[uid] ?? st.cfg.shape);
+        await addPng(`${uid}/base.png`, strippedU.svg, {
+          component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: UNIVERSAL_USAGE[uid] ?? "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect).",
+          ...(famFlipU ? { flip: true } : {}),
+          ...(uLabelMeta ?? {}),
+          ...(uWord !== undefined ? { labelText: uWord } : {}),
+          ...seatsU,
+        }, true, interactive ? uid : undefined);
+        if (interactive) {
+          for (const stName of ["hover", "pressed", "disabled"] as const) {
+            let sSvg: string;
+            try { sSvg = stateShell(uid, stName, uOpts, uVal); } catch { continue; }
+            await addPng(`${uid}/base-${stName}.png`, stripWordInk(sSvg).svg, {
+              component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
+            }, true, uid);
+          }
+        }
+      }
+    }
   }
 
   /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
@@ -3842,8 +4035,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      dial's own share is subtracted: it ships separately in stateFx and the
      two halves must never double. Falls back to the raw dial delta when a
      measure render fails — the pre-round behavior, never worse. */
-  const stateCollapseDy = (pid: KitComponentId, sn: "hover" | "pressed" | "disabled", dialDy: number): number => {
-    if (!dialDy) return 0; // no extrusion fork — nothing to measure
+  const measuredStateDy = (pid: KitComponentId, sn: "hover" | "pressed" | "disabled"): number | null => {
     try {
       const yOf = (s2: string) => {
         const m2 = /data-shell="([-\d. ]+)"/.exec(s2) ?? /data-shell0="([-\d. ]+)"/.exec(s2);
@@ -3854,8 +4046,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const y1 = yOf(stateShell(pid, sn, {}, st.kitVals?.[pid]));
       const liftDelta = (pcM.states[sn]?.lift ?? 0) - (pcM.states.default?.lift ?? 0);
       if (Number.isFinite(y0) && Number.isFinite(y1)) return Math.round(((y1 - y0) - liftDelta) * 10) / 10;
-    } catch { /* the dial delta stands in */ }
-    return dialDy;
+    } catch { /* caller falls back */ }
+    return null;
+  };
+  const stateCollapseDy = (pid: KitComponentId, sn: "hover" | "pressed" | "disabled", dialDy: number): number => {
+    if (!dialDy) return 0; // no extrusion fork — nothing to measure
+    return measuredStateDy(pid, sn) ?? dialDy;
   };
   files.push({
     path: "kit-manifest.json",
@@ -4074,7 +4270,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                     gear doesn't work on play", "trophy states aren't in") —
                     glow + lift ride the same engine recipe as the buttons */
                  ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"],
-                 ["firebutton", "firebutton"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"]] as const).flatMap(([pid, fam]) => {
+                 ["firebutton", "firebutton"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
+                 /* the universal road's PRESSABLE families (the mandate:
+                    the Shop's Claim All must actually press) — same glow +
+                    lift recipe, and the slice-1 content ride carries their
+                    live words/seats with the face */
+                 ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
+                 ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -4092,19 +4294,41 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lift: Math.round((ps.default.lift - ps[sn].lift) * 10) / 10,
         }));
       }),
-      labelStates: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"]] as const).flatMap(([pid, fam]) => {
-        const pc = pieceCfg(pid);
-        return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
-          const f = pc.stateDesigns[sn];
-          if (!f) return [];
-          const t = f.type, b2 = pc.type;
-          const inkOk = !!t && (t.fillMode === "solid" || t.fillMode === "gradient")
-            && !(t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2));
-          const dy = f.candy ? stateCollapseDy(pid, sn, Math.round((pc.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10) : 0;
-          if (!inkOk && !dy) return [];
-          return [{ family: fam, state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
-        });
-      }),
+      labelStates: [
+        ...([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"],
+             // the ghost button is a labeled button family too (universal road)
+             ["ghost", "ghost"]] as const).flatMap(([pid, fam]) => {
+          const pc = pieceCfg(pid);
+          return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
+            const f = pc.stateDesigns[sn];
+            if (!f) return [];
+            const t = f.type, b2 = pc.type;
+            const inkOk = !!t && (t.fillMode === "solid" || t.fillMode === "gradient")
+              && !(t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2));
+            const dy = f.candy ? stateCollapseDy(pid, sn, Math.round((pc.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10) : 0;
+            if (!inkOk && !dy) return [];
+            return [{ family: fam, state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
+          });
+        }),
+        /* BESPOKE-POSE travel for the other stateFx families (the
+           rewardcard lesson: its pressed pose SQUASHES — top up 1px,
+           bottom down 1.5 — so the lift dial alone overshoots its riders
+           by half). dy = the family's MEASURED shell travel beyond the
+           lift dial, from the very renders the swap sprites bake; the
+           sinks (-dy) then land halo AND content ride exactly on the
+           baked art. Clean-translate families measure 0 and emit nothing
+           — manifests stay byte-stable. Ink never forks here (rows ship
+           fillMode null); the firebutton sits out on its round-22
+           housing contract (the pad pins to rest by design). */
+        ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
+             ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
+             ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) =>
+          (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
+            const dy = measuredStateDy(pid, sn);
+            if (dy == null || Math.abs(dy) < 0.05) return [];
+            return [{ family: fam, state: sn, fillMode: null, fill: null, fill2: null, dy }];
+          })),
+      ],
       /* per-family label sizes, the APP'S OWN formula (owner: "make sure
          these sizes correlate to what we output from the app"): each
          family's geometry font size x the kit-size factor x the Type Size
@@ -4336,7 +4560,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
    the font-true advances; then every glyph renders with the FULL
    treatment and its art box is placed relative to that pen. No guessing
    about effect bleed — the calibration render IS the reference. */
-const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()";
+/* "×" joined for the universal road: the quantity badge's own word is
+   "×250" and every Brightside copy types ×-counts — without the glyph the
+   live labels would tofu where the app draws the multiply sign. The kit
+   face's fallback chain draws it exactly as the app does. */
+const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×";
 const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
 
 async function rasterCanvas(svg: string, scale: number): Promise<HTMLCanvasElement> {
@@ -8007,7 +8235,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -10270,6 +10498,14 @@ namespace PatternBreak {
                    like Body and Specular above. */
                 var icPos = inst.transform.Find("Icon");
                 if (icPos != null) icPos.gameObject.SetActive(false);
+                /* SEAT-worded families (universal road): a posed bake keeps
+                   its per-copy seat words IN the pixels (only data-part
+                   labels strip), so the prefab's live Words group must
+                   stand down exactly like Icon/Specular — its family-level
+                   seats would double over the copy's own words, seated in
+                   a frame this shell-box rect no longer matches. */
+                var wdPos = inst.transform.Find("Words");
+                if (wdPos != null) wdPos.gameObject.SetActive(false);
                 /* WipeShine masks its band with OUR image — a null-sprite,
                    alpha-0 root makes that stencil pass NOTHING and the whole
                    child stack vanishes the moment play starts (owner: "when
@@ -12041,6 +12277,10 @@ namespace PatternBreak {
       img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
       // fixed-shape families (props, badges): any rect letterboxes, never melts
       img.preserveAspect = !sliced;
+      /* the glyph rack is ART, not a control (the mandate's non-interactive
+         lane): placeable and tintable, but it must never eat a click meant
+         for the piece behind it */
+      if (baseAsset.component != null && baseAsset.component.StartsWith("glyph")) img.raycastTarget = false;
       if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
         /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
            natural rect squishes a fluid silhouette under overflowing text.
@@ -15020,6 +15260,12 @@ namespace PatternBreak {
         // the maker's own word when the manifest carries one (labelText),
         // the stock word otherwise
         var label = labeled.Contains(a.component) ? LabelWordOf(m, a.component, DefaultLabel(a.component)) : null;
+        /* the UNIVERSAL road's labeled families declare themselves: a base
+           row shipping labelText joins the labeled set by manifest truth
+           (ghost, qtybadge, levelnode — and any future family) instead of
+           this hardcoded list. A deliberate blank ("" — kitNoText) builds
+           wordless; the seat families carry their words as textSeats. */
+        if (label == null && a.labelText != null && a.labelText.Length > 0) label = a.labelText;
         if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont, m)) any = true;
       }
 #if UNITY_2023_2_OR_NEWER

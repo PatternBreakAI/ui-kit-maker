@@ -1514,7 +1514,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   };
   literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
   literalParity(/stateFx: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
-  literalParity(/labelStates: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
+  // two passes since the bespoke-pose round: labeled ink+dy rows, then
+  // measured dy-only rows for the other stateFx families
+  literalParity(/labelStates: \[\n[\s\S]{0,8000}?\n      \],/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
   literalParity(/\n      palette: \{[\s\S]{0,1200}?\},\n/, ["bevel", "glow", "innerFill", "well", "highlight", "shadow", "markInk", "radioInk"], "PBPalette", "palette");
   literalParity(/timer: \(\(\) => \{[\s\S]{0,3000}?\}\)\(\),/, ["seconds", "word", "fs", "w", "h", "shellW", "shellH"], "PBTimerBlock", "timer");
   literalParity(/bakedFace = \{[\s\S]{0,1400}?\};/, ["file", "metrics", "pointSize", "layerFill", "layerStroke", "layerShadow", "layerGlints", "inkTintable"], "PBBakedRef", "bakedFace");
@@ -1770,6 +1772,47 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/const stateCollapseDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled", dialDy: number\): number =>/.test(src)
       || !/stateCollapseDy\(pid, sn, Math\.round\(\(pc\.candy\.extrusion\.depth - f\.candy\.extrusion\.depth\) \* 10\) \/ 10\)/.test(src))
     errors.push("labelStates dy must ship the MEASURED baked-face collapse (stateCollapseDy) — the raw dial delta speaks unscaled design px (slice 1)");
+}
+
+/* ── Unity-exporter round, slice 2 (2026-08-27): NOTHING BAKES — the
+   universal live-prefab road. Every census family places live under its
+   own component name; family bakes render WITH content and then exactly
+   the word ink leaves the pixels (label groups + seat-eligible texts, the
+   seat parser's own acceptance rule); per-copy content rides the posed
+   skin road (content trigger); the bake gate is an explicit allowlist
+   that BRANDS any silent bake; the glyph rack ships as art prefabs. */
+{
+  if (!/qtybadge: "qtybadge", levelnode: "levelnode", dailycell: "dailycell",/.test(src)
+      || !/ring: "ring", avatarframe: "avatarframe", claimbtn: "claimbtn", bottomnav: "bottomnav",/.test(src))
+    errors.push("PREFAB_FAMILY lost the universal-road families — their board copies would silently fall back to baked stamps (slice 2)");
+  if (!/for \(const cGl of KIT_COMPONENTS\) if \(isGlyphPiece\(cGl\.id\)\) PREFAB_FAMILY\[cGl\.id\] = cGl\.id;/.test(src))
+    errors.push("the glyph rack's PREFAB_FAMILY registration is missing — glyph pieces would bake again (slice 2)");
+  if (!/const BAKE_OK = new Set<KitComponentId>\(\["invgrid"\]\);/.test(src))
+    errors.push("the stamp road's explicit allowlist (BAKE_OK) is missing (slice 2)");
+  if (!/\.\.\.\(BAKE_OK\.has\(idBase\) \? \{\} : \{ bakedFallback: true \}\),/.test(src))
+    errors.push("the stamp road must BRAND non-allowlisted component bakes (bakedFallback) — the fence's zero-silent-bakes assertion reads it (slice 2)");
+  if (!/const universalPose = UNIVERSAL_ROAD\.has\(idBase\) && \(b\.label != null \|\| b\.v != null \|\| b\.ov != null\);/.test(src))
+    errors.push("the universal content pose trigger is missing — same-box content divergence (Day 4's today art, a level node's stars) would ride the wrong family bake (slice 2)");
+  if (!/const stripWordInk = \(svgIn: string\)/.test(src) || !/if \(warped \|\| ghosted\) continue;/.test(src))
+    errors.push("the family-bake word strip (stripWordInk, parseTextSeats' acceptance rule) is missing — words would bake into the universal families (slice 2)");
+  if (!/if \(cropBox && !UNIVERSAL_DISPLAY\.has\(idBase\) && !isGlyphPiece\(idBase\)\) \{/.test(src))
+    errors.push("posed state skins must skip DISPLAY families and the glyph rack — button-less prefabs would ship dead state files (slice 2)");
+  // C#: manifest-declared labeled families, art-honest glyphs, posed Words stand-down
+  if (!/if \(label == null && a\.labelText != null && a\.labelText\.Length > 0\) label = a\.labelText;/.test(cs))
+    errors.push("RunPrefabBuilders must admit manifest-declared labeled families (labelText) — ghost/qtybadge/levelnode prefabs lose their live words (slice 2)");
+  if (!/if \(baseAsset\.component != null && baseAsset\.component\.StartsWith\("glyph"\)\) img\.raycastTarget = false;/.test(cs))
+    errors.push("glyph prefabs must not catch raycasts — art, never fake buttons (slice 2)");
+  if (!/var wdPos = inst\.transform\.Find\("Words"\);\s*\n\s*if \(wdPos != null\) wdPos\.gameObject\.SetActive\(false\);/.test(cs))
+    errors.push("the posed road must stand the Words group down — family-level seats would double over the copy's own posed words (slice 2)");
+  // the bespoke-pose travel pass (rewardcard: decor scales while shell,
+  // words and glow sink by the dial) — measured dy rows for stateFx
+  // families; clean translates measure 0 and stay byte-stable
+  if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
+      || !/\["rewardcard", "rewardcard"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+    errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
+  // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
+  if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
+    errors.push("BAKE_GLYPHS lost the × glyph — every live qtybadge word tofus where the app draws the multiply sign (slice 2)");
 }
 
 if (errors.length) {
