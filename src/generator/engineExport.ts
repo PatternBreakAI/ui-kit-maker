@@ -4033,14 +4033,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const famList = [...new Set([st.cfg.type.font, ...(st.cfg.type.listFont ? [st.cfg.type.listFont] : [])])].slice(0, 4);
   let primaryFontFile: string | null = null;
   let primaryFontBytes: Uint8Array | null = null;
+  /* the kit's DESIGNED weight ships as a REAL cut (the Instrument-voice
+     precedent: "TMP's synthetic bold reads visibly thinner"): a plain
+     fetch returns the Regular-400 file while the kit designs at
+     base.type.weight, and every dynamic SDF text then rendered visibly
+     lighter than its baked neighbors (F3: live stamps, dropdown rows,
+     input). Ask css2 for the exact static instance first; an axis miss
+     falls back to Regular, and shippedWeight rides the manifest so the
+     importer can decide synthetic bold HONESTLY (never on a real cut,
+     only over a meaningfully lighter one). The embed font follows too,
+     so bakes stop relying on the browser's synthetic 600. */
+  const designedW = Math.min(900, Math.max(100, Math.round((base.type.weight || 400) / 100) * 100));
+  const W_TAGS: Record<number, string> = { 100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black" };
+  let shippedWeight = 400;
   for (const fam of famList) {
-    const got = await fetchKitFont(fam).catch(() => null);
+    const wantAxis = fam === st.cfg.type.font && designedW !== 400;
+    let got = wantAxis ? await fetchKitFont(fam, `wght@${designedW}`, W_TAGS[designedW] ?? `W${designedW}`).catch(() => null) : null;
+    const gotDesigned = !!got;
+    if (!got) got = await fetchKitFont(fam).catch(() => null);
     if (!got) continue;
     const famSlug = fam.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     files.push({ path: `fonts/${got.file}`, data: got.bytes });
     files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
     tpnFonts.push({ family: fam, role: fam === st.cfg.type.font ? "the kit's own face" : "a kit voice", file: got.file, licenceName: got.licenceName, licenceText: got.licenceText });
-    if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; }
+    if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; shippedWeight = gotDesigned ? designedW : 400; }
   }
   setEmbedFont(st.cfg.type.font, primaryFontBytes);
   /* the INSTRUMENT voice: panels draw HUD and readout text in Inter at
@@ -4415,6 +4431,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            (or vertex gradient), outline, and glow/underlay */
         style: {
           weight: base.type.weight,
+          /* the cut actually aboard in fonts/ (the designed instance when
+             css2 served it, 400 on the Regular fallback) — the importer's
+             synthetic-bold decision keys on the GAP between weight and
+             this, so a real cut is never double-bolded and a light
+             fallback still fakes its way closer (F3) */
+          shippedWeight,
           italic: base.type.italic,
           /* prefab label font size in design px — the app scales button
              words by the kit's Type Size dial (52 = baseline); hardcoding
@@ -4628,7 +4650,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   let figs: { path: string; data: Uint8Array }[] = [];
   try { figs = await readmeFigures(base); } catch { figs = []; }
   for (const f of figs) files.push(f);
-  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0) });
+  files.push({ path: "UNITY-README.md", data: unityReadme(st, !!primaryFontFile, bakedFace != null, figs.length > 0, !!(bakedFace?.layerFill && bakedFace?.layerStroke)) });
   /* the Documentation/ front door — store reviewers and buyers look for
      the folder by name; the deck stays the long-form walkthrough */
   files.push({ path: "Documentation/QuickStart.md", data: quickStartDoc(st) });
@@ -4717,7 +4739,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
 
   /* paperwork — the recipe by hand, the machine file, the font terms */
-  files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) + "\n" + fontNotesMarkdown(kitFontFamilies(st.cfg)) });
+  /* the recipe README rides the Unity zip with the BUNDLED font story —
+     the linked "install them once / every SVG" paragraph belongs to the
+     SVG pack, whose fonts genuinely aren't aboard (reviewer F7). A zip
+     that failed to bundle falls back to the honest linked text. */
+  files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) + "\n" + fontNotesMarkdown(kitFontFamilies(st.cfg), primaryFontFile ? "bundled" : "linked") });
   files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
   if (licence) files.push({ path: "LICENCE.txt", data: licence });
   /* Third-Party Notices, Unity's convention — one file at the kit root.
@@ -7621,8 +7647,14 @@ ${hasBoards ? `
    Owner mandate: reads like a presentation aimed at the Unity dev, one
    idea per slide, boring-but-vital detail in callouts, walking the
    whole export in the order a dev actually meets it. */
-function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false): string {
+function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped = false, figures = false, layersShipped = false): string {
   const root = `Assets/UIKitMaker/${sanitizeUnitySlug(st.slug) ?? "ui-kit"}`;
+  /* the docs fork on LAYER presence (F4): a layerless kit ships no
+     HeroLabel prefab and no "KitFace Baked Layers" asset — every slide
+     that named them unconditionally was a promise with nothing behind
+     it, and the kerning clinic sent readers to an asset that doesn't
+     exist (the table lives on the solo face there). */
+  const heroAsset = layersShipped ? "KitFace Baked Layers" : "KitFace Baked";
   /* the export build rides the TITLE BLOCK (round 16 — "is this zip the
      latest?" must never be a guessing game): the same stamp the manifest
      carries and the Console prints on every import. */
@@ -7886,7 +7918,7 @@ font; the SDF face stays the size-proof workhorse for everything else.
 Re-exports re-bake the atlas and Regenerate Example Prefabs reassembles
 the font in place, so placed labels restyle with the kit.
 
-### The HeroLabel prefab — one text, echo inks
+${layersShipped ? `### The HeroLabel prefab — one text, echo inks
 
 Want the strokes to MERGE behind the letterforms like the app (no
 sticker-overlap between tight letters)? That's the **HeroLabel** prefab,
@@ -7908,7 +7940,18 @@ root's **Hero Label** box, whichever you reach first; they stay in
 step. (The echoes appear in the Hierarchy as "Stroke (echo)" etc. —
 they rebuild themselves, never save to disk, and need nothing from
 you.) Solo KitFace Baked stays the one-object option.
+` : `### No HeroLabel prefab here — and that's the design
 
+This kit's type recipe bakes **no stroke/shadow layer stack** (its hero
+look is the face itself), so there is no layered HeroLabel prefab in
+this export and no import will create one — the GameObject menu's Hero
+Label entry says the same if you try it. Hero text on this kit is a
+one-object job: a TextMeshPro label in **KitFace Baked** (the exact
+pixels above) or **KitFace SDF** (the styled, size-proof face). If you
+later restyle the kit with a stroke or text shadow on uikitmaker.com and
+re-export, the layer stack — and the HeroLabel prefab — arrive with
+that zip.
+`}
 ` : ""}Hand-made SDF labels start WHITE — the fill is a per-label setting,
 not a font setting (prefab labels arrive with it wired). One click fixes
 it: on the text, tick **Color Gradient** and set Color Preset to
@@ -7989,7 +8032,7 @@ asset** — NOT on the text object. Selecting a label shows you the
 TextMeshPro component and its material; neither has the table.
 
 1. In the **Project window** open \`${root}/fonts\` and click
-   **KitFace Baked Layers** (the blue **F** icon). Shortcut: with a label
+   **${heroAsset}** (the blue **F** icon). Shortcut: with a label
    selected, click the little ⊙ target at the right of its *Font Asset*
    field to ping the asset, then click the asset itself.
 2. In that asset's Inspector, scroll past Face Info / Generation
@@ -8017,13 +8060,17 @@ TextMeshPro component and its material; neither has the table.
   \`${Math.round(52 * 3)}\` units, so \`-14\` is about −0.09 em: roughly
   −5 px on a label rendering near 55. Compare a pair against its
   neighbours (A–V, A–W) rather than guessing an absolute number.
-- **There is only ONE table.** The whole hero stack — fill, stroke,
+${layersShipped ? `- **There is only ONE table.** The whole hero stack — fill, stroke,
   shadow, glints — is a single font asset, **KitFace Baked Layers**,
   and every label lays its word out exactly once from it. Tune a pair
   and every layer moves AS YOU TYPE, because the other layers are
   repaints of the same letters, not copies with their own tables. There
   is no second place a kerning number could live, so there is nothing
-  to sync, nothing to overwrite, and nothing that can lag behind.
+  to sync, nothing to overwrite, and nothing that can lag behind.` : `- **There is only ONE table.** This kit's hero face is the solo
+  **KitFace Baked** — every baked label lays its word out from that one
+  asset, so its Glyph Adjustment Table is the single place a hero
+  kerning number lives. (There is no "KitFace Baked Layers" in this
+  export: the kit's type recipe bakes no stroke/shadow layer stack.)`}
 - **OX and OY travel too.** Nudge a pair's placement, not just its
   advance, and the whole stack carries it — and it survives re-imports.
 - **A half-entered row is safe.** "Add New Glyph Adjustment Record"
@@ -8054,12 +8101,16 @@ The import receipt tells you the table is really there: each face logs
 "N kerning pairs written". If it says KERNING SKIPPED, your TMP version
 refused the table — send that line to uikitmaker.com.
 
-**Which asset do I open?** \`fonts/KitFace Baked Layers\` — the only
+${layersShipped ? `**Which asset do I open?** \`fonts/KitFace Baked Layers\` — the only
 one with the hero table. Quickest route: double-click the Font Asset
 field on a hero label's **Fill** text. (\`KitFace Baked\` beside it is
 the solo single-layer face with its own table; the \`KitFace Ink\`
 files are materials, not fonts — they carry a layer's pixels and have
-no tables at all.)
+no tables at all.)` : `**Which asset do I open?** \`fonts/KitFace Baked\` — this kit's hero
+face, and the one with the hero table. Quickest route: double-click the
+Font Asset field on a baked label's text. (\`KitFace SDF\` beside it is
+the dynamic styled face with its own separate table; this export ships
+no "KitFace Baked Layers" — the kit bakes no layer stack.)`}
 
 ---
 
@@ -8458,7 +8509,7 @@ namespace PatternBreak {
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
   [Serializable] class PBStyleEmboss { public float strength; public float distance; public float softness; }
   [Serializable] class PBStylePattern { public string file; public string style; public float scale; public float angle; public float reps; } // angle is already baked into the tile; reps = the app-computed tiling density
-  [Serializable] class PBStyle { public int weight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; public string glintStyle; public float glintOpacity; public float glintOx; public float glintOy; public float glintLx; public float glintLy; }
+  [Serializable] class PBStyle { public int weight; public int shippedWeight; public bool italic; public float labelSize; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public PBStyleOutline outline; public PBStyleGlow glow; public PBStyleShadow shadow; public PBStyleEmboss emboss; public float lightAngle; public PBStylePattern pattern; public string glintBlend; public string glintStyle; public float glintOpacity; public float glintOx; public float glintOy; public float glintLx; public float glintLy; }
   [Serializable] class PBBakedRef { public string file; public string metrics; public float pointSize; public string layerFill; public string layerStroke; public string layerShadow; public string layerGlints; public bool inkTintable; }
   [Serializable] class PBBakedGlyph { public int u; public int x; public int y; public int w; public int h; public float bx; public float by; public float adv; }
   [Serializable] class PBBakedKern { public int l; public int r; public float k; }
@@ -8644,11 +8695,33 @@ namespace PatternBreak {
       }
       pick.ShowAsContext();
     }
+    /* the layered-face FACT, from the manifest (the F1/F4 root): a kit
+       whose type recipe bakes no stroke/shadow layer stack ships no
+       HeroLabel prefab — permanently. Anything that promises the prefab
+       (or reads its absence as a problem) must check here first. */
+    static bool KitBakesLayers(string root) {
+      try {
+        var mPath = root + "/kit-manifest.json";
+        if (!File.Exists(mPath)) return false;
+        var mm = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath));
+        return mm != null && mm.typography != null && mm.typography.bakedFace != null
+          && !string.IsNullOrEmpty(mm.typography.bakedFace.layerFill)
+          && !string.IsNullOrEmpty(mm.typography.bakedFace.layerStroke);
+      } catch (Exception) { return false; }
+    }
     static void PlaceFromRoot(string root, string pfName, string altName, GameObject ctxGo) {
       var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
       // graceful fallback (e.g. CheckboxToggle -> Checkbox on older zips)
       if (pf == null && !string.IsNullOrEmpty(altName)) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + altName + ".prefab");
       if (pf == null) {
+        /* the HeroLabel dead-end, honestly (F4): on a layerless kit the
+           old remedy ("run the kit import") was false FOREVER — no import
+           can create a prefab whose layer bake the kit never ships */
+        if (pfName == "HeroLabel" && !KitBakesLayers(root)) {
+          EditorUtility.DisplayDialog("UI Kit Maker",
+            "This kit has no layered Hero Label — by design, not by failure. Its type recipe bakes no stroke/shadow layer stack, so HeroLabel.prefab doesn't exist for this kit and no import or regenerate will create it.\\n\\nFor hero text here: put any TextMeshPro label in KitFace Baked (the app's exact pixels, if the zip shipped it) or KitFace SDF (the styled face) — that IS this kit's hero look.", "OK");
+          return;
+        }
         EditorUtility.DisplayDialog("UI Kit Maker", pfName + ".prefab isn't in " + root + "/Prefabs yet — run the kit import (or Tools → PatternBreak → Regenerate Example Prefabs) first.", "OK");
         return;
       }
@@ -8715,9 +8788,13 @@ namespace PatternBreak {
           ? "Zip carries the baked hero fonts. "
           : "Zip has NO baked hero fonts (the font fetch failed during export — re-export from uikitmaker.com). ");
 #if UNITY_2023_2_OR_NEWER
+        /* neutral-informative, never a false alarm (F4): "not assembled"
+           read as an error on kits that never bake layers at all */
         sb.Append(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset") != null
           ? "Layer face assembled (one font asset, four materials)."
-          : "Layer face NOT assembled in this project.");
+          : KitBakesLayers(root)
+            ? "Layer face not assembled yet — it builds on import (Tools > PatternBreak > Reapply Kit Import Settings if it hasn't)."
+            : "No layer face: this kit's type recipe bakes no stroke/shadow layers, so the solo faces carry all hero text (nothing is missing).");
 #endif
       }
       Debug.Log(sb.ToString());
@@ -9075,6 +9152,7 @@ namespace PatternBreak {
         foreach (var f in prev.files) if (f != null && !string.IsNullOrEmpty(f.file)) prevHash[f.file] = f.sha256;
 
       faceStarved = 0; // per-pass: labels/seats that wanted the kit face and couldn't have it
+      passAuthoredRects = null; // per-pass: maintenance publishes the rect ledger it authored
       int applied = 0, already = 0, missing = 0, fresh = 0, restyled = 0, same = 0;
       try {
         AssetDatabase.StartAssetEditing();
@@ -9318,7 +9396,7 @@ namespace PatternBreak {
           foreach (var bd in manifest.boards)
             if (File.Exists(root + "/Scenes/" + BoardSlug(bd.name) + ".unity")) { anyKept = true; break; }
           if (anyKept && EditorUtility.DisplayDialog("UI Kit Maker — board scenes",
-              "This kit update changed the export, but your board scenes keep the sizes and words they were FIRST built with (they are yours after generation).\\n\\nRebuild them from this update now? Hand edits inside those scenes will be redone.",
+              "This kit update changed the export, but your board scenes keep the sizes and words they were FIRST built with (they are yours after generation).\\n\\nRebuild them from this update now? Hand edits inside those scenes will be LOST — the scenes are rebuilt from the kit's layout.",
               "Rebuild scenes", "Keep mine")) {
             foreach (var bd in manifest.boards) {
               try { BuildBoardScene(root, manifest, bd, true); }
@@ -9392,7 +9470,7 @@ namespace PatternBreak {
       /* the scene authorship ledger and the prefab-rect ledger carry over
          like the variant ledger — their passes rewrite them in place */
       receipt.sceneShas = prev != null ? prev.sceneShas : null;
-      receipt.authoredRects = prev != null ? prev.authoredRects : null;
+      receipt.authoredRects = passAuthoredRects != null ? passAuthoredRects : (prev != null ? prev.authoredRects : null);
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -11872,6 +11950,13 @@ namespace PatternBreak {
         if (pSrc != null && pSrc.propertyType == SerializedPropertyType.ObjectReference && pSrc.objectReferenceValue == null) { pSrc.objectReferenceValue = ttf; wrote = true; }
         if (wrote) {
           soFa.ApplyModifiedPropertiesWithoutUndo();
+          /* the SOURCE CHANGED (a kit update shipped a different cut —
+             e.g. the designed SemiBold replacing Regular): glyphs already
+             rasterized from the old file would keep the old weight
+             beside fresh ones. Clear the dynamic data so every glyph
+             re-renders from the cut the kit actually ships now; a TMP
+             version without the API just keeps the mixed atlas. */
+          try { fa.ClearFontAssetData(true); } catch (Exception) { }
           EditorUtility.SetDirty(fa);
           AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
         }
@@ -12435,7 +12520,15 @@ namespace PatternBreak {
     }
     static FontStyles TargetFontStyle(PBStyle s) {
       var style = s != null && s.italic ? FontStyles.Italic : FontStyles.Normal;
-      if (s != null && s.weight >= 700) style = style | FontStyles.Bold;
+      /* synthetic bold keys on the GAP between the designed weight and
+         the cut actually aboard (style.shippedWeight — the app ships the
+         designed instance when Google Fonts serves it; 0 = an older
+         zip's Regular-400). Faking adds ≈300 of weight, so a gap of
+         150+ reads closer bolded than not: a 600 design over a 400 face
+         bolds (F3 — dynamic text sat visibly lighter than every baked
+         neighbor), a REAL 600 or 700 cut is never bolded on top. The
+         old >=700 rule is this same line with shipped pinned at 400. */
+      if (s != null && s.weight - (s.shippedWeight > 0 ? s.shippedWeight : 400) >= 150) style = style | FontStyles.Bold;
       return style;
     }
     static void StyleLabel(TextMeshProUGUI t, PBStyle s) {
@@ -14572,6 +14665,10 @@ namespace PatternBreak {
     /* labels/word groups that WANTED the kit face during this pass and
        had to wear the plain fallback (fontless zip) — one loud receipt */
     static int faceStarved;
+    /* the prefab-root-rect ledger THIS pass authored (null = maintenance
+       didn't run; the receipt then carries the previous ledger forward) —
+       see MaintainExamplePrefabs' resize guard (F5) */
+    static PBRectEntry[] passAuthoredRects;
     static bool seatSpaceWarned;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
@@ -16658,6 +16755,17 @@ namespace PatternBreak {
       if (!AssetDatabase.IsValidFolder(dir)) return;
       ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0;
+      /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
+         maintenance heal with NO ours-vs-theirs guard): rects we last
+         authored, carried in kit.lock.json > authoredRects. A rect still
+         AT the sprite contract adopts into the ledger; a rect still at
+         our last-authored size is ours to converge; anything else is the
+         dev's resize and stays theirs. */
+      int rectKept = 0;
+      var rectLedger = new Dictionary<string, Vector2>();
+      if (prevLock != null && prevLock.authoredRects != null)
+        foreach (var re in prevLock.authoredRects)
+          if (re != null && !string.IsNullOrEmpty(re.prefab)) rectLedger[re.prefab] = new Vector2(re.w, re.h);
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -17015,15 +17123,35 @@ namespace PatternBreak {
            with — crop and scale fixes since then never reach it, and every
            scene placement inherits the stale rect (field: 2x PLAY buttons
            beside a perfectly sized fresh joystick). Converging restores
-           our own generation contract; words, wiring and user children
-           are untouched. */
+           our own generation contract — but ONLY on rects the importer
+           itself last authored (F5: this was the one maintenance pass
+           with no ours-vs-theirs guard, and it snapped back the dev's own
+           resize on every import while blaming "an older importer").
+           A rect already AT the contract adopts into the ledger; a rect
+           still at our last-authored size converges; anything else is
+           the dev's and is kept, said out loud once per pass. */
         bool wantResize = false;
         {
           float psR = m != null && m.pngScale > 0 ? m.pngScale : 2;
           var rrt = asset.GetComponent<RectTransform>();
           if (rrt != null) {
             var wantSz = new Vector2(rootImg.sprite.rect.width / psR, rootImg.sprite.rect.height / psR);
-            if (Mathf.Abs(rrt.sizeDelta.x - wantSz.x) > 0.75f || Mathf.Abs(rrt.sizeDelta.y - wantSz.y) > 0.75f) wantResize = true;
+            /* the ledger keys on the prefab's kit-relative path — stable
+               across the relocation valet, and collision-proof between
+               Prefabs/ and its Glyphs/BigGlyphs shelves */
+            var rectKey = path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path;
+            bool differs = Mathf.Abs(rrt.sizeDelta.x - wantSz.x) > 0.75f || Mathf.Abs(rrt.sizeDelta.y - wantSz.y) > 0.75f;
+            if (!differs) rectLedger[rectKey] = wantSz; // on-contract: provably ours — remember it
+            else {
+              Vector2 oursSz;
+              if (rectLedger.TryGetValue(rectKey, out oursSz)
+                  && Mathf.Abs(rrt.sizeDelta.x - oursSz.x) <= 0.75f && Mathf.Abs(rrt.sizeDelta.y - oursSz.y) <= 0.75f)
+                wantResize = true; // still exactly where WE left it — the sprite moved, ours to converge
+              else {
+                rectKept++;
+                rectLedger.Remove(rectKey); // not ours anymore — never converge it again
+              }
+            }
           }
         }
         /* borderless art must never ride Sliced — that is Unity's "This
@@ -17480,6 +17608,7 @@ namespace PatternBreak {
             if (rrtC != null && imgC != null && imgC.sprite != null) {
               float psC = m != null && m.pngScale > 0 ? m.pngScale : 2;
               rrtC.sizeDelta = new Vector2(imgC.sprite.rect.width / psC, imgC.sprite.rect.height / psC);
+              rectLedger[path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path] = rrtC.sizeDelta; // the converged rect is the new authored size
               resized++; changed = true;
             }
           }
@@ -17547,6 +17676,16 @@ namespace PatternBreak {
           if (changed) PrefabUtility.SaveAsPrefabAsset(contents, path);
         } finally { PrefabUtility.UnloadPrefabContents(contents); }
       }
+      /* publish the rect ledger for the receipt (the pass that ran is the
+         authority; skipped prefabs keep their carried entries) */
+      {
+        var ledgerOut = new List<PBRectEntry>();
+        foreach (var kv in rectLedger) {
+          var re2 = new PBRectEntry(); re2.prefab = kv.Key; re2.w = kv.Value.x; re2.h = kv.Value.y;
+          ledgerOut.Add(re2);
+        }
+        passAuthoredRects = ledgerOut.ToArray();
+      }
       if (wired > 0)
         Debug.Log("UI Kit Maker: wired hover/press/disabled states onto " + wired + " example prefab(s) from an earlier kit version — press Play and mouse over them. Copies already placed in scenes (the Playground included) picked the wiring up automatically.");
       if (redressed > 0)
@@ -17562,7 +17701,9 @@ namespace PatternBreak {
       if (unswapped > 0)
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)
-        Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — prefabs generated by an older importer kept the sprite dimensions they were born with, and board scenes inherited the stale size.");
+        Debug.Log("UI Kit Maker: converged the root rect on " + resized + " example prefab(s) to the current sprite size — they still sat exactly where we last authored them (kit.lock.json > authoredRects), so they were ours to update. A rect you resized is never touched.");
+      if (rectKept > 0)
+        Debug.Log("UI Kit Maker: kept your size on " + rectKept + " example prefab(s) whose root rect differs from this export's sprite — resizes are yours after generation. Tools > PatternBreak > Regenerate Example Prefabs re-authors a prefab at kit size if you ever want that back.");
       if (rebodied > 0)
         Debug.Log("UI Kit Maker: moved the art of " + rebodied + " glow-family prefab(s) into a Body child — the hover halo now rides INSIDE each piece (a true first child, drawn behind the art), so it tracks every move with zero lag. Your own children, words and wiring are untouched.");
       if (pieceBound > 0)

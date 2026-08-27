@@ -2099,6 +2099,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the QuickStart/README 2022.3 qualifications are gone — the docs overpromise the legacy rung again (reviewer B2)");
 }
 
+/* ── UNITY DEV REVIEWER ROUND (2026-08-27) — the paper cuts' pins.
+   P3: the designed weight ships as a REAL cut and synthetic bold keys
+   on the gap to the cut actually aboard. P4: nothing promises a
+   HeroLabel a layerless kit can never have. P5: the resize pass
+   converges only rects the importer itself last authored. P6: the
+   update dialog says LOST. P7: the recipe README's fonts paragraph
+   speaks the Unity zip's truth (fonts bundled, no SVGs). */
+{
+  if (!/public int shippedWeight;/.test(cs)
+      || !/s\.weight - \(s\.shippedWeight > 0 \? s\.shippedWeight : 400\) >= 150/.test(cs)
+      || !/shippedWeight = gotDesigned \? designedW : 400;/.test(src)
+      || !/shippedWeight,\s*\n/.test(src))
+    errors.push("the designed-weight cut no longer travels (axis fetch → manifest shippedWeight → gap-keyed synthetic bold) — dynamic SDF text renders thinner than the baked art again (reviewer P3)");
+  if (!/static bool KitBakesLayers\(string root\)/.test(cs)
+      || !/This kit has no layered Hero Label — by design/.test(cs)
+      || !/No layer face: this kit's type recipe bakes no stroke\/shadow layers/.test(cs))
+    errors.push("the HeroLabel dead-end honesty (menu dialog + neutral Kit Status line) is gone (reviewer P4)");
+  if (!/const heroAsset = layersShipped \? "KitFace Baked Layers" : "KitFace Baked";/.test(src)
+      || !/No HeroLabel prefab here — and that's the design/.test(src))
+    errors.push("the README no longer forks on layer presence — layered-hero promises with nothing behind them again (reviewer P4)");
+  if (!/rectLedger\.TryGetValue\(rectKey, out oursSz\)/.test(cs)
+      || !/public PBRectEntry\[\] authoredRects;/.test(cs)
+      || !/kept your size on/.test(cs)
+      || !/they were ours to update\. A rect you resized is never touched\./.test(cs))
+    errors.push("the resize pass lost its ours-vs-theirs ledger — a dev-resized prefab snaps back on every import again (reviewer P5)");
+  if (!/will be LOST — the scenes are rebuilt from the kit's layout/.test(cs))
+    errors.push("the update dialog stopped saying hand edits are LOST — 'redone' reads as re-applied (reviewer P6)");
+  if (!/fontNotesMarkdown\(kitFontFamilies\(st\.cfg\), primaryFontFile \? "bundled" : "linked"\)/.test(src))
+    errors.push("the Unity zip's recipe README lost its bundled-fonts paragraph — the SVG pack's install text is another format's story (reviewer P7)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
