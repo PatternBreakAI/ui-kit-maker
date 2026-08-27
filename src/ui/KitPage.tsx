@@ -34,7 +34,7 @@ import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
    ·· Your components  the user's clones — chapter exists only with clones
    ·· Components       Buttons · Choice Controls · Fields · Sliders &
                        Progress · Navigation · Icons · System Chrome &
-                       Feedback · Containers & Assemblies
+                       Feedback · Containers
    ·· Game Systems     Game HUD & Data · RPG & MMO · Shooter & Action ·
                        Casual & Mobile · Rewards & Chests · Reward Track &
                        Objectives · Strategy & Social
@@ -410,7 +410,10 @@ function usePiece(p: PieceOpts) {
       // slot POSES keep their identity (same rule as the catalog's rk()):
       // a specimen demonstrating "Premium" stays Premium under user edits
       label: kitNoText[p.id] ? "" : (kitLabels[p.id] ?? p.label), slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
-      icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
+      // an AUTHORED icon is the specimen's identity ("Icon button · Close"
+      // must stay a close), so the picker's choice dresses only unauthored
+      // instances — the bare catalog tile, boards and exports still follow it
+      icon: p.icon !== undefined ? p.icon : resolveKitIcon(kitIcons[p.id], undefined), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
@@ -430,7 +433,7 @@ function usePiece(p: PieceOpts) {
         // drives the plain variants, the hero and the Board
         const dockOn = !!p.dock || (kb?.dock ?? false);
         return {
-          dock: dockOn ? { icon: resolveKitIcon(kitIcons[p.id], p.dock?.icon), side: kb?.dockSide ?? p.dock?.side ?? "left" } : null,
+          dock: dockOn ? { icon: p.dock?.icon !== undefined ? p.dock.icon : resolveKitIcon(kitIcons[p.id], undefined), side: kb?.dockSide ?? p.dock?.side ?? "left" } : null,
           bar: { ...p.bar, ...(kb ? { segments: kb.segments ?? p.bar?.segments, gap: kb.gap ?? p.bar?.gap, snap: kb.snap ?? p.bar?.snap } : {}) },
         };
       })() : {}),
@@ -2982,7 +2985,11 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       {/* ── 08 · containers & assemblies — compound pieces close the catalog ── */}
-      <Sec n="08" title="Containers & Assemblies" note="Compound pieces built entirely from registered components — no new materials, no one-off styling. Included in the Build Parts downloads.">
+      {/* the assembled-UI demo grid that used to close this section is gone
+          (owner call, 2026-08-27): its story — states, sheets, modals built
+          from registered pieces — is told properly by Screen Patterns and
+          Layout Starters, and the cards read as parts-debris beside them */}
+      <Sec n="08" title="Containers" note="Container shapes and panels — the surfaces everything else sits on. Included in the Build Parts downloads.">
         <div className="kp-subhead">Container shapes</div>
         <div className="kp-tray">
           <Piece id="panel" caption="Container · Panel" size="s" scale={0.4} />
@@ -2993,103 +3000,6 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-tray">
           <Piece id="panel" size="s" caption="Panel · S" />
           <Piece id="panel" size="m" caption="Panel · M" />
-        </div>
-        <div className="kp-patterns kp-assemblies">
-          <div className="gp-card">
-            <div className="gp-title">Titled panel</div>
-            <PPiece id="tab" label="INVENTORY" scale={0.48} />
-            <PPiece id="panel" size="s" scale={0.62} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Confirmation modal</div>
-            <PPiece id="header" label="ARE YOU SURE?" scale={0.42} />
-            <span className="gp-label">This can’t be undone.</span>
-            <div className="gp-row center">
-              <PPiece id="small" label="YES" scale={0.48} />
-              <PPiece id="ghost" label="Cancel" size="s" scale={0.48} />
-            </div>
-            <PPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.35} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Toast · Tooltip</div>
-            <div className="gp-row center">
-              <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.info} scale={0.42} />
-              <span className="gp-label">Saved to the cloud</span>
-            </div>
-            <PPiece id="chip" label="Tooltip text" icon={null} scale={0.48} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">List row · Item slot</div>
-            <div className="gp-row">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.bag} scale={0.38} />
-              <span className="gp-label">Mystic Blade</span>
-              <PPiece id="iconbtn" icon={STOCK_ICONS.forward} scale={0.32} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.gem} scale={0.45} />
-              <PPiece id="badge" label="3" scale={0.38} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Avatar · Medallion · Stat chips</div>
-            <div className="gp-row center">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.user} scale={0.45} />
-              <PPiece id="badge" baseState="pressed" scale={0.45} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="chip" label="STR 42" icon={null} scale={0.45} />
-              <PPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.45} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">HUD strip · Loading</div>
-            <div className="gp-row center">
-              <PPiece id="chip" label="×3" icon={STOCK_ICONS.heart} scale={0.42} />
-              <PPiece id="progress" value={0.62} scale={0.48} ambient />
-              <PPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.42} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.refresh} scale={0.38} />
-              <span className="gp-label">Loading level…</span>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Empty state</div>
-            <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.search} scale={0.48} />
-            <PPiece id="tab" label="NOTHING HERE" scale={0.48} />
-            <span className="gp-label">Your collection is waiting to begin.</span>
-            <PPiece id="small" label="EXPLORE" scale={0.51} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Error state</div>
-            <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.warning} scale={0.48} />
-            <PPiece id="tab" label="SOMETHING BROKE" scale={0.48} />
-            <span className="gp-label">That didn’t work — try again.</span>
-            <div className="gp-row center">
-              <PPiece id="small" label="RETRY" scale={0.48} />
-              <PPiece id="ghost" label="Back" size="s" scale={0.48} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Bottom sheet · collapsed</div>
-            <div className="kp-sheet collapsed">
-              <span className="kp-handle" />
-              <div className="gp-row">
-                <span className="gp-label">Squad details</span>
-                <PPiece id="iconbtn" icon={STOCK_ICONS.forward} scale={0.5} />
-              </div>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Bottom sheet · expanded</div>
-            <div className="kp-sheet">
-              <span className="kp-handle" />
-              <div className="gp-row"><span className="gp-label">Squad details</span><PPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.46} /></div>
-              <PPiece id="datarow" value={0.4} scale={0.48} />
-              <PPiece id="datarow" label="Iron Golem" sub="Level 8 · Tank" value={0.7} scale={0.48} />
-              <div className="kp-sheetfoot"><PPiece id="small" label="DEPLOY" scale={0.45} /></div>
-            </div>
-          </div>
         </div>
       </Sec>
 
