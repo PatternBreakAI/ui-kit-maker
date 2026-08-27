@@ -738,6 +738,24 @@ export async function collectExportBoards(st: {
       usedSid.add(s);
       return s;
     };
+    /* ── the STAGE-CLIP contract (owner field, 2026-08-27: nine "Go!!!"
+       banner copies in a 3×3 grid OUTSIDE the phone frame — ten saved-asset
+       board items parked off the 390×844 stage at x 80/420/760, y
+       960/1180/1400). The app's stage clips (`.bd-stage { overflow:
+       hidden }` — Board.tsx renders every item, the frame hides the parked
+       ones), so a copy whose drawn box never enters the frame is INVISIBLE
+       on uikitmaker.com — and what the maker never saw must not travel:
+       the scene contains exactly what the board SHOWS. A copy showing even
+       a sliver ships whole (edge overhang is the app's own behavior — the
+       frame crops it there, the phone frame crops it in Unity's Game view).
+       The test is the drawn CANVAS box (glow/shadow pad included — those
+       pixels show in-app too), spun to its rotated AABB. */
+    const onStage = (cx: number, cy: number, w: number, h: number, rotDeg?: number): boolean => {
+      const r = ((rotDeg ?? 0) * Math.PI) / 180;
+      const cR = Math.abs(Math.cos(r)), sR = Math.abs(Math.sin(r));
+      const hw = (w * cR + h * sR) / 2, hh = (w * sR + h * cR) / 2;
+      return cx + hw > 0.5 && cx - hw < W - 0.5 && cy + hh > 0.5 && cy - hh < H - 0.5;
+    };
     for (const b of items) {
       if (b.stamp) {
         /* a stamp bakes to its own sprite: specimen svg → raster → the
@@ -761,6 +779,13 @@ export async function collectExportBoards(st: {
         const sf = stampFilter(st.cfg, b.stamp);
         if (sf) cx2.filter = sf;
         cx2.drawImage(warped ?? bmp, padPx, padPx);
+        /* box first, gate second: a stamp parked off the stage never drew
+           in the app (the stage-clip contract above) — skip before any
+           bytes ship */
+        const k = b.scale ?? 1;
+        const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
+        const cx = b.x + ((rw / 2) * k) / 2, cy = b.y + ((rh / 2) * k) / 2;
+        if (!onStage(cx, cy, w, h, b.rot)) { bmp.close(); continue; }
         const file = `boardstamps/${slug}-s${sidOf(b)}.png`;
         stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
         /* CORE-ALPHA companion for the Unity wipe (owner: the shine "masks
@@ -822,9 +847,6 @@ export async function collectExportBoards(st: {
           }
         } catch { /* a stamp without its mask still shines — clipped to its full art; without a measurement it stays a baked picture */ }
         bmp.close();
-        const k = b.scale ?? 1;
-        const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
-        const cx = b.x + ((rw / 2) * k) / 2, cy = b.y + ((rh / 2) * k) / 2;
         const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
         const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
         exItems.push({
@@ -886,6 +908,16 @@ export async function collectExportBoards(st: {
         const gl = bigGlyphById(b.big.gid);
         if (!gl) continue;
         const hasFx = !!(b.big.shadow || b.big.glow);
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
+           describe the shipped raster's footprint or the importer would
+           squeeze the halo into the art rect — the stamp rows' contract */
+        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
+        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
+        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
+        // a glyph parked off the stage never drew in the app — the
+        // stage-clip contract, gated before any bytes ship
+        if (!onStage(cxB, cyB, wB, hB, b.rot)) continue;
         let file: string;
         try {
           if (!hasFx) {
@@ -912,13 +944,6 @@ export async function collectExportBoards(st: {
             stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
           }
         } catch { continue; }
-        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
-           describe the shipped raster's footprint or the importer would
-           squeeze the halo into the art rect — the stamp rows' contract */
-        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
-        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
-        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
         const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
         const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
         exItems.push({
@@ -958,6 +983,12 @@ export async function collectExportBoards(st: {
           if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
           const bmp = await createImageBitmap(rec.blob);
           wNat = bmp.width; hNat = bmp.height;
+          /* a logo parked off the stage never drew in the app — the
+             stage-clip contract, gated before any bytes ship (kBg/padBg
+             mirror the kB/padB math below the try) */
+          const kBg = (b.scale ?? 1) * BIG_GLYPH_BASE;
+          const padBg = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
+          if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
           const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
             const cv = document.createElement("canvas");
             cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
@@ -1015,13 +1046,8 @@ export async function collectExportBoards(st: {
         const still = raw0
           .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
           .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
-        const fdL = fontByName(item.cfg.type.font);
-        const svgL = await inlineKitFace(still, item.cfg.type.font, fdL.name === item.cfg.type.font ? fdL.css ?? null : null);
-        const { bytes: pb } = await svgToPngBytes(svgL, 2);
         const swL = parseFloat(/width="([\d.]+)"/.exec(still)?.[1] ?? "200");
         const shL = parseFloat(/height="([\d.]+)"/.exec(still)?.[1] ?? "80");
-        const file = `boardstamps/${slug}-a${sidOf(b)}.png`;
-        stampFiles.push({ file, bytes: pb });
         const kL = b.scale ?? 1;
         const wL = swL * kL, hL = shL * kL;
         // saved assets ride LiveArt's anchorContent on the stage too — a
@@ -1039,6 +1065,17 @@ export async function collectExportBoards(st: {
           cxL = hxL + dxL * Math.cos(rotL) - dyL * Math.sin(rotL);
           cyL = hyL + dxL * Math.sin(rotL) + dyL * Math.cos(rotL);
         }
+        /* THE FIELD'S NINE STRAY "Go!!!" BANNERS lived exactly here: ten
+           saved-asset copies parked below the stage (invisible in the app)
+           each baked a sprite and placed a scene object. A parked copy
+           never drew on uikitmaker.com — it must not travel. Gated before
+           the raster, so no dead bytes ship either. */
+        if (!onStage(cxL, cyL, wL, hL, b.rot)) continue;
+        const fdL = fontByName(item.cfg.type.font);
+        const svgL = await inlineKitFace(still, item.cfg.type.font, fdL.name === item.cfg.type.font ? fdL.css ?? null : null);
+        const { bytes: pb } = await svgToPngBytes(svgL, 2);
+        const file = `boardstamps/${slug}-a${sidOf(b)}.png`;
+        stampFiles.push({ file, bytes: pb });
         const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
         const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
         exItems.push({
@@ -1109,6 +1146,10 @@ export async function collectExportBoards(st: {
       };
       const c0 = spin(b.x - padRk + w / 2, b.y - padRk + h / 2);
       const cx = c0.x, cy = c0.y;
+      /* a kit copy parked off the stage never drew in the app — the
+         stage-clip contract: skip before the bake/pose/shadow pipelines
+         ship a single byte for it */
+      if (!onStage(cx, cy, w, h, b.rot)) continue;
       const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
       // board y runs DOWN; Unity anchors run UP — top third = ay 1
       const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
@@ -10292,6 +10333,18 @@ namespace PatternBreak {
         if (bdSh == null || bdSh.items == null) continue;
         foreach (var itSh in bdSh.items) if (itSh != null && !string.IsNullOrEmpty(itSh.shadow)) shadowsInUse.Add(itSh.shadow);
       }
+      /* every baked-picture sprite the CURRENT export still ships a row
+         for — the stray-bake cull below keys on this the way the shadow
+         cull keys on shadowsInUse. Board copies PARKED outside the app's
+         stage (the field's nine "Go!!!" banners in a 3×3 grid off the
+         phone frame) were invisible on uikitmaker.com but the old export
+         shipped them anyway; the fixed export drops them, and this set is
+         how a kept scene learns which pictures are disowned. */
+      var stampsInUse = new HashSet<string>();
+      foreach (var bdSp in m.boards) {
+        if (bdSp == null || bdSp.items == null) continue;
+        foreach (var itSp in bdSp.items) if (itSp != null && !string.IsNullOrEmpty(itSp.stamp)) stampsInUse.Add(itSp.stamp);
+      }
       foreach (var bd in m.boards) {
         var scenePath = root + "/Scenes/" + BoardSlug(bd.name) + ".unity";
         if (!File.Exists(scenePath) || bd.items == null || bd.items.Length == 0) continue;
@@ -10307,6 +10360,7 @@ namespace PatternBreak {
         try {
           var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
           var staleShadows = new List<GameObject>(); // round 26 — culled after the walk
+          var strayBakes = new List<GameObject>(); // parked-copy pictures the export disowned — culled after the walk
           var deadDropdowns = new List<string>(); // field: click-dead copies, named out loud after the walk
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
@@ -10338,6 +10392,26 @@ namespace PatternBreak {
                 if (shPathC != null && shPathC.StartsWith(root + "/boardstamps/") && !shadowsInUse.Contains(shPathC.Substring(root.Length + 1)))
                   staleShadows.Add(ch.gameObject);
                 continue;
+              }
+              /* ── STRAY PARKED-BAKE CULL (owner: "what's up with all the
+                 extra GOs seems messy" — nine Go!!! banner pictures in a
+                 3×3 grid outside the phone frame): board copies parked off
+                 the app's stage never showed on uikitmaker.com, and the
+                 fixed export no longer ships them. A scene object still
+                 wearing one is OUR stray beyond doubt — builder name
+                 ("Stamp — …" / "… (baked)"), OUR boardstamps sprite,
+                 manifest-disowned — the stale-shadow cull's exact
+                 ownership gate. A dev's own duplicate of a LIVING bake
+                 keeps its sprite in the manifest and never trips this;
+                 anything renamed or re-sprited is theirs and stays.
+                 Deferred: destroying mid-walk mutates the child list. */
+              if (ch.name.StartsWith("Stamp — ") || ch.name.EndsWith(" (baked)")) {
+                var stImgC = ch.GetComponent<Image>();
+                var stPathC = stImgC != null && stImgC.sprite != null ? AssetDatabase.GetAssetPath(stImgC.sprite).Replace("\\\\", "/") : null;
+                if (stPathC != null && stPathC.StartsWith(root + "/boardstamps/") && !stampsInUse.Contains(stPathC.Substring(root.Length + 1))) {
+                  strayBakes.Add(ch.gameObject);
+                  continue;
+                }
               }
               PBBoardItem it2 = null;
               foreach (var it in bd.items) {
@@ -10576,9 +10650,18 @@ namespace PatternBreak {
              boardstamps-sprited, manifest-disowned — see the walk above */
           int shadowCut = 0;
           foreach (var stSh in staleShadows) { UnityEngine.Object.DestroyImmediate(stSh); shadowCut++; }
+          /* the deferred stray-bake cull — parked copies the export
+             disowned; named out loud so "what's up with all the extra
+             GOs" has an answer in the Console */
+          int strayCut = 0;
+          if (strayBakes.Count > 0) {
+            var strayNames = new List<string>();
+            foreach (var stray in strayBakes) { strayNames.Add(stray.name); UnityEngine.Object.DestroyImmediate(stray); strayCut++; }
+            Debug.Log("UI Kit Maker: scene '" + bd.name + "' — removed " + strayCut + " stray baked picture(s) this export no longer ships (" + string.Join(", ", strayNames.ToArray()) + "). They were board copies parked OUTSIDE the app's phone frame — invisible on uikitmaker.com, so they don't travel to Unity anymore.");
+          }
           if (deadDropdowns.Count > 0)
             Debug.LogWarning("UI Kit Maker: scene '" + bd.name + "' — " + deadDropdowns.Count + " dropdown cop(ies) with NO Selectable (" + string.Join(", ", deadDropdowns.ToArray()) + "): they predate the working dropdown rig, so clicking them does nothing. The scene is yours after first generation, so it isn't rebuilt automatically — Tools > PatternBreak > Rebuild Kit Board Scenes replaces it with the wired control (scene edits you made are lost in that one scene; every prefab and other scene is untouched).");
-          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0 || boundRoots > 0) {
+          if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0 || strayCut > 0 || boundRoots > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
               + (artFixed > 0 && healedW > 0 ? ", " : "")
@@ -10587,7 +10670,9 @@ namespace PatternBreak {
               + (ghostFixed > 0 ? ghostFixed + " ghost stick(s) swapped in for the solid Joystick that stood on their seat" : "")
               + ((artFixed > 0 || healedW > 0 || ghostFixed > 0) && shadowCut > 0 ? ", " : "")
               + (shadowCut > 0 ? shadowCut + " stale shadow bake(s) removed (this export no longer ships them)" : "")
-              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0 || shadowCut > 0) && boundRoots > 0 ? ", " : "")
+              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0 || shadowCut > 0) && strayCut > 0 ? ", " : "")
+              + (strayCut > 0 ? strayCut + " stray parked-copy picture(s) removed (invisible on the app's board — see the line above)" : "")
+              + ((artFixed > 0 || healedW > 0 || ghostFixed > 0 || shadowCut > 0 || strayCut > 0) && boundRoots > 0 ? ", " : "")
               + (boundRoots > 0 ? boundRoots + " piece(s) bound as one selection (clicking any part now grabs the whole piece, words included)" : "");
             if (!wasDirty) {
               if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
