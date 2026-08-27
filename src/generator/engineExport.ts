@@ -10370,6 +10370,9 @@ namespace PatternBreak {
         int pinned = 0, pinnedVariant = 0, pinnedMinted = 0;
         var pinnedFallbacks = new List<string>();
         var selectRows = new List<KeyValuePair<PBBoardItem, GameObject>>();
+        // every placed root, in board draw order — the icon-adoption pass
+        // below reads this to find glyphs stacked over interactive pieces
+        var placedRoots = new List<KeyValuePair<PBBoardItem, RectTransform>>();
         if (bd.items != null) foreach (var it in bd.items) {
           GameObject inst = null; RectTransform rt = null; RectTransform shadowRt = null;
           /* ── a BIG GLYPH (the owner's board-art drop): every instance
@@ -11055,6 +11058,58 @@ namespace PatternBreak {
               selectRows.Add(new KeyValuePair<PBBoardItem, GameObject>(it, inst));
           }
           placed++;
+          placedRoots.Add(new KeyValuePair<PBBoardItem, RectTransform>(it, rt));
+        }
+        /* ── ICON ADOPTION (the third parked-icon field strike): on the
+           board, an "item button" is a COMPOSITION — an interactive frame
+           with a display glyph stacked dead-center on top (the HUD's
+           hammer/bomb/magnet over their item slots; Victory's gem, coin
+           stack and star over the reward wells). The scene placed BOTH as
+           siblings under Safe Area, and the rider machinery (StateFx —
+           PushRiders) moves CHILDREN only, so the frame's face sank while
+           the icon hovered in place, no matter how the prefab's own
+           children were fixed (strikes one and two lived inside the
+           prefab). The glyph now becomes a CHILD of the interactive piece
+           whose shell its center sits in: rider discovery finds it as
+           content, and press/hover/disabled carry it with the face —
+           exactly the app's one group. Its cast shadow stays a grounded
+           scene sibling like every other shadow. Non-interactive stacks
+           (a glyph on a panel) keep their scene seats untouched. ── */
+        for (int ai2 = 0; ai2 < placedRoots.Count; ai2++) {
+          var aIt = placedRoots[ai2].Key; var aRt = placedRoots[ai2].Value;
+          if (aRt == null || aIt == null) continue;
+          bool glyphish = (aIt.big != null && !string.IsNullOrEmpty(aIt.big.id))
+            || (aIt.component != null && aIt.component.StartsWith("glyph"));
+          if (!glyphish || aRt.GetComponent<Selectable>() != null) continue;
+          RectTransform host = null; PBBoardItem hostIt = null;
+          for (int hi2 = 0; hi2 < placedRoots.Count; hi2++) {
+            if (hi2 == ai2) continue;
+            var hIt = placedRoots[hi2].Key; var hRt = placedRoots[hi2].Value;
+            if (hRt == null || hIt == null || hIt.w < 2f || hIt.h < 2f) continue;
+            // a host must actually press: a Selectable changes state, a
+            // StateFx moves the riders — both live on the placed root
+            if (hRt.GetComponent<Selectable>() == null || hRt.GetComponent<StateFx>() == null) continue;
+            if (Mathf.Abs(aIt.cx - hIt.cx) > hIt.w / 2f || Mathf.Abs(aIt.cy - hIt.cy) > hIt.h / 2f) continue;
+            // stacked hosts: the smallest shell that holds the icon wins
+            if (host == null || hIt.w * hIt.h < hostIt.w * hostIt.h) { host = hRt; hostIt = hIt; }
+          }
+          if (host == null) continue;
+          /* world pose kept — the icon lands exactly where the board drew
+             it; Unity folds the host's scale into the glyph's local pose */
+          var keepSize = aRt.rect.size;
+          aRt.SetParent(host, true);
+          aRt.SetAsLastSibling(); // over the face, like the app's stack
+          /* point-anchor it inside the piece: anchors inherited from the
+             board pass (edge/corner/stretch) would re-derive against the
+             HOST's rect on any later resize and walk the icon around */
+          var keepPos = aRt.position;
+          aRt.anchorMin = new Vector2(0.5f, 0.5f); aRt.anchorMax = new Vector2(0.5f, 0.5f);
+          aRt.sizeDelta = keepSize;
+          aRt.position = keepPos;
+          /* button content never eats the button's own click (the glyph
+             rack ships raycast-off already; a big-glyph drop may not) */
+          foreach (var gAd in aRt.GetComponentsInChildren<Image>(true)) gAd.raycastTarget = false;
+          Debug.Log("UI Kit Maker: '" + bd.name + "' — " + aRt.name + " sits on " + host.name + " and now rides it: press, hover and disabled carry the icon with the face (it was a scene sibling before, which no state could ever move).");
         }
         WireSelectRows(selectRows);
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath)) {
