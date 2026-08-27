@@ -4451,6 +4451,94 @@ export interface KitOpts {
   };
 }
 
+/* ── the dropdown's OPEN-MENU style (owner: "we should be able to edit
+   this in the app btw, list test, row colors, etc... maybe we automate
+   highlight state to keep it simple with auto-contrast or something") ──
+   One resolver owns the menu's whole voice so the app render, the kit
+   page specimen, the Board and the engine manifest all read the same
+   truth. Two dials (Row plate, Row text — kitSlotVals.dropdown.rowplate /
+   .rowtext); the hovered-row highlight is COMPUTED, never dialed. */
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+/** WCAG relative luminance of a #rrggbb color (0 for anything else). */
+const relLum = (c: string): number => {
+  if (!HEX6.test(c)) return 0;
+  const p = parseInt(c.slice(1), 16);
+  const lin = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  return 0.2126 * lin((p >> 16) & 255) + 0.7152 * lin((p >> 8) & 255) + 0.0722 * lin(p & 255);
+};
+/** WCAG contrast ratio between two #rrggbb colors. */
+const contrastOf = (a: string, b: string): number => {
+  const la = relLum(a), lb = relLum(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+};
+/* AUTO-CONTRAST highlight: derived from the plate, kept legible under the
+   row ink. The bar steps toward the ink's side of the plate (dark plate
+   lifts, pale plate sinks) and takes the STRONGEST step that still leaves
+   the ink ≥ 4.5:1 on the bar; if even the faintest step breaks legibility
+   (mid-tone plates), it flips away from the ink instead — a quieter bar
+   that reads, over a pretty one that doesn't. */
+const autoMenuHighlight = (plate: string, ink: string): string => {
+  const toward = relLum(ink) >= relLum(plate)
+    ? (t: number) => lighten(plate, t)
+    : (t: number) => darken(plate, t);
+  for (const t of [0.34, 0.28, 0.22, 0.16, 0.12]) {
+    const c = toward(t);
+    if (contrastOf(ink, c) >= 4.5) return c;
+  }
+  const away = relLum(ink) >= relLum(plate)
+    ? (t: number) => darken(plate, t)
+    : (t: number) => lighten(plate, t);
+  for (const t of [0.22, 0.3, 0.4]) {
+    const c = away(t);
+    if (contrastOf(ink, c) >= 4.5) return c;
+  }
+  return away(0.4);
+};
+/** The dropdown menu's resolved voice — what the open render draws and the
+ *  engine manifest ships. `auto` marks a plate/ink-derived highlight (a
+ *  color dial is set); false = the kit's stock hover-aura wash. */
+export interface KitMenuStyle {
+  items: [string, string, string];
+  plate: string; stroke: string;
+  ink: string; inkDim: string;
+  highlight: string;
+  auto: boolean;
+}
+export function resolveMenuStyle(cfg: GenConfig, slots?: Record<string, string>): KitMenuStyle {
+  const items: [string, string, string] = [
+    (slots?.o1 ?? "Option one").slice(0, 24),
+    (slots?.o2 ?? "Option two").slice(0, 24),
+    (slots?.o3 ?? "Option three").slice(0, 24),
+  ];
+  const plateSet = slots?.rowplate && HEX6.test(slots.rowplate) ? slots.rowplate : undefined;
+  const inkSet = slots?.rowtext && HEX6.test(slots.rowtext) ? slots.rowtext : undefined;
+  const plate = plateSet ?? darken(effect(cfg.effects, "Inner Fill"), 0.55);
+  const stroke = plateSet ? darken(plate, 0.45) : darken(effect(cfg.effects, "Bevel"), 0.5);
+  if (!plateSet && !inkSet) {
+    /* today's look, byte-for-byte: white ink over the kit-derived plate,
+       highlight from the hover state's aura (its candy aura, else its
+       Glow role), strength from the hover glow dial */
+    const hd = cfg.stateDesigns.hover ?? cfg;
+    const hovC = hd.candy.aura.color ?? hd.effects.Glow ?? effect(cfg.effects, "Glow");
+    const hovOp = Math.min(0.55, 0.1 + 0.35 * (cfg.states.hover.glow / 100));
+    return { items, plate, stroke, ink: "#FFFFFF", inkDim: "rgba(255,255,255,0.66)", highlight: hexRgba(hovC, hovOp), auto: false };
+  }
+  /* a color dial is set — the whole voice derives: the ink stays legible
+     on the plate (the pale-ground guard's job, done in WCAG terms), and
+     the highlight derives from plate + ink */
+  /* the auto ink wants HEADROOM (≥ 7:1), not bare legality: an ink that
+     only just clears 4.5:1 on the plate leaves the derived highlight no
+     room to move — every step broke legibility and the bar went invisible
+     (Brightside's warm shadow ink on a near-white plate). Kit-flavored
+     candidates first; ≥ 7:1 preferred, ≥ 4.5:1 accepted, else the best. */
+  const ladder = ["#FFFFFF", darken(effect(cfg.effects, "Shadow"), 0.15), "#0B0F16"];
+  const ink = inkSet
+    ?? ladder.find((c) => contrastOf(c, plate) >= 7)
+    ?? ladder.find((c) => contrastOf(c, plate) >= 4.5)
+    ?? ladder.reduce((a, b) => (contrastOf(b, plate) > contrastOf(a, plate) ? b : a));
+  return { items, plate, stroke, ink, inkDim: hexRgba(ink, 0.66), highlight: autoMenuHighlight(plate, ink), auto: true };
+}
+
 export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, state: GenStateName = "default", value?: number, shapeOv?: Shape, opts: KitOpts = {}): string {
   if (opts.tone === "alt") {
     // muted variant — same material, drained of celebration
@@ -9962,32 +10050,40 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vw = +m[3] + 2 * +m[1];
       const bw2 = vw - 78, rowH = 44 * k, pad = 10 * k, menuH = rowH * 3 + pad * 2;
       const my = 30 + 110 * k + 10 * k;
-      const face = darken(effect(cfg.effects, "Inner Fill"), 0.55);
       /* The open menu speaks three row voices (owner decision, 2026-07-25):
          resting · HIGHLIGHTED (the row under the cursor) · SELECTED (the
-         choice that is currently true). The highlight is the kit's Hover
-         language made small: color from the hover state's aura (its candy
-         aura, else its Glow role), strength from the hover glow dial. The
-         floor keeps the pointer from ever getting lost — a menu with an
-         invisible highlight reads as broken, so this is editable within
-         reason. Selected gets the check and full-strength text, no bar:
-         highlighted moves constantly, selected only changes on commit. */
-      const hd = cfg.stateDesigns.hover ?? cfg;
-      const hovC = hd.candy.aura.color ?? hd.effects.Glow ?? effect(cfg.effects, "Glow");
-      const hovOp = Math.min(0.55, 0.1 + 0.35 * (cfg.states.hover.glow / 100));
+         choice that is currently true). The whole voice — plate, stroke,
+         inks and the highlight — now comes from ONE resolver
+         (resolveMenuStyle; owner: "we should be able to edit this in the
+         app... list text, row colors"): unset dials reproduce the kit-
+         derived look byte-for-byte (highlight = the kit's Hover language
+         made small — hover aura color, hover glow strength), while a Row
+         plate / Row text dial derives everything else, with the highlight
+         COMPUTED by auto-contrast (the owner's suggestion) — never dialed.
+         The floor keeps the pointer from ever getting lost — a menu with
+         an invisible highlight reads as broken. Selected gets the check
+         and full-strength text, no bar: highlighted moves constantly,
+         selected only changes on commit. */
+      const M = resolveMenuStyle(cfg, opts.slots);
+      const face = M.plate;
       const selCy = my + pad + rowH / 2;
-      const check = `<path d="M ${(39 + bw2 - 38 * k).toFixed(1)} ${selCy.toFixed(1)} l ${(7 * k).toFixed(1)} ${(7 * k).toFixed(1)} l ${(14 * k).toFixed(1)} ${(-16 * k).toFixed(1)}" fill="none" stroke="#FFFFFF" stroke-width="${(3.5 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`;
+      const check = `<path d="M ${(39 + bw2 - 38 * k).toFixed(1)} ${selCy.toFixed(1)} l ${(7 * k).toFixed(1)} ${(7 * k).toFixed(1)} l ${(14 * k).toFixed(1)} ${(-16 * k).toFixed(1)}" fill="none" stroke="${M.ink}" stroke-width="${(3.5 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>`;
       /* option rows: text slots (o1–o3, edited in Component content) — esc'd
          because slot text can arrive from OTHER makers' docs on community
          cards; stamped for Dissect; and they're list rows, so the list font
          speaks here when one is set */
-      const rows = [(opts.slots?.o1 ?? "Option one").slice(0, 24), (opts.slots?.o2 ?? "Option two").slice(0, 24), (opts.slots?.o3 ?? "Option three").slice(0, 24)].map((t, i) =>
-        `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${hexRgba(hovC, hovOp)}"/>` : ""}
-         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', 'Inter Variable', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? "#FFFFFF" : "rgba(255,255,255,0.66)"}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
-      const menu = `<g><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${darken(bevel, 0.5)}" stroke-width="1.5"/>${rows}</g>`;
+      const rows = M.items.map((t, i) =>
+        `${i === 1 ? `<rect x="${39 + 6}" y="${(my + pad + i * rowH).toFixed(1)}" width="${bw2 - 12}" height="${rowH}" rx="${8 * k}" fill="${M.highlight}"/>` : ""}
+         <g data-part="slot-text"><text x="${39 + 20 * k}" y="${(my + pad + i * rowH + rowH / 2).toFixed(1)}" font-family="'${cfg.stateDesigns?.pressed?.type?.listFont ?? cfg.type.listFont ?? font}', 'Inter Variable', Inter, sans-serif" font-size="${26 * k}" font-weight="600" fill="${i <= 1 ? M.ink : M.inkDim}" dominant-baseline="central">${esc(t)}</text></g>${i === 0 ? check : ""}`).join("");
+      const menu = `<g data-part="menu"><path d="${roundRect(39, my, bw2, menuH, 12 * k)}" fill="${face}" stroke="${M.stroke}" stroke-width="1.5"/>${rows}</g>`;
+      /* the resolved voice ships as a geo-stamp for the engine manifest
+         (the data-track/data-gauge discipline — attributes never
+         rasterize): plate stroke ink inkDim highlight auto. Items stay
+         readable from the data-part="slot-text" rows. */
+      const menuStamp = `data-menu="${M.plate} ${M.stroke} ${M.ink} ${M.inkDim.replace(/ /g, "")} ${M.highlight.replace(/ /g, "")} ${M.auto ? 1 : 0}" `;
       // the menu overlays below the button (overflow: visible) so the card
       // never reflows — pressing doesn't shift the pointer off the component
-      const opened = inject(btn.replace("<svg ", '<svg style="overflow:visible" '), menu);
+      const opened = inject(btn.replace("<svg ", `<svg ${menuStamp}style="overflow:visible" `), menu);
       if (!opts.expand) return opened;
       // as a downloaded file the SVG is consumed as an image, where root
       // overflow is clipped — grow the canvas so the whole menu survives

@@ -1471,6 +1471,15 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "o1", name: "Option 1", kind: "free", def: "Option one", maxLen: 24 },
     { id: "o2", name: "Option 2", kind: "free", def: "Option two", maxLen: 24 },
     { id: "o3", name: "Option 3", kind: "free", def: "Option three", maxLen: 24 },
+    /* the OPEN menu's dials (owner: "we should be able to edit this in the
+       app btw, list test, row colors, etc"). Two dials on purpose — the
+       hovered/selected highlight is COMPUTED from the plate (the owner's
+       auto-contrast suggestion), never dialed. Unset = today's kit-derived
+       look. */
+    { id: "rowplate", name: "Row plate", kind: "color", def: "#222A38",
+      note: "The open menu's plate. Unset follows the kit's face. The hover highlight derives from this automatically — lighter on dark plates, darker on pale ones, always legible." },
+    { id: "rowtext", name: "Row text", kind: "color", def: "#FFFFFF",
+      note: "Row text ink. Unset picks a legible ink for the plate on its own — white on dark plates, deep ink on pale ones." },
   ],
   flipclock: [
     { id: "tag1", name: "Tag 1", kind: "free", def: "DAYS", maxLen: 10 },
