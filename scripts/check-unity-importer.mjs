@@ -1815,6 +1815,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("BAKE_GLYPHS lost the × glyph — every live qtybadge word tofus where the app draws the multiply sign (slice 2)");
 }
 
+/* ── Unity-exporter round, slice 3 (2026-08-27): the dropdown DROPS DOWN.
+   A real selection control on the kit's art — TMP_Dropdown on TMP
+   editors, the stock uGUI Dropdown on the pre-2023.2 rung — with the
+   kit's menu plate, hover bar and selected check; sample language
+   options whose glyphs are pinned into the baked atlas (no tofu). */
+{
+  if (!/static readonly string\[\] DropdownSampleOptions = new string\[\] \{ "English", "Español", "Français", "Deutsch", "Português", "Italiano" \};/.test(cs))
+    errors.push("the dropdown's sample language options are missing or changed — the fence's glyph-coverage proof pins these exact strings (slice 3)");
+  if (!/static void BuildDropdownRig\(GameObject go, string root, int pngScale, PBManifest m, Font kitFont\)/.test(cs))
+    errors.push("BuildDropdownRig is missing — the dropdown stays a picture (slice 3)");
+  if (!/ddC = go\.AddComponent<TMP_Dropdown>\(\);/.test(cs) || !/ddC = go\.AddComponent<Dropdown>\(\);/.test(cs))
+    errors.push("the dropdown must wire BOTH rungs — TMP_Dropdown (2023.2+/Unity 6) and legacy Dropdown (2022.3) (slice 3)");
+  if (!/srDD\.content = ctRt;\s*\n\s*srDD\.viewport = vpRt;/.test(cs))
+    errors.push("the template's ScrollRect must be wired (content + viewport) — Unity never auto-wires it and long lists become unreachable (slice 3)");
+  if (!/tgDD\.transition = Selectable\.Transition\.ColorTint;/.test(cs) || !/cbDD\.normalColor = new Color\(1f, 1f, 1f, 0f\);/.test(cs))
+    errors.push("the row-highlight bar must ride the item Toggle's tint alpha (rest 0, hover/press/focus 1) — the kit's own emphasis rule (slice 3)");
+  if (!/if \(it\.component == "dropdown" && !string\.IsNullOrEmpty\(it\.label\)\)/.test(cs)
+      || !/ddScn\.options\.Insert\(0, new TMP_Dropdown\.OptionData\(it\.label\)\); diScn = 0;/.test(cs))
+    errors.push("the scene must match the per-copy word into the options (insert-at-top fallback) — Play's RefreshShownValue re-shows the board's word (slice 3)");
+  if (!/tplRt9\.localScale = new Vector3\(kTpl, kTpl, 1f\);/.test(cs))
+    errors.push("the posed road must scale the open-list template through SoloLabelK — prefab-frame rows would dwarf a board-scaled piece (slice 3)");
+  if (!/spritePath\.EndsWith\("\/dropdown-base\.9\.png"\)\s*\n\s*&& asset\.GetComponentInChildren<Selectable>\(true\) == null\s*\n\s*&& asset\.transform\.Find\("Template"\) == null/.test(cs))
+    errors.push("the maintenance graft (picture-era Dropdown → working control, ownership-gated) is missing — existing projects never gain the drop-down (slice 3)");
+  // glyph coverage at the source: the language names' accents ride BAKE_GLYPHS
+  const bg = src.match(/const BAKE_GLYPHS = "([^"]+)";/);
+  if (!bg) errors.push("BAKE_GLYPHS not found");
+  else for (const opt of ["English", "Español", "Français", "Deutsch", "Português", "Italiano"])
+    for (const ch of opt.replace(/ /g, ""))
+      if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

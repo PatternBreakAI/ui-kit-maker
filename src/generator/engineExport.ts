@@ -4562,9 +4562,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
    about effect bleed — the calibration render IS the reference. */
 /* "×" joined for the universal road: the quantity badge's own word is
    "×250" and every Brightside copy types ×-counts — without the glyph the
-   live labels would tofu where the app draws the multiply sign. The kit
-   face's fallback chain draws it exactly as the app does. */
-const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×";
+   live labels would tofu where the app draws the multiply sign. The
+   accented Latin set joined for the dropdown round (GLYPH COVERAGE RULE:
+   native language names — Español, Français, Português — ride live labels
+   through the baked faces; the slice fence proves every option string
+   against this set, so tofu can't ship). The kit face's fallback chain
+   draws any glyph the display font lacks, exactly as the app does. */
+const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×éèêëàâäçîïíìôöóòûüúùñãõÉÈÊÀÇÑ";
 const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
 
 async function rasterCanvas(svg: string, scale: number): Promise<HTMLCanvasElement> {
@@ -10506,6 +10510,24 @@ namespace PatternBreak {
                    a frame this shell-box rect no longer matches. */
                 var wdPos = inst.transform.Find("Words");
                 if (wdPos != null) wdPos.gameObject.SetActive(false);
+                /* the dropdown's open-list TEMPLATE was built in PREFAB
+                   frame units — this root now IS the shell box at BOARD
+                   scale, so the list docks at the rect's own bottom and
+                   the whole plate rides a SoloLabelK scale (the seat
+                   lesson): rows, art and type shrink to the piece while
+                   the width recompensates to the board footprint. */
+                var tplPos = inst.transform.Find("Template");
+                if (tplPos != null) {
+                  var tplRt9 = tplPos.GetComponent<RectTransform>();
+                  float kTpl = SoloLabelK(it, m, rt);
+                  if (tplRt9 != null && kTpl > 0.001f && it.w > 1f) {
+                    tplRt9.anchorMin = new Vector2(0.5f, 0f); tplRt9.anchorMax = new Vector2(0.5f, 0f);
+                    tplRt9.pivot = new Vector2(0.5f, 1f);
+                    tplRt9.localScale = new Vector3(kTpl, kTpl, 1f);
+                    tplRt9.sizeDelta = new Vector2(it.w / kTpl, tplRt9.sizeDelta.y);
+                    tplRt9.anchoredPosition = new Vector2(0f, -4f * kTpl);
+                  }
+                }
                 /* WipeShine masks its band with OUR image — a null-sprite,
                    alpha-0 root makes that stencil pass NOTHING and the whole
                    child stack vanishes the moment play starts (owner: "when
@@ -10747,6 +10769,32 @@ namespace PatternBreak {
               var vsp = S(root + "/assets/" + it.component + "/" + it.component + "-" + it.ov + ".png");
               var vim = inst.GetComponent<Image>();
               if (vsp != null && vim != null) vim.sprite = vsp;
+            }
+            /* the dropdown's per-copy word IS its selected option (owner:
+               clicking "English" must open the language list): match it
+               into the options — or seat it at the top when the maker
+               typed something the sample list lacks — so Play's own
+               RefreshShownValue re-shows exactly the board's word. */
+            if (it.component == "dropdown" && !string.IsNullOrEmpty(it.label)) {
+#if UNITY_2023_2_OR_NEWER
+              var ddScn = inst.GetComponent<TMP_Dropdown>();
+              if (ddScn != null && ddScn.options != null) {
+                int diScn = -1;
+                for (int oi = 0; oi < ddScn.options.Count; oi++)
+                  if (ddScn.options[oi] != null && ddScn.options[oi].text == it.label) { diScn = oi; break; }
+                if (diScn < 0) { ddScn.options.Insert(0, new TMP_Dropdown.OptionData(it.label)); diScn = 0; }
+                ddScn.SetValueWithoutNotify(diScn);
+              }
+#else
+              var ddScn = inst.GetComponent<Dropdown>();
+              if (ddScn != null && ddScn.options != null) {
+                int diScn = -1;
+                for (int oi = 0; oi < ddScn.options.Count; oi++)
+                  if (ddScn.options[oi] != null && ddScn.options[oi].text == it.label) { diScn = oi; break; }
+                if (diScn < 0) { ddScn.options.Insert(0, new Dropdown.OptionData(it.label)); diScn = 0; }
+                ddScn.SetValueWithoutNotify(diScn);
+              }
+#endif
             }
             /* the loot tag's staged TIER re-tints the live dress (round
                16) — the same value the app's board pose used */
@@ -13219,15 +13267,173 @@ namespace PatternBreak {
        word is the maker's own (manifest labelText), dressed and seated by
        the same machinery as every button label (owner: "a lot of text
        wasn't appearing on these panels") */
+    /* ── the dropdown DROPS DOWN (owner: clicking "English" in the Pause
+       scene should open the language list). A REAL selection control on
+       the kit's own art: TMP_Dropdown on TMP editors (2023.2+/Unity 6),
+       the stock uGUI Dropdown + legacy Text on the pre-2023.2 rung —
+       native engine machinery both ways, so it opens, highlights and
+       selects in Play with zero custom input code. Closed = the kit's
+       dropdown shell with its measured label seat as the caption; open =
+       the kit's menu plate, the row-highlight bar for hover AND
+       keyboard/gamepad focus (the kit's own usage rule), the row-check on
+       the selected option. Options seed with a sample language list —
+       every glyph proven against the baked atlas at export (no tofu). */
+    static readonly string[] DropdownSampleOptions = new string[] { "English", "Español", "Français", "Deutsch", "Português", "Italiano" };
     static bool DropdownPrefab(string dir, string root, int pngScale, PBManifest m, Font kitFont) {
       var sp = S(root + "/assets/dropdown/dropdown-base.9.png");
       if (sp == null) return false;
       var go = ImageObject("Dropdown", sp, pngScale);
       go.GetComponent<Image>().type = Image.Type.Sliced;
       AddLabel(go, LabelWordOf(m, "dropdown", DefaultLabel("dropdown")), kitFont, root, m, "dropdown");
+      ShellRaycastPad(go, "dropdown", m);
+      BuildDropdownRig(go, root, pngScale, m, kitFont);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Dropdown.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
+    }
+    /* the working rig, ADDITIVE — shared by the prefab builder and the
+       maintenance graft, so a picture-era Dropdown.prefab in an existing
+       project gains the same machinery in place (art and words kept). */
+    static void BuildDropdownRig(GameObject go, string root, int pngScale, PBManifest m, Font kitFont) {
+      var bodyDD = BodyImage(go);
+      /* the list opens at the DRAWN shell's bottom edge, not the sprite
+         rect's — extrusion air hangs below the shell (the seat lesson) */
+      float fBottom = 0f;
+      var rowDD = ShellRowOf(go, "dropdown", m);
+      if (rowDD != null && bodyDD != null && bodyDD.sprite != null && bodyDD.sprite.rect.height > 2f)
+        fBottom = 1f - (rowDD.shell.y + rowDD.shell.h) / bodyDD.sprite.rect.height;
+      float capFs = 30f;
+      var lrowDD = LabelRow(m, "dropdown");
+      if (lrowDD != null && lrowDD.labelFs > 1f) capFs = lrowDD.labelFs;
+      float rowH = Mathf.Max(36f, capFs * 1.9f);
+      var menuSp = S(root + "/assets/dropdown/dropdown-menu.9.png");
+      var hiSp = S(root + "/assets/dropdown/dropdown-row-highlight.9.png");
+      var ckSp = S(root + "/assets/dropdown/dropdown-row-check.png");
+      /* the TEMPLATE — Unity's own dropdown anatomy on the kit's art:
+         plate → viewport (clip) → content → one Item the engine clones
+         per option. Inactive until the control opens it. */
+      var tpl = new GameObject("Template", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
+      tpl.transform.SetParent(go.transform, false);
+      var tplRt = tpl.GetComponent<RectTransform>();
+      tplRt.anchorMin = new Vector2(0f, fBottom); tplRt.anchorMax = new Vector2(1f, fBottom);
+      tplRt.pivot = new Vector2(0.5f, 1f);
+      // room for the whole sample list; longer lists scroll (wired below)
+      tplRt.sizeDelta = new Vector2(0f, rowH * DropdownSampleOptions.Length + 16f);
+      tplRt.anchoredPosition = new Vector2(0f, -4f);
+      var tplImg = tpl.GetComponent<Image>();
+      if (menuSp != null) { tplImg.sprite = menuSp; tplImg.type = Image.Type.Sliced; }
+      else tplImg.color = new Color(0.09f, 0.1f, 0.14f, 0.98f);
+      var vpDD = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(RectMask2D));
+      vpDD.transform.SetParent(tpl.transform, false);
+      var vpRt = vpDD.GetComponent<RectTransform>();
+      vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one;
+      vpRt.offsetMin = new Vector2(4f, 4f); vpRt.offsetMax = new Vector2(-4f, -4f);
+      var contentDD = new GameObject("Content", typeof(RectTransform));
+      contentDD.transform.SetParent(vpDD.transform, false);
+      var ctRt = contentDD.GetComponent<RectTransform>();
+      ctRt.anchorMin = new Vector2(0f, 1f); ctRt.anchorMax = new Vector2(1f, 1f);
+      ctRt.pivot = new Vector2(0.5f, 1f);
+      ctRt.sizeDelta = new Vector2(0f, rowH);
+      var itemDD = new GameObject("Item", typeof(RectTransform), typeof(Toggle));
+      itemDD.transform.SetParent(contentDD.transform, false);
+      var itRt = itemDD.GetComponent<RectTransform>();
+      itRt.anchorMin = new Vector2(0f, 0.5f); itRt.anchorMax = new Vector2(1f, 0.5f);
+      itRt.sizeDelta = new Vector2(0f, rowH);
+      var itBgGo = new GameObject("Item Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      itBgGo.transform.SetParent(itemDD.transform, false);
+      var itBgRt = itBgGo.GetComponent<RectTransform>();
+      itBgRt.anchorMin = Vector2.zero; itBgRt.anchorMax = Vector2.one;
+      itBgRt.offsetMin = Vector2.zero; itBgRt.offsetMax = Vector2.zero;
+      var itBg = itBgGo.GetComponent<Image>();
+      if (hiSp != null) { itBg.sprite = hiSp; itBg.type = Image.Type.Sliced; }
+      var itCkGo = new GameObject("Item Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      itCkGo.transform.SetParent(itemDD.transform, false);
+      var itCkRt = itCkGo.GetComponent<RectTransform>();
+      itCkRt.anchorMin = new Vector2(0f, 0.5f); itCkRt.anchorMax = new Vector2(0f, 0.5f);
+      itCkRt.sizeDelta = new Vector2(rowH * 0.45f, rowH * 0.45f);
+      itCkRt.anchoredPosition = new Vector2(rowH * 0.5f, 0f);
+      var itCk = itCkGo.GetComponent<Image>();
+      if (ckSp != null) itCk.sprite = ckSp;
+      itCk.preserveAspect = true;
+      itCk.raycastTarget = false;
+      var tgDD = itemDD.GetComponent<Toggle>();
+      tgDD.targetGraphic = itBg;
+      tgDD.graphic = itCk;
+      tgDD.isOn = true;
+      /* the kit's rule (row-highlight usage note): the bar shows under
+         the cursor AND on keyboard/gamepad focus, never at rest — the
+         tint's alpha carries exactly that on the kit's own hover art */
+      tgDD.transition = Selectable.Transition.ColorTint;
+      var cbDD = tgDD.colors;
+      cbDD.normalColor = new Color(1f, 1f, 1f, 0f);
+      cbDD.highlightedColor = Color.white;
+      cbDD.pressedColor = Color.white;
+      cbDD.selectedColor = Color.white;
+      cbDD.disabledColor = new Color(1f, 1f, 1f, 0f);
+      tgDD.colors = cbDD;
+      /* Unity's Dropdown never auto-wires the ScrollRect — unwired, any
+         list longer than the plate is unreachable. Content and viewport
+         are ours, so the wheel and drag work the moment options outgrow
+         the template. */
+      var srDD = tpl.GetComponent<ScrollRect>();
+      srDD.content = ctRt;
+      srDD.viewport = vpRt;
+      srDD.horizontal = false;
+      srDD.movementType = ScrollRect.MovementType.Clamped;
+      srDD.scrollSensitivity = rowH * 0.5f;
+      float padLDD = rowH * 0.95f;
+      var capRoot = FindOurLabelRoot(go);
+      tpl.SetActive(false);
+#if UNITY_2023_2_OR_NEWER
+      var itLbGo = new GameObject("Item Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      itLbGo.transform.SetParent(itemDD.transform, false);
+      var itLbRt = itLbGo.GetComponent<RectTransform>();
+      itLbRt.anchorMin = Vector2.zero; itLbRt.anchorMax = Vector2.one;
+      itLbRt.offsetMin = new Vector2(padLDD, 1f); itLbRt.offsetMax = new Vector2(-8f, -1f);
+      var itLb = itLbGo.GetComponent<TextMeshProUGUI>();
+      itLb.text = "Option";
+      itLb.alignment = TextAlignmentOptions.MidlineLeft;
+      itLb.enableAutoSizing = false;
+      itLb.fontSize = capFs * 0.78f;
+      itLb.color = Color.white; // the menu plate is the kit's dark well
+      itLb.raycastTarget = false;
+      var itFace = EnsureTmpFace(root, m, kitFont);
+      if (itFace != null) itLb.font = itFace;
+      var ddC = go.GetComponent<TMP_Dropdown>();
+      if (ddC == null) ddC = go.AddComponent<TMP_Dropdown>();
+      ddC.targetGraphic = bodyDD;
+      ddC.transition = Selectable.Transition.None; // states stay the kit's own machinery
+      ddC.template = tplRt;
+      ddC.captionText = capRoot != null ? capRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+      ddC.itemText = itLb;
+      ddC.options.Clear();
+      foreach (var oDD in DropdownSampleOptions) ddC.options.Add(new TMP_Dropdown.OptionData(oDD));
+      ddC.SetValueWithoutNotify(0);
+#else
+      var itLbGo = new GameObject("Item Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+      itLbGo.transform.SetParent(itemDD.transform, false);
+      var itLbRt = itLbGo.GetComponent<RectTransform>();
+      itLbRt.anchorMin = Vector2.zero; itLbRt.anchorMax = Vector2.one;
+      itLbRt.offsetMin = new Vector2(padLDD, 1f); itLbRt.offsetMax = new Vector2(-8f, -1f);
+      var itLb = itLbGo.GetComponent<Text>();
+      itLb.text = "Option";
+      itLb.alignment = TextAnchor.MiddleLeft;
+      itLb.fontSize = Mathf.RoundToInt(capFs * 0.78f);
+      itLb.color = Color.white;
+      itLb.raycastTarget = false;
+      var itF = kitFont != null ? kitFont : BuiltinFont();
+      if (itF != null) itLb.font = itF;
+      var ddC = go.GetComponent<Dropdown>();
+      if (ddC == null) ddC = go.AddComponent<Dropdown>();
+      ddC.targetGraphic = bodyDD;
+      ddC.transition = Selectable.Transition.None;
+      ddC.template = tplRt;
+      ddC.captionText = capRoot != null ? capRoot.GetComponentInChildren<Text>(true) : null;
+      ddC.itemText = itLb;
+      ddC.options.Clear();
+      foreach (var oDD in DropdownSampleOptions) ddC.options.Add(new Dropdown.OptionData(oDD));
+      ddC.SetValueWithoutNotify(0);
+#endif
     }
     /* the classic dial with its needle as a LIVE layer — rotate the
        Needle child from your speed (0 = sweep start, up to 270°) */
@@ -15504,7 +15710,7 @@ namespace PatternBreak {
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -15631,6 +15837,26 @@ namespace PatternBreak {
             } finally { PrefabUtility.UnloadPrefabContents(contentsSB); }
             continue;
           }
+        }
+        /* the dropdown's DROP-DOWN era: a Dropdown.prefab from the picture
+           generation becomes a working selection control — but only when
+           provably ours and unwired: it wears our dropdown shell, carries
+           NO Selectable anywhere (a dev's own wiring is theirs) and no
+           Template child (already grafted). The caption word survives —
+           the existing label root becomes the caption. Works on both
+           rungs (TMP_Dropdown / legacy Dropdown, inside BuildDropdownRig). */
+        if (spritePath.EndsWith("/dropdown-base.9.png")
+            && asset.GetComponentInChildren<Selectable>(true) == null
+            && asset.transform.Find("Template") == null) {
+          var contentsDD = PrefabUtility.LoadPrefabContents(path);
+          try {
+            BuildDropdownRig(contentsDD, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m, mkFont);
+            if (contentsDD.transform.Find("Template") != null) {
+              PrefabUtility.SaveAsPrefabAsset(contentsDD, path);
+              ddRigged++;
+            }
+          } finally { PrefabUtility.UnloadPrefabContents(contentsDD); }
+          continue;
         }
 #if UNITY_2023_2_OR_NEWER
         /* the input's FIELD era (round 28): an Input.prefab from the
@@ -16384,6 +16610,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged the idle shine on " + idled + " example prefab(s) to the kit's current setting — the wipe/edge components used to arrive only at first generation, so a shimmer turned on later never reached existing prefabs (or the scenes built from them). Placed copies pick it up automatically; dials on a component you tuned are never overwritten.");
       if (gauged > 0)
         Debug.Log("UI Kit Maker: converged " + gauged + " gauge prefab(s) — needle wired and the live readout seated where the app draws its numbers AND dressed in the app's own digit recipe (seat + ink ship in kit-manifest.json > gauge; the digits wear fonts/KitFace Gauge <name>.mat, never the label halo). Drive Value on the Gauge Dial component and the needle and number both answer.");
+      if (ddRigged > 0)
+        Debug.Log("UI Kit Maker: the Dropdown prefab is a WORKING selection control now — click it in Play and the kit's menu plate opens with a sample language list (hover bar + selected check are the kit's own art). Placed copies (the Pause scene's English) picked it up automatically; edit Options on the component for your own list.");
       if (mapGrafted > 0)
         Debug.Log("UI Kit Maker: gave the Minimap prefab its map back — the app's well content (grid + player arrow) now rides as 'Demo Map' under the radar sweep. Delete it anytime and render your own world map in the well; it won't come back.");
       if (rigGrafted > 0)
