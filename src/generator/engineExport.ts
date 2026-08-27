@@ -7616,8 +7616,10 @@ properties — nothing you'd want to edit is baked into pixels.
 > **On Unity 2022.3:** labels are still live, editable text — plain
 > uGUI Text in the kit's shipped font, wearing each family's own ink —
 > but the styled SDF stack is 2023.2+, and so are the panel **Words**
-> groups, live board-scene stamps and dressed dropdown/input text: on
-> 2022.3 those ship as the baked board art instead. Everything else on
+> groups and live board-scene stamps: on 2022.3 those ship as the baked
+> board art instead. The dropdown still WORKS there (live caption in the
+> family ink, plain-Text rows, opening menu — just undressed), and the
+> input keeps its live placeholder on a flat surface. Everything else on
 > this page behaves the same.
 
 **5 · Where to go next.**
@@ -7894,10 +7896,12 @@ ready to become a TMP material preset by hand.
 > divergence): prefab labels are live uGUI Text in the kit's font and
 > each family's own resolved ink — editable, never truncating, just
 > without the SDF outline/glow/emboss dress. The panel **Words**
-> groups, live board-scene stamps and the dressed dropdown list/input
-> text are 2023.2+ — on 2022.3 those pieces keep their baked art
-> (still pixel-faithful, not editable as text). The Playground's
-> chapter headers appear on both rungs.`
+> groups and live board-scene stamps are 2023.2+ — on 2022.3 those
+> pieces keep their baked art (still pixel-faithful, not editable as
+> text). The dropdown is live on BOTH rungs (2022.3 gets a working uGUI
+> Dropdown: family-ink caption, plain-Text rows, opening menu — undressed,
+> not baked), and the input keeps a live placeholder on a flat surface.
+> The Playground's chapter headers appear on both rungs.`
     : `The kit's face is named in kit-manifest.json > typography with its
 Google Fonts link — download the TTF, drop it in the project, and swap
 it onto the prefab labels (the export couldn't fetch it automatically
