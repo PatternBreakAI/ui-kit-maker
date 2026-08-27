@@ -9424,32 +9424,64 @@ namespace PatternBreak {
            return must stay armed. */
         try { LabelVariantPrefabs(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+        /* ── OWNERSHIP-GATED SCENE CONVERGENCE (the badge-sits-low /
+           magnet-a-hair-off field class): seat math improves across export
+           rounds — the glow-pad reclaim, the glyph art-box rows — but a
+           KEPT scene freezes whichever era built it, so the owner's app-
+           side re-seat ("this was fixed on the kit") never reached Unity.
+           The update dialog made owners choose between "lose my edits"
+           and "keep stale seats" even when they had NO edits — and "Keep
+           mine" is the defensive click every time. The sceneShas ledger
+           knows which it is: a scene file still byte-identical to OUR
+           last build carries no dev edit at all, so it adopts this
+           update's layout silently and loses nothing. A scene that isn't
+           our bytes anymore stays the maker's — the dialog below asks
+           about exactly THOSE scenes, no others. Pending scenes are
+           skipped here: BuildBoardScenes rebuilds them on its own beat. */
+        var scenesOurs = new List<PBBoard>();
+        var scenesTheirs = new List<PBBoard>();
+        if (prev != null && manifest.boards != null) {
+          foreach (var bdK in manifest.boards) {
+            var spK = root + "/Scenes/" + BoardSlug(bdK.name) + ".unity";
+            if (!File.Exists(spK)) continue;
+            var oursShaK = SceneShaInLock(root, spK);
+            var nowShaK = FileShaHex(spK);
+            if (oursShaK == null || nowShaK == null || oursShaK != nowShaK) { scenesTheirs.Add(bdK); continue; }
+            if (ScenePendingCountInLock(root, spK) >= 0 || SessionState.GetBool("pbBoardPending:" + spK, false)) continue;
+            scenesOurs.Add(bdK);
+          }
+          foreach (var bdK in scenesOurs) {
+            try { BuildBoardScene(root, manifest, bdK, true); }
+            catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bdK.name + "' failed — " + e.Message); }
+          }
+          if (scenesOurs.Count > 0)
+            Debug.Log("UI Kit Maker: " + scenesOurs.Count + " board scene(s) adopted this update's layout automatically — their files were still byte-identical to our last build, so there were no edits of yours to lose. A scene you've touched is never rebuilt without asking.");
+        }
         BuildBoardScenes(root, manifest);
         /* the Responsive Check scene rides the same beat (round 29) —
            built once, then yours; Tools > PatternBreak > Rebuild
            Responsive Check Scene refreshes it */
         try { BuildResponsiveCheck(root, manifest); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: the Responsive Check scene failed — " + e.Message); }
-        /* a kit UPDATE leaves existing scenes wearing their FIRST build's
+        /* a kit UPDATE leaves EDITED scenes wearing their build era's
            sizing and words — new sprites on old decisions (field: the
            flame button back at its default proportions and label). A
            Console line was too quiet for that; ASK, once, at the moment
            it matters. "Keep mine" is a real answer — the scenes are the
-           maker's after generation. */
-        if (prev != null && manifest.boards != null && manifest.boards.Length > 0) {
-          bool anyKept = false;
-          foreach (var bd in manifest.boards)
-            if (File.Exists(root + "/Scenes/" + BoardSlug(bd.name) + ".unity")) { anyKept = true; break; }
-          if (anyKept && EditorUtility.DisplayDialog("UI Kit Maker — board scenes",
-              "This kit update changed the export, but your board scenes keep the sizes and words they were FIRST built with (they are yours after generation).\\n\\nRebuild them from this update now? Hand edits inside those scenes will be LOST — the scenes are rebuilt from the kit's layout.",
+           maker's after generation. Untouched scenes already converged
+           above (byte-proof), so this dialog names only scenes that
+           really carry the maker's hands. */
+        if (prev != null && scenesTheirs.Count > 0) {
+          if (EditorUtility.DisplayDialog("UI Kit Maker — board scenes",
+              "This kit update changed the export, but " + scenesTheirs.Count + " board scene(s) carry changes made in Unity (or predate the scene ledger), so they keep the sizes and seats they were built with.\\n\\nRebuild them from this update now? Hand edits inside those scenes will be LOST — the scenes are rebuilt from the kit's layout." + (scenesOurs.Count > 0 ? "\\n\\n(" + scenesOurs.Count + " untouched scene(s) already adopted this update automatically.)" : ""),
               "Rebuild scenes", "Keep mine")) {
-            foreach (var bd in manifest.boards) {
+            foreach (var bd in scenesTheirs) {
               try { BuildBoardScene(root, manifest, bd, true); }
               catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
             }
-          } else if (anyKept) {
+          } else {
             int liveGain = 0;
-            foreach (var bdG in manifest.boards) {
+            foreach (var bdG in scenesTheirs) {
               if (bdG == null || bdG.items == null) continue;
               foreach (var itG in bdG.items)
                 if (itG != null && string.IsNullOrEmpty(itG.stamp)
