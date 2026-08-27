@@ -4117,6 +4117,26 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       tpnFonts.push({ family: "Inter", role: "the instrument voice — HUD readouts", file: inst.file, licenceName: inst.licenceName, licenceText: inst.licenceText });
     }
   }
+  /* the CONTENT cut (r36, owner: "maybe the weights aren't coming
+     through?"): the app floors content text at font-weight 700 over the
+     kit family (contentText's Math.max(700, weight)), while the zip
+     ships the DESIGNED label instance — on a 600-design kit the Words
+     seats could only choose between ~100 too light and ~300 too heavy
+     (density probe: real 700 = 39.7 ink/px-width, shipped 600 = 34.7 —
+     12.6% off with the honest flag). Ship the real 700 instance too and
+     the importer builds KitFace Content SDF from it: kit-voiced seats at
+     700+ wear the real weight, the instrument-road doctrine applied to
+     the kit's own family. Licence and third-party notice already ride
+     with the label cut (same family). A fetch miss = the gap-rule flag
+     exactly as before. */
+  let contentFile: string | null = null;
+  if (primaryFontFile && shippedWeight < 700) {
+    const got = await fetchKitFont(st.cfg.type.font, "wght@700", W_TAGS[700]).catch(() => null);
+    if (got) {
+      contentFile = `fonts/${got.file}`;
+      if (!files.some((f) => f.path === contentFile)) files.push({ path: contentFile, data: got.bytes });
+    }
+  }
   /* a fontless zip must NEVER leave the browser silently again (round-9
      field: War Chuds shipped no fonts/, Unity degraded to a bare default
      face and nothing anywhere said why) — say it here, loudly, and stamp
@@ -4467,6 +4487,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* the real heavy Inter cut for the instrument voice (HUD/readout
            text on panels) — null = fetch miss, grotesk fallback in Unity */
         instrumentFile,
+        /* the kit family's real 700 instance for content text (the app's
+           contentText floor) — ships only when the label cut is lighter;
+           null = older zip / fetch miss, gap-rule flag in Unity */
+        contentFile,
         /* the styled-text recipe — enough numbers to rebuild the kit's
            display treatment as a TextMeshPro material preset: face fill
            (or vertex gradient), outline, and glow/underlay */
@@ -8564,7 +8588,7 @@ namespace PatternBreak {
   [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public string contentFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   /* mirror the FULL palette object the manifest emits — JsonUtility drops
      undeclared fields silently, and a later template access on one is a
      CS1061 Unity-side (how 'well'/'shadow' shipped broken) */
@@ -12081,6 +12105,15 @@ namespace PatternBreak {
           EditorUtility.SetDirty(fa);
           AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
         }
+        /* READ-BACK (owner: "maybe the weights aren't coming through?"):
+           a re-point that silently failed leaves this face rasterizing
+           the Regular-era cut forever, and every consumer looks right in
+           STRUCTURE while rendering the wrong weight. Silence was the
+           defect — verify and say it, with the one-click remedy. */
+        var soChk = new SerializedObject(fa);
+        var pChk = soChk.FindProperty("m_SourceFontFileGUID");
+        if (pChk != null && pChk.propertyType == SerializedPropertyType.String && pChk.stringValue != guid)
+          Debug.LogWarning("UI Kit Maker: " + fa.name + " is still bound to a different source font than the kit ships (wanted " + Path.GetFileName(ttfPath) + ") — its dynamic glyphs may render the wrong weight. Delete the asset in fonts/ and run Tools > PatternBreak > Reapply Kit Import Settings to rebuild it from the shipped cut.");
       } catch (Exception) { }
     }
     static TMP_FontAsset EnsureTmpFace(string root, PBManifest m, Font ttf) {
@@ -14618,6 +14651,36 @@ namespace PatternBreak {
       Debug.Log("UI Kit Maker: generated the instrument face at " + path + " — panel HUD text wears the app's real heavy cut instead of synthetic bold.");
       return fa;
     }
+    /* the CONTENT face — the app floors content text at weight 700 over
+       the kit family (contentText's own rule), so a kit whose designed
+       label cut is lighter ships the real 700 instance too
+       (typography.contentFile) and kit-voiced Words seats at 700+ wear
+       it: the instrument doctrine, applied to the kit's own family
+       (owner: "maybe the weights aren't coming through?" — the seats
+       could only pick 100 too light or ~300 too heavy before). Null =
+       older zip / fetch miss — the gap-rule flag covers exactly as
+       before. */
+    static TMP_FontAsset EnsureContentFace(string root, PBManifest m) {
+      var path = root + "/fonts/KitFace Content SDF.asset";
+      var srcTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.contentFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.contentFile) : null;
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+      if (existing != null) { StampDynamicSource(existing, srcTtf); return existing; }
+      var ttf = srcTtf;
+      if (ttf == null) return null;
+      TMP_FontAsset fa = null;
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitFace Content SDF";
+      AssetDatabase.CreateAsset(fa, path);
+      StampDynamicSource(fa, ttf); // the dynamic atlas keeps its source across reloads
+      if (fa.material != null) { fa.material.name = "KitFace Content SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); ApplyStyle(fa.material, m, root); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitFace Content SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      Debug.Log("UI Kit Maker: generated the content face at " + path + " — Words seats at 700+ wear the kit family's real content cut instead of a synthetic flag.");
+      return fa;
+    }
     /* the app's paint-order UNDERSTROKE — the dark rim that keeps
        instrument text legible over loud faces. One preset material per
        (face, rim) pair; the path carries the rim key so different rims
@@ -14824,15 +14887,33 @@ namespace PatternBreak {
     static bool SeatInkShips(PBAsset a) { return a != null && a.seatInk != null && !string.IsNullOrEmpty(a.seatInk.fillMode); }
 #if UNITY_2023_2_OR_NEWER
     /* which face + material a seat wears — one resolver for builder,
-       dresser and probe, so they can never disagree */
-    static void SeatVoice(PBSeat seat, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, TMP_FontAsset instrument, out TMP_FontAsset face, out Material mat, out bool realWeight) {
-      realWeight = false;
-      if (seat.kit) { face = kitFace; mat = seat.dressed ? dressMat : plainKitMat; }
+       dresser and probe, so they can never disagree. aboardWeight names
+       the weight of the cut actually behind the chosen face, so the
+       dresser can key synthetic bold on the F3 gap rule instead of a
+       flat 700 line (the flat line bolded every 700 kit seat over the
+       real SemiBold — ~300 too heavy — while 600 seats on the grotesk
+       stayed un-bolded, ~200 too light). */
+    // is this seat the CONTENT voice on its kit family (the app's 700
+    // floor)? — one predicate for the voice pick and the material minting
+    static bool ContentSeat(PBSeat seat, TMP_FontAsset contentFace) { return seat.kit && contentFace != null && seat.weight >= 700; }
+    static void SeatVoice(PBSeat seat, PBManifest m, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, TMP_FontAsset instrument, TMP_FontAsset contentFace, Material dressMatC, Material plainMatC, out TMP_FontAsset face, out Material mat, out int aboardWeight) {
+      int shipped = m != null && m.typography != null && m.typography.style != null && m.typography.style.shippedWeight > 0
+        ? m.typography.style.shippedWeight : 400;
+      if (seat.kit) {
+        /* the CONTENT cut is the app's own 700 floor (contentText) — when
+           it shipped, a 700+ kit seat wears the REAL weight and the gap
+           rule reads against that instance (700 by construction: the
+           export only ships it when the label cut is lighter) */
+        bool contentV = ContentSeat(seat, contentFace);
+        face = contentV ? contentFace : kitFace;
+        mat = seat.dressed ? (contentV ? dressMatC : dressMat) : (contentV ? plainMatC : plainKitMat);
+        aboardWeight = contentV ? 700 : shipped;
+      }
       /* the heavy instrument voices wear the REAL cut when it shipped —
          synthetic bold was the visible "thinner than the app" delta */
-      else if (instrument != null && seat.weight >= 700) { face = instrument; mat = null; realWeight = true; }
-      else if (grotesk != null) { face = grotesk; mat = null; }
-      else { face = kitFace; mat = plainKitMat; }
+      else if (instrument != null && seat.weight >= 700) { face = instrument; mat = null; aboardWeight = 800; /* the export's Inter-ExtraBold instance */ }
+      else if (grotesk != null) { face = grotesk; mat = null; aboardWeight = 400; /* LiberationSans ships one Regular cut */ }
+      else { face = kitFace; mat = plainKitMat; aboardWeight = shipped; }
     }
     /* ── seat GEOMETRY, one hand for builder and probe ── */
     static float SeatRootH(GameObject host, int pngScale) {
@@ -14900,7 +14981,7 @@ namespace PatternBreak {
       t.extraPadding = true;        // SDF glow/underlay never clips at glyph edges
       t.parseCtrlCharacters = false; // a literal backslash in a maker's word stays literal
     }
-    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, bool realWeight, bool apply) {
+    static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, int aboardWeight, bool apply) {
       Color top = Color.white, bot = Color.white;
       bool grad = seat.fillMode == "gradient";
       Color c0;
@@ -14908,10 +14989,14 @@ namespace PatternBreak {
       if (grad) { bot = top; if (!string.IsNullOrEmpty(seat.fill2) && ColorUtility.TryParseHtmlString(seat.fill2, out c0)) bot = c0; }
       float fo = seat.fillOpacity > 0f ? Mathf.Clamp01(seat.fillOpacity / 100f) : 1f;
       top.a *= fo; bot.a *= fo;
-      /* a REAL weight cut carries its own boldness — the synthetic Bold flag
-         only papers over a face that lacks one (and 900 on an 800 cut gets
-         the flag back, the closest honest step) */
-      bool wantBold = seat.weight >= 900 || (seat.weight >= 700 && !realWeight);
+      /* the F3 GAP RULE, on seats too (owner: "maybe the weights aren't
+         coming through?"): faking adds ≈300 of weight, so a seat bolds
+         exactly when its designed weight sits 150+ over the cut actually
+         aboard its face — a 700 seat on the real SemiBold stays unbolded
+         (100 gap, closer real than faked), a 600 seat on the grotesk's
+         Regular bolds (200 gap). One rule with TargetFontStyle, so no
+         road can drift thinner or fatter than the labels again. */
+      bool wantBold = seat.weight - aboardWeight >= 150;
       var style = (seat.italic ? FontStyles.Italic : FontStyles.Normal) | (wantBold ? FontStyles.Bold : FontStyles.Normal);
       float wantFs = SeatFs(seat, rootH);
       bool matOk = mat == null || face == null || t.font != face || t.fontSharedMaterial == mat;
@@ -14982,15 +15067,20 @@ namespace PatternBreak {
       if (rootH < 2f) return false;
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       bool canMat = kitFace != null && kitFace.material != null;
-      bool needDress = false, needPlainKit = false;
+      bool needDress = false, needPlainKit = false, needDressC = false, needPlainC = false;
       var grotesk = GaugeUnitFace();
       var instrument = EnsureInstrumentFace(root, m);
+      var contentFace = EnsureContentFace(root, m);
       foreach (var s0 in row.textSeats) {
-        if (s0.kit && s0.dressed) needDress = true;
-        if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700))) needPlainKit = true;
+        bool cSeat = ContentSeat(s0, contentFace);
+        if (s0.kit && s0.dressed) { if (cSeat) needDressC = true; else needDress = true; }
+        if (s0.kit && !s0.dressed) { if (cSeat) needPlainC = true; else needPlainKit = true; }
+        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700)) needPlainKit = true;
       }
       needDress = needDress && SeatInkShips(row);
-      Material dressMat = null, plainKitMat = null;
+      needDressC = needDressC && SeatInkShips(row);
+      bool canMatC = contentFace != null && contentFace.material != null;
+      Material dressMat = null, plainKitMat = null, dressMatC = null, plainMatC = null;
       if (needDress && canMat) {
         var mp = root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat";
         dressMat = AssetDatabase.LoadAssetAtPath<Material>(mp);
@@ -15004,6 +15094,23 @@ namespace PatternBreak {
         if (plainKitMat == null) {
           if (!apply) return true;
           plainKitMat = EnsureGaugeUnitMaterial(root, kitFace);
+        }
+      }
+      /* the content face's own presets — a material belongs to ONE font
+         asset, so the content voice mints its parallel pair */
+      if (needDressC && canMatC) {
+        var mpC = root + "/fonts/KitFace Content Seat " + NiceName(SeatMatKey(row)) + ".mat";
+        dressMatC = AssetDatabase.LoadAssetAtPath<Material>(mpC);
+        if (dressMatC == null) {
+          if (!apply) return true;
+          dressMatC = EnsureInkPresetMaterial(contentFace, row.seatInk, mpC);
+        }
+      }
+      if (needPlainC && canMatC) {
+        plainMatC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/KitFace Content Gauge Unit.mat");
+        if (plainMatC == null) {
+          if (!apply) return true;
+          plainMatC = EnsureInkPresetMaterial(contentFace, new PBStyle(), root + "/fonts/KitFace Content Gauge Unit.mat");
         }
       }
       Dictionary<int, int> rowCount; Dictionary<int, float> rowFy; Dictionary<int, float> rowFfs;
@@ -15023,8 +15130,8 @@ namespace PatternBreak {
           var rrt = t.transform.parent as RectTransform;
           if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
         }
-        TMP_FontAsset face; Material mat; bool realWeight;
-        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, instrument, out face, out mat, out realWeight);
+        TMP_FontAsset face; Material mat; int aboardWeight;
+        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, out face, out mat, out aboardWeight);
         /* the understroke rim rides a preset material on the plain voices —
            probe passes only look; a wanted-but-missing preset IS drift */
         if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f) {
@@ -15038,7 +15145,7 @@ namespace PatternBreak {
           drift = true;
           if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
         }
-        if (!DressSeatText(t, seat, face, mat, rootH, realWeight, apply)) drift = true;
+        if (!DressSeatText(t, seat, face, mat, rootH, aboardWeight, apply)) drift = true;
       }
       if (apply && respected > 0)
         Debug.Log("UI Kit Maker: " + host.name + " — kept " + respected + " word(s) you retyped in Unity (a re-import only updates words still carrying their seeded text).");
@@ -15054,14 +15161,26 @@ namespace PatternBreak {
       if (host.transform.Find("Words") != null) { SeatsDrift(host, row, root, m, pngScale, true); return; }
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       if (kitFace == null) foreach (var s1 in row.textSeats) if (s1.kit) { faceStarved++; break; }
-      Material dressMat = SeatInkShips(row) && kitFace != null
-        ? EnsureInkPresetMaterial(kitFace, row.seatInk, root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat")
-        : null;
       var grotesk = GaugeUnitFace();
       var instrument = EnsureInstrumentFace(root, m);
-      bool needPlainKit = false;
-      foreach (var s0 in row.textSeats) if ((s0.kit && !s0.dressed) || (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700))) needPlainKit = true;
+      var contentFace = EnsureContentFace(root, m);
+      bool needDressB = false, needPlainKit = false, needDressCB = false, needPlainCB = false;
+      foreach (var s0 in row.textSeats) {
+        bool cSeat = ContentSeat(s0, contentFace);
+        if (s0.kit && s0.dressed) { if (cSeat) needDressCB = true; else needDressB = true; }
+        if (s0.kit && !s0.dressed) { if (cSeat) needPlainCB = true; else needPlainKit = true; }
+        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700)) needPlainKit = true;
+      }
+      Material dressMat = needDressB && SeatInkShips(row) && kitFace != null
+        ? EnsureInkPresetMaterial(kitFace, row.seatInk, root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat")
+        : null;
       Material plainKitMat = needPlainKit && kitFace != null ? EnsureGaugeUnitMaterial(root, kitFace) : null;
+      Material dressMatC = needDressCB && SeatInkShips(row) && contentFace != null && contentFace.material != null
+        ? EnsureInkPresetMaterial(contentFace, row.seatInk, root + "/fonts/KitFace Content Seat " + NiceName(SeatMatKey(row)) + ".mat")
+        : null;
+      Material plainMatC = needPlainCB && contentFace != null && contentFace.material != null
+        ? EnsureInkPresetMaterial(contentFace, new PBStyle(), root + "/fonts/KitFace Content Gauge Unit.mat")
+        : null;
       var words = new GameObject("Words", typeof(RectTransform));
       words.transform.SetParent(host.transform, false);
       StretchFull(words.GetComponent<RectTransform>());
@@ -15095,13 +15214,13 @@ namespace PatternBreak {
         t.fontSize = SeatFs(seat, rootH);
         SeatHarden(t);
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
-        TMP_FontAsset face; Material mat; bool realWeight;
-        SeatVoice(seat, kitFace, dressMat, grotesk, plainKitMat, instrument, out face, out mat, out realWeight);
+        TMP_FontAsset face; Material mat; int aboardWeight;
+        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, out face, out mat, out aboardWeight);
         if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f)
           mat = EnsureSeatStrokeMaterial(root, face, seat, true);
         SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         if (face != null) t.font = face;
-        DressSeatText(t, seat, face, mat, rootH, realWeight, true);
+        DressSeatText(t, seat, face, mat, rootH, aboardWeight, true);
       }
 #endif
     }
