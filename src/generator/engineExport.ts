@@ -4992,7 +4992,7 @@ namespace PatternBreak {
     public float hoverSink, pressedSink;
     [Tooltip("Vertical travel for the DISABLED pose, Unity up-positive — swap builds bake it inside the disabled sprite; the halo and the live children ride it here.")]
     public float disabledLift, disabledSink;
-    [Tooltip("Tick to park the live children (Label / Icon / Words / Specular / Arc) while the face presses — the pre-content-ride behavior. Off: on sprite-swap builds they travel with the baked face, exactly like the app's content.")]
+    [Tooltip("Tick to park the live children (Label / Icon / Words — and anything you nested inside the piece) while the face presses — the pre-content-ride behavior. Off: on sprite-swap builds they travel with the baked face, exactly like the app's content.")]
     public bool contentStays;
     [Tooltip("The piece height the pad, lifts and sinks were authored at. When set, resizing the piece scales them proportionally — same convention as Hero Label. 0 = off (fixed px, the pre-round-24 behavior).")]
     public float authoredHeight;
@@ -5017,11 +5017,19 @@ namespace PatternBreak {
        "the label does not move with the face"; ditto icon children).
        App truth: shell, label and icon travel as ONE group per state —
        the swap sprite bakes that travel in its pixels while the root
-       holds still (BakedSink), so the live children we place (label
-       root, icon seat, words group, specular streak, countdown arc)
-       must slide by the same lift+sink the halo already rides.
-       Discovered by OUR child names at enable; base restored exactly on
-       disable — write-once identity, StateFx is their only mover. */
+       holds still (BakedSink), so the live children — the label root,
+       icon seat, words group, specular streak, countdown arc, AND any
+       icon or glyph a dev nested inside the piece (the second field
+       round: "drop any icons/* on top" is the kit's own advice, and
+       those children parked while the face sank) — must slide by the
+       same lift+sink the halo already rides. Discovery is now ALL
+       content children minus the structural set, not a name allowlist:
+       Body and Posed art carry their travel IN the swapped pixels
+       (riding would double it), Template belongs to TMP_Dropdown,
+       Weapon to the FireButton rig, and runtime decor (halo, wipe
+       band + mask, edge spark, claim flash) is hideFlags-marked and
+       repositions itself. Base restored exactly on disable —
+       write-once identity, StateFx is their only mover. */
     RectTransform[] riders; Vector2[] riderBase; float[] riderWrote;
     void EnsureRiders() {
       if (riders != null) return;
@@ -5029,7 +5037,8 @@ namespace PatternBreak {
       foreach (Transform ch in transform) {
         if (ch == null) continue;
         var n = ch.name;
-        if (n != "Label" && n != "Icon" && n != "Words" && n != "Specular" && n != "Arc") continue;
+        if (n == "Body" || n == "Posed art" || n == "Template" || n == "Weapon") continue;
+        if (ch.gameObject.hideFlags != HideFlags.None) continue; // runtime decor moves itself
         var r = ch as RectTransform;
         if (r != null) list.Add(r);
       }

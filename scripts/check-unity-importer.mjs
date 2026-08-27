@@ -1733,8 +1733,17 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/RectTransform\[\] riders; Vector2\[\] riderBase; float\[\] riderWrote;/.test(fx)
       || !/void EnsureRiders\(\)/.test(fx) || !/void PushRiders\(\)/.test(fx))
     errors.push("StateFx's content ride (riders/EnsureRiders/PushRiders) is missing — labels and icons park while the face presses (slice 1, press travel)");
-  if (!/if \(n != "Label" && n != "Icon" && n != "Words" && n != "Specular" && n != "Arc"\) continue;/.test(fx))
-    errors.push("StateFx's rider discovery must cover OUR content children by name (Label/Icon/Words/Specular/Arc) (slice 1)");
+  /* follow-up field round: a name ALLOWLIST parked every other icon child
+     (a dev-dropped icons/* glyph, a Glyph prefab inside an Iconbtn or
+     ItemSlot — the kit's own "drop any icons/* on top" advice) while the
+     face sank. Discovery is ALL content children minus the structural
+     set: Body / Posed art travel IN the swapped pixels (riding doubles),
+     Template is TMP_Dropdown's, Weapon is the FireButton rig's, and
+     hideFlags-marked runtime decor repositions itself. */
+  if (!/if \(n == "Body" \|\| n == "Posed art" \|\| n == "Template" \|\| n == "Weapon"\) continue;/.test(fx))
+    errors.push("StateFx's rider discovery must ride ALL content children minus the structural set (Body/Posed art/Template/Weapon) — a name allowlist parks dev-dropped icons (slice 1, follow-up)");
+  if (!/if \(ch\.gameObject\.hideFlags != HideFlags\.None\) continue; \/\/ runtime decor moves itself/.test(fx))
+    errors.push("StateFx's rider discovery must skip hideFlags-marked runtime decor (halo, wipe band+mask, edge spark, claim flash) — two writers on one transform is the drift (slice 1, follow-up)");
   if (!/if \(contentStays \|\| !BakedSink\(\)\) return; \/\/ root motion carries them on tiled\/rig builds/.test(fx))
     errors.push("PushRiders must ride ONLY baked-sink (sprite-swap) builds — root motion already carries children elsewhere, and doubling is the drift (slice 1)");
   if (!/PushRiders\(\);\s*\n\s*\/\/ the halo follows in MirrorHost/.test(fx))
