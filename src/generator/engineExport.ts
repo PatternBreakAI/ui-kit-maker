@@ -10,7 +10,7 @@ import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./mod
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
@@ -341,6 +341,15 @@ export interface ExportBoardItemData {
   stampLive?: number;
   stampFs?: number;
   stampInk?: string | null;
+  /** the SPLASH tier's RESOLVED flat ink (the global type recipe's fill —
+      the color stampSvg actually painted): a LAYERLESS kit (no baked
+      layer stack → no HeroLabel prefab, ever) renders splash stamps on
+      the styled-SDF road instead, and this is the ink that road wears.
+      Without it the importer could only guess from the master style,
+      which is the BUTTON voice (auto-contrast-flipped — white on
+      Brightside) and near-invisible at the stamp's actual seat. Shipped
+      on every splash row; the layered HeroLabel road ignores it. */
+  stampSplashInk?: string | null;
   stampCase?: string;
   stampDx?: number; stampDy?: number; stampW?: number; stampH?: number;
   /** a POSED bake for a prefab piece whose board pose diverges from the
@@ -843,6 +852,18 @@ export async function collectExportBoards(st: {
                   stampLive: 1,
                   stampFs: r1(fsPx * k), // svg font px == design px; × board scale
                   stampInk: b.stamp.plain?.color ?? null,
+                  /* the splash tier's RESOLVED flat ink — what stampSvg
+                     painted this row with (the GLOBAL type recipe, not the
+                     button-voiced master style): a gradient flattens to
+                     the midpoint mix (the ApplyStyleRecipe precedent —
+                     "the midpoint at least carries both voices"). The
+                     layerless-kit SDF fallback road wears this; the
+                     layered HeroLabel road never reads it. */
+                  stampSplashInk: b.stamp.plain
+                    ? null
+                    : st.cfg.type.fillMode === "gradient" && st.cfg.type.fill2
+                      ? hexMix(st.cfg.type.fill, st.cfg.type.fill2, 0.5)
+                      : st.cfg.type.fill,
                   stampCase: st.cfg.type.case ?? "none",
                   stampDx: r1(((inkBox.x + inkBox.w / 2 - cv.width / 2) / 2) * k),
                   stampDy: r1(((inkBox.y + inkBox.h / 2 - cv.height / 2) / 2) * k),
@@ -7566,6 +7587,13 @@ The kit's components explain themselves in the Inspector (headers and
 per-field tooltips), and sprites, colors and spacing are ordinary Unity
 properties — nothing you'd want to edit is baked into pixels.
 
+> **On Unity 2022.3:** labels are still live, editable text — plain
+> uGUI Text in the kit's shipped font, wearing each family's own ink —
+> but the styled SDF stack is 2023.2+, and so are the panel **Words**
+> groups, live board-scene stamps and dressed dropdown/input text: on
+> 2022.3 those ship as the baked board art instead. Everything else on
+> this page behaves the same.
+
 **5 · Where to go next.**
 ${hasBoards ? `
 - **Board scenes** — the screens composed on the app's Boards arrived as
@@ -7766,6 +7794,8 @@ honestly so you know what you can grab:
   arrives as its own **"<Piece> Shadow (art)"** sibling. Baked art is
   final pixels — no states, no live words; restyle those pieces on
   uikitmaker.com and re-export, and the scene re-points itself.
+  (On Unity 2022.3, type stamps always travel this baked road — live
+  stamps are a 2023.2+ feature.)
 
 More pieces move from the baked column to the live column as their
 prefab rigs land — the Hierarchy suffixes are the always-current truth.
@@ -7826,7 +7856,16 @@ beside it. On Unity 2023.2+ the importer builds **KitFace SDF** from it
 automatically and styles the material with the kit's own type recipe;
 prefab labels arrive already wearing it. On older editors labels use the
 shipped TTF, and the recipe in kit-manifest.json > typography > style is
-ready to become a TMP material preset by hand.`
+ready to become a TMP material preset by hand.
+
+> **The full 2022.3 picture, feature by feature** (no silent
+> divergence): prefab labels are live uGUI Text in the kit's font and
+> each family's own resolved ink — editable, never truncating, just
+> without the SDF outline/glow/emboss dress. The panel **Words**
+> groups, live board-scene stamps and the dressed dropdown list/input
+> text are 2023.2+ — on 2022.3 those pieces keep their baked art
+> (still pixel-faithful, not editable as text). The Playground's
+> chapter headers appear on both rungs.`
     : `The kit's face is named in kit-manifest.json > typography with its
 Google Fonts link — download the TTF, drop it in the project, and swap
 it onto the prefab labels (the export couldn't fetch it automatically
@@ -8465,7 +8504,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -8475,7 +8514,19 @@ namespace PatternBreak {
      its last seed; anything else is the dev's typing and stays */
   [Serializable] class PBSeedEntry { public string family; public string word; }
   [Serializable] class PBVariantEntry { public string path; public string word; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; }
+  /* pendingMissing rides PARALLEL to pendingScenes (same index = same
+     scene): the missing count the last build ended on. Two builds in a
+     row ending on the SAME count is the un-armable-forever tripwire —
+     the work is not converging, so the rebuild loop stops instead of
+     eating the scene again. sceneShas is the ours-vs-theirs ledger for
+     scene FILES (the seededLabels precedent, applied to .unity bytes):
+     only a scene byte-identical to our own last save may auto-rebuild. */
+  [Serializable] class PBSceneShaEntry { public string scene; public string sha; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; }
+  /* the example-prefab root rects WE last authored (family prefab name →
+     size) — MaintainExamplePrefabs' resize pass converges only rects
+     still matching this ledger; anything else is the dev's. */
+  [Serializable] class PBRectEntry { public string prefab; public float w; public float h; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -8911,7 +8962,7 @@ namespace PatternBreak {
                and the scene never self-healed — the field's wordless Shop
                Claim button. The lock names them; rebuild exactly those. */
             if (mv != null && lv.pendingScenes != null && lv.pendingScenes.Length > 0) {
-              Debug.Log("UI Kit Maker: " + lv.pendingScenes.Length + " board scene(s) shipped incomplete last session (a prefab or bake lost the import race) — finishing them now.");
+              Debug.Log("UI Kit Maker: " + lv.pendingScenes.Length + " board scene(s) shipped incomplete last session (a prefab or bake lost the import race) — finishing the untouched ones now (a scene you've edited is never rebuilt automatically; its own Console line says what happened).");
               try { BuildBoardScenes(root, mv); }
               catch (Exception e) { Debug.LogWarning("UI Kit Maker: pending board scenes skipped — " + e.Message); }
             }
@@ -9337,6 +9388,11 @@ namespace PatternBreak {
          Carried over like the variant ledger; the scene passes below
          rewrite it as scenes complete. */
       receipt.pendingScenes = prev != null ? prev.pendingScenes : null;
+      receipt.pendingMissing = prev != null ? prev.pendingMissing : null; // the loop-breaker's memory rides with them
+      /* the scene authorship ledger and the prefab-rect ledger carry over
+         like the variant ledger — their passes rewrite them in place */
+      receipt.sceneShas = prev != null ? prev.sceneShas : null;
+      receipt.authoredRects = prev != null ? prev.authoredRects : null;
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -9851,6 +9907,27 @@ namespace PatternBreak {
           ht.fontSize = 30f; ht.fontStyle = FontStyles.Bold;
           ht.color = new Color(0.59f, 0.63f, 0.72f);
           ht.alignment = TextAlignmentOptions.MidlineLeft;
+          var hrt = head.GetComponent<RectTransform>();
+          hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(0f, 1f); hrt.pivot = new Vector2(0f, 1f);
+          hrt.sizeDelta = new Vector2(rowW, 40f);
+          hrt.anchoredPosition = new Vector2(90f, y);
+          y -= 56f;
+#else
+          /* the 2022.3 rung keeps its shelf chapters too — headers are
+             plain words, not a styled-face feature, and losing them (and
+             this row of rhythm) left the legacy Playground reading as
+             one undifferentiated pile (F2's honesty pass: extend where
+             genuinely cheap) */
+          var head = new GameObject(sec.title, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+          head.transform.SetParent(board, false);
+          var ht = head.GetComponent<Text>();
+          ht.text = sec.title;
+          ht.fontSize = 30; ht.fontStyle = FontStyle.Bold;
+          ht.color = new Color(0.59f, 0.63f, 0.72f);
+          ht.alignment = TextAnchor.MiddleLeft;
+          ht.horizontalOverflow = HorizontalWrapMode.Overflow;
+          var bfH = BuiltinFont();
+          if (bfH != null) ht.font = bfH;
           var hrt = head.GetComponent<RectTransform>();
           hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(0f, 1f); hrt.pivot = new Vector2(0f, 1f);
           hrt.sizeDelta = new Vector2(rowW, 40f);
@@ -10450,17 +10527,31 @@ namespace PatternBreak {
        as REAL, Inspector-editable text in the kit's own lettering —
        SPLASH stamps ride the layered HeroLabel face, PLAIN-tier ones the
        styled SDF face wearing the undressed preset at the stamp's flat
-       color. Warped stamps never carry stampLive (the bend lives in the
+       color. A LAYERLESS kit (no baked layer stack in the manifest →
+       HeroLabel.prefab can NEVER exist) sends its splash stamps down the
+       styled-SDF road too — a permanent fact must finish the build, not
+       arm it (F1: four splash stamps held two scenes in an eternal
+       delete-and-rebuild that ate dev edits on every domain reload).
+       Warped stamps never carry stampLive (the bend lives in the
        pixels) and stay art. ONE builder, shared by the scene pass and the
        kept-scene heal — the SeatPosedLabel precedent: a healed stamp can
        never differ from a built one. Null = the machinery lost the
-       first-drop race (HeroLabel prefab / kit face) — the caller keeps
-       the baked picture and arms the self-rebuild. */
+       first-drop race (HeroLabel prefab on a LAYERED kit / kit face) —
+       the caller keeps the baked picture and arms the self-rebuild,
+       which is TRUE only for races: both missing pieces arrive with the
+       import that is already in flight. */
     static GameObject BuildLiveStamp(string root, PBManifest m, PBBoardItem it, UnityEngine.SceneManagement.Scene scene) {
       var word = it.label ?? "";
       bool plainTier = !string.IsNullOrEmpty(it.stampInk);
+      /* the LAYERED-face gate reads the MANIFEST, not the assets: "no
+         layer bake shipped" is a permanent fact of this kit, while
+         "HeroLabel.prefab missing" can be a first-drop race — and a race
+         self-heals where a fact never will */
+      bool layeredKit = m != null && m.typography != null && m.typography.bakedFace != null
+        && !string.IsNullOrEmpty(m.typography.bakedFace.layerFill)
+        && !string.IsNullOrEmpty(m.typography.bakedFace.layerStroke);
       GameObject go = null;
-      if (plainTier) {
+      if (plainTier || !layeredKit) {
         var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
         if (face == null) return null;
         go = new GameObject("Stamp (live) — " + word, typeof(RectTransform), typeof(CanvasRenderer));
@@ -10468,14 +10559,41 @@ namespace PatternBreak {
         var t = go.AddComponent<TextMeshProUGUI>();
         t.text = word;
         t.font = face; // assigning the font resets the material —
-        var plainMat = EnsureGaugeUnitMaterial(root, face);
-        if (plainMat != null) t.fontSharedMaterial = plainMat; // — the undressed preset lands after
+        if (plainTier) {
+          var plainMat = EnsureGaugeUnitMaterial(root, face);
+          if (plainMat != null) t.fontSharedMaterial = plainMat; // — the undressed preset lands after
+        }
+        /* else: the LAYERLESS SPLASH FALLBACK — the layered look does not
+           exist to give on this kit, so the word renders in the kit face
+           at the stamp's seat: the styled SDF preset (underlay shadow,
+           emboss — the kit's own recipe) at the splash row's resolved
+           flat ink. The visual compromise vs a layered kit's splash
+           stamp: no merged stroke band, no glint sweep, and the soft
+           shadow is TMP's underlay rather than the app's exact pixels.
+           The trade is deliberate: REAL editable text that finishes the
+           build beats a baked picture guarding a rebuild that could
+           never complete. */
         t.enableAutoSizing = false;
         t.fontSize = it.stampFs;
-        if (m != null && m.typography != null && m.typography.style != null) t.characterSpacing = m.typography.style.spacingEmPct;
+        if (m != null && m.typography != null && m.typography.style != null) {
+          t.characterSpacing = m.typography.style.spacingEmPct;
+          // the bake was set at the kit's weight/italic — the live word matches
+          t.fontStyle = TargetFontStyle(m.typography.style);
+        }
         t.alignment = TextAlignmentOptions.Center;
         Color inkC;
-        if (ColorUtility.TryParseHtmlString(it.stampInk, out inkC)) t.color = inkC;
+        var flatInk = plainTier ? it.stampInk : it.stampSplashInk;
+        if (!string.IsNullOrEmpty(flatInk) && ColorUtility.TryParseHtmlString(flatInk, out inkC)) t.color = inkC;
+        else if (!plainTier) {
+          /* an OLD manifest (pre-stampSplashInk) on a layerless kit: the
+             closest honest ink aboard is the master style's — the BUTTON
+             voice, which may not match this stamp's seat. Said out loud;
+             a re-export ships the exact ink. */
+          Color topO, botO; bool gradO;
+          TargetInk(m != null && m.typography != null ? m.typography.style : null, out topO, out botO, out gradO);
+          t.color = topO;
+          Debug.Log("UI Kit Maker: stamp '" + word + "' went live in the kit face wearing the master ink — this zip predates the splash-ink field; re-export from uikitmaker.com for the stamp's exact color.");
+        }
         t.raycastTarget = false;
       } else {
         var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
@@ -10522,17 +10640,25 @@ namespace PatternBreak {
        freeze on its stand-in forever if Unity closed before the next pass
        (the field's wordless Shop Claim). The lock survives restarts and
        crashes; the SessionState flag stays as the same-session fast path. */
-    static bool ScenePendingInLock(string root, string scenePath) {
+    static PBLock ReadLock(string root) {
       try {
         var lockPath = root + "/kit.lock.json";
-        if (!File.Exists(lockPath)) return false;
-        var l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath));
-        if (l == null || l.pendingScenes == null) return false;
-        foreach (var p in l.pendingScenes) if (p == scenePath) return true;
-      } catch (Exception) { }
-      return false;
+        if (!File.Exists(lockPath)) return null;
+        return JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath));
+      } catch (Exception) { return null; }
     }
-    static void MarkScenePendingInLock(string root, string scenePath, bool pending) {
+    /* −1 = not pending; 0 = pending, count unknown (an older lock shipped
+       no pendingMissing); >0 = pending, the missing count the last build
+       ended on — the loop-breaker's memory. */
+    static int ScenePendingCountInLock(string root, string scenePath) {
+      var l = ReadLock(root);
+      if (l == null || l.pendingScenes == null) return -1;
+      for (int i = 0; i < l.pendingScenes.Length; i++)
+        if (l.pendingScenes[i] == scenePath)
+          return l.pendingMissing != null && i < l.pendingMissing.Length ? Math.Max(0, l.pendingMissing[i]) : 0;
+      return -1;
+    }
+    static void MarkScenePendingInLock(string root, string scenePath, int missing) {
       try {
         var lockPath = root + "/kit.lock.json";
         // no lock yet = the first import is still in flight; its receipt
@@ -10541,11 +10667,62 @@ namespace PatternBreak {
         PBLock l = null;
         try { l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
         if (l == null) return;
-        var set = new List<string>(l.pendingScenes ?? new string[0]);
-        bool had = set.Contains(scenePath);
-        if (pending == had) return;
-        if (pending) set.Add(scenePath); else set.Remove(scenePath);
-        l.pendingScenes = set.ToArray();
+        var scenes = new List<string>(l.pendingScenes ?? new string[0]);
+        var counts = new List<int>(l.pendingMissing ?? new int[0]);
+        // older locks shipped no counts — pad with 0 ("pending, unknown")
+        while (counts.Count < scenes.Count) counts.Add(0);
+        while (counts.Count > scenes.Count) counts.RemoveAt(counts.Count - 1);
+        int at = scenes.IndexOf(scenePath);
+        if (missing > 0) {
+          if (at >= 0 && counts[at] == missing) return;
+          if (at >= 0) counts[at] = missing;
+          else { scenes.Add(scenePath); counts.Add(missing); }
+        } else {
+          if (at < 0) return;
+          scenes.RemoveAt(at); counts.RemoveAt(at);
+        }
+        l.pendingScenes = scenes.ToArray();
+        l.pendingMissing = counts.ToArray();
+        File.WriteAllText(lockPath, JsonUtility.ToJson(l, true));
+      } catch (Exception) { }
+    }
+    /* ── the scene-file AUTHORSHIP ledger (the seededLabels discipline,
+       applied to .unity bytes): every save WE make records the file's
+       sha; the automatic pending rebuild deletes a scene ONLY while its
+       bytes still match our last save. A maker's edit — or an old lock
+       that never recorded a sha — can therefore never be destroyed by
+       the self-heal, by construction. ── */
+    static string FileShaHex(string assetPath) {
+      try {
+        using (var sha = System.Security.Cryptography.SHA256.Create()) {
+          var bytes = sha.ComputeHash(File.ReadAllBytes(assetPath));
+          var sb = new System.Text.StringBuilder(bytes.Length * 2);
+          foreach (var b in bytes) sb.Append(b.ToString("x2"));
+          return sb.ToString();
+        }
+      } catch (Exception) { return null; }
+    }
+    static string SceneShaInLock(string root, string scenePath) {
+      var l = ReadLock(root);
+      if (l == null || l.sceneShas == null) return null;
+      foreach (var e in l.sceneShas) if (e != null && e.scene == scenePath) return e.sha;
+      return null;
+    }
+    static void RecordSceneShaInLock(string root, string scenePath) {
+      try {
+        var lockPath = root + "/kit.lock.json";
+        if (!File.Exists(lockPath)) return; // pre-receipt beat: the next save re-records
+        PBLock l = null;
+        try { l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+        if (l == null) return;
+        var sha = FileShaHex(scenePath);
+        if (sha == null) return;
+        var list = new List<PBSceneShaEntry>(l.sceneShas ?? new PBSceneShaEntry[0]);
+        PBSceneShaEntry hit = null;
+        foreach (var e in list) if (e != null && e.scene == scenePath) { hit = e; break; }
+        if (hit != null) { if (hit.sha == sha) return; hit.sha = sha; }
+        else { var e2 = new PBSceneShaEntry(); e2.scene = scenePath; e2.sha = sha; list.Add(e2); }
+        l.sceneShas = list.ToArray();
         File.WriteAllText(lockPath, JsonUtility.ToJson(l, true));
       } catch (Exception) { }
     }
@@ -10553,14 +10730,32 @@ namespace PatternBreak {
       var dir = root + "/Scenes";
       if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
       var scenePath = dir + "/" + BoardSlug(bd.name) + ".unity";
+      int prevPend = -1; // the loop-breaker's memory: last build's missing count (−1 = wasn't pending)
       if (File.Exists(scenePath)) {
         /* yours after first generation — EXCEPT a scene we know shipped
            incomplete (pieces skipped because prefabs hadn't generated on
            the first import beat): that one self-heals on the next pass
            instead of asking the maker to remember a menu path */
-        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false)
-          || ScenePendingInLock(root, scenePath);
+        prevPend = ScenePendingCountInLock(root, scenePath);
+        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false) || prevPend >= 0;
         if (!force && !pending) return;
+        if (!force) {
+          /* the OURS-VS-THEIRS gate on the delete (the seededLabels
+             discipline, applied to the scene FILE): an incomplete scene
+             may only rebuild itself while its bytes are still OUR last
+             save. The maker's edits — or an old lock that never recorded
+             a sha and so can't vouch — stop the automatic delete cold:
+             the heals converge such a scene in place, and the menu
+             rebuild stays one click away for whoever wants the reset. */
+          var oursSha = SceneShaInLock(root, scenePath);
+          var nowSha = FileShaHex(scenePath);
+          if (oursSha == null || nowSha == null || oursSha != nowSha) {
+            SessionState.EraseBool("pbBoardPending:" + scenePath);
+            MarkScenePendingInLock(root, scenePath, 0);
+            Debug.Log("UI Kit Maker: board scene '" + bd.name + "' was marked incomplete, but the scene file isn't our last save anymore (edited, or from an older kit) — keeping YOURS untouched, no automatic rebuild. The in-place heals still converge it; Tools > PatternBreak > Rebuild Kit Board Scenes rebuilds from the kit layout if you want the reset (your edits in that scene would be LOST).");
+            return;
+          }
+        }
         AssetDatabase.DeleteAsset(scenePath);
       }
       UnityEngine.SceneManagement.Scene scene;
@@ -11450,11 +11645,19 @@ namespace PatternBreak {
         }
         WireSelectRows(selectRows);
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath)) {
-          // remember incompleteness so the after-prefabs pass rebuilds THIS
-          // scene automatically; a complete build clears the marker
-          if (missing > 0) SessionState.SetBool("pbBoardPending:" + scenePath, true);
+          /* remember incompleteness so the after-prefabs pass rebuilds THIS
+             scene automatically; a complete build clears the marker. The
+             LOOP-BREAKER: a rebuild that ends on the SAME missing count it
+             started from proved the wait isn't converging (the field's
+             eternal splash-stamp rebuild) — pending clears instead of
+             re-arming, and one honest line replaces the promise. */
+          bool stalled = missing > 0 && prevPend > 0 && missing == prevPend;
+          if (missing > 0 && !stalled) SessionState.SetBool("pbBoardPending:" + scenePath, true);
           else SessionState.EraseBool("pbBoardPending:" + scenePath);
-          MarkScenePendingInLock(root, scenePath, missing > 0); // survives editor restarts (the frozen-stand-in cure)
+          MarkScenePendingInLock(root, scenePath, stalled ? 0 : missing); // survives editor restarts (the frozen-stand-in cure)
+          RecordSceneShaInLock(root, scenePath); // the authorship ledger: this save is OURS — the only state a pending pass may ever delete
+          if (stalled)
+            Debug.Log("UI Kit Maker: board scene '" + bd.name + "' rebuilt with the same " + missing + " piece(s) still missing as last pass — the wait isn't converging, so the automatic rebuild STOPS here and the scene is yours as built. When the missing assets do land (a re-export/re-import), Tools > PatternBreak > Rebuild Kit Board Scenes finishes the job.");
           /* the pinned-word receipt, ALWAYS printed when the board pins
              words — the one-glance field check is "0 base fallback(s)" */
           if (pinned > 0)
@@ -11463,7 +11666,7 @@ namespace PatternBreak {
              got, one glance (the probe boards read this line) */
           if (placed > 0)
             Debug.Log("UI Kit Maker: '" + bd.name + "' responsive anchors — " + anchorsEdge + " edge/corner, " + anchorsCentered + " centered, " + anchorsStretched + " stretched (center in the outer 18% band anchors to that edge/corner; baked art spanning 80%+ of a dimension stretches; everything else centers — the README's safe-area slide has the rule).");
-          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " incomplete (a prefab or pinned word isn't ready yet — the scene rebuilds itself once it is, or run Tools > PatternBreak > Rebuild Kit Board Scenes)" : "") + ". Open " + scenePath + " and press Play.");
+          Debug.Log("UI Kit Maker: scene '" + bd.name + "' ready — " + placed + " piece(s) placed" + (missing > 0 ? ", " + missing + " incomplete" + (stalled ? " (not converging — automatic rebuilds stopped; run Tools > PatternBreak > Rebuild Kit Board Scenes once the missing assets import)" : " (a prefab or pinned word isn't ready yet — the scene rebuilds itself once it is, or run Tools > PatternBreak > Rebuild Kit Board Scenes)") : "") + ". Open " + scenePath + " and press Play.");
         }
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the board scene at " + scenePath + ".");
@@ -12291,6 +12494,31 @@ namespace PatternBreak {
     /* ── manifest math, deliberately OUTSIDE the TMP guard: the legacy
        pre-2023.2 label rung (AddLabel's Text branch) and the StateFx
        wiring size and sink from these too ── */
+    /* the family's RESOLVED resting ink, FLATTENED to one color for the
+       legacy rung (F2 — 2022.3's AddLabel hardcoded white, and dark-ink
+       families like Brightside's chip/tab/header vanished on their cream
+       faces while the SAME rung's dropdown placeholder colored
+       correctly): ApplyFamilyInk's ladder, minus the vertex gradient
+       uGUI Text cannot draw — family labelInk first (labelInk2 present →
+       the two stops' midpoint, the ApplyStyleRecipe rule: "the midpoint
+       at least carries both voices"), the master style's fill next (same
+       flattening), white only as the stage default ("auto" resolves
+       against each face — TargetInk's rule, mirrored). */
+    static Color LegacyFlatInk(PBManifest m, string family) {
+      Color top, bot;
+      var row = LabelRow(m, family);
+      if (row != null && !string.IsNullOrEmpty(row.labelInk) && ColorUtility.TryParseHtmlString(row.labelInk, out top)) {
+        if (!string.IsNullOrEmpty(row.labelInk2) && ColorUtility.TryParseHtmlString(row.labelInk2, out bot)) return Color.Lerp(top, bot, 0.5f);
+        return top;
+      }
+      var sIn = m != null && m.typography != null ? m.typography.style : null;
+      if (sIn != null && (sIn.fillMode == "gradient" || sIn.fillMode == "solid")
+          && !string.IsNullOrEmpty(sIn.fill) && ColorUtility.TryParseHtmlString(sIn.fill, out top)) {
+        if (sIn.fillMode == "gradient" && !string.IsNullOrEmpty(sIn.fill2) && ColorUtility.TryParseHtmlString(sIn.fill2, out bot)) return Color.Lerp(top, bot, 0.5f);
+        return top;
+      }
+      return Color.white;
+    }
     /* the kit's button-word size: the app scales it by the Type Size dial
        (52 = baseline) — 40 stays the fallback for pre-labelSize manifests */
     /* the app-true label size for BOARD SCENES — the 0.74-fitted size is
@@ -12790,7 +13018,12 @@ namespace PatternBreak {
       t.text = text;
       t.alignment = TextAnchor.MiddleCenter;
       t.fontSize = Mathf.RoundToInt(lsA);
-      t.color = Color.white;
+      // the family's resolved ink on THIS rung too — the hardcoded white
+      // here is how 2022.3 lost every dark-ink word (F2)
+      t.color = LegacyFlatInk(m, family);
+      // the kit's italic travels as well (the legacy dropdown placeholder
+      // already did this; the label branch just never caught up)
+      if (m != null && m.typography != null && m.typography.style != null && m.typography.style.italic) t.fontStyle = FontStyle.Italic;
       t.raycastTarget = false;
       // a placed word never truncates — Unity Text defaults to Wrap +
       // Truncate, which is exactly the field's "ATTAC" (round 9)

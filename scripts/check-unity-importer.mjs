@@ -1833,13 +1833,19 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       errors.push("SeatRowOf must read BodyImage(host) — the root Image is sprite-less on rebodied (stateFx) families and their Words never wire (slice 2, follow-up)");
   }
   /* incomplete scenes persist in kit.lock.json — SessionState dies with
-     the editor and the first-drop race then froze wordless stand-ins */
-  if (!/public string\[\] pendingScenes;/.test(cs)
-      || !/\|\| ScenePendingInLock\(root, scenePath\);/.test(cs)
-      || !/MarkScenePendingInLock\(root, scenePath, missing > 0\);/.test(cs)
+     the editor and the first-drop race then froze wordless stand-ins.
+     Reviewer round (2026-08-27): the marker is un-armable-forever by
+     construction now — missing counts ride beside the scenes (the
+     loop-breaker's memory), the scene-file sha ledger gates the
+     automatic delete, and the receipt carries all of it. */
+  if (!/public string\[\] pendingScenes; public int\[\] pendingMissing; public PBSceneShaEntry\[\] sceneShas;/.test(cs)
+      || !/prevPend = ScenePendingCountInLock\(root, scenePath\);/.test(cs)
+      || !/MarkScenePendingInLock\(root, scenePath, stalled \? 0 : missing\);/.test(cs)
       || !/receipt\.pendingScenes = prev != null \? prev\.pendingScenes : null;/.test(cs)
+      || !/receipt\.pendingMissing = prev != null \? prev\.pendingMissing : null;/.test(cs)
+      || !/receipt\.sceneShas = prev != null \? prev\.sceneShas : null;/.test(cs)
       || !/lv\.pendingScenes != null && lv\.pendingScenes\.Length > 0/.test(cs))
-    errors.push("the incomplete-scene marker must persist in kit.lock.json (pendingScenes: lock field, read in BuildBoardScene, write on save, receipt carry-over, sweep rebuild) — an editor restart otherwise freezes a raced scene on its stand-in forever (slice 2, follow-up)");
+    errors.push("the incomplete-scene marker must persist in kit.lock.json (pendingScenes + pendingMissing + sceneShas: lock fields, count read in BuildBoardScene, write on save, receipt carry-over, sweep rebuild) — an editor restart otherwise freezes a raced scene on its stand-in forever (slice 2, follow-up; hardened in the reviewer round)");
 }
 
 /* ── Unity-exporter round, slice 3 (2026-08-27): the dropdown DROPS DOWN.
@@ -2060,6 +2066,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the selected-check no longer seats at the app's measured right inset");
   if (!/sliceMin: \{ right: Math\.round\(80 \* PNG_SCALE\) \}/.test(src))
     errors.push("the dropdown caret's protective border floor (sliceMin) is gone — the measured-slice pass will shear the chevron on stretched copies again");
+}
+
+/* ── UNITY DEV REVIEWER ROUND (2026-08-27) — the blockers' pins.
+   B1: a LAYERLESS kit's splash stamps take the styled-SDF road (the
+   HeroLabel prefab can never exist there — a permanent fact must finish
+   the build, never arm it), and the incomplete-scene rebuild is
+   un-armable-forever: the scene-file sha ledger gates every automatic
+   delete, and two builds ending on the same missing count stop the loop
+   with one honest line. B2: the 2022.3 label rung wears the family's
+   resolved ink (the hardcoded white was invisible on dark-ink kits). */
+{
+  if (!/bool layeredKit = m != null && m\.typography != null && m\.typography\.bakedFace != null/.test(cs)
+      || !/if \(plainTier \|\| !layeredKit\) \{/.test(cs))
+    errors.push("BuildLiveStamp lost the layered-face gate — splash stamps on layerless kits would arm the eternal scene rebuild again (reviewer B1a)");
+  if (!/var flatInk = plainTier \? it\.stampInk : it\.stampSplashInk;/.test(cs)
+      || !/public string stampSplashInk;/.test(cs)
+      || !/stampSplashInk: b\.stamp\.plain/.test(src))
+    errors.push("the splash tier's resolved flat ink (stampSplashInk) no longer travels app → manifest → SDF fallback — layerless splash stamps would guess the button voice (reviewer B1a)");
+  if (!/var oursSha = SceneShaInLock\(root, scenePath\);/.test(cs)
+      || !/if \(oursSha == null \|\| nowSha == null \|\| oursSha != nowSha\) \{/.test(cs))
+    errors.push("the scene-file authorship gate is gone — the pending rebuild would delete dev-edited scenes again (reviewer B1b)");
+  if (!/bool stalled = missing > 0 && prevPend > 0 && missing == prevPend;/.test(cs)
+      || !/RecordSceneShaInLock\(root, scenePath\);/.test(cs))
+    errors.push("the pending loop-breaker (same missing count twice in a row → stop and say so) is gone (reviewer B1b)");
+  if (!/t\.color = LegacyFlatInk\(m, family\);/.test(cs)
+      || !/static Color LegacyFlatInk\(PBManifest m, string family\)/.test(cs))
+    errors.push("the 2022.3 label rung lost the family ink ladder — dark-ink kits go white-on-cream again (reviewer B2)");
+  // the docs' 2022.3 notes are load-bearing honesty, not prose polish
+  if (!/On Unity 2022\.3:\*\* labels are still live, editable text/.test(src)
+      || !/The full 2022\.3 picture, feature by feature/.test(src))
+    errors.push("the QuickStart/README 2022.3 qualifications are gone — the docs overpromise the legacy rung again (reviewer B2)");
 }
 
 if (errors.length) {
