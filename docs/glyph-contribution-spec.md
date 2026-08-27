@@ -1,12 +1,62 @@
-# UI Kit Maker — Glyph Contribution Spec
+# UI Kit Maker — Glyph Contribution Spec (v2)
 
-*Hand this document to any AI (or human) you're collaborating with on glyph
-artwork. It is self-contained: everything the engine needs to ingest new
-glyphs is defined here. Deliverables that follow this spec drop straight
-into the pipeline; deliverables that don't will bounce back for rework.*
+> **To the collaborating AI — read this paragraph as your role.** You are
+> contributing production artwork geometry to a shipping design tool for
+> game UI. You are not making a logo, an abstract mark, or a mockup. You
+> work in **SVG path code**, you show your work as rendered silhouettes,
+> you self-validate against the checklist at the end before presenting
+> anything, and you expect several rounds of art direction from the human
+> you're working with. Their word is final on taste; this spec is final on
+> format.
+
+*This document is self-contained: everything the engine needs to ingest
+new glyphs is defined here. Deliverables that follow it drop straight into
+the pipeline; deliverables that don't will bounce back for rework.*
 
 UI Kit Maker has **two glyph classes** with different contracts. State which
 one you're producing at the top of every delivery.
+
+---
+
+## What these glyphs ARE — the design language (read before drawing)
+
+Semantic glyphs are **chunky game iconography** in the tradition of
+game-icons.net: bold, toy-like, instantly nameable silhouettes. The engine
+dresses your silhouette in the kit's full material treatment — beveled
+face, extrusion depth, glow, pattern — so the silhouette must carry **all
+of the meaning by shape alone**. A player glancing at a 24 px version must
+say the noun out loud: "coin," "bomb," "shield," "potion."
+
+Good glyphs have: exaggerated, confident proportions; one clear subject;
+recognizable genre iconography (a coin has a rim and an embossed motif; a
+bomb has a body, cap and spark; a potion has a bulb, neck and cork);
+enough interior interest — via counter-holes or the `detail` layer — that
+the dressed render reads rich, not blank.
+
+**Anti-patterns (instant rework):**
+- A bare geometric primitive (a circle, a circle with a hole, a rounded
+  square). If the shape could be a tech-startup logo, it is wrong.
+- Thin rings, outline-style drawing, or stroke-look art. These are FILLED
+  silhouettes; thin features vanish under the bevel.
+- Letterforms, currency symbols, or text of any kind.
+- Minimalist abstraction. This is a candy game aesthetic — when in doubt,
+  add character, not less.
+
+## Worked brief — "a coin" (the standing example)
+
+A shippable coin silhouette is a **full disc** with: a rim expressed
+through the `detail` layer (a band of shadow-ink following the edge — not
+by cutting the face away), an **embossed motif** in the middle (a star, a
+gem facet, a crown — never a `$`) drawn as counter-holes or `detail`
+subpaths, and optionally a slight 3/4 ellipse tilt for dimensionality.
+The library's existing `coinsingle` does exactly this: solid disc, rim
+band as `detail`, interior lip as `detailLight`.
+
+**Sets read as families.** For progress-telling piles (one coin → a few →
+a heap), design all steps together: identical coin scale, same rim
+treatment, same light direction, growing count — each step is its own
+glyph entry (`coinpile2`, `coinpile3`, …) and must read as the SAME
+currency at every step.
 
 ---
 
@@ -70,6 +120,35 @@ Categories (use exactly one): `Currencies & Resources`,
 `Progression & Achievement`, `Boosters & Power-ups`,
 `Rewards & Collections`, `Gameplay Status`, `Commerce & Economy`,
 `Navigation & System`, `Social & Retention`.
+
+**Format demo** (shape simplified for brevity — this shows the *format*,
+not the quality bar; real deliveries carry far richer silhouettes):
+
+```json
+{
+  "id": "shieldbasic",
+  "name": "Basic Shield",
+  "category": "Gameplay Status",
+  "vb": [0, 0, 512, 512],
+  "d": "M 256 48 L 448 112 C 448 288 368 416 256 464 C 144 416 64 288 64 112 Z",
+  "detail": "M 256 96 L 408 148 C 404 288 340 388 256 428 L 256 96 Z",
+  "source": "authored for UI Kit Maker, 2026, by <collaborator>",
+  "license": "original work"
+}
+```
+
+### Working process (how the collaboration runs)
+
+1. Draft in **SVG path code** from the first sketch — never raster
+   mockups. A raster picture can't be ingested and hides geometry
+   problems.
+2. Present every draft as the raw silhouette rendered **large (512) and
+   small (24), on light AND dark** — the 24 px read is the acceptance
+   test.
+3. Before presenting, run the Quality bar checklist below on your own
+   output and print PASS/FAIL per line with the delivery.
+4. Iterate on geometry per the human's art direction. Their taste
+   decisions are final; do not re-argue them.
 
 ---
 
