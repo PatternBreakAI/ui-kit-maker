@@ -137,6 +137,18 @@ not the quality bar; real deliveries carry far richer silhouettes):
 }
 ```
 
+### Replacing existing glyphs
+
+Much of this collaboration is **upgrading existing artwork**, not just
+adding. When a delivery replaces a current glyph, say so explicitly:
+`"replaces": "<existing id>"` in the JSON. Match the original's semantic
+role and general proportions (it must still read as the same noun in the
+same seat) while beating it on character and craft. Ingestion then decides,
+per glyph, between an in-place swap (every existing placement restyles to
+the new art) and retire-and-succeed (old placements keep rendering, new
+art takes over every picker) — that call belongs to the product owner, so
+just flag the target and deliver.
+
 ### Working process (how the collaboration runs)
 
 1. Draft in **SVG path code** from the first sketch — never raster
