@@ -322,6 +322,27 @@ export interface ExportBoardItemData {
       filter) — the wipe shine's stencil, so the band hugs the letterforms
       instead of the halo. Ships only when the kit's idle wipe is on. */
   stampMask?: string;
+  /** LIVE TYPE STAMP (owner mandate: "I don't think the text in the
+      Victory Screen should be baked… This is about usefulness, not
+      show"): every UNWARPED stamp ships the numbers a real TMP text
+      needs, and the scene places editable words instead of pixels — the
+      baked sprite stays aboard as the fallback rung (pre-2023.2 editors,
+      HeroLabel race) and the wipe mask's canvas. Warped stamps
+      (stamp.warp active) stay art by contract — the bend lives in the
+      pixels. stampLive=1 marks the row; stampFs is the app's RENDERED
+      font px at board scale (measured off the specimen svg, the labelFs
+      convention); stampInk is the PLAIN tier's flat color (null = the
+      full splash treatment → the HeroLabel layered face); stampCase
+      carries the kit's case transform ("upper" acts via TMP, "title"/
+      "none" ride the typed text); stampDx/Dy seat the INK BOX's center
+      offset from the item center (board px, y down) and stampW/H its
+      measured size — alpha bounds of the CORE (halo-free) render, so the
+      live word lands in the same visual box the bake showed. */
+  stampLive?: number;
+  stampFs?: number;
+  stampInk?: string | null;
+  stampCase?: string;
+  stampDx?: number; stampDy?: number; stampW?: number; stampH?: number;
   /** a POSED bake for a prefab piece whose board pose diverges from the
       family sprite's natural aspect — the engine's own render at the
       exact board proportions, label stripped (words stay live). The
@@ -472,11 +493,18 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* what may STILL rasterize on the kit-piece stamp road, by name (the
    mandate's allowlist): the inventory grid's ringless panel bake (its
-   tiles go live over it by design). Type stamps, saved library assets,
-   backgrounds and dialed shadows travel their own deliberate roads and
-   never reach this gate. Any OTHER component landing here is branded
-   bakedFallback:true in its board row — the fence fails on any such row
-   in the canonical scenes, so nothing can bake silently again. */
+   tiles go live over it by design). Saved library assets, backgrounds
+   and dialed shadows travel their own deliberate roads and never reach
+   this gate. TYPE STAMPS (owner mandate, 2026-08-27: "I don't think the
+   text in the Victory Screen should be baked… This is about usefulness,
+   not show"): UNWARPED stamps go LIVE — editable TMP text on the
+   measured ink seat (stampLive fields; the baked sprite stays aboard
+   only as the fallback rung and wipe-mask canvas). WARPED stamps
+   (stamp.warp active) are the ONE allowlisted stamp raster: the bend is
+   raster-remapped pixel math and lives in the pixels by contract. Any
+   OTHER component landing here is branded bakedFallback:true in its
+   board row — the fence fails on any such row in the canonical scenes,
+   so nothing can bake silently again. */
 const BAKE_OK = new Set<KitComponentId>(["invgrid"]);
 
 /* The stock words each labeled family's prefab wears (mirror of the
@@ -738,34 +766,52 @@ export async function collectExportBoards(st: {
            wipe is on (the only consumer), named after its stamp so it
            never touches the ordinal counter. */
         let maskFile: string | null = null;
-        if (st.cfg.idle?.wipe) {
-          try {
-            const coreCfg = JSON.parse(JSON.stringify(st.cfg)) as GenConfig;
-            const tC = coreCfg.type;
-            tC.shadow = { ...tC.shadow, on: false };
-            tC.glow = { ...tC.glow, on: false };
-            tC.emboss = { ...tC.emboss, on: false }; // its offset shade pokes past the glyph edge
-            if (tC.shine) tC.shine = { ...tC.shine, on: false };
-            if (tC.glints) tC.glints = { ...tC.glints, on: false };
-            if (coreCfg.idle) coreCfg.idle = { ...coreCfg.idle, wipe: false };
-            const coreSvgF = await inlineKitFace(stampSvg(coreCfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
-            const { bytes: rawC, w: rwC, h: rhC } = await svgToPngBytes(coreSvgF, 2);
-            if (rwC === rw0 && rhC === rh0) {
-              const bmpC = await createImageBitmap(new Blob([rawC.slice().buffer as ArrayBuffer]));
-              const warpedC = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount
-                ? warpStampRaster(bmpC, rwC, rhC, b.stamp.warp) : null;
-              const mcv = document.createElement("canvas");
-              mcv.width = cv.width; mcv.height = cv.height;
-              mcv.getContext("2d")!.drawImage(warpedC ?? bmpC, padPx, padPx);
-              bmpC.close();
+        /* the CORE (halo-free) render now serves TWO consumers: the wipe
+           mask (unchanged) and the LIVE-STAMP measurement — the ink box
+           the editable TMP words must land in (owner mandate: typed words
+           are components, not pixels). Built always; the mask still ships
+           only when the kit's idle wipe is on. */
+        let inkBox: { x: number; y: number; w: number; h: number } | null = null;
+        try {
+          const coreCfg = JSON.parse(JSON.stringify(st.cfg)) as GenConfig;
+          const tC = coreCfg.type;
+          tC.shadow = { ...tC.shadow, on: false };
+          tC.glow = { ...tC.glow, on: false };
+          tC.emboss = { ...tC.emboss, on: false }; // its offset shade pokes past the glyph edge
+          if (tC.shine) tC.shine = { ...tC.shine, on: false };
+          if (tC.glints) tC.glints = { ...tC.glints, on: false };
+          if (coreCfg.idle) coreCfg.idle = { ...coreCfg.idle, wipe: false };
+          const coreSvgF = await inlineKitFace(stampSvg(coreCfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+          const { bytes: rawC, w: rwC, h: rhC } = await svgToPngBytes(coreSvgF, 2);
+          if (rwC === rw0 && rhC === rh0) {
+            const bmpC = await createImageBitmap(new Blob([rawC.slice().buffer as ArrayBuffer]));
+            const warpedC = b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount
+              ? warpStampRaster(bmpC, rwC, rhC, b.stamp.warp) : null;
+            const mcv = document.createElement("canvas");
+            mcv.width = cv.width; mcv.height = cv.height;
+            mcv.getContext("2d")!.drawImage(warpedC ?? bmpC, padPx, padPx);
+            bmpC.close();
+            /* MEASURED ink bounds (raster px, canvas frame) — "measured,
+               not guessed": the fence compares these against the shipped
+               pixels byte-for-byte */
+            const mid = mcv.getContext("2d")!.getImageData(0, 0, mcv.width, mcv.height).data;
+            let ix0 = mcv.width, iy0 = mcv.height, ix1 = -1, iy1 = -1;
+            for (let yy = 0; yy < mcv.height; yy++)
+              for (let xx = 0; xx < mcv.width; xx++)
+                if (mid[(yy * mcv.width + xx) * 4 + 3] > 24) {
+                  if (xx < ix0) ix0 = xx; if (xx > ix1) ix1 = xx;
+                  if (yy < iy0) iy0 = yy; if (yy > iy1) iy1 = yy;
+                }
+            if (ix1 >= ix0 && iy1 >= iy0) inkBox = { x: ix0, y: iy0, w: ix1 - ix0 + 1, h: iy1 - iy0 + 1 };
+            if (st.cfg.idle?.wipe) {
               // bytes FIRST — an encode failure must leave the row mask-less,
               // never pointing at a file that didn't ship
               const mBytes = await canvasToPngBytesDilated(mcv);
               maskFile = file.replace(/\.png$/, "-mask.png");
               maskFiles.push({ file: maskFile, bytes: mBytes });
             }
-          } catch { /* a stamp without its mask still shines — clipped to its full art */ }
-        }
+          }
+        } catch { /* a stamp without its mask still shines — clipped to its full art; without a measurement it stays a baked picture */ }
         bmp.close();
         const k = b.scale ?? 1;
         const w = (cv.width / 2) * k, h = (cv.height / 2) * k;
@@ -782,6 +828,29 @@ export async function collectExportBoards(st: {
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
           ...(maskFile ? { stampMask: maskFile } : {}),
+          /* LIVE fields (owner: "someone is for sure gonna delete it") —
+             unwarped stamps only, and only when the measurement landed:
+             the rendered font px comes off the specimen svg itself (the
+             labelFs convention: what the app DREW, not what a formula
+             guesses), the seat is the CORE ink box at board scale. */
+          ...(inkBox && !(b.stamp.warp && b.stamp.warp.style !== "none" && b.stamp.warp.amount)
+            ? (() => {
+                const fsM = /font-size="([\d.]+)/.exec(stampSvgF);
+                const fsPx = fsM ? parseFloat(fsM[1]) : 0;
+                if (!(fsPx > 1)) return {};
+                const r1 = (v: number) => Math.round(v * 10) / 10;
+                return {
+                  stampLive: 1,
+                  stampFs: r1(fsPx * k), // svg font px == design px; × board scale
+                  stampInk: b.stamp.plain?.color ?? null,
+                  stampCase: st.cfg.type.case ?? "none",
+                  stampDx: r1(((inkBox.x + inkBox.w / 2 - cv.width / 2) / 2) * k),
+                  stampDy: r1(((inkBox.y + inkBox.h / 2 - cv.height / 2) / 2) * k),
+                  stampW: r1((inkBox.w / 2) * k),
+                  stampH: r1((inkBox.h / 2) * k),
+                };
+              })()
+            : {}),
         });
         continue;
       }
@@ -8258,7 +8327,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -10026,6 +10095,44 @@ namespace PatternBreak {
                  this one pass re-points anything still holding an
                  old-scheme file at its item's current bake. ── */
               if (!string.IsNullOrEmpty(it2.stamp)) {
+#if UNITY_2023_2_OR_NEWER
+                /* ── LIVE-STAMP CONVERSION (owner mandate: "someone is for
+                   sure gonna delete it") — a kept scene's BAKED stamp
+                   picture, still on the builder's own seat and still
+                   wearing OUR boardstamps sprite, upgrades to editable
+                   text the moment its manifest row goes live: the SAME
+                   builder fresh scenes use, seated on the measured ink
+                   box. An already-live stamp is the maker's — its typed
+                   words are never touched by any heal. Point-anchored
+                   copies only (a stretch-anchored frame carries margins
+                   this swap can't re-derive; it stays a picture, said
+                   out loud). Deferred destroy — the walk's rule. */
+                var tmpLiveH = ch.GetComponentInChildren<TMPro.TMP_Text>(true);
+                if (tmpLiveH != null) continue; // live already — yours, words and all
+                if (it2.stampLive == 1 && it2.stampFs > 1f && !string.IsNullOrEmpty(it2.label)) {
+                  var imgBk = ch.GetComponent<Image>();
+                  var bkPath = imgBk != null && imgBk.sprite != null ? AssetDatabase.GetAssetPath(imgBk.sprite).Replace("\\\\", "/") : null;
+                  if (bkPath != null && bkPath.StartsWith(root + "/boardstamps/")) {
+                    if (Mathf.Abs(crt.anchorMax.x - crt.anchorMin.x) < 0.001f && Mathf.Abs(crt.anchorMax.y - crt.anchorMin.y) < 0.001f) {
+                      var liveGo = BuildLiveStamp(root, m, it2, scene);
+                      if (liveGo != null) {
+                        var liveRt = (RectTransform)liveGo.transform;
+                        liveGo.transform.SetParent(ch.parent, false);
+                        liveGo.transform.SetSiblingIndex(ch.GetSiblingIndex());
+                        liveRt.anchorMin = crt.anchorMin; liveRt.anchorMax = crt.anchorMax; liveRt.pivot = crt.pivot;
+                        liveRt.anchoredPosition = crt.anchoredPosition + new Vector2(it2.stampDx, -it2.stampDy);
+                        if (Mathf.Abs(it2.rot) > 0.01f) liveRt.localRotation = Quaternion.Euler(0f, 0f, -it2.rot);
+                        if (liveGo.GetComponent<KitPiece>() == null) liveGo.AddComponent<KitPiece>();
+                        staleShadows.Add(ch.gameObject); // deferred-destroy list (shared)
+                        healedW++;
+                        Debug.Log("UI Kit Maker: '" + bd.name + "' — the stamp '" + it2.label + "' is LIVE text now (it was a baked picture): edit it in the Inspector like any other word.");
+                        continue;
+                      }
+                    } else
+                      Debug.Log("UI Kit Maker: '" + bd.name + "' — the stamp '" + it2.label + "' stays a picture in this kept scene (stretch-anchored frame); rebuild the scene via Tools > PatternBreak > Rebuild Kit Board Scenes to get it as live text.");
+                  }
+                }
+#endif
                 var img2 = ch.GetComponent<Image>();
                 var wantSp = S(root + "/" + it2.stamp);
                 if (img2 != null && wantSp != null && img2.sprite != wantSp) {
@@ -10197,6 +10304,73 @@ namespace PatternBreak {
       }
 #endif
     }
+#if UNITY_2023_2_OR_NEWER
+    /* ── the LIVE TYPE STAMP (owner mandate: "I don't think the text in
+       the Victory Screen should be baked… someone is for sure gonna
+       delete it. This is about usefulness, not show."): an UNWARPED stamp
+       row ships measured numbers (stampFs/Ink/Case/Dx/Dy/W/H) and builds
+       as REAL, Inspector-editable text in the kit's own lettering —
+       SPLASH stamps ride the layered HeroLabel face, PLAIN-tier ones the
+       styled SDF face wearing the undressed preset at the stamp's flat
+       color. Warped stamps never carry stampLive (the bend lives in the
+       pixels) and stay art. ONE builder, shared by the scene pass and the
+       kept-scene heal — the SeatPosedLabel precedent: a healed stamp can
+       never differ from a built one. Null = the machinery lost the
+       first-drop race (HeroLabel prefab / kit face) — the caller keeps
+       the baked picture and arms the self-rebuild. */
+    static GameObject BuildLiveStamp(string root, PBManifest m, PBBoardItem it, UnityEngine.SceneManagement.Scene scene) {
+      var word = it.label ?? "";
+      bool plainTier = !string.IsNullOrEmpty(it.stampInk);
+      GameObject go = null;
+      if (plainTier) {
+        var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        if (face == null) return null;
+        go = new GameObject("Stamp (live) — " + word, typeof(RectTransform), typeof(CanvasRenderer));
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+        var t = go.AddComponent<TextMeshProUGUI>();
+        t.text = word;
+        t.font = face; // assigning the font resets the material —
+        var plainMat = EnsureGaugeUnitMaterial(root, face);
+        if (plainMat != null) t.fontSharedMaterial = plainMat; // — the undressed preset lands after
+        t.enableAutoSizing = false;
+        t.fontSize = it.stampFs;
+        if (m != null && m.typography != null && m.typography.style != null) t.characterSpacing = m.typography.style.spacingEmPct;
+        t.alignment = TextAlignmentOptions.Center;
+        Color inkC;
+        if (ColorUtility.TryParseHtmlString(it.stampInk, out inkC)) t.color = inkC;
+        t.raycastTarget = false;
+      } else {
+        var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
+        if (hlPf == null) return null;
+        go = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
+        go.name = "Stamp (live) — " + word;
+        var hl = go.GetComponent<HeroLabel>();
+        if (hl != null) { hl.authoredHeight = 0f; hl.fontSize = it.stampFs; hl.SetText(word); }
+      }
+      var lrt = (RectTransform)go.transform;
+      /* the rect wears the measured ink box plus type-safe air — the words
+         center on it, so the glyphs land exactly where the bake's ink sat;
+         the air keeps TMP's layout from ever clipping an ascender */
+      lrt.sizeDelta = new Vector2(it.stampW * 1.25f + it.stampFs, it.stampH + it.stampFs);
+      foreach (var wt in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+        // the kit's case transform, non-destructively (the typed words stay
+        // the maker's exact string in the Inspector)
+        if (it.stampCase == "upper") wt.fontStyle |= FontStyles.UpperCase;
+#pragma warning disable 0618
+        wt.enableWordWrapping = false;
+#pragma warning restore 0618
+        wt.overflowMode = TMPro.TextOverflowModes.Overflow;
+      }
+      /* the owner's animating numbers keep their rigs (round 30): a colon
+         counts down in Play, plain digits pop */
+      var trimmedW = word.Trim();
+      if (System.Text.RegularExpressions.Regex.IsMatch(trimmedW, "^[0-9][0-9.,:+xX% ]*$")) {
+        if (trimmedW.Contains(":")) go.AddComponent<CountdownLabel>();
+        else go.AddComponent<PopNumber>();
+      }
+      return go;
+    }
+#endif
     static void BuildBoardScenes(string root, PBManifest m) {
       if (m == null || m.boards == null || m.boards.Length == 0) return;
       foreach (var bd in m.boards) {
@@ -10380,6 +10554,7 @@ namespace PatternBreak {
         var placedRoots = new List<KeyValuePair<PBBoardItem, RectTransform>>();
         if (bd.items != null) foreach (var it in bd.items) {
           GameObject inst = null; RectTransform rt = null; RectTransform shadowRt = null;
+          bool liveStamp = false; // a live-text stamp seats on its measured ink box below
           /* ── a BIG GLYPH (the owner's board-art drop): every instance
              converges on its asset's OWN prefab (owner mandate: "if used
              then they should export with boards as their own prefabs").
@@ -10422,12 +10597,27 @@ namespace PatternBreak {
             ArtRaycastPad(inst.GetComponent<Image>(), it);
           } else if (!string.IsNullOrEmpty(it.stamp)) {
 #if UNITY_2023_2_OR_NEWER
-            /* NUMERIC type stamps go LIVE (owner: "750 should be animating
-               on play… :56 should be counting down"): the layered kit face
-               rebuilds the stamp's look as REAL text, and a rig moves it —
-               a colon reads as a countdown, plain digits as a damage pop.
-               Words stay baked pixels, exactly as before. */
-            if (it.component == "typestamp" && !string.IsNullOrEmpty(it.label)
+            /* TYPE STAMPS go LIVE (owner mandate — see BuildLiveStamp):
+               every unwarped stamp row becomes editable text on its
+               measured ink seat; warped stamps carry no stampLive and
+               stay art. Machinery not ready = the baked sprite stands in
+               and missing++ arms the self-rebuild (word healing's road). */
+            if (it.component == "typestamp" && it.stampLive == 1 && it.stampFs > 1f && !string.IsNullOrEmpty(it.label)) {
+              inst = BuildLiveStamp(root, m, it, scene);
+              if (inst != null) {
+                inst.transform.SetParent(safeT, false);
+                rt = inst.GetComponent<RectTransform>();
+                liveStamp = true;
+              } else {
+                Debug.LogWarning("UI Kit Maker: stamp '" + it.label + "' stays a baked image this pass — the kit lettering isn't generated yet; the scene rebuilds itself once it is (or run Tools > PatternBreak > Rebuild Kit Board Scenes).");
+                missing++;
+              }
+            }
+            /* NUMERIC stamps from OLDER manifests (round 30 — no measured
+               stamp fields shipped): the layered kit face rebuilds the look
+               as real text and a rig moves it. Kept for zips minted before
+               the live-stamp fields existed. */
+            if (inst == null && it.stampLive != 1 && it.component == "typestamp" && !string.IsNullOrEmpty(it.label)
                 && System.Text.RegularExpressions.Regex.IsMatch(it.label.Trim(), "^[0-9][0-9.,:+xX% ]*$")) {
               var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
               if (hlPf == null)
@@ -10579,6 +10769,9 @@ namespace PatternBreak {
           float axBoard = it.ax * bd.w;
           float ayBoard = (1f - it.ay) * bd.h; // board y runs down
           rt.anchoredPosition = new Vector2(it.cx - axBoard, -(it.cy - ayBoard));
+          /* a live stamp centers on its MEASURED ink box, not the bake's
+             padded canvas — the words land exactly where the pixels sat */
+          if (liveStamp) rt.anchoredPosition += new Vector2(it.stampDx, -it.stampDy);
           if (string.IsNullOrEmpty(it.stamp)) {
             var pspPose = string.IsNullOrEmpty(it.posed) ? null : S(root + "/" + it.posed);
             if (!string.IsNullOrEmpty(it.posed) && pspPose == null) {

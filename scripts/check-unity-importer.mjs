@@ -2019,6 +2019,31 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the dropdown maintenance heal is missing — an already-rigged Dropdown whose rows ride the LiberationSans fallback must re-bind to the kit face on import (the 'kinda' font)");
 }
 
+/* ── LIVE TYPE STAMPS (owner mandate, 2026-08-27: typed words are
+   components, not pixels). The allowlist: WARPED stamps (stamp.warp
+   active) are the one stamp raster allowed to stay art — the bend is
+   pixel math by contract. Everything else must travel live: the app side
+   gates stampLive on the warp check, the C# side builds editable text
+   through ONE shared builder (scene pass + kept-scene heal), seated on
+   the measured ink box, with the baked sprite as the documented fallback
+   rung only. */
+{
+  if (!/static GameObject BuildLiveStamp\(string root, PBManifest m, PBBoardItem it, UnityEngine\.SceneManagement\.Scene scene\)/.test(cs))
+    errors.push("BuildLiveStamp is missing — unwarped type stamps must place as editable text (owner mandate: never baked)");
+  if (!/it\.stampLive == 1 && it\.stampFs > 1f/.test(cs))
+    errors.push("the scene pass no longer routes stampLive rows through the live-stamp builder");
+  if (!/it2\.stampLive == 1 && it2\.stampFs > 1f/.test(cs))
+    errors.push("the kept-scene heal no longer converts baked stamp pictures to live text (project-27-class projects would stay pictures forever)");
+  if (!/rt\.anchoredPosition \+= new Vector2\(it\.stampDx, -it\.stampDy\);/.test(cs))
+    errors.push("the live stamp no longer seats on its measured ink box (stampDx/Dy) — placement drifts off the app render");
+  // the app-side warp gate: stampLive must never ride a warped stamp
+  if (!/inkBox && !\(b\.stamp\.warp && b\.stamp\.warp\.style !== "none" && b\.stamp\.warp\.amount\)/.test(src))
+    errors.push("the app-side warp gate is gone — warped stamps are the ONLY stamps allowed to stay art (guard allowlist), and stampLive must never ride one");
+  // the fallback rung stays documented and armed: no HeroLabel/face yet → baked + missing++ (self-rebuild)
+  if (!/stays a baked image this pass/.test(cs))
+    errors.push("the live-stamp race fallback (baked stand-in + missing++ self-rebuild) is missing");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
