@@ -4994,10 +4994,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
         const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
         const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        /* CONTAINMENT (owner, ship blocker: "the highlight overruns the
+           edge of this slider") — the gloss streak and the BarFx overlays
+           clip to the mercury's own silhouette, so on shaped caps
+           (mazepill's ellipse, any ornate shell) the highlight ends where
+           the mercury ends instead of hanging past the curve. Unity's
+           scissor then cuts fill and baked highlight together. */
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
-          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
-          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+          <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
@@ -5019,11 +5025,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          follow the shape silhouette", owner). The knob edge keeps its bead. */
       const rSl = Math.min(bh / 2, Math.max(2, fillW / 2));
       const slFill = `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(bx + fillW - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${by.toFixed(1)} ${(bx + fillW).toFixed(1)} ${(by + rSl).toFixed(1)} V ${(by + bh - rSl).toFixed(1)} Q ${(bx + fillW).toFixed(1)} ${(by + bh).toFixed(1)} ${(bx + fillW - rSl).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
+      /* CONTAINMENT (owner, ship blocker: "the highlight overruns the edge
+         of this slider"): the gloss streak and BarFx overlays clip to the
+         FILL PATH itself, nested inside the silhouette clip — the visible
+         highlight is exactly gloss ∩ fill ∩ silhouette, so it can never
+         paint past the mercury's start or end at any value, size or shape. */
       return stampTrack(inject(track,
         `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>
-         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}<clipPath id="${gid}w"><path d="${clipSl}"/></clipPath></defs>
+         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfx.defs}<clipPath id="${gid}w"><path d="${clipSl}"/></clipPath><clipPath id="${gid}f"><path d="${slFill}"/></clipPath></defs>
          ${fillW > 1 ? `<g clip-path="url(#${gid}w)">${sfx.open}<path d="${slFill}" fill="url(#${gid})" opacity="${state === "disabled" ? 0.35 : 0.95}"/>${sfx.close}
-         <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fillW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g>` : ""}` +
+         <g clip-path="url(#${gid}f)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fillW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfx.over}</g></g>` : ""}` +
         candyKnob(knobX, knobY, kr, knobC)), bx, trackW);
     }
     case "emblembar": // first-class docked bar — progress with the socket built in
@@ -5056,10 +5067,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
         const sfxF = barFx(gid, bx, by, trackW, bh, bh / 2);
         const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
+        /* CONTAINMENT (owner, ship blocker — the slider's rule): gloss and
+           BarFx overlays clip to the mercury silhouette, so the baked
+           highlight ends where the mercury ends on shaped caps; Unity's
+           Filled scissor cuts fill and highlight together. */
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
-          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}</defs>
+          <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
-          <path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</svg>`;
+          <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
@@ -5077,15 +5092,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const fx1 = bx + fw;
       const r5 = Math.min(bh / 2, Math.max(2, fw / 2));
       const dimP = state === "disabled" ? 0.35 : 0.95;
-      const mercFill = full
-        ? `<path d="${mercP}" fill="url(#${gid})" opacity="${dimP}"/>`
-        : `<path d="M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fx1 - r5).toFixed(1)} Q ${fx1.toFixed(1)} ${by.toFixed(1)} ${fx1.toFixed(1)} ${(by + r5).toFixed(1)} V ${(by + bh - r5).toFixed(1)} Q ${fx1.toFixed(1)} ${(by + bh).toFixed(1)} ${(fx1 - r5).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z" fill="url(#${gid})" opacity="${dimP}"/>`;
+      const mercD = full
+        ? mercP
+        : `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fx1 - r5).toFixed(1)} Q ${fx1.toFixed(1)} ${by.toFixed(1)} ${fx1.toFixed(1)} ${(by + r5).toFixed(1)} V ${(by + bh - r5).toFixed(1)} Q ${fx1.toFixed(1)} ${(by + bh).toFixed(1)} ${(fx1 - r5).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
+      const mercFill = `<path d="${mercD}" fill="url(#${gid})" opacity="${dimP}"/>`;
       const mercGloss = `<path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fw + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`;
+      /* CONTAINMENT (owner, ship blocker — the slider's rule): gloss and
+         BarFx overlays clip to the fill path itself, nested inside the
+         silhouette clip — the visible highlight is gloss ∩ fill ∩
+         silhouette, never past the mercury at any value, size or shape. */
       let out = stampTrack(inject(track,
         `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>
-         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${pfx.defs}<clipPath id="${gid}w"><path d="${mercP}"/></clipPath></defs>
+         <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${pfx.defs}<clipPath id="${gid}w"><path d="${mercP}"/></clipPath><clipPath id="${gid}f"><path d="${mercD}"/></clipPath></defs>
          ${fw > 1 ? `<g clip-path="url(#${gid}w)">${pfx.open}${mercFill}${pfx.close}
-         ${mercGloss}${pfx.over}</g>` : ""}`), bx, trackW);
+         <g clip-path="url(#${gid}f)">${mercGloss}${pfx.over}</g></g>` : ""}`), bx, trackW);
       // emblem bar: the docked socket rides the track end, over the fill —
       // always on for the first-class component (its icon override drives
       // the emblem), opt-in via bar settings for a plain progress bar
