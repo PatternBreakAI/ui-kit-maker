@@ -1686,6 +1686,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("posed placement must seat the label through SeatPosedLabel (shared with the word healer) — the label stays inside the piece root (slice 2)");
 }
 
+/* ── Unity-fidelity round, slice 4 (2026-08-26): SpeedoArc truth + the
+   picker's icons. (a) The gauge stamp spoke the case's LOCAL coordinates
+   while the drawn dial sits inside build()'s translated content groups —
+   on Brightside every live gauge child (segments, needle anchor, Number,
+   MPH) anchored 61.7 design px above the painted dial. gaugeOf now sums
+   the overlay's inherited translates and ships the DRAWN frame; kept rigs
+   converge. (b) The lit ramp ships the PIECE's own Bevel→Glow (a
+   gauge-scoped fork lit green on a cream kit), and the segment sprite
+   bakes its white halo. (c) The picker's glyph (st.kitIcons) reaches the
+   iconbtn/checkbox/radio family bakes — boards honored it, prefabs baked
+   stock art (the PLAY-triangle Settings gear). */
+{
+  if (!/const overlayShiftOf = \(s: string\)/.test(src)
+      || !/x: Math\.round\(\(v\[0\] \+ sh\.tx\) \* PNG_SCALE\), y: Math\.round\(\(v\[1\] \+ sh\.ty\) \* PNG_SCALE\)/.test(src)
+      || !/dialX: Math\.round\(\(v\[5\] \+ sh\.tx\) \* PNG_SCALE\), dialY: Math\.round\(\(v\[6\] \+ sh\.ty\) \* PNG_SCALE\)/.test(src))
+    errors.push("the gauge stamp must ship the DRAWN frame (overlayShiftOf's inherited-translate sum on x/y/unitY/dialX/dialY) — the live rig anchors above the painted dial without it (slice 4)");
+  if (!/from: segBev, to: segGlow/.test(src))
+    errors.push("the segment ramp must ship the piece's OWN resolved Bevel→Glow (gauge.seg.from/to) — a gauge-scoped fork lights the wrong palette otherwise (slice 4)");
+  if (!/class PBGaugeSeg \{ public float rI; public float rO; public float w; public float n; public float a0; public float sweep; public string from; public string to; \}/.test(cs))
+    errors.push("PBGaugeSeg must declare from/to — JsonUtility drops the shipped ramp colors without them (slice 4)");
+  if (!/if \(gRow\.seg != null && !string\.IsNullOrEmpty\(gRow\.seg\.from\)\) ColorUtility\.TryParseHtmlString\(gRow\.seg\.from, out cFrom\);/.test(cs))
+    errors.push("WireGauge must prefer the row's shipped ramp colors over the master palette (slice 4)");
+  if (!/bool oursSeg = segT\.childCount > 0;/.test(cs) || !/if \(\(srtC\.anchorMin - cS2\)\.sqrMagnitude > 1e-5f\)/.test(cs))
+    errors.push("kept segment rings must converge with the current dial center + ramp (ownership-gated on our shipped sprite) (slice 4)");
+  if (!/const segW = 8 \* k, segL = 20 \* k, halo = 12 \* k, pad = 2 \+ halo;/.test(bevelSrc) || !/id="seghalo"/.test(bevelSrc))
+    errors.push("the segment sprite must bake its white halo on a symmetrically padded canvas — the arc reads as dry dashes without it (slice 4)");
+  const pickerRoads = (src.match(/resolveKitIcon\(st\.kitIcons\?\.iconbtn, undefined\)/g) ?? []).length;
+  if (pickerRoads < 2 || !/resolveKitIcon\(st\.kitIcons\?\.checkbox, undefined\)/.test(src) || !/resolveKitIcon\(st\.kitIcons\?\.radio, undefined\)/.test(src))
+    errors.push("the picker's glyph (st.kitIcons) must reach the iconbtn (base + states), checkbox and radio family bakes — boards honored it while prefabs baked stock art (slice 4)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

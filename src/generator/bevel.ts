@@ -9313,10 +9313,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            the SpeedoArc's live segments tint cleanly along the palette
            (Image.color multiplies; a glow-colored sprite can't reach the
            bevel end of the ramp). The old 10k×26k glow-colored pill was a
-           near-match that could never sit pixel-true on the baked grid. */
-        const segW = 8 * k, segL = 20 * k, pad = 2;
+           near-match that could never sit pixel-true on the baked grid.
+           Slice 4: the app's lit segments wear a soft halo (the 4k glow
+           drop-shadow) that the flat sprite dropped — Unity's arc read as
+           dry dashes beside the app's light. The halo bakes in WHITE (the
+           tint colors core and halo together) on a canvas padded by its
+           3-sigma reach; the pad is symmetric, so the sprite's center —
+           the polar-grid seat — holds exactly. */
+        const segW = 8 * k, segL = 20 * k, halo = 12 * k, pad = 2 + halo;
         const W3 = segW + pad * 2, H3 = segL + segW + pad * 2; // caps add segW/2 each end
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${W3.toFixed(0)}" height="${H3.toFixed(0)}" viewBox="0 0 ${W3.toFixed(0)} ${H3.toFixed(0)}"><line x1="${(W3 / 2).toFixed(1)}" y1="${(pad + segW / 2).toFixed(1)}" x2="${(W3 / 2).toFixed(1)}" y2="${(pad + segW / 2 + segL).toFixed(1)}" stroke="#FFFFFF" stroke-width="${segW.toFixed(1)}" stroke-linecap="round"/></svg>`;
+        /* filterUnits userSpaceOnUse: a perfectly VERTICAL line has a
+           zero-width bounding box, and objectBoundingBox filter regions
+           collapse on it — the sprite rendered fully transparent. The
+           region is simply the whole canvas. */
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${W3.toFixed(0)}" height="${H3.toFixed(0)}" viewBox="0 0 ${W3.toFixed(0)} ${H3.toFixed(0)}"><defs><filter id="seghalo" filterUnits="userSpaceOnUse" x="0" y="0" width="${W3.toFixed(0)}" height="${H3.toFixed(0)}">${shadow11(0, 0, (4 * k).toFixed(1), "#FFFFFF", 0.7)}</filter></defs><line x1="${(W3 / 2).toFixed(1)}" y1="${(pad + segW / 2).toFixed(1)}" x2="${(W3 / 2).toFixed(1)}" y2="${(pad + segW / 2 + segL).toFixed(1)}" stroke="#FFFFFF" stroke-width="${segW.toFixed(1)}" stroke-linecap="round" filter="url(#seghalo)"/></svg>`;
       }
       const arc = `<circle cx="${cx3}" cy="${cy3}" r="${(r0 - 30 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.25)}" stroke-width="1.5" stroke-dasharray="3 7"/>`;
       const readout = part === "face" ? "" :

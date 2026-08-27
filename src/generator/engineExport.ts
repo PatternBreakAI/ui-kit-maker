@@ -154,7 +154,7 @@ interface AssetMeta {
      *  degrees (y down). The importer builds live segment sprites on this
      *  grid; GaugeDial lights them to the value — the scene finally
      *  strikes the lit pose the board showed. Absent = no live ring. */
-    seg?: { rI: number; rO: number; w: number; n: number; a0: number; sweep: number };
+    seg?: { rI: number; rO: number; w: number; n: number; a0: number; sweep: number; from?: string; to?: string };
     ink?: {
       weight: number; italic: boolean; spacingEmPct: number;
       fillMode: string; fill: string; fill2: string | null; fillOpacity: number;
@@ -3111,8 +3111,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      icon are how the pieces read; "none" per piece on uikitmaker.com is
      the strip switch, honored end to end): icon undefined here overrides
      shell()'s blanket null back to "as designed" */
-  await addPng("checkbox/base.png", shell("checkbox", { icon: undefined }, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box, ghost mark included (as designed). The lit check is a separate tintable glyph (icons/check.png)." });
-  await addPng("radio/base.png", shell("radio", { icon: undefined }, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell, ghost pip included (as designed). The lit dot is a separate tintable glyph (icons/dot.png)." });
+  await addPng("checkbox/base.png", shell("checkbox", { icon: resolveKitIcon(st.kitIcons?.checkbox, undefined) }, undefined, 0), { component: "checkbox", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Unchecked box, ghost mark included (as designed). The lit check is a separate tintable glyph (icons/check.png)." });
+  await addPng("radio/base.png", shell("radio", { icon: resolveKitIcon(st.kitIcons?.radio, undefined) }, undefined, 0), { component: "radio", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Radio shell, ghost pip included (as designed). The lit dot is a separate tintable glyph (icons/dot.png)." });
   /* the PLAIN twins (dev field report: "the checkbox base background has
      the check baked on"; owner: "offer both types to cover all bases") —
      bare wells with no ghost mark, so Unity's own Toggle can own the
@@ -3134,7 +3134,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("orb/lit.png", shell("orb", {}, undefined, 1), { component: "orb", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, lit — streaks, statuses, day markers." });
   await addPng("orb/off.png", shell("orb", {}, undefined, 0), { component: "orb", part: "off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, off (dark glass)." });
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell — the count arrives as live text on the Badge prefab (your app number, editable).", ...labelSeatOf("badge", st.kitLabels?.badge ?? "12") });
-  await addPng("iconbtn/base.png", shell("iconbtn", { icon: undefined }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
+  await addPng("iconbtn/base.png", shell("iconbtn", { icon: resolveKitIcon(st.kitIcons?.iconbtn, undefined) }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
   await addPng("iconbtn/base-plain.png", shell("iconbtn", { icon: null }), { component: "iconbtn", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell, NO glyph baked — drop any icons/* on top for close/X, back, settings buttons." });
 
   /* ── states for the OTHER controls people actually point at. Only the
@@ -3143,10 +3143,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      and nothing happens (owner: "I think it's missing the hover states").
      These bases render on the FULL canvas rather than cropped, so all four
      states already share one geometry — the swap can't shift the art. ── */
+  /* the PICKER's glyph travels (slice 4, owner: "I hope it's translating
+     my icons… I don't think it is"): `icon: undefined` lets renderKit fall
+     to the component's stock glyph, but the owner's picked glyph lives in
+     st.kitIcons — the board bakes honored it while the family sprites
+     baked the stock art (Brightside: the Settings gear shipped as a PLAY
+     triangle on every live iconbtn). resolveKitIcon is the boards' own
+     road: unset stays undefined (byte-identical bakes), "none" bakes bare. */
   const STATEFUL: { id: KitComponentId; family: string; opts: Record<string, unknown>; value?: number }[] = [
-    { id: "iconbtn", family: "iconbtn", opts: { icon: undefined } },
-    { id: "checkbox", family: "checkbox", opts: { icon: undefined }, value: 0 },
-    { id: "radio", family: "radio", opts: { icon: undefined }, value: 0 },
+    { id: "iconbtn", family: "iconbtn", opts: { icon: resolveKitIcon(st.kitIcons?.iconbtn, undefined) } },
+    { id: "checkbox", family: "checkbox", opts: { icon: resolveKitIcon(st.kitIcons?.checkbox, undefined) }, value: 0 },
+    { id: "radio", family: "radio", opts: { icon: resolveKitIcon(st.kitIcons?.radio, undefined) }, value: 0 },
   ];
   const SWAP_USAGE: Record<string, string> = {
     hover: "Highlighted (and Selected)",
@@ -3322,6 +3329,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* the READOUT SEAT rides each face render as a geo stamp (data-gauge —
      the season-track discipline): the importer's live TMP numbers sit
      exactly where the app draws them, measured, never eyeballed */
+  /* ── the DRAWN-FRAME shift (slice 4, owner: "SpeedoArc still coming out
+     weird"): the gauge overlay (well, ticks, readout) is INJECTED inside
+     build()'s content groups, and those carry the extrusion-headroom
+     translate — the drawn dial sits translate-lower than the case's local
+     coordinates, which is exactly what the stamp speaks. Brightside: the
+     whole live rig (segments, needle anchor, Number, MPH) anchored 61.7
+     design px ABOVE the painted dial. The overlay's inherited transform is
+     the sum of the translates of every group still open where inject()
+     appends — strip the trailing close-run, walk the markup with a stack,
+     sum what stays open. The stamp then ships in the frame the PIXELS
+     live in, like data-shell always has. (Kits with maxed extrusion have
+     zero headroom — their stamps shift by 0 and stay byte-identical.) */
+  const overlayShiftOf = (s: string): { tx: number; ty: number } => {
+    const body = s.replace(/(?:\s*<\/g>)*\s*<\/svg>\s*$/, "");
+    const stack: { tx: number; ty: number }[] = [];
+    const re = /<g\b[^>]*>|<\/g>/g;
+    let mg: RegExpExecArray | null;
+    while ((mg = re.exec(body))) {
+      if (mg[0] === "</g>") { stack.pop(); continue; }
+      const tm = /transform="translate\((-?[\d.]+)[ ,]+(-?[\d.]+)\)/.exec(mg[0]);
+      stack.push(tm ? { tx: +tm[1], ty: +tm[2] } : { tx: 0, ty: 0 });
+    }
+    return stack.reduce((a, g) => ({ tx: a.tx + g.tx, ty: a.ty + g.ty }), { tx: 0, ty: 0 });
+  };
   const gaugeOf = (svg: string, id: KitComponentId): AssetMeta["gauge"] => {
     const gm = /data-gauge="([-\d. ]+)"/.exec(svg);
     if (!gm) return null;
@@ -3329,6 +3360,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     // 5 numbers = the classic seat stamp; 7 adds the dial center (round 12,
     // housed faces: the needle anchors on the dial, not the canvas center)
     if ((v.length !== 5 && v.length !== 7) || v.some((n) => !Number.isFinite(n))) return null;
+    const sh = overlayShiftOf(svg);
     /* the readout's TYPE RECIPE rides the seat row. The app's gauge digits
        wear the CONTENT-TEXT treatment (bevel's contentText: fill mode incl.
        gradients, outline, shadow, glow — min-700 weight, the kit's
@@ -3345,14 +3377,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        the scene strikes the lit pose the board showed. */
     const sm = /data-gauge-seg="([-\d. ]+)"/.exec(svg);
     const sv = sm ? sm[1].split(" ").map(Number) : null;
+    /* the lit ramp's OWN colors ride the row (slice 4): the app lights
+       segments hexMix(bevel→glow, i/N) with the PIECE's resolved effect
+       roles — a speedo2-scoped design fork (Brightside: cream) diverged
+       from the master palette the importer tinted with (green). Same
+       fallback chain as bevel.ts's effect(). */
+    const segBev = pc.effects.Bevel ?? "#0E9CC9";
+    const segGlow = pc.effects.Glow ?? lighten(segBev, 0.55);
     const seg = sv && sv.length === 6 && sv.every((n) => Number.isFinite(n))
-      ? { rI: Math.round(sv[0] * PNG_SCALE), rO: Math.round(sv[1] * PNG_SCALE), w: Math.round(sv[2] * PNG_SCALE * 10) / 10, n: sv[3], a0: sv[4], sweep: sv[5] }
+      ? { rI: Math.round(sv[0] * PNG_SCALE), rO: Math.round(sv[1] * PNG_SCALE), w: Math.round(sv[2] * PNG_SCALE * 10) / 10, n: sv[3], a0: sv[4], sweep: sv[5], from: segBev, to: segGlow }
       : null;
     return {
-      x: Math.round(v[0] * PNG_SCALE), y: Math.round(v[1] * PNG_SCALE),
+      x: Math.round((v[0] + sh.tx) * PNG_SCALE), y: Math.round((v[1] + sh.ty) * PNG_SCALE),
       fs: Math.round(v[2] * PNG_SCALE * 10) / 10,
-      unitY: Math.round(v[3] * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
-      ...(v.length === 7 ? { dialX: Math.round(v[5] * PNG_SCALE), dialY: Math.round(v[6] * PNG_SCALE) } : {}),
+      unitY: Math.round((v[3] + sh.ty) * PNG_SCALE), unitFs: Math.round(v[4] * PNG_SCALE * 10) / 10,
+      ...(v.length === 7 ? { dialX: Math.round((v[5] + sh.tx) * PNG_SCALE), dialY: Math.round((v[6] + sh.ty) * PNG_SCALE) } : {}),
       ...(seg ? { seg } : {}),
       ink: contentInkOf(id),
       // effect(effects, "Glow")'s exact fallback chain (bevel.ts)
@@ -7798,7 +7837,7 @@ namespace PatternBreak {
   /* round 14: the HUD arc's lit-segment polar grid — radii/width in face
      file px around the dial center, count + app-frame angles (y down) in
      degrees. n == 0 (absent block) = no live ring. */
-  [Serializable] class PBGaugeSeg { public float rI; public float rO; public float w; public float n; public float a0; public float sweep; }
+  [Serializable] class PBGaugeSeg { public float rI; public float rO; public float w; public float n; public float a0; public float sweep; public string from; public string to; }
   /* round 16: the panel chart zone + live traces — geometry in face file
      px, values 0..1 of the zone (1 = top). traces empty = no rig. */
   [Serializable] class PBChartTrace { public string name; public string color; public float alpha; public float w; public float opacity; public bool dash; public bool dots; public float fillOpacity; public bool glowLine; public float[] values; }
@@ -13851,12 +13890,44 @@ namespace PatternBreak {
           var segList = new List<Image>();
           foreach (Transform chS in segT) { var imS = chS.GetComponent<Image>(); if (imS != null) segList.Add(imS); }
           gd.segments = segList.ToArray();
+          /* the ramp's colors are THIS PIECE's resolved Bevel→Glow (slice 4
+             — a gauge-scoped design fork diverged from the master palette:
+             Brightside's cream arc lit green). The row carries them since
+             this export; older manifests fall back to the kit palette. */
           Color cFrom = Color.white, cTo = Color.white;
           if (m != null && m.palette != null) {
             if (!string.IsNullOrEmpty(m.palette.bevel)) ColorUtility.TryParseHtmlString(m.palette.bevel, out cFrom);
             if (!string.IsNullOrEmpty(m.palette.glow)) ColorUtility.TryParseHtmlString(m.palette.glow, out cTo);
           }
+          if (gRow.seg != null && !string.IsNullOrEmpty(gRow.seg.from)) ColorUtility.TryParseHtmlString(gRow.seg.from, out cFrom);
+          if (gRow.seg != null && !string.IsNullOrEmpty(gRow.seg.to)) ColorUtility.TryParseHtmlString(gRow.seg.to, out cTo);
           gd.segFrom = cFrom; gd.segTo = cTo;
+        }
+        /* kept rigs converge with the CURRENT row (the round-17 readout
+           discipline): rings built under the pre-shift stamp anchor high
+           of the painted dial, and pre-slice-4 imports tinted from the
+           master palette. OURS beyond doubt — every child wears the
+           shipped segment sprite; a ring the dev rebuilt stops matching
+           and stays theirs. */
+        if (segT != null && img.sprite != null) {
+          bool oursSeg = segT.childCount > 0;
+          foreach (Transform chSeg in segT) {
+            var imSeg = chSeg.GetComponent<Image>();
+            var pSeg = imSeg != null && imSeg.sprite != null ? AssetDatabase.GetAssetPath(imSeg.sprite).Replace("\\\\", "/") : "";
+            if (!pSeg.EndsWith("/assets/" + fam + "/" + fam + "-segment.png")) { oursSeg = false; break; }
+          }
+          var srtC = segT as RectTransform;
+          if (oursSeg && srtC != null) {
+            float rwS2 = img.sprite.rect.width, rhS2 = img.sprite.rect.height;
+            var cS2 = new Vector2(gRow.dialX / rwS2, 1f - gRow.dialY / rhS2);
+            if ((srtC.anchorMin - cS2).sqrMagnitude > 1e-5f) {
+              srtC.anchorMin = cS2; srtC.anchorMax = cS2;
+              srtC.anchoredPosition = Vector2.zero;
+            }
+            Color cF3, cT3;
+            if (gRow.seg != null && !string.IsNullOrEmpty(gRow.seg.from) && ColorUtility.TryParseHtmlString(gRow.seg.from, out cF3) && gd.segFrom != cF3) gd.segFrom = cF3;
+            if (gRow.seg != null && !string.IsNullOrEmpty(gRow.seg.to) && ColorUtility.TryParseHtmlString(gRow.seg.to, out cT3) && gd.segTo != cT3) gd.segTo = cT3;
+          }
         }
       }
 #if UNITY_2023_2_OR_NEWER
