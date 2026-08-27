@@ -9826,6 +9826,7 @@ namespace PatternBreak {
         try {
           var ghostSwaps = new List<KeyValuePair<Transform, PBBoardItem>>();
           var staleShadows = new List<GameObject>(); // round 26 — culled after the walk
+          var deadDropdowns = new List<string>(); // field: click-dead copies, named out loud after the walk
           /* every scene piece is matched to its board item by the
              builder's OWN placement math (zone anchor + offset) — the one
              key that survives any file rename. A piece the maker moved in
@@ -9973,6 +9974,17 @@ namespace PatternBreak {
                   artFixed++;
                 }
               }
+              /* ── B3) DEAD-DROPDOWN RECEIPT (field: clicking English does
+                 NOTHING — no press, Console clean): a copy on a dropdown
+                 seat with no Selectable anywhere inside predates the
+                 working rig (a stamp-era baked picture, or a picture-era
+                 pose the prefab graft can't reach through a kept scene) —
+                 a click lands on nothing, silently, by Unity's design.
+                 The scene is yours after first generation, so we SAY IT
+                 instead of rebuilding over you. */
+              if (it2.component == "dropdown" && string.IsNullOrEmpty(it2.stamp)
+                  && ch.GetComponentInChildren<Selectable>(true) == null)
+                deadDropdowns.Add(ch.name);
               /* ── C) ORPHANED PINNED WORDS (owner: "ok, no BOOST word") —
                  a past label redress reset a copy's words to a SEED word
                  (the stock word, or round-7's kit-wide seed); only those
@@ -10045,6 +10057,8 @@ namespace PatternBreak {
              boardstamps-sprited, manifest-disowned — see the walk above */
           int shadowCut = 0;
           foreach (var stSh in staleShadows) { UnityEngine.Object.DestroyImmediate(stSh); shadowCut++; }
+          if (deadDropdowns.Count > 0)
+            Debug.LogWarning("UI Kit Maker: scene '" + bd.name + "' — " + deadDropdowns.Count + " dropdown cop(ies) with NO Selectable (" + string.Join(", ", deadDropdowns.ToArray()) + "): they predate the working dropdown rig, so clicking them does nothing. The scene is yours after first generation, so it isn't rebuilt automatically — Tools > PatternBreak > Rebuild Kit Board Scenes replaces it with the wired control (scene edits you made are lost in that one scene; every prefab and other scene is untouched).");
           if (healedW > 0 || artFixed > 0 || ghostFixed > 0 || shadowCut > 0 || boundRoots > 0) {
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             string what = (artFixed > 0 ? artFixed + " board bake(s) re-pointed at current art" : "")
@@ -10442,7 +10456,13 @@ namespace PatternBreak {
                 var bodyP = inst.transform.Find("Body");
                 var bodyPImg = bodyP != null ? bodyP.GetComponent<Image>() : null;
                 if (bodyPImg != null) bodyPImg.enabled = false;
-                var pbtn = inst.GetComponent<Button>();
+                /* the piece's SELECTABLE, whatever it is — Button on the
+                   button families, TMP_Dropdown on the dropdown, Toggle on
+                   a switch. Asking for Button only left every other posed
+                   control stateless: the Pause dropdown's press showed
+                   NOTHING (owner: "does not even respond like a button")
+                   because its posed skins were never wired. */
+                var pbtn = inst.GetComponent<Selectable>();
                 if (pbtn != null) pbtn.transition = Selectable.Transition.None;
                 rt.sizeDelta = new Vector2(it.w, it.h);
                 rt.localScale = Vector3.one;
