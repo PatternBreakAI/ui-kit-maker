@@ -4793,6 +4793,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPortraitStage.cs", data: PORTRAIT_STAGE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCatalogEditView.cs", data: CATALOG_EDIT_VIEW_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
@@ -4863,6 +4864,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
     "Runtime/PatternBreakPortraitStage.cs",
+    "Runtime/PatternBreakCatalogEditView.cs",
     /* the idle-shine runtime is SHARED like every other runtime script —
        it missed this list on its first ship, landed per-slug OUTSIDE the
        PatternBreak.Runtime assembly, and the shared Editor importer could
@@ -6285,6 +6287,50 @@ namespace PatternBreak {
   [SelectionBase]
   [DisallowMultipleComponent]
   public class KitPiece : MonoBehaviour {}
+}
+`;
+
+/* Runtime script: the CATALOG EDIT VIEW (owner field: the Playground
+   "seems cut off" — the Scene view showed a chapter and a half). The
+   catalog is a ScrollRect, so in PLAY its viewport masks and the wheel
+   scrolls; in EDIT the same RectMask2D clipped a browsing dev to one
+   viewport-height of shelf with no hint that six more chapters sat
+   below. This keeps edit mode honest with the safest uGUI road there
+   is: while not playing, the mask component turns OFF (nothing moves,
+   nothing resizes — the shelf simply shows, hanging below the frame the
+   way a scrolling catalog truly is); entering Play (or any build) turns
+   it back on, so runtime clipping and scrolling ship byte-identical.
+   OnDisable restores the mask, so REMOVING the component can never
+   strand the viewport unmasked. UI-staple APIs only (RectMask2D is
+   UnityEngine.UI — already a Runtime asmdef reference). */
+const CATALOG_EDIT_VIEW_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Catalog edit view — lets the Playground's whole shelf show in the
+     editor: the scroll mask relaxes while you're NOT in Play mode and
+     comes back the moment you play (or build), so runtime behavior is
+     untouched. Remove it to keep the mask on always. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Catalog Edit View")]
+  [DisallowMultipleComponent]
+  public class CatalogEditView : MonoBehaviour {
+    void OnEnable() { Apply(); }
+    void OnDisable() {
+      // never strand the viewport unmasked — removal or toggling restores Play truth
+      var mask = GetComponent<RectMask2D>();
+      if (mask != null && !mask.enabled) mask.enabled = true;
+    }
+#if UNITY_EDITOR
+    void Update() { if (!Application.isPlaying) Apply(); }
+#endif
+    void Apply() {
+      var mask = GetComponent<RectMask2D>();
+      if (mask == null) return;
+      bool want = Application.isPlaying; // masked in Play/builds, open in edit
+      if (mask.enabled != want) mask.enabled = want;
+    }
+  }
 }
 `;
 
@@ -9425,12 +9471,22 @@ namespace PatternBreak {
       // Scenes can't be created mid-import, hence the delayCall.
       if (!File.Exists(root + "/Playground.unity"))
         EditorApplication.delayCall += () => BuildPlayground(root);
-      else if (prev != null)
+      else if (prev != null) {
         /* the Playground never rebuilds itself ("yours after first
            generation") — but a kit UPDATE leaving it stale in SILENCE
            read as "same problem" in the field. Say where the fresh one
            is. */
         Debug.Log("UI Kit Maker: Playground.unity kept as-is (yours). This update may have changed sizes or added pieces — Tools > PatternBreak > Rebuild Kit Playground Scene builds a fresh one.");
+        /* the EDIT-VIEW graft (owner: the Playground "seems cut off" —
+           the Scene view clipped the catalog to a chapter and a half): a
+           kept Playground still carries OUR Catalog Scroll/Viewport with
+           its RectMask2D — grafting the edit-view relaxer is ADDITIVE
+           (one component, no rect touched, Play behavior identical), so
+           it heals in place instead of asking for a rebuild. Ownership-
+           gated on the exact structure we built; a restructured scene is
+           left alone. Scene ops wait for the delayCall beat. */
+        EditorApplication.delayCall += () => GraftCatalogEditView(root);
+      }
       // the maker's board scenes ride the same after-import beat — each
       // builds once, then it's yours (existing scenes are never touched)
       /* ARM the variant pass in session state FIRST: the delayCall below
@@ -9929,6 +9985,49 @@ namespace PatternBreak {
         BuildResponsiveCheck(root, m);
       }
     }
+    /* the EDIT-VIEW graft for KEPT Playgrounds (owner: "seems cut off"):
+       one additive component on OUR OWN Catalog Scroll/Viewport — no
+       rect, no mask value, no content touched, Play behavior identical —
+       so a kept scene gets the honest edit view without a rebuild.
+       Ownership gate: the exact builder structure (Canvas → "Catalog
+       Scroll" → "Viewport" carrying a RectMask2D); anything restructured
+       is the maker's and stays untouched. Idempotent. */
+    static void GraftCatalogEditView(string root) {
+      var scenePath = root + "/Playground.unity";
+      if (!File.Exists(scenePath)) return;
+      var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
+      bool wasLoaded = scene.IsValid() && scene.isLoaded;
+      bool wasDirty = wasLoaded && scene.isDirty;
+      if (!wasLoaded) {
+        try { scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive); }
+        catch (Exception) { return; }
+        if (!scene.IsValid()) return;
+      }
+      try {
+        bool grafted = false;
+        foreach (var rootGo in scene.GetRootGameObjects()) {
+          var canvasP = rootGo.GetComponentInChildren<Canvas>(true);
+          if (canvasP == null) continue;
+          var vpT = canvasP.transform.Find("Catalog Scroll/Viewport");
+          if (vpT == null) continue; // pre-scroll or restructured — theirs
+          if (vpT.GetComponent<RectMask2D>() == null) continue; // not our mask structure
+          if (vpT.GetComponent<CatalogEditView>() != null) continue; // already honest
+          vpT.gameObject.AddComponent<CatalogEditView>();
+          grafted = true;
+        }
+        if (grafted) {
+          UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+          string story = "the kept Playground now shows its WHOLE shelf in edit mode (the scroll mask relaxes while you're not in Play; Play clips and scrolls exactly as before — the Catalog Edit View component on the Viewport, delete it to opt out).";
+          if (!wasDirty) {
+            if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene))
+              Debug.Log("UI Kit Maker: " + story);
+          } else
+            Debug.Log("UI Kit Maker: OPEN scene — " + story + " It carries your unsaved edits, so save it yourself to keep the graft.");
+        }
+      } finally {
+        if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+      }
+    }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
       if (File.Exists(scenePath)) return; // yours after first generation
@@ -10062,6 +10161,12 @@ namespace PatternBreak {
         vpPgRt.anchorMin = Vector2.zero; vpPgRt.anchorMax = Vector2.one;
         vpPgRt.offsetMin = Vector2.zero; vpPgRt.offsetMax = Vector2.zero;
         vpPg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f); // invisible, raycastable — the wheel's landing pad
+        /* EDIT-MODE HONESTY (owner: the Playground "seems cut off"): the
+           scroll mask clipped the Scene view to a chapter and a half —
+           this relaxes the RectMask2D while not playing so the whole
+           shelf shows, and re-arms it for Play/builds (runtime behavior
+           byte-identical; see CatalogEditView). */
+        vpPg.AddComponent<CatalogEditView>();
         var boardGo = new GameObject("Board", typeof(RectTransform));
         boardGo.transform.SetParent(vpPg.transform, false);
         var board = boardGo.GetComponent<RectTransform>();
@@ -10154,7 +10259,7 @@ namespace PatternBreak {
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
-          Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired; the shelf SCROLLS (wheel or drag) — " + placed + " piece(s) across " + allSecs.Count + " chapter(s), the whole released kit.");
+          Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired; the shelf SCROLLS (wheel or drag) — " + placed + " piece(s) across " + allSecs.Count + " chapter(s), the whole released kit. In EDIT mode the scroll mask relaxes so the entire shelf is visible in the Scene view; Play clips and scrolls it exactly as it ships.");
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the Playground at " + scenePath + " — go File > New Scene, then Tools > PatternBreak > Rebuild Kit Playground Scene.");
       } finally {
