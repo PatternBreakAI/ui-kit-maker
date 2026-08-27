@@ -3834,6 +3834,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
 
   /* ── manifest ─────────────────────────────────────────────────── */
   const fdef = fontByName(st.cfg.type.font);
+  /* the app's own BAKED face travel for a designed state, beyond the lift
+     dial — measured from the very renders the swap sprites bake (data-shell
+     y delta), so kit-size factors and per-family geometry scales are in the
+     number by construction (press-travel round: the raw dial delta spoke
+     unscaled design px — the SoloLabelK lesson, emission side). The lift
+     dial's own share is subtracted: it ships separately in stateFx and the
+     two halves must never double. Falls back to the raw dial delta when a
+     measure render fails — the pre-round behavior, never worse. */
+  const stateCollapseDy = (pid: KitComponentId, sn: "hover" | "pressed" | "disabled", dialDy: number): number => {
+    if (!dialDy) return 0; // no extrusion fork — nothing to measure
+    try {
+      const yOf = (s2: string) => {
+        const m2 = /data-shell="([-\d. ]+)"/.exec(s2) ?? /data-shell0="([-\d. ]+)"/.exec(s2);
+        return m2 ? Number(m2[1].split(" ")[1]) : NaN;
+      };
+      const pcM = pieceCfg(pid);
+      const y0 = yOf(shell(pid, {}, undefined, st.kitVals?.[pid]));
+      const y1 = yOf(stateShell(pid, sn, {}, st.kitVals?.[pid]));
+      const liftDelta = (pcM.states[sn]?.lift ?? 0) - (pcM.states.default?.lift ?? 0);
+      if (Number.isFinite(y0) && Number.isFinite(y1)) return Math.round(((y1 - y0) - liftDelta) * 10) / 10;
+    } catch { /* the dial delta stands in */ }
+    return dialDy;
+  };
   files.push({
     path: "kit-manifest.json",
     data: JSON.stringify({
@@ -4020,7 +4043,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
              sinks/lifts the face top by the delta and the app's label moves
              with it — the owner's Miami pressed state (23 -> 9) is exactly
              this, no ink change at all ("type is not following face") */
-          const dy = f.candy ? Math.round((base.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10 : 0;
+          const dy = f.candy ? stateCollapseDy("primary", sn, Math.round((base.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10) : 0;
           if (!inkOk && !dy) return [];
           return [{ state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
         }),
@@ -4077,7 +4100,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           const t = f.type, b2 = pc.type;
           const inkOk = !!t && (t.fillMode === "solid" || t.fillMode === "gradient")
             && !(t.fillMode === b2.fillMode && t.fill === b2.fill && (t.fillMode !== "gradient" || t.fill2 === b2.fill2));
-          const dy = f.candy ? Math.round((pc.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10 : 0;
+          const dy = f.candy ? stateCollapseDy(pid, sn, Math.round((pc.candy.extrusion.depth - f.candy.extrusion.depth) * 10) / 10) : 0;
           if (!inkOk && !dy) return [];
           return [{ family: fam, state: sn, fillMode: inkOk ? t!.fillMode : null, fill: inkOk ? t!.fill : null, fill2: inkOk && t!.fillMode === "gradient" ? t!.fill2 : null, dy }];
         });
@@ -4735,6 +4758,10 @@ namespace PatternBreak {
     public float restLift, hoverLift, pressedLift;
     [Tooltip("Travel baked INSIDE the state sprite on swap builds (the app's press-pose extrusion collapse), Unity up-positive. The halo adds it so the glow rides the sunk art; the root never moves by it — the sprite already did.")]
     public float hoverSink, pressedSink;
+    [Tooltip("Vertical travel for the DISABLED pose, Unity up-positive — swap builds bake it inside the disabled sprite; the halo and the live children ride it here.")]
+    public float disabledLift, disabledSink;
+    [Tooltip("Tick to park the live children (Label / Icon / Words / Specular / Arc) while the face presses — the pre-content-ride behavior. Off: on sprite-swap builds they travel with the baked face, exactly like the app's content.")]
+    public bool contentStays;
     [Tooltip("The piece height the pad, lifts and sinks were authored at. When set, resizing the piece scales them proportionally — same convention as Hero Label. 0 = off (fixed px, the pre-round-24 behavior).")]
     public float authoredHeight;
     [Tooltip("Seconds to cross-fade between states.")]
@@ -4753,6 +4780,57 @@ namespace PatternBreak {
     bool settling;
 
     RectTransform artRt; // the posed art child, when this copy wears one
+    /* the CONTENT CHILDREN ride the baked face travel on swap builds
+       (owner field, pressing live buttons in Play: the face swaps but
+       "the label does not move with the face"; ditto icon children).
+       App truth: shell, label and icon travel as ONE group per state —
+       the swap sprite bakes that travel in its pixels while the root
+       holds still (BakedSink), so the live children we place (label
+       root, icon seat, words group, specular streak, countdown arc)
+       must slide by the same lift+sink the halo already rides.
+       Discovered by OUR child names at enable; base restored exactly on
+       disable — write-once identity, StateFx is their only mover. */
+    RectTransform[] riders; Vector2[] riderBase; float[] riderWrote;
+    void EnsureRiders() {
+      if (riders != null) return;
+      var list = new System.Collections.Generic.List<RectTransform>();
+      foreach (Transform ch in transform) {
+        if (ch == null) continue;
+        var n = ch.name;
+        if (n != "Label" && n != "Icon" && n != "Words" && n != "Specular" && n != "Arc") continue;
+        var r = ch as RectTransform;
+        if (r != null) list.Add(r);
+      }
+      riders = list.ToArray();
+      riderBase = new Vector2[riders.Length];
+      riderWrote = new float[riders.Length];
+      for (int i = 0; i < riders.Length; i++) { riderBase[i] = riders[i].anchoredPosition; riderWrote[i] = float.NaN; }
+    }
+    /* true when THIS component owns r's state travel (swap build, content
+       ride on, r is one of ours) — LabelStateInk asks before moving the
+       label itself: two writers on one transform is how labels drift. */
+    public bool CarriesContent(RectTransform r) {
+      if (contentStays || r == null || !BakedSink()) return false;
+      EnsureRiders();
+      for (int i = 0; i < riders.Length; i++) if (riders[i] == r) return true;
+      return false;
+    }
+    void PushRiders() {
+      if (contentStays || !BakedSink()) return; // root motion carries them on tiled/rig builds
+      EnsureRiders();
+      for (int i = 0; i < riders.Length; i++) {
+        var r = riders[i];
+        if (r == null) continue;
+        var cur = r.anchoredPosition;
+        // adopt outside writes (a seat heal, a dev nudge): a y we didn't
+        // write ourselves becomes the new resting base — same rule as baseY
+        if (float.IsNaN(riderWrote[i]) || Mathf.Abs(cur.y - riderWrote[i]) > 0.01f) riderBase[i] = cur;
+        else if (Mathf.Abs(cur.x - riderBase[i].x) > 0.01f) riderBase[i].x = cur.x;
+        var want = new Vector2(riderBase[i].x, riderBase[i].y + liftNow);
+        if (cur != want) r.anchoredPosition = want;
+        riderWrote[i] = want.y;
+      }
+    }
     void OnEnable() {
       rt = GetComponent<RectTransform>();
       sel = GetComponent<Selectable>();
@@ -4763,6 +4841,7 @@ namespace PatternBreak {
       // halo must hug the VISIBLE art, not the invisible raycast body
       // (owner round 10: "the shadow being separate isn't great")
       artRt = transform.Find("Posed art") as RectTransform;
+      riders = null; // re-discover: children may have been rebuilt since
       /* the halo draws BEHIND the piece as its FIRST CHILD — the root
          draws nothing on current prefabs (the sprite lives on the "Body"
          child / the posed art child), so a child can sit behind the art.
@@ -4777,6 +4856,11 @@ namespace PatternBreak {
       if (glowRt != null) Destroy(glowRt.gameObject);
       glowRt = null; glowImg = null;
       if (rt != null) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, baseY);
+      // the riders return to their exact resting seats — write-once identity
+      if (riders != null)
+        for (int i = 0; i < riders.Length; i++)
+          if (riders[i] != null && !float.IsNaN(riderWrote[i])) riders[i].anchoredPosition = riderBase[i];
+      riders = null;
     }
     static bool legacyGlowHinted;
     void BuildGlow() {
@@ -4922,7 +5006,9 @@ namespace PatternBreak {
       // lifts and sinks were authored at the bake's size — a resized rect
       // travels proportionally (SizeK; 1 when authoredHeight is unset)
       float kSz = SizeK();
-      if (sel != null && !sel.IsInteractable()) { lift = restLift * kSz; return disabledGlow; }
+      // disabled rides ITS state's pose too (the disabled sprite bakes its
+      // own travel; every state the app moves, Unity moves)
+      if (sel != null && !sel.IsInteractable()) { lift = (disabledLift + (baked ? disabledSink : 0f)) * kSz; return disabledGlow; }
       if (down) { lift = (pressedLift + (baked ? pressedSink : 0f)) * kSz; return pressedGlow; }
       if (over) { lift = (hoverLift + (baked ? hoverSink : 0f)) * kSz; return hoverGlow; }
       lift = restLift * kSz; return restGlow;
@@ -4990,6 +5076,9 @@ namespace PatternBreak {
           lastWroteY = baseY + liftNow;
         } else lastWroteY = rt.anchoredPosition.y; // the adoption logic stays quiet
       }
+      // the live children ride the baked travel exactly like the halo —
+      // label, icon and friends press WITH the face (the app's one group)
+      PushRiders();
       // the halo follows in MirrorHost — root motion or the baked slide
       MirrorHost();
     }
@@ -5566,12 +5655,20 @@ namespace PatternBreak {
     void ApplyCurrent() {
       var mover = Mover();
       if (mover != null) {
-        // base captured lazily at first apply — no scene-load-order games
-        if (!basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
-        // the press travel was authored at the bake's size — a resized
-        // rect travels proportionally (SizeK; 1 when authoredHeight unset)
-        float shift = (down ? pressedShift : over ? hoverShift : 0f) * SizeK();
-        mover.anchoredPosition = basePos + new Vector2(0f, -shift);
+        /* the State FX content ride owns the travel when it carries this
+           mover (sprite-swap builds — lift AND collapse in one writer):
+           two writers on one transform is how labels drift. The ink below
+           stays ours either way. */
+        var fx = GetComponent<StateFx>();
+        if (fx != null && fx.CarriesContent(mover)) basePosSet = false;
+        else {
+          // base captured lazily at first apply — no scene-load-order games
+          if (!basePosSet) { basePos = mover.anchoredPosition; basePosSet = true; }
+          // the press travel was authored at the bake's size — a resized
+          // rect travels proportionally (SizeK; 1 when authoredHeight unset)
+          float shift = (down ? pressedShift : over ? hoverShift : 0f) * SizeK();
+          mover.anchoredPosition = basePos + new Vector2(0f, -shift);
+        }
       }
       if (label == null || !inkOn) return;
       if (down && pressedOn) Ink(pressedTop, pressedBottom, pressedGradient);
@@ -10108,6 +10205,17 @@ namespace PatternBreak {
                 if (pbtn != null) pbtn.transition = Selectable.Transition.None;
                 rt.sizeDelta = new Vector2(it.w, it.h);
                 rt.localScale = Vector3.one;
+                /* press travel, sinks and the halo pad speak DESIGN PX at
+                   the family bake — this root now wears the SHELL box
+                   (it.w/it.h) instead of the prefab's sprite-box rect, so
+                   the StateFx size key must speak shell too or every
+                   travel scales by the sprite-air ratio (the SoloLabelK
+                   lesson: convert exactly as label seating does). */
+                var fxPose = inst.GetComponent<StateFx>();
+                if (fxPose != null && it.h > 1f) {
+                  float kPose = SoloLabelK(it, m, rt);
+                  if (kPose > 0.001f) fxPose.authoredHeight = it.h / kPose;
+                }
                 var artGo = new GameObject("Posed art", typeof(RectTransform), typeof(Image));
                 var artRt = artGo.GetComponent<RectTransform>();
                 artRt.SetParent(rt, false);
@@ -10284,6 +10392,12 @@ namespace PatternBreak {
                  size it to the board footprint directly (the skip used to
                  leave such pieces at native size — the giant-tab report) */
               rt.sizeDelta = new Vector2(it.w, it.h);
+              // the rect is the SHELL box here too — re-frame the travel key
+              var fxStr = inst.GetComponent<StateFx>();
+              if (fxStr != null && it.h > 1f) {
+                float kStr = SoloLabelK(it, m, rt);
+                if (kStr > 0.001f) fxStr.authoredHeight = it.h / kStr;
+              }
             }
             // the rect may differ from the prefab's now — refit the raycast
             // to the drawn shell so clicks stop at the art on boards too
@@ -12344,14 +12458,14 @@ namespace PatternBreak {
       if (m == null || m.stateFx == null || m.stateFx.Length == 0) return;
       if (go.GetComponent<StateFx>() != null) return;
       bool any = false;
-      float rest = 0f, hover = 0f, press = 0f, dis = 0f, restL = 0f, hoverL = 0f, pressL = 0f;
+      float rest = 0f, hover = 0f, press = 0f, dis = 0f, restL = 0f, hoverL = 0f, pressL = 0f, disL = 0f;
       foreach (var f in m.stateFx) {
         if (f == null || f.family != family) continue;
         any = true;
         if (f.state == "default") { rest = f.glow; restL = f.lift; }
         else if (f.state == "hover") { hover = f.glow; hoverL = f.lift; }
         else if (f.state == "pressed") { press = f.glow; pressL = f.lift; }
-        else if (f.state == "disabled") dis = f.glow;
+        else if (f.state == "disabled") { dis = f.glow; disL = f.lift; }
       }
       if (!any) return;
       var fx = go.AddComponent<StateFx>();
@@ -12375,14 +12489,16 @@ namespace PatternBreak {
       fx.glowColor = gc;
       // the manifest already ships lift RELATIVE to rest and Unity-side up
       fx.restGlow = rest; fx.hoverGlow = hover; fx.pressedGlow = press; fx.disabledGlow = dis;
-      fx.restLift = restL; fx.hoverLift = hoverL; fx.pressedLift = pressL;
+      fx.restLift = restL; fx.hoverLift = hoverL; fx.pressedLift = pressL; fx.disabledLift = disL;
       /* the baked extra (round 18): labelStates dy is the app's own
          face travel between state renders — the extrusion collapse the
          label already rides (ExpectedShift). Negated into Unity-up so on
-         swap builds the halo slides exactly as far as the sprite's art
-         sinks; dial-only kits ship dy 0 and nothing changes. */
+         swap builds the halo (and the content ride) slides exactly as far
+         as the sprite's art sinks; dial-only kits ship dy 0 and nothing
+         changes. */
       fx.hoverSink = -ExpectedShift(m, family, "hover");
       fx.pressedSink = -ExpectedShift(m, family, "pressed");
+      fx.disabledSink = -ExpectedShift(m, family, "disabled");
       /* the authored size (round 24): the height the pad/lifts/sinks were
          measured against — a later RECT resize then scales them (SizeK).
          The prefab rect is final by this point (FamilyPrefab sizes it

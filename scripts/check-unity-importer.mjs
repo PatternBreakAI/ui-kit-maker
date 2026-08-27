@@ -1717,6 +1717,61 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the picker's glyph (st.kitIcons) must reach the iconbtn (base + states), checkbox and radio family bakes — boards honored it while prefabs baked stock art (slice 4)");
 }
 
+/* ── Unity-exporter round, slice 1 (2026-08-27): press travel — the
+   children ride the state. App truth: shell, label and icon travel as ONE
+   group per state (measured: Brightside pressed +3 down / hover 2 up, the
+   lift dials); swap sprites bake that travel while the root holds still
+   (BakedSink), so the label/icon/words/specular/arc children we place
+   must slide by the same lift+sink the halo rides — one writer, exact
+   restore. Scale chain: on the posed road the root wears the SHELL box,
+   so StateFx's size key is re-framed through SoloLabelK (offsets are
+   design px; convert exactly as label seating does). labelStates dy is
+   MEASURED from the state renders (K-true), lift-dial share subtracted. */
+{
+  if (!/RectTransform\[\] riders; Vector2\[\] riderBase; float\[\] riderWrote;/.test(fx)
+      || !/void EnsureRiders\(\)/.test(fx) || !/void PushRiders\(\)/.test(fx))
+    errors.push("StateFx's content ride (riders/EnsureRiders/PushRiders) is missing — labels and icons park while the face presses (slice 1, press travel)");
+  if (!/if \(n != "Label" && n != "Icon" && n != "Words" && n != "Specular" && n != "Arc"\) continue;/.test(fx))
+    errors.push("StateFx's rider discovery must cover OUR content children by name (Label/Icon/Words/Specular/Arc) (slice 1)");
+  if (!/if \(contentStays \|\| !BakedSink\(\)\) return; \/\/ root motion carries them on tiled\/rig builds/.test(fx))
+    errors.push("PushRiders must ride ONLY baked-sink (sprite-swap) builds — root motion already carries children elsewhere, and doubling is the drift (slice 1)");
+  if (!/PushRiders\(\);\s*\n\s*\/\/ the halo follows in MirrorHost/.test(fx))
+    errors.push("Push must move the riders with every lift write (PushRiders before MirrorHost) (slice 1)");
+  if (!/if \(riders\[i\] != null && !float\.IsNaN\(riderWrote\[i\]\)\) riders\[i\]\.anchoredPosition = riderBase\[i\];/.test(fx))
+    errors.push("OnDisable must restore every rider to its exact resting seat — write-once identity (slice 1)");
+  if (!/public bool CarriesContent\(RectTransform r\)/.test(fx))
+    errors.push("StateFx.CarriesContent is missing — LabelStateInk cannot know who owns the label's travel (slice 1)");
+  if (!/lift = \(disabledLift \+ \(baked \? disabledSink : 0f\)\) \* kSz; return disabledGlow;/.test(fx))
+    errors.push("the disabled state must ride ITS pose (disabledLift/disabledSink) — every state the app moves, Unity moves (slice 1)");
+  // LabelStateInk defers the label's travel to the content ride — two
+  // writers on one transform is how labels drift
+  const inkOpen = src.indexOf("const LABEL_STATE_INK_RUNTIME = `");
+  let inkCs = "";
+  if (inkOpen < 0) errors.push("LABEL_STATE_INK_RUNTIME not found");
+  else {
+    const inkStart = inkOpen + "const LABEL_STATE_INK_RUNTIME = `".length;
+    let inkEnd = -1;
+    for (let i = inkStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { inkEnd = i; break; }
+    }
+    inkCs = inkEnd > 0 ? new Function("return `" + src.slice(inkStart, inkEnd) + "`;")() : "";
+  }
+  if (!/if \(fx != null && fx\.CarriesContent\(mover\)\) basePosSet = false;/.test(inkCs))
+    errors.push("LabelStateInk must defer the label's travel to StateFx.CarriesContent on swap builds (slice 1)");
+  // the importer wires the disabled channel and re-frames the posed road's
+  // travel key to the shell box (the SoloLabelK lesson, StateFx side)
+  if (!/fx\.disabledSink = -ExpectedShift\(m, family, "disabled"\);/.test(cs) || !/fx\.disabledLift = disL;/.test(cs))
+    errors.push("WireStateFx must arm the disabled channel (disabledLift from stateFx rows, disabledSink from ExpectedShift) (slice 1)");
+  if (!/var fxPose = inst\.GetComponent<StateFx>\(\);\s*\n\s*if \(fxPose != null && it\.h > 1f\) \{\s*\n\s*float kPose = SoloLabelK\(it, m, rt\);\s*\n\s*if \(kPose > 0\.001f\) fxPose\.authoredHeight = it\.h \/ kPose;/.test(cs))
+    errors.push("the posed road must re-frame StateFx.authoredHeight through SoloLabelK — the root wears the SHELL box there, and travel scales by the sprite-air ratio otherwise (slice 1)");
+  // emission: labelStates dy is measured from the very renders the swap
+  // sprites bake (K-true), the lift dial's share subtracted
+  if (!/const stateCollapseDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled", dialDy: number\): number =>/.test(src)
+      || !/stateCollapseDy\(pid, sn, Math\.round\(\(pc\.candy\.extrusion\.depth - f\.candy\.extrusion\.depth\) \* 10\) \/ 10\)/.test(src))
+    errors.push("labelStates dy must ship the MEASURED baked-face collapse (stateCollapseDy) — the raw dial delta speaks unscaled design px (slice 1)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
