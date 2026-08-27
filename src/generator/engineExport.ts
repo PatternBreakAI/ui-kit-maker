@@ -8258,7 +8258,7 @@ namespace PatternBreak {
      its last seed; anything else is the dev's typing and stays */
   [Serializable] class PBSeedEntry { public string family; public string word; }
   [Serializable] class PBVariantEntry { public string path; public string word; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; }
 
   public static class KitImporter {
     /* ── I4: every setting is compared before it is written; the return
@@ -8672,12 +8672,21 @@ namespace PatternBreak {
              restart ate the delayCall): finish it now */
           PBLock lv = null;
           try { if (File.Exists(root + "/kit.lock.json")) lv = JsonUtility.FromJson<PBLock>(File.ReadAllText(root + "/kit.lock.json")); } catch (Exception) { }
-          if (lv != null && lv.variantsPending) {
+          if (lv != null && (lv.variantsPending || (lv.pendingScenes != null && lv.pendingScenes.Length > 0))) {
             PBManifest mv = null;
             try { mv = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
-            if (mv != null) {
+            if (mv != null && lv.variantsPending) {
               try { LabelVariantPrefabs(root, mv); }
               catch (Exception e) { Debug.LogWarning("UI Kit Maker: label variants skipped — " + e.Message); }
+            }
+            /* INCOMPLETE scenes are a lock-carried job too (the frozen
+               stand-in): a restart used to eat their SessionState marker
+               and the scene never self-healed — the field's wordless Shop
+               Claim button. The lock names them; rebuild exactly those. */
+            if (mv != null && lv.pendingScenes != null && lv.pendingScenes.Length > 0) {
+              Debug.Log("UI Kit Maker: " + lv.pendingScenes.Length + " board scene(s) shipped incomplete last session (a prefab or bake lost the import race) — finishing them now.");
+              try { BuildBoardScenes(root, mv); }
+              catch (Exception e) { Debug.LogWarning("UI Kit Maker: pending board scenes skipped — " + e.Message); }
             }
           }
         }
@@ -9094,6 +9103,13 @@ namespace PatternBreak {
       receipt.chartsSeeded = anyChart;
       var prevVarLedger = prev != null ? prev.seededVariants : null;
       receipt.seededVariants = prevVarLedger; // the pass rewrites this on completion
+      /* incomplete scenes are a JOB the receipt carries too (the field's
+         frozen stand-in: a scene built during the first-drop import race
+         waited on a SessionState marker, and SessionState dies with the
+         editor — the Shop's Claim button stood in wordless forever).
+         Carried over like the variant ledger; the scene passes below
+         rewrite it as scenes complete. */
+      receipt.pendingScenes = prev != null ? prev.pendingScenes : null;
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -10089,6 +10105,39 @@ namespace PatternBreak {
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
       }
     }
+    /* the incomplete-scene marker, PERSISTED (kit.lock.json — the
+       variants-job lesson): SessionState dies with the editor, so a scene
+       whose posed art or prefab lost the first-drop import race could
+       freeze on its stand-in forever if Unity closed before the next pass
+       (the field's wordless Shop Claim). The lock survives restarts and
+       crashes; the SessionState flag stays as the same-session fast path. */
+    static bool ScenePendingInLock(string root, string scenePath) {
+      try {
+        var lockPath = root + "/kit.lock.json";
+        if (!File.Exists(lockPath)) return false;
+        var l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath));
+        if (l == null || l.pendingScenes == null) return false;
+        foreach (var p in l.pendingScenes) if (p == scenePath) return true;
+      } catch (Exception) { }
+      return false;
+    }
+    static void MarkScenePendingInLock(string root, string scenePath, bool pending) {
+      try {
+        var lockPath = root + "/kit.lock.json";
+        // no lock yet = the first import is still in flight; its receipt
+        // write carries prev state and the session flag covers this pass
+        if (!File.Exists(lockPath)) return;
+        PBLock l = null;
+        try { l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { }
+        if (l == null) return;
+        var set = new List<string>(l.pendingScenes ?? new string[0]);
+        bool had = set.Contains(scenePath);
+        if (pending == had) return;
+        if (pending) set.Add(scenePath); else set.Remove(scenePath);
+        l.pendingScenes = set.ToArray();
+        File.WriteAllText(lockPath, JsonUtility.ToJson(l, true));
+      } catch (Exception) { }
+    }
     static void BuildBoardScene(string root, PBManifest m, PBBoard bd, bool force) {
       var dir = root + "/Scenes";
       if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
@@ -10098,7 +10147,8 @@ namespace PatternBreak {
            incomplete (pieces skipped because prefabs hadn't generated on
            the first import beat): that one self-heals on the next pass
            instead of asking the maker to remember a menu path */
-        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false);
+        bool pending = SessionState.GetBool("pbBoardPending:" + scenePath, false)
+          || ScenePendingInLock(root, scenePath);
         if (!force && !pending) return;
         AssetDatabase.DeleteAsset(scenePath);
       }
@@ -10912,6 +10962,7 @@ namespace PatternBreak {
           // scene automatically; a complete build clears the marker
           if (missing > 0) SessionState.SetBool("pbBoardPending:" + scenePath, true);
           else SessionState.EraseBool("pbBoardPending:" + scenePath);
+          MarkScenePendingInLock(root, scenePath, missing > 0); // survives editor restarts (the frozen-stand-in cure)
           /* the pinned-word receipt, ALWAYS printed when the board pins
              words — the one-glance field check is "0 base fallback(s)" */
           if (pinned > 0)
@@ -13729,7 +13780,14 @@ namespace PatternBreak {
         }
         return null;
       }
-      var img = host.GetComponent<Image>();
+      /* the BODY seam (the wordless-prefab field round): RebodyIfGlow
+         moves every stateFx family's sprite onto a "Body" child and nulls
+         the root image — reading the ROOT here returned null for exactly
+         the interactive seat families (claimbtn, boostercard, dailycell,
+         rewardcard, list-row), so their Words never wired and the prefab
+         shipped shell + icon with NO text (owner screenshots). BodyImage
+         is the one seam every other geometry reader already uses. */
+      var img = BodyImage(host);
       if (img == null || img.sprite == null) return null;
       var p = AssetDatabase.GetAssetPath(img.sprite).Replace("\\\\", "/");
       if (!p.StartsWith(root + "/")) return null;

@@ -1822,6 +1822,24 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
     errors.push("BAKE_GLYPHS lost the × glyph — every live qtybadge word tofus where the app draws the multiply sign (slice 2)");
+  /* ── follow-up field round (the wordless prefabs): SeatRowOf must read
+     the BODY seam — RebodyIfGlow nulls the root image on every stateFx
+     family, and the root-Image read made claimbtn/boostercard/dailycell/
+     rewardcard/list-row prefabs ship shell + icon with NO words. */
+  {
+    const seatFnAt = cs.indexOf("static PBAsset SeatRowOf(");
+    const seatFn = seatFnAt >= 0 ? cs.slice(seatFnAt, seatFnAt + 1800) : "";
+    if (!seatFn.includes("var img = BodyImage(host);") || seatFn.includes("host.GetComponent<Image>()"))
+      errors.push("SeatRowOf must read BodyImage(host) — the root Image is sprite-less on rebodied (stateFx) families and their Words never wire (slice 2, follow-up)");
+  }
+  /* incomplete scenes persist in kit.lock.json — SessionState dies with
+     the editor and the first-drop race then froze wordless stand-ins */
+  if (!/public string\[\] pendingScenes;/.test(cs)
+      || !/\|\| ScenePendingInLock\(root, scenePath\);/.test(cs)
+      || !/MarkScenePendingInLock\(root, scenePath, missing > 0\);/.test(cs)
+      || !/receipt\.pendingScenes = prev != null \? prev\.pendingScenes : null;/.test(cs)
+      || !/lv\.pendingScenes != null && lv\.pendingScenes\.Length > 0/.test(cs))
+    errors.push("the incomplete-scene marker must persist in kit.lock.json (pendingScenes: lock field, read in BuildBoardScene, write on save, receipt carry-over, sweep rebuild) — an editor restart otherwise freezes a raced scene on its stand-in forever (slice 2, follow-up)");
 }
 
 /* ── Unity-exporter round, slice 3 (2026-08-27): the dropdown DROPS DOWN.
