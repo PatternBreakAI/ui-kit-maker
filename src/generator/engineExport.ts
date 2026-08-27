@@ -8545,7 +8545,12 @@ namespace PatternBreak {
       bool routed = RoutedAllInput(iset, prop);
       var uobj = iset as UnityEngine.Object;
       var isetPath = uobj != null ? AssetDatabase.GetAssetPath(uobj).Replace("\\\\", "/") : "";
-      if (!routed && uobj != null && !isetPath.StartsWith("Assets/")) {
+      /* BOTH directions mint (round 33): the un-route toggle used to be
+         willing to write whatever asset the live settings resolved to —
+         on a project whose routed state came from a package-resident
+         asset, that write would alter an immutable package. Any write
+         goes to an Assets/ mint, period. */
+      if (uobj != null && !isetPath.StartsWith("Assets/")) {
         /* the project runs on the package's defaults — in-memory (path
            empty) OR the package's own asset (path under Packages/). A
            value set on the first evaporates on the next domain reload; a
@@ -11302,10 +11307,45 @@ namespace PatternBreak {
       Debug.LogWarning("UI Kit Maker: TextMeshPro Essential Resources are missing and couldn't be auto-imported. Run Window > TextMeshPro > Import TMP Essential Resources, then Tools > PatternBreak > Reapply Kit Import Settings. Labels use the shipped TTF meanwhile.");
       return false;
     }
+    /* the DYNAMIC face's source, PERSISTED (owner field: the font
+       "kinda?" came through — dropdown option rows and every other
+       dynamic-face consumer dropped to the LiberationSans fallback for
+       any glyph not already in the atlas): CreateFontAsset wires the
+       source font in MEMORY, but the serialized source-file GUID can land
+       empty depending on the TMP rung, and after the next domain reload a
+       dynamic atlas with no source can't pull NEW glyphs from the kit's
+       TTF — TMP quietly renders those characters in the fallback chain
+       instead, half the project in one face and half in another. Stamp
+       the GUID (and the editor ref) explicitly so the face provably
+       sources the kit's own font file across restarts; called on CREATION
+       and on every import for EXISTING faces, so projects minted before
+       this fix heal in place. */
+    static void StampDynamicSource(TMP_FontAsset fa, Font ttf) {
+      if (fa == null || ttf == null) return;
+      var ttfPath = AssetDatabase.GetAssetPath(ttf);
+      if (string.IsNullOrEmpty(ttfPath)) return;
+      var guid = AssetDatabase.AssetPathToGUID(ttfPath);
+      if (string.IsNullOrEmpty(guid)) return;
+      try {
+        var soFa = new SerializedObject(fa);
+        bool wrote = false;
+        var pGuid = soFa.FindProperty("m_SourceFontFileGUID");
+        if (pGuid != null && pGuid.propertyType == SerializedPropertyType.String && pGuid.stringValue != guid) { pGuid.stringValue = guid; wrote = true; }
+        var pRef = soFa.FindProperty("m_SourceFontFile_EditorRef");
+        if (pRef != null && pRef.propertyType == SerializedPropertyType.ObjectReference && pRef.objectReferenceValue != ttf) { pRef.objectReferenceValue = ttf; wrote = true; }
+        var pSrc = soFa.FindProperty("m_SourceFontFile");
+        if (pSrc != null && pSrc.propertyType == SerializedPropertyType.ObjectReference && pSrc.objectReferenceValue == null) { pSrc.objectReferenceValue = ttf; wrote = true; }
+        if (wrote) {
+          soFa.ApplyModifiedPropertiesWithoutUndo();
+          EditorUtility.SetDirty(fa);
+          AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+        }
+      } catch (Exception) { }
+    }
     static TMP_FontAsset EnsureTmpFace(string root, PBManifest m, Font ttf) {
       var path = root + "/fonts/KitFace SDF.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-      if (existing != null) return existing;
+      if (existing != null) { StampDynamicSource(existing, ttf); return existing; }
       if (ttf == null) return null; // the import pass logs the font story
       TMP_FontAsset fa = null;
       try { fa = TMP_FontAsset.CreateFontAsset(ttf); }
@@ -11319,6 +11359,7 @@ namespace PatternBreak {
       }
       fa.name = "KitFace SDF";
       AssetDatabase.CreateAsset(fa, path);
+      StampDynamicSource(fa, ttf);
       if (fa.material != null) {
         fa.material.name = "KitFace SDF Material";
         AssetDatabase.AddObjectToAsset(fa.material, fa);
@@ -13743,16 +13784,18 @@ namespace PatternBreak {
        approximation exactly as before. */
     static TMP_FontAsset EnsureInstrumentFace(string root, PBManifest m) {
       var path = root + "/fonts/Instrument SDF.asset";
+      var instTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.instrumentFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-      if (existing != null) return existing;
-      if (m == null || m.typography == null || string.IsNullOrEmpty(m.typography.instrumentFile)) return null;
-      var ttf = AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile);
+      if (existing != null) { StampDynamicSource(existing, instTtf); return existing; }
+      var ttf = instTtf;
       if (ttf == null) return null;
       TMP_FontAsset fa = null;
       try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
       if (fa == null) return null;
       fa.name = "Instrument SDF";
       AssetDatabase.CreateAsset(fa, path);
+      StampDynamicSource(fa, ttf); // the dynamic atlas keeps its source across reloads
       if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
       EditorUtility.SetDirty(fa);
@@ -16162,6 +16205,34 @@ namespace PatternBreak {
           continue;
         }
 #if UNITY_2023_2_OR_NEWER
+        /* an ALREADY-rigged dropdown whose option rows lost the kit face
+           (owner field: the font "kinda?" came through — rows in the
+           LiberationSans fallback while the caption wears the kit): the
+           Item Label ends up faceless when the rig was grafted before the
+           dynamic face existed, or bound to a face whose dynamic source
+           went missing (healed separately by StampDynamicSource). Re-bind
+           it to the kit face in place — one property, the dev's own list
+           and layout untouched; a deliberately re-fonted row (any face
+           that isn't TMP's fallback) is theirs and stays. */
+        if (spritePath.EndsWith("/dropdown-base.9.png") && asset.transform.Find("Template") != null) {
+          var kitFaceDD = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+          var ddCm = asset.GetComponent<TMP_Dropdown>();
+          var itLbM = ddCm != null ? ddCm.itemText : null;
+          if (kitFaceDD != null && itLbM != null
+              && (itLbM.font == null || itLbM.font.name.StartsWith("LiberationSans"))) {
+            var contentsDF = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var ddCf = contentsDF.GetComponent<TMP_Dropdown>();
+              var itLbF = ddCf != null ? ddCf.itemText : null;
+              if (itLbF != null && (itLbF.font == null || itLbF.font.name.StartsWith("LiberationSans"))) {
+                itLbF.font = kitFaceDD;
+                PrefabUtility.SaveAsPrefabAsset(contentsDF, path);
+                Debug.Log("UI Kit Maker: the Dropdown's option rows now wear the kit face (they were riding the LiberationSans fallback — the 'kinda' font). Placed copies update with the prefab.");
+              }
+            } finally { PrefabUtility.UnloadPrefabContents(contentsDF); }
+            continue;
+          }
+        }
         /* the input's FIELD era (round 28): an Input.prefab from the
            bare-surface generation becomes a working TMP_InputField —
            but only when provably ours and unwired: our own placeholder
@@ -17079,6 +17150,44 @@ namespace PatternBreak {
     }
   }
 #endif
+  /* ── the IMMUTABLE-PACKAGE TRIPWIRE (the warning that would not die):
+     the targeted-saves round removed every kit write under Packages/, and
+     a fresh field project STILL showed Unity's "assets located in
+     immutable packages were unexpectedly altered" status warning. The
+     ALTERATION only lands when the editor flushes a dirty package asset
+     to disk — whoever dirtied it (TMP's own font-asset version upgrade
+     re-stamps older-format package assets the moment they load; the kit
+     itself writes only under Assets/, as policy). This processor sits on
+     that flush: any save path inside an IMMUTABLE package (registry or
+     built-in — embedded and local packages are the developer's own and
+     pass untouched) is dropped from the save list and NAMED in the
+     Console with the flusher's stack, so the write never happens and the
+     next field report says exactly which asset kept getting hit and by
+     whom. Immutable packages must never be written, by anyone — blocking
+     the save is always the correct outcome. */
+  class KitImmutablePackageTripwire : UnityEditor.AssetModificationProcessor {
+    static string[] OnWillSaveAssets(string[] paths) {
+      if (paths == null || paths.Length == 0) return paths;
+      List<string> keep = null; // minted lazily — the quiet path allocates nothing
+      for (int i = 0; i < paths.Length; i++) {
+        var norm = paths[i] == null ? "" : paths[i].Replace("\\\\", "/");
+        bool blocked = false;
+        if (norm.StartsWith("Packages/")) {
+          try {
+            var pkg = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(norm);
+            blocked = pkg != null
+              && pkg.source != UnityEditor.PackageManager.PackageSource.Embedded
+              && pkg.source != UnityEditor.PackageManager.PackageSource.Local;
+          } catch (Exception) { blocked = false; }
+        }
+        if (blocked) {
+          if (keep == null) { keep = new List<string>(paths.Length); for (int k = 0; k < i; k++) keep.Add(paths[k]); }
+          Debug.LogWarning("UI Kit Maker: blocked a save into the immutable package asset '" + norm + "' — this write is what Unity's 'assets located in immutable packages were unexpectedly altered' status warning reports. The kit writes only under Assets/; something else marked this asset dirty (TextMeshPro's font-asset version upgrade does this to package assets when they load). Blocking is safe — immutable packages must never be written. The flush came through:\\n" + Environment.StackTrace);
+        } else if (keep != null) keep.Add(paths[i]);
+      }
+      return keep != null ? keep.ToArray() : paths;
+    }
+  }
   class KitTexturePostprocessor : AssetPostprocessor {
     static readonly Dictionary<string, PBManifest> cache = new Dictionary<string, PBManifest>();
     void OnPreprocessTexture() {

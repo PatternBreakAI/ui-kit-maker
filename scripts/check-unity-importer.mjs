@@ -1938,6 +1938,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     // ImportPackage unpacks them into Assets/, the package is untouched
     "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage",
     "Packages/com.unity.textmeshpro/Package Resources/TMP Essential Resources.unitypackage",
+    // the tripwire's own path CLASSIFIER (round 33) — it reads save paths
+    // to BLOCK package writes; the literal addresses nothing
+    "Packages/",
   ]);
   {
     // real STRING literals only — the same comment-aware walk as the lexer
@@ -1973,8 +1976,47 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/var isetPath = uobj != null \? AssetDatabase\.GetAssetPath\(uobj\)\.Replace\("\\\\", "\/"\) : "";/.test(cs)
       || !/!isetPath\.StartsWith\("Assets\/"\)/.test(cs))
     errors.push("the Input System settings write must mint an Assets/ copy whenever the live settings asset is NOT under Assets/ (package-resident settings would be altered in place) (immutable-package policy)");
+  if (/if \(!routed && uobj != null && !isetPath\.StartsWith\("Assets\/"\)\)/.test(cs))
+    errors.push("the Input System settings mint is direction-scoped again (!routed) — the un-route toggle would write a package-resident settings asset in place; mint on ANY non-Assets path (immutable-package policy, round 33)");
   if (!/settingsPath\.Replace\("\\\\", "\/"\)\.StartsWith\("Assets\/"\)/.test(cs))
     errors.push("the TMP settings write must stay Assets/-gated (the round-10 immutable-package guard) (immutable-package policy)");
+  /* round 33 — the TRIPWIRE: whatever still dirties a package asset (TMP's
+     font-asset version upgrade is the known third-party dirtier), the
+     alteration only lands at flush time. The processor must exist, gate on
+     IMMUTABLE sources only (embedded/local = the dev's own, untouchable by
+     us in the other direction), drop the path from the save list, and name
+     the asset out loud — the field's next Console says which asset and who
+     flushed. */
+  if (!/class KitImmutablePackageTripwire : UnityEditor\.AssetModificationProcessor/.test(cs))
+    errors.push("the immutable-package tripwire (KitImmutablePackageTripwire) is missing — package-asset flushes go unblocked and unnamed (immutable-package policy, round 33)");
+  if (!/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Embedded/.test(cs)
+      || !/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Local/.test(cs))
+    errors.push("the tripwire must exempt Embedded and Local packages — those are the developer's own, writable by design (immutable-package policy, round 33)");
+  if (!/blocked a save into the immutable package asset/.test(cs))
+    errors.push("the tripwire must NAME the blocked asset in the Console (the diagnostic half of the round-33 mandate)");
+  if (!/return keep != null \? keep\.ToArray\(\) : paths;/.test(cs))
+    errors.push("the tripwire must actually DROP blocked paths from the save list (returning the filtered array is the kill)");
+  /* every object-addressed save stays on a known-ours target — a new
+     SaveAssetIfDirty on an unvetted object is how a package asset gets
+     flushed by us */
+  {
+    const SAVE_OK = new Set(["dirty", "fa", "face", "TMP_Settings.instance", "existing"]);
+    for (const mt of cs.matchAll(/AssetDatabase\.SaveAssetIfDirty\(([^)]*)\)/g))
+      if (!SAVE_OK.has(mt[1].trim()))
+        errors.push(`SaveAssetIfDirty on unvetted target "${mt[1].trim()}" — add it to the guard's allowlist only after proving it is an Assets-resident kit asset (immutable-package policy)`);
+  }
+  /* round 33 — the "kinda" font: dynamic faces must PERSIST their source
+     (the GUID stamp), and the dropdown's option rows must bind the kit
+     face at build AND heal a fallback-bound Item Label on re-import. */
+  if (!/static void StampDynamicSource\(TMP_FontAsset fa, Font ttf\)/.test(cs)
+      || !/m_SourceFontFileGUID/.test(cs) || !/m_SourceFontFile_EditorRef/.test(cs))
+    errors.push("StampDynamicSource is missing (or lost its serialized-property stamps) — dynamic faces forget their source font across reloads and text drops to the LiberationSans fallback (the owner's 'kinda' font)");
+  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); return existing; \}/.test(cs))
+    errors.push("EnsureTmpFace must stamp EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font)");
+  if (!/var itFace = EnsureTmpFace\(root, m, kitFont\);\s*\n\s*if \(itFace != null\) itLb\.font = itFace;/.test(cs))
+    errors.push("the dropdown's Item Label must bind the kit face at rig build (itLb.font = itFace) — rows otherwise ride TMP's fallback face");
+  if (!/itLbF\.font == null \|\| itLbF\.font\.name\.StartsWith\("LiberationSans"\)/.test(cs))
+    errors.push("the dropdown maintenance heal is missing — an already-rigged Dropdown whose rows ride the LiberationSans fallback must re-bind to the kit face on import (the 'kinda' font)");
 }
 
 if (errors.length) {
