@@ -1873,6 +1873,63 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
 }
 
+/* ── Unity-exporter follow-up round (2026-08-27): the IMMUTABLE-PACKAGE
+   POLICY, scanned. Owner field (Shop status bar): "assets located in
+   immutable packages were unexpectedly altered". Two write roads could
+   put ink inside Packages/: a blanket AssetDatabase.SaveAssets() flushes
+   EVERY dirty asset — package assets Unity itself dirtied included, and
+   the warning lands on the flusher — and the Input System settings write
+   ran on whatever asset InputSystem.settings resolved to. Policy: the
+   importer writes ONLY under Assets/, saves ONLY its own assets, and the
+   sole permitted "Packages/" literals are the TMP-essentials READ paths
+   (ImportPackage unpacks INTO Assets, touching nothing in the package). */
+{
+  if (/AssetDatabase\.SaveAssets\(\)/.test(cs))
+    errors.push("blanket AssetDatabase.SaveAssets() found — it flushes package assets others dirtied (the owner's 'immutable packages… altered' status bar); save the specific asset via SaveAssetIfDirty instead (immutable-package policy)");
+  const ALLOWED_PKG_LITERALS = new Set([
+    // READ roads: the TMP Essential Resources .unitypackage locations —
+    // ImportPackage unpacks them into Assets/, the package is untouched
+    "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage",
+    "Packages/com.unity.textmeshpro/Package Resources/TMP Essential Resources.unitypackage",
+  ]);
+  {
+    // real STRING literals only — the same comment-aware walk as the lexer
+    // above (a naive regex once matched from code into a comment's prose)
+    let inBlk = false;
+    for (const line of lines) {
+      let i = 0;
+      while (i < line.length) {
+        if (inBlk) {
+          const close = line.indexOf("*/", i);
+          if (close < 0) { i = line.length; break; }
+          inBlk = false; i = close + 2; continue;
+        }
+        const ch = line[i];
+        if (ch === "/" && line[i + 1] === "/") break;
+        if (ch === "/" && line[i + 1] === "*") { inBlk = true; i += 2; continue; }
+        if (ch === '"') {
+          let j = i + 1, lit = "";
+          while (j < line.length) {
+            if (line[j] === "\\") { lit += line[j] + (line[j + 1] ?? ""); j += 2; continue; }
+            if (line[j] === '"') break;
+            lit += line[j]; j++;
+          }
+          if (lit.includes("Packages/") && !lit.includes("immutable packages") && !ALLOWED_PKG_LITERALS.has(lit))
+            errors.push(`unallowlisted "Packages/" literal in the emitted C#: "${lit.slice(0, 90)}" — the importer must never address package paths outside the documented TMP-essentials READ roads (immutable-package policy)`);
+          i = j + 1;
+          continue;
+        }
+        i++;
+      }
+    }
+  }
+  if (!/var isetPath = uobj != null \? AssetDatabase\.GetAssetPath\(uobj\)\.Replace\("\\\\", "\/"\) : "";/.test(cs)
+      || !/!isetPath\.StartsWith\("Assets\/"\)/.test(cs))
+    errors.push("the Input System settings write must mint an Assets/ copy whenever the live settings asset is NOT under Assets/ (package-resident settings would be altered in place) (immutable-package policy)");
+  if (!/settingsPath\.Replace\("\\\\", "\/"\)\.StartsWith\("Assets\/"\)/.test(cs))
+    errors.push("the TMP settings write must stay Assets/-gated (the round-10 immutable-package guard) (immutable-package policy)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

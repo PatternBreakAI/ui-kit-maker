@@ -8534,11 +8534,16 @@ namespace PatternBreak {
       if (prop == null) { Debug.LogWarning("UI Kit Maker: this project's Input System package does not expose the editor input-behavior setting (or the package is absent) — nothing changed. The gate still lifts the manual way: click the Game view once in Play mode."); return; }
       bool routed = RoutedAllInput(iset, prop);
       var uobj = iset as UnityEngine.Object;
-      if (!routed && uobj != null && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(uobj))) {
-        /* the project runs on the package's in-memory defaults — a value
-           set there evaporates on the next domain reload. Mint the same
-           settings asset the package's Project Settings page creates on
-           first edit, and say so out loud. */
+      var isetPath = uobj != null ? AssetDatabase.GetAssetPath(uobj).Replace("\\\\", "/") : "";
+      if (!routed && uobj != null && !isetPath.StartsWith("Assets/")) {
+        /* the project runs on the package's defaults — in-memory (path
+           empty) OR the package's own asset (path under Packages/). A
+           value set on the first evaporates on the next domain reload; a
+           write to the second ALTERS AN IMMUTABLE PACKAGE (the exact
+           Unity warning the owner screenshotted — we only ever write
+           under Assets/, as policy). Mint the same settings asset the
+           package's Project Settings page creates on first edit, and say
+           so out loud. */
         var asset = UnityEngine.Object.Instantiate(uobj);
         asset.name = "InputSystem.inputsettings";
         AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
@@ -8958,7 +8963,7 @@ namespace PatternBreak {
               prop.objectReferenceValue = sdfFace;
               so.ApplyModifiedProperties();
               EditorUtility.SetDirty(TMP_Settings.instance);
-              AssetDatabase.SaveAssets();
+              AssetDatabase.SaveAssetIfDirty(TMP_Settings.instance); // the Assets-resident settings alone — never a blanket flush
               Debug.Log("UI Kit Maker: new TextMeshPro texts are now born in the kit's face (project default font = KitFace SDF). Change it anytime in Project Settings > TextMesh Pro > Settings.");
             }
           }
@@ -9251,7 +9256,8 @@ namespace PatternBreak {
         if (face != null && face.material != null) {
           ApplyStyle(face.material, manifest, root);
           EditorUtility.SetDirty(face.material);
-          AssetDatabase.SaveAssets();
+          EditorUtility.SetDirty(face);
+          AssetDatabase.SaveAssetIfDirty(face); // the material is a sub-asset — saving the face writes both, and nothing else
         }
         // the baked face rebuilds IN PLACE too (same GUID — placed labels keep it)
         EnsureBakedFace(root, manifest, true);
@@ -11173,7 +11179,11 @@ namespace PatternBreak {
         fa.atlasTextures[0].name = "KitFace SDF Atlas";
         AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa);
       }
-      AssetDatabase.SaveAssets();
+      // save OUR asset alone — a blanket SaveAssets() also flushes any
+      // package asset something else dirtied (Unity's "immutable
+      // packages… altered" warning lands on the flusher)
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa);
       Debug.Log("UI Kit Maker: generated the styled TextMeshPro face at " + path + " — outline and glow follow the kit's own type recipe.");
       return fa;
     }
@@ -11652,7 +11662,7 @@ namespace PatternBreak {
         }
         fa.ReadFontAssetDefinition();
         EditorUtility.SetDirty(fa);
-        AssetDatabase.SaveAssets();
+        AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
           + note + " Crisp up to ~" + Mathf.RoundToInt(face.pointSize) + "px, softens beyond — that's bitmap-font physics."
           + (kernApplied > 0
@@ -13596,7 +13606,8 @@ namespace PatternBreak {
       AssetDatabase.CreateAsset(fa, path);
       if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
-      AssetDatabase.SaveAssets();
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
       Debug.Log("UI Kit Maker: generated the instrument face at " + path + " — panel HUD text wears the app's real heavy cut instead of synthetic bold.");
       return fa;
     }
