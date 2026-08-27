@@ -2044,6 +2044,24 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the live-stamp race fallback (baked stand-in + missing++ self-rebuild) is missing");
 }
 
+/* ── DROPDOWN OPEN-MENU PARITY (round 33, coordinator handoff): the rig
+   consumes kit-manifest.json > menu — the app's resolved voice + parsed
+   metrics — on BOTH rungs, so owner menu-dial edits flow to Unity with no
+   importer change; the caret's protective right border survives the
+   measured-slice pass (sliceMin floor, app side). */
+{
+  if (!/\[Serializable\] class PBMenu \{ public string\[\] items;/.test(cs) || !/public PBMenu menu;/.test(cs))
+    errors.push("PBMenu is missing from the manifest classes — the menu block would be dropped in silence");
+  if (!/var mnu = m != null \? m\.menu : null;/.test(cs) || !/float rowH = mnuOk \? mnu\.rowH :/.test(cs))
+    errors.push("BuildDropdownRig no longer consumes the manifest menu block (rowH/pad/gap)");
+  if ((cs.match(/itLb\.color = mnuInk;/g) ?? []).length !== 2)
+    errors.push("the menu row ink must flow to BOTH rungs' Item Label (TMP and legacy Text)");
+  if (!/itCkRt\.anchoredPosition = new Vector2\(-mnu\.checkInsetR, 0f\);/.test(cs))
+    errors.push("the selected-check no longer seats at the app's measured right inset");
+  if (!/sliceMin: \{ right: Math\.round\(80 \* PNG_SCALE\) \}/.test(src))
+    errors.push("the dropdown caret's protective border floor (sliceMin) is gone — the measured-slice pass will shear the chevron on stretched copies again");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

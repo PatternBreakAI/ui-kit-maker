@@ -10,8 +10,8 @@ import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./mod
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, hexRgba, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg } from "./bevel";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -2640,7 +2640,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (cheap synchronous SVG strings), then one raster loop turns them into
      PNGs with an exact done/total — rasterization is where the time goes,
      and a long silent "Working…" reads as a hang (owner report). */
-  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  /* sliceMin: an EMISSION-SIDE floor on the measured nine-slice (PNG px)
+     — a border guarding baked-in art (the dropdown's caret cap) must
+     never shrink below it; the pixel measurement estimates curvature,
+     not intent. Queue-only: it never enters the manifest. */
+  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; sliceMin?: { left?: number; right?: number; top?: number; bottom?: number } | null; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
   /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
      naming convention for everything makes some assets hard to find' —
      Unity search showed sixteen identical "base" rows). Every filename now
@@ -2659,10 +2663,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (margin 4); a NUMBER = tight crop with that margin — fx-carrying
      bakes hand the crop enough air that their halo's tail reaches true
      zero inside the file (round 27 — the socket's square glow edge). */
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string): Promise<void> => {
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string, extras?: { sliceMin?: { left?: number; right?: number; top?: number; bottom?: number } }): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
-    pngQueue.push({ path: famPath(path), svg, crop, group, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
+    pngQueue.push({ path: famPath(path), svg, crop, group, sliceMin: extras?.sliceMin ?? null, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   /* families whose prefabs swap states, so they are the ones that get an
@@ -2892,6 +2896,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           if (s.right > maxLR) s.right = maxLR;
           if (s.top > maxTB) s.top = maxTB;
           if (s.bottom > maxTB) s.bottom = maxTB;
+          /* the caller's PROTECTION FLOOR (sliceMin — the dropdown's caret
+             cap): the measured curvature replaced the intent above, and a
+             border shielding baked art from the stretch zone silently
+             shrank (field: the chevron's left tip sheared on stretched
+             copies). Floors re-apply AFTER measurement and caps; a
+             maker's explicit slices (the uo path) still outrank them. */
+          const smFloor = q.sliceMin;
+          if (smFloor) {
+            if (smFloor.left) s.left = Math.max(s.left, smFloor.left);
+            if (smFloor.right) s.right = Math.max(s.right, smFloor.right);
+            if (smFloor.top) s.top = Math.max(s.top, smFloor.top);
+            if (smFloor.bottom) s.bottom = Math.max(s.bottom, smFloor.bottom);
+          }
         }
         const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
         if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
@@ -3570,21 +3587,40 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        sprites nobody wires isn't free — a full kit is already 134 MB of
        uncompressed texture. */
     await addPng("dropdown/base.9.png", ddSvg,
-      { component: "dropdown", part: "base", nineSlice: ddSlice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, chevron included (as designed, safe inside the right cap). The value word arrives as live text on the Dropdown prefab.",
-        ...labelSeatOf("dropdown", st.kitLabels?.dropdown ?? "SELECT OPTION", { icon: undefined }, slim) }, true);
+      { component: "dropdown", part: "base", nineSlice: ddSlice,
+        pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, chevron included (as designed, safe inside the right cap). The value word arrives as live text on the Dropdown prefab.",
+        ...labelSeatOf("dropdown", st.kitLabels?.dropdown ?? "SELECT OPTION", { icon: undefined }, slim) }, true,
+      /* the caret's cap is a FLOOR, not an estimate: the measured-slice
+         pass replaced the widened border with bare curvature (120 < the
+         caret's 136px reach) and stretched copies sheared the chevron's
+         left tip — the guard now survives measurement (sliceMin). */
+      undefined, { sliceMin: { right: Math.round(80 * PNG_SCALE) } });
+    /* the OPEN-MENU voice comes from ONE resolver (resolveMenuStyle — the
+       app's own open-state road, dials included), and the metrics come
+       from the app's OPEN RENDER, parsed like the gauge/label roads —
+       measured, never guessed. Owner edits to the menu dials (row plate,
+       row text, option lines; the auto-contrast highlight) flow into the
+       sprites AND the manifest.menu block below automatically. */
+    const ddM = resolveMenuStyle(pieceCfg("dropdown"), st.kitSlotVals?.dropdown);
+    const ddK = effKitSize(st.kitSizes.dropdown) === "s" ? 0.72 : effKitSize(st.kitSizes.dropdown) === "m" ? 1 : 1.22;
+    /* canvas speaks DESIGN px (addPng rasterizes at PNG_SCALE); nine-slice
+       borders speak PNG px — the manifest's own units contract */
+    const menuRx = 12 * ddK;
     await addPng("dropdown/menu.9.png",
-      svgWrap(440, 260, `<path d="${rr(1, 1, 438, 258, 14)}" fill="${darken(innerC, 0.55)}" stroke="${darken(bevelC, 0.5)}" stroke-width="1.5"/>`),
-      { component: "dropdown", part: "menu", nineSlice: { left: 28, right: 28, top: 28, bottom: 28 }, pivot: { x: 0.5, y: 0 }, tintable: false, usage: "Open-menu plate. Stretch vertically to the option count; option rows are live engine text." });
-    const dd = pieceCfg("dropdown");
-    const hd = dd.stateDesigns.hover ?? dd;
-    const hovC = hd.candy.aura.color ?? hd.effects.Glow ?? glowC;
-    const hovOp = Math.min(0.55, 0.1 + 0.35 * (dd.states.hover.glow / 100));
+      svgWrap(440, 260, `<path d="${rr(1, 1, 438, 258, menuRx)}" fill="${ddM.plate}" stroke="${ddM.stroke}" stroke-width="1.5"/>`),
+      { component: "dropdown", part: "menu", nineSlice: { left: Math.round((menuRx + 2) * PNG_SCALE), right: Math.round((menuRx + 2) * PNG_SCALE), top: Math.round((menuRx + 2) * PNG_SCALE), bottom: Math.round((menuRx + 2) * PNG_SCALE) }, pivot: { x: 0.5, y: 0 }, tintable: false, usage: "Open-menu plate — the app's own menu voice (edit it on uikitmaker.com: Component content > dropdown). Stretch vertically to the option count; option rows are live engine text." });
+    const hiRx = 8 * ddK, hiH = Math.round(44 * ddK);
     await addPng("dropdown/row-highlight.9.png",
-      svgWrap(440, 88, `<path d="${rr(1, 1, 438, 86, 12)}" fill="${hexRgba(hovC, hovOp)}"/>`),
-      { component: "dropdown", part: "row-highlight", nineSlice: { left: 24, right: 24, top: 24, bottom: 24 }, pivot: { x: 0, y: 0.5 }, tintable: true, usage: "The bar for the row under the cursor — derived from this kit's Hover state recipe. Show it on pointer hover AND keyboard/gamepad focus (same visual for both), never on the selected row." });
+      svgWrap(440, hiH, `<path d="${rr(1, 1, 438, hiH - 2, hiRx)}" fill="${ddM.highlight}"/>`),
+      { component: "dropdown", part: "row-highlight", nineSlice: { left: Math.round((hiRx + 2) * PNG_SCALE), right: Math.round((hiRx + 2) * PNG_SCALE), top: Math.round((hiRx + 2) * PNG_SCALE), bottom: Math.round((hiRx + 2) * PNG_SCALE) }, pivot: { x: 0, y: 0.5 }, tintable: true, usage: "The bar for the row under the cursor — the kit's Hover language made small, or the auto-contrast highlight when a menu color dial is set. Show it on pointer hover AND keyboard/gamepad focus, never on the selected row." });
+    /* the check wears the APP's exact glyph (l 7,7 l 14,-16 at pen 3.5, in
+       row units) on a DESIGN-px canvas that maps 1:1 onto the manifest's
+       checkW/H — Unity sizes the image with those numbers, no aspect math */
+    const ckPen = 3.5 * ddK;
+    const ckW = 21 * ddK + ckPen * 2, ckH = 16 * ddK + ckPen * 2;
     await addPng("dropdown/row-check.png",
-      svgWrap(96, 96, `<path d="M 24 52 l 15 15 l 33 -37" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`),
-      { component: "dropdown", part: "row-check", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The selected-row check — marks the choice that is currently TRUE, with full-strength row text. Keep it distinct from the hover bar: highlighted moves constantly, selected only changes on commit." });
+      svgWrap(Math.round(ckW), Math.round(ckH), `<path d="M ${ckPen.toFixed(1)} ${(ckPen + 9 * ddK).toFixed(1)} l ${(7 * ddK).toFixed(1)} ${(7 * ddK).toFixed(1)} l ${(14 * ddK).toFixed(1)} ${(-16 * ddK).toFixed(1)}" fill="none" stroke="#FFFFFF" stroke-width="${ckPen.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`),
+      { component: "dropdown", part: "row-check", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The selected-row check, white — the prefab tints it to the menu's row ink and seats it at the app's own right-edge seat (manifest > menu). Marks the choice that is currently TRUE; keep it distinct from the hover bar." });
   }
 
   /* ── racing HUD: dial face + needle, segment arc + one segment, track ── */
@@ -4199,6 +4235,103 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           return { seconds: secsT, word: wordT, fs: Math.round(fsT * 10) / 10, w: Math.round(wT * 10) / 10, h: Math.round(hT * 10) / 10,
             ...(shellOk ? { shellW: Math.round(shT[2] * 10) / 10, shellH: Math.round(shT[3] * 10) / 10 } : {}) };
         } catch { return undefined; }
+      })(),
+      /* ── the DROPDOWN's OPEN-MENU voice + metrics (styling-parity round;
+         coordinator handoff): the resolved style comes from the app's OWN
+         resolver (resolveMenuStyle — kitSlotVals.dropdown dials included,
+         highlight auto-contrast computed) and every metric is PARSED from
+         the app's open-state render (the gauge/label discipline: measured,
+         never guessed). Units are design px in the same frame labelFs
+         speaks — one svg px is one prefab unit. The importer builds the
+         TMP_Dropdown/uGUI template from THIS block, so owner edits to the
+         menu dials flow into Unity with no importer change.
+           items      owner-typed option lines (o1–o3), null = the sample
+                      language list stands
+           plate/stroke/ink/inkDim/highlight/auto  the resolved voice
+           rowH/pad/gap/rx  row height, plate padding, shell→plate gap,
+                      plate corner
+           hiInset/hiRx  highlight bar's side inset + corner
+           textInset/textFs  row text's left inset + rendered size
+           checkInsetR/checkW/checkH  the selected-check's right-edge
+                      inset (to its center) and drawn box */
+      menu: (() => {
+        try {
+          const cM = clone(pieceCfg("dropdown"));
+          cM.shadow.opacity = 0;
+          cM.candy.contact.opacity = 0;
+          /* a NON-empty label: the value-free "" shell takes the early
+             chevron-in-cap return and never draws the menu. Every metric
+             shipped below is width-relative, so the caption word itself
+             doesn't matter — the maker's own when typed, the stock
+             otherwise. */
+          const openSvg = renderKit(cM, "dropdown", effKitSize(st.kitSizes.dropdown), "pressed", undefined, st.kitShapes.dropdown, { label: st.kitLabels?.dropdown || undefined, icon: undefined, slots: st.kitSlotVals?.dropdown });
+          const dm = /data-menu="([^"]+)"/.exec(openSvg);
+          if (!dm) return undefined;
+          const tk = dm[1].split(" ");
+          if (tk.length < 6) return undefined;
+          /* every metric parses INSIDE the data-part="menu" subtree — the
+             closed button above it carries its own paths and rects */
+          const menuAt = openSvg.indexOf('<g data-part="menu">');
+          if (menuAt < 0) return undefined;
+          const menuSvg = openSvg.slice(menuAt);
+          const plateD = /<path d="M ([-\d.]+) ([-\d.]+) H ([-\d.]+) A ([-\d.]+)/.exec(menuSvg);
+          if (!plateD) return undefined;
+          const rxP = +plateD[4], mx = +plateD[1] - rxP, myTop = +plateD[2], mw = +plateD[3] + rxP - mx;
+          /* gap = plate top − shell bottom. The menu markup is INJECTED
+             inside build()'s content groups and speaks LOCAL coords; the
+             data-shell stamp speaks the PIXEL frame (local + the
+             extrusion-headroom translate) — the gauge-road lesson
+             (overlayShiftOf), inlined here because this block runs
+             before that const initializes (TDZ). Sum the still-open
+             groups' translates to bring the plate top into the shell's
+             frame before differencing. */
+          const shiftM = (() => {
+            const body = openSvg.replace(/(?:\s*<\/g>)*\s*<\/svg>\s*$/, "");
+            const stk: { tx: number; ty: number }[] = [];
+            const reG = /<g\b[^>]*>|<\/g>/g;
+            let mg2: RegExpExecArray | null;
+            while ((mg2 = reG.exec(body))) {
+              if (mg2[0] === "</g>") { stk.pop(); continue; }
+              const tm2 = /transform="translate\((-?[\d.]+)[ ,]+(-?[\d.]+)\)/.exec(mg2[0]);
+              stk.push(tm2 ? { tx: +tm2[1], ty: +tm2[2] } : { tx: 0, ty: 0 });
+            }
+            return stk.reduce((a, g) => ({ tx: a.tx + g.tx, ty: a.ty + g.ty }), { tx: 0, ty: 0 });
+          })();
+          const shM = /data-shell0?="([-\d. ]+)"/.exec(openSvg)?.[1].split(" ").map(Number);
+          const gapM = shM && shM.length === 4 ? (myTop + shiftM.ty) - (shM[1] + shM[3]) : 10;
+          // rows: the slot-text nodes carry x, y (row centers) and font-size
+          const rowsM = [...menuSvg.matchAll(/<g data-part="slot-text"><text x="([-\d.]+)" y="([-\d.]+)"[^>]*font-size="([-\d.]+)"/g)]
+            .map((r) => ({ x: +r[1], y: +r[2], fs: +r[3] }));
+          if (rowsM.length < 3) return undefined;
+          const rowHM = rowsM[1].y - rowsM[0].y;
+          const padM = rowsM[0].y - rowHM / 2 - myTop;
+          // highlight bar: the rect under row 1
+          const hiM = /<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)" rx="([-\d.]+)" fill="(?:rgba?\(|#)/.exec(menuSvg);
+          const hiInsetM = hiM ? +hiM[1] - mx : 6;
+          const hiRxM = hiM ? +hiM[5] : 8;
+          // the selected check: path M <x> <y> l <dx1> <dy1> l <dx2> <dy2>, pen
+          const ckM = /<path d="M ([-\d.]+) ([-\d.]+) l ([-\d.]+) ([-\d.]+) l ([-\d.]+) ([-\d.]+)" fill="none" stroke="[^"]*" stroke-width="([-\d.]+)"/.exec(menuSvg);
+          const r1 = (v: number) => Math.round(v * 10) / 10;
+          const ckPenM = ckM ? +ckM[7] : 3.5;
+          const ckWM = ckM ? Math.abs(+ckM[3]) + Math.abs(+ckM[5]) + ckPenM * 2 : 24;
+          // vertical INK SPAN of the polyline (0, dy1, dy1+dy2) + the pen
+          const ckHM = ckM
+            ? Math.max(0, +ckM[4], +ckM[4] + +ckM[6]) - Math.min(0, +ckM[4], +ckM[4] + +ckM[6]) + ckPenM * 2
+            : 20;
+          const ckCxM = ckM ? +ckM[1] + (Math.abs(+ckM[3]) + Math.abs(+ckM[5])) / 2 : mx + mw - 27.5;
+          const slotsTyped = st.kitSlotVals?.dropdown;
+          const itemsTyped = slotsTyped && (slotsTyped.o1 || slotsTyped.o2 || slotsTyped.o3)
+            ? [slotsTyped.o1, slotsTyped.o2, slotsTyped.o3].filter((s6): s6 is string => !!s6 && !!s6.trim())
+            : null;
+          return {
+            ...(itemsTyped && itemsTyped.length ? { items: itemsTyped } : {}),
+            plate: tk[0], stroke: tk[1], ink: tk[2], inkDim: tk[3], highlight: tk[4], auto: tk[5] === "1" ? 1 : 0,
+            rowH: r1(rowHM), pad: r1(padM), gap: r1(gapM), rx: r1(rxP),
+            hiInset: r1(hiInsetM), hiRx: r1(hiRxM),
+            textInset: r1(rowsM[0].x - mx), textFs: r1(rowsM[0].fs),
+            checkInsetR: r1(mx + mw - ckCxM), checkW: r1(ckWM), checkH: r1(ckHM),
+          };
+        } catch (eMnu) { console.warn("UI Kit Maker export: the menu block could not be measured off the open render — the importer falls back to derived metrics.", eMnu); return undefined; }
       })(),
       /* the health globe's visible well as frame fractions (bottom-left
          origin) — the prefab anchors the cropped liquid here so
@@ -8308,6 +8441,11 @@ namespace PatternBreak {
      speak SHELL coordinates, and canvas-to-shell scaling shrank the placed
      word. 0 on older manifests: the placement keeps the native size. */
   [Serializable] class PBTimerBlock { public float seconds; public string word; public float fs; public float w; public float h; public float shellW; public float shellH; }
+  /* the dropdown's OPEN-MENU voice + metrics — resolved by the app's own
+     menu resolver (dials included) and PARSED from its open render; units
+     are design px in the labelFs frame (one svg px = one prefab unit).
+     items = owner-typed option lines (empty: the sample list stands). */
+  [Serializable] class PBMenu { public string[] items; public string plate; public string stroke; public string ink; public string inkDim; public string highlight; public int auto; public float rowH; public float pad; public float gap; public float rx; public float hiInset; public float hiRx; public float textInset; public float textFs; public float checkInsetR; public float checkW; public float checkH; }
   [Serializable] class PBBloom { public float opacity; public float size; }
   [Serializable] class PBLabelState { public string family; public string state; public string fillMode; public string fill; public string fill2; public float dy; }
   [Serializable] class PBStateFx { public string family; public string state; public float glow; public float lift; }
@@ -8330,7 +8468,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -10905,7 +11043,8 @@ namespace PatternBreak {
                     tplRt9.pivot = new Vector2(0.5f, 1f);
                     tplRt9.localScale = new Vector3(kTpl, kTpl, 1f);
                     tplRt9.sizeDelta = new Vector2(it.w / kTpl, tplRt9.sizeDelta.y);
-                    tplRt9.anchoredPosition = new Vector2(0f, -4f * kTpl);
+                    // the app's measured shell→plate gap (manifest > menu), scaled with the piece
+                    tplRt9.anchoredPosition = new Vector2(0f, -(m != null && m.menu != null && m.menu.rowH > 4f ? m.menu.gap : 4f) * kTpl);
                   }
                 }
                 /* WipeShine masks its band with OUR image — a null-sprite,
@@ -13778,7 +13917,23 @@ namespace PatternBreak {
       float capFs = 30f;
       var lrowDD = LabelRow(m, "dropdown");
       if (lrowDD != null && lrowDD.labelFs > 1f) capFs = lrowDD.labelFs;
-      float rowH = Mathf.Max(36f, capFs * 1.9f);
+      /* ── the OPEN MENU wears the APP's own measured voice (styling-
+         parity round): kit-manifest.json > menu carries the resolved
+         style — the app's menu resolver, its color dials and the auto-
+         contrast highlight included — and every metric PARSED from the
+         app's open-state render (row height, plate padding, shell gap,
+         text inset + size, highlight inset, the check's right seat).
+         Owner edits on uikitmaker.com flow into this rig with no
+         importer change. Older manifests (no menu block) keep the
+         derived numbers. ── */
+      var mnu = m != null ? m.menu : null;
+      bool mnuOk = mnu != null && mnu.rowH > 4f;
+      float rowH = mnuOk ? mnu.rowH : Mathf.Max(36f, capFs * 1.9f);
+      float padDD = mnuOk ? mnu.pad : 4f;
+      float gapDD = mnuOk ? mnu.gap : 4f;
+      Color mnuInk = Color.white;
+      if (mnuOk && !string.IsNullOrEmpty(mnu.ink)) ColorUtility.TryParseHtmlString(mnu.ink, out mnuInk);
+      var optsDD = mnuOk && mnu.items != null && mnu.items.Length > 0 ? mnu.items : DropdownSampleOptions;
       var menuSp = S(root + "/assets/dropdown/dropdown-menu.9.png");
       var hiSp = S(root + "/assets/dropdown/dropdown-row-highlight.9.png");
       var ckSp = S(root + "/assets/dropdown/dropdown-row-check.png");
@@ -13790,17 +13945,23 @@ namespace PatternBreak {
       var tplRt = tpl.GetComponent<RectTransform>();
       tplRt.anchorMin = new Vector2(0f, fBottom); tplRt.anchorMax = new Vector2(1f, fBottom);
       tplRt.pivot = new Vector2(0.5f, 1f);
-      // room for the whole sample list; longer lists scroll (wired below)
-      tplRt.sizeDelta = new Vector2(0f, rowH * DropdownSampleOptions.Length + 16f);
-      tplRt.anchoredPosition = new Vector2(0f, -4f);
+      // room for the whole option list; longer lists scroll (wired below)
+      tplRt.sizeDelta = new Vector2(0f, rowH * optsDD.Length + (mnuOk ? padDD * 2f : 16f));
+      tplRt.anchoredPosition = new Vector2(0f, -gapDD);
       var tplImg = tpl.GetComponent<Image>();
       if (menuSp != null) { tplImg.sprite = menuSp; tplImg.type = Image.Type.Sliced; }
-      else tplImg.color = new Color(0.09f, 0.1f, 0.14f, 0.98f);
+      else {
+        // no plate sprite (race) — at least the resolved plate color stands
+        Color plateC;
+        if (mnuOk && !string.IsNullOrEmpty(mnu.plate) && ColorUtility.TryParseHtmlString(mnu.plate, out plateC)) tplImg.color = plateC;
+        else tplImg.color = new Color(0.09f, 0.1f, 0.14f, 0.98f);
+      }
       var vpDD = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(RectMask2D));
       vpDD.transform.SetParent(tpl.transform, false);
       var vpRt = vpDD.GetComponent<RectTransform>();
       vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one;
-      vpRt.offsetMin = new Vector2(4f, 4f); vpRt.offsetMax = new Vector2(-4f, -4f);
+      // the app's plate padding above/below the rows; rows span the plate
+      vpRt.offsetMin = new Vector2(mnuOk ? 0f : 4f, padDD); vpRt.offsetMax = new Vector2(mnuOk ? 0f : -4f, -padDD);
       var contentDD = new GameObject("Content", typeof(RectTransform));
       contentDD.transform.SetParent(vpDD.transform, false);
       var ctRt = contentDD.GetComponent<RectTransform>();
@@ -13819,14 +13980,25 @@ namespace PatternBreak {
       itBgRt.offsetMin = Vector2.zero; itBgRt.offsetMax = Vector2.zero;
       var itBg = itBgGo.GetComponent<Image>();
       if (hiSp != null) { itBg.sprite = hiSp; itBg.type = Image.Type.Sliced; }
+      // the app's highlight bar sits inset from the plate's sides
+      if (mnuOk && mnu.hiInset > 0.1f) { itBgRt.offsetMin = new Vector2(mnu.hiInset, 0f); itBgRt.offsetMax = new Vector2(-mnu.hiInset, 0f); }
       var itCkGo = new GameObject("Item Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
       itCkGo.transform.SetParent(itemDD.transform, false);
       var itCkRt = itCkGo.GetComponent<RectTransform>();
-      itCkRt.anchorMin = new Vector2(0f, 0.5f); itCkRt.anchorMax = new Vector2(0f, 0.5f);
-      itCkRt.sizeDelta = new Vector2(rowH * 0.45f, rowH * 0.45f);
-      itCkRt.anchoredPosition = new Vector2(rowH * 0.5f, 0f);
+      if (mnuOk && mnu.checkW > 2f) {
+        /* the APP's check seat: right edge, its measured box — the sprite
+           canvas maps 1:1 onto checkW/H by construction */
+        itCkRt.anchorMin = new Vector2(1f, 0.5f); itCkRt.anchorMax = new Vector2(1f, 0.5f);
+        itCkRt.sizeDelta = new Vector2(mnu.checkW, mnu.checkH);
+        itCkRt.anchoredPosition = new Vector2(-mnu.checkInsetR, 0f);
+      } else {
+        itCkRt.anchorMin = new Vector2(0f, 0.5f); itCkRt.anchorMax = new Vector2(0f, 0.5f);
+        itCkRt.sizeDelta = new Vector2(rowH * 0.45f, rowH * 0.45f);
+        itCkRt.anchoredPosition = new Vector2(rowH * 0.5f, 0f);
+      }
       var itCk = itCkGo.GetComponent<Image>();
       if (ckSp != null) itCk.sprite = ckSp;
+      itCk.color = mnuInk; // the check wears the menu's row ink (white sprite, tintable)
       itCk.preserveAspect = true;
       itCk.raycastTarget = false;
       var tgDD = itemDD.GetComponent<Toggle>();
@@ -13862,13 +14034,15 @@ namespace PatternBreak {
       itLbGo.transform.SetParent(itemDD.transform, false);
       var itLbRt = itLbGo.GetComponent<RectTransform>();
       itLbRt.anchorMin = Vector2.zero; itLbRt.anchorMax = Vector2.one;
-      itLbRt.offsetMin = new Vector2(padLDD, 1f); itLbRt.offsetMax = new Vector2(-8f, -1f);
+      // the app's row-text seat: measured left inset; air for the check on the right
+      itLbRt.offsetMin = new Vector2(mnuOk && mnu.textInset > 0.1f ? mnu.textInset : padLDD, 1f);
+      itLbRt.offsetMax = new Vector2(mnuOk && mnu.checkW > 2f ? -(mnu.checkInsetR + mnu.checkW * 0.5f + 4f) : -8f, -1f);
       var itLb = itLbGo.GetComponent<TextMeshProUGUI>();
       itLb.text = "Option";
       itLb.alignment = TextAlignmentOptions.MidlineLeft;
       itLb.enableAutoSizing = false;
-      itLb.fontSize = capFs * 0.78f;
-      itLb.color = Color.white; // the menu plate is the kit's dark well
+      itLb.fontSize = mnuOk && mnu.textFs > 1f ? mnu.textFs : capFs * 0.78f;
+      itLb.color = mnuInk; // the menu's row ink (the resolver's, dials included)
       itLb.raycastTarget = false;
       var itFace = EnsureTmpFace(root, m, kitFont);
       if (itFace != null) itLb.font = itFace;
@@ -13880,19 +14054,20 @@ namespace PatternBreak {
       ddC.captionText = capRoot != null ? capRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
       ddC.itemText = itLb;
       ddC.options.Clear();
-      foreach (var oDD in DropdownSampleOptions) ddC.options.Add(new TMP_Dropdown.OptionData(oDD));
+      foreach (var oDD in optsDD) ddC.options.Add(new TMP_Dropdown.OptionData(oDD));
       ddC.SetValueWithoutNotify(0);
 #else
       var itLbGo = new GameObject("Item Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
       itLbGo.transform.SetParent(itemDD.transform, false);
       var itLbRt = itLbGo.GetComponent<RectTransform>();
       itLbRt.anchorMin = Vector2.zero; itLbRt.anchorMax = Vector2.one;
-      itLbRt.offsetMin = new Vector2(padLDD, 1f); itLbRt.offsetMax = new Vector2(-8f, -1f);
+      itLbRt.offsetMin = new Vector2(mnuOk && mnu.textInset > 0.1f ? mnu.textInset : padLDD, 1f);
+      itLbRt.offsetMax = new Vector2(mnuOk && mnu.checkW > 2f ? -(mnu.checkInsetR + mnu.checkW * 0.5f + 4f) : -8f, -1f);
       var itLb = itLbGo.GetComponent<Text>();
       itLb.text = "Option";
       itLb.alignment = TextAnchor.MiddleLeft;
-      itLb.fontSize = Mathf.RoundToInt(capFs * 0.78f);
-      itLb.color = Color.white;
+      itLb.fontSize = Mathf.RoundToInt(mnuOk && mnu.textFs > 1f ? mnu.textFs : capFs * 0.78f);
+      itLb.color = mnuInk; // the same measured row ink on the 2022.3 rung
       itLb.raycastTarget = false;
       var itF = kitFont != null ? kitFont : BuiltinFont();
       if (itF != null) itLb.font = itF;
@@ -13904,7 +14079,7 @@ namespace PatternBreak {
       ddC.captionText = capRoot != null ? capRoot.GetComponentInChildren<Text>(true) : null;
       ddC.itemText = itLb;
       ddC.options.Clear();
-      foreach (var oDD in DropdownSampleOptions) ddC.options.Add(new Dropdown.OptionData(oDD));
+      foreach (var oDD in optsDD) ddC.options.Add(new Dropdown.OptionData(oDD));
       ddC.SetValueWithoutNotify(0);
 #endif
     }
