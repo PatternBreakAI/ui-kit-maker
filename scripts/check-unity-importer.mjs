@@ -1873,6 +1873,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
 }
 
+/* ── Unity-exporter follow-up round (2026-08-27): the COMPLETE PLAYGROUND.
+   Owner: "there should be more items from the kit included… to make it
+   feel complete". Every released family shelves once, in the kit page's
+   chapter order, on a TALL SCROLLING canvas; staged families that leaked
+   into the zip stay off the shelf (manifest.stagedFamilies — emitted
+   TS-side as staged AND not board-blessed). */
+{
+  if (!/\("CHOICE CONTROLS & FIELDS", new\[\]/.test(cs) || !/\("GAME SYSTEMS", new\[\]/.test(cs)
+      || !/allSecs\.Add\(\("GLYPHS \(Prefabs\/Glyphs\)", glyphNames\.ToArray\(\)\)\);/.test(cs))
+    errors.push("the Playground's chapter sections (kit-page order + the Glyphs shelf) are missing (slice 5)");
+  if (!/new GameObject\("Catalog Scroll", typeof\(RectTransform\), typeof\(ScrollRect\)\);/.test(cs)
+      || !/float fit = Mathf\.Min\(1f, 1920f \/ boardW\);/.test(cs)
+      || /Mathf\.Min\(1920f \/ boardW, 1080f \/ boardH\)/.test(cs))
+    errors.push("the Playground must be the tall scrolling catalog (ScrollRect; width fits, height scrolls — never the whole-shelf shrink) (slice 5)");
+  if (!/if \(stagedNames\.Contains\(n\)\) continue;/.test(cs) || !/if \(!placedNames\.Add\(n\)\) continue;/.test(cs))
+    errors.push("the Playground must gate staged families and shelve one of each (slice 5)");
+  if (!/stagedFamilies: \[\.\.\.new Set\(/.test(src) || !/&& !usedOnBoards0\.has\(PREFAB_FAMILY\[c\.id\] \?\? c\.id\)\)/.test(src)
+      || !/public string\[\] stagedFamilies;/.test(cs))
+    errors.push("manifest.stagedFamilies must ship (staged AND not board-blessed) with its PBManifest field — the shelf's kitVisible gate reads it (slice 5)");
+}
+
 /* ── Unity-exporter follow-up round (2026-08-27): the GLYPH SHELF.
    Owner call, verbatim honored: glyphs STAY prefabs but live in
    Prefabs/Glyphs (the BigGlyphs pattern); existing projects' root-level

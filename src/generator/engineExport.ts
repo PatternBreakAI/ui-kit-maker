@@ -4085,6 +4085,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       tier: st.scope,
       exported: new Date().toISOString(),
       pngScale: PNG_SCALE,
+      /* families STAGED at export (kitVisible false) that this maker did
+         NOT deliberately place on a board: nothing of theirs should ship,
+         and catalog surfaces (the Playground) must never shelve one that
+         leaks in anyway — the kitVisible discipline as data,
+         defense-in-depth. A staged family the admin DID place is that
+         kit's deliberate content (stagedShips) and shelves normally. */
+      stagedFamilies: [...new Set(
+        KIT_COMPONENTS.filter((c) => !kitVisible(c.id, st.releases ?? {}, false)
+          && !usedOnBoards0.has(PREFAB_FAMILY[c.id] ?? c.id))
+          .map((c) => PREFAB_FAMILY[c.id] ?? c.id))],
       /* the text-seat unit contract version — the importer soft-gates on
          it so a future contract change can never be misread as this one */
       seatSpace: "sprite-fraction-v2",
@@ -8251,7 +8261,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -9515,44 +9525,111 @@ namespace PatternBreak {
            clean; the bloom recipe stays in kit-manifest.json for anyone
            who wants to compose their own with fx/glow.png. */
         var prefabs = new List<GameObject>();
+        var pathOf = new Dictionary<GameObject, string>();
         foreach (var g in guids) {
-          var p = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(g));
-          if (p != null) prefabs.Add(p);
+          var pth = AssetDatabase.GUIDToAssetPath(g).Replace("\\\\", "/");
+          var p = AssetDatabase.LoadAssetAtPath<GameObject>(pth);
+          if (p != null && !pathOf.ContainsKey(p)) { prefabs.Add(p); pathOf[p] = pth; }
         }
         prefabs.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
-        /* v2 — a true mini UI kit (owner: "laid out like a true mini-ui
-           kit with sections and labels… filled with all kinds of
-           different components"): pieces group into labeled sections, one
-           of each (the tiled-face twins stay in Prefabs/, not here — the
-           repeats were most of the noise), flowing rows with real
-           gutters. Everything hangs off one Board scaled to fit at the
-           end. */
+        /* v3 — the WHOLE kit on the shelf (owner: "there should be more
+           items from the kit included, not just the items used in Boards,
+           to make it feel complete and a good free kit"): every released
+           family's prefab places once, grouped in the kit page's own
+           chapter order — foundations (buttons, choice controls, fields)
+           → components (sliders/progress, navigation, chrome, HUD/data,
+           gauges) → game systems — plus the glyph rack and the kit's
+           board art. The canvas is a CATALOG now: width fits the view,
+           height scrolls (wheel and drag), because a complete kit no
+           longer fits one screen honestly. Families a kit doesn't ship
+           simply skip; anything new lands in MORE (future prefabs never
+           vanish). Word variants and tiled-face twins stay in Prefabs/ —
+           they are flavors, not families. */
+        PBManifest mPg = null;
+        try { mPg = JsonUtility.FromJson<PBManifest>(File.ReadAllText(root + "/kit-manifest.json")); } catch (Exception) { }
+        /* the kitVisible discipline: a STAGED family can ship because an
+           admin placed it on a board — the board scenes need it, the
+           catalog shelf must not show it */
+        var stagedNames = new HashSet<string>();
+        if (mPg != null && mPg.stagedFamilies != null)
+          foreach (var sf in mPg.stagedFamilies) {
+            if (string.IsNullOrEmpty(sf)) continue;
+            stagedNames.Add(NiceName(sf));
+            // the rigs publish under their own prefab names — the scenes' map
+            if (sf == "progress") stagedNames.Add("ProgressBar");
+            else if (sf == "speedo") stagedNames.Add("Speedo");
+            else if (sf == "speedo2") stagedNames.Add("SpeedoArc");
+            else if (sf == "tacho") stagedNames.Add("RevMeter");
+            else if (sf == "loottag") stagedNames.Add("LootTag");
+            else if (sf == "laptimes") stagedNames.Add("LapTimes");
+            else if (sf == "segbar") stagedNames.Add("SegmentMeter");
+            else if (sf == "vsbar") stagedNames.Add("VsBar");
+            else if (sf == "emblembar") stagedNames.Add("EmblemBar");
+            else if (sf == "timerdigits") stagedNames.Add("Timer");
+            else if (sf == "joystick") { stagedNames.Add("Joystick"); stagedNames.Add("JoystickGhost"); }
+            else if (sf == "seasontrack") stagedNames.Add("SeasonTrack");
+            else if (sf == "toggle") stagedNames.Add("Switch");
+            else if (sf == "globe") stagedNames.Add("HealthGlobe");
+            else if (sf == "checkbox") stagedNames.Add("CheckboxToggle");
+            else if (sf == "radio") stagedNames.Add("RadioToggle");
+            else if (sf == "scrollview") stagedNames.Add("ScrollView");
+            else if (sf == "countbadge") stagedNames.Add("CountBadge");
+            else if (sf == "rarityframe") stagedNames.Add("RarityFrame");
+          }
         var SECTIONS = new (string title, string[] names)[] {
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Endturn", "Keycap", "Pricebtn", "Iconbtn", "Chip", "Tab", "TabBack" }),
-          ("TOGGLES & INPUT", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Joystick", "JoystickGhost" }),
-          ("BARS & METERS", new[] { "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Slider", "HealthGlobe", "SeasonTrack", "CountBadge", "Badge" }),
-          ("PANELS & FRAMES", new[] { "Panel", "HeaderBanner", "ListRow", "ItemSlot", "ScrollView" }),
-          ("PROPS", new[] { "Gearicon", "Trophyicon", "Gifticon", "Firebutton" }),
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "Pricebtn", "Claimbtn", "Ghost" }),
+          ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Dropdown", "Joystick", "JoystickGhost", "Firebutton" }),
+          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "HealthGlobe", "Ring", "SeasonTrack" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "ListRow", "ItemSlot", "ScrollView", "Badge", "CountBadge", "Avatarframe" }),
+          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Movecounter", "Qtybadge", "MoveCounter", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
+          ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
+          ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
         var claimed = new HashSet<string>();
         foreach (var sec in SECTIONS) foreach (var n in sec.names) claimed.Add(n);
-        // future prefabs never vanish: everything unclaimed lands in MORE
+        /* the glyph rack and the kit's board art shelve as their own
+           chapters, names gathered from their folders (any count) */
+        var glyphNames = new List<string>();
+        var bigNames = new List<string>();
         var moreNames = new List<string>();
-        foreach (var p in prefabs) if (!claimed.Contains(p.name) && !p.name.Contains("(tiled face)") && p.name != "HeroLabel") moreNames.Add(p.name);
+        foreach (var p in prefabs) {
+          var pp = pathOf[p];
+          if (pp.Contains("/Prefabs/Variants/") || p.name.Contains("(tiled face)") || p.name == "HeroLabel") continue;
+          if (pp.Contains("/Prefabs/Glyphs/")) { glyphNames.Add(p.name); continue; }
+          if (pp.Contains("/Prefabs/BigGlyphs/")) { bigNames.Add(p.name); continue; }
+          if (!claimed.Contains(p.name)) moreNames.Add(p.name);
+        }
+        /* ── the CATALOG SCROLL: everything hangs off one Board inside a
+           vertical ScrollRect — the transparent viewport plate catches
+           the wheel anywhere between pieces ── */
+        var scrollGo = new GameObject("Catalog Scroll", typeof(RectTransform), typeof(ScrollRect));
+        scrollGo.transform.SetParent(canvasGo.transform, false);
+        var scrollRt = (RectTransform)scrollGo.transform;
+        scrollRt.anchorMin = Vector2.zero; scrollRt.anchorMax = Vector2.one;
+        scrollRt.offsetMin = Vector2.zero; scrollRt.offsetMax = Vector2.zero;
+        var vpPg = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(RectMask2D));
+        vpPg.transform.SetParent(scrollGo.transform, false);
+        var vpPgRt = (RectTransform)vpPg.transform;
+        vpPgRt.anchorMin = Vector2.zero; vpPgRt.anchorMax = Vector2.one;
+        vpPgRt.offsetMin = Vector2.zero; vpPgRt.offsetMax = Vector2.zero;
+        vpPg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f); // invisible, raycastable — the wheel's landing pad
         var boardGo = new GameObject("Board", typeof(RectTransform));
-        boardGo.transform.SetParent(canvasGo.transform, false);
+        boardGo.transform.SetParent(vpPg.transform, false);
         var board = boardGo.GetComponent<RectTransform>();
         board.anchorMin = new Vector2(0f, 1f); board.anchorMax = new Vector2(0f, 1f);
         board.pivot = new Vector2(0f, 1f);
         float rowW = 1760f, gut = 40f, y = -70f, widest = 0f; int placed = 0;
         var allSecs = new List<(string title, string[] names)>(SECTIONS);
+        if (glyphNames.Count > 0) allSecs.Add(("GLYPHS (Prefabs/Glyphs)", glyphNames.ToArray()));
+        if (bigNames.Count > 0) allSecs.Add(("BOARD ART (Prefabs/BigGlyphs)", bigNames.ToArray()));
         if (moreNames.Count > 0) allSecs.Add(("MORE", moreNames.ToArray()));
+        var placedNames = new HashSet<string>(); // a name shelves ONCE, wherever it is listed
         foreach (var sec in allSecs) {
           // does this kit ship anything for the section?
           bool anyIn = false;
-          foreach (var n in sec.names) if (byName.ContainsKey(n)) { anyIn = true; break; }
+          foreach (var n in sec.names) if (byName.ContainsKey(n) && !stagedNames.Contains(n) && !placedNames.Contains(n)) { anyIn = true; break; }
           if (!anyIn) continue;
 #if UNITY_2023_2_OR_NEWER
           var head = new GameObject(sec.title, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
@@ -9572,6 +9649,8 @@ namespace PatternBreak {
           foreach (var n in sec.names) {
             GameObject pf;
             if (!byName.TryGetValue(n, out pf)) continue;
+            if (stagedNames.Contains(n)) continue; // staged: board scenes only, never the shelf
+            if (!placedNames.Add(n)) continue;     // one of each, wherever listed
             var inst = (GameObject)PrefabUtility.InstantiatePrefab(pf, scene);
             inst.transform.SetParent(board, false);
             var rt = inst.GetComponent<RectTransform>();
@@ -9592,14 +9671,22 @@ namespace PatternBreak {
         }
         float boardW = Mathf.Max(widest + 50f, 800f), boardH = Mathf.Max(-y + 40f, 200f);
         board.sizeDelta = new Vector2(boardW, boardH);
-        // shrink to fit, never blow up a small kit past 1:1
-        float fit = Mathf.Min(1f, Mathf.Min(1920f / boardW, 1080f / boardH));
+        /* the catalog fit: WIDTH fits the view (never blown up past 1:1),
+           HEIGHT SCROLLS — shrinking the whole shelf to one screen made
+           the complete kit unreadable */
+        float fit = Mathf.Min(1f, 1920f / boardW);
         board.localScale = new Vector3(fit, fit, 1f);
-        board.anchoredPosition = new Vector2((1920f - boardW * fit) * 0.5f, -(1080f - boardH * fit) * 0.5f);
+        board.anchoredPosition = new Vector2((1920f - boardW * fit) * 0.5f, 0f);
+        var srPg = scrollGo.GetComponent<ScrollRect>();
+        srPg.content = board;
+        srPg.viewport = vpPgRt;
+        srPg.horizontal = false;
+        srPg.movementType = ScrollRect.MovementType.Clamped;
+        srPg.scrollSensitivity = 48f;
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
-          Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired (" + placed + " pieces placed).");
+          Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired; the shelf SCROLLS (wheel or drag) — " + placed + " piece(s) across " + allSecs.Count + " chapter(s), the whole released kit.");
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the Playground at " + scenePath + " — go File > New Scene, then Tools > PatternBreak > Rebuild Kit Playground Scene.");
       } finally {
