@@ -20,6 +20,279 @@ export function downloadSvg(svg: string, name: string) {
   download(name, new Blob([svg], { type: "image/svg+xml" }));
 }
 
+/* ── the REAL identity of a font blob (Unity field round, strike three on
+   font weights): what a TTF claims in its filename or a manifest field is
+   worthless — TextMeshPro renders the DEFAULT INSTANCE of whatever bytes
+   arrive, so the only truth is in the tables. `variable` = an fvar table
+   is aboard (TMP ignores its axes); `weight` = the weight that default
+   instance actually renders at — fvar's wght default when variable, OS/2
+   usWeightClass otherwise; null = not parseable as an sfnt. Every export
+   road runs its bytes through here before trusting them. */
+export function probeSfntWeight(bytes: Uint8Array): { variable: boolean; weight: number | null } {
+  try {
+    if (!bytes || bytes.length < 12) return { variable: false, weight: null };
+    const be32 = (o: number) => ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
+    const be16 = (o: number) => (bytes[o] << 8) | bytes[o + 1];
+    const ver = be32(0);
+    if (ver !== 0x00010000 && ver !== 0x4f54544f && ver !== 0x74727565) return { variable: false, weight: null };
+    const n = be16(4);
+    let os2 = -1, fvar = -1;
+    for (let i = 0; i < n; i++) {
+      const o = 12 + i * 16;
+      if (o + 16 > bytes.length) return { variable: false, weight: null };
+      const tag = be32(o);
+      if (tag === 0x4f532f32) os2 = be32(o + 8);
+      else if (tag === 0x66766172) fvar = be32(o + 8);
+    }
+    if (fvar >= 0 && fvar + 16 <= bytes.length) {
+      const axesOff = fvar + be16(fvar + 4);
+      const axisCount = be16(fvar + 8);
+      const axisSize = be16(fvar + 10);
+      for (let a = 0; a < axisCount; a++) {
+        const ao = axesOff + a * axisSize;
+        if (ao + 20 > bytes.length) break;
+        if (be32(ao) === 0x77676874) return { variable: true, weight: be32(ao + 8) >> 16 }; // 'wght' default, Fixed 16.16
+      }
+      return { variable: true, weight: os2 >= 0 && os2 + 6 <= bytes.length ? be16(os2 + 4) : null };
+    }
+    return { variable: false, weight: os2 >= 0 && os2 + 6 <= bytes.length ? be16(os2 + 4) : null };
+  } catch {
+    return { variable: false, weight: null };
+  }
+}
+
+/* ── Google's own static-instance TTFs, addressed directly ─────────────
+   fonts.gstatic.com answers CORS with * and serves anyone; only the CSS
+   lookup that NAMES these files is UA-gated (a browser is handed woff2,
+   and a page cannot change its UA — Chromium drops the override and the
+   css2 preflight allows no headers). So the lookup is done ONCE, at bake
+   time, by a client that can wear the legacy UA (node), and the results
+   ship as data. The export still probes the bytes it receives — a stale
+   entry falls through to the live roads instead of shipping a lie. */
+export const GSTATIC_ORIGIN = "https://fonts.gstatic.com/";
+/* BAKED-FONT-STATICS-BEGIN (generated 2026-08-27 by scripts/bake-font-statics.mjs — do not hand-edit) */
+export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
+ "Inter": {
+  100: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyeMZg.ttf",
+  200: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyfMZg.ttf",
+  300: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuOKfMZg.ttf",
+  400: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf",
+  500: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf",
+  600: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZg.ttf",
+  700: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZg.ttf",
+  800: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyYMZg.ttf",
+  900: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuBWYMZg.ttf"
+ },
+ "Bangers": {
+  400: "s/bangers/v25/FeVQS0BTqb0h60ACL5k.ttf"
+ },
+ "Luckiest Guy": {
+  400: "s/luckiestguy/v25/_gP_1RrxsjcxVyin9l9n_j2RSg.ttf"
+ },
+ "Press Start 2P": {
+  400: "s/pressstart2p/v16/e3t4euO8T-267oIAQAu6jDQyK0nS.ttf"
+ },
+ "Bungee": {
+  400: "s/bungee/v17/N0bU2SZBIuF2PU_ECg.ttf"
+ },
+ "Exo 2": {
+  100: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jvvOcPg.ttf",
+  200: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jPvKcPg.ttf",
+  300: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8j4PKcPg.ttf",
+  400: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jvvKcPg.ttf",
+  500: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jjPKcPg.ttf",
+  600: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jYPWcPg.ttf",
+  700: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jWfWcPg.ttf",
+  800: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jPvWcPg.ttf",
+  900: "s/exo2/v26/7cH1v4okm5zmbvwkAx_sfcEuiD8jF_WcPg.ttf"
+ },
+ "Saira": {
+  100: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA71rDosg.ttf",
+  200: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA79rCosg.ttf",
+  300: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA7wTCosg.ttf",
+  400: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA71rCosg.ttf",
+  500: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA72jCosg.ttf",
+  600: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA74TFosg.ttf",
+  700: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA773Fosg.ttf",
+  800: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA79rFosg.ttf",
+  900: "s/saira/v23/memWYa2wxmKQyPMrZX79wwYZQMhsyuShhKMjjbU9uXuA7_PFosg.ttf"
+ },
+ "Righteous": {
+  400: "s/righteous/v18/1cXxaUPXBpj2rGoU7C9mjw.ttf"
+ },
+ "Russo One": {
+  400: "s/russoone/v18/Z9XUDmZRWg6M1LvRYsH-yA.ttf"
+ },
+ "Black Ops One": {
+  400: "s/blackopsone/v21/qWcsB6-ypo7xBdr6Xshe96H3WDw.ttf"
+ },
+ "Fascinate": {
+  400: "s/fascinate/v23/z7NWdRrufC8XJK0IIEli1A.ttf"
+ },
+ "Orbitron": {
+  400: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyGy6xpg.ttf",
+  500: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyKS6xpg.ttf",
+  600: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyxSmxpg.ttf",
+  700: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1ny_Cmxpg.ttf",
+  800: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nymymxpg.ttf",
+  900: "s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nysimxpg.ttf"
+ },
+ "Cinzel": {
+  400: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-tbnTYo.ttf",
+  500: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-uTnTYo.ttf",
+  600: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-gjgTYo.ttf",
+  700: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-jHgTYo.ttf",
+  800: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-lbgTYo.ttf",
+  900: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-n_gTYo.ttf"
+ },
+ "Creepster": {
+  400: "s/creepster/v13/AlZy_zVUqJz4yMrniH4hdQ.ttf"
+ },
+ "Titan One": {
+  400: "s/titanone/v17/mFTzWbsGxbbS_J5cQcjykw.ttf"
+ },
+ "Lilita One": {
+  400: "s/lilitaone/v17/i7dPIFZ9Zz-WBtRtedDbUEY.ttf"
+ },
+ "Chewy": {
+  400: "s/chewy/v18/uK_94ruUb-k-wk5x.ttf"
+ },
+ "Baloo 2": {
+  400: "s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdgazapv.ttf",
+  500: "s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdgozapv.ttf",
+  600: "s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdjEyqpv.ttf",
+  700: "s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdj9yqpv.ttf",
+  800: "s/baloo2/v23/wXK0E3kTposypRydzVT08TS3JnAmtdiayqpv.ttf"
+ },
+ "Fredoka": {
+  300: "s/fredoka/v17/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3OryLMFg.ttf",
+  400: "s/fredoka/v17/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3O8SLMFg.ttf",
+  500: "s/fredoka/v17/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3OwyLMFg.ttf",
+  600: "s/fredoka/v17/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3OLyXMFg.ttf",
+  700: "s/fredoka/v17/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3OFiXMFg.ttf"
+ },
+ "Passion One": {
+  400: "s/passionone/v20/PbynFmL8HhTPqbjUzux3JHuW.ttf",
+  700: "s/passionone/v20/Pby6FmL8HhTPqbjUzux3JEMq037o.ttf",
+  900: "s/passionone/v20/Pby6FmL8HhTPqbjUzux3JEMS0X7o.ttf"
+ },
+ "Sigmar One": {
+  400: "s/sigmarone/v20/co3DmWZ8kjZuErj9Ta3dk6M.ttf"
+ },
+ "Rubik Mono One": {
+  400: "s/rubikmonoone/v20/UqyJK8kPP3hjw6ANTdfRk9YSN-8w.ttf"
+ },
+ "Audiowide": {
+  400: "s/audiowide/v22/l7gdbjpo0cum0ckerWCtkQ.ttf"
+ },
+ "Silkscreen": {
+  400: "s/silkscreen/v6/m8JXjfVPf62XiF7kO-i9ULQ.ttf",
+  700: "s/silkscreen/v6/m8JUjfVPf62XiF7kO-i9aAhATms.ttf"
+ },
+ "Pixelify Sans": {
+  400: "s/pixelifysans/v3/CHy2V-3HFUT7aC4iv1TxGDR9DHEserHN25py2TTp0H1Y.ttf",
+  500: "s/pixelifysans/v3/CHy2V-3HFUT7aC4iv1TxGDR9DHEserHN25py2TTb0H1Y.ttf",
+  600: "s/pixelifysans/v3/CHy2V-3HFUT7aC4iv1TxGDR9DHEserHN25py2TQ3131Y.ttf",
+  700: "s/pixelifysans/v3/CHy2V-3HFUT7aC4iv1TxGDR9DHEserHN25py2TQO131Y.ttf"
+ },
+ "Shrikhand": {
+  400: "s/shrikhand/v17/a8IbNovtLWfR7T7bMJwbBA.ttf"
+ },
+ "Concert One": {
+  400: "s/concertone/v24/VEM1Ro9xs5PjtzCu-srDqRTl.ttf"
+ },
+ "Paytone One": {
+  400: "s/paytoneone/v25/0nksC9P7MfYHj2oFtYm2CiTq.ttf"
+ },
+ "Alfa Slab One": {
+  400: "s/alfaslabone/v21/6NUQ8FmMKwSEKjnm5-4v-4Jh6dU.ttf"
+ },
+ "Bowlby One SC": {
+  400: "s/bowlbyonesc/v27/DtVlJxerQqQm37tzN3wMug9Pzgg.ttf"
+ },
+ "Modak": {
+  400: "s/modak/v21/EJRYQgs1XtIEsnMH.ttf"
+ },
+ "Chango": {
+  400: "s/chango/v29/2V0cKI0OB5U7WaJyzw.ttf"
+ },
+ "Boogaloo": {
+  400: "s/boogaloo/v25/kmK-Zq45GAvOdnaW6x1F.ttf"
+ },
+ "Staatliches": {
+  400: "s/staatliches/v15/HI_OiY8KO6hCsQSoAPmtMbec.ttf"
+ },
+ "Grandstander": {
+  100: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD1-_D3g.ttf",
+  200: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD9--D3g.ttf",
+  300: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQDwG-D3g.ttf",
+  400: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD1--D3g.ttf",
+  500: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD22-D3g.ttf",
+  600: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD4G5D3g.ttf",
+  700: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD7i5D3g.ttf",
+  800: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD9-5D3g.ttf",
+  900: "s/grandstander/v20/ga6fawtA-GpSsTWrnNHPCSIMZhhKpFjyNZIQD_a5D3g.ttf"
+ },
+ "New Rocker": {
+  400: "s/newrocker/v17/MwQzbhjp3-HImzcCU_cJkGM.ttf"
+ },
+ "Grenze": {
+  400: "s/grenze/v18/O4ZOFGb7hR12Bxqt9ErXQpCpkHScyovU2HA.ttf",
+  700: "s/grenze/v18/O4ZOFGb7hR12Bxqt9ErXQpCpkHScymzT2HA.ttf"
+ },
+ "Pirata One": {
+  400: "s/pirataone/v23/I_urMpiDvgLdLh0fAtoftig.ttf"
+ },
+ "Germania One": {
+  400: "s/germaniaone/v21/Fh4yPjrqIyv2ucM2qzBjeS3ezA.ttf"
+ },
+ "Freckle Face": {
+  400: "s/freckleface/v16/AMOWz4SXrmKHCvXTohxY-YI0Uw.ttf"
+ },
+ "Slackey": {
+  400: "s/slackey/v29/N0bV2SdQO-5yM0-dKlQ.ttf"
+ },
+ "Hanalei Fill": {
+  400: "s/hanaleifill/v23/fC1mPYtObGbfyQznIaQzPQiMVw.ttf"
+ },
+ "Monoton": {
+  400: "s/monoton/v22/5h1aiZUrOngCibe4fkY.ttf"
+ },
+ "Michroma": {
+  400: "s/michroma/v21/PN_zRfy9qWD8fEagAMg6.ttf"
+ },
+ "Bruno Ace": {
+  400: "s/brunoace/v7/WwkcxPa2E06x4trkOj_kMA.ttf"
+ },
+ "Bakbak One": {
+  400: "s/bakbakone/v11/zOL54pXAl6RI-p_ardnuycQ.ttf"
+ },
+ "ZCOOL QingKe HuangYou": {
+  400: "s/zcoolqingkehuangyou/v16/2Eb5L_R5IXJEWhD3AOhSvFC554MOOahI4mRIiw.ttf"
+ },
+ "ZCOOL KuaiLe": {
+  400: "s/zcoolkuaile/v22/tssqApdaRQokwFjFJjvM6h2Wpg.ttf"
+ },
+ "Ma Shan Zheng": {
+  400: "s/mashanzheng/v18/NaPecZTRCLxvwo41b4gvzkXaRMQ.ttf"
+ },
+ "Zhi Mang Xing": {
+  400: "s/zhimangxing/v19/f0Xw0ey79sErYFtWQ9a2rq-g0ac.ttf"
+ },
+ "Liu Jian Mao Cao": {
+  400: "s/liujianmaocao/v24/845DNN84HJrccNonurqXILGpvCOofeo.ttf"
+ },
+ "Noto Sans SC": {
+  400: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf",
+  500: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG-3FnYw.ttf",
+  600: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGwHCnYw.ttf",
+  700: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf",
+  800: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG1_CnYw.ttf",
+  900: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG3bCnYw.ttf"
+ }
+};
+/* BAKED-FONT-STATICS-END */
+
 /* ── minimal ZIP writer (STORE method, no compression, no dependency) ──
    Enough for asset packs: predictable folder paths, UTF-8 names, correct
    CRC-32 so Figma, Finder and Illustrator all open the archive cleanly. */

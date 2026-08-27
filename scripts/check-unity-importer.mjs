@@ -2109,9 +2109,22 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
 {
   if (!/public int shippedWeight;/.test(cs)
       || !/s\.weight - \(s\.shippedWeight > 0 \? s\.shippedWeight : 400\) >= 150/.test(cs)
-      || !/shippedWeight = gotDesigned \? designedW : 400;/.test(src)
+      || !/shippedWeight = got\.realWeight \?\? \(gotDesigned \? designedW : 400\);/.test(src)
       || !/shippedWeight,\s*\n/.test(src))
     errors.push("the designed-weight cut no longer travels (axis fetch → manifest shippedWeight → gap-keyed synthetic bold) — dynamic SDF text renders thinner than the baked art again (reviewer P3)");
+  /* strike three on font weights (2026-08-27): every road's bytes are
+     PROBED (fvar / OS/2), the browser-impossible UA-override road no
+     longer decides alone (baked gstatic static-instance table), and the
+     importer re-detects the aboard weight from the file itself so a
+     wrong manifest claim can never silently under-bold again. */
+  if (!/const gotDesigned = !!got && !got\.variable && got\.realWeight === designedW;/.test(src)
+      || !/FONT_STATIC_TTF\[family\]\?\.\[wantedW\]/.test(src)
+      || !/probeSfntWeight\(bytes\)/.test(src))
+    errors.push("the export stopped probing font bytes / lost the baked static-instance table — variable fallbacks can ship as the designed weight again (strike three)");
+  if (!/static int SfntDefaultWeight\(byte\[\] b, out bool variable\)/.test(cs)
+      || !/static void HonestizeTypeWeights\(string root, PBManifest m\)/.test(cs)
+      || !/HonestizeTypeWeights\(root, m\);/.test(cs))
+    errors.push("the importer no longer detects the shipped font's REAL weight from its bytes — a lying manifest silently under-bolds again (strike three)");
   if (!/static bool KitBakesLayers\(string root\)/.test(cs)
       || !/This kit has no layered Hero Label — by design/.test(cs)
       || !/No layer face: this kit's type recipe bakes no stroke\/shadow layers/.test(cs))

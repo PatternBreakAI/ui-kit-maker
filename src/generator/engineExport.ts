@@ -15,7 +15,7 @@ import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecime
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated, probeSfntWeight, FONT_STATIC_TTF, GSTATIC_ORIGIN } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
@@ -2010,18 +2010,59 @@ async function fetchFontLicence(slug: string): Promise<{ name: string; text: str
   }
   return null;
 }
-export async function fetchKitFont(family: string, axis?: string, fileTag = "Regular"): Promise<{ file: string; bytes: Uint8Array; licenceName: string; licenceText: string } | null> {
+/** What a font road actually delivered. `realWeight`/`variable` come from
+    the BYTES (probeSfntWeight), never from a filename or a table's claim —
+    TextMeshPro renders a variable file's default instance, so callers key
+    every weight decision on these two fields. */
+export type FetchedKitFont = { file: string; bytes: Uint8Array; licenceName: string; licenceText: string; realWeight: number | null; variable: boolean };
+export async function fetchKitFont(family: string, axis?: string, fileTag = "Regular"): Promise<FetchedKitFont | null> {
   const slug = family.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!slug) return null;
+  const wantedW = axis ? parseInt(/wght@(\d+)/.exec(axis)?.[1] ?? "", 10) || null : 400;
+  /* ── 0 · the baked static-instance table (field truth, strike three on
+     font weights): a BROWSER cannot take the css2 road below — Chromium
+     drops the User-Agent override (and the css2 preflight allows no
+     headers), css2 then serves woff2-only, and every axis fetch missed in
+     the field while the node-side fence's could impersonate a legacy
+     client and stay green. fonts.gstatic.com itself is CORS-open to
+     anyone, so the UA-gated CSS lookup is done at BAKE time (node wears
+     the legacy UA) and the static-instance URLs ship as data
+     (exportUtils FONT_STATIC_TTF, scripts/bake-font-statics.mjs). The
+     bytes are probed before they're trusted: no fvar aboard and the OS/2
+     weight the caller asked for, or the entry is treated as stale and
+     the live roads take over. */
+  const baked = wantedW != null ? FONT_STATIC_TTF[family]?.[wantedW] : undefined;
+  if (baked) {
+    try {
+      const fr = await fetch(GSTATIC_ORIGIN + baked);
+      if (fr.ok) {
+        const bytes = new Uint8Array(await fr.arrayBuffer());
+        const probe = probeSfntWeight(bytes);
+        if (!probe.variable && probe.weight === wantedW) {
+          const lic = await fetchFontLicence(slug).catch(() => null);
+          return {
+            file: `${family.replace(/[^A-Za-z0-9]/g, "")}-${fileTag}.ttf`,
+            bytes,
+            licenceName: lic?.name ?? "LICENCE-POINTER.txt",
+            licenceText: lic?.text ?? licencePointer(family),
+            realWeight: probe.weight,
+            variable: false,
+          };
+        }
+      }
+    } catch { /* stale entry / offline — the live roads decide */ }
+  }
   /* ── 1 · Google Fonts css2 → fonts.gstatic.com TTF. The CSS names a
-     TrueType URL when the client doesn't read as a modern browser; the
-     fetch spec allows overriding User-Agent (Chromium honors it — engines
-     that refuse simply fall through to the UA-less retry, then to GitHub),
-     and both hosts answer CORS with *. No auth, no meaningful rate limit.
-     An AXIS request (e.g. wght@800) asks css2 for that STATIC instance —
-     only source 1 can honor it; the repo sources ship variable files whose
-     default instance would wear the wrong weight, so an axis fetch that
-     misses here reports null rather than a lie. */
+     TrueType URL only when the client doesn't read as a modern browser.
+     A PAGE cannot get that answer — Chromium drops the User-Agent
+     override and fonts.googleapis.com's preflight allows no headers (the
+     UA-less retry wears the browser's real UA and is served woff2) — so
+     in the field this road lives on the baked table above; the override
+     still works for non-browser engines running this module. An AXIS
+     request (e.g. wght@800) asks css2 for that STATIC instance; the repo
+     sources ship variable files whose default instance would wear the
+     wrong weight, so an axis fetch that misses reports null rather than
+     a lie. */
   const cssQ = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}${axis ? ":" + axis : ""}`;
   for (const ua of ["UIKitMaker-export/1.0 (TTF bundler; +https://uikitmaker.com)", null]) {
     try {
@@ -2033,18 +2074,26 @@ export async function fetchKitFont(family: string, axis?: string, fileTag = "Reg
       const fr = await fetch(m[1]);
       if (!fr.ok) continue;
       const bytes = new Uint8Array(await fr.arrayBuffer());
+      const probe = probeSfntWeight(bytes);
+      if (wantedW != null && (probe.variable || probe.weight !== wantedW)) continue; // served the wrong thing — never trust a road over the bytes
       const lic = await fetchFontLicence(slug).catch(() => null);
       return {
         file: `${family.replace(/[^A-Za-z0-9]/g, "")}-${fileTag}.ttf`,
         bytes,
         licenceName: lic?.name ?? "LICENCE-POINTER.txt",
         licenceText: lic?.text ?? licencePointer(family),
+        realWeight: probe.weight,
+        variable: probe.variable,
       };
     } catch { /* next UA / next source */ }
   }
   if (axis) return null; // a wrong-weight variable file is worse than none
   /* ── 2 · google/fonts METADATA.pb over the raw CDN (unauthenticated,
-     no API rate limit): names the real TTF files in the collection ── */
+     no API rate limit): names the real TTF files in the collection. For
+     variable families the file aboard IS the variable TTF — the probe
+     rides the result so the caller can say so out loud instead of
+     assuming Regular-400 (field: Fredoka's default instance is 300,
+     "Fredoka Light", and the manifest claimed 400). ── */
   for (const dir of ["ofl", "apache", "ufl"]) {
     try {
       const metaRes = await fetch(`https://raw.githubusercontent.com/google/fonts/main/${dir}/${slug}/METADATA.pb`);
@@ -2056,8 +2105,9 @@ export async function fetchKitFont(family: string, axis?: string, fileTag = "Reg
       const fr = await fetch(`https://raw.githubusercontent.com/google/fonts/main/${dir}/${slug}/${pick}`);
       if (!fr.ok) continue;
       const bytes = new Uint8Array(await fr.arrayBuffer());
+      const probe = probeSfntWeight(bytes);
       const lic = await fetchFontLicence(slug).catch(() => null);
-      return { file: pick, bytes, licenceName: lic?.name ?? "LICENCE-POINTER.txt", licenceText: lic?.text ?? licencePointer(family) };
+      return { file: pick, bytes, licenceName: lic?.name ?? "LICENCE-POINTER.txt", licenceText: lic?.text ?? licencePointer(family), realWeight: probe.weight, variable: probe.variable };
     } catch { /* next collection */ }
   }
   /* ── 3 · the original api.github.com listing (auth-less, rate-limited —
@@ -2075,11 +2125,15 @@ export async function fetchKitFont(family: string, axis?: string, fileTag = "Reg
       if (!pick?.download_url || !lic?.download_url) continue; // no license file, no binary
       const [fontRes, licRes] = await Promise.all([fetch(pick.download_url), fetch(lic.download_url)]);
       if (!fontRes.ok || !licRes.ok) continue;
+      const bytes = new Uint8Array(await fontRes.arrayBuffer());
+      const probe = probeSfntWeight(bytes);
       return {
         file: pick.name,
-        bytes: new Uint8Array(await fontRes.arrayBuffer()),
+        bytes,
         licenceName: lic.name,
         licenceText: await licRes.text(),
+        realWeight: probe.weight,
+        variable: probe.variable,
       };
     } catch { /* try the next collection */ }
   }
@@ -4090,14 +4144,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   for (const fam of famList) {
     const wantAxis = fam === st.cfg.type.font && designedW !== 400;
     let got = wantAxis ? await fetchKitFont(fam, `wght@${designedW}`, W_TAGS[designedW] ?? `W${designedW}`).catch(() => null) : null;
-    const gotDesigned = !!got;
+    const gotDesigned = !!got && !got.variable && got.realWeight === designedW;
     if (!got) got = await fetchKitFont(fam).catch(() => null);
     if (!got) continue;
     const famSlug = fam.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     files.push({ path: `fonts/${got.file}`, data: got.bytes });
     files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
     tpnFonts.push({ family: fam, role: fam === st.cfg.type.font ? "the kit's own face" : "a kit voice", file: got.file, licenceName: got.licenceName, licenceText: got.licenceText });
-    if (fam === st.cfg.type.font) { primaryFontFile = `fonts/${got.file}`; primaryFontBytes = got.bytes; shippedWeight = gotDesigned ? designedW : 400; }
+    if (fam === st.cfg.type.font) {
+      primaryFontFile = `fonts/${got.file}`;
+      primaryFontBytes = got.bytes;
+      /* the weight the aboard bytes will actually RENDER at in Unity —
+         from the tables (fvar default / OS/2), never assumed. Strike
+         three field truth: the fallback file was the VARIABLE Fredoka
+         whose default instance is 300 ("Fredoka Light") while this
+         field claimed 400 — the importer's gap rule then under-bolded
+         and every label read light. */
+      shippedWeight = got.realWeight ?? (gotDesigned ? designedW : 400);
+      if (wantAxis && !gotDesigned) {
+        const aboard = got.variable
+          ? `a VARIABLE file whose default instance renders at weight ${got.realWeight ?? "unknown"} (Unity's TextMeshPro cannot select variable-font weights)`
+          : `the weight-${got.realWeight ?? 400} cut`;
+        onWarn?.(`Heads up — your kit designs its type at weight ${designedW}, but the real ${W_TAGS[designedW] ?? designedW} cut of "${fam}" couldn't be downloaded just now, so this zip ships ${aboard}. Unity will approximate the difference with synthetic bold, which reads lighter than your design. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import — nothing you type in Unity is lost.`);
+      }
+    }
   }
   setEmbedFont(st.cfg.type.font, primaryFontBytes);
   /* the INSTRUMENT voice: panels draw HUD and readout text in Inter at
@@ -4115,6 +4185,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       files.push({ path: instrumentFile, data: inst.bytes });
       files.push({ path: `fonts/inter-${inst.licenceName}`, data: inst.licenceText });
       tpnFonts.push({ family: "Inter", role: "the instrument voice — HUD readouts", file: inst.file, licenceName: inst.licenceName, licenceText: inst.licenceText });
+    } else {
+      onWarn?.("Heads up — the heavy Inter cut for HUD readout text (Inter ExtraBold) couldn't be downloaded just now, so panel numbers and readouts in Unity will wear a synthetic bold that reads lighter than the app. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import.");
     }
   }
   /* the CONTENT cut (r36, owner: "maybe the weights aren't coming
@@ -4132,9 +4204,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   let contentFile: string | null = null;
   if (primaryFontFile && shippedWeight < 700) {
     const got = await fetchKitFont(st.cfg.type.font, "wght@700", W_TAGS[700]).catch(() => null);
-    if (got) {
+    if (got && !got.variable && got.realWeight === 700) {
       contentFile = `fonts/${got.file}`;
       if (!files.some((f) => f.path === contentFile)) files.push({ path: contentFile, data: got.bytes });
+    } else {
+      onWarn?.(`Heads up — the Bold (700) cut of "${st.cfg.type.font}" for content text couldn't be downloaded just now, so bold body text in Unity will wear a synthetic bold that reads lighter than the app. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import.`);
     }
   }
   /* a fontless zip must NEVER leave the browser silently again (round-9
@@ -12221,7 +12295,102 @@ namespace PatternBreak {
           Debug.LogWarning("UI Kit Maker: " + fa.name + " is still bound to a different source font than the kit ships (wanted " + Path.GetFileName(ttfPath) + ") — its dynamic glyphs may render the wrong weight. Delete the asset in fonts/ and run Tools > PatternBreak > Reapply Kit Import Settings to rebuild it from the shipped cut.");
       } catch (Exception) { }
     }
+    /* ── the REAL weight of a shipped font file (strike three on font
+       weights): TextMeshPro renders the DEFAULT INSTANCE of whatever
+       bytes are aboard — a variable file's fvar default (Fredoka's is
+       300, "Fredoka Light"), a static file's OS/2 usWeightClass. The
+       manifest's shippedWeight is a CLAIM written at export time; these
+       readers make every bold decision follow the bytes, so a wrong or
+       stale claim can never silently regress the gap rule again. */
+    static uint SfntBE32(byte[] b, int o) { return ((uint)b[o] << 24) | ((uint)b[o + 1] << 16) | ((uint)b[o + 2] << 8) | b[o + 3]; }
+    static int SfntBE16(byte[] b, int o) { return (b[o] << 8) | b[o + 1]; }
+    /* default-instance weight of an sfnt blob; 0 = unreadable. variable =
+       an fvar table is aboard (TMP ignores its axes). */
+    static int SfntDefaultWeight(byte[] b, out bool variable) {
+      variable = false;
+      try {
+        if (b == null || b.Length < 12) return 0;
+        uint ver = SfntBE32(b, 0);
+        if (ver != 0x00010000u && ver != 0x4F54544Fu && ver != 0x74727565u) return 0;
+        int n = SfntBE16(b, 4);
+        int os2 = -1, fvarOff = -1;
+        for (int i = 0; i < n; i++) {
+          int o = 12 + i * 16;
+          if (o + 16 > b.Length) return 0;
+          uint tag = SfntBE32(b, o);
+          if (tag == 0x4F532F32u) os2 = (int)SfntBE32(b, o + 8);
+          else if (tag == 0x66766172u) fvarOff = (int)SfntBE32(b, o + 8);
+        }
+        if (fvarOff >= 0 && fvarOff + 16 <= b.Length) {
+          variable = true;
+          int axesOff = fvarOff + SfntBE16(b, fvarOff + 4);
+          int axisCount = SfntBE16(b, fvarOff + 8);
+          int axisSize = SfntBE16(b, fvarOff + 10);
+          for (int a = 0; a < axisCount; a++) {
+            int ao = axesOff + a * axisSize;
+            if (ao + 20 > b.Length) break;
+            if (SfntBE32(b, ao) == 0x77676874u) return (int)(SfntBE32(b, ao + 8) >> 16); // 'wght' default (Fixed 16.16)
+          }
+        }
+        if (os2 >= 0 && os2 + 6 <= b.Length) return SfntBE16(b, os2 + 4);
+      } catch (Exception) { }
+      return 0;
+    }
+    static Dictionary<string, int> pbRealWeightCache = new Dictionary<string, int>();
+    static Dictionary<string, bool> pbRealVarCache = new Dictionary<string, bool>();
+    static HashSet<string> pbWeightSpoke = new HashSet<string>();
+    static int RealFontWeight(string root, string relFile, out bool variable) {
+      variable = false;
+      if (string.IsNullOrEmpty(relFile)) return 0;
+      var key = root + "/" + relFile;
+      int w;
+      if (pbRealWeightCache.TryGetValue(key, out w)) { pbRealVarCache.TryGetValue(key, out variable); return w; }
+      try {
+        var bytes = File.Exists(key) ? File.ReadAllBytes(key) : null;
+        w = SfntDefaultWeight(bytes, out variable);
+      } catch (Exception) { w = 0; variable = false; }
+      pbRealWeightCache[key] = w;
+      pbRealVarCache[key] = variable;
+      return w;
+    }
+    /* called from every face-building door, once per loaded manifest
+       object: align the manifest's weight CLAIMS with the bytes actually
+       aboard, out loud. A claim the bytes contradict is corrected before
+       any bold decision reads it; a content/instrument file that is not
+       really the heavy cut is dropped so its road's honest fallback
+       (gap-rule flag / grotesk + synthetic bold) takes over. */
+    static void HonestizeTypeWeights(string root, PBManifest m) {
+      if (m == null || m.typography == null || m.typography.style == null) return;
+      var ty = m.typography;
+      bool isVar;
+      int real = RealFontWeight(root, ty.fontFile, out isVar);
+      if (real > 0 && ty.style.shippedWeight != real) {
+        if (pbWeightSpoke.Add(root + "|label|" + ty.fontFile))
+          Debug.LogWarning("UI Kit Maker: the shipped label font (" + ty.fontFile + ") really renders at weight " + real
+            + (isVar ? " — it is a VARIABLE font and TextMeshPro only draws its default instance" : "")
+            + "; the manifest claimed " + ty.style.shippedWeight + ". Bold decisions now follow the real bytes"
+            + (ty.style.weight - real >= 150 ? " (synthetic bold approximates the designed weight " + ty.style.weight + " — re-export for the real cut)." : "."));
+        ty.style.shippedWeight = real;
+      }
+      if (!string.IsNullOrEmpty(ty.contentFile)) {
+        bool cv; int cw = RealFontWeight(root, ty.contentFile, out cv);
+        if (cw > 0 && (cv || cw < 650)) {
+          if (pbWeightSpoke.Add(root + "|content|" + ty.contentFile))
+            Debug.LogWarning("UI Kit Maker: the shipped content cut (" + ty.contentFile + ") really renders at weight " + cw + (cv ? " (variable file — default instance)" : "") + ", not a true 700 — the gap rule covers content text instead. Re-export for the real cut.");
+          ty.contentFile = null;
+        }
+      }
+      if (!string.IsNullOrEmpty(ty.instrumentFile)) {
+        bool iv; int iw = RealFontWeight(root, ty.instrumentFile, out iv);
+        if (iw > 0 && (iv || iw < 700)) {
+          if (pbWeightSpoke.Add(root + "|instrument|" + ty.instrumentFile))
+            Debug.LogWarning("UI Kit Maker: the shipped instrument cut (" + ty.instrumentFile + ") really renders at weight " + iw + (iv ? " (variable file — default instance)" : "") + ", not the heavy Inter the readouts expect — readout text falls back to the grotesk with synthetic bold. Re-export for the real cut.");
+          ty.instrumentFile = null;
+        }
+      }
+    }
     static TMP_FontAsset EnsureTmpFace(string root, PBManifest m, Font ttf) {
+      HonestizeTypeWeights(root, m);
       var path = root + "/fonts/KitFace SDF.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
       if (existing != null) { StampDynamicSource(existing, ttf); return existing; }
@@ -14736,6 +14905,7 @@ namespace PatternBreak {
        export couldn't bundle it — SeatVoice keeps the grotesk + Bold
        approximation exactly as before. */
     static TMP_FontAsset EnsureInstrumentFace(string root, PBManifest m) {
+      HonestizeTypeWeights(root, m);
       var path = root + "/fonts/Instrument SDF.asset";
       var instTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.instrumentFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
@@ -14766,6 +14936,7 @@ namespace PatternBreak {
        older zip / fetch miss — the gap-rule flag covers exactly as
        before. */
     static TMP_FontAsset EnsureContentFace(string root, PBManifest m) {
+      HonestizeTypeWeights(root, m);
       var path = root + "/fonts/KitFace Content SDF.asset";
       var srcTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.contentFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.contentFile) : null;
