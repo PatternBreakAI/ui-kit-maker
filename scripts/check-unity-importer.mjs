@@ -1873,6 +1873,32 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
 }
 
+/* ── Unity-exporter follow-up round (2026-08-27): the GLYPH SHELF.
+   Owner call, verbatim honored: glyphs STAY prefabs but live in
+   Prefabs/Glyphs (the BigGlyphs pattern); existing projects' root-level
+   glyph prefabs MOVE there (GUID-preserving MoveAsset — references
+   follow), ownership-gated; scenes answer both addresses; button-embedded
+   icons remain children, never separate prefabs. */
+{
+  if (!/if \(a\.component\.StartsWith\("glyph"\)\) \{\s*\n\s*if \(!AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.CreateFolder\(dir, "Glyphs"\);\s*\n\s*famDir2 = glyphDir;/.test(cs))
+    errors.push("glyph family prefabs must build into Prefabs/Glyphs (the BigGlyphs pattern) — the folder call (slice 4)");
+  if (!/if \(!anyGlyph && !hadGlyphDir && AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.DeleteAsset\(glyphDir\);/.test(cs))
+    errors.push("a glyph-less kit must leave no empty Glyphs folder (slice 4)");
+  if (!/pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Glyphs\/" \+ pfName \+ "\.prefab"\);/.test(cs)
+      || !/if \(pf == null\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/" \+ pfName \+ "\.prefab"\);/.test(cs))
+    errors.push("board scenes must answer BOTH glyph addresses (Prefabs/Glyphs first, the root for kept projects) (slice 4)");
+  if (!/static void ShelveGlyphPrefabs\(string root\)/.test(cs)
+      || !/spPathG\.StartsWith\(root \+ "\/assets\/glyph"\)/.test(cs)
+      || !/AssetDatabase\.MoveAsset\(pG, targetG\)/.test(cs))
+    errors.push("the glyph shelving pass (ownership-gated GUID-preserving move into Prefabs/Glyphs) is missing (slice 4)");
+  if (!/ShelveGlyphPrefabs\(root\); \/\/ the owner's folder call, healed on every import/.test(cs)
+      || !/ShelveGlyphPrefabs\(root\); \/\/ root-level glyphs move BEFORE the rebuild/.test(cs))
+    errors.push("glyph shelving must run on every import AND before a manual Regenerate — a rebuild would otherwise mint Glyphs/ twins beside root originals (slice 4)");
+  // button-embedded icons stay CHILDREN — no builder may mint an icon prefab
+  for (const m2 of cs.matchAll(/SaveAsPrefabAsset\(go, ([^)]+)\)/g))
+    if (/"Icon/.test(m2[1])) errors.push(`a builder saves an icon prefab (${m2[1].slice(0, 60)}) — button-embedded icons remain children, never separate prefabs (slice 4)`);
+}
+
 /* ── Unity-exporter follow-up round (2026-08-27): the IMMUTABLE-PACKAGE
    POLICY, scanned. Owner field (Shop status bar): "assets located in
    immutable packages were unexpectedly altered". Two write roads could

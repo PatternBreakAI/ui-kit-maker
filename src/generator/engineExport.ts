@@ -9263,6 +9263,7 @@ namespace PatternBreak {
         EnsureBakedFace(root, manifest, true);
         EnsureGradientPreset(root, manifest);
 #endif
+        ShelveGlyphPrefabs(root); // root-level glyphs move BEFORE the rebuild — no Glyphs/ twins beside originals
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
       }
@@ -10411,7 +10412,13 @@ namespace PatternBreak {
             else if (it.component == "joystick") pfName = it.ov == "ghost" ? "JoystickGhost" : "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
-            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+            /* the glyph rack lives on its own shelf now (Prefabs/Glyphs —
+               the BigGlyphs pattern); a kept project may still hold its
+               glyphs at the root, so both addresses answer */
+            GameObject pf = null;
+            if (it.component != null && it.component.StartsWith("glyph"))
+              pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Glyphs/" + pfName + ".prefab");
+            if (pf == null) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
             /* a STRETCHED piece smears its face pattern through the
                nine-slice center (owner: "look at how the pattern inside
                the button scales") — the tiled-face build is made for
@@ -15557,6 +15564,13 @@ namespace PatternBreak {
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
       var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton" };
+      /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
+         drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
+         Glyphs STAY prefabs (drag-drop convenience; they'll gain states
+         later) — only their address changes. */
+      var glyphDir = dir + "/Glyphs";
+      bool hadGlyphDir = AssetDatabase.IsValidFolder(glyphDir);
+      bool anyGlyph = false;
       foreach (var a in m.assets) {
         if (a == null || string.IsNullOrEmpty(a.component) || a.part != "base") continue;
         if (skip.Contains(a.component)) continue;
@@ -15570,8 +15584,18 @@ namespace PatternBreak {
            this hardcoded list. A deliberate blank ("" — kitNoText) builds
            wordless; the seat families carry their words as textSeats. */
         if (label == null && a.labelText != null && a.labelText.Length > 0) label = a.labelText;
-        if (FamilyPrefab(dir, root, a, NiceName(a.component), label, pngScale, kitFont, m)) any = true;
+        var famDir2 = dir;
+        if (a.component.StartsWith("glyph")) {
+          if (!AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.CreateFolder(dir, "Glyphs");
+          famDir2 = glyphDir;
+        }
+        if (FamilyPrefab(famDir2, root, a, NiceName(a.component), label, pngScale, kitFont, m)) {
+          any = true;
+          if (famDir2 == glyphDir) anyGlyph = true;
+        }
       }
+      // a glyph-less kit leaves no empty shelf behind
+      if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -15805,9 +15829,48 @@ namespace PatternBreak {
         return changed;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
+    /* ── the GLYPH SHELVING (owner call): existing projects' root-level
+       Glyph* prefabs MOVE into Prefabs/Glyphs — MoveAsset keeps the
+       GUID, so every scene instance and reference follows untouched
+       (the safe road; tolerating both addresses forever would let the
+       next generation mint duplicates). Ours beyond doubt: the file
+       sits DIRECTLY in Prefabs/, the name starts with "Glyph", and the
+       piece draws a sprite under this kit's assets/glyph*. A name
+       collision at the target keeps the original in place, out loud.
+       Runs on every import (maintenance) AND before a manual
+       Regenerate, so a rebuild can never mint Glyphs/ twins beside
+       root-level originals. */
+    static void ShelveGlyphPrefabs(string root) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return;
+      int glyphShelved = 0;
+      var shelfMisses = new List<string>();
+      foreach (var gG in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
+        var pG = AssetDatabase.GUIDToAssetPath(gG).Replace("\\\\", "/");
+        var fnG = Path.GetFileName(pG);
+        if (!fnG.StartsWith("Glyph")) continue;
+        var dirOfG = Path.GetDirectoryName(pG).Replace("\\\\", "/");
+        if (dirOfG != dir) continue; // already shelved (Glyphs/), or BigGlyphs/ — not this pass's business
+        var assetG = AssetDatabase.LoadAssetAtPath<GameObject>(pG);
+        if (assetG == null) continue;
+        var imgG = BodyImage(assetG);
+        var spPathG = imgG != null && imgG.sprite != null ? AssetDatabase.GetAssetPath(imgG.sprite).Replace("\\\\", "/") : null;
+        if (spPathG == null || !spPathG.StartsWith(root + "/assets/glyph")) continue; // not the kit's glyph rack — theirs
+        if (!AssetDatabase.IsValidFolder(dir + "/Glyphs")) AssetDatabase.CreateFolder(dir, "Glyphs");
+        var targetG = dir + "/Glyphs/" + fnG;
+        if (File.Exists(targetG)) { shelfMisses.Add(fnG); continue; }
+        if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(pG, targetG))) glyphShelved++;
+        else shelfMisses.Add(fnG);
+      }
+      if (glyphShelved > 0)
+        Debug.Log("UI Kit Maker: moved " + glyphShelved + " glyph prefab(s) into " + dir + "/Glyphs (same files, same GUIDs — every scene reference follows; the BigGlyphs pattern). The Prefabs folder reads as components again.");
+      if (shelfMisses.Count > 0)
+        Debug.LogWarning("UI Kit Maker: " + shelfMisses.Count + " glyph prefab(s) stayed at the Prefabs root (" + string.Join(", ", shelfMisses.ToArray()) + ") — a file with that name already lives in Prefabs/Glyphs, or the move was refused. Nothing was overwritten.");
+    }
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
+      ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0;
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
