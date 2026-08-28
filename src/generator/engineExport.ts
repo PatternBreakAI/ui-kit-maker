@@ -8457,7 +8457,7 @@ Every board scene ships phone-ready, three deliberate layers deep:
     HUD corners stay HUD corners on every aspect ratio.
   - **baked art** (a flattened stamp) spanning **80%+ of a dimension**,
     unrotated → **stretches** across that dimension, margins held.
-    Type stamps and big-glyph art are exempt — letterforms never
+    Type stamps and your board Art are exempt — letterforms never
     distort — and live prefabs always keep point anchors (their sizing
     runs through scale, which stretch anchors would break).
   - everything else → anchored to the **center** (the safe default —
@@ -8482,10 +8482,10 @@ root into KEPT board scenes too (the Console says so per scene) —
 layout-identical in the editor, cutout-safe on device. Scenes never
 re-imported are never touched.
 ${st.boards?.some((b) => b.items.some((i) => i.big)) ? `
-Big-glyph board art rides along: each glyph you used gets its own
-prefab in **${root}/Prefabs/BigGlyphs/**, and the scenes place
-instances of it (a copy's shadow/glow dials arrive baked into that
-copy's own sprite).
+Your board ART rides along: each Art asset you used gets its own
+prefab in **${root}/Prefabs/Art/**, and the scenes place instances of
+it (a copy's shadow/glow dials arrive baked into that copy's own
+sprite).
 ` : ""}
 ### What arrives LIVE and what arrives as baked art
 
@@ -8503,7 +8503,7 @@ honestly so you know what you can grab:
   Still fully functional; only the face is this copy's baked render.
 - **Baked art** — pieces that don't ship a prefab family yet (flip
   clock, star tray, dialogue box, page dots and friends), type stamps,
-  and fx-dialed big-glyph copies arrive as pictures of exactly what
+  and fx-dialed Art copies arrive as pictures of exactly what
   the board showed. They read as **"<Piece> (baked)"**, **"Stamp —
   <text>"** or **"<Glyph> (fx)"**, and a piece's grounded drop shadow
   arrives as its own **"<Piece> Shadow (art)"** sibling. Baked art is
@@ -10445,6 +10445,7 @@ namespace PatternBreak {
 #endif
         ShelveGlyphPrefabs(root); // root-level glyphs move BEFORE the rebuild — no Glyphs/ twins beside originals
         RenameDataRowPrefab(root); // and the rename valet, so a rebuild can't mint ListRow beside DataRow
+        RenameArtShelf(root); // BigGlyphs → Art before a rebuild can mint twins
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
       }
@@ -10817,7 +10818,7 @@ namespace PatternBreak {
           var pp = pathOf[p];
           if (pp.Contains("/Prefabs/Variants/") || p.name.Contains("(tiled face)") || p.name == "HeroLabel") continue;
           if (pp.Contains("/Prefabs/Glyphs/")) { glyphNames.Add(p.name); continue; }
-          if (pp.Contains("/Prefabs/BigGlyphs/")) { bigNames.Add(p.name); continue; }
+          if (pp.Contains("/Prefabs/Art/") || pp.Contains("/Prefabs/BigGlyphs/")) { bigNames.Add(p.name); continue; }
           if (!claimed.Contains(p.name)) moreNames.Add(p.name);
         }
         /* ── the CATALOG SCROLL: everything hangs off one Board inside a
@@ -10848,7 +10849,7 @@ namespace PatternBreak {
         float rowW = 1760f, gut = 40f, y = -70f, widest = 0f; int placed = 0;
         var allSecs = new List<(string title, string[] names)>(SECTIONS);
         if (glyphNames.Count > 0) allSecs.Add(("GLYPHS (Prefabs/Glyphs)", glyphNames.ToArray()));
-        if (bigNames.Count > 0) allSecs.Add(("BOARD ART (Prefabs/BigGlyphs)", bigNames.ToArray()));
+        if (bigNames.Count > 0) allSecs.Add(("ART", bigNames.ToArray()));
         if (moreNames.Count > 0) allSecs.Add(("MORE", moreNames.ToArray()));
         var placedNames = new HashSet<string>(); // a name shelves ONCE, wherever it is listed
         foreach (var sec in allSecs) {
@@ -11903,7 +11904,9 @@ namespace PatternBreak {
           if (it.big != null && !string.IsNullOrEmpty(it.big.id)) {
             var bigNm = string.IsNullOrEmpty(it.big.name) ? it.big.id : it.big.name;
             var bigSp = string.IsNullOrEmpty(it.big.sprite) ? null : S(root + "/" + it.big.sprite);
-            var bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/BigGlyphs/" + BigGlyphPrefabName(it.big) + ".prefab");
+            var bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Art/" + BigGlyphPrefabName(it.big) + ".prefab");
+            // a kept project mid-heal may still hold the pre-rename shelf
+            if (bigPf == null) bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/BigGlyphs/" + BigGlyphPrefabName(it.big) + ".prefab");
             if (bigPf != null) {
               inst = (GameObject)PrefabUtility.InstantiatePrefab(bigPf, scene);
               inst.name = bigNm + (it.big.fx ? " (fx)" : "");
@@ -17726,7 +17729,28 @@ namespace PatternBreak {
     static string BigGlyphPrefabName(PBBig bg) {
       return FileSafeWord(string.IsNullOrEmpty(bg.name) ? bg.id : bg.name);
     }
+    /* ── the ART shelf rename (owner decision): the class is "Art" in
+       every surface a person meets — Prefabs/Art, the Playground
+       chapter, docs and receipts. Kept projects' Prefabs/BigGlyphs
+       folder MOVES whole (AssetDatabase.MoveAsset on the folder — same
+       GUIDs inside, every scene reference follows; the Glyphs-shelf
+       precedent). The on-disk sprite folder stays bigglyphs/ by
+       deliberate choice: its path is load-bearing across manifest rows,
+       the orphan sweep, kept prefabs' sprite GUIDs and the texture
+       postprocessor — renaming it would race every kept project. A
+       collision at the target keeps the original, out loud. ── */
+    static void RenameArtShelf(string root) {
+      var dirA = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dirA + "/BigGlyphs")) return;
+      if (AssetDatabase.IsValidFolder(dirA + "/Art")) {
+        Debug.LogWarning("UI Kit Maker: Prefabs/BigGlyphs stays put — a Prefabs/Art folder already lives beside it. Nothing was moved; merge or remove one and re-import.");
+        return;
+      }
+      if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(dirA + "/BigGlyphs", dirA + "/Art")))
+        Debug.Log("UI Kit Maker: Prefabs/BigGlyphs is now Prefabs/Art — the class's name everywhere now (same files, same GUIDs; every scene reference follows).");
+    }
     static bool BigGlyphPrefabs(string dir, string root, PBManifest m) {
+      RenameArtShelf(root); // self-heals at the point of need — no ordering race
       if (m == null || m.boards == null) return false;
       var wanted = new Dictionary<string, PBBoardItem>();
       foreach (var bd in m.boards) {
@@ -17738,9 +17762,9 @@ namespace PatternBreak {
         }
       }
       if (wanted.Count == 0) return false;
-      var sub = dir + "/BigGlyphs";
+      var sub = dir + "/Art";
       bool hadSub = AssetDatabase.IsValidFolder(sub);
-      if (!hadSub) AssetDatabase.CreateFolder(dir, "BigGlyphs");
+      if (!hadSub) AssetDatabase.CreateFolder(dir, "Art");
       bool any = false;
       foreach (var itW in wanted.Values) {
         var bg = itW.big;
@@ -18137,7 +18161,7 @@ namespace PatternBreak {
         var fnG = Path.GetFileName(pG);
         if (!fnG.StartsWith("Glyph")) continue;
         var dirOfG = Path.GetDirectoryName(pG).Replace("\\\\", "/");
-        if (dirOfG != dir) continue; // already shelved (Glyphs/), or BigGlyphs/ — not this pass's business
+        if (dirOfG != dir) continue; // already shelved (Glyphs/), or the Art shelf — not this pass's business
         var assetG = AssetDatabase.LoadAssetAtPath<GameObject>(pG);
         if (assetG == null) continue;
         var imgG = BodyImage(assetG);
@@ -18150,7 +18174,7 @@ namespace PatternBreak {
         else shelfMisses.Add(fnG);
       }
       if (glyphShelved > 0)
-        Debug.Log("UI Kit Maker: moved " + glyphShelved + " glyph prefab(s) into " + dir + "/Glyphs (same files, same GUIDs — every scene reference follows; the BigGlyphs pattern). The Prefabs folder reads as components again.");
+        Debug.Log("UI Kit Maker: moved " + glyphShelved + " glyph prefab(s) into " + dir + "/Glyphs (same files, same GUIDs — every scene reference follows; the Art-shelf pattern). The Prefabs folder reads as components again.");
       if (shelfMisses.Count > 0)
         Debug.LogWarning("UI Kit Maker: " + shelfMisses.Count + " glyph prefab(s) stayed at the Prefabs root (" + string.Join(", ", shelfMisses.ToArray()) + ") — a file with that name already lives in Prefabs/Glyphs, or the move was refused. Nothing was overwritten.");
     }
@@ -18180,6 +18204,7 @@ namespace PatternBreak {
       if (!AssetDatabase.IsValidFolder(dir)) return;
       ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
       RenameDataRowPrefab(root); // the owner's language, healed on every import
+      RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
@@ -18564,7 +18589,7 @@ namespace PatternBreak {
             var wantSz = new Vector2(rootImg.sprite.rect.width / psR, rootImg.sprite.rect.height / psR);
             /* the ledger keys on the prefab's kit-relative path — stable
                across the relocation valet, and collision-proof between
-               Prefabs/ and its Glyphs/BigGlyphs shelves */
+               Prefabs/ and its Glyphs/Art shelves */
             var rectKey = path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path;
             bool differs = Mathf.Abs(rrt.sizeDelta.x - wantSz.x) > 0.75f || Mathf.Abs(rrt.sizeDelta.y - wantSz.y) > 0.75f;
             if (!differs) rectLedger[rectKey] = wantSz; // on-contract: provably ours — remember it

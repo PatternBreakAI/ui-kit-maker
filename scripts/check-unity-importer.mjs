@@ -541,8 +541,8 @@ if (!/component: "bigglyph"/.test(src) || !/big: \{ id: gl\.id, name: gl\.name, 
   errors.push("the app-side big-glyph emission seam (component bigglyph + big{id,name,sprite,fx}) is missing (round 23)");
 if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
   errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
-if (!/Prefabs\/BigGlyphs\/\*\*/.test(src))
-  errors.push("the README's Prefabs/BigGlyphs pointer is missing (round 23)");
+if (!/Prefabs\/Art\/\*\*/.test(src))
+  errors.push("the README's Prefabs/Art pointer is missing (round 23; the shelf renamed to Art on the owner's decision)");
 
 /* round-24: the CAST SHADOW crosses the seam (dev field notes #3: the
    mobile board's "Banner is also missing its shadow"). App half: live and
@@ -2268,6 +2268,30 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
   if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
     errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
+}
+
+/* SLICE-5 pins (owner decision): the big-glyph class is "Art" on every
+   surface a person meets — the Prefabs shelf, the Playground chapter,
+   docs and receipts — with a GUID-keeping folder valet for kept
+   projects. The on-disk sprite folder stays bigglyphs/ by deliberate
+   choice (load-bearing across manifest rows, the orphan sweep, kept
+   sprite GUIDs and the texture postprocessor). */
+{
+  if (!/static void RenameArtShelf\(string root\)/.test(cs)
+      || !/AssetDatabase\.MoveAsset\(dirA \+ "\/BigGlyphs", dirA \+ "\/Art"\)/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ self-heals at the point of need — no ordering race/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ BigGlyphs → Art, the class's name everywhere/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ BigGlyphs → Art before a rebuild can mint twins/.test(cs))
+    errors.push("the Art-shelf rename valet (GUID-keeping folder MoveAsset + its three call sites) is missing");
+  if (!/var sub = dir \+ "\/Art";/.test(cs) || !/AssetDatabase\.CreateFolder\(dir, "Art"\);/.test(cs))
+    errors.push("board-art prefabs no longer build into Prefabs/Art");
+  if (!/root \+ "\/Prefabs\/Art\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
+    errors.push("scene placement no longer looks at Prefabs/Art first (the BigGlyphs load must be the FALLBACK only)");
+  if (!/pp\.Contains\("\/Prefabs\/Art\/"\) \|\| pp\.Contains\("\/Prefabs\/BigGlyphs\/"\)/.test(cs)
+      || !/allSecs\.Add\(\("ART", bigNames\.ToArray\(\)\)\);/.test(cs))
+    errors.push("the Playground's ART chapter is gone (gather or label) — the owner's rename");
+  if (/BOARD ART \(Prefabs\/BigGlyphs\)/.test(cs))
+    errors.push("the old 'BOARD ART (Prefabs/BigGlyphs)' chapter label is back");
 }
 
 if (errors.length) {
